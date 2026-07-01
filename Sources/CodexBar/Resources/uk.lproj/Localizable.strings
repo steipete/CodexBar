@@ -417,6 +417,15 @@
 "start_at_login_subtitle" = "Автоматично відкриває CodexBar під час запуску Mac.";
 "show_cost_summary" = "Показати підсумок витрат";
 "show_cost_summary_subtitle" = "Читає локальні журнали використання. Показує сьогодні + вибране вікно історії в меню.";
+"cost_summary_style_title" = "Стиль відображення";
+"cost_summary_style_inline" = "Лише вбудовано";
+"cost_summary_style_submenu" = "Лише підменю";
+"cost_summary_style_both" = "Обидва";
+"cost_summary_style_inline_help" = "Показує підсумок витрат безпосередньо в головному меню.";
+"cost_summary_style_submenu_help" = "Натомість показує детальне підменю Вартість.";
+"cost_summary_style_both_help" = "Показує підсумок у головному меню та детальне підменю Вартість.";
+"cost_history_window_title" = "Вікно історії";
+"cost_history_window_help" = "Визначає, скільки днів локальних журналів використання показувати в меню.";
 "cost_history_days_title" = "Вікно історії: %d днів";
 "cost_auto_refresh_info" = "Автоматичне оновлення: щогодини · Час очікування: 10 хв";
 "refresh_cadence_title" = "Оновити каденцію";
@@ -643,6 +652,7 @@
 
 /* Provider status */
 "status_operational" = "Працює";
+"status_degraded" = "Знижена продуктивність";
 "status_partial_outage" = "Часткове відключення";
 "status_major_outage" = "Серйозний збій";
 "status_critical_issue" = "Критична проблема";
@@ -699,6 +709,7 @@
 "Add Account..." = "Додати обліковий запис...";
 "Usage Dashboard" = "Панель використання";
 "Status Page" = "Сторінка стану";
+"Open Status Page" = "Відкрити сторінку стану";
 "Settings..." = "Налаштування...";
 "About CodexBar" = "Про CodexBar";
 "Quit" = "Вийти";
@@ -1091,8 +1102,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Кредити скидання ліміту";
-"1 manual reset available" = "Доступне 1 ручне скидання";
-"%d manual resets available" = "Доступно ручних скидань: %d";
+"1 available" = "1 доступне";
+"%d available" = "%d доступно";
 "Next expires %@" = "Наступне спливає %@";
 "Other (%d items)" = "Інше (%d елементів)";
 "Expand" = "Розгорнути";

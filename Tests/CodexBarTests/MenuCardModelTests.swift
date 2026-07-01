@@ -221,6 +221,7 @@ struct ProviderInlineDashboardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            tokenCostInlineDashboardEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -1200,7 +1201,7 @@ struct MenuCardModelTests {
             hidePersonalInfo: true,
             now: now))
 
-        #expect(model.email == "Hidden")
+        #expect(model.email.isEmpty)
         #expect(model.subtitleText.contains("codex@example.com") == false)
         #expect(model.creditsHintCopyText?.isEmpty == true)
         #expect(model.creditsHintText?.contains("codex@example.com") == false)

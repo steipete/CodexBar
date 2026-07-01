@@ -203,6 +203,7 @@ struct StatusMenuPersistentRefreshTests {
         let updateItem = try #require(menu.items.first { $0.title == "Update ready, restart now?" })
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
         #expect(MenuDescriptor.MenuAction.installUpdate.systemImageName == "arrow.down.circle")
+        #expect(MenuDescriptor.MenuAction.dashboard.systemImageName == "chart.xyaxis.line")
         #expect(updateItem.image != nil)
         #expect(refreshItem.view is any MenuCardHighlighting)
         #expect(refreshItem.action == nil)
@@ -643,6 +644,7 @@ struct StatusMenuPersistentRefreshTests {
     func `refresh monitor preserves tracked layout when token error appears`() throws {
         let settings = self.makeSettings()
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         let controller = self.makeController(settings: settings)
         controller.store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
         let fallback = try #require(controller.menuCardModel(for: .claude))
@@ -658,6 +660,7 @@ struct StatusMenuPersistentRefreshTests {
     func `refresh monitor preserves tracked layout when token error text changes`() throws {
         let settings = self.makeSettings()
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         let controller = self.makeController(settings: settings)
         controller.store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(), provider: .claude)
         controller.store._setTokenErrorForTesting("Old token usage error", provider: .claude)
@@ -980,7 +983,9 @@ struct StatusMenuPersistentRefreshTests {
         #expect(recorder.settingsCount == 1)
         #expect(recorder.quitCount == 1)
     }
+}
 
+extension StatusMenuPersistentRefreshTests {
     private func keyEvent(_ characters: String, keyCode: UInt16) throws -> NSEvent {
         try #require(NSEvent.keyEvent(
             with: .keyDown,
@@ -994,9 +999,7 @@ struct StatusMenuPersistentRefreshTests {
             isARepeat: false,
             keyCode: keyCode))
     }
-}
 
-extension StatusMenuPersistentRefreshTests {
     @Test
     func `refresh row metrics match tuned native-style values`() {
         let metrics = PersistentRefreshRowMetrics.defaults
@@ -1004,13 +1007,14 @@ extension StatusMenuPersistentRefreshTests {
         #expect(metrics.selectionHorizontalInset == 5)
         #expect(metrics.selectionVerticalInset == 0)
         #expect(metrics.selectionCornerRadius == 7)
-        #expect(metrics.leadingPadding == 13)
+        #expect(metrics.leadingPadding == 17)
         #expect(metrics.trailingPadding == 8)
-        #expect(metrics.iconWidth == 17)
-        #expect(metrics.iconSymbolPointSize == 11)
+        #expect(metrics.iconWidth == 14)
+        #expect(metrics.iconSymbolPointSize == 12)
+        #expect(metrics.iconSymbolWeight == .semibold)
         #expect(metrics.iconTitleSpacing == 4.5)
         #expect(metrics.shortcutFontSize == 13)
-        #expect(metrics.shortcutXOffset == -12)
+        #expect(metrics.shortcutXOffset == -9.5)
         #expect(metrics.shortcutYOffset == 0)
     }
 

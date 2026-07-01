@@ -203,7 +203,7 @@ extension UsageMenuCardView.Model {
             return Self.poeInlineDashboard(usage, now: input.now)
         }
         if [.codex, .claude, .vertexai, .bedrock].contains(input.provider),
-           input.tokenCostUsageEnabled,
+           input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty
         {

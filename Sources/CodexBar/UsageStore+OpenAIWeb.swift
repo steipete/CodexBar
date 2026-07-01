@@ -1268,6 +1268,7 @@ extension UsageStore {
                 }
             case .noCookiesFound,
                  .browserAccessDenied,
+                 .browserCookieLoadTimedOut,
                  .dashboardStillRequiresLogin,
                  .manualCookieHeaderInvalid:
                 self.logOpenAIWeb("[\(stamp)] import failed: \(err.localizedDescription)")

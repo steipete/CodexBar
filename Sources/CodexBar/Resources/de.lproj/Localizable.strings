@@ -417,6 +417,15 @@
 "start_at_login_subtitle" = "Startet CodexBar automatisch, wenn dein Mac hochfährt.";
 "show_cost_summary" = "Kostenübersicht anzeigen";
 "show_cost_summary_subtitle" = "Liest lokale Nutzungsprotokolle. Zeigt heute + das gewählte Verlaufsfenster im Menü.";
+"cost_summary_style_title" = "Anzeigestil";
+"cost_summary_style_inline" = "Nur Inline";
+"cost_summary_style_submenu" = "Nur Untermenü";
+"cost_summary_style_both" = "Beides";
+"cost_summary_style_inline_help" = "Zeigt die Kostenübersicht direkt im Hauptmenü.";
+"cost_summary_style_submenu_help" = "Zeigt stattdessen das detaillierte Kosten-Untermenü.";
+"cost_summary_style_both_help" = "Zeigt die Hauptmenü-Übersicht und das detaillierte Kosten-Untermenü.";
+"cost_history_window_title" = "Verlaufsfenster";
+"cost_history_window_help" = "Legt fest, wie viele Tage lokaler Nutzungsprotokolle im Menü erscheinen.";
 "cost_history_days_title" = "Verlaufsfenster: %d Tage";
 "cost_auto_refresh_info" = "Auto-Aktualisierung: stündlich · Timeout: 10 Min.";
 "refresh_cadence_title" = "Aktualisierungsintervall";
@@ -643,6 +652,7 @@
 
 /* Provider status */
 "status_operational" = "Betriebsbereit";
+"status_degraded" = "Eingeschränkte Leistung";
 "status_partial_outage" = "Teilweiser Ausfall";
 "status_major_outage" = "Schwerwiegender Ausfall";
 "status_critical_issue" = "Kritisches Problem";
@@ -699,6 +709,7 @@
 "Add Account..." = "Konto hinzufügen...";
 "Usage Dashboard" = "Nutzungs-Dashboard";
 "Status Page" = "Statusseite";
+"Open Status Page" = "Statusseite öffnen";
 "Settings..." = "Einstellungen...";
 "About CodexBar" = "About CodexBar";
 "Quit" = "Beenden";
@@ -1093,8 +1104,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Credits zum Zurücksetzen des Limits";
-"1 manual reset available" = "1 manuelle Zurücksetzung verfügbar";
-"%d manual resets available" = "%d manuelle Zurücksetzungen verfügbar";
+"1 available" = "1 verfügbar";
+"%d available" = "%d verfügbar";
 "Next expires %@" = "Nächster Ablauf %@";
 "Other (%d items)" = "Andere (%d Elemente)";
 "Expand" = "Aufklappen";

@@ -417,6 +417,15 @@
 "start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";
 "show_cost_summary" = "Show cost summary";
 "show_cost_summary_subtitle" = "Reads local usage logs. Shows today + the selected history window in the menu.";
+"cost_summary_style_title" = "Display style";
+"cost_summary_style_inline" = "Inline only";
+"cost_summary_style_submenu" = "Submenu only";
+"cost_summary_style_both" = "Both";
+"cost_summary_style_inline_help" = "Shows the cost summary directly in the main menu.";
+"cost_summary_style_submenu_help" = "Shows the detailed Cost submenu instead.";
+"cost_summary_style_both_help" = "Shows both the main menu summary and detailed Cost submenu.";
+"cost_history_window_title" = "History window";
+"cost_history_window_help" = "Sets how many days of local usage logs appear in the menu.";
 "cost_history_days_title" = "History window: %d days";
 "cost_auto_refresh_info" = "Auto-refresh: hourly · Timeout: 10m";
 "refresh_cadence_title" = "Refresh cadence";
@@ -643,6 +652,7 @@
 
 /* Provider status */
 "status_operational" = "Operational";
+"status_degraded" = "Degraded performance";
 "status_partial_outage" = "Partial outage";
 "status_major_outage" = "Major outage";
 "status_critical_issue" = "Critical issue";
@@ -699,6 +709,7 @@
 "Add Account..." = "Add Account...";
 "Usage Dashboard" = "Usage Dashboard";
 "Status Page" = "Status Page";
+"Open Status Page" = "Open Status Page";
 "Settings..." = "Settings...";
 "About CodexBar" = "About CodexBar";
 "Quit" = "Quit";
@@ -1099,8 +1110,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Limit Reset Credits";
-"1 manual reset available" = "1 manual reset available";
-"%d manual resets available" = "%d manual resets available";
+"1 available" = "1 available";
+"%d available" = "%d available";
 "Next expires %@" = "Next expires %@";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "bytes";

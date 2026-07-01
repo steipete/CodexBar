@@ -41,11 +41,51 @@ public struct CreditsSnapshot: Equatable, Codable, Sendable {
     public let remaining: Double
     public let events: [CreditEvent]
     public let updatedAt: Date
+    public let codexCreditLimit: CodexCreditLimitSnapshot?
 
-    public init(remaining: Double, events: [CreditEvent], updatedAt: Date) {
+    public init(
+        remaining: Double,
+        events: [CreditEvent],
+        updatedAt: Date,
+        codexCreditLimit: CodexCreditLimitSnapshot? = nil)
+    {
         self.remaining = remaining
         self.events = events
         self.updatedAt = updatedAt
+        self.codexCreditLimit = codexCreditLimit
+    }
+}
+
+public struct CodexCreditLimitSnapshot: Equatable, Codable, Sendable {
+    public let title: String
+    public let used: Double
+    public let limit: Double
+    public let remaining: Double
+    public let remainingPercent: Double
+    public let resetsAt: Date?
+    public let updatedAt: Date
+
+    public init(
+        title: String = "Monthly credit limit",
+        used: Double,
+        limit: Double,
+        remainingPercent: Double,
+        resetsAt: Date?,
+        updatedAt: Date)
+    {
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Monthly credit limit"
+            : title.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.used = max(0, used)
+        self.limit = max(0, limit)
+        self.remaining = max(0, self.limit - self.used)
+        self.remainingPercent = min(100, max(0, remainingPercent))
+        self.resetsAt = resetsAt
+        self.updatedAt = updatedAt
+    }
+
+    public var usedPercent: Double {
+        min(100, max(0, 100 - self.remainingPercent))
     }
 }
 

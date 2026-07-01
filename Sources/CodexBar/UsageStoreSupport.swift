@@ -34,6 +34,51 @@ struct ProviderStatus {
     let updatedAt: Date?
 }
 
+/// A single component/service row on a statuspage.io-style status page
+/// (e.g. "Codex API", "CLI", "FedRAMP") with its current state. A row with non-empty
+/// `children` is a component group and renders as an expandable dropdown.
+struct ProviderStatusComponent: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let indicator: ProviderStatusIndicator
+    /// Raw provider status. The display label is localized when the row renders so changing
+    /// the app language does not require another network refresh.
+    let status: String
+    /// Child rows for a component group; empty for leaf components.
+    var children: [ProviderStatusComponent] = []
+
+    var isGroup: Bool {
+        !self.children.isEmpty
+    }
+
+    var statusLabel: String {
+        Self.label(forStatuspageStatus: self.status)
+    }
+
+    /// Maps a statuspage.io component `status` string to our indicator + display label.
+    static func indicator(forStatuspageStatus status: String) -> ProviderStatusIndicator {
+        switch status {
+        case "operational": .none
+        case "degraded_performance": .minor
+        case "partial_outage": .major
+        case "major_outage", "full_outage": .critical
+        case "under_maintenance": .maintenance
+        default: .unknown
+        }
+    }
+
+    static func label(forStatuspageStatus status: String) -> String {
+        switch status {
+        case "operational": L("status_operational")
+        case "degraded_performance": L("status_degraded")
+        case "partial_outage": L("status_partial_outage")
+        case "major_outage", "full_outage": L("status_major_outage")
+        case "under_maintenance": L("status_maintenance")
+        default: L("status_unknown")
+        }
+    }
+}
+
 /// Tracks consecutive failures so we can ignore a single flake when we previously had fresh data.
 struct ConsecutiveFailureGate {
     private(set) var streak: Int = 0

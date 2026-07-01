@@ -90,7 +90,12 @@ struct AlibabaCodingPlanCookieImporterTests {
             atPath: firefoxProfile.appendingPathComponent("cookies.sqlite").path,
             contents: Data())
 
-        let detection = BrowserDetection(homeDirectory: temp.path, cacheTTL: 0)
+        let detection = BrowserDetection(
+            homeDirectory: temp.path,
+            cacheTTL: 0,
+            fileExists: { path in
+                path == "/Applications/Firefox.app" || FileManager.default.fileExists(atPath: path)
+            })
         let importOrder: BrowserCookieImportOrder = [.firefox, .safari, .chrome]
 
         let candidates = AlibabaCodingPlanCookieImporter.cookieImportCandidates(

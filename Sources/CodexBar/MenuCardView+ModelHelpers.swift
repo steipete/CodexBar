@@ -10,16 +10,15 @@ extension UsageMenuCardView.Model {
     }
 
     static func redactedMetricDetail(_ detail: String?, provider: UsageProvider, metricID: String) -> String? {
-        let redacted = PersonalInfoRedactor.redactEmails(in: detail, isEnabled: true)
+        guard let detail else { return nil }
         guard provider == .litellm,
               metricID == "secondary",
-              let redacted,
-              redacted.hasPrefix("Team "),
-              let separator = redacted.range(of: ": ", options: .backwards)
+              detail.hasPrefix("Team "),
+              let separator = detail.range(of: ": ", options: .backwards)
         else {
-            return redacted
+            return PersonalInfoRedactor.redactEmails(in: detail, isEnabled: true)
         }
-        return "Team Hidden\(redacted[separator.lowerBound...])"
+        return PersonalInfoRedactor.redactEmails(in: "Team\(detail[separator.lowerBound...])", isEnabled: true)
     }
 
     static func redactedMetrics(

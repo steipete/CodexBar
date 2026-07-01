@@ -66,6 +66,18 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies cookie header override for sakana`() {
+        let config = ProviderConfig(id: .sakana, cookieHeader: "Cookie: session=abc")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .sakana,
+            config: config)
+
+        #expect(env[SakanaSettingsReader.cookieHeaderKey] == "Cookie: session=abc")
+        #expect(SakanaSettingsReader.cookieHeader(environment: env) == "session=abc")
+    }
+
+    @Test
     func `applies API key override for moonshot`() {
         let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

@@ -112,6 +112,40 @@ enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
     }
 }
 
+enum CostSummaryDisplayStyle: String, CaseIterable, Identifiable {
+    case inlineSummary
+    case costSubmenu
+    case both
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .inlineSummary: L("cost_summary_style_inline")
+        case .costSubmenu: L("cost_summary_style_submenu")
+        case .both: L("cost_summary_style_both")
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .inlineSummary: L("cost_summary_style_inline_help")
+        case .costSubmenu: L("cost_summary_style_submenu_help")
+        case .both: L("cost_summary_style_both_help")
+        }
+    }
+
+    var showsInlineSummary: Bool {
+        self != .costSubmenu
+    }
+
+    var showsCostSubmenu: Bool {
+        self != .inlineSummary
+    }
+}
+
 struct CachedCodexAccountReconciliationSnapshot {
     let activeSource: CodexActiveSource
     let loadedAt: Date
@@ -377,6 +411,9 @@ extension SettingsStore {
         let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         let rawCostUsageHistoryDays = userDefaults.object(forKey: "tokenCostUsageHistoryDays") as? Int ?? 30
         let costUsageHistoryDays = max(1, min(365, rawCostUsageHistoryDays))
+        let costSummaryDisplayStyleRaw = Self.loadCostSummaryDisplayStyleRaw(
+            userDefaults: userDefaults,
+            costUsageEnabled: costUsageEnabled)
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnWeeklyLimitResetsEnabled = userDefaults.object(
@@ -451,6 +488,7 @@ extension SettingsStore {
             copilotIconSecondaryWindowIDRaw: copilotIconSecondaryWindowIDRaw,
             costUsageEnabled: costUsageEnabled,
             costUsageHistoryDays: costUsageHistoryDays,
+            costSummaryDisplayStyleRaw: costSummaryDisplayStyleRaw,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnWeeklyLimitResetsEnabled: confettiOnWeeklyLimitResetsEnabled,
@@ -472,6 +510,22 @@ extension SettingsStore {
             providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
+    }
+
+    private static func loadCostSummaryDisplayStyleRaw(
+        userDefaults: UserDefaults,
+        costUsageEnabled: Bool) -> String
+    {
+        if let storedCostSummaryDisplayStyle = userDefaults.string(forKey: "costSummaryDisplayStyle"),
+           CostSummaryDisplayStyle(rawValue: storedCostSummaryDisplayStyle) != nil
+        {
+            return storedCostSummaryDisplayStyle
+        }
+        let migratedStyle = CostSummaryDisplayStyle.both.rawValue
+        if costUsageEnabled || userDefaults.object(forKey: "costSummaryDisplayStyle") != nil {
+            userDefaults.set(migratedStyle, forKey: "costSummaryDisplayStyle")
+        }
+        return migratedStyle
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {

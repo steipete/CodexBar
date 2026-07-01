@@ -622,7 +622,7 @@ enum PiSessionCostScanner {
         case .codex:
             CostUsagePricing.codexCostUSD(
                 model: modelName,
-                inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
+                inputTokens: usage.inputTokens + usage.cacheWriteTokens,
                 cachedInputTokens: usage.cacheReadTokens,
                 outputTokens: usage.outputTokens,
                 modelsDevCatalog: pricingContext?.catalog,

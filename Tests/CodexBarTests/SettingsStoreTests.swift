@@ -1110,6 +1110,33 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `menu observation token updates on cost summary display style changes`() async throws {
+        let suite = "SettingsStoreTests-observation-cost-summary-display-style"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let didChange = ObservationFlag()
+
+        withObservationTracking {
+            _ = store.menuObservationToken
+        } onChange: {
+            didChange.set()
+        }
+
+        store.costSummaryDisplayStyle = .costSubmenu
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(didChange.get() == true)
+    }
+
+    @Test
     func `menu observation token ignores merged switcher selection churn`() async throws {
         let suite = "SettingsStoreTests-observation-switcher-selection"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -1347,5 +1374,83 @@ struct SettingsStoreTests {
 
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.alibaba])
         #expect(store.isProviderEnabled(provider: .alibaba, metadata: metadata))
+    }
+
+    @Test
+    func `cost summary display style defaults to both and persists`() throws {
+        let suite = "SettingsStoreTests-cost-summary-display-style"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.costSummaryDisplayStyle == .both)
+
+        storeA.costSummaryDisplayStyle = .costSubmenu
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.costSummaryDisplayStyle == .costSubmenu)
+
+        storeB.costSummaryDisplayStyleRaw = "legacy-style"
+        #expect(storeB.costSummaryDisplayStyle == .both)
+    }
+
+    @Test
+    func `missing cost summary display style preserves existing enabled cost summary`() throws {
+        let suite = "SettingsStoreTests-cost-summary-display-style-upgrade"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: "tokenCostUsageEnabled")
+        defaults.removeObject(forKey: "costSummaryDisplayStyle")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.costSummaryDisplayStyle == .both)
+        #expect(defaults.string(forKey: "costSummaryDisplayStyle") == CostSummaryDisplayStyle.both.rawValue)
+    }
+
+    @Test
+    func `enabling cost summary preserves both display style across relaunch`() throws {
+        let suite = "SettingsStoreTests-cost-summary-display-style-enable"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeA.costSummaryDisplayStyle == .both)
+        #expect(defaultsA.string(forKey: "costSummaryDisplayStyle") == nil)
+
+        storeA.costUsageEnabled = true
+
+        #expect(storeA.costSummaryDisplayStyle == .both)
+        #expect(defaultsA.string(forKey: "costSummaryDisplayStyle") == nil)
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.costSummaryDisplayStyle == .both)
     }
 }

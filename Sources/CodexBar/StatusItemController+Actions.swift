@@ -328,7 +328,17 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let preferred = self.lastMenuProvider
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
 
-        let provider = preferred ?? .codex
+        self.openStatusPage(for: preferred ?? .codex)
+    }
+
+    @objc func openStatusPageFromMenuItem(_ sender: NSMenuItem) {
+        let provider = (sender.identifier?.rawValue).flatMap(UsageProvider.init(rawValue:))
+            ?? self.lastMenuProvider
+            ?? .codex
+        self.openStatusPage(for: provider)
+    }
+
+    private func openStatusPage(for provider: UsageProvider) {
         let meta = self.store.metadata(for: provider)
         let urlString = meta.statusPageURL ?? meta.statusLinkURL
         guard let urlString, let url = URL(string: urlString) else { return }

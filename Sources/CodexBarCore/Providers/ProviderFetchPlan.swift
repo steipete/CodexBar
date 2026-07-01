@@ -201,9 +201,19 @@ public struct ProviderFetchPipeline: Sendable {
         attempts.reserveCapacity(strategies.count)
         var lastAvailableError: Error?
 
+        guard !Task.isCancelled else {
+            return ProviderFetchOutcome(result: .failure(CancellationError()), attempts: attempts)
+        }
+
         for strategy in strategies {
+            guard !Task.isCancelled else {
+                return ProviderFetchOutcome(result: .failure(CancellationError()), attempts: attempts)
+            }
             let available = await strategy.isAvailable(context)
 
+            guard !Task.isCancelled else {
+                return ProviderFetchOutcome(result: .failure(CancellationError()), attempts: attempts)
+            }
             guard available else {
                 attempts.append(ProviderFetchAttempt(
                     strategyID: strategy.id,
@@ -215,6 +225,7 @@ public struct ProviderFetchPipeline: Sendable {
 
             do {
                 let result = try await strategy.fetch(context)
+                try Task.checkCancellation()
                 attempts.append(ProviderFetchAttempt(
                     strategyID: strategy.id,
                     kind: strategy.kind,
@@ -228,6 +239,9 @@ public struct ProviderFetchPipeline: Sendable {
                     kind: strategy.kind,
                     wasAvailable: true,
                     errorDescription: error.localizedDescription))
+                if Task.isCancelled || error is CancellationError {
+                    return ProviderFetchOutcome(result: .failure(CancellationError()), attempts: attempts)
+                }
                 if strategy.shouldFallback(on: error, context: context) {
                     continue
                 }

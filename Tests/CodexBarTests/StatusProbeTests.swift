@@ -67,6 +67,37 @@ struct StatusProbeTests {
     }
 
     @Test
+    func `parse codex monthly credit limit`() throws {
+        let now = try #require(
+            Calendar(identifier: .gregorian).date(from: DateComponents(
+                timeZone: TimeZone.current,
+                year: 2026,
+                month: 6,
+                day: 23,
+                hour: 12,
+                minute: 0)))
+        let sample = """
+        Model: codex-status-fixture
+        Monthly credit limit: [██████████████████░░] 92% left (resets 08:00 on 1 Jul)
+                            7,761 of 100,000 credits used
+        """
+
+        let snap = try CodexStatusProbe.parse(text: sample, now: now)
+
+        #expect(snap.codexCreditLimit?.limit == 100_000)
+        #expect(snap.codexCreditLimit?.used == 7761)
+        #expect(snap.codexCreditLimit?.remaining == 92239)
+        #expect(snap.codexCreditLimit?.remainingPercent == 92)
+        #expect(snap.codexCreditLimit?.resetsAt == Calendar(identifier: .gregorian).date(from: DateComponents(
+            timeZone: TimeZone.current,
+            year: 2026,
+            month: 7,
+            day: 1,
+            hour: 8,
+            minute: 0)))
+    }
+
+    @Test
     func `parse claude status`() throws {
         let sample = """
         Settings: Status   Config   Usage (tab to cycle)

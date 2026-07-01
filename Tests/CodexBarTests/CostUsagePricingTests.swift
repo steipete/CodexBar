@@ -64,7 +64,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
+        let expected = (100.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
         #expect(cost == expected)
     }
 
@@ -112,10 +112,25 @@ struct CostUsagePricingTests {
             modelsDevCacheRoot: root)
 
         let cached = 200_000.0 * 1e-6
-        let nonCached = 100_000.0 * 1e-5
+        let nonCached = 300_000.0 * 1e-5
         let output = 10.0 * 4.5e-5
 
         #expect(gpt55 == cached + nonCached + output)
+    }
+
+    @Test
+    func `codex cost prices cache reads beyond non cached input`() throws {
+        let root = try Self.cacheRoot()
+        let gpt55 = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 20,
+            cachedInputTokens: 500,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        let expected = (20.0 * 5e-6) + (500.0 * 5e-7) + (5.0 * 3e-5)
+
+        #expect(gpt55 == expected)
     }
 
     @Test
@@ -136,9 +151,9 @@ struct CostUsagePricingTests {
             cachedInputTokens: 20,
             outputTokens: 10)
 
-        #expect(gpt54 == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
-        #expect(gpt55 == (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
-        #expect(gpt54Mini == (80.0 * 1.5e-6) + (20.0 * 1.5e-7) + (10.0 * 9e-6))
+        #expect(gpt54 == (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
+        #expect(gpt55 == (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5))
+        #expect(gpt54Mini == (100.0 * 1.5e-6) + (20.0 * 1.5e-7) + (10.0 * 9e-6))
     }
 
     @Test
@@ -148,6 +163,11 @@ struct CostUsagePricingTests {
             inputTokens: 272_001,
             cachedInputTokens: 0,
             outputTokens: 10)
+        let gpt55CachedHeavy = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 200_000,
+            cachedInputTokens: 100_000,
+            outputTokens: 10)
         let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4-mini",
             inputTokens: 272_001,
@@ -155,6 +175,7 @@ struct CostUsagePricingTests {
             outputTokens: 10)
 
         #expect(gpt55 == nil)
+        #expect(gpt55CachedHeavy == nil)
         #expect(gpt54Mini == nil)
     }
 
@@ -162,11 +183,11 @@ struct CostUsagePricingTests {
     func `codex priority cost remains available at priority input boundary`() {
         let gpt55 = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.5",
-            inputTokens: 272_000,
-            cachedInputTokens: 0,
+            inputTokens: 200_000,
+            cachedInputTokens: 72000,
             outputTokens: 10)
 
-        #expect(gpt55 == (272_000.0 * 1.25e-5) + (10.0 * 7.5e-5))
+        #expect(gpt55 == (200_000.0 * 1.25e-5) + (72000.0 * 1.25e-6) + (10.0 * 7.5e-5))
     }
 
     @Test
@@ -221,7 +242,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (100.0 * 3e-5) + (5.0 * 1.8e-4)
+        let expected = (110.0 * 3e-5) + (5.0 * 1.8e-4)
         #expect(cost == expected)
     }
 
@@ -262,7 +283,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (90.0 * 10e-6) + (10.0 * 1e-6) + (5.0 * 20e-6)
+        let expected = (100.0 * 10e-6) + (10.0 * 1e-6) + (5.0 * 20e-6)
         #expect(cost == expected)
     }
 
@@ -289,7 +310,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (90.0 * 2e-6) + (10.0 * 0.2e-6) + (5.0 * 8e-6)
+        let expected = (100.0 * 2e-6) + (10.0 * 0.2e-6) + (5.0 * 8e-6)
         #expect(cost == expected)
         #expect(CostUsagePricing.codexDisplayLabel(model: "gpt-5.3-codex-spark") == "Research Preview")
     }
@@ -317,7 +338,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
+        let expected = (100.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
         #expect(cost == expected)
     }
 

@@ -63,7 +63,7 @@ struct PiSessionCostScannerTests {
             options: options)
         let expectedCodexCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
-            inputTokens: 135,
+            inputTokens: 125,
             cachedInputTokens: 10,
             outputTokens: 30)
         #expect(codexReport.data.count == 1)
@@ -89,6 +89,55 @@ struct PiSessionCostScannerTests {
         #expect(claudeReport.data.first?.totalTokens == 110)
         #expect(abs((claudeReport.data.first?.costUSD ?? 0) - (expectedClaudeCost ?? 0)) < 0.000001)
         #expect(claudeReport.data.first?.modelBreakdowns?.map(\.modelName) == ["claude-sonnet-4-6"])
+    }
+
+    @Test
+    func `pi codex cache reads are billed once and use the true context size`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 4)
+        let assistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "openai/gpt-5.4",
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 180_000,
+                    "cacheRead": 60000,
+                    "output": 0,
+                    "totalTokens": 240_000,
+                ],
+            ],
+        ]
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-04-04T10-00-00-000Z_cache-read.jsonl",
+            contents: env.jsonl([assistant]))
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+        let expectedCost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.4",
+            inputTokens: 180_000,
+            cachedInputTokens: 60000,
+            outputTokens: 0)
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.inputTokens == 180_000)
+        #expect(report.data.first?.cacheReadTokens == 60000)
+        #expect(report.data.first?.totalTokens == 240_000)
+        #expect(abs((report.data.first?.costUSD ?? 0) - (expectedCost ?? 0)) < 0.000001)
     }
 
     @Test
@@ -188,7 +237,7 @@ struct PiSessionCostScannerTests {
 
         let expectedCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.3-codex",
-            inputTokens: 22,
+            inputTokens: 20,
             cachedInputTokens: 2,
             outputTokens: 20)
         #expect(report.data.count == 1)

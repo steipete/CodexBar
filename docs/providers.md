@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 53 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 54 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -56,6 +56,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
+| Sakana AI | Manual Cookie header → billing page parser for 5-hour and weekly quota windows (`web`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
@@ -277,6 +278,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Parses JSONL response lines and extracts customer data from the embedded tRPC payload.
 - Shows the 4-hour Base bucket and monthly Overage bucket documented in the T3 Chat FAQ.
 - Status: none yet.
+- Details: `docs/t3chat.md`.
 
 ## Ollama
 - Web settings page (`https://ollama.com/settings`) via browser cookies.
@@ -303,8 +305,10 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: `https://status.perplexity.com/` (link only, no auto-polling).
 
 ## Xiaomi MiMo
-- Browser cookies from automatic import or manual `Cookie:` header.
-- Reads balance and token-plan usage from `platform.xiaomimimo.com`.
+- Browser cookies from automatic import or manual `Cookie:` header for `platform.xiaomimimo.com` balance and token-plan endpoints.
+- Optional testing override via `MIMO_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS, and invalid
+  overrides fail closed instead of falling back to local MiMo usage accounting.
+- Local MiMo token accounting is available only when the opt-in cache file exists.
 - Status: none yet.
 - Details: `docs/mimo.md`.
 
@@ -313,6 +317,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Probes Volcengine Ark chat completions and reads request rate-limit headers when present.
 - Status: none yet.
 - Details: `docs/doubao.md`.
+
+## Sakana AI
+- Manual `Cookie:` header from `console.sakana.ai`; no automatic browser import.
+- Reads the billing page and surfaces 5-hour and weekly quota windows when present.
+- Status: none yet.
+- Details: `docs/sakana.md`.
 
 ## Abacus AI
 - Browser cookies (`abacus.ai`, `apps.abacus.ai`) via automatic import or manual header.
@@ -399,13 +409,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Optional API base URL override via `DEEPGRAM_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS.
 - Reads Deepgram usage breakdowns for audio hours, agent hours, token totals, TTS characters, and requests.
 - Details: `docs/deepgram.md`.
-
-## Xiaomi MiMo
-- Browser cookies or manual Cookie header for `platform.xiaomimimo.com` balance and token-plan endpoints.
-- Optional testing override via `MIMO_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS, and invalid
-  overrides fail closed instead of falling back to local MiMo usage accounting.
-- Local MiMo token accounting is available only when the opt-in cache file exists.
-- Details: `docs/mimo.md`.
 
 ## LiteLLM
 - API key from config or `LITELLM_API_KEY`; base URL from config `enterpriseHost` or `LITELLM_BASE_URL`.

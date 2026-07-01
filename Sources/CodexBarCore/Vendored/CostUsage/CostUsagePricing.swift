@@ -487,7 +487,7 @@ enum CostUsagePricing {
               let priorityInputCostPerToken = pricing.priorityInputCostPerToken,
               let priorityOutputCostPerToken = pricing.priorityOutputCostPerToken
         else { return nil }
-        if max(0, inputTokens) > self.codexPriorityInputTokenLimit {
+        if max(0, inputTokens) + max(0, cachedInputTokens) > self.codexPriorityInputTokenLimit {
             return nil
         }
 
@@ -509,11 +509,11 @@ enum CostUsagePricing {
         cachedInputTokens: Int,
         outputTokens: Int) -> Double
     {
-        let cached = min(max(0, cachedInputTokens), max(0, inputTokens))
-        let nonCached = max(0, inputTokens - cached)
+        let nonCached = max(0, inputTokens)
+        let cached = max(0, cachedInputTokens)
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
 
-        let usesLongContextRates = pricing.thresholdTokens.map { max(0, inputTokens) > $0 } ?? false
+        let usesLongContextRates = pricing.thresholdTokens.map { (nonCached + cached) > $0 } ?? false
         let inputRate = usesLongContextRates
             ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
             : pricing.inputCostPerToken

@@ -413,6 +413,15 @@
 "start_at_login_subtitle" = "Tự động mở CodexBar khi bạn khởi động máy Mac.";
 "show_cost_summary" = "Hiển thị tóm tắt chi phí";
 "show_cost_summary_subtitle" = "Đọc nhật ký Mức sử dụng cục bộ. Hiển thị hôm nay + cửa sổ lịch sử đã chọn trong menu.";
+"cost_summary_style_title" = "Kiểu hiển thị";
+"cost_summary_style_inline" = "Chỉ nội tuyến";
+"cost_summary_style_submenu" = "Chỉ menu con";
+"cost_summary_style_both" = "Cả hai";
+"cost_summary_style_inline_help" = "Hiển thị tóm tắt chi phí trực tiếp trong menu chính.";
+"cost_summary_style_submenu_help" = "Thay vào đó hiển thị menu con Chi phí chi tiết.";
+"cost_summary_style_both_help" = "Hiển thị cả tóm tắt menu chính và menu con Chi phí chi tiết.";
+"cost_history_window_title" = "Cửa sổ lịch sử";
+"cost_history_window_help" = "Đặt số ngày nhật ký sử dụng cục bộ xuất hiện trong menu.";
 "cost_history_days_title" = "Cửa sổ lịch sử: %d ngày";
 "cost_auto_refresh_info" = "Tự động làm mới: hàng giờ · Thời gian chờ: 10 phút";
 "refresh_cadence_title" = "Nhịp làm mới";
@@ -639,6 +648,7 @@
 
 /* Provider status */
 "status_operational" = "Hoạt động";
+"status_degraded" = "Hiệu suất giảm";
 "status_partial_outage" = "Mất điện một phần";
 "status_major_outage" = "Mất điện lớn";
 "status_critical_issue" = "Sự cố nghiêm trọng";
@@ -695,6 +705,7 @@
 "Add Account..." = "Thêm tài khoản...";
 "Usage Dashboard" = "Mức sử dụng Trang tổng quan";
 "Status Page" = "Trang trạng thái";
+"Open Status Page" = "Mở trang trạng thái";
 "Settings..." = "Cài đặt ...";
 "About CodexBar" = "Giới thiệu về CodexBar";
 "Quit" = "Thoát";
@@ -1092,8 +1103,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Lượt đặt lại giới hạn";
-"1 manual reset available" = "Có 1 lần đặt lại thủ công";
-"%d manual resets available" = "Có %d lần đặt lại thủ công";
+"1 available" = "1 lượt";
+"%d available" = "%d lượt";
 "Next expires %@" = "Lượt tiếp theo hết hạn %@";
 "Other (%d items)" = "Khác (%d mục)";
 "Expand" = "Mở rộng";

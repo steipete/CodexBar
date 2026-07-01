@@ -44,6 +44,22 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `positive sub percent usage stays visible`() {
+        #expect(UsageFormatter.percentString(-1) == "0%")
+        #expect(UsageFormatter.percentString(0) == "0%")
+        #expect(UsageFormatter.percentString(0.1) == "<1%")
+        #expect(UsageFormatter.percentString(0.96) == "<1%")
+        #expect(UsageFormatter.percentString(1) == "1%")
+        #expect(UsageFormatter.percentString(101) == "100%")
+        #expect(UsageFormatter.usageLine(remaining: 99.9, used: 0.1, showUsed: true) == "<1% used")
+
+        let usedWindow = RateWindow(usedPercent: 0.1, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        let leftWindow = RateWindow(usedPercent: 99.9, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        #expect(MenuBarDisplayText.percentText(window: usedWindow, showUsed: true) == "<1%")
+        #expect(MenuBarDisplayText.percentText(window: leftWindow, showUsed: false) == "<1%")
+    }
+
+    @Test
     func `usage line respects injected localization provider`() {
         UsageFormatter.setLocalizationProvider { key in
             switch key {

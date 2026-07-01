@@ -19,6 +19,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public enum ImportError: LocalizedError {
         case noCookiesFound
         case browserAccessDenied(details: String)
+        case browserCookieLoadTimedOut(details: String)
         case dashboardStillRequiresLogin
         case noMatchingAccount(found: [FoundAccount])
         case manualCookieHeaderInvalid
@@ -29,6 +30,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 return "No browser cookies found."
             case let .browserAccessDenied(details):
                 return "Browser cookie access denied. \(details)"
+            case let .browserCookieLoadTimedOut(details):
+                return "Browser cookie loading timed out. \(details)"
             case .dashboardStillRequiresLogin:
                 return "Browser cookies imported, but dashboard still requires login."
             case let .noMatchingAccount(found):
@@ -179,6 +182,13 @@ public struct OpenAIDashboardBrowserCookieImporter {
             log("Skipping cached cookie header; forcing fresh browser import")
         }
 
+        for browser in Self.cookieImportOrder {
+            guard let issue = self.browserDetection.cookieSourceProfileAccessIssue(browser) else { continue }
+            let hint = Self.browserProfileAccessHint(for: browser, issue: issue)
+            diagnostics.accessDeniedHints.append(hint)
+            log(hint)
+        }
+
         // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
         let installedBrowsers = Self.cookieImportOrder.cookieImportCandidates(using: self.browserDetection)
         for browserSource in installedBrowsers {
@@ -210,12 +220,61 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
 
         if !diagnostics.accessDeniedHints.isEmpty {
-            let details = diagnostics.accessDeniedHints.joined(separator: " ")
+            let details = Array(Set(diagnostics.accessDeniedHints)).sorted().joined(separator: " ")
             log("Cookie access denied: \(details)")
             throw ImportError.browserAccessDenied(details: details)
         }
 
         throw ImportError.noCookiesFound
+    }
+
+    nonisolated static func browserProfileAccessHint(
+        for browser: Browser,
+        issue: BrowserProfileAccessIssue,
+        processName: String = ProcessInfo.processInfo.processName,
+        executablePath: String? = Bundle.main.executablePath) -> String
+    {
+        let failure = switch issue {
+        case .accessDenied: "macOS denied"
+        case .unreadable: "macOS could not read"
+        }
+        let executable = executablePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target: String = if let executable, !executable.isEmpty {
+            Self.fullDiskAccessTarget(processName: processName, executablePath: executable)
+        } else {
+            processName
+        }
+        return "\(failure) \(browser.displayName) profile access for \(target). " +
+            "Grant that exact component Full Disk Access, then quit and reopen it."
+    }
+
+    private nonisolated static func fullDiskAccessTarget(processName: String, executablePath: String) -> String {
+        guard processName != "CodexBarCLI",
+              let appSuffix = executablePath.range(of: ".app/")
+        else {
+            return "\(processName) (\(executablePath))"
+        }
+        let appPath = executablePath[..<appSuffix.upperBound].dropLast()
+        return "CodexBar.app (\(appPath))"
+    }
+
+    nonisolated static func browserCookieLoadTimeoutError(
+        for browser: Browser,
+        processName: String = ProcessInfo.processInfo.processName,
+        executablePath: String? = Bundle.main.executablePath) -> ImportError
+    {
+        let executable = executablePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target: String = if let executable, !executable.isEmpty {
+            Self.fullDiskAccessTarget(processName: processName, executablePath: executable)
+        } else {
+            processName
+        }
+        let keychainHint = browser.usesKeychainForCookieDecryption
+            ? " If a macOS Keychain prompt is waiting, approve it."
+            : ""
+        let details = "\(browser.displayName) did not finish before the web timeout for \(target)." + keychainHint +
+            " If the timeout repeats, grant that exact component Full Disk Access, quit and reopen it, then retry."
+        return .browserCookieLoadTimedOut(details: details)
     }
 
     public func importManualCookies(
@@ -286,8 +345,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
         // Safari first: avoids touching Keychain ("Chrome Safe Storage") when Safari already matches.
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try await Self.runBoundedCookieLoad(deadline: deadline) {
-                try Self.cookieClient.codexBarRecords(matching: query, in: .safari)
+            let sources: [BrowserCookieStoreRecords]
+            do {
+                sources = try await Self.runBoundedCookieLoad(deadline: deadline) {
+                    try Self.cookieClient.codexBarRecords(matching: query, in: .safari)
+                }
+            } catch let error as URLError where error.code == .timedOut {
+                let timeoutError = Self.browserCookieLoadTimeoutError(for: .safari)
+                log(timeoutError.localizedDescription)
+                throw timeoutError
             }
             _ = try Self.remainingTimeout(until: deadline)
             guard !sources.isEmpty else {
@@ -316,6 +382,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 }
             }
             return nil
+        } catch let error as ImportError {
+            throw error
         } catch let error as URLError where error.code == .timedOut {
             throw error
         } catch let error as BrowserCookieError {
@@ -342,8 +410,15 @@ public struct OpenAIDashboardBrowserCookieImporter {
     {
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
-            let sources = try await Self.runBoundedCookieLoad(deadline: deadline) {
-                try Self.cookieClient.codexBarRecords(matching: query, in: browser)
+            let sources: [BrowserCookieStoreRecords]
+            do {
+                sources = try await Self.runBoundedCookieLoad(deadline: deadline) {
+                    try Self.cookieClient.codexBarRecords(matching: query, in: browser)
+                }
+            } catch let error as URLError where error.code == .timedOut {
+                let timeoutError = Self.browserCookieLoadTimeoutError(for: browser)
+                log(timeoutError.localizedDescription)
+                throw timeoutError
             }
             _ = try Self.remainingTimeout(until: deadline)
             guard !sources.isEmpty else {
@@ -371,6 +446,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 }
             }
             return nil
+        } catch let error as ImportError {
+            throw error
         } catch let error as URLError where error.code == .timedOut {
             throw error
         } catch let error as BrowserCookieError {
@@ -905,6 +982,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
     public enum ImportError: LocalizedError {
         case noCookiesFound
         case browserAccessDenied(details: String)
+        case browserCookieLoadTimedOut(details: String)
         case dashboardStillRequiresLogin
         case noMatchingAccount(found: [FoundAccount])
         case manualCookieHeaderInvalid
@@ -915,6 +993,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 return "No browser cookies found."
             case let .browserAccessDenied(details):
                 return "Browser cookie access denied. \(details)"
+            case let .browserCookieLoadTimedOut(details):
+                return "Browser cookie loading timed out. \(details)"
             case .dashboardStillRequiresLogin:
                 return "Browser cookies imported, but dashboard still requires login."
             case let .noMatchingAccount(found):

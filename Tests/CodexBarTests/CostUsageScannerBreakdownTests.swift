@@ -314,9 +314,10 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day,
             options: options)
-        let oldDailyCost = (80.0 / 1_000_000.0) + (20.0 * 0.5 / 1_000_000.0)
+        let oldDailyCost = (100.0 / 1_000_000.0) + (20.0 * 0.5 / 1_000_000.0)
             + (10.0 * 2.0 / 1_000_000.0)
-        #expect(first.summary?.totalCostUSD == oldDailyCost * 2)
+        let costTolerance = 0.000000001
+        #expect(abs((first.summary?.totalCostUSD ?? 0) - (oldDailyCost * 2)) < costTolerance)
 
         try ModelsDevCache.save(
             catalog: Self.modelsDevCatalog(model: model, input: 1, output: 2, cacheRead: 0.5),
@@ -331,7 +332,7 @@ struct CostUsageScannerBreakdownTests {
             now: day.addingTimeInterval(1),
             options: options)
         let samePricingCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
-        #expect(samePricing.summary?.totalCostUSD == oldDailyCost)
+        #expect(abs((samePricing.summary?.totalCostUSD ?? 0) - oldDailyCost) < costTolerance)
         #expect(samePricingCache.scanSinceKey == "2026-05-04")
 
         try ModelsDevCache.save(
@@ -346,10 +347,10 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day.addingTimeInterval(2),
             options: options)
-        let newDailyCost = (80.0 * 10.0 / 1_000_000.0)
+        let newDailyCost = (100.0 * 10.0 / 1_000_000.0)
             + (20.0 * 5.0 / 1_000_000.0)
             + (10.0 * 20.0 / 1_000_000.0)
-        #expect(narrowRepriced.summary?.totalCostUSD == newDailyCost)
+        #expect(abs((narrowRepriced.summary?.totalCostUSD ?? 0) - newDailyCost) < costTolerance)
 
         let wideRepriced = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -358,7 +359,7 @@ struct CostUsageScannerBreakdownTests {
             now: day.addingTimeInterval(3),
             options: options)
 
-        #expect(wideRepriced.summary?.totalCostUSD == newDailyCost * 2)
+        #expect(abs((wideRepriced.summary?.totalCostUSD ?? 0) - (newDailyCost * 2)) < costTolerance)
     }
 
     @Test
@@ -479,6 +480,7 @@ struct CostUsageScannerBreakdownTests {
                 day: olderDayKey,
                 model: CostUsagePricing.normalizeCodexModel(model),
                 turnID: nil,
+                eventIndex: 0,
                 input: 20,
                 cached: 0,
                 output: 0),
@@ -486,6 +488,7 @@ struct CostUsageScannerBreakdownTests {
                 day: dayKey,
                 model: CostUsagePricing.normalizeCodexModel(model),
                 turnID: nil,
+                eventIndex: 1,
                 input: 10,
                 cached: 0,
                 output: 0),
@@ -518,7 +521,8 @@ struct CostUsageScannerBreakdownTests {
 
         var migratedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let migratedUsage = try #require(migratedCache.files[path])
-        #expect(migratedUsage.codexRows?.map(\.day) == [olderDayKey])
+        #expect(migratedUsage.codexRows?.map(\.day) == [olderDayKey, dayKey, dayKey])
+        #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1, 2])
         #expect(migratedUsage.codexCostNanos?[dayKey] != nil)
 
         let parsedBytes = migratedUsage.parsedBytes
@@ -532,6 +536,86 @@ struct CostUsageScannerBreakdownTests {
         migratedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         #expect(repeated.data.first?.totalTokens == 15)
         #expect(migratedCache.files[path]?.parsedBytes == parsedBytes)
+    }
+
+    @Test
+    func `codex incremental cost migration retains row identities for archive dedupe`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let model = "gpt-5.4"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso0,
+            "payload": ["session_id": "incremental-migration-overlap"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let firstTokenCount = self.codexTokenCount(
+            timestamp: iso1,
+            model: model,
+            total: (input: 10, cached: 0, output: 0))
+        let secondTokenCount = self.codexTokenCount(
+            timestamp: iso2,
+            model: model,
+            total: (input: 15, cached: 0, output: 0))
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "incremental-migration-overlap.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTokenCount]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let path = try #require(cache.files.keys.first)
+        cache.files[path]?.codexCostNanos = nil
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let appended = try "\n" + env.jsonl([secondTokenCount])
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(appended.utf8))
+        try handle.close()
+
+        let appendedReport = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(appendedReport.summary?.totalTokens == 15)
+
+        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let activeRows = try #require(cache.files[path]?.codexRows)
+        #expect(activeRows.map(\.eventIndex) == [0, 1])
+
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-incremental-migration-overlap.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTokenCount, secondTokenCount]))
+
+        let overlapReport = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        #expect(overlapReport.summary?.totalTokens == 15)
     }
 
     @Test
@@ -585,6 +669,7 @@ struct CostUsageScannerBreakdownTests {
                 day: dayKey,
                 model: normalizedModel,
                 turnID: nil,
+                eventIndex: 0,
                 input: 10,
                 cached: 0,
                 output: 0),
@@ -592,6 +677,7 @@ struct CostUsageScannerBreakdownTests {
                 day: dayKey,
                 model: addedModel,
                 turnID: nil,
+                eventIndex: 1,
                 input: 10,
                 cached: 0,
                 output: 0),
@@ -614,7 +700,7 @@ struct CostUsageScannerBreakdownTests {
         let expectedCost = 10.0 * 2.5e-6
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expectedCost) < 0.000_000_001)
         let migratedUsage = try #require(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).files[path])
-        #expect(migratedUsage.codexRows == nil)
+        #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1])
         #expect(migratedUsage.codexCostNanos?[dayKey]?[normalizedModel] == originalCostNanos)
         #expect(migratedUsage.codexCostNanos?[dayKey]?[addedModel] == Int64((10.0 * 5e-6 * 1_000_000_000).rounded()))
         #expect(migratedUsage.codexStandardTokens?[dayKey]?[normalizedModel] == 10)
@@ -1310,6 +1396,593 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(second.data.count == 1)
         #expect(second.data[0].totalTokens == 110)
+    }
+
+    @Test
+    func `codex active session stub does not hide archived usage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 25)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "session_id": "sess-shared-active-archive",
+            ],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-stub.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext]))
+
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-shared.jsonl",
+            contents: env.jsonl([
+                sessionMeta,
+                turnContext,
+                self.codexTokenCount(
+                    timestamp: iso1,
+                    model: model,
+                    last: (input: 20, cached: 500, output: 5)),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let expectedCost = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 20,
+            cachedInputTokens: 500,
+            outputTokens: 5)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 20)
+        #expect(report.data[0].outputTokens == 5)
+        #expect(report.data[0].totalTokens == 25)
+        #expect(report.data[0].modelBreakdowns?.first?.totalTokens == 25)
+        #expect(abs((report.data[0].costUSD ?? 0) - (expectedCost ?? 0)) < 0.000001)
+    }
+
+    @Test
+    func `codex active session partial file keeps distinct archived rows`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 26)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "session_id": "sess-partial-active-archive",
+            ],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let firstTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "task_started",
+                "turn_id": "turn-a",
+            ],
+        ]
+        let firstUsage = self.codexTokenCount(
+            timestamp: iso1,
+            model: model,
+            last: (input: 20, cached: 0, output: 5))
+        let secondTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso2,
+            "payload": [
+                "type": "task_started",
+                "turn_id": "turn-b",
+            ],
+        ]
+        let secondUsage = self.codexTokenCount(
+            timestamp: iso2,
+            model: model,
+            last: (input: 30, cached: 500, output: 7))
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-partial.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTurn, firstUsage]))
+
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-partial.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTurn, firstUsage, secondTurn, secondUsage]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let expectedCost = (CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 20,
+            cachedInputTokens: 0,
+            outputTokens: 5) ?? 0)
+            + (CostUsagePricing.codexCostUSD(
+                model: model,
+                inputTokens: 30,
+                cachedInputTokens: 500,
+                outputTokens: 7) ?? 0)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 50)
+        #expect(report.data[0].cacheReadTokens == 500)
+        #expect(report.data[0].outputTokens == 12)
+        #expect(report.data[0].totalTokens == 62)
+        #expect(report.data[0].modelBreakdowns?.first?.totalTokens == 62)
+        #expect(abs((report.data[0].costUSD ?? 0) - expectedCost) < 0.000001)
+
+        let repeated = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(repeated.data.count == 1)
+        #expect(repeated.data[0].inputTokens == 50)
+        #expect(repeated.data[0].cacheReadTokens == 500)
+        #expect(repeated.data[0].outputTokens == 12)
+        #expect(repeated.data[0].totalTokens == 62)
+    }
+
+    @Test
+    func `codex active archive dedupe preserves identical same turn deltas`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 27)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "session_id": "sess-identical-delta-active-archive",
+            ],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let firstTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "task_started",
+                "turn_id": "turn-a",
+            ],
+        ]
+        let firstUsage = self.codexTokenCount(
+            timestamp: iso1,
+            model: model,
+            last: (input: 20, cached: 0, output: 5))
+        let repeatedUsage = self.codexTokenCount(
+            timestamp: iso2,
+            model: model,
+            last: (input: 20, cached: 0, output: 5))
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-identical-delta.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTurn, firstUsage]))
+
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-identical-delta.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, firstTurn, firstUsage, repeatedUsage]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 40)
+        #expect(report.data[0].outputTokens == 10)
+        #expect(report.data[0].totalTokens == 50)
+
+        let repeated = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(repeated.data.count == 1)
+        #expect(repeated.data[0].inputTokens == 40)
+        #expect(repeated.data[0].outputTokens == 10)
+        #expect(repeated.data[0].totalTokens == 50)
+    }
+
+    @Test
+    func `codex files without session metadata do not dedupe each other`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 27)
+        let model = "openai/gpt-5.5"
+        let contents = try env.jsonl([
+            self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: model,
+                last: (input: 10, cached: 100, output: 1)),
+        ])
+
+        _ = try env.writeCodexSessionFile(day: day, filename: "legacy-a.jsonl", contents: contents)
+        _ = try env.writeCodexSessionFile(day: day, filename: "legacy-b.jsonl", contents: contents)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 20)
+        #expect(report.data[0].cacheReadTokens == 200)
+        #expect(report.data[0].outputTokens == 2)
+        #expect(report.data[0].totalTokens == 22)
+    }
+
+    @Test
+    func `codex warm cache rechecks active archive row overlap`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 28)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let iso3 = env.isoString(for: day.addingTimeInterval(3))
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "session_id": "sess-warm-cache-active-archive",
+            ],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let firstTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": ["type": "task_started", "turn_id": "turn-a"],
+        ]
+        let firstUsage = self.codexTokenCount(
+            timestamp: iso1,
+            model: model,
+            last: (input: 10, cached: 100, output: 1))
+        let secondTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso2,
+            "payload": ["type": "task_started", "turn_id": "turn-b"],
+        ]
+        let secondUsage = self.codexTokenCount(
+            timestamp: iso2,
+            model: model,
+            last: (input: 20, cached: 500, output: 5))
+        let thirdTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso3,
+            "payload": ["type": "task_started", "turn_id": "turn-c"],
+        ]
+        let thirdUsage = self.codexTokenCount(
+            timestamp: iso3,
+            model: model,
+            last: (input: 5, cached: 50, output: 2))
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-warm-cache.jsonl",
+            contents: env.jsonl([
+                sessionMeta,
+                turnContext,
+                firstTurn,
+                firstUsage,
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let first = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(first.data.first?.inputTokens == 10)
+        #expect(first.data.first?.cacheReadTokens == 100)
+        #expect(first.data.first?.outputTokens == 1)
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-warm-cache.jsonl",
+            contents: env.jsonl([
+                sessionMeta,
+                turnContext,
+                firstTurn,
+                firstUsage,
+                secondTurn,
+                secondUsage,
+            ]))
+
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-warm-cache.jsonl",
+            contents: env.jsonl([
+                sessionMeta,
+                turnContext,
+                firstTurn,
+                firstUsage,
+                secondTurn,
+                secondUsage,
+                thirdTurn,
+                thirdUsage,
+            ]))
+
+        let second = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+
+        #expect(second.data.count == 1)
+        #expect(second.data[0].inputTokens == 35)
+        #expect(second.data[0].cacheReadTokens == 650)
+        #expect(second.data[0].outputTokens == 8)
+        #expect(second.data[0].totalTokens == 43)
+
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        for path in cache.files.keys where cache.files[path]?.sessionId == "sess-warm-cache-active-archive" {
+            cache.files[path]?.codexRows = nil
+        }
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let rowlessWarm = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+
+        #expect(rowlessWarm.data.count == 1)
+        #expect(rowlessWarm.data[0].inputTokens == 35)
+        #expect(rowlessWarm.data[0].cacheReadTokens == 650)
+        #expect(rowlessWarm.data[0].outputTokens == 8)
+        #expect(rowlessWarm.data[0].totalTokens == 43)
+    }
+
+    @Test
+    func `codex narrow warm overlap does not duplicate cached days outside scan window`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let olderDay = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 28)
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": ["session_id": "sess-narrow-warm-overlap"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: env.isoString(for: day), model: model)
+        let sharedTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: day),
+            "payload": ["type": "task_started", "turn_id": "turn-shared"],
+        ]
+        let sharedUsage = self.codexTokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(1)),
+            model: model,
+            last: (input: 10, cached: 0, output: 1))
+        let olderTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: olderDay),
+            "payload": ["type": "task_started", "turn_id": "turn-older"],
+        ]
+        let olderUsage = self.codexTokenCount(
+            timestamp: env.isoString(for: olderDay.addingTimeInterval(1)),
+            model: model,
+            last: (input: 20, cached: 0, output: 2))
+        let currentTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: day.addingTimeInterval(2)),
+            "payload": ["type": "task_started", "turn_id": "turn-current"],
+        ]
+        let currentUsage = self.codexTokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(3)),
+            model: model,
+            last: (input: 5, cached: 0, output: 1))
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-narrow-warm-overlap.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext, sharedTurn, sharedUsage]))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let archiveRows = [
+            sessionMeta,
+            turnContext,
+            sharedTurn,
+            sharedUsage,
+            olderTurn,
+            olderUsage,
+            currentTurn,
+            currentUsage,
+        ]
+        let archiveURL = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-narrow-warm-overlap.jsonl",
+            contents: env.jsonl(archiveRows))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let wide = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: olderDay,
+            until: day,
+            now: day,
+            options: options)
+        #expect(wide.summary?.totalTokens == 39)
+
+        let appendedTurnWithoutUsage: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: day.addingTimeInterval(4)),
+            "payload": ["type": "task_started", "turn_id": "turn-without-usage"],
+        ]
+        try env.jsonl(archiveRows + [appendedTurnWithoutUsage])
+            .write(to: archiveURL, atomically: true, encoding: .utf8)
+
+        let narrow = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(narrow.summary?.totalTokens == 17)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let archiveEntry = cache.files.first {
+            URL(fileURLWithPath: $0.key).lastPathComponent == archiveURL.lastPathComponent
+        }
+        let archiveUsage = try #require(
+            archiveEntry?.value,
+            "cache keys: \(cache.files.keys.sorted())")
+        let olderDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: olderDay)
+        let olderPacked = try #require(archiveUsage.days[olderDayKey]?.values.first)
+        #expect(olderPacked == [20, 0, 2])
+    }
+
+    @Test
+    func `codex narrow rowless rescan retains cached days outside scan window`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let olderDay = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 28)
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "payload": ["session_id": "sess-narrow-rowless-rescan"],
+        ]
+        let currentContext = self.codexTurnContext(timestamp: env.isoString(for: day), model: model)
+        let currentTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: day),
+            "payload": ["type": "task_started", "turn_id": "turn-current"],
+        ]
+        let currentUsage = self.codexTokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(1)),
+            model: model,
+            last: (input: 10, cached: 0, output: 1))
+        let olderContext = self.codexTurnContext(timestamp: env.isoString(for: olderDay), model: model)
+        let olderTurn: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: olderDay),
+            "payload": ["type": "task_started", "turn_id": "turn-older"],
+        ]
+        let olderUsage = self.codexTokenCount(
+            timestamp: env.isoString(for: olderDay.addingTimeInterval(1)),
+            model: model,
+            last: (input: 20, cached: 0, output: 2))
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "active-narrow-rowless-rescan.jsonl",
+            contents: env.jsonl([sessionMeta, currentContext, currentTurn, currentUsage]))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let archiveURL = try env.writeCodexArchivedSessionFile(
+            filename: "rollout-\(dayKey)T12-00-00-narrow-rowless-rescan.jsonl",
+            contents: env.jsonl([
+                sessionMeta,
+                currentContext,
+                currentTurn,
+                currentUsage,
+                olderContext,
+                olderTurn,
+                olderUsage,
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let wide = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: olderDay,
+            until: day,
+            now: day,
+            options: options)
+        #expect(wide.summary?.totalTokens == 33)
+
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let archivePath = try #require(cache.files.keys.first {
+            URL(fileURLWithPath: $0).lastPathComponent == archiveURL.lastPathComponent
+        })
+        cache.files[archivePath]?.codexRows = nil
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let narrow = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(narrow.summary?.totalTokens == 11)
+
+        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let archiveUsage = try #require(cache.files[archivePath])
+        let olderDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: olderDay)
+        let olderPacked = try #require(archiveUsage.days[olderDayKey]?.values.first)
+        #expect(olderPacked == [20, 0, 2])
     }
 
     @Test

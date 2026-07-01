@@ -417,6 +417,15 @@
 "start_at_login_subtitle" = "Ouvre automatiquement CodexBar au démarrage de votre Mac.";
 "show_cost_summary" = "Afficher le récapitulatif des coûts";
 "show_cost_summary_subtitle" = "Lit les journaux d'utilisation locaux. Affiche le coût d'aujourd'hui et de la période sélectionnée dans le menu.";
+"cost_summary_style_title" = "Style d’affichage";
+"cost_summary_style_inline" = "Intégré seulement";
+"cost_summary_style_submenu" = "Sous-menu seulement";
+"cost_summary_style_both" = "Les deux";
+"cost_summary_style_inline_help" = "Affiche le résumé des coûts directement dans le menu principal.";
+"cost_summary_style_submenu_help" = "Affiche plutôt le sous-menu Coût détaillé.";
+"cost_summary_style_both_help" = "Affiche le résumé du menu principal et le sous-menu Coût détaillé.";
+"cost_history_window_title" = "Fenêtre d'historique";
+"cost_history_window_help" = "Définit le nombre de jours de journaux d'utilisation locaux affichés dans le menu.";
 "cost_history_days_title" = "Fenêtre d'historique : %d jours";
 "cost_auto_refresh_info" = "Actualisation automatique : toutes les heures · Délai d'expiration : 10 min";
 "refresh_cadence_title" = "Fréquence d'actualisation";
@@ -643,6 +652,7 @@
 
 /* Provider status */
 "status_operational" = "Opérationnel";
+"status_degraded" = "Performances dégradées";
 "status_partial_outage" = "Dégradation partielle";
 "status_major_outage" = "Panne majeure";
 "status_critical_issue" = "Problème critique";
@@ -699,6 +709,7 @@
 "Add Account..." = "Ajouter un compte...";
 "Usage Dashboard" = "Tableau de bord d'utilisation";
 "Status Page" = "Page d'état";
+"Open Status Page" = "Ouvrir la page d'état";
 "Settings..." = "Réglages…";
 "About CodexBar" = "À propos de CodexBar";
 "Quit" = "Quitter";
@@ -1091,8 +1102,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crédits de réinitialisation de limite";
-"1 manual reset available" = "1 réinitialisation manuelle disponible";
-"%d manual resets available" = "%d réinitialisations manuelles disponibles";
+"1 available" = "1 disponible";
+"%d available" = "%d disponibles";
 "Next expires %@" = "Prochaine expiration %@";
 "Other (%d items)" = "Autres (%d éléments)";
 "Expand" = "Développer";

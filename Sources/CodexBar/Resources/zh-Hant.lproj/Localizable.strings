@@ -421,6 +421,15 @@
 "start_at_login_subtitle" = "登入 Mac 時自動開啟 CodexBar。";
 "show_cost_summary" = "顯示費用摘要";
 "show_cost_summary_subtitle" = "讀取本機使用量記錄。在選單中顯示今天及所選歷史時段的費用。";
+"cost_summary_style_title" = "顯示樣式";
+"cost_summary_style_inline" = "僅內嵌";
+"cost_summary_style_submenu" = "僅子選單";
+"cost_summary_style_both" = "兩者";
+"cost_summary_style_inline_help" = "直接在主選單中顯示費用摘要。";
+"cost_summary_style_submenu_help" = "改為顯示詳細的費用子選單。";
+"cost_summary_style_both_help" = "同時顯示主選單摘要和詳細的費用子選單。";
+"cost_history_window_title" = "歷史時段";
+"cost_history_window_help" = "設定選單中顯示多少天的本機使用記錄。";
 "cost_history_days_title" = "歷史時段：%d 天";
 "cost_auto_refresh_info" = "自動重新整理：每小時 · 逾時：10 分鐘";
 "refresh_cadence_title" = "重新整理頻率";
@@ -628,6 +637,7 @@
 "display_mode_both_desc" = "同時顯示百分比和進度（例如 45% · +5%）";
 "display_mode_reset_time_desc" = "顯示所選指標的重置時間（例如 ↻ 3:56 PM）";
 "status_operational" = "運作正常";
+"status_degraded" = "效能下降";
 "status_partial_outage" = "部分服務中斷";
 "status_major_outage" = "重大服務中斷";
 "status_critical_issue" = "嚴重問題";
@@ -732,6 +742,7 @@
 "Add Account..." = "新增帳號…";
 "Usage Dashboard" = "使用量儀表板";
 "Status Page" = "狀態頁";
+"Open Status Page" = "打開狀態頁";
 "Settings..." = "設定…";
 "About CodexBar" = "關於 CodexBar";
 "Quit" = "結束";
@@ -964,8 +975,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "限額重設額度";
-"1 manual reset available" = "可使用 1 次手動重設";
-"%d manual resets available" = "可使用 %d 次手動重設";
+"1 available" = "1 次可用";
+"%d available" = "%d 次可用";
 "Next expires %@" = "下一個將於 %@ 到期";
 "Other (%d items)" = "其他（%d 個項目）";
 "Expand" = "展開";

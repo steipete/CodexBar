@@ -563,7 +563,7 @@ struct CostUsageFetcherTests {
             outputTokens: 10) ?? 0
         let piCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
-            inputTokens: 55,
+            inputTokens: 50,
             cachedInputTokens: 5,
             outputTokens: 5) ?? 0
 
@@ -571,12 +571,10 @@ struct CostUsageFetcherTests {
         #expect(snapshot.daily.first?.date == "2026-04-08")
         #expect(snapshot.daily.first?.totalTokens == 170)
         #expect(abs((snapshot.daily.first?.costUSD ?? 0) - (nativeCost + piCost)) < 0.000001)
-        #expect(snapshot.daily.first?.modelBreakdowns == [
-            CostUsageDailyReport.ModelBreakdown(
-                modelName: "gpt-5.4",
-                costUSD: nativeCost + piCost,
-                totalTokens: 170),
-        ])
+        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        #expect(breakdown.modelName == "gpt-5.4")
+        #expect(abs((breakdown.costUSD ?? 0) - (nativeCost + piCost)) < 0.000001)
+        #expect(breakdown.totalTokens == 170)
     }
 
     @Test
@@ -737,12 +735,10 @@ struct CostUsageFetcherTests {
             cachedInputTokens: 20,
             outputTokens: 10) ?? 0
 
-        #expect(snapshot.daily.first?.modelBreakdowns == [
-            CostUsageDailyReport.ModelBreakdown(
-                modelName: "gpt-5.4",
-                costUSD: cost,
-                totalTokens: 110),
-        ])
+        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        #expect(breakdown.modelName == "gpt-5.4")
+        #expect(abs((breakdown.costUSD ?? 0) - cost) < 0.000001)
+        #expect(breakdown.totalTokens == 110)
     }
 
     @Test

@@ -415,6 +415,15 @@
 "start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
 "show_cost_summary" = "Mostreu el resum de cost";
 "show_cost_summary_subtitle" = "Llegeix els registres d'ús locals. Mostra el cost d'avui + la finestra d'historial seleccionada al menú.";
+"cost_summary_style_title" = "Estil de visualització";
+"cost_summary_style_inline" = "Només integrat";
+"cost_summary_style_submenu" = "Només submenú";
+"cost_summary_style_both" = "Tots dos";
+"cost_summary_style_inline_help" = "Mostra el resum de cost directament al menú principal.";
+"cost_summary_style_submenu_help" = "Mostra el submenú Cost detallat en lloc d'això.";
+"cost_summary_style_both_help" = "Mostra el resum del menú principal i el submenú Cost detallat.";
+"cost_history_window_title" = "Finestra d'historial";
+"cost_history_window_help" = "Defineix quants dies de registres d'ús locals apareixen al menú.";
 "cost_history_days_title" = "Finestra d'historial: %d dies";
 "cost_auto_refresh_info" = "Actualització automàtica: cada hora · Temps d'espera: 10 min";
 "refresh_cadence_title" = "Freqüència d'actualització";
@@ -632,6 +641,7 @@
 
 /* Provider status */
 "status_operational" = "Operatiu";
+"status_degraded" = "Rendiment degradat";
 "status_partial_outage" = "Interrupció parcial";
 "status_major_outage" = "Interrupció greu";
 "status_critical_issue" = "Problema crític";
@@ -951,8 +961,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crèdits de restabliment del límit";
-"1 manual reset available" = "Hi ha 1 restabliment manual disponible";
-"%d manual resets available" = "Hi ha %d restabliments manuals disponibles";
+"1 available" = "1 disponible";
+"%d available" = "%d disponibles";
 "Next expires %@" = "El següent caduca %@";
 "Other (%d items)" = "Altres (%d elements)";
 "Expand" = "Amplia";
@@ -1086,6 +1096,7 @@
 "Source" = "Origen";
 "State" = "Estat";
 "Status Page" = "Pàgina d'estat";
+"Open Status Page" = "Obre la pàgina d'estat";
 "Store multiple Antigravity Google OAuth accounts for quick switching." = "Deseu diversos comptes OAuth de Google d'Antigravity per canviar ràpidament.";
 "Store multiple DeepSeek API keys." = "Deseu diverses claus d'API de DeepSeek.";
 "Store multiple OpenAI API keys." = "Deseu diverses claus d'API d'OpenAI.";

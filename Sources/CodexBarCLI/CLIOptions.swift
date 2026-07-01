@@ -63,7 +63,7 @@ struct UsageOptions: CommanderParsable {
     @Option(name: .long("source"), help: Self.sourceHelp)
     var source: String?
 
-    @Option(name: .long("web-timeout"), help: "Web fetch timeout (seconds) (Codex only; source=web)")
+    @Option(name: .long("web-timeout"), help: "Web fetch timeout (seconds; source=auto or web)")
     var webTimeout: Double?
 
     @Flag(name: .long("web-debug-dump-html"), help: "Dump HTML snapshots to /tmp when Codex dashboard data is missing")

@@ -414,6 +414,15 @@
 "start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
 "show_cost_summary" = "コスト概要を表示";
 "show_cost_summary_subtitle" = "ローカルの使用ログを読み取り、今日分と選択した履歴期間をメニューに表示します。";
+"cost_summary_style_title" = "表示スタイル";
+"cost_summary_style_inline" = "インラインのみ";
+"cost_summary_style_submenu" = "サブメニューのみ";
+"cost_summary_style_both" = "両方";
+"cost_summary_style_inline_help" = "コスト概要をメインメニューに直接表示します。";
+"cost_summary_style_submenu_help" = "代わりに詳細なコストサブメニューを表示します。";
+"cost_summary_style_both_help" = "メインメニューの概要と詳細なコストサブメニューの両方を表示します。";
+"cost_history_window_title" = "履歴期間";
+"cost_history_window_help" = "メニューに表示するローカル使用ログの日数を設定します。";
 "cost_history_days_title" = "履歴期間: %d 日";
 "cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
 "refresh_cadence_title" = "更新間隔";
@@ -640,6 +649,7 @@
 
 /* Provider status */
 "status_operational" = "正常稼働中";
+"status_degraded" = "パフォーマンス低下";
 "status_partial_outage" = "一部障害";
 "status_major_outage" = "重大な障害";
 "status_critical_issue" = "致命的な問題";
@@ -696,6 +706,7 @@
 "Add Account..." = "アカウントを追加...";
 "Usage Dashboard" = "使用状況ダッシュボード";
 "Status Page" = "ステータスページ";
+"Open Status Page" = "ステータスページを開く";
 "Settings..." = "設定...";
 "About CodexBar" = "CodexBar について";
 "Quit" = "終了";
@@ -1092,8 +1103,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "上限リセットクレジット";
-"1 manual reset available" = "手動リセットが1回利用可能";
-"%d manual resets available" = "手動リセットが%d回利用可能";
+"1 available" = "1件利用可能";
+"%d available" = "%d件利用可能";
 "Next expires %@" = "次回の有効期限：%@";
 "Other (%d items)" = "その他（%d項目）";
 "Expand" = "展開";

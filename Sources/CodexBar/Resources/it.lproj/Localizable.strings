@@ -419,6 +419,15 @@
 "start_at_login_subtitle" = "Apre automaticamente CodexBar quando avvii il Mac.";
 "show_cost_summary" = "Mostra riepilogo costi";
 "show_cost_summary_subtitle" = "Legge i log di utilizzo locali. Mostra oggi + la finestra storica selezionata nel menu.";
+"cost_summary_style_title" = "Stile di visualizzazione";
+"cost_summary_style_inline" = "Solo in linea";
+"cost_summary_style_submenu" = "Solo sottomenu";
+"cost_summary_style_both" = "Entrambi";
+"cost_summary_style_inline_help" = "Mostra il riepilogo dei costi direttamente nel menu principale.";
+"cost_summary_style_submenu_help" = "Mostra invece il sottomenu Costo dettagliato.";
+"cost_summary_style_both_help" = "Mostra sia il riepilogo nel menu principale sia il sottomenu Costo dettagliato.";
+"cost_history_window_title" = "Finestra storica";
+"cost_history_window_help" = "Imposta quanti giorni di log di utilizzo locali mostrare nel menu.";
 "cost_history_days_title" = "Finestra storica: %d giorni";
 "cost_auto_refresh_info" = "Aggiornamento automatico: ogni ora · Timeout: 10 min";
 "refresh_cadence_title" = "Frequenza aggiornamento";
@@ -645,6 +654,7 @@
 
 /* Provider status */
 "status_operational" = "Operativo";
+"status_degraded" = "Prestazioni ridotte";
 "status_partial_outage" = "Interruzione parziale";
 "status_major_outage" = "Interruzione grave";
 "status_critical_issue" = "Problema critico";
@@ -701,6 +711,7 @@
 "Add Account..." = "Aggiungi account...";
 "Usage Dashboard" = "Dashboard utilizzo";
 "Status Page" = "Pagina di stato";
+"Open Status Page" = "Apri pagina di stato";
 "Settings..." = "Impostazioni...";
 "About CodexBar" = "Informazioni su CodexBar";
 "Quit" = "Esci";
@@ -1098,8 +1109,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crediti di reimpostazione limite";
-"1 manual reset available" = "1 reimpostazione manuale disponibile";
-"%d manual resets available" = "%d reimpostazioni manuali disponibili";
+"1 available" = "1 disponibile";
+"%d available" = "%d disponibili";
 "Next expires %@" = "La prossima scade %@";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";

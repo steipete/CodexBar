@@ -414,6 +414,15 @@
 "start_at_login_subtitle" = "Mac을 시작할 때 CodexBar를 자동으로 엽니다.";
 "show_cost_summary" = "비용 요약 표시";
 "show_cost_summary_subtitle" = "로컬 사용량 로그를 읽습니다. 메뉴에 오늘 및 선택한 기록 범위를 표시합니다.";
+"cost_summary_style_title" = "표시 스타일";
+"cost_summary_style_inline" = "인라인만";
+"cost_summary_style_submenu" = "하위 메뉴만";
+"cost_summary_style_both" = "둘 다";
+"cost_summary_style_inline_help" = "비용 요약을 기본 메뉴에 직접 표시합니다.";
+"cost_summary_style_submenu_help" = "대신 자세한 비용 하위 메뉴를 표시합니다.";
+"cost_summary_style_both_help" = "기본 메뉴 요약과 자세한 비용 하위 메뉴를 모두 표시합니다.";
+"cost_history_window_title" = "기록 범위";
+"cost_history_window_help" = "메뉴에 표시할 로컬 사용량 로그 일수를 설정합니다.";
 "cost_history_days_title" = "기록 범위: %d일";
 "cost_auto_refresh_info" = "자동 새로 고침: 매시간 · 시간 초과: 10분";
 "refresh_cadence_title" = "새로 고침 주기";
@@ -622,6 +631,7 @@
 "display_mode_both_desc" = "백분율과 사용 속도 모두 표시(예: 45% · +5%)";
 "display_mode_reset_time_desc" = "선택한 지표의 재설정 시간 표시(예: ↻ 오후 3:56)";
 "status_operational" = "정상 작동";
+"status_degraded" = "성능 저하";
 "status_partial_outage" = "부분 장애";
 "status_major_outage" = "주요 장애";
 "status_critical_issue" = "심각한 문제";
@@ -672,6 +682,7 @@
 "Add Account..." = "계정 추가...";
 "Usage Dashboard" = "사용량 대시보드";
 "Status Page" = "상태 페이지";
+"Open Status Page" = "상태 페이지 열기";
 "Settings..." = "설정...";
 "About CodexBar" = "CodexBar 정보";
 "Quit" = "종료";
@@ -1062,8 +1073,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "한도 재설정 크레딧";
-"1 manual reset available" = "수동 재설정 1회 사용 가능";
-"%d manual resets available" = "수동 재설정 %d회 사용 가능";
+"1 available" = "1회 사용 가능";
+"%d available" = "%d회 사용 가능";
 "Next expires %@" = "다음 만료: %@";
 "Other (%d items)" = "기타(%d개 항목)";
 "Expand" = "펼치기";

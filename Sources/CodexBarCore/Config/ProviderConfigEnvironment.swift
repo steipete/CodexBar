@@ -95,6 +95,8 @@ public enum ProviderConfigEnvironment {
             self.applyAzureOpenAIOverrides(base: base, config: config)
         case .kimi:
             self.applyKimiOverrides(base: base, config: config)
+        case .sakana:
+            self.applySakanaOverrides(base: base, config: config)
         default:
             nil
         }
@@ -281,6 +283,18 @@ public enum ProviderConfigEnvironment {
         }
         if let baseURL = config.sanitizedEnterpriseHost {
             env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] = baseURL
+        }
+        return env
+    }
+
+    private static func applySakanaOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let cookieHeader = config.sanitizedCookieHeader {
+            env[SakanaSettingsReader.cookieHeaderKey] = cookieHeader
         }
         return env
     }

@@ -171,6 +171,94 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         #endif
     }
 
+    private struct OutputTTYIdentity: Hashable {
+        let device: UInt64
+        let inode: UInt64
+        let rawDevice: UInt64
+
+        static func resolve(fileDescriptor: Int32) -> OutputTTYIdentity? {
+            var info = stat()
+            guard fstat(fileDescriptor, &info) == 0 else { return nil }
+            #if canImport(Darwin)
+            let device = SpawnedProcessGroup.darwinDeviceIdentifier(info.st_dev)
+            let rawDevice = SpawnedProcessGroup.darwinDeviceIdentifier(info.st_rdev)
+            #else
+            let device = UInt64(info.st_dev)
+            let rawDevice = UInt64(info.st_rdev)
+            #endif
+            return OutputTTYIdentity(
+                device: device,
+                inode: UInt64(info.st_ino),
+                rawDevice: rawDevice)
+        }
+
+        static func holderPIDs(for terminals: Set<OutputTTYIdentity>) -> Set<pid_t> {
+            guard !terminals.isEmpty else { return [] }
+            #if canImport(Darwin)
+            return Set(SpawnedProcessGroup.allProcessIDs().filter { self.process(pid: $0, holdsAny: terminals) })
+            #else
+            return Set(SpawnedProcessGroup.allProcessIDs().filter { pid in
+                let directory = "/proc/\(pid)/fd"
+                guard let descriptors = try? FileManager.default.contentsOfDirectory(atPath: directory) else {
+                    return false
+                }
+                return descriptors.contains { descriptor in
+                    var info = stat()
+                    let path = "\(directory)/\(descriptor)"
+                    guard path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else { return false }
+                    let identity = OutputTTYIdentity(
+                        device: UInt64(info.st_dev),
+                        inode: UInt64(info.st_ino),
+                        rawDevice: UInt64(info.st_rdev))
+                    return terminals.contains(identity)
+                }
+            })
+            #endif
+        }
+
+        #if canImport(Darwin)
+        private static func process(pid: pid_t, holdsAny terminals: Set<OutputTTYIdentity>) -> Bool {
+            let requiredBytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
+            guard requiredBytes > 0 else { return false }
+            let stride = MemoryLayout<proc_fdinfo>.stride
+            var descriptors = [proc_fdinfo](
+                repeating: proc_fdinfo(),
+                count: Int(requiredBytes) / stride + 8)
+            let actualBytes = descriptors.withUnsafeMutableBytes { buffer in
+                proc_pidinfo(
+                    pid,
+                    PROC_PIDLISTFDS,
+                    0,
+                    buffer.baseAddress,
+                    Int32(buffer.count))
+            }
+            guard actualBytes > 0 else { return false }
+
+            for descriptor in descriptors.prefix(Int(actualBytes) / stride)
+                where descriptor.proc_fdtype == PROX_FDTYPE_VNODE
+            {
+                var info = vnode_fdinfo()
+                let byteCount = proc_pidfdinfo(
+                    pid,
+                    descriptor.proc_fd,
+                    PROC_PIDFDVNODEINFO,
+                    &info,
+                    Int32(MemoryLayout<vnode_fdinfo>.size))
+                guard byteCount == MemoryLayout<vnode_fdinfo>.size else { continue }
+                let stats = info.pvi.vi_stat
+                let identity = OutputTTYIdentity(
+                    device: UInt64(stats.vst_dev),
+                    inode: stats.vst_ino,
+                    rawDevice: UInt64(stats.vst_rdev))
+                if terminals.contains(identity) {
+                    return true
+                }
+            }
+            return false
+        }
+        #endif
+    }
+
     private static func allProcessIDs() -> [pid_t] {
         #if canImport(Darwin)
         return self.processIDs(type: UInt32(PROC_ALL_PIDS), typeInfo: 0)
@@ -179,6 +267,13 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         return entries.compactMap(pid_t.init)
         #endif
     }
+
+    #if canImport(Darwin)
+    /// Darwin exposes `stat` device IDs as signed values while vnode inspection uses the same bits unsigned.
+    package static func darwinDeviceIdentifier(_ value: Int32) -> UInt64 {
+        UInt64(UInt32(bitPattern: value))
+    }
+    #endif
 
     private static func processIDs(inProcessGroup processGroup: pid_t) -> [pid_t] {
         #if canImport(Darwin)
@@ -211,12 +306,18 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
     private let termination = TerminationState()
     private let observedProcessGroupMembers = ProcessIdentityState()
     private let outputPipes: Set<OutputPipeIdentity>
+    private let outputTTYs: Set<OutputTTYIdentity>
     private let rootIdentity: TTYProcessTreeTerminator.ProcessIdentity?
 
-    private init(pid: pid_t, outputPipes: Set<OutputPipeIdentity>) {
+    private init(
+        pid: pid_t,
+        outputPipes: Set<OutputPipeIdentity>,
+        outputTTYs: Set<OutputTTYIdentity> = [])
+    {
         self.pid = pid
         self.processGroup = pid
         self.outputPipes = outputPipes
+        self.outputTTYs = outputTTYs
         self.rootIdentity = TTYProcessTreeTerminator.processIdentity(for: pid)
         self.startWaiter()
     }
@@ -316,6 +417,103 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         return SpawnedProcessGroup(pid: pid, outputPipes: outputPipes)
     }
 
+    package static func launchPTY(
+        binary: String,
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: URL?,
+        fileDescriptors: (primary: Int32, secondary: Int32)) throws -> SpawnedProcessGroup
+    {
+        let primaryFD = fileDescriptors.primary
+        let secondaryFD = fileDescriptors.secondary
+        guard let outputTTY = OutputTTYIdentity.resolve(fileDescriptor: secondaryFD) else {
+            throw LaunchError.setupFailed("resolve PTY identity")
+        }
+        #if canImport(Darwin)
+        var fileActions: posix_spawn_file_actions_t?
+        #else
+        var fileActions = posix_spawn_file_actions_t()
+        #endif
+        guard posix_spawn_file_actions_init(&fileActions) == 0 else {
+            throw LaunchError.setupFailed("posix_spawn_file_actions_init")
+        }
+        defer { posix_spawn_file_actions_destroy(&fileActions) }
+
+        var fileActionResults = [
+            posix_spawn_file_actions_adddup2(&fileActions, secondaryFD, STDIN_FILENO),
+            posix_spawn_file_actions_adddup2(&fileActions, secondaryFD, STDOUT_FILENO),
+            posix_spawn_file_actions_adddup2(&fileActions, secondaryFD, STDERR_FILENO),
+        ]
+        for descriptor in Self.pipeDescriptorsToClose([primaryFD, secondaryFD]) {
+            fileActionResults.append(posix_spawn_file_actions_addclose(&fileActions, descriptor))
+        }
+        if let workingDirectory {
+            fileActionResults.append(workingDirectory.path.withCString { path in
+                posix_spawn_file_actions_addchdir_np(&fileActions, path)
+            })
+        }
+        #if canImport(Glibc) || canImport(Musl)
+        do {
+            try PosixSpawnFileActionsCloseFrom.addCloseFrom(
+                &fileActions,
+                startingAt: STDERR_FILENO + 1)
+        } catch {
+            throw LaunchError.setupFailed(error.localizedDescription)
+        }
+        #endif
+        guard fileActionResults.allSatisfy({ $0 == 0 }) else {
+            throw LaunchError.setupFailed("posix_spawn PTY file actions")
+        }
+
+        #if canImport(Darwin)
+        var attributes: posix_spawnattr_t?
+        #else
+        var attributes = posix_spawnattr_t()
+        #endif
+        guard posix_spawnattr_init(&attributes) == 0 else {
+            throw LaunchError.setupFailed("posix_spawnattr_init")
+        }
+        defer { posix_spawnattr_destroy(&attributes) }
+
+        #if canImport(Darwin)
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT
+        #else
+        let flags = POSIX_SPAWN_SETPGROUP
+        #endif
+        guard posix_spawnattr_setflags(&attributes, Int16(flags)) == 0,
+              posix_spawnattr_setpgroup(&attributes, 0) == 0
+        else {
+            throw LaunchError.setupFailed("posix_spawn PTY process group")
+        }
+
+        var cArguments: [UnsafeMutablePointer<CChar>?] = ([binary] + arguments).map { strdup($0) }
+        cArguments.append(nil)
+        defer {
+            for argument in cArguments {
+                free(argument)
+            }
+        }
+
+        var cEnvironment: [UnsafeMutablePointer<CChar>?] = environment.map { key, value in
+            strdup("\(key)=\(value)")
+        }
+        cEnvironment.append(nil)
+        defer {
+            for entry in cEnvironment {
+                free(entry)
+            }
+        }
+
+        var pid: pid_t = 0
+        let spawnResult = binary.withCString { path in
+            posix_spawn(&pid, path, &fileActions, &attributes, cArguments, cEnvironment)
+        }
+        guard spawnResult == 0 else {
+            throw LaunchError.spawnFailed(String(cString: strerror(spawnResult)))
+        }
+        return SpawnedProcessGroup(pid: pid, outputPipes: [], outputTTYs: [outputTTY])
+    }
+
     package var isRunning: Bool {
         !self.termination.hasObservedExit
     }
@@ -326,6 +524,48 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 
     package var hasResidualProcessGroup: Bool {
         Self.processGroupExists(self.processGroup)
+    }
+
+    @discardableResult
+    package func terminateSynchronously(grace: TimeInterval = 0.4) -> Int32? {
+        let deadline = Date().addingTimeInterval(max(0, grace))
+        var processIdentities = self.currentResidualProcessIdentities(includeDescendants: true)
+        processIdentities.formUnion(self.currentProcessGroupMemberIdentities())
+        if let rootIdentity = self.rootIdentity {
+            processIdentities.insert(rootIdentity)
+        }
+        Self.signal(processIdentities: processIdentities, signal: SIGTERM)
+
+        while processIdentities.contains(where: TTYProcessTreeTerminator.isCurrent(_:)),
+              Date() < deadline
+        {
+            usleep(20000)
+        }
+
+        processIdentities.formUnion(self.currentResidualProcessIdentities(includeDescendants: self.isRunning))
+        processIdentities.formUnion(self.currentProcessGroupMemberIdentities())
+        if self.isRunning, let rootIdentity = self.rootIdentity {
+            processIdentities.insert(rootIdentity)
+        }
+        Self.signal(processIdentities: processIdentities, signal: SIGKILL)
+
+        let killDeadline = Date().addingTimeInterval(max(0, grace))
+        while processIdentities.contains(where: TTYProcessTreeTerminator.isCurrent(_:)),
+              Date() < killDeadline
+        {
+            usleep(20000)
+        }
+        return self.finishSynchronously()
+    }
+
+    @discardableResult
+    package func finishSynchronously(timeout: TimeInterval = 1) -> Int32? {
+        self.termination.requestReap()
+        let deadline = Date().addingTimeInterval(max(0, timeout))
+        while self.terminationStatus == nil, Date() < deadline {
+            usleep(10000)
+        }
+        return self.terminationStatus
     }
 
     @discardableResult
@@ -471,7 +711,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
     private func currentResidualProcessIdentities(
         includeDescendants: Bool) -> Set<TTYProcessTreeTerminator.ProcessIdentity>
     {
-        var identities = self.currentOutputPipeHolderIdentities()
+        var identities = self.currentOutputHolderIdentities()
         identities.formUnion(self.observedProcessGroupMembers.snapshot)
         if includeDescendants {
             identities.formUnion(
@@ -481,9 +721,10 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         return identities
     }
 
-    private func currentOutputPipeHolderIdentities() -> Set<TTYProcessTreeTerminator.ProcessIdentity> {
+    private func currentOutputHolderIdentities() -> Set<TTYProcessTreeTerminator.ProcessIdentity> {
         let excludedPIDs: Set<pid_t> = [getpid(), self.pid]
-        let holderPIDs = OutputPipeIdentity.holderPIDs(for: self.outputPipes)
+        var holderPIDs = OutputPipeIdentity.holderPIDs(for: self.outputPipes)
+        holderPIDs.formUnion(OutputTTYIdentity.holderPIDs(for: self.outputTTYs))
         return Set(holderPIDs.subtracting(excludedPIDs).compactMap(TTYProcessTreeTerminator.processIdentity(for:)))
     }
 

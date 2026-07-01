@@ -34,6 +34,7 @@ struct SettingsDefaultsState {
     var copilotIconSecondaryWindowIDRaw: String
     var costUsageEnabled: Bool
     var costUsageHistoryDays: Int
+    var costSummaryDisplayStyleRaw: String
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool
     var confettiOnWeeklyLimitResetsEnabled: Bool
