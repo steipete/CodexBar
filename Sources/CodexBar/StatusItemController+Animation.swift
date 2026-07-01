@@ -697,6 +697,13 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .sakana,
+           let balance = Self.sakanaBalanceDisplayText(
+               snapshot: snapshot,
+               preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot))
+        {
+            return balance
+        }
         if provider == .poe,
            let balance = Self.poeBalanceDisplayText(snapshot: snapshot)
         {
@@ -820,6 +827,15 @@ extension StatusItemController {
         if snapshot.primary != nil, preference != .secondary { return nil }
         let detail = mimoUsage.balanceDetail
         return detail.components(separatedBy: " (Paid:").first
+    }
+
+    nonisolated static func sakanaBalanceDisplayText(
+        snapshot: UsageSnapshot?,
+        preference: MenuBarMetricPreference) -> String?
+    {
+        guard let snapshot, let payAsYouGo = snapshot.sakanaPayAsYouGo else { return nil }
+        if snapshot.primary != nil, preference != .secondary { return nil }
+        return payAsYouGo.balanceDetail
     }
 
     nonisolated static func poeBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

@@ -1,9 +1,10 @@
 ---
-summary: "Sakana AI provider: manual Cookie header, billing page parser, 5-hour and weekly quota windows."
+summary: "Sakana AI provider: manual Cookie header, billing page parser, 5-hour/weekly quota windows, and pay-as-you-go credit balance."
 read_when:
   - Adding or modifying the Sakana AI provider
   - Debugging Sakana AI cookie import or quota parsing
   - Adjusting Sakana AI menu labels or reset window display
+  - Debugging Sakana pay-as-you-go credit balance or usage-total parsing
 ---
 
 # Sakana AI
@@ -40,9 +41,38 @@ Alternatively, set the environment variable `SAKANA_COOKIE` to the raw cookie he
   The fetcher detects `"MMMM d, yyyy 'at' h:mm a"` format strings.
 - Plan name and price label (e.g. `Standard $20/mo`) are joined and surfaced as the `loginMethod` identity field for
   plan display in the menu.
-- Token cost tracking (`supportsTokenCost: false`): not supported; cost summary is unavailable.
-- Credits row (`supportsCredits: false`): not shown.
+- Token cost tracking (`supportsTokenCost: false`): not supported; cost summary is unavailable. Sakana has no
+  organization-level usage/cost API to query historically, only the per-request `usage` object returned by chat
+  completions calls (which CodexBar never makes), so there is no local-log source to scan the way Claude/Codex are.
+- Credits row (`supportsCredits: true`): shows the Pay-as-you-go credit balance (see below).
 - Widget support: not currently available for Sakana AI.
+
+## Pay-as-you-go credits
+
+Sakana also sells prepaid credit for pay-as-you-go API usage (the model IDs `fugu` and `fugu-ultra`), separate from
+the subscription quota windows above. `console.sakana.ai/billing` renders this data server-side under its
+"Pay as you go" tab, but that tab's markup is only present in the HTML response when the request URL includes
+`?tab=payAsYouGo` — the default `/billing` response (used for the subscription quota fetch above) does not include
+it. CodexBar issues a **second, best-effort** GET to `https://console.sakana.ai/billing?tab=payAsYouGo` with the same
+cookie header immediately after the subscription fetch succeeds.
+
+- **Credit balance**: parsed from the `<h2>Credit balance</h2>` card's adjacent `tabular-nums` amount.
+- **Recent usage total**: parsed from the `Usage` chart header's `Total: $…` text, covering whatever date range is
+  currently selected on the console (defaults to the last 30 days). React renders this text with `<!-- -->`
+  hydration-boundary comments splitting the label from the amount; the parser strips those before reading the value.
+- **Date range label**: the raw text of the "Usage date range" picker button (e.g. `Jun 02, 2026 - Jul 01, 2026`),
+  kept only as context — CodexBar does not currently interpret it as start/end dates.
+
+This second fetch never throws and never blocks the primary result: if it fails (network error, non-200, wrong
+origin, empty body, or the expected markup isn't found), the pay-as-you-go fields are simply absent from that
+refresh and the subscription quota windows are returned exactly as before. An account with no pay-as-you-go credit
+purchased still returns a `$0.00` balance (the card is always rendered), so absence here almost always means the
+request itself failed rather than "no credit."
+
+- Menu: a `Balance: $X.XX` row (and a `Recent usage: $X.XX` row when the usage total parses) appears alongside the
+  quota windows.
+- Menu bar text: when Settings → Advanced → Menu bar metric is set to the secondary metric for Sakana, the menu bar
+  shows the credit balance instead of the 5-hour quota percentage (mirrors MiMo's balance display).
 
 ## CLI usage
 
@@ -72,9 +102,13 @@ There is no `codexbar config set` command for `cookieHeader`; use one of the pat
 - `Sources/CodexBarCore/Providers/Sakana/`
   - `SakanaProviderDescriptor.swift` — provider metadata, fetch plan, CLI config
   - `SakanaSettingsReader.swift` — `SAKANA_COOKIE` env key, cookie normalizer
-  - `SakanaUsageFetcher.swift` — billing-page HTML fetch and quota parser
+  - `SakanaUsageFetcher.swift` — billing-page HTML fetch and quota parser; also defines
+    `SakanaPayAsYouGoSnapshot` and the pay-as-you-go tab fetch/parser
 - `Sources/CodexBar/Providers/Sakana/`
   - `SakanaProviderImplementation.swift` — settings UI, availability check
   - `SakanaSettingsStore.swift` — `sakanaCookieHeader` settings binding
+- `Sources/CodexBar/MenuDescriptor.swift` — `Balance:` / `Recent usage:` summary rows
+- `Sources/CodexBar/StatusItemController+Animation.swift` — `sakanaBalanceDisplayText` menu bar text
 - `Tests/CodexBarTests/SakanaUsageFetcherTests.swift` — parser regression tests
-- Dashboard: `https://console.sakana.ai/billing`
+- Dashboard: `https://console.sakana.ai/billing` (subscription tab), `https://console.sakana.ai/billing?tab=payAsYouGo`
+  (pay-as-you-go tab)

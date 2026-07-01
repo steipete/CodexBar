@@ -18,6 +18,7 @@ public struct SakanaUsageSnapshot: Sendable {
     public let priceLabel: String?
     public let fiveHour: QuotaWindow?
     public let weekly: QuotaWindow?
+    public let payAsYouGo: SakanaPayAsYouGoSnapshot?
     public let updatedAt: Date
 
     public init(
@@ -25,12 +26,14 @@ public struct SakanaUsageSnapshot: Sendable {
         priceLabel: String?,
         fiveHour: QuotaWindow?,
         weekly: QuotaWindow?,
+        payAsYouGo: SakanaPayAsYouGoSnapshot? = nil,
         updatedAt: Date = Date())
     {
         self.planName = planName
         self.priceLabel = priceLabel
         self.fiveHour = fiveHour
         self.weekly = weekly
+        self.payAsYouGo = payAsYouGo
         self.updatedAt = updatedAt
     }
 
@@ -64,8 +67,33 @@ public struct SakanaUsageSnapshot: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
+            sakanaPayAsYouGo: self.payAsYouGo,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+}
+
+/// Sakana "Pay as you go" tab data (prepaid credit balance + a rolling usage total for the
+/// console's selected date range). Fetched best-effort alongside the subscription quota windows;
+/// absence never fails the primary Sakana fetch.
+public struct SakanaPayAsYouGoSnapshot: Codable, Equatable, Sendable {
+    public let creditBalance: Double
+    public let periodUsageTotal: Double?
+    /// Raw label from the console's date-range picker (e.g. "Jun 02, 2026 - Jul 01, 2026").
+    public let periodLabel: String?
+
+    public init(
+        creditBalance: Double,
+        periodUsageTotal: Double? = nil,
+        periodLabel: String? = nil)
+    {
+        self.creditBalance = creditBalance
+        self.periodUsageTotal = periodUsageTotal
+        self.periodLabel = periodLabel
+    }
+
+    public var balanceDetail: String {
+        UsageFormatter.usdString(self.creditBalance)
     }
 }
 
@@ -91,6 +119,7 @@ public enum SakanaUsageError: LocalizedError, Sendable, Equatable {
 
 public enum SakanaUsageFetcher {
     private static let billingURL = URL(string: "https://console.sakana.ai/billing")!
+    private static let payAsYouGoURL = URL(string: "https://console.sakana.ai/billing?tab=payAsYouGo")!
     private static let defaultTransport: ProviderHTTPClient = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
@@ -132,7 +161,89 @@ public enum SakanaUsageFetcher {
         guard let html = String(data: response.data, encoding: .utf8), !html.isEmpty else {
             throw SakanaUsageError.parseFailed("Billing page response was empty.")
         }
-        return try self.parseBillingHTML(html, now: now)
+        let snapshot = try self.parseBillingHTML(html, now: now)
+        let payAsYouGo = await self.fetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
+        // fetchPayAsYouGo swallows its own errors (including CancellationError) to stay best-effort;
+        // re-check here so a cancelled parent task still unwinds instead of returning a stale result.
+        try Task.checkCancellation()
+        return SakanaUsageSnapshot(
+            planName: snapshot.planName,
+            priceLabel: snapshot.priceLabel,
+            fiveHour: snapshot.fiveHour,
+            weekly: snapshot.weekly,
+            payAsYouGo: payAsYouGo,
+            updatedAt: snapshot.updatedAt)
+    }
+
+    /// Best-effort fetch of the Pay-as-you-go tab. Never throws: subscription quota windows are
+    /// the primary, historically-supported contract of this fetcher, and an account without PAYG
+    /// credit (or a console change that breaks this parser) must not regress that core behavior.
+    private static func fetchPayAsYouGo(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        timeout: TimeInterval) async -> SakanaPayAsYouGoSnapshot?
+    {
+        var request = URLRequest(url: self.payAsYouGoURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+
+        guard let response = try? await transport.response(for: request),
+              response.statusCode == 200,
+              response.response.url?.scheme?.lowercased() == "https",
+              response.response.url?.host?.lowercased() == self.billingURL.host?.lowercased(),
+              let html = String(data: response.data, encoding: .utf8), !html.isEmpty
+        else {
+            return nil
+        }
+        return self.parsePayAsYouGoHTML(html)
+    }
+
+    static func parsePayAsYouGoHTML(_ html: String) -> SakanaPayAsYouGoSnapshot? {
+        guard let balanceText = self.capture(
+            pattern: #"<h2[^>]*>\s*Credit balance\s*</h2>[\s\S]{0,900}?<p[^>]*tabular-nums[^"]*"[^>]*>"# +
+                #"\$?([0-9][0-9,]*(?:\.[0-9]+)?)</p>"#,
+            in: html),
+            let creditBalance = self.parseAmount(balanceText)
+        else {
+            return nil
+        }
+
+        let usageTotalText = self.capture(
+            pattern: #"<h2[^>]*>\s*Usage\s*</h2>\s*<span[^>]*>\s*Total(?:<!--\s*-->)?:\s*"# +
+                #"(?:<!--\s*-->)?\$?([0-9][0-9,]*(?:\.[0-9]+)?)\s*</span>"#,
+            in: html)
+        let periodUsageTotal = usageTotalText.flatMap(self.parseAmount)
+
+        let periodLabel = self.capture(
+            pattern: #"aria-label="Usage date range"[^>]*>([\s\S]*?)</button>"#,
+            in: html).map(self.stripHTMLComments)
+
+        return SakanaPayAsYouGoSnapshot(
+            creditBalance: creditBalance,
+            periodUsageTotal: periodUsageTotal,
+            periodLabel: periodLabel)
+    }
+
+    private static func parseAmount(_ text: String) -> Double? {
+        guard let value = Double(text.replacingOccurrences(of: ",", with: "")), value.isFinite else {
+            return nil
+        }
+        return value
+    }
+
+    /// Strips React's `<!-- -->` hydration boundary comments (inserted between separately
+    /// interpolated JSX text nodes) and collapses the remaining whitespace.
+    private static func stripHTMLComments(_ text: String) -> String {
+        let stripped = text.replacingOccurrences(
+            of: #"<!--.*?-->"#,
+            with: "",
+            options: .regularExpression)
+        return stripped
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func parseBillingHTML(
