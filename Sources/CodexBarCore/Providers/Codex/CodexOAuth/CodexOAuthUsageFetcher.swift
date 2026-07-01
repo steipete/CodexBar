@@ -425,7 +425,7 @@ public enum CodexOAuthUsageFetcher {
                         throw CodexOAuthFetchError.invalidResponse
                     }
                     return CodexRateLimitResetCreditsSnapshot(
-                        credits: payload.credits,
+                        credits: payload.credits.map(\.model),
                         availableCount: payload.availableCount,
                         updatedAt: Date())
                 } catch {
@@ -528,12 +528,49 @@ public enum CodexOAuthUsageFetcher {
     }
 
     private struct RateLimitResetCreditsResponse: Decodable {
-        let credits: [CodexRateLimitResetCredit]
+        let credits: [RateLimitResetCreditResponse]
         let availableCount: Int
 
         private enum CodingKeys: String, CodingKey {
             case credits
             case availableCount = "available_count"
+        }
+    }
+
+    private struct RateLimitResetCreditResponse: Decodable {
+        let id: String
+        let resetType: String
+        let status: CodexRateLimitResetCreditStatus
+        let grantedAt: Date
+        let expiresAt: Date?
+        let redeemStartedAt: Date?
+        let redeemedAt: Date?
+        let title: String?
+        let description: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case resetType = "reset_type"
+            case status
+            case grantedAt = "granted_at"
+            case expiresAt = "expires_at"
+            case redeemStartedAt = "redeem_started_at"
+            case redeemedAt = "redeemed_at"
+            case title
+            case description
+        }
+
+        var model: CodexRateLimitResetCredit {
+            CodexRateLimitResetCredit(
+                id: self.id,
+                resetType: self.resetType,
+                status: self.status,
+                grantedAt: self.grantedAt,
+                expiresAt: self.expiresAt,
+                redeemStartedAt: self.redeemStartedAt,
+                redeemedAt: self.redeemedAt,
+                title: self.title,
+                description: self.description)
         }
     }
 
@@ -578,7 +615,7 @@ extension CodexOAuthUsageFetcher {
         decoder.dateDecodingStrategy = .custom(Self.decodeISO8601Date)
         let payload = try decoder.decode(RateLimitResetCreditsResponse.self, from: data)
         return CodexRateLimitResetCreditsSnapshot(
-            credits: payload.credits,
+            credits: payload.credits.map(\.model),
             availableCount: payload.availableCount,
             updatedAt: now)
     }

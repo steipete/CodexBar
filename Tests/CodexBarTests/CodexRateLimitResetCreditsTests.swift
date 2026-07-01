@@ -177,6 +177,46 @@ struct CodexRateLimitResetCreditsTests {
     }
 
     @Test
+    func `provider IDs always hash even when shaped like persisted stable IDs`() throws {
+        let canonicalLookingRawID = "codex-reset-credit-v1-" + String(repeating: "a", count: 64)
+        let json = """
+        {
+          "credits": [{
+            "id": "\(canonicalLookingRawID)",
+            "reset_type": "codex_rate_limits",
+            "status": "available",
+            "granted_at": "2026-06-18T00:39:53Z",
+            "expires_at": null
+          }],
+          "available_count": 1
+        }
+        """
+        let now = Date(timeIntervalSince1970: 1_788_134_400)
+
+        let decoded = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(
+            Data(json.utf8),
+            now: now)
+        let decodedID = try #require(decoded.credits.first?.id)
+        let expectedID = CodexRateLimitResetCredit.stableID(forProviderID: canonicalLookingRawID)
+
+        #expect(decodedID == expectedID)
+        #expect(decodedID != canonicalLookingRawID)
+
+        let publicModel = Self.credit(id: canonicalLookingRawID, status: .available, expiresAt: nil)
+        #expect(publicModel.id == expectedID)
+        #expect(publicModel.id != canonicalLookingRawID)
+
+        let encoded = try JSONEncoder().encode(publicModel)
+        let roundTripped = try JSONDecoder().decode(CodexRateLimitResetCredit.self, from: encoded)
+        #expect(roundTripped.id == expectedID)
+
+        let ordinaryFirst = Self.credit(id: "ordinary-provider-id", status: .available, expiresAt: nil)
+        let ordinarySecond = Self.credit(id: "ordinary-provider-id", status: .available, expiresAt: nil)
+        #expect(ordinaryFirst.id == ordinarySecond.id)
+        #expect(ordinaryFirst.id != "ordinary-provider-id")
+    }
+
+    @Test
     func `reset credit GET preserves transport cancellation`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.httpMethod == "GET")

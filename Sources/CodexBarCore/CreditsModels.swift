@@ -199,31 +199,78 @@ public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifia
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        try self.init(
-            id: container.decode(String.self, forKey: .id),
-            resetType: container.decode(String.self, forKey: .resetType),
-            status: container.decode(CodexRateLimitResetCreditStatus.self, forKey: .status),
-            grantedAt: container.decode(Date.self, forKey: .grantedAt),
-            expiresAt: container.decodeIfPresent(Date.self, forKey: .expiresAt),
-            redeemStartedAt: container.decodeIfPresent(Date.self, forKey: .redeemStartedAt),
-            redeemedAt: container.decodeIfPresent(Date.self, forKey: .redeemedAt),
-            title: container.decodeIfPresent(String.self, forKey: .title),
-            description: container.decodeIfPresent(String.self, forKey: .description))
+        let decodedID = try container.decode(String.self, forKey: .id)
+        let resetType = try container.decode(String.self, forKey: .resetType)
+        let status = try container.decode(CodexRateLimitResetCreditStatus.self, forKey: .status)
+        let grantedAt = try container.decode(Date.self, forKey: .grantedAt)
+        let expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+        let redeemStartedAt = try container.decodeIfPresent(Date.self, forKey: .redeemStartedAt)
+        let redeemedAt = try container.decodeIfPresent(Date.self, forKey: .redeemedAt)
+        let title = try container.decodeIfPresent(String.self, forKey: .title)
+        let description = try container.decodeIfPresent(String.self, forKey: .description)
+
+        if Self.isCanonicalStableID(decodedID) {
+            self.init(
+                persistedStableID: decodedID,
+                resetType: resetType,
+                status: status,
+                grantedAt: grantedAt,
+                expiresAt: expiresAt,
+                redeemStartedAt: redeemStartedAt,
+                redeemedAt: redeemedAt,
+                title: title,
+                description: description)
+        } else {
+            self.init(
+                id: decodedID,
+                resetType: resetType,
+                status: status,
+                grantedAt: grantedAt,
+                expiresAt: expiresAt,
+                redeemStartedAt: redeemStartedAt,
+                redeemedAt: redeemedAt,
+                title: title,
+                description: description)
+        }
     }
 
     static func stableID(forProviderID providerID: String) -> String {
-        if providerID.hasPrefix(self.stableIDPrefix) {
-            let digest = providerID.dropFirst(Self.stableIDPrefix.count)
-            if digest.count == 64, digest.allSatisfy({ $0.isHexDigit && !$0.isUppercase }) {
-                return providerID
-            }
-        }
-
         let domainSeparatedValue = "com.steipete.CodexBar.reset-credit-id.v1\0\(providerID)"
         let digest = SHA256.hash(data: Data(domainSeparatedValue.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
         return Self.stableIDPrefix + digest
+    }
+
+    private init(
+        persistedStableID: String,
+        resetType: String,
+        status: CodexRateLimitResetCreditStatus,
+        grantedAt: Date,
+        expiresAt: Date?,
+        redeemStartedAt: Date?,
+        redeemedAt: Date?,
+        title: String?,
+        description: String?)
+    {
+        precondition(Self.isCanonicalStableID(persistedStableID))
+        self.id = persistedStableID
+        self.resetType = resetType
+        self.status = status
+        self.grantedAt = grantedAt
+        self.expiresAt = expiresAt
+        self.redeemStartedAt = redeemStartedAt
+        self.redeemedAt = redeemedAt
+        self.title = title
+        self.description = description
+    }
+
+    private static func isCanonicalStableID(_ id: String) -> Bool {
+        guard id.hasPrefix(self.stableIDPrefix) else { return false }
+        let digest = id.dropFirst(Self.stableIDPrefix.count)
+        return digest.utf8.count == 64 && digest.utf8.allSatisfy { byte in
+            (48...57).contains(byte) || (97...102).contains(byte)
+        }
     }
 }
 
