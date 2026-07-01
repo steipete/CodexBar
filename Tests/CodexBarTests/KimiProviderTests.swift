@@ -221,6 +221,18 @@ struct KimiSettingsReaderTests {
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.url?.absoluteString == "https://auth.kimi.com/api/oauth/token")
             #expect(request.httpMethod == "POST")
+            #expect(request.value(forHTTPHeaderField: "User-Agent")?.hasPrefix("CodexBar/") == true)
+            #expect(request.value(forHTTPHeaderField: "X-Msh-Platform") == "kimi_code_cli")
+            #expect(request.value(forHTTPHeaderField: "X-Msh-Version")?.isEmpty == false)
+            #expect(request.value(forHTTPHeaderField: "X-Msh-Device-Name")?.isEmpty == false)
+            #expect(request.value(forHTTPHeaderField: "X-Msh-Device-Model")?.isEmpty == false)
+            #expect(request.value(forHTTPHeaderField: "X-Msh-Os-Version")?.isEmpty == false)
+            let deviceID = try #require(request.value(forHTTPHeaderField: "X-Msh-Device-Id"))
+            #expect(UUID(uuidString: deviceID) != nil)
+            let persistedDeviceID = try String(
+                contentsOf: home.appendingPathComponent("device_id"),
+                encoding: .utf8)
+            #expect(persistedDeviceID == deviceID)
             let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
             #expect(body.contains("grant_type=refresh_token"))
             #expect(body.contains("refresh_token=refresh-token"))

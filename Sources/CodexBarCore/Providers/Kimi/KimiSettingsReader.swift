@@ -11,6 +11,7 @@ public enum KimiSettingsReader {
     public static let defaultCodeAPIBaseURL = URL(string: "https://api.kimi.com")!
     public static let defaultCodeOAuthHost = URL(string: "https://auth.kimi.com")!
     private static let codeOAuthClientID = "17e5f671-d194-4dfb-9706-5516cb48c098"
+    private static let codePlatform = "kimi_code_cli"
 
     public static func authToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         let raw = environment["KIMI_AUTH_TOKEN"] ?? environment["kimi_auth_token"]
@@ -84,13 +85,7 @@ public enum KimiSettingsReader {
     public static func kimiCodeCredentialsURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
-        let home: URL = if let override = self.cleaned(environment[self.codeHomeEnvironmentKey]) {
-            URL(fileURLWithPath: override, isDirectory: true)
-        } else {
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".kimi-code", isDirectory: true)
-        }
-        return home
+        self.kimiCodeHomeURL(environment: environment)
             .appendingPathComponent("credentials", isDirectory: true)
             .appendingPathComponent("kimi-code.json")
     }
@@ -133,6 +128,9 @@ public enum KimiSettingsReader {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        for (name, value) in self.kimiCodeIdentityHeaders(environment: environment) {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
         var components = URLComponents()
         components.queryItems = [
             URLQueryItem(name: "client_id", value: self.codeOAuthClientID),
@@ -158,6 +156,73 @@ public enum KimiSettingsReader {
             }
         }
         return self.defaultCodeOAuthHost
+    }
+
+    private static func kimiCodeIdentityHeaders(environment: [String: String]) -> [String: String] {
+        let version = self.asciiHeaderValue(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersion
+        let osVersionString = "\(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
+        return [
+            "User-Agent": "CodexBar/\(version)",
+            "X-Msh-Platform": self.codePlatform,
+            "X-Msh-Version": version,
+            "X-Msh-Device-Name": self.asciiHeaderValue(ProcessInfo.processInfo.hostName),
+            "X-Msh-Device-Model": self.asciiHeaderValue(
+                "\(self.operatingSystemName) \(osVersionString) \(self.architectureName)"),
+            "X-Msh-Os-Version": self.asciiHeaderValue(osVersionString),
+            "X-Msh-Device-Id": self.kimiCodeDeviceID(environment: environment),
+        ]
+    }
+
+    private static func kimiCodeDeviceID(environment: [String: String]) -> String {
+        let home = self.kimiCodeHomeURL(environment: environment)
+        let url = home.appendingPathComponent("device_id", isDirectory: false)
+        if let existing = self.cleaned(try? String(contentsOf: url, encoding: .utf8)) {
+            return existing
+        }
+
+        let deviceID = UUID().uuidString.lowercased()
+        do {
+            try FileManager.default.createDirectory(
+                at: home,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
+            try deviceID.write(to: url, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch {
+            // Match the Kimi client: persistence is best-effort; this request can still use the in-memory ID.
+        }
+        return deviceID
+    }
+
+    private static func asciiHeaderValue(_ raw: String, fallback: String = "unknown") -> String {
+        var ascii = ""
+        for scalar in raw.unicodeScalars where (0x20...0x7E).contains(scalar.value) {
+            ascii.unicodeScalars.append(scalar)
+        }
+        let value = ascii.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? fallback : value
+    }
+
+    private static var operatingSystemName: String {
+        #if os(macOS)
+        "macOS"
+        #elseif os(Linux)
+        "Linux"
+        #else
+        "unknown"
+        #endif
+    }
+
+    private static var architectureName: String {
+        #if arch(arm64)
+        "arm64"
+        #elseif arch(x86_64)
+        "x86_64"
+        #else
+        "unknown"
+        #endif
     }
 
     private static func saveKimiCodeCredential(
@@ -196,6 +261,14 @@ public enum KimiSettingsReader {
             return [:]
         }
         return payload
+    }
+
+    private static func kimiCodeHomeURL(environment: [String: String]) -> URL {
+        if let override = self.cleaned(environment[self.codeHomeEnvironmentKey]) {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".kimi-code", isDirectory: true)
     }
 
     private static func cleaned(_ raw: String?) -> String? {
