@@ -117,6 +117,48 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
+    func `mistral switcher uses monthly plan metric when selected`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "mistral-monthly-plan",
+                    title: "Monthly Plan",
+                    window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date())
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .mistral,
+            snapshot: snapshot,
+            showUsed: true,
+            preference: .monthlyPlan)
+
+        #expect(percent == 42)
+    }
+
+    @Test
+    func `mistral switcher ignores pay as you go balance primary`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "$12.50"),
+            secondary: nil,
+            updatedAt: Date())
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .mistral,
+            snapshot: snapshot,
+            showUsed: true,
+            preference: .automatic)
+
+        #expect(percent == nil)
+    }
+
+    @Test
     @MainActor
     func `menu card width stays at base width when menu accessories are present`() {
         let shortcutMenu = NSMenu()

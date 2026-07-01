@@ -143,6 +143,101 @@ struct StatusItemAnimationSignatureTests {
     }
 
     @Test
+    func `merged mistral icon uses monthly plan metric when selected`() throws {
+        let suite = "StatusItemAnimationSignatureTests-merged-mistral-monthly-plan"
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .mistral
+        settings.menuBarShowsBrandIconWithPercent = false
+        settings.usageBarsShowUsed = true
+        settings.syntheticAPIToken = "synthetic-test-token"
+        settings.setMenuBarMetricPreference(.monthlyPlan, for: .mistral)
+
+        let registry = ProviderRegistry.shared
+        if let mistralMeta = registry.metadata[.mistral] {
+            settings.setProviderEnabled(provider: .mistral, metadata: mistralMeta, enabled: true)
+        }
+        if let syntheticMeta = registry.metadata[.synthetic] {
+            settings.setProviderEnabled(provider: .synthetic, metadata: syntheticMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "mistral-monthly-plan",
+                        title: "Monthly Plan",
+                        window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
+                ],
+                updatedAt: Date()),
+            provider: .mistral)
+
+        #expect(store.iconStyle == .combined)
+        #expect(controller.primaryProviderForUnifiedIcon() == .mistral)
+
+        controller.applyIcon(phase: nil)
+        let signature = try #require(controller.lastAppliedMergedIconRenderSignature)
+
+        #expect(signature.contains("provider=mistral"))
+        #expect(signature.contains("primary=42.000"))
+        #expect(signature.contains("weekly=nil"))
+    }
+
+    @Test
+    func `mistral pay as you go icon ignores balance primary percent`() {
+        let suite = "StatusItemAnimationSignatureTests-mistral-payg-balance-percent"
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarMetricPreference(.automatic, for: .mistral)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "$12.50"),
+            secondary: nil,
+            updatedAt: Date())
+
+        let percents = controller.resolvedMenuBarIconPercents(
+            provider: .mistral,
+            snapshot: snapshot,
+            style: .mistral,
+            showUsed: true)
+
+        #expect(percents?.primary == nil)
+        #expect(percents?.secondary == nil)
+    }
+
+    @Test
     func `merged brand percent reapplies title when cached render is skipped`() throws {
         let suite = "StatusItemAnimationSignatureTests-merged-brand-percent-title-restore"
         let settings = testSettingsStore(suiteName: suite)
