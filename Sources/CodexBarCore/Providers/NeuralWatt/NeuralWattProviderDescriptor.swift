@@ -23,9 +23,9 @@ public enum NeuralWattProviderDescriptor {
                 browserCookieOrder: nil,
                 dashboardURL: "https://portal.neuralwatt.com/dashboard",
                 subscriptionDashboardURL: "https://portal.neuralwatt.com/dashboard",
-                changelogURL: "https://portal.neuralwatt.com/docs/changelog",
+                changelogURL: nil,
                 statusPageURL: nil,
-                statusLinkURL: "https://portal.neuralwatt.com/status"),
+                statusLinkURL: nil),
             branding: ProviderBranding(
                 iconStyle: .neuralwatt,
                 iconResourceName: "ProviderIcon-neuralwatt",

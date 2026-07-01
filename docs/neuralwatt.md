@@ -9,10 +9,10 @@ read_when:
 # Neuralwatt Provider
 
 The Neuralwatt provider reads account quota from the Neuralwatt Cloud API using an API key.
-Neuralwatt Cloud is an OpenAI-compatible inference API with energy-based pricing. Credits are a
-Deplete-as-you-go USD balance (like DeepSeek): they do **not** reset on a billing cycle, they
-simply exhaust as the API is used and are refilled by topping up. The quota endpoint exposes
-the USD credit balance, current-month spend fields, and optional per-key spending allowances.
+Neuralwatt Cloud is an OpenAI-compatible inference API with energy-based pricing. Prepaid credits
+are a deplete-as-you-go USD balance: they do **not** reset on a billing cycle and are refilled by
+topping up. Active subscription usage is billed separately against a kWh allowance. The quota
+endpoint exposes both surfaces plus current-month spend and optional per-key spending allowances.
 
 ## Features
 
@@ -40,7 +40,7 @@ default. Use `--no-enable` to save the key without enabling the provider.
 
 1. Open **Settings → Providers**
 2. Enable **Neuralwatt**
-3. Open `https://portal.neuralwatt.com/dashboard/api-keys`
+3. Open `https://portal.neuralwatt.com/dashboard`
 4. Create or copy an API key
 5. Paste the key into CodexBar's Neuralwatt provider settings
 
@@ -61,8 +61,8 @@ For tests or self-hosted/proxy setups, override the API base URL with `NEURALWAT
   `usage.current_month.cost_usd`,
   `key.allowance.limit_usd`, `key.allowance.spent_usd`, `key.allowance.period`
 - `credits_used_usd` is derived as `total_credits_usd − credits_remaining_usd` when the API omits it.
-- `subscription` may be `null`; subscription periods are not rendered as resets because Neuralwatt
-  credits deplete until topped up.
+- `subscription` may be `null`. Its separate kWh allowance is not rendered yet; landing that display
+  requires an explicit product decision because it changes the provider from balance-only to mixed quota semantics.
 
 ## Troubleshooting
 
