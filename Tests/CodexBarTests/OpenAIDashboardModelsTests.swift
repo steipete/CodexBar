@@ -130,11 +130,12 @@ struct OpenAIDashboardModelsTests {
             updatedAt: updatedAt)
 
         let cost = try #require(snapshot.toCostUsageTokenSnapshot(
-            historyDays: 30,
+            historyDays: 365,
             now: updatedAt,
             calendar: Self.utcCalendar))
 
         #expect(cost.valueBasis == .codexDashboardCredits)
+        #expect(cost.historyDays == 30)
         #expect(cost.sessionTokens == nil)
         #expect(cost.last30DaysTokens == nil)
         #expect(abs((cost.sessionCostUSD ?? 0) - 19.6396) < 0.0001)

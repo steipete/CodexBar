@@ -162,7 +162,7 @@ extension OpenAIDashboardSnapshot {
         now: Date = Date(),
         calendar: Calendar = .current) -> CostUsageTokenSnapshot?
     {
-        let clampedHistoryDays = max(1, min(365, historyDays))
+        let clampedHistoryDays = max(1, min(30, historyDays))
         let breakdown = OpenAIDashboardDailyBreakdown
             .removingSkillUsageServices(from: self.usageBreakdown)
             .sorted { lhs, rhs in lhs.day < rhs.day }
