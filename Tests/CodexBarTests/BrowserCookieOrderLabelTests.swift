@@ -49,8 +49,25 @@ struct BrowserCookieOrderStatusStringTests {
     }
 
     @Test
-    func `opencode automatic cookies keep chrome only default`() {
-        #expect(OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencode) == [.chrome])
+    func `opencode automatic cookies only use chrome and dia`() {
+        let order = OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencode)
+        #expect(order == ProviderDefaults.metadata[.opencode]?.browserCookieOrder)
+        #expect(order == ProviderBrowserCookieDefaults.opencodeCookieImportOrder)
+        #expect(order == [.chrome, .dia])
+    }
+
+    @Test
+    func `opencode automatic cookies bound keychain prompt labels to chrome and dia`() {
+        let order = OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencode)
+        let labels = order.flatMap(\.safeStorageLabels).map(\.service)
+
+        #expect(labels == ["Chrome Safe Storage", "Dia Safe Storage"])
+        #expect(!order.contains(.safari))
+        #expect(!order.contains(.firefox))
+        #expect(!order.contains(.edge))
+        #expect(!order.contains(.brave))
+        #expect(!order.contains(.arc))
+        #expect(!order.contains(.chromium))
     }
 
     @Test

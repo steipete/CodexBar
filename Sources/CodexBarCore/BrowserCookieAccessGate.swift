@@ -63,7 +63,7 @@ public enum BrowserCookieAccessGate {
         }
         guard shouldCheckKeychain else { return false }
 
-        let requiresInteraction = self.chromiumKeychainRequiresInteraction()
+        let requiresInteraction = self.chromiumKeychainRequiresInteraction(for: browser)
         return self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if requiresInteraction {
@@ -110,8 +110,9 @@ public enum BrowserCookieAccessGate {
         }
     }
 
-    private static func chromiumKeychainRequiresInteraction() -> Bool {
-        for label in self.safeStorageLabels {
+    private static func chromiumKeychainRequiresInteraction(for browser: Browser) -> Bool {
+        let labels = browser.safeStorageLabels.isEmpty ? self.safeStorageLabels : browser.safeStorageLabels
+        for label in labels {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
             case .allowed:
                 return false
