@@ -361,7 +361,7 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
-    func `menu bar display text does not fall back to mistral spend when monthly plan is missing`() {
+    func `menu bar display text falls back to mistral spend when monthly plan is missing`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-mistral-monthly-plan-missing",
             provider: .mistral)
@@ -387,7 +387,7 @@ struct StatusItemBalanceDisplayTests {
         let displayText = controller.menuBarDisplayText(for: .mistral, snapshot: snapshot)
 
         #expect(snapshot.identity?.loginMethod == "API spend: €1.2345 this month")
-        #expect(displayText == nil)
+        #expect(displayText == "€1.2345")
     }
 
     @Test
