@@ -149,7 +149,8 @@ extension TokenAccountSupportCatalog {
             placeholder: "sk-...",
             injection: .environment(key: NeuralWattSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
-            cookieName: nil),
+            cookieName: nil,
+            minimumDelayBetweenAccountRefreshes: .seconds(1)),
         .groq: TokenAccountSupport(
             title: "API keys",
             subtitle: "Store multiple Groq API keys.",

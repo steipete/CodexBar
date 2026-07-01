@@ -262,6 +262,20 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `Neuralwatt menu bar metric picker omits nonexistent spend lane`() {
+        Self.withEnglishLocalization {
+            let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-neuralwatt-picker")
+            let store = Self.makeUsageStore(settings: settings)
+            let pane = ProvidersPane(settings: settings, store: store)
+
+            let picker = pane._test_menuBarMetricPicker(for: .neuralwatt)
+            #expect(picker?.options.map(\.id) == [
+                MenuBarMetricPreference.automatic.rawValue,
+            ])
+        }
+    }
+
+    @Test
     func `moonshot menu bar metric picker shows balance only copy`() {
         Self.withEnglishLocalization {
             let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-moonshot-picker")

@@ -231,7 +231,16 @@ extension CodexBarCLI {
 
         let selections = Self.accountSelections(from: accounts)
         var output = UsageCommandOutput()
-        for account in selections {
+        let accountRefreshDelay = TokenAccountSupportCatalog
+            .support(for: provider)?.minimumDelayBetweenAccountRefreshes
+        for (index, account) in selections.enumerated() {
+            if index > 0, let accountRefreshDelay {
+                do {
+                    try await Task.sleep(for: accountRefreshDelay)
+                } catch {
+                    return output
+                }
+            }
             let result = await Self.fetchUsageOutput(
                 provider: provider,
                 account: account,

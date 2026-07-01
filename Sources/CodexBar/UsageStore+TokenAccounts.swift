@@ -755,6 +755,34 @@ extension UsageStore {
                 return (index, account, descriptor, context)
             }
 
+        if let delay = TokenAccountSupportCatalog.support(for: provider)?.minimumDelayBetweenAccountRefreshes {
+            var results: [TokenAccountFetchResult] = []
+            results.reserveCapacity(requests.count)
+            for request in requests {
+                if !results.isEmpty {
+                    do {
+                        try await Task.sleep(for: delay)
+                    } catch {
+                        for pending in requests.dropFirst(results.count) {
+                            results.append(TokenAccountFetchResult(
+                                index: pending.index,
+                                account: pending.account,
+                                outcome: ProviderFetchOutcome(
+                                    result: .failure(CancellationError()),
+                                    attempts: [])))
+                        }
+                        return results
+                    }
+                }
+                let outcome = await request.descriptor.fetchOutcome(context: request.context)
+                results.append(TokenAccountFetchResult(
+                    index: request.index,
+                    account: request.account,
+                    outcome: outcome))
+            }
+            return results
+        }
+
         return await withTaskGroup(
             of: TokenAccountFetchResult.self,
             returning: [TokenAccountFetchResult].self)
