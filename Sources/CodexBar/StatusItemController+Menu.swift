@@ -1116,7 +1116,7 @@ extension StatusItemController {
         // open regardless of freshness — still after the delay below, and still via the light usage-only
         // primitive so the OpenAI dashboard scrape stays deferred until the menu closes.
         let providersNeedingRetryAtOpen = self.delayedRefreshRetryProviders(for: menu).filter {
-            self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+            self.store.needsUsageRefreshRetry(for: $0)
         }
         if !providersNeedingRetryAtOpen.isEmpty {
             self.deferMenuInteractionRefreshIfNeeded(providers: providersNeedingRetryAtOpen)
@@ -1141,7 +1141,7 @@ extension StatusItemController {
                 visibleProviders: visibleProviders,
                 refreshingProviders: self.store.refreshingProviders,
                 staleProviders: Set(visibleProviders.filter { self.store.isStale(provider: $0) }),
-                missingProviders: Set(visibleProviders.filter { self.store.snapshot(for: $0) == nil })))
+                missingProviders: Set(visibleProviders.filter { !self.store.hasSatisfiedUsageFetch(for: $0) })))
             if plan.refreshCodexDashboard { self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all") }
             let retryProviders = plan.providers
             guard !retryProviders.isEmpty else {
@@ -1178,7 +1178,7 @@ extension StatusItemController {
                 }
             }
             let stillNeedsRetry = retryProviders.contains {
-                self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+                self.store.needsUsageRefreshRetry(for: $0)
             }
             if !stillNeedsRetry {
                 self.clearSatisfiedDeferredMenuInteractionRefreshes(for: retryProviders)
@@ -1196,7 +1196,7 @@ extension StatusItemController {
         let providersToCheck = self.delayedRefreshRetryProviders(for: menu)
         guard !providersToCheck.isEmpty else { return false }
         return providersToCheck.contains { provider in
-            self.store.isStale(provider: provider) || self.store.snapshot(for: provider) == nil
+            self.store.needsUsageRefreshRetry(for: provider)
         }
     }
 

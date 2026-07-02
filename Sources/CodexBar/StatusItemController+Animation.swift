@@ -1101,12 +1101,20 @@ extension StatusItemController {
     }
 
     func primaryProviderForUnifiedIcon() -> UsageProvider {
-        // When "show highest usage" is enabled, auto-select the provider closest to rate limit.
-        if self.settings.menuBarShowsHighestUsage,
-           self.shouldMergeIcons,
-           let highest = self.store.providerWithHighestUsage()
-        {
-            return highest.provider
+        // When "show highest usage" is enabled, rank the existing Overview subset by proximity to its limit.
+        if self.settings.menuBarShowsHighestUsage, self.shouldMergeIcons {
+            let activeProviders = self.store.enabledProvidersForDisplay()
+            let overviewProviders = self.settings.resolvedMergedOverviewProviders(
+                activeProviders: activeProviders,
+                maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+            if let highest = self.store.providerWithHighestUsage(candidateProviders: overviewProviders) {
+                return highest.provider
+            }
+            // A nonempty Overview selection remains authoritative while its providers are loading,
+            // unrankable, or exhausted. Only an explicitly empty Overview may use the broad fallback.
+            if let fallback = overviewProviders.first(where: { self.store.isEnabled($0) }) {
+                return fallback
+            }
         }
         if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
             let enabledProviders = self.store.enabledProvidersForDisplay()
@@ -1186,11 +1194,11 @@ extension StatusItemController {
         if isFallbackOnly { return false }
 
         let isStale = self.store.isStale(provider: provider)
-        let hasData = self.store.snapshot(for: provider) != nil
-        if provider == .warp, !hasData, self.store.refreshingProviders.contains(provider) {
+        let hasSatisfiedUsageFetch = self.store.hasSatisfiedUsageFetch(for: provider)
+        if provider == .warp, !hasSatisfiedUsageFetch, self.store.refreshingProviders.contains(provider) {
             return true
         }
-        return !hasData && !isStale
+        return !hasSatisfiedUsageFetch && !isStale
     }
 
     func updateAnimationState() {

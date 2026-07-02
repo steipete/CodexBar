@@ -108,6 +108,13 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .qoder: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Qoder Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
         .copilot: TokenAccountSupport(
             title: "GitHub accounts",
             subtitle: "Sign in with multiple GitHub accounts via OAuth.",
