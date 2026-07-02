@@ -523,7 +523,8 @@ struct MiniMaxUsageSummaryChartMenuView: View {
         usage: MiniMaxUsageSummary) -> [DetailRow]
     {
         let breakdownByModel = Dictionary(
-            uniqueKeysWithValues: usage.projectedModelBreakdowns(for: point.day).map { ($0.modelName, $0) })
+            usage.projectedModelBreakdowns(for: point.day).map { ($0.modelName, $0) },
+            uniquingKeysWith: { first, _ in first })
         if !point.day.models.isEmpty {
             return point.day.models
                 .sorted { lhs, rhs in
@@ -540,7 +541,7 @@ struct MiniMaxUsageSummaryChartMenuView: View {
                             totalTokens: $0.totalTokens)
                     } ?? Self.modelTokenSubtitle(model)
                     return DetailRow(
-                        id: model.model,
+                        id: "\(model.model)#\(index)",
                         title: Self.shortModelName(model.model),
                         subtitle: subtitle,
                         modeSubtitle:
@@ -659,6 +660,12 @@ extension MiniMaxUsageSummaryChartMenuView {
             day: day)
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
         return Self.dayDetailPrimary(dayLabel: dayLabel, point: point, usage: usage)
+    }
+
+    static func _detailRowCountForTesting(usage: MiniMaxUsageSummary, dateKey: String) -> Int {
+        let view = Self(usage: usage, width: 320)
+        let model = Self.makeModel(usage: usage, windowDays: 30)
+        return view.detailContent(selectedDateKey: dateKey, model: model).rows.count
     }
 
     static func _detailViewportHeightForTesting(modeSubtitlePresence: [Bool]) -> CGFloat {

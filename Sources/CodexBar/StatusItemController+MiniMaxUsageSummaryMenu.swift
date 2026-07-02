@@ -14,7 +14,8 @@ extension StatusItemController {
     }
 
     func makeMiniMaxUsageSummarySubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
-        guard provider == .minimax,
+        guard self.settings.showOptionalCreditsAndExtraUsage,
+              provider == .minimax,
               let usage = self.store.snapshot(for: provider)?.minimaxUsage?.usageSummary,
               usage.hasDisplayableData
         else {
@@ -45,7 +46,8 @@ extension StatusItemController {
         provider: UsageProvider,
         width: CGFloat) -> Bool
     {
-        guard provider == .minimax,
+        guard self.settings.showOptionalCreditsAndExtraUsage,
+              provider == .minimax,
               let usage = self.store.snapshot(for: provider)?.minimaxUsage?.usageSummary,
               usage.hasDisplayableData
         else {

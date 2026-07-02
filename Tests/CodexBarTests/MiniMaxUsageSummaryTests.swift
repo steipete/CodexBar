@@ -123,7 +123,9 @@ struct MiniMaxUsageSummaryTests {
             days: [])
 
         #expect(summary.hasDisplayableData)
-        #expect(summary.trendDays(last: 3).map(\.totalToken) == [100, 200, 300])
+        let trend = summary.trendDays(last: 3)
+        #expect(trend.map(\.date) == ["2026-06-30", "2026-07-01", "2026-07-02"])
+        #expect(trend.map(\.totalToken) == [100, 200, 300])
         #expect(summary.last7DaysTokens == 600)
         #expect(summary.latestSnapshotTokens == 300)
     }

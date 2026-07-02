@@ -116,7 +116,7 @@ struct MiniMaxMenuCardBillingTests {
             now: now))
 
         #expect(model.inlineUsageDashboard?.kpis[0].title == "Today")
-        #expect(model.inlineUsageDashboard?.kpis[0].value == "$0.01")
+        #expect(model.inlineUsageDashboard?.kpis[0].value == "$0.03")
         #expect(model.inlineUsageDashboard?.kpis[1].title == "30d cost")
         #expect(model.inlineUsageDashboard?.kpis[2].title == "07-02 20:00 usage")
         #expect(model.inlineUsageDashboard?.kpis[2].value == "88.00K")

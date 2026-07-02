@@ -28,7 +28,7 @@ extension MiniMaxUsageSummary {
     {
         if !day.models.isEmpty {
             return day.models.compactMap { model in
-                guard let costUSD = MiniMaxUsagePricing.minimaxCostUSD(
+                guard let costUSD = MiniMaxUsagePricing.minimaxAggregateCostUSD(
                     model: model.model,
                     inputToken: model.inputToken,
                     cacheReadToken: model.cacheReadToken,
@@ -44,23 +44,7 @@ extension MiniMaxUsageSummary {
             }
         }
 
-        guard day.totalToken > 0,
-              let costUSD = MiniMaxUsagePricing.minimaxCostUSD(
-                  model: "MiniMax-M2.7",
-                  inputToken: day.totalInputToken,
-                  cacheReadToken: day.totalCacheReadToken,
-                  cacheCreateToken: day.totalCacheCreateToken,
-                  outputToken: day.totalOutputToken)
-        else {
-            return []
-        }
-
-        return [
-            CostUsageDailyReport.ModelBreakdown(
-                modelName: "Day totals",
-                costUSD: costUSD,
-                totalTokens: day.totalToken),
-        ]
+        return []
     }
 
     public func toCostUsageTokenSnapshot(

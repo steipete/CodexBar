@@ -647,6 +647,7 @@ struct MiniMaxMenuCardModelTests {
     @Test
     func `minimax token plan model shows weekly quota and points balance`() throws {
         let now = Date()
+        let pointsBalanceExpiresAt = Date(timeIntervalSince1970: 1_784_995_199)
         let minimax = MiniMaxUsageSnapshot(
             planName: "Token Plan · TokenPlanPlus-年度会员",
             availablePrompts: nil,
@@ -677,7 +678,7 @@ struct MiniMaxMenuCardModelTests {
                     resetDescription: "Resets in 6 days"),
             ],
             pointsBalance: 14000,
-            pointsBalanceExpiresAt: Date(timeIntervalSince1970: 1_784_995_199),
+            pointsBalanceExpiresAt: pointsBalanceExpiresAt,
             subscriptionRenewsAt: Date(timeIntervalSince1970: 1_810_569_600))
         let snapshot = minimax.toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.minimax])
@@ -715,7 +716,10 @@ struct MiniMaxMenuCardModelTests {
         #expect(model.metrics[1].cardStyle == false)
         #expect(model.providerCost?.title == "Credits")
         #expect(model.providerCost?.spendLine == "Balance: 14000")
-        #expect(model.providerCost?.personalSpendLine?.contains("Jul 25, 2026 at 11:59:59") == true)
+        let expectedExpiresLine = String(
+            format: L("Expires: %@"),
+            UsageFormatter.preciseDateTimeDescription(from: pointsBalanceExpiresAt, now: now))
+        #expect(model.providerCost?.personalSpendLine == expectedExpiresLine)
         #expect(model.usageNotes == [String(format: L("Renews: %@"), minimaxRenewDate(1_810_569_600))])
     }
 }

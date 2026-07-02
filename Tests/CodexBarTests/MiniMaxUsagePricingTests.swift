@@ -62,6 +62,41 @@ struct MiniMaxUsagePricingTests {
     }
 
     @Test
+    func `daily aggregate model rows do not use per request long context pricing`() throws {
+        let shortRate = try #require(MiniMaxUsagePricing.minimaxAggregateCostUSD(
+            model: "MiniMax-M3",
+            inputToken: 600_000,
+            cacheReadToken: 0,
+            cacheCreateToken: 0,
+            outputToken: 1_000_000))
+        let longRate = try #require(MiniMaxUsagePricing.minimaxCostUSD(
+            model: "MiniMax-M3",
+            inputToken: 600_000,
+            cacheReadToken: 0,
+            cacheCreateToken: 0,
+            outputToken: 1_000_000))
+
+        #expect(shortRate < longRate)
+    }
+
+    @Test
+    func `days without model attribution remain unpriced`() {
+        let summary = Self.sampleSummary()
+        let unattributed = MiniMaxUsageSummaryDay(
+            date: "2026-07-03",
+            totalInputToken: 1_000_000,
+            totalCacheReadToken: 500_000,
+            totalCacheCreateToken: 0,
+            totalOutputToken: 100_000,
+            totalToken: 1_100_000,
+            cacheHitPercent: 50,
+            models: [])
+
+        #expect(summary.projectedCostUSD(for: unattributed) == nil)
+        #expect(summary.projectedModelBreakdowns(for: unattributed).isEmpty)
+    }
+
+    @Test
     func `snapshot day with model breakdown projects cost history`() {
         let summary = Self.sampleSummary()
         let snapshot = summary.toCostUsageTokenSnapshot(

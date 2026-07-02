@@ -277,9 +277,14 @@ extension StatusItemController {
         else {
             return "none"
         }
-        return usage.days.suffix(30).map {
+        let days = usage.days.suffix(30).map {
             "\($0.date):\($0.totalToken):\($0.cacheHitPercent ?? -1):\($0.models.count)"
         }.joined(separator: "|")
+        return [
+            usage.lastUpdateTime ?? "",
+            usage.dailyTokenUsage.suffix(30).map(String.init).joined(separator: ","),
+            days,
+        ].joined(separator: "|")
     }
 
     private func costHistoryRenderSignature(for provider: UsageProvider) -> String {

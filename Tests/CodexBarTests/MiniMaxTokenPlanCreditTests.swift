@@ -73,9 +73,8 @@ struct MiniMaxTokenPlanCreditTests {
     }
 
     @Test
-    func `web usage fetch merges token plan credit balance`() async throws {
+    func `web usage fetch skips optional console enrichment when disabled`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
-        let creditJSON = try String(contentsOf: Self.fixtureURL(named: "token-plan-credit-normal.json"))
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             if url.path.contains("coding-plan") {
@@ -87,15 +86,8 @@ struct MiniMaxTokenPlanCreditTests {
             if url.path.contains("coding_plan/remains") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
-            if url.path == "/backend/account/token_plan/usage_summary" {
-                return Self.httpResponse(
-                    url: url,
-                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
-                    contentType: "application/json")
-            }
-            #expect(url.host == "www.minimaxi.com")
-            #expect(url.path == "/backend/account/token_plan_credit")
-            return Self.httpResponse(url: url, body: creditJSON, contentType: "application/json")
+            Issue.record("Unexpected optional enrichment request: \(url.absoluteString)")
+            return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
@@ -106,10 +98,10 @@ struct MiniMaxTokenPlanCreditTests {
             session: transport,
             now: now)
 
-        #expect(snapshot.pointsBalance == 20000)
-        #expect(snapshot.toUsageSnapshot().providerCost?.used == 20000)
+        #expect(snapshot.pointsBalance == nil)
         let requests = await transport.requests()
-        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
+        #expect(!requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
+        #expect(!requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" })
     }
 
     @Test
@@ -213,6 +205,38 @@ struct MiniMaxTokenPlanCreditTests {
 
         #expect(remainsSnapshot.pointsBalance == nil)
         #expect(enriched.pointsBalance == 20000)
+    }
+
+    @Test
+    func `credit enrichment fetches missing expiry without replacing existing balance`() async throws {
+        let creditJSON = try String(contentsOf: Self.fixtureURL(named: "token-plan-credit-normal.json"))
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            return Self.httpResponse(url: url, body: creditJSON, contentType: "application/json")
+        }
+        let snapshot = MiniMaxUsageSnapshot(
+            planName: "Max",
+            availablePrompts: 1000,
+            currentPrompts: 0,
+            remainingPrompts: 1000,
+            windowMinutes: 300,
+            usedPercent: 0,
+            resetsAt: nil,
+            updatedAt: Date(),
+            pointsBalance: 12345)
+
+        let enriched = try await MiniMaxUsageFetcher.attachingTokenPlanCreditIfAvailable(
+            to: snapshot,
+            context: MiniMaxUsageFetcher.WebFetchContext(
+                cookie: "HERTZ-SESSION=abc",
+                authorizationToken: nil,
+                region: .chinaMainland,
+                environment: [:],
+                transport: transport),
+            groupID: nil)
+
+        #expect(enriched.pointsBalance == 12345)
+        #expect(enriched.pointsBalanceExpiresAt == Date(timeIntervalSince1970: 1_784_995_199.999))
     }
 
     @Test

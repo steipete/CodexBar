@@ -47,6 +47,14 @@ public enum BrowserCookieAccessGate {
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
         guard browser.usesKeychainForCookieDecryption else { return true }
         guard !KeychainAccessGate.isDisabled else { return false }
+
+        if ProviderInteractionContext.current == .userInitiated {
+            self.log.debug(
+                "Cookie access allowed for user-initiated refresh",
+                metadata: ["browser": browser.displayName])
+            return true
+        }
+
         let shouldCheckKeychain = self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] {

@@ -21,14 +21,21 @@ falls back across the provider's supported web requests when needed.
    - Auto mode can fall back to the web/cookie path when API-token credentials are rejected or the global endpoint
      returns 404.
 
-2) **Cached/imported browser session** (automatic web path)
+2) **MiniMax Agent desktop session** (automatic when installed)
+   - Reads the logged-in MiniMax Agent / MiniMax Code desktop cookie store from
+     `~/Library/Application Support/MiniMax/Cookies`.
+   - Does not require Chrome Keychain access; used first when present.
+
+3) **Cached/imported browser session** (automatic web path)
    - Uses CodexBar's standard cookie cache and browser import flow.
 
-3) **Browser cookie import** (automatic)
+4) **Browser cookie import** (automatic)
    - Uses provider metadata for browser order and MiniMax domain filters.
    - Chromium browser storage can supplement imported cookies with access-token context when available.
+   - Chrome decryption may require a one-time Keychain approval. Use **⌘R** on the MiniMax menu card to
+     trigger a user-initiated refresh when automatic background import is suppressed.
 
-4) **Manual session cookie header** (optional web-path override)
+5) **Manual session cookie header** (optional web-path override)
    - Stored in `~/.codexbar/config.json` via Preferences → Providers → MiniMax (Cookie source → Manual).
    - Accepts a raw `Cookie:` header or a full "Copy as cURL" string.
    - Low-level no-settings runtime can read `MINIMAX_COOKIE` or `MINIMAX_COOKIE_HEADER`.
@@ -45,16 +52,20 @@ falls back across the provider's supported web requests when needed.
 - Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io` or `minimaxi.com`.
 
 ## Cookie capture (optional override)
-- Open the Coding Plan page and DevTools → Network.
+- Preferred automatic paths:
+  - stay logged into **MiniMax Agent / MiniMax Code**, or
+  - stay logged into `platform.minimaxi.com` / `www.minimaxi.com` in Chrome, then press **⌘R** once and approve the Keychain prompt if macOS asks for Chrome safe-storage access.
+- Manual fallback:
+  - Open the Coding Plan page and DevTools → Network.
 - Select the request to `/v1/api/openplatform/coding_plan/remains`.
 - Copy the `Cookie` request header (or use “Copy as cURL” and paste the whole line).
 - Paste into Preferences → Providers → MiniMax only if automatic import fails.
 
 ## Snapshot mapping
 - Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.
-- Token Plan recharge credits (积分余额) are fetched from `GET https://www.minimaxi.com/backend/account/token_plan_credit` (or the global `www.minimax.io` host) using the browser session cookie. API-token remains responses do not include this balance.
-- Console usage summary (`GET .../backend/account/token_plan/usage_summary`) enriches web-session refreshes with 30-day token/cost trends, cache-hit stats, and per-model breakdowns when a browser cookie is available. API-token refreshes only attempt summary enrichment when an explicit manual or environment cookie is configured.
-- API-token refreshes only merge recharge credits when an explicit manual or environment cookie is configured; cached browser cookies are not attached automatically to avoid cross-account balance bleed.
+- Token Plan recharge credits (积分余额) are fetched from `GET https://www.minimaxi.com/backend/account/token_plan_credit` (or the global `www.minimax.io` host) using a web session cookie (`_token` from MiniMax Agent or the browser). API-token remains responses do not include this balance.
+- Console usage summary (`GET .../backend/account/token_plan/usage_summary`) enriches API-token and web-session refreshes when a valid web cookie is available from MiniMax Agent, browser import, cache, manual settings, or `MINIMAX_COOKIE`.
+- API-token refreshes merge recharge credits and usage-summary enrichment through `MiniMaxWebEnrichmentResolver`, trying MiniMax Agent cookies first, then cached/browser/manual candidates. Successful browser profiles are cached for later background refreshes once Chrome Keychain access is already authorized.
 - Pay-as-you-go cost projections treat `input_token` and `cache_read_token` as separate counters when pricing usage-summary model rows.
 - Menu **Usage Dashboard** opens `https://platform.minimax.io/console/usage` or `https://platform.minimaxi.com/console/usage` based on the configured API region. Settings **Open Token Plan** still opens the Coding Plan page.
 - 5-hour and weekly reset countdowns prefer plausible `remains_time` values but fall back to `end_time` when the API countdown is far outside the declared window.
@@ -67,6 +78,8 @@ If the billing-history endpoint is unavailable but normal Coding Plan quota data
 quota card and omits the chart instead of treating the whole provider as failed.
 
 ## Key files
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxDesktopCookieImporter.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxWebEnrichmentResolver.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxTokenPlanCreditFetcher.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageSummary.swift`

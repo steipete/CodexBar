@@ -1,6 +1,13 @@
 import Foundation
 
 enum MiniMaxUsagePricing {
+    private struct TokenCounts {
+        let input: Int
+        let cacheRead: Int
+        let cacheCreate: Int
+        let output: Int
+    }
+
     struct Pricing: Equatable {
         let inputCostPerToken: Double
         let outputCostPerToken: Double
@@ -78,10 +85,30 @@ enum MiniMaxUsagePricing {
         guard let pricing = self.pricing(for: model, inputToken: inputToken) else { return nil }
         return self.costUSD(
             pricing: pricing,
-            inputToken: inputToken,
-            cacheReadToken: cacheReadToken,
-            cacheCreateToken: cacheCreateToken,
-            outputToken: outputToken)
+            tokens: TokenCounts(
+                input: inputToken,
+                cacheRead: cacheReadToken,
+                cacheCreate: cacheCreateToken,
+                output: outputToken),
+            applyLongContextThreshold: true)
+    }
+
+    static func minimaxAggregateCostUSD(
+        model: String,
+        inputToken: Int,
+        cacheReadToken: Int,
+        cacheCreateToken: Int,
+        outputToken: Int) -> Double?
+    {
+        guard let pricing = self.pricing(for: model, inputToken: inputToken) else { return nil }
+        return self.costUSD(
+            pricing: pricing,
+            tokens: TokenCounts(
+                input: inputToken,
+                cacheRead: cacheReadToken,
+                cacheCreate: cacheCreateToken,
+                output: outputToken),
+            applyLongContextThreshold: false)
     }
 
     static func pricing(for model: String, inputToken: Int) -> Pricing? {
@@ -123,17 +150,15 @@ enum MiniMaxUsagePricing {
 
     private static func costUSD(
         pricing: Pricing,
-        inputToken: Int,
-        cacheReadToken: Int,
-        cacheCreateToken: Int,
-        outputToken: Int) -> Double
+        tokens: TokenCounts,
+        applyLongContextThreshold: Bool) -> Double
     {
-        let input = max(0, inputToken)
-        let cacheRead = max(0, cacheReadToken)
-        let cacheCreate = max(0, cacheCreateToken)
-        let output = max(0, outputToken)
+        let input = max(0, tokens.input)
+        let cacheRead = max(0, tokens.cacheRead)
+        let cacheCreate = max(0, tokens.cacheCreate)
+        let output = max(0, tokens.output)
 
-        let usesLongContext = pricing.thresholdTokens.map { input > $0 } ?? false
+        let usesLongContext = applyLongContextThreshold && (pricing.thresholdTokens.map { input > $0 } ?? false)
         let inputRate = usesLongContext
             ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
             : pricing.inputCostPerToken

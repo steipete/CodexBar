@@ -67,6 +67,14 @@ enum MiniMaxTokenPlanCreditFetcher {
         if let override = MiniMaxSettingsReader.tokenPlanCreditURL(environment: environment) {
             return override
         }
+        if let host = MiniMaxSettingsReader.hostOverride(environment: environment) {
+            let lowered = host.lowercased()
+            if !lowered.contains("minimax.io"), !lowered.contains("minimaxi.com"),
+               let hostURL = MiniMaxUsageFetcher.url(from: host, path: "backend/account/token_plan_credit")
+            {
+                return hostURL
+            }
+        }
         return Self.effectiveRegion(for: region, environment: environment).tokenPlanCreditURL
     }
 

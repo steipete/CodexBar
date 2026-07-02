@@ -90,9 +90,12 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
             apiToken: apiToken,
             region: preferredRegion)
         var usage = apiResult.snapshot
-        if let cookieOverride = Self.resolveExplicitCookieOverride(context: context),
-           let cookie = MiniMaxCookieHeader.normalized(from: cookieOverride.cookieHeader)
+        for candidate in context.includeOptionalUsage
+            ? MiniMaxWebEnrichmentResolver.candidates(context: context)
+            : []
         {
+            let cookieOverride = candidate.override
+            guard let cookie = MiniMaxCookieHeader.normalized(from: cookieOverride.cookieHeader) else { continue }
             let fetchContext = MiniMaxUsageFetcher.WebFetchContext(
                 cookie: cookie,
                 authorizationToken: cookieOverride.authorizationToken,
@@ -107,22 +110,14 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
                 to: usage,
                 context: fetchContext,
                 groupID: cookieOverride.groupID)
+            if usage.usageSummary != nil || usage.pointsBalance != nil {
+                MiniMaxWebEnrichmentResolver.cacheValidated(candidate)
+                break
+            }
         }
         return self.makeResult(
             usage: usage.toUsageSnapshot(),
             sourceLabel: "api")
-    }
-
-    private static func resolveExplicitCookieOverride(context: ProviderFetchContext) -> MiniMaxCookieOverride? {
-        if let settings = context.settings?.minimax, settings.cookieSource == .manual {
-            if let override = MiniMaxCookieHeader.override(from: settings.manualCookieHeader) {
-                return override
-            }
-        }
-        guard let raw = ProviderTokenResolver.minimaxCookie(environment: context.env) else {
-            return nil
-        }
-        return MiniMaxCookieHeader.override(from: raw)
     }
 
     func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
@@ -148,6 +143,9 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             return true
         }
         #if os(macOS)
+        if MiniMaxDesktopCookieImporter.importSession() != nil {
+            return true
+        }
         if let cached = CookieHeaderCache.load(provider: .minimax),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -185,6 +183,30 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         let tokenContext = Self.loadTokenContext(browserDetection: context.browserDetection)
 
         var lastError: Error?
+        if let session = MiniMaxDesktopCookieImporter.importSession() {
+            switch await Self.attemptFetch(
+                cookieHeader: session.cookieHeader,
+                sourceLabel: session.sourceLabel,
+                tokenContext: tokenContext,
+                logLabel: "desktop",
+                fetchContext: fetchContext)
+            {
+            case let .success(snapshot):
+                CookieHeaderCache.store(
+                    provider: .minimax,
+                    cookieHeader: session.cookieHeader,
+                    sourceLabel: session.sourceLabel)
+                return self.makeResult(
+                    usage: snapshot.toUsageSnapshot(),
+                    sourceLabel: "web")
+            case let .failure(error):
+                lastError = error
+                if !Self.shouldTryNextBrowser(for: error) {
+                    throw error
+                }
+            }
+        }
+
         if let cached = CookieHeaderCache.load(provider: .minimax),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

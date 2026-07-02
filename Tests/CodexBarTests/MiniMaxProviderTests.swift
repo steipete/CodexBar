@@ -1051,14 +1051,8 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func `web usage fetch skips billing history when optional usage is disabled`() async throws {
+    func `web usage fetch skips console enrichment when optional usage is disabled`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
-        let creditBody = """
-        {
-          "remaining_credits": 20000,
-          "base_resp": { "status_code": 0 }
-        }
-        """
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             if url.path.contains("coding-plan") {
@@ -1067,14 +1061,8 @@ struct MiniMaxUsageParserTests {
                     body: Self.codingPlanJSON,
                     contentType: "application/json")
             }
-            if url.path == "/backend/account/token_plan/usage_summary" {
-                return Self.httpResponse(
-                    url: url,
-                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
-                    contentType: "application/json")
-            }
-            #expect(url.path == "/backend/account/token_plan_credit")
-            return Self.httpResponse(url: url, body: creditBody, contentType: "application/json")
+            Issue.record("Unexpected optional enrichment request: \(url.absoluteString)")
+            return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
@@ -1088,10 +1076,10 @@ struct MiniMaxUsageParserTests {
         let requests = await transport.requests()
         #expect(snapshot.currentPrompts == 2)
         #expect(snapshot.billingSummary == nil)
-        #expect(snapshot.pointsBalance == 20000)
+        #expect(snapshot.pointsBalance == nil)
         let billingRequests = requests.filter { $0.url?.path == "/account/amount" }
         #expect(billingRequests.isEmpty)
-        #expect(requests.count == 3)
+        #expect(requests.count == 1)
     }
 
     @Test
@@ -1282,6 +1270,13 @@ struct MiniMaxAPIRegionTests {
             environment: globalEnv)
         #expect(globalResolved.host == "www.minimax.io")
         #expect(globalResolved.path == "/backend/account/token_plan_credit")
+    }
+
+    @Test
+    func `host override routes token plan credit through custom proxy host`() throws {
+        let env = [MiniMaxSettingsReader.hostKey: "proxy.example.test:8443"]
+        let resolved = try MiniMaxTokenPlanCreditFetcher.resolveCreditURL(region: .global, environment: env)
+        #expect(resolved.absoluteString == "https://proxy.example.test:8443/backend/account/token_plan_credit")
     }
 
     @Test

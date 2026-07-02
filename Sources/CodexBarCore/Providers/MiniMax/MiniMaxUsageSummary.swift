@@ -57,14 +57,15 @@ public struct MiniMaxUsageSummary: Sendable, Equatable {
         guard !self.dailyTokenUsage.isEmpty else { return [] }
         let values = Array(self.dailyTokenUsage.suffix(count))
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let snapshotDate = Self.date(fromDateKey: self.snapshotDateKey) ?? Date()
+        let snapshotDay = calendar.startOfDay(for: snapshotDate)
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = TimeZone.current
         formatter.dateFormat = "yyyy-MM-dd"
         return values.enumerated().map { index, tokens in
             let daysBack = values.count - 1 - index
-            let date = calendar.date(byAdding: .day, value: -daysBack, to: today) ?? today
+            let date = calendar.date(byAdding: .day, value: -daysBack, to: snapshotDay) ?? snapshotDay
             return MiniMaxUsageSummaryDay(
                 date: formatter.string(from: date),
                 totalInputToken: 0,
@@ -137,6 +138,15 @@ public struct MiniMaxUsageSummary: Sendable, Equatable {
         components.day = day
         guard let date = components.date else { return nil }
         return Self.todayDateKey(for: date)
+    }
+
+    private static func date(fromDateKey key: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: key)
     }
 
     static func todayDateKey(for date: Date = Date()) -> String {

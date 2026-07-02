@@ -277,7 +277,7 @@ extension MiniMaxUsageFetcher {
         context: WebFetchContext,
         groupID: String?) async throws -> MiniMaxUsageSnapshot
     {
-        guard snapshot.pointsBalance == nil,
+        guard snapshot.pointsBalance == nil || snapshot.pointsBalanceExpiresAt == nil,
               MiniMaxCookieHeader.normalized(from: context.cookie) != nil
         else {
             return snapshot

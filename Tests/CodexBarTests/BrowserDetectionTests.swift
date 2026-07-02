@@ -213,7 +213,7 @@ struct BrowserDetectionTests {
         var preflightCount = 0
 
         KeychainAccessGate.withTaskOverrideForTesting(false) {
-            ProviderInteractionContext.$current.withValue(.userInitiated) {
+            ProviderInteractionContext.$current.withValue(.background) {
                 KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                     preflightCount += 1
                     return .interactionRequired
@@ -279,6 +279,22 @@ struct BrowserDetectionTests {
         }
 
         #expect(preflightCount == 1)
+    }
+
+    @Test
+    func `user initiated cookie import allows chromium keychain sources requiring interaction`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                .interactionRequired
+            } operation: {
+                ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == true)
+                }
+            }
+        }
     }
 
     @Test

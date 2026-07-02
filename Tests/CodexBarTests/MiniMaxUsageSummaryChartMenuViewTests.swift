@@ -77,6 +77,42 @@ struct MiniMaxUsageSummaryChartMenuViewTests {
 
     @Test
     @MainActor
+    func `duplicate model names do not trap detail rendering`() {
+        let duplicate = MiniMaxUsageSummaryModel(
+            model: "MiniMax-M3",
+            inputToken: 100,
+            cacheReadToken: 0,
+            cacheCreateToken: 0,
+            outputToken: 10,
+            totalToken: 110,
+            cacheHitPercent: 0)
+        let usage = MiniMaxUsageSummary(
+            totalDays: 1,
+            totalTokenConsumed: "220",
+            usageRankingPercent: nil,
+            activeDays: 1,
+            currentConsecutiveDays: 1,
+            lastUpdateTime: "07-02 21:00",
+            dailyTokenUsage: [220],
+            days: [
+                MiniMaxUsageSummaryDay(
+                    date: "2026-07-02",
+                    totalInputToken: 200,
+                    totalCacheReadToken: 0,
+                    totalCacheCreateToken: 0,
+                    totalOutputToken: 20,
+                    totalToken: 220,
+                    cacheHitPercent: 0,
+                    models: [duplicate, duplicate]),
+            ])
+
+        #expect(MiniMaxUsageSummaryChartMenuView._detailRowCountForTesting(
+            usage: usage,
+            dateKey: "2026-07-02") == 2)
+    }
+
+    @Test
+    @MainActor
     func `usage summary detail height follows visible rows and caps at viewport limit`() {
         let singleRowHeight = MiniMaxUsageSummaryChartMenuView._detailViewportHeightForTesting(
             modeSubtitlePresence: [true])
