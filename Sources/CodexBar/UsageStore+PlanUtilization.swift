@@ -634,8 +634,17 @@ extension UsageStore {
     }
 
     private func windowMinutes(for service: MiniMaxServiceUsage) -> Int {
-        let parsed = MiniMaxServiceUsage.parseWindowType(service.windowType).windowMinutes
-        return parsed ?? 300
+        let windowType = service.windowType.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if windowType == "today" || windowType == "今日" {
+            return 24 * 60
+        }
+        if windowType == "weekly" {
+            return 7 * 24 * 60
+        }
+        if let parsed = MiniMaxServiceUsage.parseWindowType(service.windowType).windowMinutes {
+            return parsed
+        }
+        return 300
     }
 
     private nonisolated static func planUtilizationHourBucket(for date: Date) -> Int64 {
