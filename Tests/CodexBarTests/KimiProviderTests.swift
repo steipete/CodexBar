@@ -365,6 +365,51 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
+    func `parses subscription stat response`() throws {
+        let json = """
+        {
+          "ratelimitCode5h": {
+            "ratio": 0.4689,
+            "enabled": true,
+            "resetTime": "2026-07-02T11:56:36.876796734Z"
+          },
+          "ratelimitCode7d": {
+            "ratio": 0.0946,
+            "enabled": true,
+            "resetTime": "2026-07-09T06:56:36.876796734Z"
+          },
+          "subscriptionBalance": {
+            "id": "19eee1de-9092-8315-8000-0000e4e34d79",
+            "feature": "FEATURE_OMNI",
+            "type": "SUBSCRIPTION",
+            "unit": "UNIT_CREDIT",
+            "amountUsedRatio": 1,
+            "kimiCodeUsedRatio": 0.2854,
+            "expireTime": "2026-07-23T00:00:00Z"
+          },
+          "giftBalances": [
+            {
+              "id": "19efdb95-e082-804c-9ecd-978b7ab37d36",
+              "feature": "FEATURE_OMNI",
+              "type": "GIFT",
+              "unit": "UNIT_CREDIT",
+              "amountUsedRatio": 1,
+              "kimiCodeUsedRatio": 1,
+              "expireTime": "2026-07-31T15:59:59Z"
+            }
+          ]
+        }
+        """
+
+        let response = try JSONDecoder().decode(KimiSubscriptionStatResponse.self, from: Data(json.utf8))
+
+        #expect(response.subscriptionBalance?.feature == "FEATURE_OMNI")
+        #expect(response.subscriptionBalance?.type == "SUBSCRIPTION")
+        #expect(response.subscriptionBalance?.amountUsedRatio == 1)
+        #expect(response.subscriptionBalance?.expireTime == "2026-07-23T00:00:00Z")
+    }
+
+    @Test
     func `builds default code API usage endpoint`() throws {
         let baseURL = try #require(URL(string: "https://api.kimi.com"))
         let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)
@@ -495,6 +540,34 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
+    func `converts subscription balance to monthly extra window`() throws {
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "2048",
+            used: "375",
+            remaining: "1673",
+            resetTime: "2026-01-09T15:23:13.373329235Z")
+        let subscriptionBalance = KimiSubscriptionBalance(
+            feature: "FEATURE_OMNI",
+            type: "SUBSCRIPTION",
+            amountUsedRatio: 1,
+            expireTime: "2026-07-23T00:00:00Z")
+
+        let snapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimit: nil,
+            subscriptionBalance: subscriptionBalance,
+            updatedAt: now)
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        let monthly = try #require(usageSnapshot.extraRateWindows?.first)
+        #expect(monthly.id == "kimi-monthly")
+        #expect(monthly.title == "Monthly")
+        #expect(monthly.window.usedPercent == 100)
+        #expect(monthly.window.resetsAt == Self.date("2026-07-23T00:00:00Z"))
+    }
+
+    @Test
     func `converts to usage snapshot without rate limit`() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
@@ -551,6 +624,12 @@ struct KimiUsageSnapshotConversionTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
         #expect(usageSnapshot.primary?.usedPercent == 100.0)
+    }
+
+    private static func date(_ text: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: text)
     }
 }
 

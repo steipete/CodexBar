@@ -4,10 +4,24 @@ public struct KimiUsageSnapshot: Sendable {
     public let weekly: KimiUsageDetail
     public let rateLimit: KimiUsageDetail?
     public let updatedAt: Date
+    let subscriptionBalance: KimiSubscriptionBalance?
 
     public init(weekly: KimiUsageDetail, rateLimit: KimiUsageDetail?, updatedAt: Date) {
         self.weekly = weekly
         self.rateLimit = rateLimit
+        self.updatedAt = updatedAt
+        self.subscriptionBalance = nil
+    }
+
+    init(
+        weekly: KimiUsageDetail,
+        rateLimit: KimiUsageDetail?,
+        subscriptionBalance: KimiSubscriptionBalance?,
+        updatedAt: Date)
+    {
+        self.weekly = weekly
+        self.rateLimit = rateLimit
+        self.subscriptionBalance = subscriptionBalance
         self.updatedAt = updatedAt
     }
 
@@ -27,6 +41,10 @@ public struct KimiUsageSnapshot: Sendable {
         guard let date else { return nil }
         let minutes = Int(date.timeIntervalSince(Date()) / 60)
         return minutes > 0 ? minutes : nil
+    }
+
+    private static func clampedPercent(_ value: Double) -> Double {
+        min(100, max(0, value))
     }
 }
 
@@ -66,6 +84,18 @@ extension KimiUsageSnapshot {
                 resetDescription: "Rate: \(rateUsed)/\(rateLimitValue) per 5 hours")
         }
 
+        let monthlyWindow = self.subscriptionBalance.flatMap { balance -> NamedRateWindow? in
+            guard balance.feature == nil || balance.feature == "FEATURE_OMNI" else { return nil }
+            guard balance.type == nil || balance.type == "SUBSCRIPTION" else { return nil }
+            guard let ratio = balance.amountUsedRatio else { return nil }
+            let window = RateWindow(
+                usedPercent: Self.clampedPercent(ratio * 100),
+                windowMinutes: nil,
+                resetsAt: Self.parseDate(balance.expireTime),
+                resetDescription: nil)
+            return NamedRateWindow(id: "kimi-monthly", title: "Monthly", window: window)
+        }
+
         let identity = ProviderIdentitySnapshot(
             providerID: .kimi,
             accountEmail: nil,
@@ -76,6 +106,7 @@ extension KimiUsageSnapshot {
             primary: weeklyWindow,
             secondary: rateLimitWindow,
             tertiary: nil,
+            extraRateWindows: monthlyWindow.map { [$0] },
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
