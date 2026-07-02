@@ -668,7 +668,7 @@ struct MiniMaxUsageParserTests {
 
         let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
         let expectedUsed = Double(11) / Double(15000) * 100
-        let expectedReset = Date(timeIntervalSince1970: TimeInterval(end) / 1000)
+        let expectedReset = Date(timeIntervalSince1970: 1_700_000_100 + (8_941_292.0 / 1000.0))
 
         #expect(snapshot.planName == "Max")
         #expect(snapshot.availablePrompts == 15000)
@@ -1241,6 +1241,15 @@ struct MiniMaxAPIRegionTests {
     }
 
     @Test
+    func `dashboard URL opens console usage page`() {
+        #expect(MiniMaxAPIRegion.global.dashboardURL.absoluteString == "https://platform.minimax.io/console/usage")
+        #expect(MiniMaxAPIRegion.chinaMainland.dashboardURL.absoluteString ==
+            "https://platform.minimaxi.com/console/usage")
+        #expect(MiniMaxProviderDescriptor.descriptor.metadata.dashboardURL ==
+            MiniMaxAPIRegion.global.dashboardURL.absoluteString)
+    }
+
+    @Test
     func `resolves token plan credit URLs on www hosts`() {
         let global = MiniMaxAPIRegion.global.tokenPlanCreditURL
         let china = MiniMaxAPIRegion.chinaMainland.tokenPlanCreditURL
@@ -1282,6 +1291,30 @@ struct MiniMaxAPIRegionTests {
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
         #expect(codingPlan.host == "api.minimaxi.com")
         #expect(remains.host == "api.minimaxi.com")
+    }
+
+    @Test
+    func `host override routes usage summary through custom proxy host`() throws {
+        let env = [MiniMaxSettingsReader.hostKey: "proxy.example.test:8443"]
+        let resolved = try MiniMaxUsageSummaryFetcher.resolveUsageSummaryURL(region: .global, environment: env)
+        #expect(resolved?.absoluteString == "https://proxy.example.test:8443/backend/account/token_plan/usage_summary")
+    }
+
+    @Test
+    func `host override maps minimax hosts to www usage summary endpoint`() throws {
+        let chinaEnv = [MiniMaxSettingsReader.hostKey: "platform.minimaxi.com"]
+        let chinaResolved = try MiniMaxUsageSummaryFetcher.resolveUsageSummaryURL(
+            region: .global,
+            environment: chinaEnv)
+        #expect(chinaResolved?.host == "www.minimaxi.com")
+        #expect(chinaResolved?.path == "/backend/account/token_plan/usage_summary")
+
+        let globalEnv = [MiniMaxSettingsReader.hostKey: "platform.minimax.io"]
+        let globalResolved = try MiniMaxUsageSummaryFetcher.resolveUsageSummaryURL(
+            region: .chinaMainland,
+            environment: globalEnv)
+        #expect(globalResolved?.host == "www.minimax.io")
+        #expect(globalResolved?.path == "/backend/account/token_plan/usage_summary")
     }
 
     @Test

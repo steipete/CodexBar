@@ -11,6 +11,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     private static let tokenPlanCreditPath = "backend/account/token_plan_credit"
     private static let tokenPlanUsageSummaryPath = "backend/account/token_plan/usage_summary"
     private static let billingHistoryPath = "account/amount"
+    private static let usageDashboardPath = "console/usage"
 
     public var displayName: String {
         switch self {
@@ -82,10 +83,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     }
 
     public var dashboardURL: URL {
-        var components = URLComponents(string: self.baseURLString)!
-        components.path = "/" + Self.codingPlanPath
-        components.query = Self.codingPlanQuery
-        return components.url!
+        URL(string: self.baseURLString)!.appendingPathComponent(Self.usageDashboardPath)
     }
 
     public func billingHistoryURL(page: Int, limit: Int) -> URL {

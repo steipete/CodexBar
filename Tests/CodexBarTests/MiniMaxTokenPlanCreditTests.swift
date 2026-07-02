@@ -320,6 +320,45 @@ struct MiniMaxTokenPlanCreditTests {
         #expect(enriched.usageSummary?.last7DaysTokens == 1_036_079_880)
     }
 
+    @Test
+    func `api usage summary auth failure does not discard valid api quota`() async throws {
+        let now = Date(timeIntervalSince1970: 1_780_282_340)
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.host == "api.minimax.io" {
+                return Self.httpResponse(url: url, body: "{}", statusCode: 401, contentType: "application/json")
+            }
+            if url.host == "api.minimaxi.com", url.path.contains("remains") {
+                return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(url: url, body: "{}", statusCode: 403, contentType: "application/json")
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
+        }
+
+        let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
+            apiToken: "sk-cp-test",
+            region: .global,
+            now: now,
+            session: transport)
+        let enriched = try await MiniMaxUsageFetcher.attachingUsageSummaryIfAvailable(
+            to: apiResult.snapshot,
+            context: MiniMaxUsageFetcher.WebFetchContext(
+                cookie: "HERTZ-SESSION=abc; bearer=expired",
+                authorizationToken: "sk-cp-test",
+                region: apiResult.resolvedRegion,
+                environment: [:],
+                transport: transport),
+            groupID: nil)
+
+        #expect(apiResult.resolvedRegion == .chinaMainland)
+        #expect(apiResult.snapshot.services?.isEmpty == false)
+        #expect(enriched.usageSummary == nil)
+        #expect(enriched.services?.isEmpty == false)
+    }
+
     private static func fixtureURL(named name: String) throws -> URL {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

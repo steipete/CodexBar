@@ -975,14 +975,16 @@ enum MiniMaxUsageParser {
             remaining: remaining,
             remainingPercent: first?.currentIntervalRemainingPercent)
 
-        let windowMinutes = self.windowMinutes(
-            start: self.dateFromEpoch(first?.startTime),
-            end: self.dateFromEpoch(first?.endTime))
+        let startDate = self.dateFromEpoch(first?.startTime)
+        let endDate = self.dateFromEpoch(first?.endTime)
+        let windowMinutes = self.windowMinutes(start: startDate, end: endDate)
+        let intervalWindowType = self.parseWindowInfo(startTime: startDate, endTime: endDate, now: now).windowType
 
         let resetsAt = self.resetsAt(
-            end: self.dateFromEpoch(first?.endTime),
+            end: endDate,
             remains: first?.remainsTime,
-            now: now)
+            now: now,
+            windowType: intervalWindowType)
 
         let planName = self.parsePlanName(data: payload.data)
 
@@ -1026,26 +1028,6 @@ enum MiniMaxUsageParser {
         }
         if raw > 1_000_000_000 {
             return Date(timeIntervalSince1970: TimeInterval(raw))
-        }
-        return nil
-    }
-
-    private static func windowMinutes(start: Date?, end: Date?) -> Int? {
-        guard let start, let end else { return nil }
-        let minutes = Int(end.timeIntervalSince(start) / 60)
-        return minutes > 0 ? minutes : nil
-    }
-
-    private static func resetsAt(end: Date?, remains: Int?, now: Date) -> Date? {
-        if let remains, remains > 0 {
-            let seconds: TimeInterval = remains > 1_000_000 ? TimeInterval(remains) / 1000 : TimeInterval(remains)
-            let resetDate = now.addingTimeInterval(seconds)
-            if resetDate > now {
-                return resetDate
-            }
-        }
-        if let end, end > now {
-            return end
         }
         return nil
     }
@@ -1575,7 +1557,11 @@ enum MiniMaxUsageParser {
         }
 
         let isUnlimited = self.isUnlimitedQuotaWindow(input, windowType: windowType)
-        let resetsAt = isUnlimited ? nil : self.resetsAt(end: endTime, remains: input.remainsTime, now: now)
+        let resetsAt = isUnlimited ? nil : self.resetsAt(
+            end: endTime,
+            remains: input.remainsTime,
+            now: now,
+            windowType: windowType)
         let resetDescription = if isUnlimited {
             "Unlimited"
         } else {

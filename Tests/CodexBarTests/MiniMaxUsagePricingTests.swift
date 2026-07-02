@@ -13,7 +13,7 @@ struct MiniMaxUsagePricingTests {
             outputToken: 0)
 
         #expect(cost != nil)
-        #expect(abs((cost ?? 0) - 0.18) < 0.0001)
+        #expect(abs((cost ?? 0) - 0.33) < 0.0001)
     }
 
     @Test

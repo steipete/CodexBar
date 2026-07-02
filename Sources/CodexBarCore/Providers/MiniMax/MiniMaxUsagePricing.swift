@@ -129,8 +129,7 @@ enum MiniMaxUsagePricing {
         outputToken: Int) -> Double
     {
         let input = max(0, inputToken)
-        let cached = min(max(0, cacheReadToken), input)
-        let nonCached = max(0, input - cached)
+        let cacheRead = max(0, cacheReadToken)
         let cacheCreate = max(0, cacheCreateToken)
         let output = max(0, outputToken)
 
@@ -145,8 +144,8 @@ enum MiniMaxUsagePricing {
             ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? pricing.cacheReadInputCostPerToken
             : pricing.cacheReadInputCostPerToken
 
-        return (Double(nonCached) * inputRate)
-            + (Double(cached) * cacheReadRate)
+        return (Double(input) * inputRate)
+            + (Double(cacheRead) * cacheReadRate)
             + (Double(cacheCreate) * pricing.cacheCreationInputCostPerToken)
             + (Double(output) * outputRate)
     }

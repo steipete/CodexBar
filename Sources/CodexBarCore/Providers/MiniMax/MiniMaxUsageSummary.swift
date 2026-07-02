@@ -208,6 +208,28 @@ public struct MiniMaxUsageSummaryModel: Sendable, Equatable {
 }
 
 enum MiniMaxUsageSummaryFetcher {
+    private static let usageSummaryPath = "backend/account/token_plan/usage_summary"
+
+    static func resolveUsageSummaryURL(
+        region: MiniMaxAPIRegion,
+        environment: [String: String]) throws -> URL?
+    {
+        if let rejectedKey = MiniMaxSettingsReader.rejectedEndpointOverrideKey(environment: environment) {
+            throw ProviderEndpointOverrideError.minimax(rejectedKey)
+        }
+        if let host = MiniMaxSettingsReader.hostOverride(environment: environment) {
+            let lowered = host.lowercased()
+            if !lowered.contains("minimax.io"), !lowered.contains("minimaxi.com"),
+               let hostURL = MiniMaxUsageFetcher.url(from: host, path: Self.usageSummaryPath)
+            {
+                return hostURL
+            }
+        }
+        return MiniMaxTokenPlanCreditFetcher
+            .effectiveRegion(for: region, environment: environment)
+            .tokenPlanUsageSummaryURL
+    }
+
     static func fetch(
         cookieHeader: String,
         groupID: String?,
@@ -215,8 +237,11 @@ enum MiniMaxUsageSummaryFetcher {
         environment: [String: String],
         transport: any ProviderHTTPTransport) async throws -> MiniMaxUsageSummary
     {
+        guard let url = try resolveUsageSummaryURL(region: region, environment: environment) else {
+            throw MiniMaxUsageError.apiError("MiniMax usage summary endpoint unavailable for configured host.")
+        }
         let effectiveRegion = MiniMaxTokenPlanCreditFetcher.effectiveRegion(for: region, environment: environment)
-        var request = URLRequest(url: effectiveRegion.tokenPlanUsageSummaryURL)
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         if let groupID = groupID?.trimmingCharacters(in: .whitespacesAndNewlines), !groupID.isEmpty {

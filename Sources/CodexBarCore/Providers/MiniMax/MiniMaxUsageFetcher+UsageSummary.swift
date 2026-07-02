@@ -24,9 +24,9 @@ extension MiniMaxUsageFetcher {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch let error as MiniMaxUsageError {
-            if case .invalidCredentials = error, context.authorizationToken != nil {
-                throw error
-            }
+            Self.log.debug("MiniMax usage summary unavailable: \(error.localizedDescription)")
+            return snapshot
+        } catch let error as ProviderEndpointOverrideError {
             Self.log.debug("MiniMax usage summary unavailable: \(error.localizedDescription)")
             return snapshot
         } catch {
