@@ -46,4 +46,38 @@ struct ClaudeWebUsageExtraWindowTests {
         #expect(parsed.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 0)
         #expect(parsed.extraRateWindows.contains { $0.id == "claude-design" } == false)
     }
+
+    @Test
+    func `surfaces Fable scoped weekly limit from claude web API limits array`() throws {
+        // Real shape observed 2026-07-03 from claude.ai/api/organizations/{org}/usage during
+        // Anthropic's Fable 5 promotional access window (up to 50% of the weekly limit).
+        let json = """
+        {
+          "five_hour": { "utilization": 16, "resets_at": "2026-07-03T00:30:00.440902+00:00" },
+          "seven_day": { "utilization": 10, "resets_at": "2026-07-08T09:00:00.440924+00:00" },
+          "limits": [
+            {
+              "kind": "session", "group": "session", "percent": 16,
+              "resets_at": "2026-07-03T00:30:00.440902+00:00", "scope": null, "is_active": true
+            },
+            {
+              "kind": "weekly_all", "group": "weekly", "percent": 10,
+              "resets_at": "2026-07-08T09:00:00.440924+00:00", "scope": null, "is_active": false
+            },
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5,
+              "resets_at": "2026-07-08T09:00:00.441154+00:00",
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let data = Data(json.utf8)
+        let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        let fable = parsed.extraRateWindows.first(where: { $0.id == "claude-weekly-scoped-fable" })
+        #expect(fable?.title == "Fable only")
+        #expect(fable?.window.usedPercent == 5)
+        #expect(fable?.window.resetsAt != nil)
+    }
 }

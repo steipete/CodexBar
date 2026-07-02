@@ -115,6 +115,60 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `surfaces Fable scoped weekly limit from limits array`() throws {
+        // Real shape observed 2026-07-03 during Anthropic's Fable 5 promotional access
+        // window (up to 50% of the weekly limit on Fable 5): weekly caps have moved from
+        // flat seven_day_* fields (now null) to a `limits` array with `scope.model.display_name`.
+        let json = """
+        {
+          "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
+          "seven_day": { "utilization": 9.0, "resets_at": "2026-07-08T09:00:00.282694+00:00" },
+          "seven_day_opus": null,
+          "seven_day_sonnet": null,
+          "limits": [
+            {
+              "kind": "session", "group": "session", "percent": 11,
+              "resets_at": "2026-07-03T00:30:00.282668+00:00", "scope": null, "is_active": true
+            },
+            {
+              "kind": "weekly_all", "group": "weekly", "percent": 9,
+              "resets_at": "2026-07-08T09:00:00.282694+00:00", "scope": null, "is_active": false
+            },
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5,
+              "resets_at": "2026-07-08T09:00:00.283070+00:00",
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        let fable = snap.extraRateWindows.first(where: { $0.id == "claude-weekly-scoped-fable" })
+        #expect(fable?.title == "Fable only")
+        #expect(fable?.window.usedPercent == 5)
+        #expect(fable?.window.resetsAt != nil)
+    }
+
+    @Test
+    func `ignores weekly scoped limit without a model display name`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
+          "limits": [
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5,
+              "resets_at": "2026-07-08T09:00:00.283070+00:00",
+              "scope": { "model": null, "surface": null }, "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.contains { $0.id.hasPrefix("claude-weekly-scoped-") } == false)
+    }
+
+    @Test
     func `ignores merged O auth omelette usage window`() throws {
         let json = """
         {
