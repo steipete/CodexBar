@@ -68,6 +68,8 @@ public enum LogCategories {
     public static let poeUsage = "poe-usage"
     public static let providerDetection = "provider-detection"
     public static let providers = "providers"
+    public static let qoderCookie = "qoder-cookie"
+    public static let qoderUsage = "qoder-usage"
     public static let quotaWarningNotifications = "quotaWarningNotifications"
     public static let sessionQuota = "sessionQuota"
     public static let sessionQuotaNotifications = "sessionQuotaNotifications"

@@ -91,6 +91,10 @@ struct TokenAccountCLIContext {
         codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot?
     {
         let config = self.providerConfig(for: provider)
+        if provider == .qoder {
+            let settings = self.cookieSettings(provider: provider, account: account, config: config)
+            return self.makeSnapshot(qoder: self.makeProviderCookieSettings(settings))
+        }
         if let snapshot = self.makeCookieBackedSnapshot(provider: provider, account: account, config: config) {
             return snapshot
         }
@@ -244,6 +248,7 @@ struct TokenAccountCLIContext {
         mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil,
         abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
         mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
+        qoder: ProviderSettingsSnapshot.QoderProviderSettings? = nil,
         stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
@@ -270,6 +275,7 @@ struct TokenAccountCLIContext {
             mimo: mimo,
             abacus: abacus,
             mistral: mistral,
+            qoder: qoder,
             stepfun: stepfun)
     }
 

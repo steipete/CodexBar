@@ -351,6 +351,7 @@ enum CLIRenderer {
         lines: inout [String])
     {
         if provider == .warp || provider == .kilo || provider == .mistral || provider == .deepseek ||
+            provider == .qoder ||
             provider == .crof
         {
             if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {

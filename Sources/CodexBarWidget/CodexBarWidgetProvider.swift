@@ -98,6 +98,7 @@ enum ProviderChoice: String, AppEnum {
         case .crof: return nil // Crof not yet supported in widgets
         case .venice: return nil // Venice not yet supported in widgets
         case .commandcode: return nil // CommandCode not yet supported in widgets
+        case .qoder: return nil // Qoder not yet supported in widgets
         case .stepfun: return nil // StepFun not yet supported in widgets
         case .bedrock: return nil // Bedrock not yet supported in widgets
         case .grok: return nil // Grok not yet supported in widgets
