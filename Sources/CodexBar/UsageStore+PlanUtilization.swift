@@ -601,15 +601,15 @@ extension UsageStore {
         let services = snapshot.minimaxUsage?.services?
             .filter(\.isPrimaryTextQuotaLane) ?? []
         if services.isEmpty {
-            appendWindow(snapshot.primary, name: .session)
-            appendWindow(snapshot.secondary, name: .weekly)
+            appendWindow(snapshot.primary, .session)
+            appendWindow(snapshot.secondary, .weekly)
             return
         }
 
         if let weeklyService = services.first(where: {
             $0.windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "weekly"
         }) {
-            appendWindow(self.rateWindow(for: weeklyService), name: .weekly)
+            appendWindow(self.rateWindow(for: weeklyService), .weekly)
         }
 
         let sessionService = services
@@ -621,7 +621,7 @@ extension UsageStore {
                 self.windowMinutes(for: $0) < self.windowMinutes(for: $1)
             }
         if let sessionService {
-            appendWindow(self.rateWindow(for: sessionService), name: .session)
+            appendWindow(self.rateWindow(for: sessionService), .session)
         }
     }
 
