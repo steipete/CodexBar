@@ -30,8 +30,8 @@ public enum CursorProviderDescriptor {
                 iconResourceName: "ProviderIcon-cursor",
                 color: ProviderColor(red: 0 / 255, green: 191 / 255, blue: 165 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Cursor cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No Cursor cost usage found. Sign in to Cursor in your browser or the Cursor app." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CursorStatusFetchStrategy()] })),

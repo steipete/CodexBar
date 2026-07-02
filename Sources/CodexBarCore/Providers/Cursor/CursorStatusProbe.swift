@@ -840,6 +840,23 @@ public actor CursorSessionStore {
     }
 }
 
+// MARK: - Cursor Cost Report
+
+/// A windowed Cursor cost report: the API-rate per-day breakdown plus the Cursor-metered
+/// total (what the plan actually deducts) over the same window.
+///
+/// `daily` carries vendor list-price costs (`tokenUsage.totalCents`); `meteredCostUSD` sums
+/// each event's `chargedCents` and is `nil` when the events reported no metered amount.
+public struct CursorCostReport: Sendable {
+    public let daily: CostUsageDailyReport
+    public let meteredCostUSD: Double?
+
+    public init(daily: CostUsageDailyReport, meteredCostUSD: Double?) {
+        self.daily = daily
+        self.meteredCostUSD = meteredCostUSD
+    }
+}
+
 // MARK: - Cursor Status Probe
 
 public struct CursorStatusProbe: Sendable {
@@ -901,12 +918,74 @@ public struct CursorStatusProbe: Sendable {
         logger: ((String) -> Void)? = nil)
         async throws -> CursorStatusSnapshot
     {
+        try await self.resolveSession(
+            cookieHeaderOverride: cookieHeaderOverride,
+            allowCachedSessions: allowCachedSessions,
+            allowAppAuthFallback: allowAppAuthFallback,
+            logger: logger)
+        { cookieHeader, requestUsageUserIDFallback in
+            try await self.fetchWithCookieHeader(
+                cookieHeader,
+                requestUsageUserIDFallback: requestUsageUserIDFallback)
+        }
+    }
+
+    /// Fetch Cursor token-cost data (per-day, per-model) using the same session
+    /// resolution as ``fetch(cookieHeaderOverride:allowCachedSessions:allowAppAuthFallback:logger:)``.
+    ///
+    /// Passing `nil` for both `since` and `until` pulls the full history. The returned report
+    /// carries both the API-rate per-day breakdown and the Cursor-metered window total, both
+    /// derived from the same events.
+    public func fetchCostReport(
+        since: Date?,
+        until: Date?,
+        calendar: Calendar = .current,
+        cookieHeaderOverride: String? = nil,
+        allowCachedSessions: Bool = true,
+        allowAppAuthFallback: Bool = true,
+        logger: ((String) -> Void)? = nil) async throws -> CursorCostReport
+    {
+        let fetcher = CursorUsageEventsFetcher(
+            baseURL: self.baseURL,
+            transport: self.urlSession,
+            timeout: self.timeout)
+        return try await self.resolveSession(
+            cookieHeaderOverride: cookieHeaderOverride,
+            allowCachedSessions: allowCachedSessions,
+            allowAppAuthFallback: allowAppAuthFallback,
+            logger: logger)
+        { cookieHeader, _ in
+            let result = try await fetcher.fetchUsage(
+                cookieHeader: cookieHeader,
+                since: since,
+                until: until,
+                calendar: calendar,
+                logger: logger)
+            return CursorCostReport(daily: result.daily, meteredCostUSD: result.meteredCostUSD)
+        }
+    }
+
+    /// Resolve a working Cursor session and run `perform` against it.
+    ///
+    /// Each candidate source (manual override, cached cookie, browser cookies, stored
+    /// session, then the Cursor.app token) is validated by running `perform`. A
+    /// `.notLoggedIn` result advances to the next source; any other error is recorded
+    /// and surfaced once the sources are exhausted. This keeps the status and cost
+    /// fetches on a single auth path.
+    func resolveSession<Value>(
+        cookieHeaderOverride: String? = nil,
+        allowCachedSessions: Bool = true,
+        allowAppAuthFallback: Bool = true,
+        logger: ((String) -> Void)? = nil,
+        perform: (_ cookieHeader: String, _ requestUsageUserIDFallback: String?) async throws -> Value)
+        async throws -> Value
+    {
         let log: (String) -> Void = { msg in logger?("[cursor] \(msg)") }
         var firstRecoverableError: CursorStatusProbeError?
 
         if let override = CookieHeaderNormalizer.normalize(cookieHeaderOverride) {
             log("Using manual cookie header")
-            return try await self.fetchWithCookieHeader(override)
+            return try await perform(override, nil)
         }
 
         if allowCachedSessions,
@@ -915,7 +994,7 @@ public struct CursorStatusProbe: Sendable {
         {
             log("Using cached cookie header from \(cached.sourceLabel)")
             do {
-                return try await self.fetchWithCookieHeader(cached.cookieHeader)
+                return try await perform(cached.cookieHeader, nil)
             } catch let error as CursorStatusProbeError {
                 if case .notLoggedIn = error {
                     CookieHeaderCache.clear(provider: .cursor)
@@ -939,11 +1018,11 @@ public struct CursorStatusProbe: Sendable {
                     logger: log)
             },
             attemptFetch: { session in
-                await self.fetchIfSessionAccepted(session, log: log)
+                await self.attemptSession(session, perform: perform, log: log)
             })
         {
-        case let .succeeded(snapshot):
-            return snapshot
+        case let .succeeded(value):
+            return value
         case let .exhausted(error):
             firstRecoverableError = error ?? firstRecoverableError
         }
@@ -957,11 +1036,11 @@ public struct CursorStatusProbe: Sendable {
                     logger: log)
             },
             attemptFetch: { session in
-                await self.fetchIfSessionAccepted(session, log: log)
+                await self.attemptSession(session, perform: perform, log: log)
             })
         {
-        case let .succeeded(snapshot):
-            return snapshot
+        case let .succeeded(value):
+            return value
         case let .exhausted(error):
             firstRecoverableError = error ?? firstRecoverableError
         }
@@ -973,7 +1052,7 @@ public struct CursorStatusProbe: Sendable {
                 log("Using stored session cookies")
                 let cookieHeader = storedCookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
                 do {
-                    return try await self.fetchWithCookieHeader(cookieHeader)
+                    return try await perform(cookieHeader, nil)
                 } catch let error as CursorStatusProbeError {
                     if case .notLoggedIn = error {
                         // Clear only when auth is invalid; keep for transient failures.
@@ -1003,7 +1082,9 @@ public struct CursorStatusProbe: Sendable {
         {
             log("Using Cursor.app local auth fallback")
             do {
-                return try await self.fetchWithAppAuthSession(appSession)
+                let appCookieHeader = try appSession.cookieHeader()
+                let appUserID = try appSession.userID()
+                return try await perform(appCookieHeader, appUserID)
             } catch let error as CursorStatusProbeError {
                 if case .notLoggedIn = error {
                     log("Cursor.app local auth was rejected")
@@ -1022,22 +1103,22 @@ public struct CursorStatusProbe: Sendable {
         throw CursorStatusProbeError.noSessionCookie
     }
 
-    enum ImportedSessionFetchOutcome {
-        case succeeded(CursorStatusSnapshot)
+    enum ImportedSessionFetchOutcome<Value> {
+        case succeeded(Value)
         case tryNextBrowser
         case failed(CursorStatusProbeError)
     }
 
-    enum ImportedSessionScanResult {
-        case succeeded(CursorStatusSnapshot)
+    enum ImportedSessionScanResult<Value> {
+        case succeeded(Value)
         case exhausted(CursorStatusProbeError?)
     }
 
-    func scanBrowsers(
+    func scanBrowsers<Value>(
         _ browsers: [Browser],
         importSessions: (Browser) -> [CursorCookieImporter.SessionInfo],
-        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome) async
-        -> ImportedSessionScanResult
+        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome<Value>) async
+        -> ImportedSessionScanResult<Value>
     {
         var firstFailure: CursorStatusProbeError?
 
@@ -1046,8 +1127,8 @@ public struct CursorStatusProbe: Sendable {
             guard !sessions.isEmpty else { continue }
             for session in sessions {
                 switch await attemptFetch(session) {
-                case let .succeeded(snapshot):
-                    return .succeeded(snapshot)
+                case let .succeeded(value):
+                    return .succeeded(value)
                 case .tryNextBrowser:
                     continue
                 case let .failed(error):
@@ -1059,17 +1140,17 @@ public struct CursorStatusProbe: Sendable {
         return .exhausted(firstFailure)
     }
 
-    func scanImportedSessions(
+    func scanImportedSessions<Value>(
         _ sessions: [CursorCookieImporter.SessionInfo],
-        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome) async
-        -> ImportedSessionScanResult
+        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome<Value>) async
+        -> ImportedSessionScanResult<Value>
     {
         var firstFailure: CursorStatusProbeError?
 
         for session in sessions {
             switch await attemptFetch(session) {
-            case let .succeeded(snapshot):
-                return .succeeded(snapshot)
+            case let .succeeded(value):
+                return .succeeded(value)
             case .tryNextBrowser:
                 continue
             case let .failed(error):
@@ -1080,18 +1161,19 @@ public struct CursorStatusProbe: Sendable {
         return .exhausted(firstFailure)
     }
 
-    private func fetchIfSessionAccepted(
+    private func attemptSession<Value>(
         _ session: CursorCookieImporter.SessionInfo,
-        log: @escaping (String) -> Void) async -> ImportedSessionFetchOutcome
+        perform: (_ cookieHeader: String, _ requestUsageUserIDFallback: String?) async throws -> Value,
+        log: @escaping (String) -> Void) async -> ImportedSessionFetchOutcome<Value>
     {
         log("Trying Cursor session from \(session.sourceLabel)")
         do {
-            let snapshot = try await self.fetchWithCookieHeader(session.cookieHeader)
+            let value = try await perform(session.cookieHeader, nil)
             CookieHeaderCache.store(
                 provider: .cursor,
                 cookieHeader: session.cookieHeader,
                 sourceLabel: session.sourceLabel)
-            return .succeeded(snapshot)
+            return .succeeded(value)
         } catch let error as CursorStatusProbeError {
             if case .notLoggedIn = error {
                 log("Cursor API rejected cookies from \(session.sourceLabel); trying next browser if any")

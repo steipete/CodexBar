@@ -1485,13 +1485,22 @@ extension UsageStore {
         }
     }
 
-    private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
-        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
+    /// Clears cached cost/token state for a provider so an ineligible or disabled provider stops
+    /// surfacing stale data. Pass `resetFetchMarkers: false` to keep the TTL fetch markers (used
+    /// when a provider snapshot simply lacks token data for this cycle).
+    private func resetTokenState(for provider: UsageProvider, resetFetchMarkers: Bool = true) {
+        self.tokenSnapshots.removeValue(forKey: provider)
+        self.tokenErrors[provider] = nil
+        self.tokenFailureGates[provider]?.reset()
+        if resetFetchMarkers {
             self.lastTokenFetchAt.removeValue(forKey: provider)
             self.lastTokenFetchScope.removeValue(forKey: provider)
+        }
+    }
+
+    private func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
+            self.resetTokenState(for: provider)
             return
         }
 
@@ -1502,28 +1511,25 @@ extension UsageStore {
                 self.tokenFailureGates[provider]?.recordSuccess()
                 self.persistWidgetSnapshot(reason: "token-usage")
             } else {
-                self.tokenSnapshots.removeValue(forKey: provider)
-                self.tokenErrors[provider] = nil
-                self.tokenFailureGates[provider]?.reset()
+                self.resetTokenState(for: provider, resetFetchMarkers: false)
             }
             return
         }
 
         guard self.settings.costUsageEnabled else {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenFetchScope.removeValue(forKey: provider)
+            self.resetTokenState(for: provider)
             return
         }
 
         guard self.isEnabled(provider) else {
-            self.tokenSnapshots.removeValue(forKey: provider)
-            self.tokenErrors[provider] = nil
-            self.tokenFailureGates[provider]?.reset()
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenFetchScope.removeValue(forKey: provider)
+            self.resetTokenState(for: provider)
+            return
+        }
+
+        // Cursor cost honors the same cookie policy as status: when the user set the cookie source
+        // to Off, skip the network fetch entirely (mirrors CursorProviderDescriptor.checkStatus).
+        if provider == .cursor, self.settings.cursorCookieSource == .off {
+            self.resetTokenState(for: provider)
             return
         }
 
@@ -1531,8 +1537,25 @@ extension UsageStore {
 
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
+        // Cursor cost reuses the status cookie policy: a Manual source forwards the manual header so
+        // cost and status share the same session; other sources fall back to auto resolution.
+        let cursorCookieSource = self.settings.cursorCookieSource
+        let cursorCookieHeaderOverride: String? = provider == .cursor && cursorCookieSource == .manual
+            ? CookieHeaderNormalizer.normalize(self.settings.cursorCookieHeader)
+            : nil
         let costScope = self.tokenCostScope(for: provider)
-        let costScopeSignature = "\(costScope.signature)|historyDays=\(historyDays)"
+        // Fold the manual cookie into the cache key (via an in-process hash, never the raw header) so
+        // pasting a different Cursor cookie invalidates a snapshot fetched within the TTL instead of
+        // showing the previous account's data.
+        let cursorScopeSuffix = if provider != .cursor {
+            ""
+        } else if let override = cursorCookieHeaderOverride {
+            "|cursorCookie=manual:\(override.hashValue)"
+        } else {
+            "|cursorCookie=\(cursorCookieSource.rawValue)"
+        }
+        let costScopeSignature =
+            "\(costScope.signature)|historyDays=\(historyDays)\(cursorScopeSuffix)"
         if !force,
            let last = self.lastTokenFetchAt[provider],
            self.lastTokenFetchScope[provider] == costScopeSignature,
@@ -1583,7 +1606,8 @@ extension UsageStore {
                         forceRefresh: force,
                         allowVertexClaudeFallback: !self.isEnabled(.claude),
                         codexHomePath: costScope.codexHomePath,
-                        historyDays: historyDays)
+                        historyDays: historyDays,
+                        cursorCookieHeaderOverride: cursorCookieHeaderOverride)
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))

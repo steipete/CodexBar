@@ -3,7 +3,15 @@ import Commander
 import Foundation
 
 extension CodexBarCLI {
-    private static let costSupportedProviders: Set<UsageProvider> = [.claude, .codex]
+    private static let costSupportedProviders: Set<UsageProvider> = {
+        #if os(macOS)
+        [.claude, .codex, .cursor]
+        #else
+        // Cursor cost relies on the macOS-only dashboard fetch path; `supportsTokenSnapshot(.cursor)`
+        // is false elsewhere, so don't advertise Cursor cost where it can only fail.
+        [.claude, .codex]
+        #endif
+    }()
 
     static func runCost(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
@@ -23,7 +31,7 @@ extension CodexBarCLI {
         guard !providers.isEmpty else {
             Self.exit(
                 code: .failure,
-                message: "Error: cost is only supported for Claude and Codex.",
+                message: "Error: cost is only supported for \(Self.costSupportedProviderNames()).",
                 output: output,
                 kind: .args)
         }
@@ -32,6 +40,10 @@ extension CodexBarCLI {
         let forceRefresh = values.flags.contains("refresh")
         let useColor = Self.shouldUseColor(noColor: values.flags.contains("noColor"), format: format)
         let historyDays = Self.decodeCostHistoryDays(from: values)
+        // Cursor cost reuses the same cookie-source policy as usage fetches: reject the fetch when the
+        // user set Cursor cookies to Off, and forward the Manual header so the dashboard request uses
+        // the configured session instead of auto-resolving a different one.
+        let cursorCookieSettings = Self.cursorCookieSettings(config: config, providers: providers)
 
         let fetcher = CostUsageFetcher()
         var sections: [String] = []
@@ -39,12 +51,23 @@ extension CodexBarCLI {
         var exitCode: ExitCode = .success
 
         for provider in providers {
+            if let error = Self.cursorCostAvailabilityError(provider, settings: cursorCookieSettings) {
+                exitCode = Self.mapError(error)
+                if format == .json {
+                    payload.append(Self.makeCostPayload(provider: provider, snapshot: nil, error: error))
+                } else if !output.jsonOnly {
+                    Self.writeStderr("Error: \(error.localizedDescription)\n")
+                }
+                continue
+            }
             do {
-                // Cost usage is local-only; it does not require web/CLI provider fetches.
+                // Claude/Codex cost comes from local logs; Cursor cost is fetched from its
+                // cookie-authenticated dashboard API via the shared session resolution.
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,
+                    cursorCookieHeaderOverride: Self.cursorCostHeaderOverride(provider, settings: cursorCookieSettings),
                     refreshPricingInBackground: false)
                 switch format {
                 case .text:
@@ -98,8 +121,17 @@ extension CodexBarCLI {
             "\(historyLabel): \(monthCost) · \($0) tokens"
         } ?? "\(historyLabel): \(monthCost)"
 
+        // Plan-metered spend over the same window (what Cursor actually deducts), shown
+        // alongside the API-rate estimate. Only providers like Cursor report it.
+        let meteredLine: String? = snapshot.meteredCostUSD.map {
+            let amount = UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+            return "Cursor-metered: \(amount) (\(historyLabel.lowercased()))"
+        }
+
         let hintLine = UsageFormatter.costEstimateHint(provider: provider)
-        return [header, todayLine, monthLine, hintLine].joined(separator: "\n")
+        return [header, todayLine, monthLine, meteredLine, hintLine]
+            .compactMap(\.self)
+            .joined(separator: "\n")
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {
@@ -136,7 +168,7 @@ extension CodexBarCLI {
 
         return CostPayload(
             provider: provider.rawValue,
-            source: "local",
+            source: provider == .cursor ? "web" : "local",
             updatedAt: snapshot?.updatedAt ?? (error == nil ? nil : Date()),
             currencyCode: snapshot?.currencyCode,
             sessionTokens: snapshot?.sessionTokens,
@@ -144,6 +176,7 @@ extension CodexBarCLI {
             historyDays: snapshot?.historyDays,
             last30DaysTokens: snapshot?.last30DaysTokens,
             last30DaysCostUSD: snapshot?.last30DaysCostUSD,
+            meteredCostUSD: snapshot?.meteredCostUSD,
             daily: daily,
             totals: snapshot.flatMap(Self.costTotals(from:)),
             error: error.map { Self.makeErrorPayload($0) })
@@ -218,6 +251,58 @@ extension CodexBarCLI {
         else { return 30 }
         return max(1, min(365, parsed))
     }
+
+    /// Human-readable list of providers that support a cost report, used by both `cost` and serve.
+    static func costSupportedProviderNames() -> String {
+        self.costSupportedProviders
+            .map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
+            .sorted()
+            .joined(separator: ", ")
+    }
+
+    /// Resolve the configured Cursor cookie settings (source + manual header) the same way the CLI
+    /// usage path does, so Cursor cost honors Off/Manual instead of always auto-resolving a session.
+    /// Shared by `cost` and the serve `/cost` route.
+    static func cursorCookieSettings(
+        config: CodexBarConfig,
+        providers: [UsageProvider]) -> ProviderSettingsSnapshot.CursorProviderSettings?
+    {
+        guard providers.contains(.cursor) else { return nil }
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        guard let context = try? TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+        else { return nil }
+        let account = (try? context.resolvedAccounts(for: .cursor))?.first
+        return context.settingsSnapshot(for: .cursor, account: account)?.cursor
+    }
+
+    /// Return the actionable error for a Cursor cost fetch disabled by cookie-source policy.
+    static func cursorCostAvailabilityError(
+        _ provider: UsageProvider,
+        settings: ProviderSettingsSnapshot.CursorProviderSettings?) -> Error?
+    {
+        guard provider == .cursor, settings?.cookieSource == .off else { return nil }
+        return CursorCostAvailabilityError.cookieSourceOff
+    }
+
+    /// Manual cookie header to forward for a Cursor cost fetch, or nil for auto/non-cursor sources.
+    static func cursorCostHeaderOverride(
+        _ provider: UsageProvider,
+        settings: ProviderSettingsSnapshot.CursorProviderSettings?) -> String?
+    {
+        guard provider == .cursor, settings?.cookieSource == .manual else { return nil }
+        return CookieHeaderNormalizer.normalize(settings?.manualCookieHeader)
+    }
+}
+
+enum CursorCostAvailabilityError: LocalizedError {
+    case cookieSourceOff
+
+    var errorDescription: String? {
+        switch self {
+        case .cookieSourceOff:
+            "Cursor cost is unavailable because the Cursor cookie source is set to Off."
+        }
+    }
 }
 
 struct CostOptions: CommanderParsable {
@@ -267,6 +352,7 @@ struct CostPayload: Encodable {
     let historyDays: Int?
     let last30DaysTokens: Int?
     let last30DaysCostUSD: Double?
+    let meteredCostUSD: Double?
     let daily: [CostDailyEntryPayload]
     let totals: CostTotalsPayload?
     let error: ProviderErrorPayload?
@@ -281,6 +367,7 @@ struct CostPayload: Encodable {
         historyDays: Int?,
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
+        meteredCostUSD: Double? = nil,
         daily: [CostDailyEntryPayload],
         totals: CostTotalsPayload?,
         error: ProviderErrorPayload?)
@@ -294,6 +381,7 @@ struct CostPayload: Encodable {
         self.historyDays = historyDays
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
+        self.meteredCostUSD = meteredCostUSD
         self.daily = daily
         self.totals = totals
         self.error = error

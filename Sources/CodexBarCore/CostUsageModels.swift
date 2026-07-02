@@ -10,6 +10,10 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let currencyCode: String
     public let historyDays: Int
     public let historyLabel: String?
+    /// Provider-metered spend over the same window as `last30DaysCostUSD` — what the plan
+    /// actually deducts, as opposed to the API-rate estimate. Only some providers (e.g. Cursor)
+    /// report this; `nil` when unknown.
+    public let meteredCostUSD: Double?
     public let daily: [CostUsageDailyReport.Entry]
     public let updatedAt: Date
 
@@ -23,6 +27,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         historyLabel: String? = nil,
+        meteredCostUSD: Double? = nil,
         daily: [CostUsageDailyReport.Entry],
         updatedAt: Date)
     {
@@ -37,6 +42,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             : currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         self.historyDays = historyDays
         self.historyLabel = historyLabel
+        self.meteredCostUSD = meteredCostUSD
         self.daily = daily
         self.updatedAt = updatedAt
     }

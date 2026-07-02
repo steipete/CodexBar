@@ -201,7 +201,8 @@ extension UsageMenuCardView.Model {
             true
         case let (current?, candidate?):
             current.hintLine == candidate.hintLine &&
-                current.errorLine == candidate.errorLine
+                current.errorLine == candidate.errorLine &&
+                (current.meteredLine == nil) == (candidate.meteredLine == nil)
         default:
             false
         }

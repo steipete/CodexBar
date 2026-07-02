@@ -91,6 +91,7 @@ extension StatusItemController {
         [
             tokenUsage?.sessionLine,
             tokenUsage?.monthLine,
+            tokenUsage?.meteredLine,
             tokenUsage?.hintLine,
             tokenUsage?.errorLine,
         ]
@@ -106,6 +107,7 @@ extension StatusItemController {
         let primaryLines = [
             tokenUsage?.sessionLine,
             tokenUsage?.monthLine,
+            tokenUsage?.meteredLine,
             tokenUsage?.errorLine,
         ]
             .compactMap(\.self)

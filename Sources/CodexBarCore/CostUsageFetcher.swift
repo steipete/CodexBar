@@ -48,6 +48,7 @@ public struct CostUsageFetcher: Sendable {
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        cursorCookieHeaderOverride: String? = nil,
         refreshPricingInBackground: Bool = true) async throws -> CostUsageTokenSnapshot
     {
         try await Self.loadTokenSnapshot(
@@ -58,6 +59,7 @@ public struct CostUsageFetcher: Sendable {
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             codexHomePath: codexHomePath,
             historyDays: historyDays,
+            cursorCookieHeaderOverride: cursorCookieHeaderOverride,
             refreshPricingInBackground: refreshPricingInBackground,
             scannerOptions: self.scannerOptionsOverride())
     }
@@ -97,12 +99,13 @@ public struct CostUsageFetcher: Sendable {
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        cursorCookieHeaderOverride: String? = nil,
         refreshPricingInBackground: Bool = true,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
         piScannerOptions overridePiScannerOptions: PiSessionCostScanner
             .Options? = nil) async throws -> CostUsageTokenSnapshot
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard self.supportsTokenSnapshot(provider) else {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
@@ -122,6 +125,16 @@ public struct CostUsageFetcher: Sendable {
                 historyDays: clampedHistoryDays,
                 useCurrentLocalDayForSession: false)
         }
+
+        #if os(macOS)
+        if provider == .cursor {
+            return try await Self.loadCursorTokenSnapshot(
+                now: now,
+                since: since,
+                historyDays: clampedHistoryDays,
+                cookieHeaderOverride: cursorCookieHeaderOverride)
+        }
+        #endif
 
         var options = overrideScannerOptions ?? CostUsageScanner.Options()
         if provider == .codex,
@@ -264,6 +277,23 @@ public struct CostUsageFetcher: Sendable {
         return cachedSnapshot.flatMap(\.self)
     }
 
+    /// Providers whose token-cost snapshot `loadTokenSnapshot` can produce. Cursor is
+    /// macOS-only because it reuses the macOS Cursor session resolution.
+    static func supportsTokenSnapshot(_ provider: UsageProvider) -> Bool {
+        switch provider {
+        case .codex, .claude, .vertexai, .bedrock:
+            return true
+        case .cursor:
+            #if os(macOS)
+            return true
+            #else
+            return false
+            #endif
+        default:
+            return false
+        }
+    }
+
     private static func loadBedrockDailyReport(
         environment: [String: String],
         since: Date,
@@ -277,11 +307,50 @@ public struct CostUsageFetcher: Sendable {
             environment: environment)
     }
 
+    /// Snap a Cursor window start to the local day boundary so the dashboard query keeps full days.
+    /// `since` arrives as the current instant N-1 days back, so a 1-day window would otherwise become
+    /// an empty exact-instant range; snapping to 00:00 keeps all of today (and the first day's early
+    /// hours for wider windows).
+    static func cursorWindowStart(_ since: Date?, calendar: Calendar = .current) -> Date? {
+        since.map { calendar.startOfDay(for: $0) }
+    }
+
+    #if os(macOS)
+    /// Fetch Cursor's per-day token-cost plus its Cursor-metered total via the cookie-authenticated
+    /// dashboard API, reusing the same session resolution as the Cursor status probe. Like Codex and
+    /// Claude, the report covers the rolling `historyDays` window and the session line is tied to the
+    /// current local day (so a stale latest entry is never labeled as Today).
+    private static func loadCursorTokenSnapshot(
+        now: Date,
+        since: Date?,
+        historyDays: Int,
+        cookieHeaderOverride: String? = nil) async throws -> CostUsageTokenSnapshot
+    {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection())
+        // `since` arrives as the current instant N-1 days back; snap it to the local day boundary so
+        // the dashboard query keeps the full first day (and all of today for a 1-day window) instead
+        // of filtering out earlier events at the same time-of-day.
+        let windowStart = Self.cursorWindowStart(since)
+        let report = try await probe.fetchCostReport(
+            since: windowStart,
+            until: now,
+            cookieHeaderOverride: cookieHeaderOverride)
+        return Self.tokenSnapshot(
+            from: report.daily,
+            now: now,
+            historyDays: historyDays,
+            useCurrentLocalDayForSession: true,
+            meteredCostUSD: report.meteredCostUSD)
+    }
+    #endif
+
     static func tokenSnapshot(
         from daily: CostUsageDailyReport,
         now: Date,
         historyDays: Int = 30,
-        useCurrentLocalDayForSession: Bool = true) -> CostUsageTokenSnapshot
+        useCurrentLocalDayForSession: Bool = true,
+        meteredCostUSD: Double? = nil,
+        historyLabel: String? = nil) -> CostUsageTokenSnapshot
     {
         let sessionEntry = useCurrentLocalDayForSession
             ? CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
@@ -315,6 +384,8 @@ public struct CostUsageFetcher: Sendable {
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,
+            historyLabel: historyLabel,
+            meteredCostUSD: meteredCostUSD,
             daily: daily.data,
             updatedAt: now)
     }

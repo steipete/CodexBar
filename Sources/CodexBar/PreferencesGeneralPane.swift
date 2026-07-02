@@ -176,6 +176,7 @@ struct GeneralPane: View {
 
                                     self.costStatusLine(provider: .claude)
                                     self.costStatusLine(provider: .codex)
+                                    self.costStatusLine(provider: .cursor)
                                 }
                                 .padding(.leading, 20)
                             }
@@ -256,7 +257,9 @@ struct GeneralPane: View {
     private func costStatusLine(provider: UsageProvider) -> some View {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
-        guard provider == .claude || provider == .codex else {
+        // Any provider whose descriptor reports token-cost support gets a real status line; only
+        // providers that genuinely cannot report cost fall through to "unsupported".
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             return Text(String(format: L("cost_status_unsupported"), name))
                 .font(.footnote)
                 .foregroundStyle(.tertiary)

@@ -607,7 +607,7 @@ struct CursorStatusProbeTests {
         let result = await probe.scanImportedSessions([
             Self.makeSessionInfo(sourceLabel: "Chrome"),
             Self.makeSessionInfo(sourceLabel: "Safari"),
-        ]) { session in
+        ]) { session -> CursorStatusProbe.ImportedSessionFetchOutcome<CursorStatusSnapshot> in
             switch session.sourceLabel {
             case "Chrome":
                 .failed(.networkError("HTTP 500"))
@@ -636,7 +636,7 @@ struct CursorStatusProbeTests {
             Self.makeSessionInfo(sourceLabel: "Chrome"),
             Self.makeSessionInfo(sourceLabel: "Safari"),
             Self.makeSessionInfo(sourceLabel: "Arc"),
-        ]) { session in
+        ]) { session -> CursorStatusProbe.ImportedSessionFetchOutcome<CursorStatusSnapshot> in
             switch session.sourceLabel {
             case "Chrome":
                 .failed(.networkError("HTTP 500"))
@@ -700,7 +700,7 @@ struct CursorStatusProbeTests {
                     return []
                 }
             },
-            attemptFetch: { session in
+            attemptFetch: { session -> CursorStatusProbe.ImportedSessionFetchOutcome<CursorStatusSnapshot> in
                 switch session.sourceLabel {
                 case "Chrome":
                     .failed(.networkError("HTTP 500"))
@@ -755,15 +755,15 @@ struct CursorStatusProbeTests {
                     []
                 }
             },
-            attemptFetch: { session in
+            attemptFetch: { session -> CursorStatusProbe.ImportedSessionFetchOutcome<CursorStatusSnapshot> in
                 attemptedSources.append(session.sourceLabel)
                 switch session.sourceLabel {
                 case "Chrome Profile 1":
-                    return CursorStatusProbe.ImportedSessionFetchOutcome.failed(.networkError("HTTP 500"))
+                    return .failed(.networkError("HTTP 500"))
                 case "Chrome Profile 2 (domain cookies)":
-                    return CursorStatusProbe.ImportedSessionFetchOutcome.succeeded(expected)
+                    return .succeeded(expected)
                 default:
-                    return CursorStatusProbe.ImportedSessionFetchOutcome.tryNextBrowser
+                    return .tryNextBrowser
                 }
             })
 

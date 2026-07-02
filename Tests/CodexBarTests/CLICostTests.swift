@@ -152,4 +152,21 @@ struct CLICostTests {
         #expect(hint.contains("Estimated"))
         #expect(UsageFormatter.costEstimateHint(provider: .claude).contains("cache read/write tokens"))
     }
+
+    @Test
+    func `cursor cookie source off produces a failed JSON payload`() throws {
+        let settings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .off,
+            manualCookieHeader: nil)
+        let error = try #require(CodexBarCLI.cursorCostAvailabilityError(.cursor, settings: settings))
+        let payload = CodexBarCLI.makeCostPayload(provider: .cursor, snapshot: nil, error: error)
+        let json = try #require(CodexBarCLI.encodeJSON([payload], pretty: false))
+
+        #expect(CodexBarCLI.mapError(error) == .failure)
+        #expect(json.contains("\"provider\":\"cursor\""))
+        #expect(json.contains("\"code\":1"))
+        #expect(json.contains("cookie source is set to Off"))
+        #expect(CodexBarCLI.cursorCostAvailabilityError(.cursor, settings: nil) == nil)
+        #expect(CodexBarCLI.cursorCostAvailabilityError(.codex, settings: settings) == nil)
+    }
 }
