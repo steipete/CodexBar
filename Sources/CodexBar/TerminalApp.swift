@@ -23,7 +23,34 @@ enum TerminalApp: String, CaseIterable, Identifiable {
     }
 
     var isInstalled: Bool {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: self.bundleIdentifier) != nil
+        self.isInstalled { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+    }
+
+    func isInstalled(applicationURL: (String) -> URL?) -> Bool {
+        self == .terminal || applicationURL(self.bundleIdentifier) != nil
+    }
+
+    var appIcon: NSImage? {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: self.bundleIdentifier) else {
+            return nil
+        }
+        return NSWorkspace.shared.icon(forFile: appURL.path)
+    }
+
+    static var installed: [Self] {
+        self.installed { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+    }
+
+    static func installed(applicationURL: (String) -> URL?) -> [Self] {
+        self.allCases.filter { $0.isInstalled(applicationURL: applicationURL) }
+    }
+
+    static func pickerOptions(selected: Self) -> [Self] {
+        self.pickerOptions(selected: selected) { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+    }
+
+    static func pickerOptions(selected: Self, applicationURL: (String) -> URL?) -> [Self] {
+        self.allCases.filter { $0 == selected || $0.isInstalled(applicationURL: applicationURL) }
     }
 
     func appleScript(command: String) -> String {

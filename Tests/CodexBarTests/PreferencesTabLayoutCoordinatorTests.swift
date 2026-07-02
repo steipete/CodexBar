@@ -3,6 +3,12 @@ import Testing
 
 struct PreferencesTabLayoutCoordinatorTests {
     @Test
+    func `settings window is twenty percent taller`() {
+        #expect(PreferencesTab.windowHeight == 794)
+        #expect(PreferencesTab.windowHeight >= 662 * 1.19)
+    }
+
+    @Test
     func `binding selection defers one layout and suppresses observed duplicate`() {
         var coordinator = PreferencesTabLayoutCoordinator()
 
