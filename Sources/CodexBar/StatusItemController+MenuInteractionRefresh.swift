@@ -89,7 +89,7 @@ extension StatusItemController {
 
     func clearSatisfiedDeferredMenuInteractionRefreshes(for providers: [UsageProvider]) {
         for provider in providers
-            where !self.store.isStale(provider: provider) && self.store.snapshot(for: provider) != nil
+            where !self.store.needsUsageRefreshRetry(for: provider)
         {
             self.deferredMenuInteractionRefreshProviders.remove(provider)
         }

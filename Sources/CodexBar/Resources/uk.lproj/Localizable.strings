@@ -731,6 +731,8 @@
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
 "Updated %@" = "Оновлено %@";
+"Updated relative %@" = "Оновлено %@";
+"Updated absolute %@" = "Оновлено %@";
 "Updated %@h ago" = "Оновлено %@ год тому";
 "Updated %@m ago" = "Оновлено %@хв тому";
 "Updated just now" = "Оновлено щойно";
@@ -1125,3 +1127,4 @@
 "byte_unit_megabytes" = "мегабайти";
 "byte_unit_gigabyte" = "гігабайт";
 "byte_unit_gigabytes" = "гігабайти";
+"CrossModel API spend trend" = "Тенденція витрат CrossModel API";

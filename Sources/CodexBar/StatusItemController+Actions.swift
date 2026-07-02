@@ -263,6 +263,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 usageScope: self.settings.zaiEffectiveUsageScope())
         }
 
+        if provider == .qoder {
+            return QoderProviderDescriptor.dashboardURL(
+                settings: self.settings.qoderSettingsSnapshot(tokenOverride: nil),
+                sourceLabel: self.store.sourceLabel(for: .qoder))
+        }
+
         let meta = self.store.metadata(for: provider)
         let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
             meta.subscriptionDashboardURL ?? meta.dashboardURL

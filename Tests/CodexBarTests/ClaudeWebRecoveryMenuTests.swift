@@ -60,11 +60,13 @@ struct ClaudeWebRecoveryMenuTests {
     }
 
     @Test
-    func `default account action describes ambient Claude Code sign in`() {
-        let actions = self.actions(source: .auto)
+    func `default account action localizes ambient Claude Code sign in`() {
+        let actions = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
+            self.actions(source: .auto)
+        }
 
         #expect(actions.contains {
-            $0.0 == "Sign in with Claude Code..." && $0.1 == .switchAccount(.claude)
+            $0.0 == "使用 Claude Code 登入…" && $0.1 == .switchAccount(.claude)
         })
         #expect(!actions.contains { $0.0 == "Add Account..." })
     }

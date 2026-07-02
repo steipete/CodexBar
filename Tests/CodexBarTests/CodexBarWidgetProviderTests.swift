@@ -12,6 +12,43 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `small widget falls back to local cost when quota rows are unavailable`() {
+        let tokenUsage = WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: 1.25,
+            sessionTokens: 4200,
+            last30DaysCostUSD: 12.50,
+            last30DaysTokens: 42000,
+            currencyCode: "USD",
+            sessionLabel: "Today",
+            last30DaysLabel: "30d")
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .claude,
+            updatedAt: Date(),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            usageRows: [],
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: tokenUsage,
+            dailyUsage: [])
+        let windowedEntry = WidgetSnapshot.ProviderEntry(
+            provider: .claude,
+            updatedAt: Date(),
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            usageRows: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: tokenUsage,
+            dailyUsage: [])
+
+        #expect(WidgetUsageRow.compactTokenUsage(for: entry)?.sessionTokens == 4200)
+        #expect(WidgetUsageRow.compactTokenUsage(for: windowedEntry) == nil)
+    }
+
+    @Test
     func `small widget limits custom usage rows`() {
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .antigravity,

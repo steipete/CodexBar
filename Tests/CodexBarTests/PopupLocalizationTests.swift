@@ -89,7 +89,8 @@ struct PopupLocalizationTests {
 
             #expect(dashboard.kpis.map(\.title) == ["餘額", "今天", "週", "月"])
             #expect(dashboard.points.map(\.label) == ["今天", "週", "月"])
-            #expect(dashboard.detailLines.contains("速率限制: 100 / 10s"))
+            #expect(dashboard.detailLines.contains("速率限制：100 / 10s"))
+            #expect(dashboard.detailLines.contains("金鑰剩餘額度：$15.00"))
         }
     }
 
@@ -120,6 +121,15 @@ struct PopupLocalizationTests {
             #expect(disabledSubtitle.contains("鑰匙圈"))
             #expect(!disabledSubtitle.contains("Keychain access"))
             #expect(jsonBundleSubtitle.contains("來自 Windsurf session 的 localStorage JSON"))
+        }
+    }
+
+    @Test
+    func `settings labels use selected localization`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
+            #expect(KiroMenuBarDisplayMode.hidden.label == "隱藏")
+            #expect(KiroMenuBarDisplayMode.creditsLeft.label == "剩餘額度")
+            #expect(L("(System)") == "（系統）")
         }
     }
 

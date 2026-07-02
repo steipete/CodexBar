@@ -655,8 +655,11 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "claude")
     }
 
-    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.runtime == .app, context.sourceMode == .auto else { return false }
+        guard !ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(error.localizedDescription) else {
+            return false
+        }
         // Reuse the bounded planning result instead of repeating browser/Keychain work after CLI failure.
         return self.hasWebFallback
     }

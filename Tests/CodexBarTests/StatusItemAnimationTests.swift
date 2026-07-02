@@ -27,6 +27,40 @@ struct StatusItemAnimationTests {
     }
 
     @Test
+    func `known unavailable limits stop loading animation`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "StatusItemAnimationTests-known-unavailable"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let registry = ProviderRegistry.shared
+        if let claudeMeta = registry.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        store._setSnapshotForTesting(nil, provider: .claude)
+        store._setErrorForTesting(nil, provider: .claude)
+        #expect(controller.shouldAnimate(provider: .claude))
+
+        store._setKnownLimitsAvailabilityForTesting(.unavailable, provider: .claude)
+        #expect(!controller.shouldAnimate(provider: .claude))
+    }
+
+    @Test
     func `merged icon loading animation tracks selected provider only`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "StatusItemAnimationTests-merged"),

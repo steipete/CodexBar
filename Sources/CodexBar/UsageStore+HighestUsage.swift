@@ -3,11 +3,16 @@ import Foundation
 
 @MainActor
 extension UsageStore {
-    /// Returns the enabled provider with the highest usage percentage (closest to rate limit).
+    /// Returns the enabled candidate provider with the highest usage percentage (closest to rate limit).
     /// Excludes providers that are fully rate-limited.
-    func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
+    func providerWithHighestUsage(candidateProviders: [UsageProvider]? = nil)
+        -> (provider: UsageProvider, usedPercent: Double)?
+    {
+        let candidateSet = candidateProviders.map(Set.init)
         var highest: (provider: UsageProvider, usedPercent: Double)?
-        for provider in self.enabledProviders() {
+        for provider in self.enabledProviders()
+            where candidateSet?.contains(provider) ?? true
+        {
             guard let snapshot = self.snapshots[provider] else { continue }
             guard let window = self.menuBarMetricWindowForHighestUsage(provider: provider, snapshot: snapshot) else {
                 continue

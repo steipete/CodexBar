@@ -32,6 +32,11 @@ struct UserFacingLocalizationCoverageTests {
                 ".value(\"Utilization Start\"",
                 ".value(\"Utilization End\"",
             ],
+            "Sources/CodexBar/Providers/JetBrains/JetBrainsLoginFlow.swift": [
+                "                \"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar.\",",
+                "                \"Alternatively, set a custom path in Settings.\",",
+                "title: \"No JetBrains IDE detected\"",
+            ],
             "Sources/CodexBar/PreferencesCodexAccountsSection.swift": [
                 "?? \"No system account\"",
                 "return \"Adding Account…\"",
