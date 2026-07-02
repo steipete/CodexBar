@@ -35,6 +35,24 @@ struct UsageStoreResetBoundaryRefreshTests {
     }
 
     @Test
+    func suppressesRepeatedPromptRefreshAfterAttemptedBoundary() {
+        let now = Date(timeIntervalSince1970: 2500)
+        let resetsAt = now.addingTimeInterval(-3 * 60)
+        let boundaryRefreshAt = resetsAt.addingTimeInterval(UsageStore.resetBoundaryRefreshGraceSeconds)
+        let snapshot = Self.snapshot(
+            updatedAt: resetsAt.addingTimeInterval(-60),
+            primaryResetsAt: resetsAt)
+
+        let refreshAt = UsageStore.nextResetBoundaryRefreshDate(
+            snapshots: [.codex: snapshot],
+            normalRefreshInterval: 30 * 60,
+            attemptedBoundaryRefreshes: [boundaryRefreshAt],
+            now: now)
+
+        #expect(refreshAt == nil)
+    }
+
+    @Test
     func ignoresResetBoundaryAfterNormalPoll() {
         let now = Date(timeIntervalSince1970: 3000)
         let resetsAt = now.addingTimeInterval(40 * 60)
