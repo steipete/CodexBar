@@ -156,6 +156,7 @@ struct OAuthUsageResponse: Decodable {
     let sevenDayRoutinesSourceKey: String?
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
+    let limits: [OAuthUsageLimit]
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
@@ -177,6 +178,7 @@ struct OAuthUsageResponse: Decodable {
         self.sevenDayRoutinesSourceKey = routines.sourceKey
         self.iguanaNecktie = Self.decodeWindow(in: container, keys: ["iguana_necktie"])
         self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
+        self.limits = Self.decodeValue(in: container, keys: ["limits"]) ?? []
     }
 
     private static func decodeWindow(
@@ -239,6 +241,36 @@ struct OAuthUsageWindow: Decodable {
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
+    }
+}
+
+struct OAuthUsageLimit: Decodable {
+    let kind: String?
+    let percent: Double?
+    let resetsAt: String?
+    let isActive: Bool?
+    let scope: Scope?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case percent
+        case resetsAt = "resets_at"
+        case isActive = "is_active"
+        case scope
+    }
+
+    struct Scope: Decodable {
+        let model: Model?
+
+        struct Model: Decodable {
+            let id: String?
+            let displayName: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id
+                case displayName = "display_name"
+            }
+        }
     }
 }
 

@@ -1126,7 +1126,18 @@ extension ClaudeUsageFetcher {
         if let routinesKey = usage.sevenDayRoutinesSourceKey {
             Self.log.debug("Claude OAuth extra usage key matched: routines=\(routinesKey)")
         }
-        return definitions.compactMap { definition in
+        // Scoped weekly promo limits (e.g. "Fable") arrive in the `limits[]` array; legacy top-level
+        // fields remain authoritative for the session/weekly/model windows.
+        let scopedWeeklyWindows = ClaudeScopedWeeklyLimitWindows.windows(
+            from: usage.limits.map { limit in
+                ClaudeScopedWeeklyLimitWindows.Entry(
+                    kind: limit.kind,
+                    percent: limit.percent,
+                    resetsAt: ClaudeOAuthUsageFetcher.parseISO8601Date(limit.resetsAt),
+                    modelDisplayName: limit.scope?.model?.displayName)
+            },
+            formatReset: Self.formatResetDate)
+        let definedWindows: [NamedRateWindow] = definitions.compactMap { definition in
             let utilization: Double
             let resetDate: Date?
             if let window = definition.window, let parsedUtilization = window.utilization {
@@ -1149,6 +1160,7 @@ extension ClaudeUsageFetcher {
                     resetsAt: resetDate,
                     resetDescription: resetDescription))
         }
+        return definedWindows + scopedWeeklyWindows
     }
 
     // MARK: - Web API path (uses browser cookies)

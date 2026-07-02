@@ -650,6 +650,13 @@ public enum ClaudeWebAPIFetcher {
         if let sourceKey = extraRateParse.sourceKeys["claude-routines"] {
             logger?("Usage API extra window key matched: routines=\(sourceKey)")
         }
+        // Scoped weekly promo limits (e.g. "Fable") arrive in the `limits[]` array; legacy top-level
+        // fields above remain authoritative for the session/weekly/model windows.
+        let scopedWeeklyWindows = ClaudeScopedWeeklyLimitWindows.windows(
+            from: ClaudeScopedWeeklyLimitWindows.entries(fromJSONValue: json["limits"]))
+        if !scopedWeeklyWindows.isEmpty {
+            logger?("Usage API scoped weekly limits matched: \(scopedWeeklyWindows.map(\.id).joined(separator: ","))")
+        }
         let extraUsageCost = ClaudeWebExtraUsageCost.parse(from: json["extra_usage"])
 
         return WebUsageData(
@@ -658,7 +665,7 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
             opusPercentUsed: opusPercent,
-            extraRateWindows: extraRateParse.windows,
+            extraRateWindows: extraRateParse.windows + scopedWeeklyWindows,
             extraUsageCost: extraUsageCost,
             accountOrganization: nil,
             accountEmail: nil,
