@@ -107,6 +107,9 @@ extension UsageStore {
 @MainActor
 @Observable
 final class UsageStore {
+    nonisolated static let resetBoundaryRefreshGraceSeconds: TimeInterval = 30
+    nonisolated static let resetBoundaryRefreshMinimumDelaySeconds: TimeInterval = 5
+
     private struct ProviderAvailabilityCacheEntry {
         let available: Bool
         let configRevision: Int
@@ -252,6 +255,8 @@ final class UsageStore {
     @ObservationIgnored var lastStorageRefreshAt: Date?
     @ObservationIgnored var managedCodexAccountsForStorageOverride: [ManagedCodexAccount]?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var resetBoundaryRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var scheduledResetBoundaryRefreshAt: Date?
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
     @ObservationIgnored let planUtilizationHistoryStore: PlanUtilizationHistoryStore
@@ -673,6 +678,9 @@ final class UsageStore {
             self.persistWidgetSnapshot(reason: "refresh")
         }
 
+        self.scheduleResetBoundaryRefreshIfNeeded(
+            normalRefreshInterval: self.settings.refreshFrequency.seconds)
+
         if allowsStartupConnectivityRetry {
             self.completeStartupConnectivityRetryPass(currentAttempt: startupConnectivityRetryAttempt ?? 0)
         }
@@ -703,6 +711,7 @@ final class UsageStore {
 
     private func startTimer() {
         self.timerTask?.cancel()
+        self.cancelResetBoundaryRefresh()
         guard let wait = self.settings.refreshFrequency.seconds else { return }
 
         // Background poller so the menu stays responsive; canceled when settings change or store deallocates.
@@ -711,6 +720,74 @@ final class UsageStore {
                 try? await Task.sleep(for: .seconds(wait))
                 await self?.refresh()
             }
+        }
+    }
+
+    func scheduleResetBoundaryRefreshIfNeeded(
+        normalRefreshInterval: TimeInterval?,
+        now: Date = Date())
+    {
+        guard let refreshAt = Self.nextResetBoundaryRefreshDate(
+            snapshots: self.snapshots,
+            normalRefreshInterval: normalRefreshInterval,
+            now: now)
+        else {
+            self.cancelResetBoundaryRefresh()
+            return
+        }
+
+        if let scheduledResetBoundaryRefreshAt,
+           abs(scheduledResetBoundaryRefreshAt.timeIntervalSince(refreshAt)) < 1
+        {
+            return
+        }
+
+        self.cancelResetBoundaryRefresh()
+        self.scheduledResetBoundaryRefreshAt = refreshAt
+        self.resetBoundaryRefreshTask = Task.detached(priority: .utility) { [weak self] in
+            let delay = max(0, refreshAt.timeIntervalSince(Date()))
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await self?.refresh()
+        }
+    }
+
+    private func cancelResetBoundaryRefresh() {
+        self.resetBoundaryRefreshTask?.cancel()
+        self.resetBoundaryRefreshTask = nil
+        self.scheduledResetBoundaryRefreshAt = nil
+    }
+
+    nonisolated static func nextResetBoundaryRefreshDate(
+        snapshots: [UsageProvider: UsageSnapshot],
+        normalRefreshInterval: TimeInterval?,
+        now: Date)
+        -> Date?
+    {
+        guard let normalRefreshInterval else { return nil }
+        let normalRefreshDate = now.addingTimeInterval(normalRefreshInterval)
+        return snapshots.values
+            .flatMap { snapshot in
+                Self.resetBoundaryRefreshCandidates(
+                    snapshot: snapshot,
+                    now: now,
+                    normalRefreshDate: normalRefreshDate)
+            }
+            .min()
+    }
+
+    private nonisolated static func resetBoundaryRefreshCandidates(
+        snapshot: UsageSnapshot,
+        now: Date,
+        normalRefreshDate: Date)
+        -> [Date]
+    {
+        snapshot.allRateWindows().compactMap { window in
+            guard let resetsAt = window.resetsAt else { return nil }
+            let refreshAt = resetsAt.addingTimeInterval(Self.resetBoundaryRefreshGraceSeconds)
+            guard refreshAt <= normalRefreshDate else { return nil }
+            guard snapshot.updatedAt < refreshAt else { return nil }
+            return max(refreshAt, now.addingTimeInterval(Self.resetBoundaryRefreshMinimumDelaySeconds))
         }
     }
 
@@ -782,6 +859,7 @@ final class UsageStore {
         self.startupConnectivityRetryTask?.cancel()
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
+        self.resetBoundaryRefreshTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
@@ -935,6 +1013,13 @@ final class UsageStore {
                 }
             }
         }
+    }
+}
+
+extension UsageSnapshot {
+    fileprivate func allRateWindows() -> [RateWindow] {
+        [self.primary, self.secondary, self.tertiary].compactMap(\.self) +
+            (self.extraRateWindows?.map(\.window) ?? [])
     }
 }
 
