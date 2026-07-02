@@ -1051,7 +1051,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func `web usage fetch skips console enrichment when optional usage is disabled`() async throws {
+    func `web usage fetch still enriches credit and usage summary when billing history disabled`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -1061,7 +1061,20 @@ struct MiniMaxUsageParserTests {
                     body: Self.codingPlanJSON,
                     contentType: "application/json")
             }
-            Issue.record("Unexpected optional enrichment request: \(url.absoluteString)")
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"base_resp":{"status_code":1004,"status_msg":"not login"}}"#,
+                    statusCode: 401,
+                    contentType: "application/json")
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
             return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
         }
 
@@ -1079,7 +1092,8 @@ struct MiniMaxUsageParserTests {
         #expect(snapshot.pointsBalance == nil)
         let billingRequests = requests.filter { $0.url?.path == "/account/amount" }
         #expect(billingRequests.isEmpty)
-        #expect(requests.count == 1)
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" })
     }
 
     @Test
