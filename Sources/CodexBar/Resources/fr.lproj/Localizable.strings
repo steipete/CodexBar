@@ -234,6 +234,7 @@
 "Picker subtitle" = "Sous-titre du sélecteur";
 "Placeholder" = "Espace réservé";
 "Plan" = "Forfait";
+"Plan Usage" = "Utilisation du forfait";
 "Play full-screen confetti when weekly usage resets." = "Jouez des confettis en plein écran lorsque l'utilisation hebdomadaire est réinitialisée.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Sonde les pages d'état OpenAI/Claude et Google Workspace pour";
 "Prevents any Keychain access while enabled." = "Empêche tout accès au Trousseau lorsqu'il est activé.";
@@ -301,7 +302,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Stocké dans ~/.codexbar/config.json. Collez votre clé API MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Stocké dans ~/.codexbar/config.json. Vous pouvez également fournir KILO_API_KEY ou";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Stocke l’historique d’utilisation local du Codex (8 semaines) pour personnaliser les prédictions Pace.";
-"Subscription Utilization" = "Utilisation de l'abonnement";
 "Surprise me" = "Surprenez-moi";
 "Switcher shows icons" = "Le commutateur affiche des icônes";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Lien symbolique CodexBarCLI vers /usr/local/bin et /opt/homebrew/bin en tant que codexbar.";

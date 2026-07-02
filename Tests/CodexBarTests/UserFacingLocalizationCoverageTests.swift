@@ -86,9 +86,6 @@ struct UserFacingLocalizationCoverageTests {
                 "\"Disabled —",
                 ".accessibilityLabel(\"Sort",
             ],
-            "Sources/CodexBar/StatusItemController+UsageHistoryMenu.swift": [
-                "Text(\"Subscription Utilization\")",
-            ],
             "Sources/CodexBar/StatusItemController+CostMenuCard.swift": [
                 "static let costMenuTitle",
             ],
