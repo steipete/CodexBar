@@ -58,7 +58,7 @@ extension KimiUsageSnapshot {
             return max(0, weeklyLimit - remaining)
         }()
 
-        let weeklyPercent = weeklyLimit > 0 ? Double(weeklyUsed) / Double(weeklyLimit) * 100 : 0
+        let weeklyPercent = weeklyLimit > 0 ? Self.clampedPercent(Double(weeklyUsed) / Double(weeklyLimit) * 100) : 0
 
         let weeklyWindow = RateWindow(
             usedPercent: weeklyPercent,
@@ -75,7 +75,9 @@ extension KimiUsageSnapshot {
                 guard let remaining = rateRemaining else { return 0 }
                 return max(0, rateLimitValue - remaining)
             }()
-            let ratePercent = rateLimitValue > 0 ? Double(rateUsed) / Double(rateLimitValue) * 100 : 0
+            let ratePercent = rateLimitValue > 0
+                ? Self.clampedPercent(Double(rateUsed) / Double(rateLimitValue) * 100)
+                : 0
 
             rateLimitWindow = RateWindow(
                 usedPercent: ratePercent,
@@ -85,6 +87,8 @@ extension KimiUsageSnapshot {
         }
 
         let monthlyWindow = self.subscriptionBalance.flatMap { balance -> NamedRateWindow? in
+            // Monthly = shared subscription pool (`amountUsedRatio`), not the Code-only `kimiCodeUsedRatio`:
+            // the pool is shared across features, so amountUsedRatio is the real "subscription remaining".
             guard balance.feature == nil || balance.feature == "FEATURE_OMNI" else { return nil }
             guard balance.type == nil || balance.type == "SUBSCRIPTION" else { return nil }
             guard let ratio = balance.amountUsedRatio else { return nil }
