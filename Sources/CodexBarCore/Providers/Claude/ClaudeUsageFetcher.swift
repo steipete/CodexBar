@@ -16,6 +16,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let primaryWindowKind: PrimaryWindowKind
     public let secondary: RateWindow?
     public let opus: RateWindow?
+    public let fable: RateWindow?
     public let extraRateWindows: [NamedRateWindow]
     public let providerCost: ProviderCostSnapshot?
     public let updatedAt: Date
@@ -33,6 +34,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         primaryWindowKind: PrimaryWindowKind = .usage,
         secondary: RateWindow?,
         opus: RateWindow?,
+        fable: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow] = [],
         providerCost: ProviderCostSnapshot? = nil,
         updatedAt: Date,
@@ -47,6 +49,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.primaryWindowKind = primaryWindowKind
         self.secondary = secondary
         self.opus = opus
+        self.fable = fable
         self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
         self.updatedAt = updatedAt
@@ -747,10 +750,14 @@ extension ClaudeUsageFetcher {
                 resetsAt: Self.parseReset(text: resets),
                 resetDescription: resets)
         }()
+        let fableWindow = makeWindow(
+            firstWindowDict(["week_fable", "week_fable_only"]),
+            windowMinutes: Self.weeklyWindowMinutes)
         return ClaudeUsageSnapshot(
             primary: session,
             secondary: weekAll,
             opus: opusWindow,
+            fable: fableWindow,
             providerCost: nil,
             updatedAt: Date(),
             accountEmail: email,
@@ -1039,14 +1046,16 @@ extension ClaudeUsageFetcher {
 
         let weekly = makeWindow(usage.sevenDay, windowMinutes: 7 * 24 * 60)
         let modelSpecific = makeWindow(
-            usage.sevenDaySonnet ?? usage.sevenDayOpus,
+            usage.sevenDaySonnet ?? usage.sevenDayOpus ?? usage.sevenDayModelScoped,
             windowMinutes: 7 * 24 * 60)
+        let fable = makeWindow(usage.sevenDayFable, windowMinutes: 7 * 24 * 60)
         let extraRateWindows = Self.oauthExtraRateWindows(from: usage)
 
         return ClaudeUsageSnapshot(
             primary: primary,
             secondary: weekly,
             opus: modelSpecific,
+            fable: fable,
             extraRateWindows: extraRateWindows,
             providerCost: providerCost,
             updatedAt: Date(),
@@ -1205,10 +1214,19 @@ extension ClaudeUsageFetcher {
                 resetDescription: webData.weeklyResetsAt.map { Self.formatResetDate($0) })
         }
 
+        let fable: RateWindow? = webData.fablePercentUsed.map { fablePct in
+            RateWindow(
+                usedPercent: fablePct,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: webData.weeklyResetsAt,
+                resetDescription: webData.weeklyResetsAt.map { Self.formatResetDate($0) })
+        }
+
         return ClaudeUsageSnapshot(
             primary: primary,
             secondary: secondary,
             opus: opus,
+            fable: fable,
             extraRateWindows: webData.extraRateWindows,
             providerCost: webData.extraUsageCost,
             updatedAt: Date(),
@@ -1294,11 +1312,16 @@ extension ClaudeUsageFetcher {
             pctLeft: snap.opusPercentLeft,
             reset: snap.opusResetDescription,
             windowMinutes: Self.weeklyWindowMinutes)
+        let fable = makeWindow(
+            pctLeft: snap.fablePercentLeft,
+            reset: snap.fableResetDescription,
+            windowMinutes: Self.weeklyWindowMinutes)
 
         return ClaudeUsageSnapshot(
             primary: primary,
             secondary: weekly,
             opus: opus,
+            fable: fable,
             extraRateWindows: [],
             providerCost: nil,
             updatedAt: Date(),
@@ -1337,6 +1360,7 @@ extension ClaudeUsageFetcher {
                     primaryWindowKind: snapshot.primaryWindowKind,
                     secondary: snapshot.secondary,
                     opus: snapshot.opus,
+                    fable: snapshot.fable,
                     extraRateWindows: mergedExtraRateWindows,
                     providerCost: mergedProviderCost,
                     updatedAt: snapshot.updatedAt,

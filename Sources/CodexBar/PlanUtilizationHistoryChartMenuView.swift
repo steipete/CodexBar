@@ -258,6 +258,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
             {
                 names.insert(.opus)
             }
+            if snapshot.quaternary != nil,
+               ProviderDescriptorRegistry.metadata[provider]?.supportsFable == true
+            {
+                names.insert(.fable)
+            }
         default:
             let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
                 + (snapshot.extraRateWindows?.filter(\.usageKnown).map(\.window) ?? [])
@@ -623,6 +628,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
             L(metadata?.weeklyLabel ?? "Weekly")
         case .opus:
             metadata?.opusLabel ?? "Opus"
+        case .fable:
+            metadata?.fableLabel ?? "Fable"
         default:
             self.fallbackTitle(for: name.rawValue)
         }
@@ -643,6 +650,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
             1
         case .opus:
             2
+        case .fable:
+            3
         default:
             100
         }

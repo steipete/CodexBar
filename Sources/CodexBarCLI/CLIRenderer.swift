@@ -34,6 +34,7 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendQuaternaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -160,6 +161,20 @@ enum CLIRenderer {
         }
     }
 
+    private static func appendQuaternaryLines(
+        snapshot: UsageSnapshot,
+        labels: RateWindowLabels,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        guard labels.showsQuaternary, let fable = snapshot.quaternary else { return }
+        lines.append(self.rateLine(title: labels.quaternary, window: fable, useColor: context.useColor))
+        if let reset = self.resetLine(for: fable, style: context.resetStyle, now: now) {
+            lines.append(self.subtleLine(reset, useColor: context.useColor))
+        }
+    }
+
     private static func appendDeepgramLines(
         snapshot: UsageSnapshot,
         useColor: Bool,
@@ -204,6 +219,8 @@ enum CLIRenderer {
         let secondary: String
         let tertiary: String
         let showsTertiary: Bool
+        let quaternary: String
+        let showsQuaternary: Bool
     }
 
     private static func rateWindowLabels(
@@ -216,7 +233,9 @@ enum CLIRenderer {
                 primary: "5-hour",
                 secondary: "Weekly",
                 tertiary: "Monthly",
-                showsTertiary: true)
+                showsTertiary: true,
+                quaternary: "Fable",
+                showsQuaternary: false)
         }
         let primaryLabel = provider == .grok
             ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
@@ -225,7 +244,9 @@ enum CLIRenderer {
             primary: primaryLabel,
             secondary: metadata.weeklyLabel,
             tertiary: metadata.opusLabel ?? "Sonnet",
-            showsTertiary: metadata.supportsOpus)
+            showsTertiary: metadata.supportsOpus,
+            quaternary: metadata.fableLabel ?? "Fable",
+            showsQuaternary: metadata.supportsFable)
     }
 
     private static func appendCreditsLine(

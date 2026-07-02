@@ -4,13 +4,43 @@ public struct ClaudeStatusSnapshot: Sendable {
     public let sessionPercentLeft: Int?
     public let weeklyPercentLeft: Int?
     public let opusPercentLeft: Int?
+    public let fablePercentLeft: Int?
     public let accountEmail: String?
     public let accountOrganization: String?
     public let loginMethod: String?
     public let primaryResetDescription: String?
     public let secondaryResetDescription: String?
     public let opusResetDescription: String?
+    public let fableResetDescription: String?
     public let rawText: String
+
+    public init(
+        sessionPercentLeft: Int?,
+        weeklyPercentLeft: Int?,
+        opusPercentLeft: Int?,
+        fablePercentLeft: Int? = nil,
+        accountEmail: String?,
+        accountOrganization: String?,
+        loginMethod: String?,
+        primaryResetDescription: String?,
+        secondaryResetDescription: String?,
+        opusResetDescription: String?,
+        fableResetDescription: String? = nil,
+        rawText: String)
+    {
+        self.sessionPercentLeft = sessionPercentLeft
+        self.weeklyPercentLeft = weeklyPercentLeft
+        self.opusPercentLeft = opusPercentLeft
+        self.fablePercentLeft = fablePercentLeft
+        self.accountEmail = accountEmail
+        self.accountOrganization = accountOrganization
+        self.loginMethod = loginMethod
+        self.primaryResetDescription = primaryResetDescription
+        self.secondaryResetDescription = secondaryResetDescription
+        self.opusResetDescription = opusResetDescription
+        self.fableResetDescription = fableResetDescription
+        self.rawText = rawText
+    }
 }
 
 public struct ClaudeAccountIdentity: Sendable {
@@ -195,6 +225,9 @@ public struct ClaudeStatusProbe: Sendable {
                 "Current week (Sonnet)",
             ],
             context: labelContext)
+        // Fable is an independent weekly bucket; keep it label-based only (no positional fallback) so it is
+        // never confused with the session/weekly-all/model-specific ordered percents.
+        let fablePct = self.extractPercent(labelSubstring: "Current week (Fable)", context: labelContext)
 
         // Fallback: order-based percent scraping when labels are present but the surrounding layout moved.
         // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
@@ -204,6 +237,7 @@ public struct ClaudeStatusProbe: Sendable {
             labelContext.contains("currentweek")
             || compactContext.contains("currentweek")
         let hasOpusLabel = labelContext.contains("opus") || labelContext.contains("sonnet")
+        let hasFableLabel = labelContext.contains("fable")
 
         if sessionPct == nil || (hasWeeklyLabel && weeklyPct == nil) || (hasOpusLabel && opusPct == nil) {
             let ordered = self.allPercents(usagePanelText)
@@ -242,17 +276,22 @@ public struct ClaudeStatusProbe: Sendable {
                 ],
                 context: labelContext)
             : nil
+        let fableReset = hasFableLabel
+            ? self.extractReset(labelSubstring: "Current week (Fable)", context: labelContext)
+            : nil
 
         return ClaudeStatusSnapshot(
             sessionPercentLeft: sessionPct,
             weeklyPercentLeft: weeklyPct,
             opusPercentLeft: opusPct,
+            fablePercentLeft: fablePct,
             accountEmail: identity.accountEmail,
             accountOrganization: identity.accountOrganization,
             loginMethod: identity.loginMethod,
             primaryResetDescription: sessionReset,
             secondaryResetDescription: weeklyReset,
             opusResetDescription: opusReset,
+            fableResetDescription: fableReset,
             rawText: text + (statusText ?? ""))
     }
 
@@ -366,7 +405,7 @@ public struct ClaudeStatusProbe: Sendable {
     private static func isLikelyStatusContextLine(_ line: String) -> Bool {
         guard line.contains("|") else { return false }
         let lower = line.lowercased()
-        let modelTokens = ["opus", "sonnet", "haiku", "default"]
+        let modelTokens = ["opus", "sonnet", "haiku", "default", "fable"]
         return modelTokens.contains(where: lower.contains)
     }
 

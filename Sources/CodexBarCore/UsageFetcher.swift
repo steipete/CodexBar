@@ -175,6 +175,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let primary: RateWindow?
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
+    public let quaternary: RateWindow?
     public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
     public let kiroUsage: KiroUsageDetails?
@@ -207,6 +208,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case primary
         case secondary
         case tertiary
+        case quaternary
         case extraRateWindows
         case providerCost
         case kiroUsage
@@ -233,6 +235,7 @@ public struct UsageSnapshot: Codable, Sendable {
         primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
+        quaternary: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         kiroUsage: KiroUsageDetails? = nil,
         ampUsage: AmpUsageDetails? = nil,
@@ -261,6 +264,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
+        self.quaternary = quaternary
         self.extraRateWindows = extraRateWindows
         self.kiroUsage = kiroUsage
         self.ampUsage = ampUsage
@@ -306,6 +310,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
+        self.quaternary = try container.decodeIfPresent(RateWindow.self, forKey: .quaternary)
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.kiroUsage = try container.decodeIfPresent(KiroUsageDetails.self, forKey: .kiroUsage)
@@ -361,6 +366,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.primary, forKey: .primary)
         try container.encode(self.secondary, forKey: .secondary)
         try container.encode(self.tertiary, forKey: .tertiary)
+        try container.encode(self.quaternary, forKey: .quaternary)
         try container.encodeIfPresent(self.extraRateWindows, forKey: .extraRateWindows)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encodeIfPresent(self.kiroUsage, forKey: .kiroUsage)
@@ -456,6 +462,7 @@ public struct UsageSnapshot: Codable, Sendable {
 
     public var hasRateLimitWindows: Bool {
         self.primary != nil || self.secondary != nil || self.tertiary != nil ||
+            self.quaternary != nil ||
             !(self.extraRateWindows?.isEmpty ?? true)
     }
 
@@ -484,13 +491,17 @@ public struct UsageSnapshot: Codable, Sendable {
         let primary = self.primary?.backfillingResetTime(from: cached.primary, now: now)
         let secondary = self.secondary?.backfillingResetTime(from: cached.secondary, now: now)
         let tertiary = self.tertiary?.backfillingResetTime(from: cached.tertiary, now: now)
-        if primary == self.primary, secondary == self.secondary, tertiary == self.tertiary {
+        let quaternary = self.quaternary?.backfillingResetTime(from: cached.quaternary, now: now)
+        if primary == self.primary, secondary == self.secondary, tertiary == self.tertiary,
+           quaternary == self.quaternary
+        {
             return self
         }
         return self.replacing(
             primary: .value(primary),
             secondary: .value(secondary),
-            tertiary: .value(tertiary))
+            tertiary: .value(tertiary),
+            quaternary: .value(quaternary))
     }
 
     private func orderedPerplexityFallbackWindows() -> [RateWindow] {
@@ -527,6 +538,7 @@ public struct UsageSnapshot: Codable, Sendable {
         primary: Replacement<RateWindow?> = .unchanged,
         secondary: Replacement<RateWindow?> = .unchanged,
         tertiary: Replacement<RateWindow?> = .unchanged,
+        quaternary: Replacement<RateWindow?> = .unchanged,
         extraRateWindows: Replacement<[NamedRateWindow]?> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
         identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
@@ -536,6 +548,7 @@ public struct UsageSnapshot: Codable, Sendable {
             primary: primary.resolving(self.primary),
             secondary: secondary.resolving(self.secondary),
             tertiary: tertiary.resolving(self.tertiary),
+            quaternary: quaternary.resolving(self.quaternary),
             extraRateWindows: extraRateWindows.resolving(self.extraRateWindows),
             kiroUsage: self.kiroUsage,
             ampUsage: self.ampUsage,

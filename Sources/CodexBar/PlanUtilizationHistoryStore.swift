@@ -15,12 +15,15 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Expressib
     static let session: Self = "session"
     static let weekly: Self = "weekly"
     static let opus: Self = "opus"
+    static let fable: Self = "fable"
 
     func canonicalWindowMinutes(_ windowMinutes: Int) -> Int {
         switch self {
         case .session where (295...305).contains(windowMinutes):
             300
         case .weekly where (10070...10090).contains(windowMinutes):
+            10080
+        case .fable where (10070...10090).contains(windowMinutes):
             10080
         default:
             windowMinutes

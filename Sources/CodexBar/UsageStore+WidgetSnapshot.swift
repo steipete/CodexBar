@@ -75,6 +75,7 @@ extension UsageStore {
             primary: snapshot?.primary,
             secondary: snapshot?.secondary,
             tertiary: snapshot?.tertiary,
+            quaternary: snapshot?.quaternary,
             usageRows: usageRows,
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,
@@ -164,6 +165,12 @@ extension UsageStore {
                 id: "tertiary",
                 title: metadata?.opusLabel ?? "Opus",
                 percentLeft: snapshot.tertiary?.remainingPercent))
+        }
+        if metadata?.supportsFable == true {
+            rows.append(WidgetSnapshot.WidgetUsageRowSnapshot(
+                id: "quaternary",
+                title: metadata?.fableLabel ?? "Fable",
+                percentLeft: snapshot.quaternary?.remainingPercent))
         }
         return rows.filter { $0.percentLeft != nil }
     }
