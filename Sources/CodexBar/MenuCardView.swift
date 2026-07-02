@@ -1248,7 +1248,7 @@ extension UsageMenuCardView.Model {
             primaryDetailLeft = detail
         }
         if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek
-            || input.provider == .litellm,
+            || input.provider == .qoder || input.provider == .litellm,
             let detail = primary.resetDescription,
             !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -1273,7 +1273,7 @@ extension UsageMenuCardView.Model {
             primaryDetailText = detail
             if input.provider == .manus { primaryResetText = nil }
         }
-        if [.warp, .kilo, .mimo, .deepseek, .litellm].contains(input.provider), primary.resetsAt == nil {
+        if [.warp, .kilo, .mimo, .deepseek, .qoder, .litellm].contains(input.provider), primary.resetsAt == nil {
             primaryResetText = nil
         }
         // Abacus: show credits as detail, compute pace on the primary monthly window

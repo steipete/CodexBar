@@ -153,7 +153,7 @@ struct MenuDescriptor {
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
-                    provider == .deepseek || provider == .azureopenai || provider == .mimo
+                    provider == .deepseek || provider == .azureopenai || provider == .mimo || provider == .qoder
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
