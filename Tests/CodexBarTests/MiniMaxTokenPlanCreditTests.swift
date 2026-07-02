@@ -73,7 +73,7 @@ struct MiniMaxTokenPlanCreditTests {
     }
 
     @Test
-    func `web usage fetch skips optional console enrichment when disabled`() async throws {
+    func `web usage fetch still enriches credit and usage summary when billing history disabled`() async throws {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -86,7 +86,20 @@ struct MiniMaxTokenPlanCreditTests {
             if url.path.contains("coding_plan/remains") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
-            Issue.record("Unexpected optional enrichment request: \(url.absoluteString)")
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"base_resp":{"status_code":1004,"status_msg":"not login"}}"#,
+                    statusCode: 401,
+                    contentType: "application/json")
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
             return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
         }
 
@@ -100,8 +113,9 @@ struct MiniMaxTokenPlanCreditTests {
 
         #expect(snapshot.pointsBalance == nil)
         let requests = await transport.requests()
-        #expect(!requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
-        #expect(!requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" })
+        #expect(!requests.contains { $0.url?.path.contains("account/amount") == true })
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" })
     }
 
     @Test
