@@ -291,6 +291,14 @@ struct MenuDescriptor {
         if let mimoUsage = snapshot.mimoUsage {
             entries.append(.text("\(L("Balance")): \(mimoUsage.balanceDetail)", .primary))
         }
+        if let sakanaPayAsYouGo = snapshot.sakanaPayAsYouGo {
+            entries.append(.text("\(L("Balance")): \(sakanaPayAsYouGo.balanceDetail)", .primary))
+            if let periodUsageTotal = sakanaPayAsYouGo.periodUsageTotal {
+                entries.append(.text(
+                    "\(L("Recent usage")): \(UsageFormatter.usdString(periodUsageTotal))",
+                    .secondary))
+            }
+        }
     }
 
     private static func appendOpenAIAPIUsageSummary(

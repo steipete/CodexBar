@@ -56,7 +56,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
-| Sakana AI | Manual Cookie header → billing page parser for 5-hour and weekly quota windows (`web`). |
+| Sakana AI | Manual Cookie header → billing page parser for 5-hour/weekly quota windows plus a best-effort pay-as-you-go credit balance (`web`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
@@ -328,6 +328,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## Sakana AI
 - Manual `Cookie:` header from `console.sakana.ai`; no automatic browser import.
 - Reads the billing page and surfaces 5-hour and weekly quota windows when present.
+- Also fetches the pay-as-you-go tab (best-effort, never fails the primary quota fetch) for a
+  `fugu`/`fugu-ultra` prepaid credit balance and a rolling usage total.
 - Status: none yet.
 - Details: `docs/sakana.md`.
 
