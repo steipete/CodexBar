@@ -10,7 +10,7 @@ enum PreferencesTab: String, CaseIterable, Hashable {
     case about
     case debug
 
-    static let defaultWidth: CGFloat = 546
+    static let defaultWidth: CGFloat = 620
     static let providersWidth: CGFloat = 792
     static let windowHeight: CGFloat = 794
 
@@ -95,7 +95,7 @@ struct PreferencesView: View {
 
     var body: some View {
         TabView(selection: self.tabSelectionBinding) {
-            GeneralPane(settings: self.settings, store: self.store)
+            GeneralPane(settings: self.settings)
                 .tabItem { Label(L("tab_general"), systemImage: "gearshape") }
                 .tag(PreferencesTab.general)
 
@@ -112,7 +112,7 @@ struct PreferencesView: View {
                 .tabItem { Label(L("tab_display"), systemImage: "eye") }
                 .tag(PreferencesTab.display)
 
-            AdvancedPane(settings: self.settings)
+            AdvancedPane(settings: self.settings, store: self.store)
                 .tabItem { Label(L("tab_advanced"), systemImage: "slider.horizontal.3") }
                 .tag(PreferencesTab.advanced)
 

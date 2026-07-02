@@ -1,35 +1,63 @@
+import CodexBarCore
 import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
 struct AdvancedPane: View {
     @Bindable var settings: SettingsStore
+    @Bindable var store: UsageStore
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(contentSpacing: 8) {
-                    Text(L("section_keyboard_shortcut"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    HStack(alignment: .center, spacing: 12) {
-                        Text(L("open_menu_shortcut_title"))
-                            .font(.body)
-                        Spacer()
-                        OpenMenuShortcutRecorder()
-                    }
-                    Text(L("open_menu_shortcut_subtitle"))
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsCard(title: L("section_automation"), systemImage: "bolt.horizontal.circle") {
+                    PreferenceSwitchRow(
+                        title: L("refresh_on_open_title"),
+                        subtitle: L("refresh_on_open_subtitle"),
+                        binding: self.$settings.refreshAllProvidersOnMenuOpen)
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
+                        title: L("check_provider_status_title"),
+                        subtitle: L("check_provider_status_subtitle"),
+                        binding: self.$settings.statusChecksEnabled)
                 }
 
-                Divider()
+                SettingsCard(title: L("section_usage"), systemImage: "chart.bar.xaxis") {
+                    CostSummarySettingsGroup(settings: self.settings, store: self.store)
+                }
 
-                SettingsSection(contentSpacing: 10) {
-                    HStack(spacing: 12) {
+                SettingsCard(title: L("section_keyboard_shortcut"), systemImage: "command") {
+                    PreferenceControlRow(
+                        title: L("open_menu_shortcut_title"),
+                        subtitle: L("open_menu_shortcut_subtitle"))
+                    {
+                        OpenMenuShortcutRecorder()
+                    }
+                    .settingsCardRow()
+                }
+
+                SettingsCard(title: L("install_cli"), systemImage: "terminal") {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("install_cli_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if let status = self.cliStatus {
+                                Text(status)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+
+                        Spacer(minLength: 16)
+
                         Button {
                             Task { await self.installCLI() }
                         } label: {
@@ -40,68 +68,66 @@ struct AdvancedPane: View {
                             }
                         }
                         .disabled(self.isInstallingCLI)
-
-                        if let status = self.cliStatus {
-                            Text(status)
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(2)
-                        }
                     }
-                    Text(L("install_cli_subtitle"))
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                    .settingsCardRow()
                 }
 
-                Divider()
-
-                SettingsSection(contentSpacing: 10) {
-                    PreferenceToggleRow(
+                SettingsCard(title: L("section_system"), systemImage: "gearshape.2") {
+                    PreferenceSwitchRow(
                         title: L("show_debug_settings_title"),
                         subtitle: L("show_debug_settings_subtitle"),
                         binding: self.$settings.debugMenuEnabled)
-                    PreferenceToggleRow(
-                        title: L("surprise_me_title"),
-                        subtitle: L("surprise_me_subtitle"),
-                        binding: self.$settings.randomBlinkEnabled)
-                    PreferenceToggleRow(
-                        title: L("session_limit_confetti_title"),
-                        subtitle: L("session_limit_confetti_subtitle"),
-                        binding: self.$settings.confettiOnSessionLimitResetsEnabled)
-                    PreferenceToggleRow(
-                        title: L("weekly_limit_confetti_title"),
-                        subtitle: L("weekly_limit_confetti_subtitle"),
-                        binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)
-                }
 
-                Divider()
+                    SettingsCardDivider()
 
-                SettingsSection(contentSpacing: 10) {
-                    PreferenceToggleRow(
+                    PreferenceSwitchRow(
                         title: L("hide_personal_info_title"),
                         subtitle: L("hide_personal_info_subtitle"),
                         binding: self.$settings.hidePersonalInfo)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("show_provider_storage_usage_title"),
                         subtitle: L("show_provider_storage_usage_subtitle"),
                         binding: self.$settings.providerStorageFootprintsEnabled)
                 }
 
-                Divider()
+                SettingsCard(title: L("section_loading_animations"), systemImage: "sparkles") {
+                    PreferenceSwitchRow(
+                        title: L("surprise_me_title"),
+                        subtitle: L("surprise_me_subtitle"),
+                        binding: self.$settings.randomBlinkEnabled)
 
-                SettingsSection(
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
+                        title: L("session_limit_confetti_title"),
+                        subtitle: L("session_limit_confetti_subtitle"),
+                        binding: self.$settings.confettiOnSessionLimitResetsEnabled)
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
+                        title: L("weekly_limit_confetti_title"),
+                        subtitle: L("weekly_limit_confetti_subtitle"),
+                        binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)
+                }
+
+                SettingsCard(
                     title: L("section_keychain_access"),
+                    systemImage: "key",
                     caption: L("keychain_access_caption"))
                 {
-                    PreferenceToggleRow(
+                    PreferenceSwitchRow(
                         title: L("disable_keychain_access_title"),
                         subtitle: L("disable_keychain_access_subtitle"),
                         binding: self.$settings.debugDisableKeychainAccess)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
         }
     }
 }

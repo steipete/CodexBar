@@ -3,6 +3,12 @@ import Testing
 
 struct PreferencesTabLayoutCoordinatorTests {
     @Test
+    func `default panes use readable card width`() {
+        #expect(PreferencesTab.defaultWidth == 620)
+        #expect(PreferencesTab.providersWidth > PreferencesTab.defaultWidth)
+    }
+
+    @Test
     func `settings window is twenty percent taller`() {
         #expect(PreferencesTab.windowHeight == 794)
         #expect(PreferencesTab.windowHeight >= 662 * 1.19)

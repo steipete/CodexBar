@@ -15,45 +15,51 @@ struct DisplayPane: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(contentSpacing: 12) {
-                    Text(L("section_menu_bar"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    PreferenceToggleRow(
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsCard(title: L("section_menu_bar"), systemImage: "menubar.rectangle") {
+                    PreferenceSwitchRow(
                         title: L("merge_icons_title"),
                         subtitle: L("merge_icons_subtitle"),
                         binding: self.$settings.mergeIcons)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("switcher_shows_icons_title"),
                         subtitle: L("switcher_shows_icons_subtitle"),
                         binding: self.$settings.switcherShowsIcons)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("show_most_used_provider_title"),
                         subtitle: L("show_most_used_provider_subtitle"),
                         binding: self.$settings.menuBarShowsHighestUsage)
                         .disabled(!self.settings.mergeIcons)
                         .opacity(self.settings.mergeIcons ? 1 : 0.5)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("hide_critters_title"),
                         subtitle: L("hide_critters_subtitle"),
                         binding: self.$settings.menuBarHidesCritters)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("menu_bar_shows_percent_title"),
                         subtitle: L("menu_bar_shows_percent_subtitle"),
                         binding: self.$settings.menuBarShowsBrandIconWithPercent)
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L("display_mode_title"))
-                                .font(.body)
-                            Text(L("display_mode_subtitle"))
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
+
+                    SettingsCardDivider()
+
+                    PreferenceControlRow(
+                        title: L("display_mode_title"),
+                        subtitle: L("display_mode_subtitle"))
+                    {
                         Picker(L("Display mode"), selection: self.$settings.menuBarDisplayMode) {
                             ForEach(MenuBarDisplayMode.allCases) { mode in
                                 Text(mode.label).tag(mode)
@@ -63,34 +69,30 @@ struct DisplayPane: View {
                         .pickerStyle(.menu)
                         .frame(maxWidth: 200)
                     }
+                    .settingsCardRow()
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
                     .opacity(self.settings.menuBarShowsBrandIconWithPercent ? 1 : 0.5)
                 }
 
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    Text(L("section_menu_content"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    PreferenceToggleRow(
+                SettingsCard(title: L("section_menu_content"), systemImage: "list.bullet.rectangle") {
+                    PreferenceSwitchRow(
                         title: L("show_usage_as_used_title"),
                         subtitle: L("show_usage_as_used_subtitle"),
                         binding: self.$settings.usageBarsShowUsed)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("show_quota_warning_markers_title"),
                         subtitle: L("show_quota_warning_markers_subtitle"),
                         binding: self.$settings.quotaWarningMarkersVisible)
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L("weekly_progress_work_days_title"))
-                                .font(.body)
-                            Text(L("weekly_progress_work_days_subtitle"))
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
+
+                    SettingsCardDivider()
+
+                    PreferenceControlRow(
+                        title: L("weekly_progress_work_days_title"),
+                        subtitle: L("weekly_progress_work_days_subtitle"))
+                    {
                         Picker(L("weekly_progress_work_days_title"), selection: self.$settings.weeklyProgressWorkDays) {
                             Text(L("Off")).tag(nil as Int?)
                             Text(L("4 days")).tag(4 as Int?)
@@ -101,27 +103,35 @@ struct DisplayPane: View {
                         .pickerStyle(.menu)
                         .frame(maxWidth: 100)
                     }
-                    PreferenceToggleRow(
+                    .settingsCardRow()
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("show_reset_time_as_clock_title"),
                         subtitle: L("show_reset_time_as_clock_subtitle"),
                         binding: self.$settings.resetTimesShowAbsolute)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("show_provider_changelog_links_title"),
                         subtitle: L("show_provider_changelog_links_subtitle"),
                         binding: self.$settings.providerChangelogLinksEnabled)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("show_credits_extra_usage_title"),
                         subtitle: L("show_credits_extra_usage_subtitle"),
                         binding: self.$settings.showOptionalCreditsAndExtraUsage)
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L("multi_account_layout_title"))
-                                .font(.body)
-                            Text(L("multi_account_layout_subtitle"))
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
+
+                    SettingsCardDivider()
+
+                    PreferenceControlRow(
+                        title: L("multi_account_layout_title"),
+                        subtitle: L("multi_account_layout_subtitle"))
+                    {
                         Picker(L("multi_account_layout_title"), selection: self.$settings.multiAccountMenuLayout) {
                             ForEach(MultiAccountMenuLayout.allCases) { layout in
                                 Text(layout.label).tag(layout)
@@ -131,12 +141,17 @@ struct DisplayPane: View {
                         .pickerStyle(.menu)
                         .frame(maxWidth: 200)
                     }
+                    .settingsCardRow()
+
+                    SettingsCardDivider()
+
                     self.overviewProviderSelector
+                        .settingsCardRow()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
             .onAppear {
                 self.reconcileOverviewSelection()
             }

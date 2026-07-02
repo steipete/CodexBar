@@ -10,6 +10,9 @@
 - Qoder: add big-model credit usage from qoder.com and qoder.com.cn browser sessions or manual cookies. Thanks @Yuxin-Qiao!
 - Quota warnings: add an optional centered on-screen text alert that stays click-through and does not steal focus. Thanks @SAASEmpiree!
 
+### Changed
+- Settings: simplify General around everyday choices, move background and cost controls to Advanced, and replace flat checkbox lists with grouped switch cards.
+
 ### Fixed
 - Settings: align General-pane controls, show compact installed terminal app icons, and enlarge the window to fit more options.
 - Sakana AI: parse server-rendered quota reset timestamps as UTC instead of device-local time (#1826). Thanks @ss251!

@@ -6,6 +6,81 @@ enum PreferenceControlLayout {
 }
 
 @MainActor
+struct SettingsCard<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let caption: String?
+    private let content: Content
+
+    init(
+        title: String,
+        systemImage: String,
+        caption: String? = nil,
+        @ViewBuilder content: () -> Content)
+    {
+        self.title = title
+        self.systemImage = systemImage
+        self.caption = caption
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: self.systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 18)
+
+                Text(self.title)
+                    .font(.headline)
+            }
+
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 0) {
+                self.content
+            }
+            .padding(.horizontal, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
+            }
+        }
+    }
+}
+
+@MainActor
+struct SettingsCardDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 2)
+    }
+}
+
+private struct SettingsCardRowModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, 10)
+    }
+}
+
+extension View {
+    func settingsCardRow() -> some View {
+        self.modifier(SettingsCardRowModifier())
+    }
+}
+
+@MainActor
 struct PreferenceControlRow<Control: View>: View {
     let title: String
     let subtitle: String?
@@ -61,6 +136,38 @@ struct PreferenceToggleRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+}
+
+@MainActor
+struct PreferenceSwitchRow: View {
+    let title: String
+    let subtitle: String?
+    @Binding var binding: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.title)
+                    .font(.body)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 16)
+
+            Toggle(self.title, isOn: self.$binding)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .accessibilityLabel(self.title)
+        }
+        .settingsCardRow()
     }
 }
 

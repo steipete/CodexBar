@@ -61,17 +61,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 @MainActor
 struct GeneralPane: View {
     @Bindable var settings: SettingsStore
-    @Bindable var store: UsageStore
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(contentSpacing: 12) {
-                    Text(L("section_system"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
+            VStack(alignment: .leading, spacing: 18) {
+                SettingsCard(title: L("section_system"), systemImage: "gearshape") {
                     PreferenceControlRow(
                         title: L("language_title"),
                         subtitle: L("language_subtitle"))
@@ -84,6 +78,9 @@ struct GeneralPane: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                     }
+                    .settingsCardRow()
+
+                    SettingsCardDivider()
 
                     PreferenceControlRow(
                         title: L("terminal_app_title"),
@@ -103,129 +100,114 @@ struct GeneralPane: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                     }
+                    .settingsCardRow()
 
-                    PreferenceToggleRow(
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("start_at_login_title"),
                         subtitle: L("start_at_login_subtitle"),
                         binding: self.$settings.launchAtLogin)
                 }
 
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    Text(L("section_usage"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Toggle(isOn: self.$settings.costUsageEnabled) {
-                                Text(L("show_cost_summary"))
-                                    .font(.body)
-                            }
-                            .toggleStyle(.checkbox)
-
-                            Text(L("show_cost_summary_subtitle"))
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            if self.settings.costUsageEnabled {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    PreferenceControlRow(
-                                        title: L("cost_summary_style_title"),
-                                        subtitle: self.settings.costSummaryDisplayStyle.helpText)
-                                    {
-                                        Picker(
-                                            L("cost_summary_style_title"),
-                                            selection: self.$settings.costSummaryDisplayStyle)
-                                        {
-                                            ForEach(CostSummaryDisplayStyle.allCases) { style in
-                                                Text(style.label).tag(style)
-                                            }
-                                        }
-                                        .labelsHidden()
-                                        .pickerStyle(.menu)
-                                    }
-                                    .padding(.top, 4)
-
-                                    CostHistoryDaysEditor(settings: self.settings)
-
-                                    Text(L("cost_auto_refresh_info"))
-                                        .font(.footnote)
-                                        .foregroundStyle(.tertiary)
-
-                                    self.costStatusLine(provider: .claude)
-                                    self.costStatusLine(provider: .codex)
-                                }
-                                .padding(.leading, 20)
+                SettingsCard(title: L("section_automation"), systemImage: "arrow.triangle.2.circlepath") {
+                    PreferenceControlRow(
+                        title: L("refresh_cadence_title"),
+                        subtitle: self.settings.refreshFrequency == .manual
+                            ? L("manual_refresh_hint")
+                            : L("refresh_cadence_subtitle"))
+                    {
+                        Picker(L("Refresh cadence"), selection: self.$settings.refreshFrequency) {
+                            ForEach(RefreshFrequency.allCases) { option in
+                                Text(option.label).tag(option)
                             }
                         }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
                     }
+                    .settingsCardRow()
                 }
 
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    Text(L("section_automation"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    VStack(alignment: .leading, spacing: 6) {
-                        PreferenceControlRow(
-                            title: L("refresh_cadence_title"),
-                            subtitle: L("refresh_cadence_subtitle"))
-                        {
-                            Picker(L("Refresh cadence"), selection: self.$settings.refreshFrequency) {
-                                ForEach(RefreshFrequency.allCases) { option in
-                                    Text(option.label).tag(option)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                        }
-                        if self.settings.refreshFrequency == .manual {
-                            Text(L("manual_refresh_hint"))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    PreferenceToggleRow(
-                        title: L("refresh_on_open_title"),
-                        subtitle: L("refresh_on_open_subtitle"),
-                        binding: self.$settings.refreshAllProvidersOnMenuOpen)
-                    PreferenceToggleRow(
-                        title: L("check_provider_status_title"),
-                        subtitle: L("check_provider_status_subtitle"),
-                        binding: self.$settings.statusChecksEnabled)
-                    PreferenceToggleRow(
+                SettingsCard(title: L("section_notifications"), systemImage: "bell.badge") {
+                    PreferenceSwitchRow(
                         title: L("session_quota_notifications_title"),
                         subtitle: L("session_quota_notifications_subtitle"),
                         binding: self.$settings.sessionQuotaNotificationsEnabled)
-                    PreferenceToggleRow(
+
+                    SettingsCardDivider()
+
+                    PreferenceSwitchRow(
                         title: L("quota_warning_notifications_title"),
                         subtitle: L("quota_warning_notifications_subtitle"),
                         binding: self.$settings.quotaWarningNotificationsEnabled)
                     if self.settings.quotaWarningNotificationsEnabled {
+                        SettingsCardDivider()
                         GlobalQuotaWarningSettingsView(settings: self.settings)
+                            .padding(.vertical, 10)
                     }
                 }
 
-                Divider()
-
-                SettingsSection(contentSpacing: 12) {
-                    HStack {
-                        Spacer()
-                        Button(L("quit_app")) { NSApp.terminate(nil) }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                    }
+                HStack {
+                    Spacer()
+                    Button(L("quit_app")) { NSApp.terminate(nil) }
+                        .buttonStyle(.bordered)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+        }
+    }
+}
+
+@MainActor
+struct CostSummarySettingsGroup: View {
+    @Bindable var settings: SettingsStore
+    @Bindable var store: UsageStore
+
+    var body: some View {
+        PreferenceSwitchRow(
+            title: L("show_cost_summary"),
+            subtitle: L("show_cost_summary_subtitle"),
+            binding: self.$settings.costUsageEnabled)
+
+        if self.settings.costUsageEnabled {
+            SettingsCardDivider()
+
+            PreferenceControlRow(
+                title: L("cost_summary_style_title"),
+                subtitle: self.settings.costSummaryDisplayStyle.helpText)
+            {
+                Picker(
+                    L("cost_summary_style_title"),
+                    selection: self.$settings.costSummaryDisplayStyle)
+                {
+                    ForEach(CostSummaryDisplayStyle.allCases) { style in
+                        Text(style.label).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+            .settingsCardRow()
+
+            SettingsCardDivider()
+
+            CostHistoryDaysEditor(settings: self.settings)
+                .settingsCardRow()
+
+            SettingsCardDivider()
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(L("cost_auto_refresh_info"))
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+
+                self.costStatusLine(provider: .claude)
+                self.costStatusLine(provider: .codex)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .settingsCardRow()
         }
     }
 
