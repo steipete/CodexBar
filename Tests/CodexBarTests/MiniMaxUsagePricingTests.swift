@@ -49,6 +49,18 @@ struct MiniMaxUsagePricingTests {
     }
 
     @Test
+    func `unknown minimax models remain unpriced`() {
+        let cost = MiniMaxUsagePricing.minimaxCostUSD(
+            model: "MiniMax-M9-preview",
+            inputToken: 1_000_000,
+            cacheReadToken: 0,
+            cacheCreateToken: 0,
+            outputToken: 250_000)
+
+        #expect(cost == nil)
+    }
+
+    @Test
     func `projected daily cost aggregates model breakdown`() {
         let summary = Self.sampleSummary()
         guard let day = summary.days.last else {

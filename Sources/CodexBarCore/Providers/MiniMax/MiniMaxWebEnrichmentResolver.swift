@@ -9,18 +9,7 @@ enum MiniMaxWebEnrichmentResolver {
 
     static func candidates(context: ProviderFetchContext) -> [Candidate] {
         var candidates: [Candidate] = []
-        if let settings = context.settings?.minimax,
-           let header = settings.manualCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !header.isEmpty,
-           let override = MiniMaxCookieHeader.override(from: header)
-        {
-            candidates.append(Candidate(override: override, sourceLabel: "settings", shouldCache: false))
-        }
-        if let raw = ProviderTokenResolver.minimaxCookie(environment: context.env),
-           let override = MiniMaxCookieHeader.override(from: raw)
-        {
-            candidates.append(Candidate(override: override, sourceLabel: "environment", shouldCache: false))
-        }
+        candidates.append(contentsOf: self.explicitCandidates(context: context))
 
         #if os(macOS)
         if let session = MiniMaxDesktopCookieImporter.importSession(),
@@ -60,6 +49,25 @@ enum MiniMaxWebEnrichmentResolver {
             }
         }
         #endif
+        return self.deduplicated(candidates)
+    }
+
+    /// Cookies from explicit user configuration only. API-token enrichment must not attach
+    /// cached or imported browser/desktop sessions that may belong to a different MiniMax account.
+    static func explicitCandidates(context: ProviderFetchContext) -> [Candidate] {
+        var candidates: [Candidate] = []
+        if let settings = context.settings?.minimax,
+           let header = settings.manualCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !header.isEmpty,
+           let override = MiniMaxCookieHeader.override(from: header)
+        {
+            candidates.append(Candidate(override: override, sourceLabel: "settings", shouldCache: false))
+        }
+        if let raw = ProviderTokenResolver.minimaxCookie(environment: context.env),
+           let override = MiniMaxCookieHeader.override(from: raw)
+        {
+            candidates.append(Candidate(override: override, sourceLabel: "environment", shouldCache: false))
+        }
         return self.deduplicated(candidates)
     }
 

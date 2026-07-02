@@ -138,7 +138,7 @@ enum MiniMaxUsagePricing {
         if normalized.contains("m2") {
             return self.m25Legacy
         }
-        return self.m27Standard
+        return nil
     }
 
     static func normalizeModel(_ model: String) -> String {

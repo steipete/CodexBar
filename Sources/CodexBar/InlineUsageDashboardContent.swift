@@ -171,6 +171,7 @@ extension UsageMenuCardView.Model {
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         if input.provider == .minimax,
            input.showOptionalCreditsAndExtraUsage,
+           input.tokenCostInlineDashboardEnabled,
            let usageSummary = input.snapshot?.minimaxUsage?.usageSummary,
            usageSummary.hasDisplayableData,
            let costSnapshot = primaryCostHistorySnapshot(input: input),

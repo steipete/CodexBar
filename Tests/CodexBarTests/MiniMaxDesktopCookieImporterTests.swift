@@ -10,13 +10,26 @@ struct MiniMaxDesktopCookieImporterTests {
         let databaseURL = try self.makeCookiesDatabase(
             records: [
                 (".www.minimaxi.com", "_token", "desktop-token-value"),
-                ("agent.minimaxi.com", "_token", "desktop-token-value"),
+                ("agent.minimaxi.com", "_token", "agent-token-value"),
             ])
         defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
 
         let session = MiniMaxDesktopCookieImporter.importSession(databaseURL: databaseURL)
         #expect(session?.sourceLabel == "MiniMax Agent")
         #expect(session?.cookieHeader.contains("_token=desktop-token-value") == true)
+        #expect(session?.cookieHeader.contains("agent-token-value") == false)
+    }
+
+    @Test
+    func `imports platform console cookies from desktop sqlite`() throws {
+        let databaseURL = try self.makeCookiesDatabase(
+            records: [
+                ("platform.minimaxi.com", "_token", "platform-token-value"),
+            ])
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+
+        let session = MiniMaxDesktopCookieImporter.importSession(databaseURL: databaseURL)
+        #expect(session?.cookieHeader.contains("_token=platform-token-value") == true)
     }
 
     private func makeCookiesDatabase(records: [(String, String, String)]) throws -> URL {

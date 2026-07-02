@@ -277,8 +277,11 @@ extension StatusItemController {
         else {
             return "none"
         }
-        let days = usage.days.suffix(30).map {
-            "\($0.date):\($0.totalToken):\($0.cacheHitPercent ?? -1):\($0.models.count)"
+        let days = usage.days.suffix(30).map { day in
+            let models = day.models.map {
+                "\($0.model):\($0.inputToken):\($0.outputToken):\($0.cacheReadToken):\($0.totalToken)"
+            }.joined(separator: ";")
+            return "\(day.date):\(day.totalToken):\(day.cacheHitPercent ?? -1):\(models)"
         }.joined(separator: "|")
         return [
             usage.lastUpdateTime ?? "",

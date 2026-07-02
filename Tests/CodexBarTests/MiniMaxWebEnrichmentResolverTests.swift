@@ -57,6 +57,22 @@ struct MiniMaxWebEnrichmentResolverTests {
         }
     }
 
+    @Test
+    func `explicit candidates exclude cached browser cookies`() {
+        CookieHeaderCache.store(
+            provider: .minimax,
+            cookieHeader: "_token=cached-session",
+            sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .minimax) }
+
+        let context = self.makeContext(runtime: .app)
+        let explicit = MiniMaxWebEnrichmentResolver.explicitCandidates(context: context)
+        let all = MiniMaxWebEnrichmentResolver.candidates(context: context)
+
+        #expect(!explicit.contains { $0.sourceLabel == "Chrome" })
+        #expect(all.contains { $0.sourceLabel == "Chrome" })
+    }
+
     private func makeContext(
         runtime: ProviderRuntime,
         includeOptionalUsage: Bool = true,

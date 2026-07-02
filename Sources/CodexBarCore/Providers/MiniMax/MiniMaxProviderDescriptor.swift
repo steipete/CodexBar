@@ -91,7 +91,7 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
             region: preferredRegion)
         var usage = apiResult.snapshot
         for candidate in context.includeOptionalUsage
-            ? MiniMaxWebEnrichmentResolver.candidates(context: context)
+            ? MiniMaxWebEnrichmentResolver.explicitCandidates(context: context)
             : []
         {
             let cookieOverride = candidate.override
@@ -362,6 +362,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         let normalizedLabel = Self.normalizeStorageLabel(sourceLabel)
         let tokenCandidates = tokenContext.tokensByLabel[normalizedLabel] ?? []
         let groupID = tokenContext.groupIDByLabel[normalizedLabel]
+            ?? MiniMaxCookieHeader.override(from: cookieHeader)?.groupID
         let cookieToken = Self.cookieValue(named: "HERTZ-SESSION", in: cookieHeader)
         var attempts: [String?] = tokenCandidates.map(\.self)
         if let cookieToken, !tokenCandidates.contains(cookieToken) {

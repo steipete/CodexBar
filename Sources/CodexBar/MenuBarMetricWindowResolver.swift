@@ -228,12 +228,12 @@ enum MenuBarMetricWindowResolver {
     }
 
     /// The quota window whose reset is soonest among the primary, secondary, and tertiary lanes.
-    static func nearestResetWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+    static func nearestResetWindow(snapshot: UsageSnapshot?, now: Date = Date()) -> RateWindow? {
         guard let snapshot else { return nil }
         let datedWindows = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
             .compactMap(\.self)
             .compactMap { window -> (RateWindow, Date)? in
-                guard let resetsAt = window.resetsAt else { return nil }
+                guard let resetsAt = window.resetsAt, resetsAt > now else { return nil }
                 return (window, resetsAt)
             }
         guard !datedWindows.isEmpty else { return nil }

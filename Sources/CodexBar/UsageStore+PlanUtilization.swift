@@ -554,8 +554,9 @@ extension UsageStore {
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
         case .minimax:
-            appendWindow(snapshot.primary, name: .session)
-            appendWindow(snapshot.secondary, name: .weekly)
+            self.appendMiniMaxPlanUtilizationSamples(
+                snapshot: snapshot,
+                appendWindow: appendWindow)
         case .antigravity:
             let namedWeeklyWindows = snapshot.extraRateWindows?
                 .filter {
@@ -591,6 +592,50 @@ extension UsageStore {
             }
             return lhs.name.rawValue < rhs.name.rawValue
         }
+    }
+
+    private func appendMiniMaxPlanUtilizationSamples(
+        snapshot: UsageSnapshot,
+        appendWindow: (_ window: RateWindow?, _ name: PlanUtilizationSeriesName?) -> Void)
+    {
+        let services = snapshot.minimaxUsage?.services?
+            .filter(\.isPrimaryTextQuotaLane) ?? []
+        if services.isEmpty {
+            appendWindow(snapshot.primary, name: .session)
+            appendWindow(snapshot.secondary, name: .weekly)
+            return
+        }
+
+        if let weeklyService = services.first(where: {
+            $0.windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "weekly"
+        }) {
+            appendWindow(self.rateWindow(for: weeklyService), name: .weekly)
+        }
+
+        let sessionService = services
+            .filter {
+                let normalized = $0.windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return normalized != "weekly" && normalized != "today" && normalized != "今日"
+            }
+            .min {
+                self.windowMinutes(for: $0) < self.windowMinutes(for: $1)
+            }
+        if let sessionService {
+            appendWindow(self.rateWindow(for: sessionService), name: .session)
+        }
+    }
+
+    private func rateWindow(for service: MiniMaxServiceUsage) -> RateWindow {
+        RateWindow(
+            usedPercent: max(0, min(100, service.percent)),
+            windowMinutes: self.windowMinutes(for: service),
+            resetsAt: service.resetsAt,
+            resetDescription: service.resetDescription)
+    }
+
+    private func windowMinutes(for service: MiniMaxServiceUsage) -> Int {
+        let parsed = MiniMaxServiceUsage.parseWindowType(service.windowType).windowMinutes
+        return parsed ?? 300
     }
 
     private nonisolated static func planUtilizationHourBucket(for date: Date) -> Int64 {

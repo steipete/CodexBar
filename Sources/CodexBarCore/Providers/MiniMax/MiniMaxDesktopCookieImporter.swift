@@ -5,7 +5,12 @@ import SQLite3
 enum MiniMaxDesktopCookieImporter {
     private static let log = CodexBarLog.logger(LogCategories.minimaxCookie)
     private static let sourceLabel = "MiniMax Agent"
-    private static let domainPatterns = ["minimaxi.com", "minimax.io"]
+    private static let webCookieHosts: Set<String> = [
+        "www.minimaxi.com",
+        "www.minimax.io",
+        "platform.minimaxi.com",
+        "platform.minimax.io",
+    ]
 
     static func cookiesDatabaseURL(fileManager: FileManager = .default) -> URL {
         fileManager.homeDirectoryForCurrentUser
@@ -94,9 +99,7 @@ enum MiniMaxDesktopCookieImporter {
         let normalized = domain.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
             .lowercased()
-        return self.domainPatterns.contains { pattern in
-            normalized == pattern || normalized.hasSuffix(".\(pattern)")
-        }
+        return self.webCookieHosts.contains(normalized)
     }
 
     private static func makeHTTPCookies(from records: [Record]) -> [HTTPCookie] {
