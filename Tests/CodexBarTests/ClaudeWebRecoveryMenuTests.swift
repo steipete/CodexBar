@@ -25,7 +25,7 @@ struct ClaudeWebRecoveryMenuTests {
     }
 
     private func actions(
-        error: String,
+        error: String? = nil,
         source: ClaudeUsageDataSource,
         cookieSource: ProviderCookieSource = .auto,
         selectedSessionKey: Bool = false,
@@ -57,6 +57,16 @@ struct ClaudeWebRecoveryMenuTests {
                 guard case let .action(label, action) = entry else { return nil }
                 return (label, action)
             }
+    }
+
+    @Test
+    func `default account action describes ambient Claude Code sign in`() {
+        let actions = self.actions(source: .auto)
+
+        #expect(actions.contains {
+            $0.0 == "Sign in with Claude Code..." && $0.1 == .switchAccount(.claude)
+        })
+        #expect(!actions.contains { $0.0 == "Add Account..." })
     }
 
     @Test

@@ -435,6 +435,8 @@
 "refresh_cadence_title" = "刷新频率";
 "refresh_cadence_subtitle" = "CodexBar 在后台轮询提供商的频率。";
 "manual_refresh_hint" = "自动刷新已关闭；请使用菜单中的“刷新”命令。";
+"refresh_on_open_title" = "打开菜单时刷新";
+"refresh_on_open_subtitle" = "每次打开菜单时获取每个提供商的最新用量。";
 "check_provider_status_title" = "检查提供商状态";
 "check_provider_status_subtitle" = "轮询 OpenAI/Claude 状态页面和 Google Workspace 的 Gemini/Antigravity，在图标和菜单中显示故障信息。";
 "session_quota_notifications_title" = "会话配额通知";
@@ -449,6 +451,7 @@
 "quota_warning_warn_at" = "预警阈值";
 "quota_warning_global_threshold_subtitle" = "会话和每周窗口的剩余百分比，除非提供商单独覆盖。";
 "quota_warning_sound" = "播放通知声音";
+"quota_warning_onscreen_alert" = "显示屏幕文字提醒";
 "quota_warning_provider_inherits" = "默认使用全局配额预警设置，除非在这里自定义窗口。";
 "quota_warning_customize_thresholds" = "自定义 %@ 阈值";
 "quota_warning_enable_warnings" = "启用 %@ 预警";
@@ -534,6 +537,8 @@
 "show_debug_settings_subtitle" = "在“调试”标签中显示故障排除工具。";
 "surprise_me_title" = "给我惊喜";
 "surprise_me_subtitle" = "看看你是否喜欢你的智能体在上面找点乐子。";
+"session_limit_confetti_title" = "会话限制彩带";
+"session_limit_confetti_subtitle" = "会话用量重置时播放全屏彩带。";
 "weekly_limit_confetti_title" = "每周限制彩纸";
 "weekly_limit_confetti_subtitle" = "当每周用量重置时播放全屏彩纸。";
 "hide_personal_info_title" = "隐藏个人信息";
@@ -964,6 +969,8 @@
 "Enterprise host" = "Enterprise 主机";
 "Extra usage balance: %@" = "额外使用量余额：%@";
 "Keychain Access Required" = "需要钥匙串访问权限";
+"keychain_prompt_learn_more" = "了解更多…";
+"keychain_prompt_privacy_note" = "Mac 登录密码由 macOS（而非 CodexBar）处理。你可以随时在“设置”→“高级”中停用所有钥匙串访问。";
 "Kiro menu bar value" = "Kiro 菜单栏数值";
 "Label" = "标签";
 "No organizations loaded. Click Refresh after setting your API key." = "尚未加载组织。设置 API 密钥后点击“刷新”。";

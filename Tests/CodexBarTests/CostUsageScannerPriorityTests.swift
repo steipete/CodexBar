@@ -40,8 +40,8 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let standardCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
-        let priorityCost = (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
+        let standardCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let priorityCost = (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - (standardCost + priorityCost)) < 0.000_000_001)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -96,7 +96,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day.addingTimeInterval(1),
             options: cachedOptions)
-        let priorityCost = (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
+        let priorityCost = (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
 
         #expect(abs((cached.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
         let breakdown = try #require(cached.data.first?.modelBreakdowns?.first)
@@ -132,7 +132,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: missingOptions)
-        let baseCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let baseCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
         #expect(abs((first.summary?.totalCostUSD ?? 0) - baseCost) < 0.000_000_001)
 
         try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
@@ -146,7 +146,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day.addingTimeInterval(1),
             options: liveOptions)
-        let priorityCost = (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
+        let priorityCost = (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
 
         #expect(abs((rescanned.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
     }
@@ -181,7 +181,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let baseCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let baseCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
         #expect(abs((first.summary?.totalCostUSD ?? 0) - baseCost) < 0.000_000_001)
 
         let walURL = URL(fileURLWithPath: dbURL.path + "-wal")
@@ -228,7 +228,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let baseCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let baseCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
         #expect(abs((first.summary?.totalCostUSD ?? 0) - baseCost) < 0.000_000_001)
 
         try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso1)
@@ -240,7 +240,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day.addingTimeInterval(61),
             options: options)
-        let priorityCost = (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
+        let priorityCost = (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
 
         #expect(abs((repriced.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
     }
@@ -281,8 +281,8 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let standardCost = (100.0 * 2.5e-6) + (20.0 * 2.5e-7) + (10.0 * 1.5e-5)
-        let priorityCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let standardCost = (80.0 * 2.5e-6) + (20.0 * 2.5e-7) + (10.0 * 1.5e-5)
+        let priorityCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - (standardCost + priorityCost)) < 0.000_000_001)
     }
@@ -323,7 +323,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let priorityCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let priorityCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -367,7 +367,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let priorityCost = (100.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
+        let priorityCost = (80.0 * 1.25e-5) + (20.0 * 1.25e-6) + (10.0 * 7.5e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -421,7 +421,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day.addingTimeInterval(61),
             options: options)
-        let priorityCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let priorityCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
 
         #expect(abs((repriced.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
         let breakdown = try #require(repriced.data.first?.modelBreakdowns?.first)
@@ -460,7 +460,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let priorityCost = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let priorityCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - priorityCost) < 0.000_000_001)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -495,7 +495,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let expected = (100.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let expected = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -537,7 +537,7 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let expected = (100.0 * 2e-7) + (20.0 * 2e-8) + (10.0 * 1.25e-6)
+        let expected = (80.0 * 2e-7) + (20.0 * 2e-8) + (10.0 * 1.25e-6)
 
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
@@ -593,7 +593,7 @@ struct CostUsageScannerPriorityTests {
     }
 
     @Test
-    func `codex pricing skips priority surcharge when cache read crosses long context limit`() throws {
+    func `codex pricing applies priority surcharge when cached reads exceed limit but input stays under it`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -623,7 +623,10 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let expected = (200_000.0 * 1e-5) + (100_000.0 * 1e-6) + (5.0 * 4.5e-5)
+        // cached input is a subset of input, so the 272K priority limit applies to the 200K
+        // input alone (not input+cached). Input stays under the limit, so the priority surcharge
+        // applies at priority rates, and only the 100K non-cached input is billed at the input rate.
+        let expected = (100_000.0 * 1.25e-5) + (100_000.0 * 1.25e-6) + (5.0 * 7.5e-5)
 
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -667,8 +670,8 @@ struct CostUsageScannerPriorityTests {
             until: day,
             now: day,
             options: options)
-        let standardRow = (Double(120_000) * 5e-6) + (Double(60000) * 5e-7) + (Double(100) * 3e-5)
-        let priorityRow = (Double(120_000) * 1.25e-5) + (Double(60000) * 1.25e-6)
+        let standardRow = (Double(60000) * 5e-6) + (Double(60000) * 5e-7) + (Double(100) * 3e-5)
+        let priorityRow = (Double(60000) * 1.25e-5) + (Double(60000) * 1.25e-6)
             + (Double(100) * 7.5e-5)
         let expected = standardRow + standardRow + priorityRow
 

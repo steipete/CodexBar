@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "وتيرة التحديث";
 "refresh_cadence_subtitle" = "كم مرة CodexBar استطلاعات في الخلفية.";
 "manual_refresh_hint" = "التحديث التلقائي مغلق؛ استخدم أمر التحديث في القائمة.";
+"refresh_on_open_title" = "التحديث عند فتح القائمة";
+"refresh_on_open_subtitle" = "جلب أحدث بيانات الاستخدام لكل مزوّد في كل مرة تفتح فيها القائمة.";
 "check_provider_status_title" = "تحقق من حالة المزود";
 "check_provider_status_subtitle" = "استطلاعات OpenAI/Claude صفحات الحالة و Google مساحة العمل Gemini/Antigravity، وتظهر الحوادث في الأيقونة والقائمة.";
 "session_quota_notifications_title" = "إشعارات حصص الجلسة";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "التحذير في";
 "quota_warning_global_threshold_subtitle" = "النسب المتبقية للجلسات والفترات الأسبوعية ما لم يتجاوزها مقدم الخدمة.";
 "quota_warning_sound" = "تشغيل صوت الإشعار";
+"quota_warning_onscreen_alert" = "إظهار تنبيه نصي على الشاشة";
 "quota_warning_provider_inherits" = "يستخدم إعدادات تحذير الحصص العامة إلا إذا تم تخصيص نافذة هنا.";
 "quota_warning_customize_thresholds" = "تخصيص عتبات %@";
 "quota_warning_enable_warnings" = "تفعيل تحذيرات %@";
@@ -549,6 +552,8 @@
 "show_debug_settings_subtitle" = "اعرض أدوات استكشاف الأخطاء في تبويب التصحيح.";
 "surprise_me_title" = "فاجئني";
 "surprise_me_subtitle" = "تحقق إذا كنت تحب وكلائنك يستمتعون هناك.";
+"session_limit_confetti_title" = "قصاصات ورقية لحد الجلسة";
+"session_limit_confetti_subtitle" = "اعرض قصاصات ورقية بملء الشاشة عند إعادة تعيين استخدام الجلسة.";
 "weekly_limit_confetti_title" = "قصاصات كونفيتي أسبوعية محدودة";
 "weekly_limit_confetti_subtitle" = "شغل ورق الورق الورقية بملء الشاشة عند إعادة ضبط الاستخدام الأسبوعي.";
 "hide_personal_info_title" = "إخفاء المعلومات الشخصية";
@@ -996,6 +1001,8 @@
 "Enterprise host" = "مضيف مؤسسي";
 "Extra usage balance: %@" = "توازن الاستخدام الإضافي: %@";
 "Keychain Access Required" = "Keychain الوصول المطلوب";
+"keychain_prompt_learn_more" = "معرفة المزيد…";
+"keychain_prompt_privacy_note" = "يتولى macOS، وليس CodexBar، إدخال كلمة سر تسجيل الدخول إلى Mac. يمكنك تعطيل وصول سلسلة المفاتيح في أي وقت من الإعدادات ← متقدم.";
 "Kiro menu bar value" = "Kiro قيمة شريط القائمة";
 "Label" = "العلامة التجارية";
 "No organizations loaded. Click Refresh after setting your API key." = "لا توجد منظمات محملة. انقر على تحديث بعد تعيين مفتاح API.";

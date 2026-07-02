@@ -216,6 +216,10 @@ struct GeneralPane: View {
                         }
                     }
                     PreferenceToggleRow(
+                        title: L("refresh_on_open_title"),
+                        subtitle: L("refresh_on_open_subtitle"),
+                        binding: self.$settings.refreshAllProvidersOnMenuOpen)
+                    PreferenceToggleRow(
                         title: L("check_provider_status_title"),
                         subtitle: L("check_provider_status_subtitle"),
                         binding: self.$settings.statusChecksEnabled)

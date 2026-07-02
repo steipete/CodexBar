@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import CodexBarCore
@@ -314,7 +315,7 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day,
             options: options)
-        let oldDailyCost = (100.0 / 1_000_000.0) + (20.0 * 0.5 / 1_000_000.0)
+        let oldDailyCost = (80.0 / 1_000_000.0) + (20.0 * 0.5 / 1_000_000.0)
             + (10.0 * 2.0 / 1_000_000.0)
         let costTolerance = 0.000000001
         #expect(abs((first.summary?.totalCostUSD ?? 0) - (oldDailyCost * 2)) < costTolerance)
@@ -347,7 +348,7 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day.addingTimeInterval(2),
             options: options)
-        let newDailyCost = (100.0 * 10.0 / 1_000_000.0)
+        let newDailyCost = (80.0 * 10.0 / 1_000_000.0)
             + (20.0 * 5.0 / 1_000_000.0)
             + (10.0 * 20.0 / 1_000_000.0)
         #expect(abs((narrowRepriced.summary?.totalCostUSD ?? 0) - newDailyCost) < costTolerance)
@@ -360,6 +361,77 @@ struct CostUsageScannerBreakdownTests {
             options: options)
 
         #expect(abs((wideRepriced.summary?.totalCostUSD ?? 0) - (newDailyCost * 2)) < costTolerance)
+    }
+
+    @Test
+    func `codex daily report reprices cached costs when cost formula version changes`() throws {
+        // Costs are persisted per file as precomputed nanos and only recomputed when the pricing
+        // key changes. A formula-only fix (rates unchanged) must still invalidate caches written
+        // by an older formula, otherwise stale (e.g. inflated) costs would be reused indefinitely.
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let model = "gpt-5.5"
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: iso0, model: model),
+                self.codexTokenCount(timestamp: iso1, model: model, last: (input: 100, cached: 20, output: 10)),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let first = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        // gpt-5.5 built-in: only the 80 non-cached input tokens bill at the input rate.
+        let correctCost = (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5)
+        let tolerance = 0.000000001
+        #expect(abs((first.summary?.totalCostUSD ?? 0) - correctCost) < tolerance)
+
+        // Simulate a cache written by the previous formula. Its key hashed only the rates, so
+        // derive that exact legacy key and verify the formula version makes the current key differ.
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let legacyPricingKey = "builtin-\(Self.sha256Hex(CostUsagePricing.codexBuiltInPricingFingerprint()))"
+        let currentPricingKey = try #require(cache.codexPricingKey)
+        #expect(currentPricingKey != legacyPricingKey)
+        cache.codexPricingKey = legacyPricingKey
+        for (path, usage) in cache.files {
+            guard let costNanos = usage.codexCostNanos else { continue }
+            var inflated = costNanos
+            for (dayKey, models) in costNanos {
+                for (modelKey, value) in models {
+                    inflated[dayKey]?[modelKey] = value * 10
+                }
+            }
+            var updated = usage
+            updated.codexCostNanos = inflated
+            cache.files[path] = updated
+        }
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        // A time-only refresh is suppressed (interval 60s), so repricing here is driven solely by
+        // the pricing-key mismatch from the formula version bump.
+        options.refreshMinIntervalSeconds = 60
+        let repriced = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(abs((repriced.summary?.totalCostUSD ?? 0) - correctCost) < tolerance)
     }
 
     @Test
@@ -4145,6 +4217,10 @@ struct CostUsageScannerBreakdownTests {
         }
         """
         return try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
+    }
+
+    private static func sha256Hex(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }
 

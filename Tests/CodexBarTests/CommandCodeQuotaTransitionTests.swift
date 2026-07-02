@@ -163,7 +163,12 @@ struct CommandCodeQuotaTransitionTests {
             self.posts.append((transition, provider))
         }
 
-        func postQuotaWarning(event: QuotaWarningEvent, provider _: UsageProvider, soundEnabled _: Bool) {
+        func postQuotaWarning(
+            event: QuotaWarningEvent,
+            provider _: UsageProvider,
+            soundEnabled _: Bool,
+            onScreenAlertEnabled _: Bool)
+        {
             self.quotaWarningPosts.append(event)
         }
     }

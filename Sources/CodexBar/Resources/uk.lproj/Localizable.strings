@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "Оновити каденцію";
 "refresh_cadence_subtitle" = "Як часто CodexBar опитує постачальників у фоновому режимі.";
 "manual_refresh_hint" = "Автооновлення вимкнено; скористайтеся командою меню «Оновити».";
+"refresh_on_open_title" = "Оновлювати при відкритті меню";
+"refresh_on_open_subtitle" = "Отримує найновіші дані про використання для кожного провайдера щоразу, коли ви відкриваєте меню.";
 "check_provider_status_title" = "Перевірте статус провайдера";
 "check_provider_status_subtitle" = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для Gemini/Antigravity, виявляючи інциденти в значку та меню.";
 "session_quota_notifications_title" = "Сповіщення про квоту сеансу";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "Попередити при";
 "quota_warning_global_threshold_subtitle" = "Відсотки, що залишилися для вікон сесії та тижня, якщо постачальник не замінить їх.";
 "quota_warning_sound" = "Відтворити звук сповіщення";
+"quota_warning_onscreen_alert" = "Показувати текстове сповіщення на екрані";
 "quota_warning_provider_inherits" = "Використовує глобальні параметри попередження про квоту, якщо тут не налаштовано вікно.";
 "quota_warning_customize_thresholds" = "Налаштувати порогові значення %@";
 "quota_warning_enable_warnings" = "Увімкнути %@ попереджень";
@@ -549,6 +552,8 @@
 "show_debug_settings_subtitle" = "Розкрийте інструменти усунення несправностей на вкладці Debug.";
 "surprise_me_title" = "Здивуйте мене";
 "surprise_me_subtitle" = "Перевірте, чи подобається вам, що ваші агенти розважаються там.";
+"session_limit_confetti_title" = "Конфеті для ліміту сесії";
+"session_limit_confetti_subtitle" = "Показувати конфеті на весь екран, коли використання сесії скидається.";
 "weekly_limit_confetti_title" = "Щотижневий ліміт конфетті";
 "weekly_limit_confetti_subtitle" = "Відтворення конфетті на весь екран, коли тижневе використання скидається.";
 "hide_personal_info_title" = "Приховати особисту інформацію";
@@ -993,6 +998,8 @@
 "Enterprise host" = "Корпоративний хост";
 "Extra usage balance: %@" = "Баланс додаткового використання: %@";
 "Keychain Access Required" = "Потрібен доступ до брелка";
+"keychain_prompt_learn_more" = "Докладніше…";
+"keychain_prompt_privacy_note" = "Введення пароля для входу на Mac обробляє macOS, а не CodexBar. Доступ до в'язки ключів можна будь-коли вимкнути в Налаштування → Розширені.";
 "Kiro menu bar value" = "Значення панелі меню Kiro";
 "Label" = "Мітка";
 "No organizations loaded. Click Refresh after setting your API key." = "Організації не завантажено. Натисніть «Оновити» після встановлення ключа API.";

@@ -23,6 +23,34 @@ struct ClaudeOAuthCredentialsStoreTests {
     }
 
     @Test
+    func `persistent reference hash stays stable across keychain metadata refresh`() {
+        let first = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+            modifiedAt: 1,
+            createdAt: 1,
+            persistentRefHash: "opaque-ref")
+        let refreshed = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+            modifiedAt: 2,
+            createdAt: 1,
+            persistentRefHash: "opaque-ref")
+
+        let firstHash = ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+            data: nil,
+            fingerprint: first)
+        {
+            ClaudeOAuthCredentialsStore.claudeKeychainPersistentRefHashWithoutPrompt()
+        }
+        let refreshedHash = ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+            data: nil,
+            fingerprint: refreshed)
+        {
+            ClaudeOAuthCredentialsStore.claudeKeychainPersistentRefHashWithoutPrompt()
+        }
+
+        #expect(firstHash == "opaque-ref")
+        #expect(refreshedHash == firstHash)
+    }
+
+    @Test
     func `loads from keychain cache before expired file`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try ProviderInteractionContext.$current.withValue(.background) {
