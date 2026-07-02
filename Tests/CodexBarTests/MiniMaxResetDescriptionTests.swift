@@ -2,14 +2,19 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-struct MiniMaxResetDescriptionTests {
-    private static let twoHoursThirtyFourMinutes: TimeInterval = (2 * 60 * 60) + (34 * 60)
-    private static let threeDaysFiveHoursTwelveMinutes: TimeInterval = (3 * 24 * 60 * 60) + (5 * 60 * 60) + (12 * 60)
+private enum MiniMaxResetDescriptionTestIntervals {
+    static let twoHoursThirtyFourMinutes: TimeInterval = 9240
+    static let threeDaysFiveHoursTwelveMinutes: TimeInterval = 277_920
+    static let twoHoursFifteenMinutesMillis = 8_100_000
+    static let twoHoursMillis = 7_200_000
+    static let fiveHoursMillis = 18_000_000
+}
 
+struct MiniMaxResetDescriptionTests {
     @Test
     func `countdown phrase includes minutes for multi hour windows`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let resetsAt = now.addingTimeInterval(Self.twoHoursThirtyFourMinutes)
+        let resetsAt = now.addingTimeInterval(MiniMaxResetDescriptionTestIntervals.twoHoursThirtyFourMinutes)
 
         #expect(MiniMaxServiceUsage.resetCountdownPhrase(from: resetsAt, now: now) == "2 hours 34 minutes")
         #expect(
@@ -20,7 +25,7 @@ struct MiniMaxResetDescriptionTests {
     @Test
     func `countdown phrase includes days hours and minutes for weekly windows`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let resetsAt = now.addingTimeInterval(Self.threeDaysFiveHoursTwelveMinutes)
+        let resetsAt = now.addingTimeInterval(MiniMaxResetDescriptionTestIntervals.threeDaysFiveHoursTwelveMinutes)
 
         #expect(
             MiniMaxServiceUsage.resetCountdownPhrase(from: resetsAt, now: now) == "3 days 5 hours 12 minutes")
@@ -38,7 +43,7 @@ struct MiniMaxResetDescriptionTests {
     func `coding plan service reset description matches end time precision`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let start = 1_700_000_000_000
-        let end = start + ((2 * 60 * 60) + (15 * 60)) * 1000
+        let end = start + MiniMaxResetDescriptionTestIntervals.twoHoursFifteenMinutesMillis
         let json = """
         {
           "base_resp": { "status_code": 0 },
@@ -64,7 +69,7 @@ struct MiniMaxResetDescriptionTests {
     func `reset description prefers remains time over window end`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let start = 1_700_000_000_000
-        let end = start + (2 * 60 * 60) * 1000
+        let end = start + MiniMaxResetDescriptionTestIntervals.twoHoursMillis
         let json = """
         {
           "base_resp": { "status_code": 0 },
@@ -91,7 +96,7 @@ struct MiniMaxResetDescriptionTests {
     func `five hour reset ignores implausible remains time`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let start = 1_700_000_000_000
-        let end = start + (5 * 60 * 60 * 1000)
+        let end = start + MiniMaxResetDescriptionTestIntervals.fiveHoursMillis
         let json = """
         {
           "base_resp": { "status_code": 0 },
@@ -110,7 +115,8 @@ struct MiniMaxResetDescriptionTests {
         """
 
         let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
-        let service = try #require(snapshot.services?.first(where: { $0.windowType == "5 hours" }))
+        let services = try #require(snapshot.services)
+        let service = try #require(services.first { $0.windowType == "5 hours" })
 
         #expect(service.resetsAt == Date(timeIntervalSince1970: TimeInterval(end) / 1000))
         #expect(service.resetDescription == "Resets in 5 hours")
