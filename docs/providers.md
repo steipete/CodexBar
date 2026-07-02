@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 54 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 55 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -385,6 +385,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Status: none yet.
 - Details: `docs/command-code.md`.
+
+## Qoder
+- Chrome session cookies from automatic import, or a manual `Cookie:` header/cURL capture on macOS or Linux.
+- Reads big model credit usage from the Qoder account dashboard on `qoder.com` or `qoder.com.cn`.
+- Shows used and total credits plus the usage percentage; invalid cached sessions retry freshly imported cookies.
+- Status: none yet.
 
 ## Grok
 - `grok agent stdio` (ACP) JSON-RPC `x.ai/billing` method; requires `grok login` (SuperGrok OAuth/OIDC).

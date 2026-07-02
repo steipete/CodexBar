@@ -303,6 +303,42 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders qoder reset and credit total separately`() {
+        let meta = ProviderDescriptorRegistry.descriptor(for: .qoder).metadata
+        let now = Date(timeIntervalSince1970: 0)
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 25,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "125 / 500 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .qoder,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let output = CLIRenderer.renderText(
+            provider: .qoder,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Qoder",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(output.contains("\(meta.sessionLabel): 75% left"))
+        #expect(output.contains("Resets in 1h"))
+        #expect(output.contains("125 / 500 credits"))
+        #expect(!output.contains("Resets 125 / 500 credits"))
+    }
+
+    @Test
     func `renders kilo plan activity and fallback note`() {
         let now = Date(timeIntervalSince1970: 0)
         let identity = ProviderIdentitySnapshot(
