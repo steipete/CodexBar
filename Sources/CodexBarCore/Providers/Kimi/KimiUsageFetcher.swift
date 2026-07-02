@@ -8,6 +8,8 @@ public struct KimiUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.kimiAPI)
     private static let usageURL =
         URL(string: "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages")!
+    private static let subscriptionStatURL =
+        URL(string: "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStat")!
 
     public static func fetchCodeAPIUsage(
         apiKey: String,
@@ -52,39 +54,9 @@ public struct KimiUsageFetcher: Sendable {
     }
 
     public static func fetchUsage(authToken: String, now: Date = Date()) async throws -> KimiUsageSnapshot {
-        // Decode JWT to get session info
         let sessionInfo = self.decodeSessionInfo(from: authToken)
 
-        var request = URLRequest(url: self.usageURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("kimi-auth=\(authToken)", forHTTPHeaderField: "Cookie")
-        request.setValue("https://www.kimi.com", forHTTPHeaderField: "Origin")
-        request.setValue("https://www.kimi.com/code/console", forHTTPHeaderField: "Referer")
-        request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-        let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("1", forHTTPHeaderField: "connect-protocol-version")
-        request.setValue("en-US", forHTTPHeaderField: "x-language")
-        request.setValue("web", forHTTPHeaderField: "x-msh-platform")
-        request.setValue(TimeZone.current.identifier, forHTTPHeaderField: "r-timezone")
-
-        // Add session-specific headers from JWT
-        if let sessionInfo {
-            if let deviceId = sessionInfo.deviceId {
-                request.setValue(deviceId, forHTTPHeaderField: "x-msh-device-id")
-            }
-            if let sessionId = sessionInfo.sessionId {
-                request.setValue(sessionId, forHTTPHeaderField: "x-msh-session-id")
-            }
-            if let trafficId = sessionInfo.trafficId {
-                request.setValue(trafficId, forHTTPHeaderField: "x-traffic-id")
-            }
-        }
-
+        var request = self.webRequest(url: self.usageURL, authToken: authToken, sessionInfo: sessionInfo)
         let requestBody = ["scope": ["FEATURE_CODING"]]
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
 
@@ -111,9 +83,11 @@ public struct KimiUsageFetcher: Sendable {
             throw KimiAPIError.parseFailed("FEATURE_CODING scope not found in response")
         }
 
+        let subscriptionStat = try await self.fetchSubscriptionStat(authToken: authToken, sessionInfo: sessionInfo)
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
             rateLimit: codingUsage.limits?.first?.detail,
+            subscriptionBalance: subscriptionStat?.subscriptionBalance,
             updatedAt: now)
     }
 
@@ -140,6 +114,59 @@ public struct KimiUsageFetcher: Sendable {
             .appendingPathComponent("coding")
             .appendingPathComponent("v1")
             .appendingPathComponent("usages")
+    }
+
+    private static func fetchSubscriptionStat(
+        authToken: String,
+        sessionInfo: SessionInfo?) async throws -> KimiSubscriptionStatResponse?
+    {
+        var request = self.webRequest(url: self.subscriptionStatURL, authToken: authToken, sessionInfo: sessionInfo)
+        request.httpBody = Data("{}".utf8)
+
+        do {
+            let response = try await ProviderHTTPClient.shared.response(for: request)
+            guard response.statusCode == 200 else {
+                Self.log.warning("Kimi subscription stat returned \(response.statusCode)")
+                return nil
+            }
+            return try JSONDecoder().decode(KimiSubscriptionStatResponse.self, from: response.data)
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            Self.log.warning("Kimi subscription stat unavailable: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func webRequest(url: URL, authToken: String, sessionInfo: SessionInfo?) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("kimi-auth=\(authToken)", forHTTPHeaderField: "Cookie")
+        request.setValue("https://www.kimi.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://www.kimi.com/code/console", forHTTPHeaderField: "Referer")
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("1", forHTTPHeaderField: "connect-protocol-version")
+        request.setValue("en-US", forHTTPHeaderField: "x-language")
+        request.setValue("web", forHTTPHeaderField: "x-msh-platform")
+        request.setValue(TimeZone.current.identifier, forHTTPHeaderField: "r-timezone")
+
+        if let deviceId = sessionInfo?.deviceId {
+            request.setValue(deviceId, forHTTPHeaderField: "x-msh-device-id")
+        }
+        if let sessionId = sessionInfo?.sessionId {
+            request.setValue(sessionId, forHTTPHeaderField: "x-msh-session-id")
+        }
+        if let trafficId = sessionInfo?.trafficId {
+            request.setValue(trafficId, forHTTPHeaderField: "x-traffic-id")
+        }
+        return request
     }
 
     private static func codeAPIError(statusCode: Int) -> KimiAPIError {
