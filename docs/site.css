@@ -25,6 +25,8 @@
   --mockup-tune-width: 1920;
   --mockup-fluid-max: 1.22;
   --mockup-screen-margin-right: 50px;
+  /* Keep the MacBook right-aligned before site.js refines the viewport calculation. */
+  --mockup-x: max(calc(-32.777vw - 50px), calc(50vw - 1352.72px));
   --mockup-artboard-ratio: 1.18;
   /* Menubar: Figma 130/150px + scale 0.94, × visual correction (top ×1.308, right ×1.548, scale ×1.55) */
   --menubar-scale: 1.457;
@@ -50,17 +52,17 @@
   --glow-color-b: #8000ff;
   /* Hero entrance choreography (copy + mockup HUD) */
   --hero-ease: cubic-bezier(0.23, 1, 0.32, 1);
-  --hero-reveal-duration: 480ms;
-  --hero-reveal-step: 60ms;
+  --hero-reveal-duration: 420ms;
+  --hero-reveal-step: 40ms;
   --hero-reveal-1: 0ms;
-  --hero-reveal-2: 60ms;
-  --hero-reveal-3: 120ms;
-  --hero-reveal-4: 200ms;
-  --hero-reveal-5: 280ms;
-  --hero-menubar-start: 300ms;
-  --hero-menubar-wave: 58ms;
-  --hero-mark-after-menubar: 140ms;
-  --hero-popover-after-mark: 500ms;
+  --hero-reveal-2: 40ms;
+  --hero-reveal-3: 80ms;
+  --hero-reveal-4: 125ms;
+  --hero-reveal-5: 170ms;
+  --hero-menubar-start: 100ms;
+  --hero-menubar-wave: 30ms;
+  --hero-mark-after-menubar: 30ms;
+  --hero-popover-after-mark: 60ms;
   --mobile-mockup-stage-height: 33.5rem;
   --mobile-mockup-stage-max-width: 26rem;
   --mobile-stage-inline-gutter: 1.25rem;
@@ -273,7 +275,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
   background: linear-gradient(90deg, #f5f5f3 0%, #e7e7e5 100%);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 640ms cubic-bezier(0.23, 1, 0.32, 1) var(--mark-bar-delay, 0ms);
+  transition: transform 400ms cubic-bezier(0.23, 1, 0.32, 1) var(--mark-bar-delay, 0ms);
   will-change: transform;
 }
 
@@ -286,7 +288,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
 .menu-bar-mark span:last-child {
   bottom: 23%;
   --mark-fill: 0.33;
-  --mark-bar-delay: 150ms;
+  --mark-bar-delay: 80ms;
 }
 
 .mockup-stage.is-mark-animated .menu-bar-mark span::before {
@@ -331,8 +333,8 @@ html.bg-black { background-color: var(--page-bg) !important; }
   opacity: 0;
   transform: translateY(-0.42em);
   transition:
-    opacity 420ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 420ms cubic-bezier(0.23, 1, 0.32, 1);
+    opacity 280ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 280ms cubic-bezier(0.23, 1, 0.32, 1);
   transition-delay: var(--menubar-enter-delay, 0ms);
   will-change: opacity, transform;
 }
@@ -380,8 +382,8 @@ html.bg-black { background-color: var(--page-bg) !important; }
   opacity: 0;
   pointer-events: auto;
   transition:
-    opacity 460ms var(--hero-ease),
-    transform 520ms var(--hero-ease);
+    opacity 300ms var(--hero-ease),
+    transform 360ms var(--hero-ease);
   will-change: transform, opacity;
 }
 
@@ -444,7 +446,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
   background: #4fb6c3;
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 760ms cubic-bezier(0.23, 1, 0.32, 1) var(--meter-delay, 420ms);
+  transition: transform 500ms cubic-bezier(0.23, 1, 0.32, 1) var(--meter-delay, 70ms);
 }
 
 .usage-meter::after {
@@ -457,7 +459,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
   border-radius: 999px;
   background: #ff4055;
   opacity: 0;
-  transition: opacity 140ms ease calc(var(--meter-delay, 420ms) + 560ms);
+  transition: opacity 140ms ease calc(var(--meter-delay, 70ms) + 380ms);
 }
 
 .usage-meter i {
@@ -468,7 +470,7 @@ html.bg-black { background-color: var(--page-bg) !important; }
   height: 64%;
   background: rgba(255, 255, 255, 0.34);
   opacity: 0;
-  transition: opacity 180ms ease calc(var(--meter-delay, 420ms) + 420ms);
+  transition: opacity 180ms ease calc(var(--meter-delay, 70ms) + 280ms);
 }
 
 .mockup-stage.is-animated .usage-meter::before { transform: scaleX(1); }
@@ -538,8 +540,8 @@ html.bg-black { background-color: var(--page-bg) !important; }
   transform: scaleY(0);
   transform-origin: bottom center;
   transition:
-    transform 520ms cubic-bezier(0.23, 1, 0.32, 1) var(--bar-delay, 760ms),
-    opacity 220ms ease var(--bar-delay, 760ms);
+    transform 380ms cubic-bezier(0.23, 1, 0.32, 1) var(--bar-delay, 120ms),
+    opacity 180ms ease var(--bar-delay, 120ms);
 }
 
 .mockup-stage.is-animated .usage-chart i {
@@ -680,9 +682,9 @@ html.bg-black { background-color: var(--page-bg) !important; }
 
 .theme-option svg { width: 0.9rem; height: 0.9rem; }
 .theme-option [data-theme-icon] { display: none; }
-.theme-option[data-theme-value="system"] [data-theme-icon="system"],
-.theme-option[data-theme-value="light"] [data-theme-icon="light"],
-.theme-option[data-theme-value="dark"] [data-theme-icon="dark"] { display: block; }
+:root[data-theme-preference="system"] .theme-option [data-theme-icon="system"],
+:root[data-theme-preference="light"] .theme-option [data-theme-icon="light"],
+:root[data-theme-preference="dark"] .theme-option [data-theme-icon="dark"] { display: block; }
 .theme-option:active { transform: scale(0.94); }
 
 .language-picker {
@@ -2505,11 +2507,20 @@ html.bg-black { background-color: var(--page-bg) !important; }
 
   .provider-card {
     min-height: auto !important;
-    grid-template-columns: 1fr !important;
+    text-align: center;
+  }
+
+  .provider-card-link {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     gap: 0.45rem;
     padding: 0.2rem 0 !important;
-    text-align: center;
+  }
+
+  .provider-card-link p {
+    width: 100%;
+    min-width: 0;
   }
 
   .provider-logo {

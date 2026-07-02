@@ -679,24 +679,33 @@ const heroRootStyles = getComputedStyle(document.documentElement);
 const readHeroMs = (name) => Number.parseFloat(heroRootStyles.getPropertyValue(name)) || 0;
 const menubarStartDelay = readHeroMs('--hero-menubar-start');
 const menubarWaveGap = readHeroMs('--hero-menubar-wave');
-const markStartDelay = menubarStartDelay + menubarItems.length * menubarWaveGap + readHeroMs('--hero-mark-after-menubar');
+const reducedHeroMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const lastMenubarItemDelay = Math.max(0, menubarItems.length - 1) * menubarWaveGap;
+const markStartDelay = menubarStartDelay + lastMenubarItemDelay + readHeroMs('--hero-mark-after-menubar');
 const popoverStartDelay = markStartDelay + readHeroMs('--hero-popover-after-mark');
 
 menubarItems.forEach((item, index) => {
-  item.style.setProperty('--menubar-enter-delay', `${index * menubarWaveGap}ms`);
+  item.style.setProperty('--menubar-enter-delay', `${reducedHeroMotion ? 0 : index * menubarWaveGap}ms`);
 });
 
-window.setTimeout(() => mockupStage.classList.add('is-menubar-entered'), menubarStartDelay);
-window.setTimeout(() => mockupStage.classList.add('is-mark-animated'), markStartDelay);
-window.setTimeout(() => {
-  mockupStage.classList.add('is-animated');
+const animatePopoverDetails = () => {
   mockupStage.querySelectorAll('.usage-meter').forEach((meter, index) => {
-    meter.style.setProperty('--meter-delay', `${index * 150}ms`);
+    meter.style.setProperty('--meter-delay', `${reducedHeroMotion ? 0 : 70 + index * 70}ms`);
   });
   mockupStage.querySelectorAll('.usage-chart i').forEach((bar, index) => {
-    bar.style.setProperty('--bar-delay', `${280 + index * 14}ms`);
+    bar.style.setProperty('--bar-delay', `${reducedHeroMotion ? 0 : 120 + index * 6}ms`);
   });
-}, popoverStartDelay);
+  mockupStage.classList.add('is-animated');
+};
+
+if (reducedHeroMotion) {
+  mockupStage.classList.add('is-menubar-entered', 'is-mark-animated');
+  animatePopoverDetails();
+} else {
+  window.setTimeout(() => mockupStage.classList.add('is-menubar-entered'), menubarStartDelay);
+  window.setTimeout(() => mockupStage.classList.add('is-mark-animated'), markStartDelay);
+  window.setTimeout(animatePopoverDetails, popoverStartDelay);
+}
 
 const brewCopyButton = document.querySelector('#brew-copy');
 const brewCopyLabel = brewCopyButton?.querySelector('[data-brew-label]');
