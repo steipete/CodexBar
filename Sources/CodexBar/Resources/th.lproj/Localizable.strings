@@ -2,6 +2,7 @@
 
 " providers" = "ผู้ให้บริการ  ";
 "(System)" = "(ระบบ)";
+"7d" = "7 วัน";
 "30d" = "30 วัน";
 "A managed Codex login is already running. Wait for it to finish before adding " = "การเข้าสู่ระบบ Codex ที่มีการจัดการกําลังทํางานอยู่แล้ว รอให้เสร็จก่อนที่จะเพิ่ม  ";
 "API key" = "ปุ่ม API";
@@ -52,6 +53,26 @@
 "CLI paths" = "เส้นทาง CLI";
 "CLI sessions" = "CLI เซสชัน";
 "Caches" = "แคช";
+"Cache hit: %@" = "อัตราแคชฮิต: %@";
+"Cache hit" = "แคชฮิต";
+"%@ usage" = "การใช้งาน %@";
+"Latest usage" = "การใช้งานล่าสุด";
+"7d tokens" = "การใช้งาน 7 วัน";
+"Last 7 days: %@ tokens" = "7 วันที่ผ่านมา: %@ โทเค็น";
+"Last 7 days" = "7 วันที่ผ่านมา";
+"Usage trend" = "แนวโน้มการใช้งาน";
+"MiniMax 7 day token usage trend" = "แนวโน้มโทเค็น MiniMax 7 วัน";
+"Language models only; data may be delayed" = "นับเฉพาะโมเดลภาษา ข้อมูลอาจล่าช้า";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ อินพุต · %@ เอาต์พุต · แคชฮิต %@";
+"%@ input · %@ output · %@ cache hit" = "%@ อินพุต · %@ เอาต์พุต · แคชฮิต %@";
+"Total consumed" = "ใช้ไปทั้งหมด";
+"Daily peak" = "สูงสุดรายวัน";
+"Active days" = "วันที่ใช้งาน";
+"Active days: %@" = "วันที่ใช้งาน: %@";
+"Streak: %@ days" = "ใช้ต่อเนื่อง: %@ วัน";
+"Usage rank: top %@%%" = "อันดับการใช้งาน: สูงสุด %@%%";
+"Token usage details" = "รายละเอียดการใช้โทเค็น";
+"Day totals" = "รวมรายวัน";
 "Cancel" = "ยกเลิก";
 "Check for Updates…" = "ตรวจสอบการอัปเดต...";
 "Check for updates automatically" = "ตรวจสอบการอัปเดตโดยอัตโนมัติ";
@@ -123,6 +144,7 @@
 "Enabled" = "เปิดใช้งาน";
 "Error" = "ข้อผิดพลาด";
 "Error simulation" = "การจําลองข้อผิดพลาด";
+"Expires: %@" = "หมดอายุ %@";
 "Expose troubleshooting tools in the Debug tab." = "แสดงเครื่องมือการแก้ไขปัญหาในแท็บ แก้ไขข้อบกพร่อง";
 "Failed" = "ล้มเหลว";
 "False" = "เท็จ";
@@ -917,6 +939,7 @@
 "Weekly" = "รายสัปดาห์";
 "not detected" = "ตรวจไม่พบ";
 "Estimated from local Codex logs for the selected account." = "ประมาณการจากบันทึก Codex ท้องถิ่นสําหรับบัญชีที่เลือก";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "ประมาณการจากสรุปการใช้งาน MiniMax และราคาแบบจ่ายตามการใช้งานที่เผยแพร่ · อาจแตกต่างจากใบแจ้งหนี้";
 "minimax_usage_amount_format" = "การใช้งาน: %@ / %@";
 "minimax_used_percent_format" = "ใช้ไป %@";
 "minimax_service_text_generation" = "การสร้างข้อความ";

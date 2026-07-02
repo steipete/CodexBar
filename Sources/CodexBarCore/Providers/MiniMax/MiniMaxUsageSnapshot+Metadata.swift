@@ -17,7 +17,9 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt)
     }
@@ -34,12 +36,33 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: metadata.subscriptionExpiresAt ?? self.subscriptionExpiresAt,
             subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt)
     }
 
-    func withPointsBalanceIfMissing(_ pointsBalance: Double?) -> MiniMaxUsageSnapshot {
+    func withUsageSummary(_ usageSummary: MiniMaxUsageSummary?) -> MiniMaxUsageSnapshot {
+        MiniMaxUsageSnapshot(
+            planName: self.planName,
+            availablePrompts: self.availablePrompts,
+            currentPrompts: self.currentPrompts,
+            remainingPrompts: self.remainingPrompts,
+            windowMinutes: self.windowMinutes,
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            updatedAt: self.updatedAt,
+            services: self.services,
+            billingSummary: self.billingSummary,
+            usageSummary: usageSummary,
+            pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt)
+    }
+
+    func withPointsBalanceIfMissing(_ pointsBalance: Double?, expiresAt: Date?) -> MiniMaxUsageSnapshot {
         guard self.pointsBalance == nil, let pointsBalance, pointsBalance >= 0 else { return self }
         return MiniMaxUsageSnapshot(
             planName: self.planName,
@@ -52,7 +75,9 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: pointsBalance,
+            pointsBalanceExpiresAt: expiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt)
     }

@@ -2,6 +2,7 @@
 
 " providers" = " 件のプロバイダ";
 "(System)" = "（システム）";
+"7d" = "7日";
 "30d" = "30日";
 "A managed Codex login is already running. Wait for it to finish before adding " = "管理対象の Codex ログインがすでに実行中です。完了を待ってから追加してください ";
 "API key" = "API キー";
@@ -911,6 +912,7 @@
 "Weekly" = "週間";
 "not detected" = "未検出";
 "Estimated from local Codex logs for the selected account." = "選択したアカウントのローカル Codex ログから推定しています。";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "用量サマリーと公式従量課金料金から推定 · 請求額と異なる場合があります";
 "minimax_usage_amount_format" = "使用量: %@ / %@";
 "minimax_used_percent_format" = "使用済み %@";
 "minimax_service_text_generation" = "テキスト生成";

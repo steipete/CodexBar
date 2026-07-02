@@ -636,6 +636,7 @@ struct MiniMaxMenuCardModelTests {
                     resetDescription: "Resets in 6 days"),
             ],
             pointsBalance: 14000,
+            pointsBalanceExpiresAt: Date(timeIntervalSince1970: 1_784_995_199),
             subscriptionRenewsAt: Date(timeIntervalSince1970: 1_810_569_600))
         let snapshot = minimax.toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.minimax])
@@ -673,6 +674,7 @@ struct MiniMaxMenuCardModelTests {
         #expect(model.metrics[1].cardStyle == false)
         #expect(model.providerCost?.title == "Credits")
         #expect(model.providerCost?.spendLine == "Balance: 14000")
+        #expect(model.providerCost?.personalSpendLine?.contains("Jul 25, 2026 at 11:59:59") == true)
         #expect(model.usageNotes == [String(format: L("Renews: %@"), minimaxRenewDate(1_810_569_600))])
     }
 }

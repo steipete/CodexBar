@@ -28,8 +28,8 @@ public enum MiniMaxProviderDescriptor {
                 iconResourceName: "ProviderIcon-minimax",
                 color: ProviderColor(red: 254 / 255, green: 96 / 255, blue: 60 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "MiniMax cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No priced MiniMax usage summary data yet." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -99,6 +99,10 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
                 region: apiResult.resolvedRegion,
                 environment: context.env,
                 transport: ProviderHTTPClient.shared)
+            usage = try await MiniMaxUsageFetcher.attachingUsageSummaryIfAvailable(
+                to: usage,
+                context: fetchContext,
+                groupID: cookieOverride.groupID)
             usage = try await MiniMaxUsageFetcher.attachingTokenPlanCreditIfAvailable(
                 to: usage,
                 context: fetchContext,

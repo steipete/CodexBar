@@ -127,6 +127,21 @@ public enum UsageFormatter {
         return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
     }
 
+    public static func preciseDateTimeDescription(from date: Date, now: Date = .init()) -> String {
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(.dateTime.hour().minute().second().locale(self.currentLocale()))
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           calendar.isDate(date, inSameDayAs: tomorrow)
+        {
+            let timeStr = date.formatted(.dateTime.hour().minute().second().locale(self.currentLocale()))
+            return self.localized("reset_tomorrow_format", timeStr)
+        }
+        return date.formatted(
+            .dateTime.year().month(.abbreviated).day().hour().minute().second().locale(self.currentLocale()))
+    }
+
     public static func resetLine(
         for window: RateWindow,
         style: ResetTimeDisplayStyle,
@@ -234,7 +249,20 @@ public enum UsageFormatter {
         value.formatted(.currency(code: currencyCode).locale(Locale(identifier: "en_US")))
     }
 
+    public static func decimalString(_ value: Double, fractionDigits: Int = 2) -> String {
+        String(format: "%.\(fractionDigits)f", value)
+    }
+
+    public static func optionalPercentString(_ percent: Double?, fractionDigits: Int = 2) -> String {
+        guard let percent else { return "—" }
+        return String(format: "%.\(fractionDigits)f%%", percent)
+    }
+
     public static func tokenCountString(_ value: Int) -> String {
+        self.tokenCountString(value, fractionDigits: 1)
+    }
+
+    public static func tokenCountString(_ value: Int, fractionDigits: Int) -> String {
         let absValue = abs(value)
         let sign = value < 0 ? "-" : ""
 
@@ -247,7 +275,9 @@ public enum UsageFormatter {
         for unit in units where absValue >= unit.threshold {
             let scaled = Double(absValue) / unit.divisor
             let formatted: String
-            if scaled >= 10 {
+            if fractionDigits == 2 {
+                formatted = String(format: "%.2f", scaled)
+            } else if scaled >= 10 {
                 formatted = String(format: "%.0f", scaled)
             } else {
                 var s = String(format: "%.1f", scaled)
@@ -378,7 +408,7 @@ public enum UsageFormatter {
             nil
         }
 
-        let tokenDetail = totalTokens.map(self.tokenCountString)
+        let tokenDetail = totalTokens.map { self.tokenCountString($0) }
         let parts = [costDetail, tokenDetail].compactMap(\.self)
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " · ")

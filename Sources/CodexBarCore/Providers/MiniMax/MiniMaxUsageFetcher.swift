@@ -442,8 +442,13 @@ public struct MiniMaxUsageFetcher: Sendable {
             enrichedSnapshot = snapshot
         }
 
-        return try await self.attachingTokenPlanCreditIfAvailable(
+        let summaryEnrichedSnapshot = try await self.attachingUsageSummaryIfAvailable(
             to: enrichedSnapshot,
+            context: context,
+            groupID: groupID)
+
+        return try await self.attachingTokenPlanCreditIfAvailable(
+            to: summaryEnrichedSnapshot,
             context: context,
             groupID: groupID)
     }
@@ -1032,12 +1037,17 @@ enum MiniMaxUsageParser {
     }
 
     private static func resetsAt(end: Date?, remains: Int?, now: Date) -> Date? {
+        if let remains, remains > 0 {
+            let seconds: TimeInterval = remains > 1_000_000 ? TimeInterval(remains) / 1000 : TimeInterval(remains)
+            let resetDate = now.addingTimeInterval(seconds)
+            if resetDate > now {
+                return resetDate
+            }
+        }
         if let end, end > now {
             return end
         }
-        guard let remains, remains > 0 else { return nil }
-        let seconds: TimeInterval = remains > 1_000_000 ? TimeInterval(remains) / 1000 : TimeInterval(remains)
-        return now.addingTimeInterval(seconds)
+        return nil
     }
 
     private static func parsePlanName(data: MiniMaxCodingPlanData) -> String? {
@@ -1485,19 +1495,7 @@ enum MiniMaxUsageParser {
         resetsAt: Date?) -> String
     {
         if let resetsAt, resetsAt > now {
-            let interval = resetsAt.timeIntervalSince(now)
-            if interval < 60 {
-                return "Resets in \(Int(interval)) seconds"
-            } else if interval < 3600 {
-                let minutes = Int(interval / 60)
-                return "Resets in \(minutes) minute\(minutes == 1 ? "" : "s")"
-            } else if interval < 86400 {
-                let hours = Int(interval / 3600)
-                return "Resets in \(hours) hour\(hours == 1 ? "" : "s")"
-            } else {
-                let days = Int(interval / 86400)
-                return "Resets in \(days) day\(days == 1 ? "" : "s")"
-            }
+            return MiniMaxServiceUsage.generateResetDescription(resetsAt: resetsAt, now: now)
         }
 
         return "\(windowType): \(timeRange)"

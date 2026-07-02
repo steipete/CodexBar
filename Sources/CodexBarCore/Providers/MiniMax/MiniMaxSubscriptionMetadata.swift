@@ -285,13 +285,13 @@ extension MiniMaxUsageFetcher {
 
         let resolvedGroupID = groupID ?? MiniMaxCookieHeader.override(from: context.cookie)?.groupID
         do {
-            let balance = try await MiniMaxTokenPlanCreditFetcher.fetch(
+            let credit = try await MiniMaxTokenPlanCreditFetcher.fetch(
                 cookieHeader: context.cookie,
                 groupID: resolvedGroupID,
                 region: context.region,
                 environment: context.environment,
                 transport: context.transport)
-            return snapshot.withPointsBalanceIfMissing(balance)
+            return snapshot.withPointsBalanceIfMissing(credit.balance, expiresAt: credit.expiresAt)
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as URLError where error.code == .cancelled {

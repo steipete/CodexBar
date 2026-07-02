@@ -2,6 +2,7 @@
 
 " providers" = "nhà cung cấp";
 "(System)" = "(Hệ thống)";
+"7d" = "7d";
 "30d" = "30d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Đăng nhập Codex được quản lý đã chạy. Đợi quá trình này hoàn tất trước khi thêm";
 "API key" = "API khóa";
@@ -910,6 +911,7 @@
 "Weekly" = "Không phát hiện được";
 "not detected" = "hàng tuần";
 "Estimated from local Codex logs for the selected account." = "Được ước tính từ nhật ký Codex cục bộ cho tài khoản đã chọn.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Ước tính từ tóm tắt sử dụng MiniMax và bảng giá trả theo mức dùng đã công bố · có thể khác hóa đơn";
 "minimax_usage_amount_format" = "Mức sử dụng : %@ / %@";
 "minimax_used_percent_format" = "Đã sử dụng %@";
 "minimax_service_text_generation" = "Tạo văn bản";

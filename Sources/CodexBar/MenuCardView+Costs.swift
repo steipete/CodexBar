@@ -153,6 +153,8 @@ extension UsageMenuCardView.Model {
             L("Reported by OpenAI Admin API organization usage.")
         case .mistral:
             L("Reported by Mistral billing usage.")
+        case .minimax:
+            L("Estimated from MiniMax usage summary and published pay-as-you-go pricing.")
         default:
             nil
         }
@@ -275,11 +277,15 @@ extension UsageMenuCardView.Model {
 
         if provider == .minimax, cost.period == "MiniMax points balance" {
             let balance = String(format: "%.0f", cost.used)
+            let expiresLine = cost.resetsAt.map {
+                String(format: L("Expires: %@"), UsageFormatter.preciseDateTimeDescription(from: $0))
+            }
             return ProviderCostSection(
                 title: L("Credits"),
                 percentUsed: nil,
                 spendLine: "\(L("Balance")): \(balance)",
-                percentLine: nil)
+                percentLine: nil,
+                personalSpendLine: expiresLine)
         }
 
         if provider == .openai || provider == .claude || provider == .litellm, cost.limit <= 0 {

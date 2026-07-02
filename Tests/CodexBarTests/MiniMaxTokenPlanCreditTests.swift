@@ -7,8 +7,9 @@ struct MiniMaxTokenPlanCreditTests {
     @Test
     func `parses token plan credit balance from console payload`() throws {
         let data = try Data(contentsOf: Self.fixtureURL(named: "token-plan-credit-normal.json"))
-        let balance = try MiniMaxTokenPlanCreditFetcher.parseBalance(data: data)
-        #expect(balance == 20000)
+        let snapshot = try MiniMaxTokenPlanCreditFetcher.parseSnapshot(data: data)
+        #expect(snapshot.balance == 20000)
+        #expect(snapshot.expiresAt == Date(timeIntervalSince1970: 1_784_995_199.999))
     }
 
     @Test
@@ -85,6 +86,12 @@ struct MiniMaxTokenPlanCreditTests {
             }
             if url.path.contains("coding_plan/remains") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
             }
             #expect(url.host == "www.minimaxi.com")
             #expect(url.path == "/backend/account/token_plan_credit")
@@ -265,6 +272,54 @@ struct MiniMaxTokenPlanCreditTests {
         #expect(enriched.pointsBalance == 20000)
     }
 
+    @Test
+    func `api usage summary enrichment uses resolved china web host after global retry`() async throws {
+        let now = Date(timeIntervalSince1970: 1_780_282_340)
+        let summaryJSON = """
+        {
+          "last_update_time": "07-02 18:00",
+          "daily_token_usage": [19880, 16060000, 1020000000],
+          "date_model_usage": [],
+          "base_resp": { "status_code": 0 }
+        }
+        """
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.host == "api.minimax.io" {
+                return Self.httpResponse(url: url, body: "{}", statusCode: 401, contentType: "application/json")
+            }
+            if url.host == "api.minimaxi.com", url.path.contains("remains") {
+                return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(url: url, body: summaryJSON, contentType: "application/json")
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
+        }
+
+        let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
+            apiToken: "sk-cp-test",
+            region: .global,
+            now: now,
+            session: transport)
+        let fetchContext = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=abc",
+            authorizationToken: nil,
+            region: apiResult.resolvedRegion,
+            environment: [:],
+            transport: transport)
+        let enriched = try await MiniMaxUsageFetcher.attachingUsageSummaryIfAvailable(
+            to: apiResult.snapshot,
+            context: fetchContext,
+            groupID: nil)
+
+        #expect(apiResult.resolvedRegion == .chinaMainland)
+        #expect(enriched.usageSummary?.hasDisplayableData == true)
+        #expect(enriched.usageSummary?.latestSnapshotTokens == 1_020_000_000)
+        #expect(enriched.usageSummary?.last7DaysTokens == 1_036_079_880)
+    }
+
     private static func fixtureURL(named name: String) throws -> URL {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -307,7 +362,7 @@ struct MiniMaxTokenPlanCreditTests {
         let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
             apiToken: apiToken,
             region: MiniMaxAPIRegion(rawValue: minimax.region ?? "") ?? .global)
-        let balance = try await MiniMaxTokenPlanCreditFetcher.fetch(
+        let credit = try await MiniMaxTokenPlanCreditFetcher.fetch(
             cookieHeader: cookieHeader,
             groupID: cookieOverride?.groupID,
             region: apiResult.resolvedRegion,
@@ -315,8 +370,8 @@ struct MiniMaxTokenPlanCreditTests {
             transport: ProviderHTTPClient.shared)
         print("LIVE_MINIMAX_COOKIE_RESOLVED=true")
         print("LIVE_MINIMAX_RESOLVED_REGION=\(apiResult.resolvedRegion.rawValue)")
-        print("LIVE_MINIMAX_BALANCE=\(balance.map { String($0) } ?? "nil")")
-        let balanceValue = try #require(balance)
+        print("LIVE_MINIMAX_BALANCE=\(credit.balance.map { String($0) } ?? "nil")")
+        let balanceValue = try #require(credit.balance)
         #expect(balanceValue >= 0)
         if let expectedRaw = ProcessInfo.processInfo.environment["MINIMAX_LIVE_TEST_EXPECTED_BALANCE"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),

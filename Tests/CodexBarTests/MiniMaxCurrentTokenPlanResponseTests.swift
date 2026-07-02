@@ -58,6 +58,12 @@ struct MiniMaxCurrentTokenPlanResponseTests {
                     body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
                     contentType: "application/json")
             }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             #expect(url.host == "platform.minimaxi.com")
             #expect(url.path == "/v1/api/openplatform/coding_plan/remains")
             return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
@@ -78,6 +84,7 @@ struct MiniMaxCurrentTokenPlanResponseTests {
         #expect(requests.map { $0.url?.host } == [
             "platform.minimaxi.com",
             "platform.minimaxi.com",
+            "www.minimaxi.com",
             "www.minimaxi.com",
         ])
     }

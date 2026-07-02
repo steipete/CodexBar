@@ -227,6 +227,19 @@ enum MenuBarMetricWindowResolver {
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
+    /// The quota window whose reset is soonest among the primary, secondary, and tertiary lanes.
+    static func nearestResetWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+        guard let snapshot else { return nil }
+        let datedWindows = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+            .compactMap(\.self)
+            .compactMap { window -> (RateWindow, Date)? in
+                guard let resetsAt = window.resetsAt else { return nil }
+                return (window, resetsAt)
+            }
+        guard !datedWindows.isEmpty else { return nil }
+        return datedWindows.min(by: { $0.1 < $1.1 })?.0
+    }
+
     private static func mostConstrainedCursorWindow(
         total: RateWindow?,
         auto: RateWindow?,

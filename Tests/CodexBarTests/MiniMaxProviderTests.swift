@@ -961,6 +961,12 @@ struct MiniMaxUsageParserTests {
                     body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
                     contentType: "application/json")
             }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             #expect(url.path == "/account/amount")
             #expect(url.query?.contains("aggregate=false") == true)
             #expect(request.value(forHTTPHeaderField: "Cookie") == "HERTZ-SESSION=abc")
@@ -1061,6 +1067,12 @@ struct MiniMaxUsageParserTests {
                     body: Self.codingPlanJSON,
                     contentType: "application/json")
             }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             #expect(url.path == "/backend/account/token_plan_credit")
             return Self.httpResponse(url: url, body: creditBody, contentType: "application/json")
         }
@@ -1079,7 +1091,7 @@ struct MiniMaxUsageParserTests {
         #expect(snapshot.pointsBalance == 20000)
         let billingRequests = requests.filter { $0.url?.path == "/account/amount" }
         #expect(billingRequests.isEmpty)
-        #expect(requests.count == 2)
+        #expect(requests.count == 3)
     }
 
     @Test

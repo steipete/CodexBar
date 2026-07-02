@@ -428,6 +428,8 @@ public struct MiniMaxDiagnosticDetails: Codable, Sendable {
     public let usedPercent: Double?
     public let resetsAt: Date?
     public let pointsBalance: Double?
+    public let pointsBalanceExpiresAt: Date?
+    public let usageSummaryPresent: Bool
     public let services: [MiniMaxDiagnosticServiceUsage]?
     public let billingSummaryPresent: Bool
 
@@ -440,6 +442,8 @@ public struct MiniMaxDiagnosticDetails: Codable, Sendable {
         self.usedPercent = snapshot.usedPercent
         self.resetsAt = snapshot.resetsAt
         self.pointsBalance = snapshot.pointsBalance
+        self.pointsBalanceExpiresAt = snapshot.pointsBalanceExpiresAt
+        self.usageSummaryPresent = snapshot.usageSummary != nil
         self.services = snapshot.services?.map { MiniMaxDiagnosticServiceUsage(from: $0) }
         self.billingSummaryPresent = snapshot.billingSummary != nil
     }

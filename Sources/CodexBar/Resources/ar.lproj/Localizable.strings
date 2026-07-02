@@ -2,6 +2,7 @@
 
 " providers" = " providers";
 "(System)" = "(النظام)";
+"7d" = "7 يومًا";
 "30d" = "30 يومًا";
 "A managed Codex login is already running. Wait for it to finish before adding " = "تسجيل دخول Codex المدار يعمل بالفعل. انتظر حتى ينتهي قبل إضافة  ";
 "API key" = "مفتاح API";
@@ -52,6 +53,26 @@
 "CLI paths" = "CLI المسارات";
 "CLI sessions" = "جلسات CLI";
 "Caches" = "التخزين المؤقت";
+"Cache hit: %@" = "معدل إصابة التخزين المؤقت: %@";
+"Cache hit" = "إصابة التخزين المؤقت";
+"%@ usage" = "استخدام %@";
+"Latest usage" = "أحدث استخدام";
+"7d tokens" = "استخدام 7 أيام";
+"Last 7 days: %@ tokens" = "آخر 7 أيام: %@ رمز";
+"Last 7 days" = "آخر 7 أيام";
+"Usage trend" = "اتجاه الاستخدام";
+"MiniMax 7 day token usage trend" = "اتجاه استخدام MiniMax لمدة 7 أيام";
+"Language models only; data may be delayed" = "نماذج اللغة فقط؛ قد تتأخر البيانات";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ إدخال · %@ إخراج · إصابة تخزين %@";
+"%@ input · %@ output · %@ cache hit" = "%@ إدخال · %@ إخراج · إصابة تخزين %@";
+"Total consumed" = "إجمالي الاستهلاك";
+"Daily peak" = "ذروة اليوم";
+"Active days" = "أيام النشاط";
+"Active days: %@" = "أيام النشاط: %@";
+"Streak: %@ days" = "سلسلة: %@ يومًا";
+"Usage rank: top %@%%" = "ترتيب الاستخدام: أفضل %@%%";
+"Token usage details" = "تفاصيل استخدام الرموز";
+"Day totals" = "إجمالي اليوم";
 "Cancel" = "إلغاء";
 "Check for Updates…" = "تحقق من التحديثات...";
 "Check for updates automatically" = "تحقق تلقائيا من التحديثات";
@@ -123,6 +144,7 @@
 "Enabled" = "مفعل";
 "Error" = "خطأ";
 "Error simulation" = "محاكاة الخطأ";
+"Expires: %@" = "تنتهي الصلاحية %@";
 "Expose troubleshooting tools in the Debug tab." = "اعرض أدوات استكشاف الأخطاء في تبويب التصحيح.";
 "Failed" = "فشل";
 "False" = "خطأ";
@@ -917,6 +939,7 @@
 "Weekly" = "الأسبوعي";
 "not detected" = "لم يتم اكتشافه";
 "Estimated from local Codex logs for the selected account." = "تم التقدير من سجلات Codex المحلية للحساب المختار.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "مُقدَّر من ملخص استخدام MiniMax وأسعار الدفع حسب الاستخدام المنشورة · قد يختلف عن الفاتورة";
 "minimax_usage_amount_format" = "الاستخدام: %@ / %@";
 "minimax_used_percent_format" = "المستخدم %@";
 "minimax_service_text_generation" = "توليد النصوص";

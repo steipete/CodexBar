@@ -4,12 +4,17 @@ import FoundationNetworking
 #endif
 
 enum MiniMaxTokenPlanCreditFetcher {
+    struct CreditSnapshot: Equatable {
+        let balance: Double?
+        let expiresAt: Date?
+    }
+
     static func fetch(
         cookieHeader: String,
         groupID: String?,
         region: MiniMaxAPIRegion,
         environment: [String: String],
-        transport: any ProviderHTTPTransport) async throws -> Double?
+        transport: any ProviderHTTPTransport) async throws -> CreditSnapshot
     {
         let effectiveRegion = Self.effectiveRegion(for: region, environment: environment)
         let url = try self.resolveCreditURL(region: region, environment: environment)
@@ -37,16 +42,22 @@ enum MiniMaxTokenPlanCreditFetcher {
             }
             throw MiniMaxUsageError.apiError("HTTP \(response.statusCode)")
         }
-        return try self.parseBalance(data: response.data)
+        return try self.parseSnapshot(data: response.data)
     }
 
     static func parseBalance(data: Data) throws -> Double? {
+        try self.parseSnapshot(data: data).balance
+    }
+
+    static func parseSnapshot(data: Data) throws -> CreditSnapshot {
         let object = try JSONSerialization.jsonObject(with: data, options: [])
         guard let payload = object as? [String: Any] else {
             throw MiniMaxUsageError.parseFailed("MiniMax token plan credit payload was not an object.")
         }
         try self.validateBaseResponse(in: payload)
-        return self.balance(from: payload)
+        return CreditSnapshot(
+            balance: self.balance(from: payload),
+            expiresAt: self.earliestExpiry(from: payload))
     }
 
     static func resolveCreditURL(region: MiniMaxAPIRegion, environment: [String: String]) throws -> URL {
@@ -103,6 +114,20 @@ enum MiniMaxTokenPlanCreditFetcher {
             return balance - used
         }
         return nil
+    }
+
+    private static func earliestExpiry(from payload: [String: Any]) -> Date? {
+        guard let breakdown = payload["balance_breakdown"] as? [String: Any],
+              let buckets = breakdown["buckets"] as? [[String: Any]]
+        else {
+            return nil
+        }
+
+        return buckets.compactMap { bucket -> Date? in
+            guard let balance = self.doubleValue(bucket["balance"]), balance > 0 else { return nil }
+            guard let raw = self.doubleValue(bucket["expire_time_ms"]), raw > 0 else { return nil }
+            return Date(timeIntervalSince1970: raw / 1000.0)
+        }.min()
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {

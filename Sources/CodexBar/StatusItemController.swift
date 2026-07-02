@@ -333,6 +333,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
     }
 
+    func menuBarResetTimeWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
+        if provider == .minimax {
+            return MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot)
+                ?? self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+        }
+        return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+    }
+
     private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?) -> RateWindow? {
         guard let snapshot else { return nil }
         let projection = CodexConsumerProjection.make(

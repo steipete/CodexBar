@@ -2,6 +2,7 @@
 
 " providers" = " 提供商";
 "(System)" = "（System）";
+"7d" = "7 天";
 "30d" = "30 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加 ";
 "API key" = "API 密钥";
@@ -55,6 +56,26 @@
 "CLI paths" = "CLI 路径";
 "CLI sessions" = "CLI 会话";
 "Caches" = "缓存";
+"Cache hit: %@" = "缓存命中率：%@";
+"Cache hit" = "缓存命中";
+"%@ usage" = "%@ 调用量";
+"Latest usage" = "最新调用量";
+"7d tokens" = "近 7 天调用量";
+"Last 7 days: %@ tokens" = "近 7 天：%@ token";
+"Last 7 days" = "近 7 天";
+"Usage trend" = "调用趋势图";
+"MiniMax 7 day token usage trend" = "MiniMax 近 7 天 token 趋势";
+"Language models only; data may be delayed" = "当前仅统计语言模型，数据可能有延迟";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ 输入 · %@ 输出 · 缓存命中 %@";
+"%@ input · %@ output · %@ cache hit" = "%@ 输入 · %@ 输出 · 缓存命中 %@";
+"Total consumed" = "累计调用量";
+"Daily peak" = "单日峰值";
+"Active days" = "活跃天数";
+"Active days: %@" = "活跃天数：%@";
+"Streak: %@ days" = "连续使用：%@ 天";
+"Usage rank: top %@%%" = "用量排名：前 %@%%";
+"Token usage details" = "Token 用量详情";
+"Day totals" = "当日汇总";
 "Cancel" = "取消";
 "Check for Updates…" = "检查更新…";
 "Check for updates automatically" = "自动检查更新";
@@ -125,6 +146,7 @@
 "Enabled" = "已启用";
 "Error" = "错误";
 "Error simulation" = "错误模拟";
+"Expires: %@" = "有效期至 %@";
 "Expose troubleshooting tools in the Debug tab." = "在“调试”标签中显示故障排除工具。";
 "Failed" = "失败";
 "False" = "假";
@@ -651,6 +673,7 @@
 "cost_header_estimated" = "费用（估算）";
 "cost_estimate_hint" = "根据本地日志估算 · 可能与账单不同";
 "Estimated from local Codex logs for the selected account." = "根据所选账户的本地 Codex 日志估算。";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "根据用量详情与官方按量定价估算 · 可能与账单不同";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "未检测到启用 AI Assistant 的 JetBrains IDE。请安装 JetBrains IDE 并启用 AI Assistant。";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "未配置 OpenRouter API 令牌。请设置 OPENROUTER_API_KEY 环境变量，或在“设置”中配置。";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "未找到 z.ai API 令牌。请在 ~/.codexbar/config.json 中设置 apiKey，或设置 Z_AI_API_KEY。";

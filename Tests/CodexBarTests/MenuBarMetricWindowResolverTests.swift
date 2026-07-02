@@ -150,6 +150,30 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `nearest reset window picks soonest minimax quota reset`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(3 * 24 * 3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: sessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            updatedAt: now)
+
+        let window = MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot)
+
+        #expect(window?.resetsAt == sessionReset)
+        #expect(window?.windowMinutes == 300)
+    }
+
+    @Test
     func `automatic metric preserves exhausted minimax session lane`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: nil),

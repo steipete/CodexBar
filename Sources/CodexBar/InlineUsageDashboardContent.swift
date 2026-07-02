@@ -48,6 +48,14 @@ extension UsageMenuCardView.Model {
 
         if input.provider == .minimax,
            input.showOptionalCreditsAndExtraUsage,
+           let usageSummary = input.snapshot?.minimaxUsage?.usageSummary,
+           usageSummary.hasDisplayableData
+        {
+            return Self.minimaxUsageSummaryNotes(usageSummary)
+        }
+
+        if input.provider == .minimax,
+           input.showOptionalCreditsAndExtraUsage,
            let billing = input.snapshot?.minimaxUsage?.billingSummary
         {
             return [
@@ -161,6 +169,17 @@ extension UsageMenuCardView.Model {
     }
 
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
+        if input.provider == .minimax,
+           input.showOptionalCreditsAndExtraUsage,
+           let usageSummary = input.snapshot?.minimaxUsage?.usageSummary,
+           usageSummary.hasDisplayableData,
+           let costSnapshot = primaryCostHistorySnapshot(input: input),
+           !costSnapshot.daily.isEmpty
+        {
+            return self.minimaxCostAndUsageSummaryInlineDashboard(
+                snapshot: costSnapshot,
+                usage: usageSummary)
+        }
         if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
@@ -181,6 +200,13 @@ extension UsageMenuCardView.Model {
            let modelUsage = input.snapshot?.zaiUsage?.modelUsage
         {
             return Self.zaiInlineDashboard(modelUsage: modelUsage, now: input.now)
+        }
+        if input.provider == .minimax,
+           input.showOptionalCreditsAndExtraUsage,
+           let usageSummary = input.snapshot?.minimaxUsage?.usageSummary,
+           usageSummary.hasDisplayableData
+        {
+            return Self.minimaxUsageSummaryInlineDashboard(usageSummary)
         }
         if input.provider == .minimax,
            input.showOptionalCreditsAndExtraUsage,
@@ -213,7 +239,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
-        provider == .openai || provider == .mistral
+        provider == .openai || provider == .mistral || provider == .minimax
     }
 
     static func primaryCostHistorySnapshot(input: Input) -> CostUsageTokenSnapshot? {
@@ -225,6 +251,11 @@ extension UsageMenuCardView.Model {
             return input.snapshot == nil ? input.tokenSnapshot : nil
         case .mistral:
             if let projected = input.snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
+                return projected
+            }
+            return input.snapshot == nil ? input.tokenSnapshot : nil
+        case .minimax:
+            if let projected = input.snapshot?.minimaxUsage?.usageSummary?.toCostUsageTokenSnapshot() {
                 return projected
             }
             return input.snapshot == nil ? input.tokenSnapshot : nil
@@ -357,7 +388,9 @@ extension UsageMenuCardView.Model {
                     emphasis: false),
                 .init(
                     title: tokenHistoryTitle,
-                    value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    value: snapshot.last30DaysTokens.map {
+                        Self.tokenCountString($0, provider: provider)
+                    } ?? "—",
                     emphasis: false),
             ] + Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest),
             points: points,
@@ -551,6 +584,210 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
+    private static func minimaxUsageSummaryInlineDashboard(_ usage: MiniMaxUsageSummary) -> InlineUsageDashboardModel {
+        let trendDays = usage.trendDays(last: 7)
+        let points = trendDays.map {
+            let tokenText = Self.minimaxTokenString($0.totalToken)
+            let cacheText = UsageFormatter.optionalPercentString($0.cacheHitPercent)
+            let cacheLine = String(format: L("Cache hit: %@"), cacheText)
+            return InlineUsageDashboardModel.Point(
+                id: $0.date,
+                label: Self.shortDayLabel($0.date),
+                value: Double($0.totalToken),
+                accessibilityValue: "\($0.date): \(tokenText) \(L("tokens")) · \(cacheLine)")
+        }
+        let cacheText = UsageFormatter.optionalPercentString(usage.snapshotDay?.cacheHitPercent)
+        let todayTitle = usage.lastUpdateTime
+            .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : String(format: L("%@ usage"), $0) }
+            ?? L("Today")
+
+        return InlineUsageDashboardModel(
+            accessibilityLabel: L("MiniMax 7 day token usage trend"),
+            valueStyle: .tokens,
+            kpis: [
+                .init(
+                    title: todayTitle,
+                    value: Self.minimaxTokenString(usage.latestSnapshotTokens),
+                    emphasis: true),
+                .init(
+                    title: L("7d tokens"),
+                    value: Self.minimaxTokenString(usage.last7DaysTokens),
+                    emphasis: false),
+                .init(
+                    title: L("Cache hit"),
+                    value: cacheText,
+                    emphasis: false),
+                .init(
+                    title: L("30d tokens"),
+                    value: Self.minimaxTokenString(usage.last30DaysTokens),
+                    emphasis: false),
+            ],
+            points: points,
+            detailLines: Self.minimaxUsageSummaryCardDetailLines(usage))
+    }
+
+    private static func minimaxLatestUsageKPITitle(_ usage: MiniMaxUsageSummary) -> String {
+        if let time = usage.lastUpdateTime?.trimmingCharacters(in: .whitespacesAndNewlines), !time.isEmpty {
+            return String(format: L("%@ usage"), time)
+        }
+        return L("Latest usage")
+    }
+
+    private static func minimaxCostAndUsageSummaryInlineDashboard(
+        snapshot: CostUsageTokenSnapshot,
+        usage: MiniMaxUsageSummary) -> InlineUsageDashboardModel
+    {
+        let base = self.costHistoryInlineDashboard(provider: .minimax, snapshot: snapshot)
+        let cacheText = UsageFormatter.optionalPercentString(usage.snapshotDay?.cacheHitPercent)
+        return InlineUsageDashboardModel(
+            accessibilityLabel: base.accessibilityLabel,
+            valueStyle: base.valueStyle,
+            kpis: [
+                base.kpis[0],
+                base.kpis[1],
+                .init(
+                    title: self.minimaxLatestUsageKPITitle(usage),
+                    value: self.minimaxTokenString(usage.latestSnapshotTokens),
+                    emphasis: false),
+                .init(
+                    title: L("7d tokens"),
+                    value: self.minimaxTokenString(usage.last7DaysTokens),
+                    emphasis: false),
+                .init(
+                    title: L("Cache hit"),
+                    value: cacheText,
+                    emphasis: false),
+                .init(
+                    title: L("30d tokens"),
+                    value: self.minimaxTokenString(usage.last30DaysTokens),
+                    emphasis: false),
+            ],
+            points: base.points,
+            detailLines: self.minimaxCostDashboardDetailLines(snapshot: snapshot, usage: usage))
+    }
+
+    private static func minimaxCostDashboardDetailLines(
+        snapshot: CostUsageTokenSnapshot,
+        usage: MiniMaxUsageSummary) -> [String]
+    {
+        var details: [String] = []
+        if let topModel = Self.topCostModel(from: snapshot.daily) {
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+        }
+        if let day = usage.snapshotDay,
+           let todayLine = Self.minimaxTodayBreakdownLine(day)
+        {
+            details.append(todayLine)
+        }
+        if let hint = Self.tokenUsageHint(provider: .minimax) {
+            details.append(hint)
+        }
+        details.append(L("Language models only; data may be delayed"))
+        return details
+    }
+
+    private static func minimaxUsageSummaryCardDetailLines(_ usage: MiniMaxUsageSummary) -> [String] {
+        var details: [String] = []
+        if let day = usage.snapshotDay,
+           let todayLine = Self.minimaxTodayBreakdownLine(day)
+        {
+            details.append(todayLine)
+        }
+        if let total = usage.totalTokenConsumed, !total.isEmpty {
+            details.append("\(L("Total consumed")): \(total)")
+        }
+        if let cache = usage.snapshotDay?.cacheHitPercent {
+            details.append(
+                String(format: L("Cache hit: %@"), UsageFormatter.optionalPercentString(cache)))
+        }
+        if let activeDays = usage.activeDays {
+            details.append(String(format: L("Active days: %@"), "\(activeDays)"))
+        }
+        if let streak = usage.currentConsecutiveDays {
+            details.append(String(format: L("Streak: %@ days"), "\(streak)"))
+        }
+        if let rank = usage.usageRankingPercent {
+            details.append(
+                String(
+                    format: L("Usage rank: top %@%%"),
+                    UsageFormatter.decimalString(rank)))
+        }
+        if let updated = usage.lastUpdateTime, !updated.isEmpty {
+            details.append("\(L("Updated")): \(updated)")
+        }
+        if let topModel = Self.topMiniMaxUsageSummaryModel(from: usage.days) {
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel.model)) (\(topModel.tokens))")
+        }
+        details.append(L("Language models only; data may be delayed"))
+        return details
+    }
+
+    private static func minimaxTodayBreakdownLine(_ day: MiniMaxUsageSummaryDay) -> String? {
+        if let topModel = day.models.max(by: { lhs, rhs in
+            if lhs.totalToken == rhs.totalToken { return lhs.model > rhs.model }
+            return lhs.totalToken < rhs.totalToken
+        }) {
+            let cacheText = UsageFormatter.optionalPercentString(topModel.cacheHitPercent)
+            return String(
+                format: L("%@ · %@ input · %@ output · %@ cache hit"),
+                Self.shortModelName(topModel.model),
+                Self.minimaxTokenString(topModel.inputToken),
+                Self.minimaxTokenString(topModel.outputToken),
+                cacheText)
+        }
+        guard day.totalToken > 0 else { return nil }
+        let cacheText = UsageFormatter.optionalPercentString(day.cacheHitPercent)
+        return String(
+            format: L("%@ input · %@ output · %@ cache hit"),
+            Self.minimaxTokenString(day.totalInputToken),
+            Self.minimaxTokenString(day.totalOutputToken),
+            cacheText)
+    }
+
+    private static func minimaxTokenString(_ value: Int) -> String {
+        UsageFormatter.tokenCountString(value, fractionDigits: 2)
+    }
+
+    private static func tokenCountString(_ value: Int, provider: UsageProvider) -> String {
+        if provider == .minimax {
+            return self.minimaxTokenString(value)
+        }
+        return UsageFormatter.tokenCountString(value)
+    }
+
+    private static func minimaxUsageSummaryNotes(_ usage: MiniMaxUsageSummary) -> [String] {
+        [
+            String(
+                format: L("Today: %@ tokens"),
+                self.minimaxTokenString(usage.latestSnapshotTokens)),
+            String(
+                format: L("Last 7 days: %@ tokens"),
+                self.minimaxTokenString(usage.last7DaysTokens)),
+            String(
+                format: L("Last 30 days: %@ tokens"),
+                self.minimaxTokenString(usage.last30DaysTokens)),
+        ] + self.minimaxUsageSummaryCardDetailLines(usage)
+    }
+
+    private static func topMiniMaxUsageSummaryModel(
+        from days: [MiniMaxUsageSummaryDay]) -> (model: String, tokens: String)?
+    {
+        var totals: [String: Int] = [:]
+        for day in days {
+            for model in day.models {
+                totals[model.model, default: 0] += model.totalToken
+            }
+        }
+        guard let top = totals.max(by: { lhs, rhs in
+            if lhs.value == rhs.value { return lhs.key > rhs.key }
+            return lhs.value < rhs.value
+        }) else {
+            return nil
+        }
+        return (top.key, Self.minimaxTokenString(top.value))
+    }
+
     private static func deepseekInlineDashboard(_ usage: DeepSeekUsageSummary) -> InlineUsageDashboardModel {
         let symbol = usage.currency == "CNY" ? "¥" : "$"
         let points = usage.daily.suffix(30).map {
@@ -721,7 +958,8 @@ struct InlineUsageDashboardContent: View {
                 Text(line)
                     .font(.caption)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
