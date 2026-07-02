@@ -59,6 +59,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case poe
     case chutes
     case crossmodel
+    case longcat
 }
 
 // swiftformat:enable sortDeclarations
@@ -118,6 +119,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case poe
     case chutes
     case crossmodel
+    case longcat
     case combined
 }
 
@@ -260,6 +262,15 @@ public enum ProviderBrowserCookieDefaults {
 
     /// Copilot budget imports should stay Chrome-only by default to avoid prompting unrelated browsers.
     public static var copilotCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
+
+    /// LongCat Auto imports only from Chrome by default to avoid prompting unrelated browser keychains.
+    public static var longcatCookieImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
         [.chrome]
         #else

@@ -69,5 +69,11 @@ struct BrowserCookieOrderStatusStringTests {
         #expect(ProviderDefaults.metadata[.copilot]?.browserCookieOrder == [.chrome])
         #expect(ProviderBrowserCookieDefaults.copilotCookieImportOrder == [.chrome])
     }
+
+    @Test
+    func `longcat cookie imports default to chrome only`() {
+        #expect(ProviderDefaults.metadata[.longcat]?.browserCookieOrder == [.chrome])
+        #expect(ProviderBrowserCookieDefaults.longcatCookieImportOrder == [.chrome])
+    }
     #endif
 }

@@ -29,6 +29,7 @@ struct ProviderIconResourcesTests {
             "commandcode",
             "t3chat",
             "kimi",
+            "longcat",
             "bedrock",
             "elevenlabs",
             "groq",
