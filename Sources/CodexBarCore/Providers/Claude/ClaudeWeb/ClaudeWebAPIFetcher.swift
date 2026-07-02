@@ -178,6 +178,7 @@ public enum ClaudeWebAPIFetcher {
         public let weeklyPercentUsed: Double?
         public let weeklyResetsAt: Date?
         public let opusPercentUsed: Double?
+        public let fablePercentUsed: Double?
         public let extraRateWindows: [NamedRateWindow]
         public let extraUsageCost: ProviderCostSnapshot?
         public let accountOrganization: String?
@@ -196,6 +197,7 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: Double?,
             weeklyResetsAt: Date?,
             opusPercentUsed: Double?,
+            fablePercentUsed: Double? = nil,
             extraRateWindows: [NamedRateWindow],
             extraUsageCost: ProviderCostSnapshot?,
             accountOrganization: String?,
@@ -208,6 +210,7 @@ public enum ClaudeWebAPIFetcher {
             self.weeklyPercentUsed = weeklyPercentUsed
             self.weeklyResetsAt = weeklyResetsAt
             self.opusPercentUsed = opusPercentUsed
+            self.fablePercentUsed = fablePercentUsed
             self.extraRateWindows = extraRateWindows
             self.extraUsageCost = extraUsageCost
             self.accountOrganization = accountOrganization
@@ -327,6 +330,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                fablePercentUsed: usage.fablePercentUsed,
                 extraRateWindows: usage.extraRateWindows,
                 extraUsageCost: extra,
                 accountOrganization: usage.accountOrganization,
@@ -346,6 +350,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                fablePercentUsed: usage.fablePercentUsed,
                 extraRateWindows: usage.extraRateWindows,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: usage.accountOrganization,
@@ -360,6 +365,7 @@ public enum ClaudeWebAPIFetcher {
                 weeklyPercentUsed: usage.weeklyPercentUsed,
                 weeklyResetsAt: usage.weeklyResetsAt,
                 opusPercentUsed: usage.opusPercentUsed,
+                fablePercentUsed: usage.fablePercentUsed,
                 extraRateWindows: usage.extraRateWindows,
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: name,
@@ -646,6 +652,18 @@ public enum ClaudeWebAPIFetcher {
         } else if let sevenDayOpus = json["seven_day_opus"] as? [String: Any] {
             opusPercent = Self.percentValue(from: sevenDayOpus["utilization"])
         }
+
+        // Parse seven_day_fable usage (independent weekly Fable bucket)
+        var fablePercent: Double?
+        if let sevenDayFable = json["seven_day_fable"] as? [String: Any] {
+            fablePercent = Self.percentValue(from: sevenDayFable["utilization"])
+        }
+
+        // Newest payload shape: model-scoped weekly limits live in a `limits` array
+        // (scope.model.display_name), leaving the legacy seven_day_* keys null. Use as a fallback.
+        let scopedWeekly = claudeWebScopedWeeklyPercents(from: json)
+        if fablePercent == nil { fablePercent = scopedWeekly.fable }
+        if opusPercent == nil { opusPercent = scopedWeekly.modelSpecific }
         let extraRateParse = ClaudeWebExtraRateWindowParser.parse(from: json)
         if let sourceKey = extraRateParse.sourceKeys["claude-routines"] {
             logger?("Usage API extra window key matched: routines=\(sourceKey)")
@@ -658,6 +676,7 @@ public enum ClaudeWebAPIFetcher {
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
             opusPercentUsed: opusPercent,
+            fablePercentUsed: fablePercent,
             extraRateWindows: extraRateParse.windows,
             extraUsageCost: extraUsageCost,
             accountOrganization: nil,
@@ -1271,4 +1290,27 @@ private struct ClaudeWebOrganizationResponse: Decodable {
         let normalized = self.normalizedCapabilities
         return !normalized.isEmpty && normalized == ["api"]
     }
+}
+
+/// Extracts model-scoped weekly percentages from the newest usage payload's `limits` array, where each
+/// `weekly_scoped` entry identifies its model via `scope.model.display_name` (e.g. "Fable" / "Sonnet").
+/// Returns the Fable percentage and the first non-Fable model-specific percentage, if present.
+private func claudeWebScopedWeeklyPercents(from json: [String: Any]) -> (fable: Double?, modelSpecific: Double?) {
+    guard let limits = json["limits"] as? [[String: Any]] else { return (nil, nil) }
+    var fable: Double?
+    var modelSpecific: Double?
+    for limit in limits {
+        guard (limit["kind"] as? String) == "weekly_scoped",
+              let scope = limit["scope"] as? [String: Any],
+              let model = scope["model"] as? [String: Any],
+              let name = model["display_name"] as? String,
+              let percent = (limit["percent"] as? NSNumber)?.doubleValue
+        else { continue }
+        if name.caseInsensitiveCompare("Fable") == .orderedSame {
+            if fable == nil { fable = percent }
+        } else if modelSpecific == nil {
+            modelSpecific = percent
+        }
+    }
+    return (fable, modelSpecific)
 }

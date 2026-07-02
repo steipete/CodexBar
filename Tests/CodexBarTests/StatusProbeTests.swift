@@ -108,6 +108,8 @@ struct StatusProbeTests {
         1% used  (Resets Dec 2 at 12am (Europe/Vienna))
         Current week (Sonnet only)
         1% used (Resets Dec 2 at 12am (Europe/Vienna))
+        Current week (Fable)
+        35% used (Resets Dec 2 at 12am (Europe/Vienna))
 
         Nov 24, 2025 update:
         We've increased your limits and removed the Opus cap,
@@ -121,11 +123,13 @@ struct StatusProbeTests {
         #expect(snap.sessionPercentLeft == 99)
         #expect(snap.weeklyPercentLeft == 99)
         #expect(snap.opusPercentLeft == 99)
+        #expect(snap.fablePercentLeft == 65)
         #expect(snap.accountEmail == "user@example.com")
         #expect(snap.accountOrganization == "Example Org")
         #expect(snap.primaryResetDescription == "Resets 5am (Europe/Vienna)")
         #expect(snap.secondaryResetDescription == "Resets Dec 2 at 12am (Europe/Vienna)")
         #expect(snap.opusResetDescription == "Resets Dec 2 at 12am (Europe/Vienna)")
+        #expect(snap.fableResetDescription == "Resets Dec 2 at 12am (Europe/Vienna)")
     }
 
     @Test

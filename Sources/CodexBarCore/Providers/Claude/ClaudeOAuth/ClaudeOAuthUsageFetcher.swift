@@ -152,6 +152,11 @@ struct OAuthUsageResponse: Decodable {
     let sevenDayOAuthApps: OAuthUsageWindow?
     let sevenDayOpus: OAuthUsageWindow?
     let sevenDaySonnet: OAuthUsageWindow?
+    let sevenDayFable: OAuthUsageWindow?
+    /// Model-scoped weekly limit (from the `limits` array) whose model is NOT Fable — e.g. Sonnet/Opus.
+    /// Used as a fallback for the model-specific weekly window on the newest payload shape, where the
+    /// legacy top-level `seven_day_sonnet`/`seven_day_opus` keys are null.
+    let sevenDayModelScoped: OAuthUsageWindow?
     let sevenDayRoutines: OAuthUsageWindow?
     let sevenDayRoutinesSourceKey: String?
     let iguanaNecktie: OAuthUsageWindow?
@@ -164,6 +169,21 @@ struct OAuthUsageResponse: Decodable {
         self.sevenDayOAuthApps = Self.decodeWindow(in: container, keys: ["seven_day_oauth_apps"])
         self.sevenDayOpus = Self.decodeWindow(in: container, keys: ["seven_day_opus"])
         self.sevenDaySonnet = Self.decodeWindow(in: container, keys: ["seven_day_sonnet"])
+        // Newest usage payloads move model-scoped weekly limits into a `limits` array (each
+        // `weekly_scoped` entry carries `scope.model.display_name`, e.g. "Fable"/"Sonnet") and leave the
+        // legacy top-level `seven_day_*` keys null. Prefer the explicit top-level key when present, else
+        // fall back to the matching scoped-limit entry so both shapes are supported.
+        let limits: [OAuthUsageLimit] = Self.decodeValue(in: container, keys: ["limits"]) ?? []
+        func scopedWeeklyWindow(isFable: Bool) -> OAuthUsageWindow? {
+            limits.first { limit in
+                guard limit.kind == "weekly_scoped", let name = limit.modelDisplayName else { return false }
+                let matchesFable = name.caseInsensitiveCompare("Fable") == .orderedSame
+                return isFable ? matchesFable : !matchesFable
+            }?.asWindow
+        }
+        self.sevenDayFable = Self.decodeWindow(in: container, keys: ["seven_day_fable"])
+            ?? scopedWeeklyWindow(isFable: true)
+        self.sevenDayModelScoped = scopedWeeklyWindow(isFable: false)
         let routines = Self.decodeWindowWithSource(in: container, keys: [
             "seven_day_routines",
             "seven_day_claude_routines",
@@ -239,6 +259,58 @@ struct OAuthUsageWindow: Decodable {
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
+    }
+}
+
+/// One entry of the newest usage payload's `limits` array. Model-scoped weekly limits carry the human
+/// model name via `scope.model.display_name` (e.g. "Fable"), which is the authoritative way to identify
+/// the model — the legacy top-level `seven_day_*` keys are null on this payload shape.
+struct OAuthUsageLimit: Decodable {
+    let kind: String?
+    let group: String?
+    let percent: Double?
+    let resetsAt: String?
+    let isActive: Bool?
+    let modelDisplayName: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case group
+        case percent
+        case resetsAt = "resets_at"
+        case isActive = "is_active"
+        case scope
+    }
+
+    private enum ScopeKeys: String, CodingKey {
+        case model
+    }
+
+    private enum ModelKeys: String, CodingKey {
+        case displayName = "display_name"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.kind = try container.decodeIfPresent(String.self, forKey: .kind)
+        self.group = try container.decodeIfPresent(String.self, forKey: .group)
+        self.percent = try container.decodeIfPresent(Double.self, forKey: .percent)
+        self.resetsAt = try container.decodeIfPresent(String.self, forKey: .resetsAt)
+        self.isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive)
+        // `scope` is null for session/weekly_all entries; only weekly_scoped carries scope.model.
+        if let scope = try? container.nestedContainer(keyedBy: ScopeKeys.self, forKey: .scope),
+           let model = try? scope.nestedContainer(keyedBy: ModelKeys.self, forKey: .model)
+        {
+            self.modelDisplayName = try? model.decodeIfPresent(String.self, forKey: .displayName)
+        } else {
+            self.modelDisplayName = nil
+        }
+    }
+
+    /// Adapts this limit into the `OAuthUsageWindow` shape (`utilization` + `resets_at`) so it can flow
+    /// through the same makeWindow(_:windowMinutes:) mapping as the legacy top-level windows.
+    var asWindow: OAuthUsageWindow {
+        OAuthUsageWindow(utilization: self.percent, resetsAt: self.resetsAt)
     }
 }
 

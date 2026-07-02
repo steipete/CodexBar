@@ -536,6 +536,7 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
+            appendWindow(snapshot.quaternary, name: .fable)
         case .antigravity:
             let namedWeeklyWindows = snapshot.extraRateWindows?
                 .filter {

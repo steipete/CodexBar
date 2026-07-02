@@ -19,6 +19,7 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let primary: RateWindow?
         public let secondary: RateWindow?
         public let tertiary: RateWindow?
+        public let quaternary: RateWindow?
         public let usageRows: [WidgetUsageRowSnapshot]?
         public let creditsRemaining: Double?
         public let codeReviewRemainingPercent: Double?
@@ -31,6 +32,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             primary: RateWindow?,
             secondary: RateWindow?,
             tertiary: RateWindow?,
+            quaternary: RateWindow? = nil,
             usageRows: [WidgetUsageRowSnapshot]? = nil,
             creditsRemaining: Double?,
             codeReviewRemainingPercent: Double?,
@@ -42,6 +44,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.primary = primary
             self.secondary = secondary
             self.tertiary = tertiary
+            self.quaternary = quaternary
             self.usageRows = usageRows
             self.creditsRemaining = creditsRemaining
             self.codeReviewRemainingPercent = codeReviewRemainingPercent

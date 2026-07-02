@@ -1178,6 +1178,22 @@ extension UsageMenuCardView.Model {
                     thresholds: input.quotaWarningThresholds[.weekly],
                     showUsed: input.usageBarsShowUsed)))
         }
+        if labels.showsQuaternary, let fable = snapshot.quaternary {
+            metrics.append(Metric(
+                id: "quaternary",
+                title: labels.quaternary,
+                percent: Self.clamped(input.usageBarsShowUsed ? fable.usedPercent : fable.remainingPercent),
+                percentStyle: percentStyle,
+                resetText: Self.resetText(for: fable, style: input.resetTimeDisplayStyle, now: input.now),
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true,
+                warningMarkerPercents: Self.warningMarkerPercents(
+                    thresholds: input.quotaWarningThresholds[.weekly],
+                    showUsed: input.usageBarsShowUsed)))
+        }
         metrics.append(contentsOf: Self.extraRateWindowMetrics(
             snapshot: snapshot,
             input: input,

@@ -67,6 +67,10 @@ struct ProviderQuotaFixtureContractTests {
         #expect(snapshot.secondary?.usedPercent == 21)
         #expect(snapshot.secondary?.windowMinutes == 10080)
         #expect(snapshot.secondary?.resetDescription?.contains("Europe/Vienna") == true)
+        #expect(snapshot.opus?.usedPercent == 3)
+        #expect(snapshot.fable?.usedPercent == 5)
+        #expect(snapshot.fable?.windowMinutes == 10080)
+        #expect(snapshot.fable?.resetDescription?.contains("Europe/Vienna") == true)
     }
 
     private static func fixtureData(provider: String, name: String, fileExtension: String) throws -> Data {

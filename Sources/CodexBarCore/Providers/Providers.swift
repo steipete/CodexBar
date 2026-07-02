@@ -126,6 +126,8 @@ public struct ProviderMetadata: Sendable {
     public let weeklyLabel: String
     public let opusLabel: String?
     public let supportsOpus: Bool
+    public let fableLabel: String?
+    public let supportsFable: Bool
     public let supportsCredits: Bool
     public let creditsHint: String
     public let toggleTitle: String
@@ -152,6 +154,8 @@ public struct ProviderMetadata: Sendable {
         weeklyLabel: String,
         opusLabel: String?,
         supportsOpus: Bool,
+        fableLabel: String? = nil,
+        supportsFable: Bool = false,
         supportsCredits: Bool,
         creditsHint: String,
         toggleTitle: String,
@@ -173,6 +177,8 @@ public struct ProviderMetadata: Sendable {
         self.weeklyLabel = weeklyLabel
         self.opusLabel = opusLabel
         self.supportsOpus = supportsOpus
+        self.fableLabel = fableLabel
+        self.supportsFable = supportsFable
         self.supportsCredits = supportsCredits
         self.creditsHint = creditsHint
         self.toggleTitle = toggleTitle

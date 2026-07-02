@@ -596,6 +596,12 @@ struct WidgetUsageRow: Identifiable, Equatable {
                     title: metadata?.opusLabel ?? "Opus",
                     percentLeft: entry.tertiary?.remainingPercent))
             }
+            if metadata?.supportsFable == true {
+                defaultRows.append(WidgetUsageRow(
+                    id: "quaternary",
+                    title: metadata?.fableLabel ?? "Fable",
+                    percentLeft: entry.quaternary?.remainingPercent))
+            }
             rows = defaultRows.filter { $0.percentLeft != nil }
         }
         guard let limit else { return rows }

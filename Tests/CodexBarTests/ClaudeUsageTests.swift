@@ -680,7 +680,8 @@ struct ClaudeUsageTests {
         {
           "five_hour": { "utilization": 9, "resets_at": "2025-12-23T16:00:00.000Z" },
           "seven_day": { "utilization": 4, "resets_at": "2025-12-29T23:00:00.000Z" },
-          "seven_day_opus": { "utilization": 1 }
+          "seven_day_opus": { "utilization": 1 },
+          "seven_day_fable": { "utilization": 6 }
         }
         """
         let data = Data(json.utf8)
@@ -688,6 +689,7 @@ struct ClaudeUsageTests {
         #expect(parsed.sessionPercentUsed == 9)
         #expect(parsed.weeklyPercentUsed == 4)
         #expect(parsed.opusPercentUsed == 1)
+        #expect(parsed.fablePercentUsed == 6)
         #expect(parsed.sessionResetsAt != nil)
         #expect(parsed.weeklyResetsAt != nil)
     }
@@ -703,6 +705,27 @@ struct ClaudeUsageTests {
         let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
         #expect(parsed.sessionPercentUsed == 9)
         #expect(parsed.weeklyPercentUsed == nil)
+    }
+
+    @Test
+    func `parses claude web API model-scoped Fable limit from limits array`() throws {
+        // Newest payload shape: model-scoped weekly limits live in `limits`, not top-level seven_day_* keys.
+        let json = """
+        {
+          "five_hour": { "utilization": 9 },
+          "seven_day": { "utilization": 4 },
+          "seven_day_fable": null,
+          "limits": [
+            { "kind": "weekly_scoped", "group": "weekly", "percent": 59,
+              "scope": { "model": { "id": null, "display_name": "Fable" } }, "is_active": false },
+            { "kind": "weekly_scoped", "group": "weekly", "percent": 42,
+              "scope": { "model": { "id": null, "display_name": "Sonnet" } }, "is_active": true }
+          ]
+        }
+        """
+        let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(Data(json.utf8))
+        #expect(parsed.fablePercentUsed == 59)
+        #expect(parsed.opusPercentUsed == 42)
     }
 
     @Test
@@ -888,7 +911,8 @@ struct ClaudeOAuthUsageMappingTests {
         let json = """
         {
           "seven_day": { "utilization": 42, "resets_at": "2025-12-29T23:00:00.000Z" },
-          "seven_day_sonnet": { "utilization": 17, "resets_at": "2025-12-29T23:00:00.000Z" }
+          "seven_day_sonnet": { "utilization": 17, "resets_at": "2025-12-29T23:00:00.000Z" },
+          "seven_day_fable": { "utilization": 8, "resets_at": "2025-12-29T23:00:00.000Z" }
         }
         """
         let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
@@ -897,6 +921,66 @@ struct ClaudeOAuthUsageMappingTests {
         #expect(snapshot.primary.windowMinutes == 7 * 24 * 60)
         #expect(snapshot.secondary?.usedPercent == 42)
         #expect(snapshot.opus?.usedPercent == 17)
+        #expect(snapshot.fable?.usedPercent == 8)
+        #expect(snapshot.fable?.windowMinutes == 7 * 24 * 60)
+    }
+
+    @Test
+    func `oauth usage reads model-scoped Fable weekly limit from limits array`() throws {
+        // Real newest OAuth payload: top-level seven_day_* model keys are null and the model-scoped
+        // weekly limit (Fable) lives in the `limits` array via scope.model.display_name.
+        let json = """
+        {
+          "five_hour": { "utilization": 100, "resets_at": "2026-07-02T07:10:00.277940+00:00" },
+          "seven_day": { "utilization": 34, "resets_at": "2026-07-04T11:00:00.277967+00:00" },
+          "seven_day_opus": null,
+          "seven_day_sonnet": null,
+          "seven_day_fable": null,
+          "limits": [
+            { "kind": "session", "group": "session", "percent": 100,
+              "resets_at": "2026-07-02T07:10:00.277940+00:00", "scope": null, "is_active": true },
+            { "kind": "weekly_all", "group": "weekly", "percent": 34,
+              "resets_at": "2026-07-04T11:00:00.277967+00:00", "scope": null, "is_active": false },
+            { "kind": "weekly_scoped", "group": "weekly", "percent": 59,
+              "resets_at": "2026-07-04T10:59:59.278196+00:00",
+              "scope": { "model": { "id": null, "display_name": "Fable" } }, "is_active": false }
+          ]
+        }
+        """
+        let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+
+        #expect(snapshot.primary.usedPercent == 100)
+        #expect(snapshot.secondary?.usedPercent == 34)
+        // No non-Fable scoped limit → the model-specific weekly slot stays empty.
+        #expect(snapshot.opus == nil)
+        // Fable weekly sourced from limits[].scope.model.display_name == "Fable".
+        #expect(snapshot.fable?.usedPercent == 59)
+        #expect(snapshot.fable?.windowMinutes == 7 * 24 * 60)
+    }
+
+    @Test
+    func `oauth usage splits scoped limits into model-specific and Fable slots`() throws {
+        // When both a non-Fable (Sonnet) and a Fable weekly_scoped limit are present, they map to the
+        // model-specific (opus) slot and the Fable slot respectively.
+        let json = """
+        {
+          "five_hour": { "utilization": 10, "resets_at": "2026-07-02T07:10:00Z" },
+          "seven_day": { "utilization": 20, "resets_at": "2026-07-04T11:00:00Z" },
+          "seven_day_sonnet": null,
+          "limits": [
+            { "kind": "weekly_scoped", "group": "weekly", "percent": 42,
+              "resets_at": "2026-07-04T11:00:00Z",
+              "scope": { "model": { "id": null, "display_name": "Sonnet" } }, "is_active": true },
+            { "kind": "weekly_scoped", "group": "weekly", "percent": 59,
+              "resets_at": "2026-07-04T11:00:00Z",
+              "scope": { "model": { "id": null, "display_name": "Fable" } }, "is_active": false }
+          ]
+        }
+        """
+        let snapshot = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+
+        #expect(snapshot.opus?.usedPercent == 42)
+        #expect(snapshot.fable?.usedPercent == 59)
     }
 
     @Test

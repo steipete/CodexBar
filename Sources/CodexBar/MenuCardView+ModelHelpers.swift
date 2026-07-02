@@ -1,6 +1,16 @@
 import CodexBarCore
 import SwiftUI
 
+/// Resolved display labels for a provider's session/weekly/model-specific/Fable rate windows.
+struct RateWindowLabels {
+    let primary: String
+    let secondary: String
+    let tertiary: String
+    let showsTertiary: Bool
+    let quaternary: String
+    let showsQuaternary: Bool
+}
+
 extension UsageMenuCardView.Model {
     struct PaceDetail {
         let leftLabel: String
@@ -218,10 +228,16 @@ extension UsageMenuCardView.Model {
 
     static func rateWindowLabels(
         input: Input,
-        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+        snapshot: UsageSnapshot) -> RateWindowLabels
     {
         if input.provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", L("Weekly"), L("Monthly"), true)
+            return RateWindowLabels(
+                primary: "5-hour",
+                secondary: L("Weekly"),
+                tertiary: L("Monthly"),
+                showsTertiary: true,
+                quaternary: "Fable",
+                showsQuaternary: false)
         }
         // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
         let primaryLabel = if input.provider == .cursor, snapshot.cursorRequests != nil {
@@ -231,11 +247,13 @@ extension UsageMenuCardView.Model {
         } else {
             input.metadata.sessionLabel
         }
-        return (
-            L(primaryLabel),
-            L(input.metadata.weeklyLabel),
-            input.metadata.opusLabel.map(L) ?? L("Sonnet"),
-            input.metadata.supportsOpus)
+        return RateWindowLabels(
+            primary: L(primaryLabel),
+            secondary: L(input.metadata.weeklyLabel),
+            tertiary: input.metadata.opusLabel.map(L) ?? L("Sonnet"),
+            showsTertiary: input.metadata.supportsOpus,
+            quaternary: input.metadata.fableLabel.map(L) ?? L("Fable"),
+            showsQuaternary: input.metadata.supportsFable)
     }
 
     static func resetText(

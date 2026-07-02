@@ -237,6 +237,14 @@ struct MenuDescriptor {
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: opusResetOverride)
             }
+            if labels.showsQuaternary, let fable = snap.quaternary {
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: labels.quaternary,
+                    window: fable,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
+            }
 
             Self.appendProviderUsageSummaries(entries: &entries, snapshot: snap)
             if snap.rateLimitsUnavailable(for: provider) {
@@ -708,19 +716,27 @@ struct MenuDescriptor {
     private static func rateWindowLabels(
         provider: UsageProvider,
         metadata: ProviderMetadata,
-        snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
+        snapshot: UsageSnapshot) -> RateWindowLabels
     {
         if provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", L("Weekly"), L("Monthly"), true)
+            return RateWindowLabels(
+                primary: "5-hour",
+                secondary: L("Weekly"),
+                tertiary: L("Monthly"),
+                showsTertiary: true,
+                quaternary: "Fable",
+                showsQuaternary: false)
         }
         let primaryLabel = provider == .grok
             ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
             : metadata.sessionLabel
-        return (
-            L(primaryLabel),
-            L(metadata.weeklyLabel),
-            metadata.opusLabel.map(L) ?? L("Sonnet"),
-            metadata.supportsOpus)
+        return RateWindowLabels(
+            primary: L(primaryLabel),
+            secondary: L(metadata.weeklyLabel),
+            tertiary: metadata.opusLabel.map(L) ?? L("Sonnet"),
+            showsTertiary: metadata.supportsOpus,
+            quaternary: metadata.fableLabel.map(L) ?? L("Fable"),
+            showsQuaternary: metadata.supportsFable)
     }
 
     private static func appendRateWindow(
