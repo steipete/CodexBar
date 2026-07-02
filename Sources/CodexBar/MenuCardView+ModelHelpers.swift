@@ -414,7 +414,8 @@ extension UsageMenuCardView.Model {
         pace: UsagePace? = nil) -> PaceDetail?
     {
         guard input.provider == .cursor,
-              window.windowMinutes != nil
+              window.windowMinutes != nil,
+              window.remainingPercent > 0
         else { return nil }
         let resolved = pace ?? UsagePace.weekly(
             window: window,
