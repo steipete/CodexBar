@@ -137,6 +137,17 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             return .skippedByCooldown
         }
 
+        if let mcpOAuthOnlyFailure = self.mcpOAuthOnlyKeychainFailureIfPresent(
+            readStrategy: configuration.readStrategy,
+            keychainAccessDisabled: configuration.keychainAccessDisabled)
+        {
+            self.recordAttempt(now: now, cooldown: self.defaultCooldownInterval, state: state)
+            self.log.warning(
+                "Claude OAuth delegated refresh skipped: Claude keychain has MCP OAuth state only",
+                metadata: ["readStrategy": configuration.readStrategy.rawValue])
+            return .attemptedFailed(mcpOAuthOnlyFailure)
+        }
+
         let baseline = self.currentKeychainChangeObservationBaseline(
             readStrategy: configuration.readStrategy,
             keychainAccessDisabled: configuration.keychainAccessDisabled,
@@ -358,9 +369,26 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         interaction: ProviderInteraction) -> Data?
     {
         guard !keychainAccessDisabled else { return nil }
-        return ClaudeOAuthCredentialsStore.loadFromClaudeKeychainViaSecurityCLIIfEnabled(
+        return ClaudeOAuthCredentialsStore.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
             interaction: interaction,
             readStrategy: readStrategy)
+    }
+
+    private static func mcpOAuthOnlyKeychainFailureIfPresent(
+        readStrategy: ClaudeOAuthKeychainReadStrategy,
+        keychainAccessDisabled: Bool) -> String?
+    {
+        guard !keychainAccessDisabled else { return nil }
+        guard readStrategy == .securityCLIExperimental else { return nil }
+        guard let payload = ClaudeOAuthCredentialsStore.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
+            interaction: .background,
+            readStrategy: readStrategy),
+            ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: payload)
+        else {
+            return nil
+        }
+        return ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain.errorDescription
+            ?? "Claude keychain contains MCP OAuth state only."
     }
 
     private static func clearInFlightTaskIfStillCurrent(id: UInt64, state: AttemptStateStorage) {

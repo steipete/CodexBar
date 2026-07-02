@@ -570,4 +570,51 @@ struct ClaudeOAuthDelegatedRefreshCoordinatorTests {
             #expect(securityReadCounter.count < 1)
         }
     }
+
+    @Test
+    func `experimental strategy skips delegated touch for mcp O auth only keychain`() async {
+        ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting()
+        defer { ClaudeOAuthDelegatedRefreshCoordinator.resetForTesting() }
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                .securityCLIExperimental)
+            {
+                final class CounterBox: @unchecked Sendable {
+                    private let lock = NSLock()
+                    private(set) var count: Int = 0
+                    func increment() {
+                        self.lock.lock()
+                        self.count += 1
+                        self.lock.unlock()
+                    }
+                }
+
+                let touchCounter = CounterBox()
+                let mcpOAuthOnly = Data("""
+                {
+                  "mcpOAuth": {
+                    "plugin:slack:slack": { "accessToken": "" }
+                  }
+                }
+                """.utf8)
+                let outcome = await self.withCoordinatorOverrides(
+                    cliAvailable: true,
+                    touchAuthPath: { _, _ in touchCounter.increment() },
+                    operation: {
+                        await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(mcpOAuthOnly)) {
+                            await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                now: Date(timeIntervalSince1970: 63000),
+                                timeout: 0.1)
+                        }
+                    })
+
+                guard case let .attemptedFailed(message) = outcome else {
+                    Issue.record("Expected .attemptedFailed outcome")
+                    return
+                }
+                #expect(message.contains("MCP OAuth"))
+                #expect(touchCounter.count < 1)
+            }
+        }
+    }
 }

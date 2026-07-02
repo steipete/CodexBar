@@ -46,6 +46,48 @@ extension ClaudeOAuthCredentialsStore {
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
         -> Data?
     {
+        guard let sanitized = self.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
+            interaction: interaction,
+            readStrategy: readStrategy)
+        else {
+            return nil
+        }
+
+        let interactionMetadata = interaction == .userInitiated ? "user" : "background"
+        let parsedCredentials: ClaudeOAuthCredentials
+        do {
+            parsedCredentials = try ClaudeOAuthCredentials.parse(data: sanitized)
+        } catch {
+            self.log.warning(
+                "Claude keychain security CLI output invalid; falling back",
+                metadata: [
+                    "reader": "securityCLI",
+                    "callerInteraction": interactionMetadata,
+                    "payload_bytes": "\(sanitized.count)",
+                    "parse_error_type": String(describing: type(of: error)),
+                ])
+            return nil
+        }
+
+        var metadata: [String: String] = [
+            "reader": "securityCLI",
+            "callerInteraction": interactionMetadata,
+            "payload_bytes": "\(sanitized.count)",
+        ]
+        for (key, value) in parsedCredentials.diagnosticsMetadata(now: Date()) {
+            metadata[key] = value
+        }
+        self.log.debug(
+            "Claude keychain security CLI read succeeded",
+            metadata: metadata)
+        return sanitized
+    }
+
+    static func readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
+        interaction: ProviderInteraction,
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
+        -> Data?
+    {
         guard self.shouldPreferSecurityCLIKeychainRead(readStrategy: readStrategy) else { return nil }
         let interactionMetadata = interaction == .userInitiated ? "user" : "background"
 
@@ -95,12 +137,9 @@ extension ClaudeOAuthCredentialsStore {
 
             let sanitized = self.sanitizeSecurityCLIOutput(output)
             guard !sanitized.isEmpty else { return nil }
-            let parsedCredentials: ClaudeOAuthCredentials
-            do {
-                parsedCredentials = try ClaudeOAuthCredentials.parse(data: sanitized)
-            } catch {
+            if ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: sanitized) {
                 self.log.warning(
-                    "Claude keychain security CLI output invalid; falling back",
+                    "Claude keychain security CLI output is MCP OAuth only; falling back",
                     metadata: [
                         "reader": "securityCLI",
                         "callerInteraction": interactionMetadata,
@@ -108,26 +147,19 @@ extension ClaudeOAuthCredentialsStore {
                         "duration_ms": String(format: "%.2f", durationMs),
                         "stderr_length": "\(stderrLength)",
                         "payload_bytes": "\(sanitized.count)",
-                        "parse_error_type": String(describing: type(of: error)),
                     ])
-                return nil
+            } else {
+                self.log.debug(
+                    "Claude keychain security CLI raw read succeeded",
+                    metadata: [
+                        "reader": "securityCLI",
+                        "callerInteraction": interactionMetadata,
+                        "status": "\(status)",
+                        "duration_ms": String(format: "%.2f", durationMs),
+                        "stderr_length": "\(stderrLength)",
+                        "payload_bytes": "\(sanitized.count)",
+                    ])
             }
-
-            var metadata: [String: String] = [
-                "reader": "securityCLI",
-                "callerInteraction": interactionMetadata,
-                "status": "\(status)",
-                "duration_ms": String(format: "%.2f", durationMs),
-                "stderr_length": "\(stderrLength)",
-                "payload_bytes": "\(sanitized.count)",
-                "accountPinned": preferredAccount == nil ? "0" : "1",
-            ]
-            for (key, value) in parsedCredentials.diagnosticsMetadata(now: Date()) {
-                metadata[key] = value
-            }
-            self.log.debug(
-                "Claude keychain security CLI read succeeded",
-                metadata: metadata)
             return sanitized
         } catch let error as SecurityCLIReadError {
             var metadata: [String: String] = [
@@ -254,6 +286,14 @@ extension ClaudeOAuthCredentialsStore {
     }
     #else
     static func loadFromClaudeKeychainViaSecurityCLIIfEnabled(
+        interaction _: ProviderInteraction,
+        readStrategy _: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
+        -> Data?
+    {
+        nil
+    }
+
+    static func readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
         interaction _: ProviderInteraction,
         readStrategy _: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
         -> Data?
