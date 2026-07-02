@@ -89,6 +89,30 @@ struct ZaiTokenAccountEnvironmentPrecedenceTests {
 @MainActor
 struct TokenAccountEnvironmentPrecedenceTests {
     @Test
+    func `MiniMax CLI does not persist fallback region for environment token`() throws {
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: CodexBarConfig(providers: []),
+            verbose: false,
+            baseEnvironment: [MiniMaxAPISettingsReader.codingPlanAPITokenKey: "sk-cp-environment"])
+
+        #expect(context.regionUpdater(for: nil) == nil)
+    }
+
+    @Test
+    func `MiniMax CLI can persist fallback region for stored token`() throws {
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: CodexBarConfig(providers: [
+                ProviderConfig(id: .minimax, apiKey: "sk-cp-stored"),
+            ]),
+            verbose: false,
+            baseEnvironment: [:])
+
+        #expect(context.regionUpdater(for: nil) != nil)
+    }
+
+    @Test
     func `token account environment overrides config API key in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-app")
         settings.zaiAPIToken = "config-token"

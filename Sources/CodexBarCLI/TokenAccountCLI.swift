@@ -324,10 +324,23 @@ struct TokenAccountCLIContext {
         }
     }
 
-    func regionUpdater() -> ProviderFetchContext.ProviderRegionUpdater {
-        { provider, region in
+    func regionUpdater(for account: ProviderTokenAccount?) -> ProviderFetchContext.ProviderRegionUpdater? {
+        guard !self.usesEnvironmentBackedMiniMaxCredential(account: account) else { return nil }
+        return { provider, region in
             try? Self.updateStoredRegion(provider: provider, region: region)
         }
+    }
+
+    private func usesEnvironmentBackedMiniMaxCredential(account: ProviderTokenAccount?) -> Bool {
+        guard account == nil else { return false }
+        if MiniMaxAPISettingsReader.apiToken(environment: [
+            MiniMaxAPISettingsReader.codingPlanAPITokenKey:
+                self.baseEnvironment[MiniMaxAPISettingsReader.codingPlanAPITokenKey] ?? "",
+        ]) != nil {
+            return true
+        }
+        guard self.providerConfig(for: .minimax)?.sanitizedAPIKey == nil else { return false }
+        return MiniMaxAPISettingsReader.apiToken(environment: self.baseEnvironment) != nil
     }
 
     private static func updateStoredRegion(provider: UsageProvider, region: String) throws {

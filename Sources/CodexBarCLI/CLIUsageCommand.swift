@@ -340,7 +340,7 @@ extension CodexBarCLI {
             selectedTokenAccountID: account?.id,
             tokenAccountTokenUpdater: tokenContext.tokenUpdater(for: account),
             providerManualTokenUpdater: tokenContext.manualTokenUpdater(),
-            providerRegionUpdater: tokenContext.regionUpdater(),
+            providerRegionUpdater: tokenContext.regionUpdater(for: account),
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
             persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow)
         let outcome = await Self.fetchProviderUsage(provider: provider, context: fetchContext)
