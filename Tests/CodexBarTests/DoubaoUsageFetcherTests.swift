@@ -207,6 +207,43 @@ struct DoubaoUsageFetcherTests {
     }
 
     @Test
+    func `coding plan fetch surfaces volcengine access denied error`() async {
+        let transport = DoubaoScriptedTransport(results: [
+            .rawResponse(
+                statusCode: 403,
+                body: """
+                {
+                  "ResponseMetadata": {
+                    "Action": "GetCodingPlanUsage",
+                    "Error": {
+                      "CodeN": 100013,
+                      "Code": "AccessDenied",
+                      "Message": "User is not authorized to perform: ark:GetCodingPlanUsage"
+                    }
+                  }
+                }
+                """),
+        ])
+        let credentials = DoubaoCodingPlanCredentials(
+            accessKeyID: "AKLTTEST",
+            secretAccessKey: "secret",
+            region: "cn-beijing")
+
+        await #expect {
+            _ = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
+                credentials: credentials,
+                session: transport,
+                date: Date(timeIntervalSince1970: 1_781_654_400))
+        } throws: { error in
+            guard case let DoubaoUsageError.apiError(code, message) = error else { return false }
+            return code == 403
+                && message.contains("AccessDenied")
+                && message.contains("ark:GetCodingPlanUsage")
+                && !message.contains("bytes")
+        }
+    }
+
+    @Test
     func `repeated successful zero remaining responses omit unknown request limit`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .response(statusCode: 200, limit: 1000, remaining: 0),

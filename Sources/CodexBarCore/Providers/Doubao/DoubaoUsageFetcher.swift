@@ -471,6 +471,24 @@ public struct DoubaoUsageFetcher: Sendable {
             return "Unexpected response body (\(data.count) bytes)."
         }
 
+        // Volcengine Top OpenAPI error shape: { "ResponseMetadata": { "Error": { "Code": ..., "Message": ... } } }
+        if let metadata = json["ResponseMetadata"] as? [String: Any],
+           let volcError = metadata["Error"] as? [String: Any]
+        {
+            let code = (volcError["Code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (volcError["Message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch (code?.isEmpty == false ? code : nil, message?.isEmpty == false ? message : nil) {
+            case let (code?, message?):
+                return Self.compactText("\(code): \(message)")
+            case let (code?, nil):
+                return Self.compactText(code)
+            case let (nil, message?):
+                return Self.compactText(message)
+            case (nil, nil):
+                break
+            }
+        }
+
         if let error = json["error"] as? [String: Any],
            let message = error["message"] as? String
         {
