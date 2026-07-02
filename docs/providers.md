@@ -127,6 +127,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Credits endpoint: `POST https://api.manus.im/user.v1.UserService/GetAvailableCredits`.
 - Auto mode prefers cached/browser cookies before env fallback; manual mode accepts either a bare `session_id` value or a full Cookie header.
 - Status: none yet.
+- Details: `docs/manus.md`.
 
 ## MiniMax
 - Coding Plan API token or web session from configured/manual/browser sources.
@@ -229,6 +230,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Shows monthly credits usage and next refresh time.
 - Status: none yet.
 - Details: `docs/warp.md`.
+
+## Windsurf
+- Web session bundle from browser localStorage import, manual Settings entry, or local SQLite cache.
+- Shows daily and weekly quota usage with reset timing; local cache reads `state.vscdb` when web API is unavailable.
+- Status: none yet.
+- Details: `docs/windsurf.md`.
 
 ## ElevenLabs
 - API key from Settings, token accounts, `ELEVENLABS_API_KEY`, or `XI_API_KEY`.
@@ -394,6 +401,19 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Local fallback aggregates `~/.grok/sessions/**/signals.json` token counts when the RPC is unavailable.
 - Status: link only to `https://status.x.ai` (no auto-polling yet).
 - Details: `docs/grok.md`.
+
+## GroqCloud
+- API key from `~/.codexbar/config.json` or `GROQ_API_KEY`; base URL override via `GROQ_API_URL`.
+- Reads Enterprise Prometheus metrics for request, token, and cache-hit rates per minute.
+- Dashboard link: GroqCloud metrics console.
+- Status: `https://status.groq.com`.
+- Details: `docs/groqcloud.md`.
+
+## LLM Proxy
+- API key + base URL from `~/.codexbar/config.json` (`enterpriseHost`), `LLM_PROXY_API_KEY`, or `LLM_PROXY_BASE_URL`.
+- Reads `/v1/quota-stats` for aggregate proxy usage with lowest remaining quota, requests, tokens, and approximate cost.
+- Status: none yet.
+- Details: `docs/llm-proxy.md`.
 
 ## AWS Bedrock
 - AWS credentials from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN`.
