@@ -7,6 +7,7 @@ extension UsageStore {
         self.refreshingProviders.remove(provider)
         self.snapshots.removeValue(forKey: provider)
         self.errors[provider] = nil
+        self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
         self.lastSourceLabels.removeValue(forKey: provider)
         self.lastFetchAttempts.removeValue(forKey: provider)
         self.accountSnapshots.removeValue(forKey: provider)
@@ -16,6 +17,7 @@ extension UsageStore {
         self.failureGates[provider]?.reset()
         self.tokenFailureGates[provider]?.reset()
         self.statuses.removeValue(forKey: provider)
+        self.statusComponents.removeValue(forKey: provider)
         self.lastKnownSessionRemaining.removeValue(forKey: provider)
         self.lastKnownSessionWindowSource.removeValue(forKey: provider)
         self.lastTokenFetchAt.removeValue(forKey: provider)

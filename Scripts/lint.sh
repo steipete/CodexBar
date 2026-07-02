@@ -25,6 +25,10 @@ check_package_strip() {
   "${ROOT_DIR}/Scripts/test_package_strip.sh"
 }
 
+check_package_signing() {
+  "${ROOT_DIR}/Scripts/test_package_signing.sh"
+}
+
 check_release_dsym_paths() {
   "${ROOT_DIR}/Scripts/test_release_dsym_paths.sh"
 }
@@ -39,6 +43,17 @@ check_swift_test_sharding() {
 
 check_ci_path_gate() {
   "${ROOT_DIR}/Scripts/test_ci_path_gate.sh"
+}
+
+check_shell_scripts() {
+  local count=0
+  local script
+  for script in "${ROOT_DIR}"/Scripts/*.sh "${ROOT_DIR}"/Scripts/mac-release; do
+    [[ -f "$script" ]] || continue
+    bash -n "$script"
+    count=$((count + 1))
+  done
+  printf 'shell scripts OK: %d files\n' "$count"
 }
 
 check_app_locales() {
@@ -63,10 +78,12 @@ run_portable_checks() {
   check_codex_parser_hash
   check_package_product_paths
   check_package_strip
+  check_package_signing
   check_release_dsym_paths
   check_sparkle_signing_paths
   check_swift_test_sharding
   check_ci_path_gate
+  check_shell_scripts
   check_documentation_links
   check_llms_index
   check_site_locales

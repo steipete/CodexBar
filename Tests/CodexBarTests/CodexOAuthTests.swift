@@ -3,12 +3,18 @@ import Testing
 @testable import CodexBarCore
 
 struct CodexOAuthTests {
-    private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
+    private func makeContext(
+        runtime: ProviderRuntime = .app,
+        sourceMode: ProviderSourceMode = .auto,
+        includeCredits: Bool = true,
+        includeOptionalUsage: Bool = true) -> ProviderFetchContext
+    {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
-            runtime: .app,
+            runtime: runtime,
             sourceMode: sourceMode,
-            includeCredits: true,
+            includeCredits: includeCredits,
+            includeOptionalUsage: includeOptionalUsage,
             webTimeout: 60,
             webDebugDumpHTML: false,
             verbose: false,
@@ -769,6 +775,23 @@ struct CodexOAuthTests {
         #expect(!strategy.shouldFallback(
             on: CodexTokenRefresher.RefreshError.networkError(URLError(.timedOut)),
             context: context))
+    }
+
+    @Test
+    func `reset credits fetch follows app runtime and CLI credits flag`() {
+        let appContext = self.makeContext(includeCredits: false, includeOptionalUsage: false)
+        let cliNoCreditsContext = self.makeContext(
+            runtime: .cli,
+            includeCredits: false,
+            includeOptionalUsage: true)
+        let cliCreditsContext = self.makeContext(
+            runtime: .cli,
+            includeCredits: true,
+            includeOptionalUsage: false)
+
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext))
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliNoCreditsContext) == false)
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliCreditsContext))
     }
 
     @Test

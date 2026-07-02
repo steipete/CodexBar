@@ -417,11 +417,22 @@
 "start_at_login_subtitle" = "Opent automatisch CodexBar wanneer u uw Mac start.";
 "show_cost_summary" = "Kostenoverzicht weergeven";
 "show_cost_summary_subtitle" = "Leest lokale gebruikslogboeken. Toont vandaag + het geselecteerde geschiedenisvenster in het menu.";
+"cost_summary_style_title" = "Weergavestijl";
+"cost_summary_style_inline" = "Alleen inline";
+"cost_summary_style_submenu" = "Alleen submenu";
+"cost_summary_style_both" = "Beide";
+"cost_summary_style_inline_help" = "Toont het kostenoverzicht rechtstreeks in het hoofdmenu.";
+"cost_summary_style_submenu_help" = "Toont in plaats daarvan het gedetailleerde Kosten-submenu.";
+"cost_summary_style_both_help" = "Toont zowel het hoofdmenu-overzicht als het gedetailleerde Kosten-submenu.";
+"cost_history_window_title" = "Geschiedenisvenster";
+"cost_history_window_help" = "Stelt in hoeveel dagen lokale gebruikslogboeken in het menu verschijnen.";
 "cost_history_days_title" = "Geschiedenisvenster: %d dagen";
 "cost_auto_refresh_info" = "Automatisch vernieuwen: elk uur · Time-out: 10m";
 "refresh_cadence_title" = "Cadans vernieuwen";
 "refresh_cadence_subtitle" = "Hoe vaak CodexBar providers op de achtergrond ondervraagt.";
 "manual_refresh_hint" = "Automatisch vernieuwen is uitgeschakeld; gebruik de opdracht Vernieuwen van het menu.";
+"refresh_on_open_title" = "Vernieuwen bij openen van menu";
+"refresh_on_open_subtitle" = "Haalt bij elke keer dat je het menu opent het meest recente gebruik van elke provider op.";
 "check_provider_status_title" = "Controleer de status van de provider";
 "check_provider_status_subtitle" = "Polls van OpenAI/Claude-statuspagina's en Google Workspace voor Gemini/Antigravity, waarbij incidenten in het pictogram en het menu worden weergegeven.";
 "session_quota_notifications_title" = "Meldingen over sessiequota";
@@ -443,6 +454,7 @@
 "quota_warning_warn_at" = "Waarschuw bij";
 "quota_warning_global_threshold_subtitle" = "Resterende percentages voor sessie- en wekelijkse vensters, tenzij een provider deze overschrijft.";
 "quota_warning_sound" = "Meldingsgeluid afspelen";
+"quota_warning_onscreen_alert" = "Tekstwaarschuwing op het scherm tonen";
 "quota_warning_provider_inherits" = "Gebruikt de algemene instellingen voor quotawaarschuwingen, tenzij hier een venster wordt aangepast.";
 "quota_warning_customize_thresholds" = "Pas %@ drempels aan";
 "quota_warning_enable_warnings" = "Schakel %@ waarschuwingen in";
@@ -540,6 +552,8 @@
 "show_debug_settings_subtitle" = "Geef hulpprogramma's voor probleemoplossing weer op het tabblad Foutopsporing.";
 "surprise_me_title" = "Verras mij";
 "surprise_me_subtitle" = "Controleer of je het leuk vindt dat je agenten daar plezier hebben.";
+"session_limit_confetti_title" = "Confetti bij sessielimiet";
+"session_limit_confetti_subtitle" = "Speel confetti op volledig scherm af wanneer het sessiegebruik wordt gereset.";
 "weekly_limit_confetti_title" = "Wekelijkse limiet confetti";
 "weekly_limit_confetti_subtitle" = "Speel confetti op volledig scherm af wanneer het wekelijkse gebruik wordt gereset.";
 "hide_personal_info_title" = "Verberg persoonlijke informatie";
@@ -643,6 +657,7 @@
 
 /* Provider status */
 "status_operational" = "Operationeel";
+"status_degraded" = "Verminderde prestaties";
 "status_partial_outage" = "Gedeeltelijke uitval";
 "status_major_outage" = "Grote storing";
 "status_critical_issue" = "Kritieke kwestie";
@@ -699,6 +714,7 @@
 "Add Account..." = "Account toevoegen...";
 "Usage Dashboard" = "Gebruiksdashboard";
 "Status Page" = "Statuspagina";
+"Open Status Page" = "Statuspagina openen";
 "Settings..." = "Instellingen...";
 "About CodexBar" = "Over CodexBar";
 "Quit" = "Stoppen";
@@ -982,6 +998,8 @@
 "Enterprise host" = "Enterprise-host";
 "Extra usage balance: %@" = "Extra gebruikssaldo: %@";
 "Keychain Access Required" = "Toegang tot sleutelhanger vereist";
+"keychain_prompt_learn_more" = "Meer informatie…";
+"keychain_prompt_privacy_note" = "De invoer van het Mac-inlogwachtwoord wordt verwerkt door macOS, niet door CodexBar. Je kunt sleutelhanger toegang op elk moment uitschakelen via Instellingen → Geavanceerd.";
 "Kiro menu bar value" = "Waarde van de Kiro-menubalk";
 "Label" = "Label";
 "No organizations loaded. Click Refresh after setting your API key." = "Er zijn geen organisaties geladen. Klik op Vernieuwen nadat u uw API-sleutel hebt ingesteld.";
@@ -1091,8 +1109,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Limietresetcredits";
-"1 manual reset available" = "1 handmatige reset beschikbaar";
-"%d manual resets available" = "%d handmatige resets beschikbaar";
+"1 available" = "1 beschikbaar";
+"%d available" = "%d beschikbaar";
 "Next expires %@" = "Volgende verloopt %@";
 "Other (%d items)" = "Overig (%d onderdelen)";
 "Expand" = "Uitvouwen";

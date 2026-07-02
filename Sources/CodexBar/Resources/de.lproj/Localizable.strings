@@ -417,11 +417,22 @@
 "start_at_login_subtitle" = "Startet CodexBar automatisch, wenn dein Mac hochfährt.";
 "show_cost_summary" = "Kostenübersicht anzeigen";
 "show_cost_summary_subtitle" = "Liest lokale Nutzungsprotokolle. Zeigt heute + das gewählte Verlaufsfenster im Menü.";
+"cost_summary_style_title" = "Anzeigestil";
+"cost_summary_style_inline" = "Nur Inline";
+"cost_summary_style_submenu" = "Nur Untermenü";
+"cost_summary_style_both" = "Beides";
+"cost_summary_style_inline_help" = "Zeigt die Kostenübersicht direkt im Hauptmenü.";
+"cost_summary_style_submenu_help" = "Zeigt stattdessen das detaillierte Kosten-Untermenü.";
+"cost_summary_style_both_help" = "Zeigt die Hauptmenü-Übersicht und das detaillierte Kosten-Untermenü.";
+"cost_history_window_title" = "Verlaufsfenster";
+"cost_history_window_help" = "Legt fest, wie viele Tage lokaler Nutzungsprotokolle im Menü erscheinen.";
 "cost_history_days_title" = "Verlaufsfenster: %d Tage";
 "cost_auto_refresh_info" = "Auto-Aktualisierung: stündlich · Timeout: 10 Min.";
 "refresh_cadence_title" = "Aktualisierungsintervall";
 "refresh_cadence_subtitle" = "Wie oft CodexBar Anbieter im Hintergrund abfragt.";
 "manual_refresh_hint" = "Auto-Aktualisierung ist aus; nutze im Menü den Befehl „Aktualisieren“.";
+"refresh_on_open_title" = "Beim Öffnen des Menüs aktualisieren";
+"refresh_on_open_subtitle" = "Bei jedem Öffnen des Menüs die aktuelle Nutzung aller Anbieter abrufen.";
 "check_provider_status_title" = "Anbieterstatus prüfen";
 "check_provider_status_subtitle" = "Prüft OpenAI/Claude-Statusseiten und Google Workspace für Gemini/Antigravity und zeigt Vorfälle in Icon und Menü.";
 "session_quota_notifications_title" = "Sitzungs-Quota-Benachrichtigungen";
@@ -443,6 +454,7 @@
 "quota_warning_warn_at" = "Warnen Sie vor";
 "quota_warning_global_threshold_subtitle" = "Verbleibende Prozentsätze für Sitzungs- und Wochenfenster, es sei denn, ein Anbieter überschreibt sie.";
 "quota_warning_sound" = "Benachrichtigungston abspielen";
+"quota_warning_onscreen_alert" = "Bildschirm-Textwarnung anzeigen";
 "quota_warning_provider_inherits" = "Verwendet die globalen Einstellungen für Kontingentwarnungen, es sei denn, hier wird ein Fenster angepasst.";
 "quota_warning_customize_thresholds" = "Passen Sie die Schwellenwerte für %@ an";
 "quota_warning_enable_warnings" = "Aktivieren Sie %@-Warnungen";
@@ -540,6 +552,8 @@
 "show_debug_settings_subtitle" = "Stellen Sie Tools zur Fehlerbehebung auf der Registerkarte \"Debug\" bereit.";
 "surprise_me_title" = "Überrasche mich";
 "surprise_me_subtitle" = "Prüfen Sie, ob Sie möchten, dass Ihre Agenten dort oben Spaß haben.";
+"session_limit_confetti_title" = "Konfetti beim Sitzungslimit";
+"session_limit_confetti_subtitle" = "Zeigt Vollbild-Konfetti, wenn die Sitzungsnutzung zurückgesetzt wird.";
 "weekly_limit_confetti_title" = "Wöchentliches Konfetti-Limit";
 "weekly_limit_confetti_subtitle" = "Spielen Sie Konfetti im Vollbildmodus ab, wenn die wöchentliche Nutzung zurückgesetzt wird.";
 "hide_personal_info_title" = "Persönliche Informationen ausblenden";
@@ -643,6 +657,7 @@
 
 /* Provider status */
 "status_operational" = "Betriebsbereit";
+"status_degraded" = "Eingeschränkte Leistung";
 "status_partial_outage" = "Teilweiser Ausfall";
 "status_major_outage" = "Schwerwiegender Ausfall";
 "status_critical_issue" = "Kritisches Problem";
@@ -699,6 +714,7 @@
 "Add Account..." = "Konto hinzufügen...";
 "Usage Dashboard" = "Nutzungs-Dashboard";
 "Status Page" = "Statusseite";
+"Open Status Page" = "Statusseite öffnen";
 "Settings..." = "Einstellungen...";
 "About CodexBar" = "About CodexBar";
 "Quit" = "Beenden";
@@ -982,6 +998,8 @@
 "Enterprise host" = "Unternehmenshost";
 "Extra usage balance: %@" = "Zusätzlicher Nutzungssaldo: %@";
 "Keychain Access Required" = "Schlüsselbundzugriff erforderlich";
+"keychain_prompt_learn_more" = "Weitere Informationen…";
+"keychain_prompt_privacy_note" = "Die Eingabe des Mac-Anmeldepassworts wird von macOS verarbeitet, nicht von CodexBar. Du kannst den Schlüsselbundzugriff jederzeit unter Einstellungen → Erweitert deaktivieren.";
 "Kiro menu bar value" = "Wert der Kiro-Menüleiste";
 "Label" = "Etikett";
 "No organizations loaded. Click Refresh after setting your API key." = "Keine Organisationen geladen. Klicken Sie auf Aktualisieren, nachdem Sie Ihren API-Schlüssel festgelegt haben.";
@@ -1093,8 +1111,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Credits zum Zurücksetzen des Limits";
-"1 manual reset available" = "1 manuelle Zurücksetzung verfügbar";
-"%d manual resets available" = "%d manuelle Zurücksetzungen verfügbar";
+"1 available" = "1 verfügbar";
+"%d available" = "%d verfügbar";
 "Next expires %@" = "Nächster Ablauf %@";
 "Other (%d items)" = "Andere (%d Elemente)";
 "Expand" = "Aufklappen";

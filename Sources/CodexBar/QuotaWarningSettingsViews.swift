@@ -35,6 +35,12 @@ struct GlobalQuotaWarningSettingsView: View {
                     .font(.footnote)
             }
             .toggleStyle(.checkbox)
+
+            Toggle(isOn: self.$settings.quotaWarningOnScreenAlertEnabled) {
+                Text(L("quota_warning_onscreen_alert"))
+                    .font(.footnote)
+            }
+            .toggleStyle(.checkbox)
         }
         .padding(.leading, 20)
     }

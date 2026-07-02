@@ -235,9 +235,10 @@ enum CLIRenderer {
         lines: inout [String])
     {
         guard provider == .codex, let credits else { return }
+        let remaining = credits.codexCreditLimit?.remaining ?? credits.remaining
         lines.append(self.labelValueLine(
             "Credits",
-            value: UsageFormatter.creditsString(from: credits.remaining),
+            value: UsageFormatter.creditsString(from: remaining),
             useColor: useColor))
     }
 

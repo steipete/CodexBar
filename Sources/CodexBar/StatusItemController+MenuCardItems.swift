@@ -5,6 +5,11 @@ extension StatusItemController {
     func refreshMenuCardHeights(in menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
         for item in menu.items {
+            if let view = item.view as? PersistentRefreshMenuView {
+                guard abs(view.frame.width - width) > 0.5 else { continue }
+                view.applySize(width: width, height: PersistentRefreshRowMetrics.defaults.rowHeight)
+                continue
+            }
             guard let view = item.view, view is any MenuCardMeasuring else { continue }
             guard abs(view.frame.width - width) > 0.5 else { continue }
             let id = item.representedObject as? String ?? "menuCard"
@@ -28,6 +33,7 @@ extension StatusItemController {
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
         containsInteractiveControls: Bool = false,
+        usesGPUSelection: Bool = false,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         let allowsMenuHighlight = submenu != nil || onClick != nil
@@ -41,6 +47,39 @@ extension StatusItemController {
                 item.action = #selector(self.menuCardNoOp(_:))
             }
             return item
+        }
+
+        if usesGPUSelection {
+            // Selection is painted by AppKit/GPU, so the SwiftUI content is pinned to its normal
+            // appearance via a `highlightState` that is never flipped; these rows skip hosting-view
+            // recycling because the recycler is typed to `MenuCardItemHostingView`.
+            let wrapped = MenuCardSectionContainerView(
+                highlightState: MenuCardHighlightState(),
+                showsSubmenuIndicator: submenu != nil,
+                submenuIndicatorAlignment: submenuIndicatorAlignment,
+                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
+                refreshMonitor: self.menuCardRefreshMonitor)
+            {
+                view
+            }
+            let gpuHosting = GPUSelectionHostingView(
+                rootView: wrapped,
+                allowsMenuHighlight: allowsMenuHighlight,
+                onClick: onClick)
+            let gpuHeight = self.cachedMenuCardHeight(
+                for: id,
+                scope: heightCacheScope ?? id,
+                width: width,
+                fingerprint: heightCacheFingerprint)
+            {
+                self.menuCardHeight(for: gpuHosting, width: width)
+            }
+            gpuHosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: gpuHeight))
+            return self.makeMenuCardNSMenuItem(
+                hosting: gpuHosting,
+                id: id,
+                submenu: submenu,
+                isEnabled: allowsMenuHighlight || containsInteractiveControls)
         }
 
         let hosting: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>
@@ -88,10 +127,23 @@ extension StatusItemController {
             self.menuCardHeight(for: hosting, width: width)
         }
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        return self.makeMenuCardNSMenuItem(
+            hosting: hosting,
+            id: id,
+            submenu: submenu,
+            isEnabled: allowsMenuHighlight || containsInteractiveControls)
+    }
 
+    /// Wraps a measured hosting view in the `NSMenuItem` the menu installs, wiring submenu routing.
+    private func makeMenuCardNSMenuItem(
+        hosting: NSView,
+        id: String,
+        submenu: NSMenu?,
+        isEnabled: Bool) -> NSMenuItem
+    {
         let item = NSMenuItem()
         item.view = hosting
-        item.isEnabled = allowsMenuHighlight || containsInteractiveControls
+        item.isEnabled = isEnabled
         item.representedObject = id
         item.submenu = submenu
         if submenu != nil {

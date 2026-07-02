@@ -417,11 +417,22 @@
 "start_at_login_subtitle" = "وقتی مک را روشن می کنید، CodexBar به طور خودکار باز می شود.";
 "show_cost_summary" = "خلاصه هزینه نمایش";
 "show_cost_summary_subtitle" = "گزارش های استفاده محلی را می خواند. امروز نمایش داده می شود + پنجره تاریخچه انتخاب شده در منو.";
+"cost_summary_style_title" = "سبک نمایش";
+"cost_summary_style_inline" = "فقط درون‌خطی";
+"cost_summary_style_submenu" = "فقط زیرمنو";
+"cost_summary_style_both" = "هر دو";
+"cost_summary_style_inline_help" = "خلاصه هزینه را مستقیماً در منوی اصلی نشان می‌دهد.";
+"cost_summary_style_submenu_help" = "در عوض زیرمنوی جزئیات هزینه را نشان می‌دهد.";
+"cost_summary_style_both_help" = "هم خلاصه منوی اصلی و هم زیرمنوی جزئیات هزینه را نشان می‌دهد.";
+"cost_history_window_title" = "پنجره تاریخچه";
+"cost_history_window_help" = "تعیین می‌کند چند روز از گزارش‌های استفاده محلی در منو نشان داده شود.";
 "cost_history_days_title" = "پنجره تاریخچه: %d روز";
 "cost_auto_refresh_info" = "تازه سازی خودکار: ساعتی · زمان استراحت: 10m";
 "refresh_cadence_title" = "کادانس تازه سازی";
 "refresh_cadence_subtitle" = "چند وقت یکبار CodexBar ارائه دهندگان نظرسنجی در پس زمینه انجام می دهند.";
 "manual_refresh_hint" = "تازه سازی خودکار خاموش است؛ از فرمان تازه سازی منو استفاده کنید.";
+"refresh_on_open_title" = "بازخوانی هنگام باز کردن منو";
+"refresh_on_open_subtitle" = "هر بار که منو را باز می‌کنید، آخرین میزان مصرف هر ارائه‌دهنده دریافت می‌شود.";
 "check_provider_status_title" = "وضعیت ارائه دهنده را بررسی کنید";
 "check_provider_status_subtitle" = "نظرسنجی ها OpenAI/Claude صفحات وضعیت و Google Workspace برای Gemini/Antigravity که حوادث را در آیکون و منو نمایش می دهد.";
 "session_quota_notifications_title" = "اعلان های سهمیه نشست";
@@ -443,6 +454,7 @@
 "quota_warning_warn_at" = "هشدار در";
 "quota_warning_global_threshold_subtitle" = "درصدهای باقی مانده برای جلسات و بازه های هفتگی مگر اینکه ارائه دهنده آن ها را لغو کند.";
 "quota_warning_sound" = "صدای اعلان پخش کن";
+"quota_warning_onscreen_alert" = "نمایش هشدار متنی روی صفحه";
 "quota_warning_provider_inherits" = "از تنظیمات هشدار سهمیه جهانی استفاده می کند مگر اینکه پنجره ای اینجا سفارشی شده باشد.";
 "quota_warning_customize_thresholds" = "آستانه های %@ شخصی سازی کنید";
 "quota_warning_enable_warnings" = "فعال کردن هشدارهای %@";
@@ -540,6 +552,8 @@
 "show_debug_settings_subtitle" = "ابزارهای عیب یابی را در تب اشکال زدایی آشکار کنید.";
 "surprise_me_title" = "سورپرایزم کن";
 "surprise_me_subtitle" = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
+"session_limit_confetti_title" = "کاغذرنگی حد جلسه";
+"session_limit_confetti_subtitle" = "وقتی میزان استفادهٔ جلسه بازنشانی می‌شود، کاغذرنگی تمام‌صفحه نمایش بده.";
 "weekly_limit_confetti_title" = "کنفتی محدود هفتگی";
 "weekly_limit_confetti_subtitle" = "وقتی استفاده هفتگی ریست می شود، کنفتی تمام صفحه را پخش کنید.";
 "hide_personal_info_title" = "مخفی کردن اطلاعات شخصی";
@@ -643,6 +657,7 @@
 
 /* Provider status */
 "status_operational" = "عملیاتی";
+"status_degraded" = "کارایی کاهش‌یافته";
 "status_partial_outage" = "قطعی جزئی";
 "status_major_outage" = "قطعی عمده";
 "status_critical_issue" = "مسئله بحرانی";
@@ -699,6 +714,7 @@
 "Add Account..." = "افزودن حساب...";
 "Usage Dashboard" = "داشبورد استفاده";
 "Status Page" = "صفحه وضعیت";
+"Open Status Page" = "باز کردن صفحه وضعیت";
 "Settings..." = "محیط ها...";
 "About CodexBar" = "درباره CodexBar";
 "Quit" = "ترک کن";
@@ -985,6 +1001,8 @@
 "Enterprise host" = "میزبان سازمانی";
 "Extra usage balance: %@" = "تعادل استفاده اضافی: %@";
 "Keychain Access Required" = "دسترسی Keychain مورد نیاز است";
+"keychain_prompt_learn_more" = "بیشتر بدانید…";
+"keychain_prompt_privacy_note" = "macOS، نه CodexBar، ورود گذرواژهٔ Mac را مدیریت می‌کند. می‌توانید دسترسی به Keychain را هر زمان از تنظیمات ← پیشرفته غیرفعال کنید.";
 "Kiro menu bar value" = "Kiro مقدار نوار منو";
 "Label" = "برچسب";
 "No organizations loaded. Click Refresh after setting your API key." = "هیچ سازمانی بارگذاری نشده بود. پس از تنظیم کلید API روی «تازه سازی» کلیک کنید.";
@@ -1099,8 +1117,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "اعتبارهای بازنشانی محدودیت";
-"1 manual reset available" = "۱ بازنشانی دستی موجود است";
-"%d manual resets available" = "%d بازنشانی دستی موجود است";
+"1 available" = "۱ مورد موجود";
+"%d available" = "%d مورد موجود";
 "Next expires %@" = "مورد بعدی در %@ منقضی می‌شود";
 "byte_unit_byte" = "بایت";
 "byte_unit_bytes" = "بایت";

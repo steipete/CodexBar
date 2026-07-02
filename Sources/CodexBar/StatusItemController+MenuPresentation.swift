@@ -110,6 +110,21 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         self.layoutSubtreeIfNeeded()
         self.superview?.layoutSubtreeIfNeeded()
     }
+
+    /// Measures the true SwiftUI content height at `width`. The cached `measuredHeight` is routed
+    /// through `intrinsicContentSize`, so `fittingSize` would otherwise echo the stale cached value;
+    /// clearing it for the measurement lets the live content size drive the result. Used to resize
+    /// the row exactly when expandable content (e.g. status groups) toggles.
+    func measuredFittingHeight(width: CGFloat) -> CGFloat {
+        let saved = self.measuredHeight
+        self.measuredHeight = nil
+        self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
+        self.invalidateIntrinsicContentSize()
+        self.layoutSubtreeIfNeeded()
+        let height = self.fittingSize.height
+        self.measuredHeight = saved
+        return height
+    }
 }
 
 @MainActor
@@ -210,6 +225,246 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     func setHighlighted(_ highlighted: Bool) {
         guard self.highlightState.isHighlighted != highlighted else { return }
         self.highlightState.isHighlighted = highlighted
+    }
+}
+
+@MainActor
+final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
+    private static let minimumShortcutColumnWidth: CGFloat = 44
+    private static let titleShortcutGap: CGFloat = 8
+    private static let shortcutReferenceText = "⌘ R"
+
+    private let selectionView = NSVisualEffectView()
+    private let iconView = NSImageView()
+    private let titleField: NSTextField
+    private let shortcutField: NSTextField?
+    private var isRowHighlighted = false
+    private var isRowEnabled = true
+    private var rowHeight = PersistentRefreshRowMetrics.defaults.rowHeight
+    private var onClick: (() -> Void)?
+
+    override var allowsVibrancy: Bool {
+        true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: self.frame.width, height: self.rowHeight)
+    }
+
+    init(
+        title: String,
+        systemImageName: String?,
+        shortcutText: String?,
+        onClick: (() -> Void)? = nil)
+    {
+        self.titleField = NSTextField(labelWithString: title)
+        self.shortcutField = shortcutText.map(NSTextField.init(labelWithString:))
+        self.onClick = onClick
+        super.init(frame: .zero)
+        self.setupSelectionView()
+        self.setupIconView(systemImageName: systemImageName)
+        self.setupTextFields()
+        if onClick != nil {
+            self.installClickRecognizer()
+        }
+        self.updateColors()
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        self.onClick == nil ? super.accessibilityRole() : .button
+    }
+
+    override func accessibilityLabel() -> String? {
+        self.titleField.stringValue
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        guard let onClick = self.onClick else {
+            return super.accessibilityPerformPress()
+        }
+        onClick()
+        return true
+    }
+
+    func applySize(width: CGFloat, height: CGFloat) {
+        self.rowHeight = max(1, ceil(height))
+        self.frame = NSRect(origin: .zero, size: NSSize(width: width, height: self.rowHeight))
+        self.invalidateIntrinsicContentSize()
+        self.needsLayout = true
+    }
+
+    func setHighlighted(_ highlighted: Bool) {
+        guard self.isRowHighlighted != highlighted else { return }
+        self.isRowHighlighted = highlighted
+        self.selectionView.isHidden = !highlighted
+        self.updateColors()
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        guard self.isRowEnabled != enabled else { return }
+        self.isRowEnabled = enabled
+        if !enabled {
+            self.isRowHighlighted = false
+            self.selectionView.isHidden = true
+        }
+        self.updateColors()
+    }
+
+    override func layout() {
+        super.layout()
+
+        let metrics = PersistentRefreshRowMetrics.defaults
+        self.selectionView.frame = self.bounds.insetBy(
+            dx: metrics.selectionHorizontalInset,
+            dy: metrics.selectionVerticalInset)
+        self.selectionView.layer?.cornerRadius = metrics.selectionCornerRadius
+
+        var leadingX = metrics.leadingPadding
+        if self.iconView.image != nil {
+            let iconSide = metrics.iconWidth
+            self.iconView.symbolConfiguration = Self.iconConfiguration(for: metrics)
+            self.iconView.frame = NSRect(
+                x: leadingX,
+                y: floor((self.bounds.height - iconSide) / 2),
+                width: iconSide,
+                height: iconSide)
+            leadingX += metrics.iconWidth + metrics.iconTitleSpacing
+        }
+
+        var titleMaxX = self.bounds.maxX - metrics.trailingPadding
+        if let shortcutField {
+            shortcutField.font = Self.shortcutFont(for: metrics)
+            let shortcutSize = shortcutField.intrinsicContentSize
+            let referenceWidth = Self.shortcutReferenceWidth(for: metrics)
+            let shortcutColumnWidth = max(Self.minimumShortcutColumnWidth, referenceWidth, shortcutSize.width)
+            let shortcutX = self.bounds.maxX
+                - metrics.trailingPadding
+                + metrics.shortcutXOffset
+                - referenceWidth
+            shortcutField.frame = NSRect(
+                x: shortcutX,
+                y: floor((self.bounds.height - shortcutSize.height) / 2) + metrics.shortcutYOffset,
+                width: shortcutColumnWidth,
+                height: shortcutSize.height)
+            titleMaxX = shortcutX - Self.titleShortcutGap
+        }
+
+        let titleSize = self.titleField.intrinsicContentSize
+        self.titleField.frame = NSRect(
+            x: leadingX,
+            y: floor((self.bounds.height - titleSize.height) / 2),
+            width: max(0, titleMaxX - leadingX),
+            height: titleSize.height)
+    }
+
+    private func setupSelectionView() {
+        self.selectionView.material = .selection
+        self.selectionView.blendingMode = .withinWindow
+        self.selectionView.state = .active
+        self.selectionView.isEmphasized = true
+        self.selectionView.isHidden = true
+        self.selectionView.wantsLayer = true
+        self.selectionView.layer?.masksToBounds = true
+        self.addSubview(self.selectionView)
+    }
+
+    private func setupIconView(systemImageName: String?) {
+        guard let systemImageName,
+              let baseImage = NSImage(systemSymbolName: systemImageName, accessibilityDescription: nil)
+        else {
+            self.iconView.isHidden = true
+            return
+        }
+
+        baseImage.isTemplate = true
+        self.iconView.image = baseImage
+        self.iconView.symbolConfiguration = Self.iconConfiguration(for: PersistentRefreshRowMetrics.defaults)
+        self.iconView.imageScaling = .scaleProportionallyDown
+        self.iconView.contentTintColor = .labelColor
+        self.addSubview(self.iconView)
+    }
+
+    private func setupTextFields() {
+        // Title truncates, shortcut clips; configuring them separately keeps the shortcut column stable.
+        self.titleField.font = NSFont.menuFont(ofSize: 0)
+        self.configureTitleField(self.titleField)
+
+        if let shortcutField {
+            shortcutField.font = Self.shortcutFont(for: PersistentRefreshRowMetrics.defaults)
+            self.configureShortcutField(shortcutField)
+        }
+    }
+
+    private func configureTitleField(_ field: NSTextField) {
+        field.lineBreakMode = .byTruncatingTail
+        field.maximumNumberOfLines = 1
+        field.allowsDefaultTighteningForTruncation = true
+        field.backgroundColor = .clear
+        self.addSubview(field)
+    }
+
+    private func configureShortcutField(_ field: NSTextField) {
+        field.alignment = .left
+        field.lineBreakMode = .byClipping
+        field.maximumNumberOfLines = 1
+        field.allowsDefaultTighteningForTruncation = false
+        field.backgroundColor = .clear
+        self.addSubview(field)
+    }
+
+    private func installClickRecognizer() {
+        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
+        recognizer.buttonMask = 0x1
+        self.addGestureRecognizer(recognizer)
+    }
+
+    private func updateColors() {
+        guard self.isRowEnabled else {
+            self.titleField.textColor = .disabledControlTextColor
+            self.shortcutField?.textColor = .disabledControlTextColor
+            self.iconView.contentTintColor = .disabledControlTextColor
+            return
+        }
+
+        if self.isRowHighlighted {
+            self.titleField.textColor = .selectedMenuItemTextColor
+            self.shortcutField?.textColor = .selectedMenuItemTextColor
+            self.iconView.contentTintColor = .selectedMenuItemTextColor
+            return
+        }
+
+        self.titleField.textColor = .labelColor
+        self.shortcutField?.textColor = .tertiaryLabelColor
+        self.iconView.contentTintColor = .labelColor
+    }
+
+    private static func iconConfiguration(for metrics: PersistentRefreshRowMetrics) -> NSImage.SymbolConfiguration {
+        NSImage.SymbolConfiguration(pointSize: metrics.iconSymbolPointSize, weight: metrics.iconSymbolWeight)
+    }
+
+    private static func shortcutFont(for metrics: PersistentRefreshRowMetrics) -> NSFont {
+        NSFont.menuFont(ofSize: metrics.shortcutFontSize)
+    }
+
+    private static func shortcutReferenceWidth(for metrics: PersistentRefreshRowMetrics) -> CGFloat {
+        (self.shortcutReferenceText as NSString).size(withAttributes: [
+            .font: self.shortcutFont(for: metrics),
+        ]).width
+    }
+
+    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        guard self.isRowEnabled else { return }
+        self.onClick?()
     }
 }
 

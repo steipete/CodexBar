@@ -421,11 +421,22 @@
 "start_at_login_subtitle" = "登入 Mac 時自動開啟 CodexBar。";
 "show_cost_summary" = "顯示費用摘要";
 "show_cost_summary_subtitle" = "讀取本機使用量記錄。在選單中顯示今天及所選歷史時段的費用。";
+"cost_summary_style_title" = "顯示樣式";
+"cost_summary_style_inline" = "僅內嵌";
+"cost_summary_style_submenu" = "僅子選單";
+"cost_summary_style_both" = "兩者";
+"cost_summary_style_inline_help" = "直接在主選單中顯示費用摘要。";
+"cost_summary_style_submenu_help" = "改為顯示詳細的費用子選單。";
+"cost_summary_style_both_help" = "同時顯示主選單摘要和詳細的費用子選單。";
+"cost_history_window_title" = "歷史時段";
+"cost_history_window_help" = "設定選單中顯示多少天的本機使用記錄。";
 "cost_history_days_title" = "歷史時段：%d 天";
 "cost_auto_refresh_info" = "自動重新整理：每小時 · 逾時：10 分鐘";
 "refresh_cadence_title" = "重新整理頻率";
 "refresh_cadence_subtitle" = "CodexBar 在背景輪詢提供者的頻率。";
 "manual_refresh_hint" = "自動重新整理已關閉；請使用選單中的「重新整理」指令。";
+"refresh_on_open_title" = "開啟選單時重新整理";
+"refresh_on_open_subtitle" = "每次開啟選單時擷取每個供應商的最新用量。";
 "check_provider_status_title" = "檢查提供者狀態";
 "check_provider_status_subtitle" = "輪詢 OpenAI/Claude 狀態頁面和 Google Workspace 的 Gemini/Antigravity，並在圖示和選單中顯示服務異常資訊。";
 "session_quota_notifications_title" = "工作階段配額通知";
@@ -447,6 +458,7 @@
 "quota_warning_warn_at" = "提醒門檻";
 "quota_warning_global_threshold_subtitle" = "工作階段和每週時段的剩餘百分比，除非提供者另有設定。";
 "quota_warning_sound" = "播放通知音效";
+"quota_warning_onscreen_alert" = "顯示螢幕文字提醒";
 "quota_warning_provider_inherits" = "預設使用全域配額提醒設定，除非在此自訂時段。";
 "quota_warning_customize_thresholds" = "自訂 %@ 門檻";
 "quota_warning_enable_warnings" = "啟用 %@ 提醒";
@@ -536,6 +548,8 @@
 "show_debug_settings_subtitle" = "在「除錯」標籤中顯示疑難排解工具。";
 "surprise_me_title" = "給我驚喜";
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
+"session_limit_confetti_title" = "工作階段限制彩帶";
+"session_limit_confetti_subtitle" = "工作階段用量重置時播放全螢幕彩帶。";
 "weekly_limit_confetti_title" = "每週重置慶祝動畫";
 "weekly_limit_confetti_subtitle" = "每週使用量重置時播放全螢幕慶祝動畫。";
 "hide_personal_info_title" = "隱藏個人資訊";
@@ -628,6 +642,7 @@
 "display_mode_both_desc" = "同時顯示百分比和進度（例如 45% · +5%）";
 "display_mode_reset_time_desc" = "顯示所選指標的重置時間（例如 ↻ 3:56 PM）";
 "status_operational" = "運作正常";
+"status_degraded" = "效能下降";
 "status_partial_outage" = "部分服務中斷";
 "status_major_outage" = "重大服務中斷";
 "status_critical_issue" = "嚴重問題";
@@ -732,6 +747,7 @@
 "Add Account..." = "新增帳號…";
 "Usage Dashboard" = "使用量儀表板";
 "Status Page" = "狀態頁";
+"Open Status Page" = "打開狀態頁";
 "Settings..." = "設定…";
 "About CodexBar" = "關於 CodexBar";
 "Quit" = "結束";
@@ -848,6 +864,8 @@
 "Enterprise host" = "Enterprise 主機";
 "Extra usage balance: %@" = "額外使用量餘額：%@";
 "Keychain Access Required" = "需要鑰匙圈存取權";
+"keychain_prompt_learn_more" = "進一步瞭解…";
+"keychain_prompt_privacy_note" = "Mac 登入密碼由 macOS（而非 CodexBar）處理。你可以隨時在「設定」→「進階」中停用所有鑰匙圈存取。";
 "Kiro menu bar value" = "Kiro 選單列數值";
 "Label" = "標籤";
 "No organizations loaded. Click Refresh after setting your API key." = "尚未載入組織。設定 API 金鑰後按一下「重新整理」。";
@@ -964,8 +982,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "限額重設額度";
-"1 manual reset available" = "可使用 1 次手動重設";
-"%d manual resets available" = "可使用 %d 次手動重設";
+"1 available" = "1 次可用";
+"%d available" = "%d 次可用";
 "Next expires %@" = "下一個將於 %@ 到期";
 "Other (%d items)" = "其他（%d 個項目）";
 "Expand" = "展開";

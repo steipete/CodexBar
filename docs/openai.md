@@ -17,7 +17,8 @@ CodexBar's OpenAI API provider targets the API Platform organization dashboard, 
    - Daily buckets use `bucket_width=1d`, costs are grouped by `line_item`, and completion usage is grouped by `model`.
    - Optional project scoping comes from `OPENAI_PROJECT_ID` or `providers[].workspaceID` for `openai`.
      Project-scoped requests add `project_ids=<project>` to both Admin API endpoints.
-2. Fallback: legacy `GET https://api.openai.com/v1/dashboard/billing/credit_grants` for normal API keys that cannot access organization usage.
+2. Best-effort fallback: legacy `GET https://api.openai.com/v1/dashboard/billing/credit_grants` for older user API
+   keys that cannot access organization usage. This endpoint is not part of OpenAI's current public API reference.
 
 ## Setup
 
@@ -30,6 +31,10 @@ printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai 
 Settings → Providers → OpenAI writes the same `~/.codexbar/config.json` field. `OPENAI_ADMIN_KEY` is preferred over
 `OPENAI_API_KEY` because it unlocks organization costs and usage; a normal API key only supports the legacy balance
 fallback.
+
+Project service-account keys are project-scoped credentials for API workloads. They are not organization Admin API
+keys, so they cannot read the organization usage and cost endpoints used by CodexBar. Configure an organization Admin
+API key instead; CodexBar reports this distinction when a project or service-account key is rejected.
 
 To scope Admin API usage to a project, set the OpenAI Project ID field in Settings or add `workspaceID` to the `openai`
 provider config:

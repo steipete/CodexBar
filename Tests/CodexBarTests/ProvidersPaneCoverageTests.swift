@@ -374,6 +374,17 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `claude menu bar metric picker includes session plus weekly lane`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-claude-session-weekly-picker")
+        let store = Self.makeUsageStore(settings: settings)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        let picker = pane._test_menuBarMetricPicker(for: .claude)
+        let ids = picker?.options.map(\.id) ?? []
+        #expect(ids.contains(MenuBarMetricPreference.primaryAndSecondary.rawValue))
+    }
+
+    @Test
     func `zai menu bar metric picker omits tertiary lane when snapshot has no 5-hour metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-zai-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)

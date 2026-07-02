@@ -419,11 +419,22 @@
 "start_at_login_subtitle" = "Apre automaticamente CodexBar quando avvii il Mac.";
 "show_cost_summary" = "Mostra riepilogo costi";
 "show_cost_summary_subtitle" = "Legge i log di utilizzo locali. Mostra oggi + la finestra storica selezionata nel menu.";
+"cost_summary_style_title" = "Stile di visualizzazione";
+"cost_summary_style_inline" = "Solo in linea";
+"cost_summary_style_submenu" = "Solo sottomenu";
+"cost_summary_style_both" = "Entrambi";
+"cost_summary_style_inline_help" = "Mostra il riepilogo dei costi direttamente nel menu principale.";
+"cost_summary_style_submenu_help" = "Mostra invece il sottomenu Costo dettagliato.";
+"cost_summary_style_both_help" = "Mostra sia il riepilogo nel menu principale sia il sottomenu Costo dettagliato.";
+"cost_history_window_title" = "Finestra storica";
+"cost_history_window_help" = "Imposta quanti giorni di log di utilizzo locali mostrare nel menu.";
 "cost_history_days_title" = "Finestra storica: %d giorni";
 "cost_auto_refresh_info" = "Aggiornamento automatico: ogni ora · Timeout: 10 min";
 "refresh_cadence_title" = "Frequenza aggiornamento";
 "refresh_cadence_subtitle" = "Con quale frequenza CodexBar interroga i provider in background.";
 "manual_refresh_hint" = "Aggiornamento automatico disattivato; usa il comando Aggiorna nel menu.";
+"refresh_on_open_title" = "Aggiorna all'apertura del menu";
+"refresh_on_open_subtitle" = "Recupera l'utilizzo più recente di ogni provider ogni volta che apri il menu.";
 "check_provider_status_title" = "Controlla stato provider";
 "check_provider_status_subtitle" = "Controlla le pagine di stato OpenAI/Claude e Google Workspace per Gemini/Antigravity, mostrando incidenti in icona e menu.";
 "session_quota_notifications_title" = "Notifiche quota sessione";
@@ -445,6 +456,7 @@
 "quota_warning_warn_at" = "Avvisa a";
 "quota_warning_global_threshold_subtitle" = "Percentuali residue per le finestre di sessione e settimanale, salvo override del provider.";
 "quota_warning_sound" = "Riproduci suono di notifica";
+"quota_warning_onscreen_alert" = "Mostra avviso di testo sullo schermo";
 "quota_warning_provider_inherits" = "Usa le impostazioni globali di avviso quota, salvo personalizzazione di una finestra qui.";
 "quota_warning_customize_thresholds" = "Personalizza soglie %@";
 "quota_warning_enable_warnings" = "Abilita avvisi %@";
@@ -542,6 +554,8 @@
 "show_debug_settings_subtitle" = "Espone strumenti di diagnosi nella scheda Debug.";
 "surprise_me_title" = "Sorprendimi";
 "surprise_me_subtitle" = "Per chi apprezza un po' di personalità dagli agenti.";
+"session_limit_confetti_title" = "Coriandoli limite sessione";
+"session_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota di sessione si resetta.";
 "weekly_limit_confetti_title" = "Coriandoli limite settimanale";
 "weekly_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota settimanale si resetta.";
 "hide_personal_info_title" = "Nascondi informazioni personali";
@@ -645,6 +659,7 @@
 
 /* Provider status */
 "status_operational" = "Operativo";
+"status_degraded" = "Prestazioni ridotte";
 "status_partial_outage" = "Interruzione parziale";
 "status_major_outage" = "Interruzione grave";
 "status_critical_issue" = "Problema critico";
@@ -701,6 +716,7 @@
 "Add Account..." = "Aggiungi account...";
 "Usage Dashboard" = "Dashboard utilizzo";
 "Status Page" = "Pagina di stato";
+"Open Status Page" = "Apri pagina di stato";
 "Settings..." = "Impostazioni...";
 "About CodexBar" = "Informazioni su CodexBar";
 "Quit" = "Esci";
@@ -987,6 +1003,8 @@
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo uso extra: %@";
 "Keychain Access Required" = "Accesso Portachiavi richiesto";
+"keychain_prompt_learn_more" = "Ulteriori informazioni…";
+"keychain_prompt_privacy_note" = "L'inserimento della password di accesso al Mac è gestito da macOS, non da CodexBar. Puoi disattivare l'accesso al Portachiavi in qualsiasi momento in Impostazioni → Avanzate.";
 "Kiro menu bar value" = "Valore barra menu Kiro";
 "Label" = "Etichetta";
 "No organizations loaded. Click Refresh after setting your API key." = "Nessuna organizzazione caricata. Fai clic su Aggiorna dopo aver impostato la chiave API.";
@@ -1098,8 +1116,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crediti di reimpostazione limite";
-"1 manual reset available" = "1 reimpostazione manuale disponibile";
-"%d manual resets available" = "%d reimpostazioni manuali disponibili";
+"1 available" = "1 disponibile";
+"%d available" = "%d disponibili";
 "Next expires %@" = "La prossima scade %@";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";

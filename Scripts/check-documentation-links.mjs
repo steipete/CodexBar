@@ -4,6 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const approvedRootDocumentation = new Set([
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  "VISION.md",
+].map((relativePath) => path.join(repoRoot, relativePath)));
 
 const readme = readText("README.md");
 const readmeLinks = [
@@ -13,13 +19,30 @@ const readmeLinks = [
 ].filter(isRepositoryDocReference);
 
 assert(readmeLinks.length > 0, "README.md has no local documentation links");
-for (const link of readmeLinks) validateLocalDocLink(link);
+for (const link of readmeLinks) validateLocalDocLink(link, repoRoot, "README.md");
 
 const providerLinks = inlineCodeDocLinks(readText("docs/providers.md"));
 assert(providerLinks.length > 0, "docs/providers.md has no provider detail links");
-for (const link of providerLinks) validateLocalDocLink(link);
+for (const link of providerLinks) validateLocalDocLink(link, repoRoot, "docs/providers.md");
 
-console.log(`documentation links OK: ${readmeLinks.length + providerLinks.length} local links`);
+const docsLinks = markdownFiles("docs").flatMap((relativePath) => {
+  const markdown = readText(relativePath);
+  const links = [
+    ...markdownLinks(markdown),
+    ...markdownImageLinks(markdown),
+    ...htmlLinks(markdown),
+  ].filter(isLocalDocumentationReference);
+
+  return links.map((link) => ({ link, relativePath }));
+});
+
+for (const { link, relativePath } of docsLinks) {
+  validateLocalDocLink(link, path.join(repoRoot, path.dirname(relativePath)), relativePath);
+}
+
+console.log(
+  `documentation links OK: ${readmeLinks.length + providerLinks.length + docsLinks.length} local links`,
+);
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
@@ -63,13 +86,14 @@ function inlineCodeDocLinks(markdown) {
   });
 }
 
-function validateLocalDocLink(rawLink) {
-  const { absolutePath, fragment } = localDocPath(rawLink);
-  assert(fs.existsSync(absolutePath), `missing documentation target: ${rawLink}`);
+function validateLocalDocLink(rawLink, baseDirectory, sourceLabel) {
+  const sourcePath = path.join(repoRoot, sourceLabel);
+  const { absolutePath, fragment } = localDocPath(rawLink, baseDirectory, sourcePath);
+  assert(fs.existsSync(absolutePath), `${sourceLabel}: missing documentation target: ${rawLink}`);
 
   if (path.extname(absolutePath).toLowerCase() !== ".md" || !fragment) return;
   const anchors = markdownHeadingAnchors(readText(path.relative(repoRoot, absolutePath)));
-  assert(anchors.has(fragment), `missing documentation anchor: ${rawLink}`);
+  assert(anchors.has(fragment), `${sourceLabel}: missing documentation anchor: ${rawLink}`);
 }
 
 function isRepositoryDocReference(rawLink) {
@@ -80,18 +104,39 @@ function isRepositoryDocReference(rawLink) {
   return pathname === "docs" || pathname.startsWith("docs/");
 }
 
-function localDocPath(rawLink) {
+function isLocalDocumentationReference(rawLink) {
   const parsed = parseRelativeURL(rawLink);
-  assert(parsed && !parsed.protocol && !parsed.host && parsed.pathname, `invalid documentation URL: ${rawLink}`);
+  if (!parsed || parsed.protocol || parsed.host) return false;
+  return Boolean(parsed.pathname || parsed.hash);
+}
 
-  const decodedPath = decodeURIComponent(parsed.pathname);
-  const absolutePath = path.resolve(repoRoot, decodedPath);
-  const docsRoot = path.resolve(repoRoot, "docs");
+function localDocPath(rawLink, baseDirectory, sourcePath) {
+  const parsed = parseRelativeURL(rawLink);
   assert(
-    absolutePath === docsRoot || absolutePath.startsWith(`${docsRoot}${path.sep}`),
-    `documentation link escapes docs root: ${rawLink}`,
+    parsed && !parsed.protocol && !parsed.host && (parsed.pathname || parsed.hash),
+    `invalid documentation URL: ${rawLink}`,
+  );
+
+  const rawPath = rawLink.split("#", 1)[0].split("?", 1)[0];
+  const decodedPath = decodeURIComponent(rawPath);
+  const absolutePath = decodedPath ? path.resolve(baseDirectory, decodedPath) : sourcePath;
+  const docsRoot = path.resolve(repoRoot, "docs");
+  const isInDocsTree = absolutePath === docsRoot || absolutePath.startsWith(`${docsRoot}${path.sep}`);
+  assert(
+    isInDocsTree || approvedRootDocumentation.has(absolutePath),
+    `documentation link escapes approved documentation roots: ${rawLink}`,
   );
   return { absolutePath, fragment: parsed.hash ? decodeURIComponent(parsed.hash.slice(1)) : "" };
+}
+
+function markdownFiles(relativeDir) {
+  const dir = path.join(repoRoot, relativeDir);
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name.startsWith(".")) return [];
+    const relativePath = path.join(relativeDir, entry.name);
+    if (entry.isDirectory()) return markdownFiles(relativePath);
+    return entry.isFile() && entry.name.endsWith(".md") ? [relativePath] : [];
+  }).sort((a, b) => a.localeCompare(b));
 }
 
 function parseRelativeURL(rawLink) {

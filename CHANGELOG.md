@@ -1,24 +1,61 @@
 # Changelog
 
-## 0.37.4 — Unreleased
+## Unreleased
 
 ### Added
+- Menu: add an opt-in setting to refresh provider usage whenever the menu opens without changing the periodic refresh clock. Thanks @dstier-git!
+- Quota warnings: add an optional centered on-screen text alert that stays click-through and does not steal focus. Thanks @SAASEmpiree!
+
+### Fixed
+- Claude Education: treat subscription-only CLI responses as unavailable quotas, keep local cost data in menus and widgets, and suppress expected refresh cancellations (#1808).
+- Claude web usage: bound stale requests so Auto can reach CLI fallback instead of hanging indefinitely.
+- Claude history: keep OAuth utilization separate across account switches while preserving continuity through token refreshes.
+- Linux CLI: keep Claude OAuth usage subprocess-free, skip version probes, and let Auto bypass unsupported web sources. Thanks @derekszen!
+- Usage display: make Usage widgets follow the used-versus-remaining preference already shared by menus and Overview rows (#1738). Thanks @OlegLustenko and @FrancoLan!
+- OpenCode Go: keep rolling usage available when the dashboard omits the optional weekly window. Thanks @mohkg1017!
+- Menu bar: make Show most-used provider rank only providers selected for Overview. Thanks @dstier-git!
+- Codex: show expiring reset-credit availability even when optional credits and extra usage are hidden, while preserving CLI `--no-credits`. Thanks @simon-ami!
+- Claude CLI: prevent logged-out background Auto fallbacks from opening browser OAuth during app refresh. Thanks @afarwind!
+
+## 0.37.3 — 2026-06-28
+
+### Added
+- Sakana AI: add manual-cookie usage for five-hour and weekly quota windows. Thanks @LeoLin990405!
+- Status pages: show live component submenus for Claude, Codex, and Augment. Thanks @elijahfriedman!
+- Cost history: choose inline, submenu, or combined local-cost presentation. Thanks @Zihao-Qi!
+- Confetti: optionally celebrate session-limit resets with full-screen confetti, configurable beside the weekly-limit celebration in Advanced settings. Thanks @bystritskiy!
 - z.ai: support saved token-account team usage with account-scoped organization and project metadata. Thanks @zqbake!
-
-### Fixed
-- Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
-
-## 0.37.3 — 2026-06-23
-
-### Added
 - CLI: show session pace in text output, expose derived pace data in JSON, and honor the configured weekly work-day baseline. Thanks @kmatsunami!
+- Claude: add a combined "Session + Weekly" menu bar metric that shows the 5-hour session and weekly lanes together (paced on the weekly lane), matching Codex, and classify lanes by cadence so a weekly-only account is not mislabeled as a session. Thanks @Shengqiang-Zhang!
 
 ### Fixed
+- Keychain prompts: explain that macOS handles password entry, surface the existing opt-out path, and link to troubleshooting before access begins (fixes #1681). Thanks @someshfengde and @Yuxin-Qiao!
+- Claude: use the dedicated Claude Code authentication command for sign-in, report its real exit status, and stop treating a browser URL as completed login (fixes #1715).
+- OpenAI API: explain that project service-account keys cannot read organization usage instead of surfacing a generic credit-balance HTTP 401 error (fixes #1792). Thanks @dhruv-anand-aintech!
+- Codex cost history: stop double-billing cached input and reprice stale Codex and Pi cache entries. Thanks @dstier-git!
+- Overview: render row selection on the GPU to keep trackpad scrolling smooth. Thanks @hhh2210!
+- Codex cost history: count cache reads separately, deduplicate active and archived sessions at row level, and preserve cached days across narrow refreshes. Thanks @kiranmagic7!
+- Pi cost history: price Codex cache reads once using their true context size. Thanks @kiranmagic7!
+- Menu bar: in the combined "Session + Weekly" metric (Codex and Claude), pair the 5-hour session usage with the weekly pace in pace and both display modes instead of showing the busier (most-constrained) lane's usage, which mislabeled the readout as weekly usage + weekly pace. Thanks @Shengqiang-Zhang!
+- Menu bar: in the combined "Session + Weekly" metric, ignore Claude web's synthetic 0% five-hour placeholder (emitted for accounts with no live session window but a real weekly lane) so the readout shows the weekly lane instead of a non-existent `5h 0%`/`5h 100%` session.
 - Memory pressure: finish isolating utility-queue source reads from main-actor state to prevent the remaining callback crash. Thanks @Zihao-Qi!
+- Kiro: run account, usage, and context commands through a PTY so current CLI versions return usage without timing out. Thanks @sf-jin-ku!
+- OpenAI web: ignore stale profiles from removed browsers, discover registered installs outside standard app folders, and surface browser-profile access and cookie-load timeout diagnostics.
+- PTY probes: preserve Darwin device identifiers without crashing when Intel macOS reports signed values.
+- CLI server: collect `/usage` providers concurrently under finite per-provider deadlines so one hung provider degrades to its own error row without discarding healthy results. Thanks @enieuwy!
+- Privacy: hide account and team identity values without showing a `Hidden` placeholder or empty account rows. Thanks @Zihao-Qi!
+- Mistral: restore Vibe monthly-plan usage by forwarding only required console session cookies. Thanks @lfmundim!
+- Codex: show enterprise monthly credit limits across OAuth, CLI, menu, and widget surfaces. Thanks @ChenZiHong-Gavin!
+- Codex: avoid launching monthly-credit CLI enrichment during usage-only OAuth refreshes.
+- Usage display: keep positive values below one percent visible instead of rounding them to zero. Thanks @Max0633!
+- Menu bar: show pace as `0%` instead of a signed `+0%` or `-0%` when the pace delta rounds to zero. Thanks @devYRPauli!
+- Menu: align the persistent Refresh row with native actions, keep Settings, About, and Quit keyboard-navigable, and use a narrower Usage Dashboard icon. Thanks @Zihao-Qi!
+- Menu: match the persistent Refresh symbol size, weight, and icon column to native action rows across standard and narrow provider menus. Thanks @micnem!
 - Claude: stop installed-version checks from invoking a login shell and triggering unwanted Keychain prompts. Thanks @enieuwy!
 - Localization: reject blank translated values and restore the affected Vietnamese provider prompts. Thanks @kiranmagic7!
 - Usage totals: keep Today tied to the current local calendar day across cost, Admin API, and Poe surfaces instead of showing the latest historical bucket. Thanks @Zihao-Qi!
 - Antigravity: align compact icons and automatic highest-usage selection with grouped Gemini and Claude/GPT 5-hour and weekly lanes while ignoring non-renderable cadences. Thanks @Yuxin-Qiao!
+- Antigravity CLI: reuse an authenticated user-launched `agy` server for faster, more reliable one-shot usage checks. Thanks @junmo-kim!
 
 ## 0.37.2 — 2026-06-22
 

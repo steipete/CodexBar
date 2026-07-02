@@ -36,9 +36,12 @@ extension StatusItemController {
     static let costHistoryChartID = "costHistoryChart"
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
+    static let statusComponentsID = "statusComponents"
 
-    private func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
+    func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
         switch action {
+        case .refresh:
+            ("r", [.command])
         case .settings:
             (",", [.command])
         case .quit:
@@ -463,7 +466,7 @@ extension StatusItemController {
             surface: .liveCard)
         let hasCreditsHistory = codexProjection?.hasCreditsHistory == true
         let hasUsageBreakdown = codexProjection?.hasUsageBreakdown == true
-        let hasCostHistory = self.settings.isCostUsageEffectivelyEnabled(for: currentProvider) &&
+        let hasCostHistory = self.settings.costSummaryShowsSubmenu(for: currentProvider) &&
             (self.store.tokenSnapshot(for: currentProvider)?.daily.isEmpty == false)
         let canShowBuyCredits = self.settings.showOptionalCreditsAndExtraUsage &&
             codexProjection?.canShowBuyCredits == true
@@ -564,6 +567,7 @@ extension StatusItemController {
                     section: "overview",
                     additional: [UsageMenuCardView.Model.heightFingerprintField("storage", storageText)]),
                 submenu: submenu,
+                usesGPUSelection: true,
                 onClick: { [weak self, weak interactionMenu] in
                     guard let self, let interactionMenu else { return }
                     self.selectOverviewProvider(row.provider, menu: interactionMenu)
@@ -628,8 +632,8 @@ extension StatusItemController {
 
         guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
         let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
-        if context.openAIContext.hasOpenAIWebMenuItems || self
-            .hasOpenAIAPIUsageSubmenu(provider: context.currentProvider)
+        if context.openAIContext.hasOpenAIWebMenuItems ||
+            self.hasProviderNativeCostHistorySubmenu(provider: context.currentProvider)
         {
             let webItems = OpenAIWebMenuItems(
                 hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
@@ -803,7 +807,6 @@ extension StatusItemController {
                     if action == .refresh {
                         let item = self.makePersistentRefreshItem(
                             title: L(title),
-                            action: action,
                             menu: captureMenu ?? menu,
                             width: width)
                         menu.addItem(item)
@@ -826,6 +829,11 @@ extension StatusItemController {
                         image.size = NSSize(width: 16, height: 16)
                         item.image = image
                     }
+                    self.attachStatusComponentsSubmenuIfNeeded(
+                        to: item,
+                        action: action,
+                        menu: captureMenu ?? menu,
+                        width: width)
                     if case let .switchAccount(targetProvider) = action,
                        let subtitle = self.switchAccountSubtitle(for: targetProvider)
                     {
@@ -871,28 +879,6 @@ extension StatusItemController {
                 menu.addItem(.separator())
             }
         }
-    }
-
-    private func makePersistentRefreshItem(
-        title: String,
-        action: MenuDescriptor.MenuAction,
-        menu: NSMenu,
-        width: CGFloat) -> NSMenuItem
-    {
-        let item = self.makeMenuCardItem(
-            PersistentMenuActionRowView(
-                title: title,
-                systemImageName: action.systemImageName),
-            id: Self.persistentRefreshMenuItemID,
-            width: width,
-            heightCacheFingerprint: "persistentRefreshAction:\(action.systemImageName ?? "")|\(title)",
-            onClick: { [weak self, weak menu] in
-                guard let self, let menu else { return }
-                self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
-            })
-        item.title = title
-        item.isEnabled = !self.isRefreshActionInFlight(for: menu)
-        return item
     }
 
     private func makeWrappedSecondaryTextItem(text: String, width: CGFloat) -> NSMenuItem {
@@ -1126,8 +1112,11 @@ extension StatusItemController {
         // provider fetch failed and needs a retry; periodic freshness is handled by the refresh timer.
         // AppKit menu tracking is modal, so starting provider refreshes while it is active can make the menu
         // feel frozen and can block keyboard focus from returning.
+        // Exception: when `refreshAllProvidersOnMenuOpen` is enabled, every enabled provider is refreshed on
+        // open regardless of freshness — still after the delay below, and still via the light usage-only
+        // primitive so the OpenAI dashboard scrape stays deferred until the menu closes.
         let providersNeedingRetryAtOpen = self.delayedRefreshRetryProviders(for: menu).filter {
-            self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+            self.store.needsUsageRefreshRetry(for: $0)
         }
         if !providersNeedingRetryAtOpen.isEmpty {
             self.deferMenuInteractionRefreshIfNeeded(providers: providersNeedingRetryAtOpen)
@@ -1143,13 +1132,18 @@ extension StatusItemController {
             self.onDelayedMenuRefreshAttemptForTesting?()
             #endif
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
-            let availableProviders = Set(self.store.enabledProvidersForBackgroundWork())
-            let retryProviders = self.delayedRefreshRetryProviders(for: menu).filter {
-                availableProviders.contains($0) &&
-                    (self.store.refreshingProviders.contains($0) ||
-                        self.store.isStale(provider: $0) ||
-                        self.store.snapshot(for: $0) == nil)
-            }
+            let refreshAllOnOpen = self.settings.refreshAllProvidersOnMenuOpen
+            let enabledProviders = self.store.enabledProvidersForBackgroundWork()
+            let visibleProviders = self.delayedRefreshRetryProviders(for: menu)
+            let plan = MenuOpenRefreshPlan.resolve(.init(
+                refreshAllOnOpen: refreshAllOnOpen,
+                enabledProviders: enabledProviders,
+                visibleProviders: visibleProviders,
+                refreshingProviders: self.store.refreshingProviders,
+                staleProviders: Set(visibleProviders.filter { self.store.isStale(provider: $0) }),
+                missingProviders: Set(visibleProviders.filter { !self.store.hasSatisfiedUsageFetch(for: $0) })))
+            if plan.refreshCodexDashboard { self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all") }
+            let retryProviders = plan.providers
             guard !retryProviders.isEmpty else {
                 self.clearSatisfiedDeferredMenuInteractionRefreshes(
                     for: self.delayedRefreshRetryProviders(for: menu))
@@ -1165,13 +1159,26 @@ extension StatusItemController {
             }
             self.deferMenuInteractionRefreshIfNeeded(providers: retryProviders)
             await ProviderInteractionContext.$current.withValue(.background) {
-                for provider in retryProviders {
-                    guard !Task.isCancelled else { return }
-                    await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                if plan.scheduling == .concurrent {
+                    // Refresh concurrently so one slow provider doesn't delay the rest, mirroring the
+                    // periodic refresh in `UsageStore.runRefresh`. `coalesceIfRefreshing` makes each call
+                    // wait for any in-flight refresh (e.g. a manual refresh) instead of overriding it.
+                    await withTaskGroup(of: Void.self) { group in
+                        for provider in retryProviders {
+                            group.addTask {
+                                await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                            }
+                        }
+                    }
+                } else {
+                    for provider in retryProviders {
+                        guard !Task.isCancelled else { return }
+                        await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                    }
                 }
             }
             let stillNeedsRetry = retryProviders.contains {
-                self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+                self.store.needsUsageRefreshRetry(for: $0)
             }
             if !stillNeedsRetry {
                 self.clearSatisfiedDeferredMenuInteractionRefreshes(for: retryProviders)
@@ -1189,7 +1196,7 @@ extension StatusItemController {
         let providersToCheck = self.delayedRefreshRetryProviders(for: menu)
         guard !providersToCheck.isEmpty else { return false }
         return providersToCheck.contains { provider in
-            self.store.isStale(provider: provider) || self.store.snapshot(for: provider) == nil
+            self.store.needsUsageRefreshRetry(for: provider)
         }
     }
 
@@ -1463,6 +1470,9 @@ extension StatusItemController {
         if provider == .openai {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
+        if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+            return self.makeCostHistorySubmenu(provider: provider, width: width)
+        }
         if provider == .zai {
             return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
         }
@@ -1557,6 +1567,11 @@ extension StatusItemController {
         provider == .openai && self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }
 
+    private func hasProviderNativeCostHistorySubmenu(provider: UsageProvider) -> Bool {
+        UsageStore.tokenCostRequiresProviderSnapshot(provider) &&
+            self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
+    }
+
     func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
         guard self.store.storageFootprint(for: provider)?.components.isEmpty == false else { return nil }
         if let width {
@@ -1566,6 +1581,47 @@ extension StatusItemController {
                 width: width)
         }
         return self.makeHostedSubviewPlaceholderMenu(chartID: Self.storageBreakdownID, provider: provider)
+    }
+
+    /// Providers that surface the live component list as a native submenu. Every other provider
+    /// keeps the plain "Status Page" link that opens the website. Kept deliberately small: these
+    /// are the statuspage.io/incident.io feeds we actively curate and trust to render well.
+    static let statusComponentsSubmenuProviders: Set<UsageProvider> = [.claude, .codex, .augment]
+
+    /// Builds the status submenu (component rows + a website link) for the curated providers in
+    /// `statusComponentsSubmenuProviders`. Gated on the provider being in that allowlist (and
+    /// having a component feed) rather than on components being loaded yet: status is fetched
+    /// asynchronously, so gating on loaded components would leave the row as a plain link for any
+    /// provider whose first fetch hasn't landed at menu-build time. The submenu hydrates from the
+    /// live component list each time it opens (and shows just the website link until the first
+    /// fetch lands). Returns nil for all other providers, which keep the plain status-page link.
+    /// For curated providers, turns the "Status Page" row into a submenu of live component
+    /// statuses instead of a direct website link (the link moves to the bottom of the submenu).
+    func attachStatusComponentsSubmenuIfNeeded(
+        to item: NSMenuItem,
+        action: MenuDescriptor.MenuAction,
+        menu: NSMenu,
+        width: CGFloat)
+    {
+        guard action == .statusPage,
+              let statusProvider = self.menuProvider(for: menu) ?? self.lastMenuProvider,
+              let submenu = self.makeStatusComponentsSubmenu(provider: statusProvider, width: width)
+        else { return }
+        item.action = nil
+        item.submenu = submenu
+    }
+
+    func makeStatusComponentsSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
+        guard self.store.statusChecksEnabled else { return nil }
+        guard Self.statusComponentsSubmenuProviders.contains(provider) else { return nil }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).metadata.statusPageURL != nil else { return nil }
+        if let width {
+            return self.makeHostedSubviewPlaceholderMenu(
+                chartID: Self.statusComponentsID,
+                provider: provider,
+                width: width)
+        }
+        return self.makeHostedSubviewPlaceholderMenu(chartID: Self.statusComponentsID, provider: provider)
     }
 
     private func isOpenAIWebSubviewMenu(_ menu: NSMenu) -> Bool {

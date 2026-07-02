@@ -5,18 +5,20 @@ enum MenuBarDisplayText {
     static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
         guard let window else { return nil }
         let percent = showUsed ? window.usedPercent : window.remainingPercent
-        let clamped = min(100, max(0, percent))
-        return String(format: "%.0f%%", clamped)
+        return UsageFormatter.percentString(percent)
     }
 
     static func paceText(pace: UsagePace?) -> String? {
         guard let pace else { return nil }
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
+        if deltaValue == 0 { return "0%" }
         let sign = pace.deltaPercent >= 0 ? "+" : "-"
         return "\(sign)\(deltaValue)%"
     }
 
-    static func codexCombinedPercentText(
+    /// Combined "session · weekly" menu-bar text shared by providers that expose both a
+    /// session (5h) and weekly (7d) lane, e.g. Codex and Claude.
+    static func combinedSessionWeeklyPercentText(
         sessionWindow: RateWindow?,
         weeklyWindow: RateWindow?,
         showUsed: Bool)
@@ -26,7 +28,7 @@ enum MenuBarDisplayText {
         if let sessionWindow,
            let session = self.percentText(window: sessionWindow, showUsed: showUsed)
         {
-            parts.append("\(self.codexSessionLabel(window: sessionWindow)) \(session)")
+            parts.append("\(self.sessionWindowLabel(window: sessionWindow)) \(session)")
         }
         if let weekly = self.percentText(window: weeklyWindow, showUsed: showUsed) {
             parts.append("W \(weekly)")
@@ -34,7 +36,7 @@ enum MenuBarDisplayText {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    private static func codexSessionLabel(window: RateWindow) -> String {
+    private static func sessionWindowLabel(window: RateWindow) -> String {
         guard let minutes = window.windowMinutes, minutes > 0 else { return "S" }
         guard minutes.isMultiple(of: 60) else { return "\(minutes)m" }
         return "\(minutes / 60)h"

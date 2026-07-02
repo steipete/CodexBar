@@ -439,16 +439,18 @@ extension OpenCodeGoUsageFetcher {
             text: text),
             let rollingReset = self.extractInt(
                 pattern: #"rollingUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#,
-                text: text),
-            let weeklyPercent = self.extractDouble(
-                pattern: #"weeklyUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
-                text: text),
-            let weeklyReset = self.extractInt(
-                pattern: #"weeklyUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#,
                 text: text)
         else {
             throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
         }
+
+        let weeklyPercent = self.extractDouble(
+            pattern: #"weeklyUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
+            text: text)
+        let weeklyReset = self.extractInt(
+            pattern: #"weeklyUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#,
+            text: text)
+        let hasWeeklyUsage = weeklyPercent != nil && weeklyReset != nil
 
         let monthlyPercent = self.extractDouble(
             pattern: #"monthlyUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
@@ -458,12 +460,13 @@ extension OpenCodeGoUsageFetcher {
             text: text)
 
         return OpenCodeGoUsageSnapshot(
+            hasWeeklyUsage: hasWeeklyUsage,
             hasMonthlyUsage: monthlyPercent != nil || monthlyReset != nil,
             rollingUsagePercent: rollingPercent,
-            weeklyUsagePercent: weeklyPercent,
+            weeklyUsagePercent: weeklyPercent ?? 0,
             monthlyUsagePercent: monthlyPercent ?? 0,
             rollingResetInSec: rollingReset,
-            weeklyResetInSec: weeklyReset,
+            weeklyResetInSec: weeklyReset ?? 0,
             monthlyResetInSec: monthlyReset ?? 0,
             updatedAt: now)
     }
@@ -513,7 +516,7 @@ extension OpenCodeGoUsageFetcher {
         let weekly = self.firstDict(from: dict, keys: weeklyKeys)
         let monthly = self.firstDict(from: dict, keys: monthlyKeys)
 
-        guard let rolling, let weekly else { return nil }
+        guard let rolling else { return nil }
 
         return self.buildSnapshot(rolling: rolling, weekly: weekly, monthly: monthly, now: now, renewsAt: renewsAt)
     }
@@ -542,7 +545,7 @@ extension OpenCodeGoUsageFetcher {
             }
         }
 
-        if let rolling, let weekly {
+        if let rolling {
             let snapshot = self.buildSnapshot(
                 rolling: rolling,
                 weekly: weekly,
@@ -590,9 +593,10 @@ extension OpenCodeGoUsageFetcher {
                 candidate.pathLower.contains("month")
         }
 
+        let nonRollingIDs = Set((weeklyCandidates + monthlyCandidates).map(\.id))
         let rolling = self.pickCandidate(
             preferred: rollingCandidates,
-            fallback: candidates,
+            fallback: candidates.filter { !nonRollingIDs.contains($0.id) },
             pickShorter: true)
         let weekly = self.pickCandidate(
             from: weeklyCandidates.filter { candidate in
@@ -605,17 +609,18 @@ extension OpenCodeGoUsageFetcher {
             },
             pickShorter: false)
 
-        guard let rolling, let weekly else { return nil }
+        guard let rolling else { return nil }
 
         let renewsAt = self.dateValue(from: self.value(from: object as? [String: Any] ?? [:], keys: self.renewAtKeys))
             ?? inheritedRenewsAt
         return OpenCodeGoUsageSnapshot(
+            hasWeeklyUsage: weekly != nil,
             hasMonthlyUsage: monthly != nil,
             rollingUsagePercent: rolling.percent,
-            weeklyUsagePercent: weekly.percent,
+            weeklyUsagePercent: weekly?.percent ?? 0,
             monthlyUsagePercent: monthly?.percent ?? 0,
             rollingResetInSec: rolling.resetInSec,
-            weeklyResetInSec: weekly.resetInSec,
+            weeklyResetInSec: weekly?.resetInSec ?? 0,
             monthlyResetInSec: monthly?.resetInSec ?? 0,
             renewsAt: renewsAt,
             updatedAt: now)
@@ -704,26 +709,32 @@ extension OpenCodeGoUsageFetcher {
 
     private static func buildSnapshot(
         rolling: [String: Any],
-        weekly: [String: Any],
+        weekly: [String: Any]?,
         monthly: [String: Any]?,
         now: Date,
         renewsAt: Date? = nil) -> OpenCodeGoUsageSnapshot?
     {
-        guard let rollingWindow = self.parseWindow(rolling, now: now),
-              let weeklyWindow = self.parseWindow(weekly, now: now)
-        else {
+        guard let rollingWindow = self.parseWindow(rolling, now: now) else {
             return nil
         }
 
+        let weeklyWindow: (percent: Double, resetInSec: Int)?
+        if let weekly {
+            guard let parsed = self.parseWindow(weekly, now: now) else { return nil }
+            weeklyWindow = parsed
+        } else {
+            weeklyWindow = nil
+        }
         let monthlyWindow = monthly.flatMap { self.parseWindow($0, now: now) }
 
         return OpenCodeGoUsageSnapshot(
+            hasWeeklyUsage: weeklyWindow != nil,
             hasMonthlyUsage: monthlyWindow != nil,
             rollingUsagePercent: rollingWindow.percent,
-            weeklyUsagePercent: weeklyWindow.percent,
+            weeklyUsagePercent: weeklyWindow?.percent ?? 0,
             monthlyUsagePercent: monthlyWindow?.percent ?? 0,
             rollingResetInSec: rollingWindow.resetInSec,
-            weeklyResetInSec: weeklyWindow.resetInSec,
+            weeklyResetInSec: weeklyWindow?.resetInSec ?? 0,
             monthlyResetInSec: monthlyWindow?.resetInSec ?? 0,
             renewsAt: renewsAt,
             updatedAt: now)

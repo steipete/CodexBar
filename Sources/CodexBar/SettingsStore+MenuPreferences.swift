@@ -93,7 +93,7 @@ extension SettingsStore {
     }
 
     func menuBarMetricSupportsPrimaryAndSecondary(for provider: UsageProvider) -> Bool {
-        provider == .codex
+        provider == .codex || provider == .claude
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider) -> Bool {

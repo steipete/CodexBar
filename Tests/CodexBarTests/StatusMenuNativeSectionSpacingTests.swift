@@ -18,6 +18,7 @@ struct StatusMenuNativeSectionSpacingTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         settings.providerStorageFootprintsEnabled = true
         self.enableOnlyCodex(settings)
 

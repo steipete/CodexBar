@@ -129,7 +129,7 @@ swiftlint --strict
 ### Local Development Build
 ```bash
 ./Scripts/package_app.sh
-# Creates: CodexBar.app (Developer ID by default; set CODEXBAR_SIGNING=adhoc for ad-hoc signing)
+# Creates: CodexBar.app with ad-hoc signing by default
 ```
 
 ### Release Build (Notarized)

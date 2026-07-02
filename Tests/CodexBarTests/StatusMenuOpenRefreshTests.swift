@@ -1361,6 +1361,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         self.enableOnlyCodex(settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
@@ -1404,6 +1405,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
         self.enableOnlyCodex(settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)

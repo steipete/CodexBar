@@ -415,11 +415,22 @@
 "start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
 "show_cost_summary" = "Mostreu el resum de cost";
 "show_cost_summary_subtitle" = "Llegeix els registres d'ús locals. Mostra el cost d'avui + la finestra d'historial seleccionada al menú.";
+"cost_summary_style_title" = "Estil de visualització";
+"cost_summary_style_inline" = "Només integrat";
+"cost_summary_style_submenu" = "Només submenú";
+"cost_summary_style_both" = "Tots dos";
+"cost_summary_style_inline_help" = "Mostra el resum de cost directament al menú principal.";
+"cost_summary_style_submenu_help" = "Mostra el submenú Cost detallat en lloc d'això.";
+"cost_summary_style_both_help" = "Mostra el resum del menú principal i el submenú Cost detallat.";
+"cost_history_window_title" = "Finestra d'historial";
+"cost_history_window_help" = "Defineix quants dies de registres d'ús locals apareixen al menú.";
 "cost_history_days_title" = "Finestra d'historial: %d dies";
 "cost_auto_refresh_info" = "Actualització automàtica: cada hora · Temps d'espera: 10 min";
 "refresh_cadence_title" = "Freqüència d'actualització";
 "refresh_cadence_subtitle" = "Amb quina freqüència el CodexBar consulta els proveïdors en segon pla.";
 "manual_refresh_hint" = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
+"refresh_on_open_title" = "Actualitza en obrir el menú";
+"refresh_on_open_subtitle" = "Obté l'ús més recent de cada proveïdor cada vegada que obres el menú.";
 "check_provider_status_title" = "Comproveu l'estat del proveïdor";
 "check_provider_status_subtitle" = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a Gemini/Antigravity, mostrant incidències a la icona i al menú.";
 "session_quota_notifications_title" = "Notificacions de quota de sessió";
@@ -434,6 +445,7 @@
 "quota_warning_warn_at" = "Aviseu al";
 "quota_warning_global_threshold_subtitle" = "Percentatges restants per a les finestres de sessió i setmanal, llevat que un proveïdor els substitueixi.";
 "quota_warning_sound" = "Reprodueix el so de notificació";
+"quota_warning_onscreen_alert" = "Mostra una alerta de text a la pantalla";
 "quota_warning_provider_inherits" = "Fa servir la configuració global d'avís de quota llevat que es personalitzi una finestra aquí.";
 "quota_warning_customize_thresholds" = "Personalitza els llindars de %@";
 "quota_warning_enable_warnings" = "Activeu els avisos de %@";
@@ -529,6 +541,8 @@
 "show_debug_settings_subtitle" = "Mostreu eines de diagnòstic a la pestanya Depuració.";
 "surprise_me_title" = "Sorprèn-me";
 "surprise_me_subtitle" = "Activeu-ho si us agrada que els vostres agents es diverteixin allà dalt.";
+"session_limit_confetti_title" = "Confeti del límit de sessió";
+"session_limit_confetti_subtitle" = "Mostra confeti a pantalla completa quan es restableixi l'ús de la sessió.";
 "weekly_limit_confetti_title" = "Confeti del límit setmanal";
 "weekly_limit_confetti_subtitle" = "Mostreu confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "hide_personal_info_title" = "Amagueu la informació personal";
@@ -632,6 +646,7 @@
 
 /* Provider status */
 "status_operational" = "Operatiu";
+"status_degraded" = "Rendiment degradat";
 "status_partial_outage" = "Interrupció parcial";
 "status_major_outage" = "Interrupció greu";
 "status_critical_issue" = "Problema crític";
@@ -838,6 +853,8 @@
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo d'ús extra: %@";
 "Keychain Access Required" = "Cal accés al Clauer";
+"keychain_prompt_learn_more" = "Més informació…";
+"keychain_prompt_privacy_note" = "macOS —no CodexBar— gestiona la introducció de la contrasenya d'inici de sessió del Mac. Pots desactivar l'accés al Clauer en qualsevol moment a Configuració → Avançat.";
 "Kiro menu bar value" = "Valor de Kiro a la barra de menús";
 "Label" = "Etiqueta";
 "No organizations loaded. Click Refresh after setting your API key." = "No hi ha organitzacions carregades. Feu clic a Actualitza després de configurar la clau API.";
@@ -951,8 +968,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crèdits de restabliment del límit";
-"1 manual reset available" = "Hi ha 1 restabliment manual disponible";
-"%d manual resets available" = "Hi ha %d restabliments manuals disponibles";
+"1 available" = "1 disponible";
+"%d available" = "%d disponibles";
 "Next expires %@" = "El següent caduca %@";
 "Other (%d items)" = "Altres (%d elements)";
 "Expand" = "Amplia";
@@ -1086,6 +1103,7 @@
 "Source" = "Origen";
 "State" = "Estat";
 "Status Page" = "Pàgina d'estat";
+"Open Status Page" = "Obre la pàgina d'estat";
 "Store multiple Antigravity Google OAuth accounts for quick switching." = "Deseu diversos comptes OAuth de Google d'Antigravity per canviar ràpidament.";
 "Store multiple DeepSeek API keys." = "Deseu diverses claus d'API de DeepSeek.";
 "Store multiple OpenAI API keys." = "Deseu diverses claus d'API d'OpenAI.";

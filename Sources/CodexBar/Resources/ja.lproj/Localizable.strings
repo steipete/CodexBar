@@ -414,11 +414,22 @@
 "start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
 "show_cost_summary" = "コスト概要を表示";
 "show_cost_summary_subtitle" = "ローカルの使用ログを読み取り、今日分と選択した履歴期間をメニューに表示します。";
+"cost_summary_style_title" = "表示スタイル";
+"cost_summary_style_inline" = "インラインのみ";
+"cost_summary_style_submenu" = "サブメニューのみ";
+"cost_summary_style_both" = "両方";
+"cost_summary_style_inline_help" = "コスト概要をメインメニューに直接表示します。";
+"cost_summary_style_submenu_help" = "代わりに詳細なコストサブメニューを表示します。";
+"cost_summary_style_both_help" = "メインメニューの概要と詳細なコストサブメニューの両方を表示します。";
+"cost_history_window_title" = "履歴期間";
+"cost_history_window_help" = "メニューに表示するローカル使用ログの日数を設定します。";
 "cost_history_days_title" = "履歴期間: %d 日";
 "cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
 "refresh_cadence_title" = "更新間隔";
 "refresh_cadence_subtitle" = "CodexBar がバックグラウンドでプロバイダをポーリングする頻度です。";
 "manual_refresh_hint" = "自動更新はオフです。メニューの「更新」コマンドを使用してください。";
+"refresh_on_open_title" = "メニューを開いたときに更新";
+"refresh_on_open_subtitle" = "メニューを開くたびに、すべてのプロバイダーの最新の使用状況を取得します。";
 "check_provider_status_title" = "プロバイダのステータスを確認";
 "check_provider_status_subtitle" = "OpenAI/Claude のステータスページと Gemini/Antigravity 用の Google Workspace をポーリングし、障害情報をアイコンとメニューに表示します。";
 "session_quota_notifications_title" = "セッションクォータ通知";
@@ -440,6 +451,7 @@
 "quota_warning_warn_at" = "警告する残量";
 "quota_warning_global_threshold_subtitle" = "プロバイダ側で上書きされない限り、セッションおよび週間ウインドウの残量パーセントに適用されます。";
 "quota_warning_sound" = "通知音を再生";
+"quota_warning_onscreen_alert" = "画面上にテキストアラートを表示";
 "quota_warning_provider_inherits" = "ここでウインドウをカスタマイズしない限り、グローバルのクォータ警告設定を使用します。";
 "quota_warning_customize_thresholds" = "%@ のしきい値をカスタマイズ";
 "quota_warning_enable_warnings" = "%@ の警告を有効にする";
@@ -537,6 +549,8 @@
 "show_debug_settings_subtitle" = "デバッグタブにトラブルシューティングツールを表示します。";
 "surprise_me_title" = "サプライズ";
 "surprise_me_subtitle" = "エージェントたちがメニューバーで少し遊ぶのが好きか試してみてください。";
+"session_limit_confetti_title" = "セッション上限の紙吹雪";
+"session_limit_confetti_subtitle" = "セッション使用量がリセットされたときに全画面の紙吹雪を表示します。";
 "weekly_limit_confetti_title" = "週間上限の紙吹雪";
 "weekly_limit_confetti_subtitle" = "週間使用量がリセットされたときに全画面の紙吹雪を再生します。";
 "hide_personal_info_title" = "個人情報を隠す";
@@ -640,6 +654,7 @@
 
 /* Provider status */
 "status_operational" = "正常稼働中";
+"status_degraded" = "パフォーマンス低下";
 "status_partial_outage" = "一部障害";
 "status_major_outage" = "重大な障害";
 "status_critical_issue" = "致命的な問題";
@@ -696,6 +711,7 @@
 "Add Account..." = "アカウントを追加...";
 "Usage Dashboard" = "使用状況ダッシュボード";
 "Status Page" = "ステータスページ";
+"Open Status Page" = "ステータスページを開く";
 "Settings..." = "設定...";
 "About CodexBar" = "CodexBar について";
 "Quit" = "終了";
@@ -979,6 +995,8 @@
 "Enterprise host" = "Enterprise ホスト";
 "Extra usage balance: %@" = "追加使用量の残高: %@";
 "Keychain Access Required" = "キーチェーンへのアクセスが必要です";
+"keychain_prompt_learn_more" = "詳しく見る…";
+"keychain_prompt_privacy_note" = "Macのログインパスワード入力を処理するのはCodexBarではなくmacOSです。キーチェーンへのアクセスは「設定」→「詳細」でいつでも無効にできます。";
 "Kiro menu bar value" = "Kiro メニューバー表示値";
 "Label" = "ラベル";
 "No organizations loaded. Click Refresh after setting your API key." = "組織が読み込まれていません。API キーを設定してから「更新」をクリックしてください。";
@@ -1092,8 +1110,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "上限リセットクレジット";
-"1 manual reset available" = "手動リセットが1回利用可能";
-"%d manual resets available" = "手動リセットが%d回利用可能";
+"1 available" = "1件利用可能";
+"%d available" = "%d件利用可能";
 "Next expires %@" = "次回の有効期限：%@";
 "Other (%d items)" = "その他（%d項目）";
 "Expand" = "展開";

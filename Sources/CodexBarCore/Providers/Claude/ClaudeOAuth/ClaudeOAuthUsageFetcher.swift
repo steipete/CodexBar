@@ -40,7 +40,10 @@ enum ClaudeOAuthUsageFetcher {
     private static let betaHeader = "oauth-2025-04-20"
     private static let fallbackClaudeCodeVersion = "2.1.0"
 
-    static func fetchUsage(accessToken: String) async throws -> OAuthUsageResponse {
+    static func fetchUsage(
+        accessToken: String,
+        detectClaudeVersion: Bool = true) async throws -> OAuthUsageResponse
+    {
         if let blockedUntil = ClaudeOAuthUsageRateLimitGate.blockedUntil() {
             throw ClaudeOAuthFetchError.rateLimited(retryAfter: blockedUntil)
         }
@@ -57,7 +60,9 @@ enum ClaudeOAuthUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // OAuth usage endpoint currently requires the beta header.
         request.setValue(Self.betaHeader, forHTTPHeaderField: "anthropic-beta")
-        request.setValue(Self.claudeCodeUserAgent(), forHTTPHeaderField: "User-Agent")
+        request.setValue(
+            Self.claudeCodeUserAgent(detectClaudeVersion: detectClaudeVersion),
+            forHTTPHeaderField: "User-Agent")
 
         do {
             let response = try await ProviderHTTPClient.shared.response(for: request)
@@ -119,8 +124,11 @@ enum ClaudeOAuthUsageFetcher {
         return formatter.date(from: raw)
     }
 
-    private static func claudeCodeUserAgent() -> String {
-        self.claudeCodeUserAgent(versionString: ProviderVersionDetector.claudeVersion())
+    private static func claudeCodeUserAgent(
+        detectClaudeVersion: Bool,
+        versionDetector: () -> String? = { ProviderVersionDetector.claudeVersion() }) -> String
+    {
+        self.claudeCodeUserAgent(versionString: detectClaudeVersion ? versionDetector() : nil)
     }
 
     private static func claudeCodeUserAgent(versionString: String?) -> String {
@@ -258,6 +266,15 @@ extension ClaudeOAuthUsageFetcher {
 
     static func _userAgentForTesting(versionString: String?) -> String {
         self.claudeCodeUserAgent(versionString: versionString)
+    }
+
+    static func _userAgentForTesting(
+        detectClaudeVersion: Bool,
+        versionDetector: () -> String?) -> String
+    {
+        self.claudeCodeUserAgent(
+            detectClaudeVersion: detectClaudeVersion,
+            versionDetector: versionDetector)
     }
 
     static func _retryAfterDateForTesting(from response: HTTPURLResponse, now: Date) -> Date? {

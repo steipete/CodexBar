@@ -32,6 +32,7 @@ struct WidgetSnapshotTests {
         let snapshot = WidgetSnapshot(
             entries: [entry],
             enabledProviders: [.codex, .claude],
+            usageBarsShowUsed: true,
             generatedAt: Date())
 
         let encoder = JSONEncoder()
@@ -50,6 +51,7 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.first?.tokenUsage?.last30DaysLabel == "This month")
         #expect(decoded.entries.first?.usageRows?.map(\.id) == ["session", "weekly"])
         #expect(decoded.enabledProviders == [.codex, .claude])
+        #expect(decoded.usageBarsShowUsed)
     }
 
     @Test
@@ -166,6 +168,7 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.count == 1)
         #expect(decoded.entries.first?.usageRows == nil)
         #expect(decoded.entries.first?.secondary?.usedPercent == 25)
+        #expect(!decoded.usageBarsShowUsed)
     }
 
     @Test

@@ -419,11 +419,22 @@
 "start_at_login_subtitle" = "Automatycznie uruchamia CodexBar podczas startu Maca.";
 "show_cost_summary" = "Pokaż podsumowanie kosztów";
 "show_cost_summary_subtitle" = "Odczytuje lokalne logi użycia. Pokazuje dziś + wybrany zakres historii w menu.";
+"cost_summary_style_title" = "Styl wyświetlania";
+"cost_summary_style_inline" = "Tylko wbudowane";
+"cost_summary_style_submenu" = "Tylko podmenu";
+"cost_summary_style_both" = "Oba";
+"cost_summary_style_inline_help" = "Pokazuje podsumowanie kosztów bezpośrednio w menu głównym.";
+"cost_summary_style_submenu_help" = "Zamiast tego pokazuje szczegółowe podmenu Koszt.";
+"cost_summary_style_both_help" = "Pokazuje podsumowanie w menu głównym i szczegółowe podmenu Koszt.";
+"cost_history_window_title" = "Zakres historii";
+"cost_history_window_help" = "Ustawia, ile dni lokalnych dzienników użycia pokazać w menu.";
 "cost_history_days_title" = "Zakres historii: %d dni";
 "cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
 "refresh_cadence_title" = "Częstotliwość odświeżania";
 "refresh_cadence_subtitle" = "Jak często CodexBar odpyta dostawców w tle.";
 "manual_refresh_hint" = "Auto-odświeżanie jest wyłączone; użyj polecenia Odśwież w menu.";
+"refresh_on_open_title" = "Odśwież po otwarciu menu";
+"refresh_on_open_subtitle" = "Pobiera najnowsze zużycie każdego dostawcy przy każdym otwarciu menu.";
 "check_provider_status_title" = "Sprawdzaj status dostawców";
 "check_provider_status_subtitle" = "Sprawdza status OpenAI/Claude oraz Google Workspace dla Gemini/Antigravity i pokazuje incydenty na ikonie i w menu.";
 "session_quota_notifications_title" = "Powiadomienia o limicie sesji";
@@ -445,6 +456,7 @@
 "quota_warning_warn_at" = "Ostrzegaj przy";
 "quota_warning_global_threshold_subtitle" = "Procent pozostałego limitu dla okien sesji i tygodnia, chyba że dostawca ma nadpisanie.";
 "quota_warning_sound" = "Odtwarzaj dźwięk powiadomienia";
+"quota_warning_onscreen_alert" = "Pokaż alert tekstowy na ekranie";
 "quota_warning_provider_inherits" = "Używa globalnych ustawień ostrzeżeń limitu, chyba że to okno jest tutaj dostosowane.";
 "quota_warning_customize_thresholds" = "Dostosuj progi dla %@";
 "quota_warning_enable_warnings" = "Włącz ostrzeżenia dla %@";
@@ -542,6 +554,8 @@
 "show_debug_settings_subtitle" = "Pokazuje dodatkowe ustawienia debugowania i diagnostyki.";
 "surprise_me_title" = "Zaskocz mnie";
 "surprise_me_subtitle" = "Sprawdź, czy lubisz, gdy twoi agenci trochę się tam bawią.";
+"session_limit_confetti_title" = "Konfetti limitu sesji";
+"session_limit_confetti_subtitle" = "Wyświetl konfetti na pełnym ekranie po zresetowaniu użycia sesji.";
 "weekly_limit_confetti_title" = "Konfetti limitu tygodniowego";
 "weekly_limit_confetti_subtitle" = "Odtwórz pełnoekranowe konfetti, gdy tygodniowe użycie się resetuje.";
 "hide_personal_info_title" = "Ukryj dane osobowe";
@@ -645,6 +659,7 @@
 
 /* Provider status */
 "status_operational" = "Operacyjne";
+"status_degraded" = "Obniżona wydajność";
 "status_partial_outage" = "Częściowa awaria";
 "status_major_outage" = "Poważna awaria";
 "status_critical_issue" = "Krytyczny problem";
@@ -701,6 +716,7 @@
 "Add Account..." = "Dodaj konto...";
 "Usage Dashboard" = "Panel użycia";
 "Status Page" = "Strona statusu";
+"Open Status Page" = "Otwórz stronę stanu";
 "Settings..." = "Ustawienia...";
 "About CodexBar" = "O CodexBar";
 "Quit" = "Zakończ";
@@ -987,6 +1003,8 @@
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo dodatkowego użycia: %@";
 "Keychain Access Required" = "Wymagany dostęp do pęku kluczy";
+"keychain_prompt_learn_more" = "Dowiedz się więcej…";
+"keychain_prompt_privacy_note" = "Hasło logowania do Maca jest obsługiwane przez macOS, a nie CodexBar. Dostęp do pęku kluczy możesz wyłączyć w dowolnym momencie w Ustawienia → Zaawansowane.";
 "Kiro menu bar value" = "Wartość paska menu Kiro";
 "Label" = "Etykieta";
 "No organizations loaded. Click Refresh after setting your API key." = "Nie wczytano organizacji. Kliknij Odśwież po ustawieniu klucza API.";
@@ -1098,8 +1116,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Kredyty resetowania limitu";
-"1 manual reset available" = "Dostępny 1 ręczny reset";
-"%d manual resets available" = "Dostępne ręczne resety: %d";
+"1 available" = "1 dostępny";
+"%d available" = "%d dostępne";
 "Next expires %@" = "Następny wygasa %@";
 "byte_unit_byte" = "bajt";
 "byte_unit_bytes" = "bajty";

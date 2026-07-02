@@ -70,7 +70,7 @@ struct UsageMenuCardView: View {
             }
 
             var percentLabel: String {
-                String(format: "%.0f%% %@", self.percent, self.percentStyle.labelSuffix)
+                "\(UsageFormatter.percentString(self.percent)) \(self.percentStyle.labelSuffix)"
             }
         }
 
@@ -109,6 +109,7 @@ struct UsageMenuCardView: View {
         let inlineUsageDashboard: InlineUsageDashboardModel?
         let creditsText: String?
         let creditsRemaining: Double?
+        var creditsProgressPercent: Double?, creditsScaleText: String?
         let creditsHintText: String?
         let creditsHintCopyText: String?
         var codexResetCreditsText: String?
@@ -171,6 +172,8 @@ struct UsageMenuCardView: View {
                         CreditsBarContent(
                             creditsText: credits,
                             creditsRemaining: liveModel.creditsRemaining,
+                            progressPercent: liveModel.creditsProgressPercent,
+                            scaleText: liveModel.creditsScaleText,
                             hintText: liveModel.creditsHintText,
                             hintCopyText: liveModel.creditsHintCopyText,
                             progressColor: liveModel.progressColor)
@@ -609,6 +612,8 @@ struct UsageMenuCardCreditsSectionView: View {
                 CreditsBarContent(
                     creditsText: credits,
                     creditsRemaining: liveModel.creditsRemaining,
+                    progressPercent: liveModel.creditsProgressPercent,
+                    scaleText: liveModel.creditsScaleText,
                     hintText: liveModel.creditsHintText,
                     hintCopyText: liveModel.creditsHintCopyText,
                     progressColor: liveModel.progressColor)
@@ -634,18 +639,21 @@ private struct CreditsBarContent: View {
 
     let creditsText: String
     let creditsRemaining: Double?
+    var progressPercent: Double?, scaleText: String?
     let hintText: String?
     let hintCopyText: String?
     let progressColor: Color
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     private var percentLeft: Double? {
+        if let progressPercent { return min(100, max(0, progressPercent)) }
         guard let creditsRemaining else { return nil }
         let percent = (creditsRemaining / Self.fullScaleTokens) * 100
         return min(100, max(0, percent))
     }
 
-    private var scaleText: String {
+    private var effectiveScaleText: String {
+        if let scaleText { return scaleText }
         let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
         return "\(scale) \(L("tokens"))"
     }
@@ -665,7 +673,7 @@ private struct CreditsBarContent: View {
                         .font(.caption)
                         .lineLimit(1)
                     Spacer()
-                    Text(self.scaleText)
+                    Text(self.effectiveScaleText)
                         .font(.caption)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                 }
@@ -777,91 +785,6 @@ struct UsageMenuCardExtraUsageSectionView: View {
 // MARK: - Model factory
 
 extension UsageMenuCardView.Model {
-    struct Input {
-        let provider: UsageProvider
-        let metadata: ProviderMetadata
-        let snapshot: UsageSnapshot?
-        let codexProjection: CodexConsumerProjection?
-        let credits: CreditsSnapshot?
-        let creditsError: String?
-        let dashboard: OpenAIDashboardSnapshot?
-        let dashboardError: String?
-        let tokenSnapshot: CostUsageTokenSnapshot?
-        let tokenError: String?
-        let account: AccountInfo
-        let isRefreshing: Bool
-        let lastError: String?
-        let usageBarsShowUsed: Bool
-        let resetTimeDisplayStyle: ResetTimeDisplayStyle
-        let tokenCostUsageEnabled: Bool
-        let showOptionalCreditsAndExtraUsage: Bool
-        let copilotBudgetExtrasEnabled: Bool
-        let sourceLabel: String?
-        let kiloAutoMode: Bool
-        let hidePersonalInfo: Bool
-        let weeklyPace: UsagePace?
-        let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
-        let workDaysPerWeek: Int?
-        let usesLiveSubtitle: Bool
-        let now: Date
-
-        init(
-            provider: UsageProvider,
-            metadata: ProviderMetadata,
-            snapshot: UsageSnapshot?,
-            codexProjection: CodexConsumerProjection? = nil,
-            credits: CreditsSnapshot?,
-            creditsError: String?,
-            dashboard: OpenAIDashboardSnapshot?,
-            dashboardError: String?,
-            tokenSnapshot: CostUsageTokenSnapshot?,
-            tokenError: String?,
-            account: AccountInfo,
-            isRefreshing: Bool,
-            lastError: String?,
-            usageBarsShowUsed: Bool,
-            resetTimeDisplayStyle: ResetTimeDisplayStyle,
-            tokenCostUsageEnabled: Bool,
-            showOptionalCreditsAndExtraUsage: Bool,
-            copilotBudgetExtrasEnabled: Bool = false,
-            sourceLabel: String? = nil,
-            kiloAutoMode: Bool = false,
-            hidePersonalInfo: Bool,
-            weeklyPace: UsagePace? = nil,
-            quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
-            workDaysPerWeek: Int? = nil,
-            usesLiveSubtitle: Bool = false,
-            now: Date)
-        {
-            self.provider = provider
-            self.metadata = metadata
-            self.snapshot = snapshot
-            self.codexProjection = codexProjection
-            self.credits = credits
-            self.creditsError = creditsError
-            self.dashboard = dashboard
-            self.dashboardError = dashboardError
-            self.tokenSnapshot = tokenSnapshot
-            self.tokenError = tokenError
-            self.account = account
-            self.isRefreshing = isRefreshing
-            self.lastError = lastError
-            self.usageBarsShowUsed = usageBarsShowUsed
-            self.resetTimeDisplayStyle = resetTimeDisplayStyle
-            self.tokenCostUsageEnabled = tokenCostUsageEnabled
-            self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
-            self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
-            self.sourceLabel = sourceLabel
-            self.kiloAutoMode = kiloAutoMode
-            self.hidePersonalInfo = hidePersonalInfo
-            self.weeklyPace = weeklyPace
-            self.quotaWarningThresholds = quotaWarningThresholds
-            self.workDaysPerWeek = workDaysPerWeek
-            self.usesLiveSubtitle = usesLiveSubtitle
-            self.now = now
-        }
-    }
-
     static func make(_ input: Input) -> UsageMenuCardView.Model {
         let planText = Self.plan(
             for: input.provider,
@@ -887,6 +810,9 @@ extension UsageMenuCardView.Model {
                 error: input.creditsError)
         }
         let creditsText = PersonalInfoRedactor.redactEmails(in: rawCreditsText, isEnabled: input.hidePersonalInfo)
+        let creditsProgressPercent = Self.creditsProgressPercent(credits: input.credits)
+        let creditsScaleText = Self.creditsScaleText(credits: input.credits)
+        let codexCreditLimitDetail = Self.codexCreditLimitDetail(credits: input.credits, now: input.now)
         let isClaudeAdminAPI = input.provider == .claude &&
             input.snapshot?.identity?.loginMethod == "Admin API"
         let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
@@ -904,7 +830,7 @@ extension UsageMenuCardView.Model {
         let tokenUsageSnapshot = Self.tokenUsageSnapshot(input: input)
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
-            enabled: input.tokenCostUsageEnabled,
+            enabled: input.tokenCostMenuSectionEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError)
         let subtitle = Self.subtitle(
@@ -928,9 +854,11 @@ extension UsageMenuCardView.Model {
             openAIAPIUsage: openAIAPIUsage,
             inlineUsageDashboard: inlineUsageDashboard,
             creditsText: creditsText,
-            creditsRemaining: input.credits?.remaining,
-            creditsHintText: redacted.creditsHintText,
-            creditsHintCopyText: redacted.creditsHintCopyText,
+            creditsRemaining: input.credits?.codexCreditLimit?.remaining ?? input.credits?.remaining,
+            creditsProgressPercent: creditsProgressPercent,
+            creditsScaleText: creditsScaleText,
+            creditsHintText: codexCreditLimitDetail ?? redacted.creditsHintText,
+            creditsHintCopyText: codexCreditLimitDetail ?? redacted.creditsHintCopyText,
             codexResetCreditsText: Self.codexResetCreditsText(input: input),
             codexResetCreditsDetailText: Self.codexResetCreditsDetailText(input: input),
             providerCost: providerCost,

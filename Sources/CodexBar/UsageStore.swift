@@ -11,6 +11,7 @@ extension UsageStore {
     var menuObservationToken: Int {
         _ = self.snapshots
         _ = self.errors
+        _ = self.knownLimitsAvailabilityByProvider
         _ = self.lastSourceLabels
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
@@ -40,6 +41,7 @@ extension UsageStore {
     var iconObservationToken: Int {
         _ = self.snapshots
         _ = self.errors
+        _ = self.knownLimitsAvailabilityByProvider
         _ = self.credits
         _ = self.lastCreditsError
         _ = self.openAIDashboard
@@ -133,6 +135,7 @@ final class UsageStore {
 
     var snapshots: [UsageProvider: UsageSnapshot] = [:]
     var errors: [UsageProvider: String] = [:]
+    var knownLimitsAvailabilityByProvider: [UsageProvider: UsageLimitsAvailability] = [:]
     var lastSourceLabels: [UsageProvider: String] = [:]
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
@@ -154,6 +157,7 @@ final class UsageStore {
     var debugForceAnimation = false
     var pathDebugInfo: PathDebugSnapshot = .empty
     var statuses: [UsageProvider: ProviderStatus] = [:]
+    var statusComponents: [UsageProvider: [ProviderStatusComponent]] = [:]
     var probeLogs: [UsageProvider: String] = [:]
     var historicalPaceRevision: Int = 0
     var planUtilizationHistoryRevision: Int = 0
@@ -262,7 +266,8 @@ final class UsageStore {
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
-    @ObservationIgnored var weeklyLimitResetDetectorStates: [String: WeeklyLimitResetDetectorState] = [:]
+    @ObservationIgnored var sessionLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
+    @ObservationIgnored var weeklyLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored let accountInfoCacheTTL: TimeInterval = 30
@@ -319,6 +324,10 @@ final class UsageStore {
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
         self.planUtilizationHistory = planUtilizationHistoryStore.load()
+        self.sessionLimitResetDetectorStates = Self.loadLimitResetDetectorStates(
+            from: settings.userDefaults,
+            defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,
+            logName: "session")
         self.weeklyLimitResetDetectorStates = Self.loadWeeklyLimitResetDetectorStates(from: settings.userDefaults)
         if let codexAccountUsageSnapshotStore = self.codexAccountUsageSnapshotStore {
             self.codexAccountSnapshots = codexAccountUsageSnapshotStore.load(
@@ -478,6 +487,18 @@ final class UsageStore {
 
     func isStale(provider: UsageProvider) -> Bool {
         self.errors[provider] != nil
+    }
+
+    func knownLimitsAvailability(for provider: UsageProvider) -> UsageLimitsAvailability? {
+        self.knownLimitsAvailabilityByProvider[provider]
+    }
+
+    func hasSatisfiedUsageFetch(for provider: UsageProvider) -> Bool {
+        self.snapshot(for: provider) != nil || self.knownLimitsAvailability(for: provider)?.isUnavailable == true
+    }
+
+    func needsUsageRefreshRetry(for provider: UsageProvider) -> Bool {
+        self.isStale(provider: provider) || !self.hasSatisfiedUsageFetch(for: provider)
     }
 
     func isEnabled(_ provider: UsageProvider) -> Bool {
@@ -766,6 +787,7 @@ final class UsageStore {
     enum SessionQuotaWindowSource: String {
         case primary
         case copilotSecondaryFallback
+        case zaiTertiary
         case antigravityQuotaSummary
         case antigravityLegacy
     }
@@ -785,7 +807,8 @@ final class UsageStore {
         self.sessionQuotaNotifier.postQuotaWarning(
             event: event,
             provider: provider,
-            soundEnabled: self.settings.quotaWarningSoundEnabled)
+            soundEnabled: self.settings.quotaWarningSoundEnabled,
+            onScreenAlertEnabled: self.settings.quotaWarningOnScreenAlertEnabled)
     }
 
     func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
@@ -880,16 +903,26 @@ final class UsageStore {
 
         do {
             let status: ProviderStatus
+            var components: [ProviderStatusComponent]?
             if let override = self._test_providerStatusFetchOverride {
                 status = try await override(provider)
             } else if let urlString = meta.statusPageURL, let baseURL = URL(string: urlString) {
-                status = try await Self.fetchStatus(from: baseURL)
+                let summary = try await Self.fetchStatusSummary(from: baseURL)
+                status = summary.status
+                components = summary.components
             } else if let productID = meta.statusWorkspaceProductID {
                 status = try await Self.fetchWorkspaceStatus(productID: productID)
             } else {
                 return
             }
-            await MainActor.run { self.statuses[provider] = status }
+            await MainActor.run {
+                self.statuses[provider] = status
+                // A component endpoint is best-effort. Preserve the last good list when the
+                // overall status succeeds but the component request or decoding fails.
+                if let components {
+                    self.statusComponents[provider] = components
+                }
+            }
         } catch {
             self.recordStartupConnectivityRetryableFailure(error)
             // Keep the previous status to avoid flapping when the API hiccups.
@@ -915,6 +948,7 @@ extension UsageStore {
         try? output.write(to: url, atomically: true, encoding: .utf8)
         await MainActor.run {
             let snippet = String(output.prefix(180)).replacingOccurrences(of: "\n", with: " ")
+            self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
             self.errors[.claude] = "[Claude] \(snippet) (saved: \(url.path))"
             NSWorkspace.shared.open(url)
         }
@@ -930,6 +964,7 @@ extension UsageStore {
             return url
         } catch {
             await MainActor.run {
+                self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 self.errors[provider] = "Failed to save log: \(error.localizedDescription)"
             }
             return nil
@@ -998,6 +1033,7 @@ extension UsageStore {
                 .jetbrains: "JetBrains AI debug log not yet implemented",
                 .mimo: "Xiaomi MiMo debug log not yet implemented",
                 .doubao: "Doubao debug log not yet implemented",
+                .sakana: "Sakana AI debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",
                 .commandcode: "Command Code debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
@@ -1085,8 +1121,8 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .devin,
                      .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
-                     .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun, .bedrock,
-                     .grok, .groq, .t3chat, .llmproxy, .litellm, .zed, .deepgram, .poe, .chutes:
+                     .sakana, .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun,
+                     .bedrock, .grok, .groq, .t3chat, .llmproxy, .litellm, .zed, .deepgram, .poe, .chutes:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

@@ -417,11 +417,22 @@
 "start_at_login_subtitle" = "เปิด CodexBar โดยอัตโนมัติเมื่อคุณเริ่มต้นระบบ Mac";
 "show_cost_summary" = "แสดงสรุปค่าใช้จ่าย";
 "show_cost_summary_subtitle" = "อ่านบันทึกการใช้งานในเครื่อง แสดงวันนี้ + หน้าต่างประวัติที่เลือกในเมนู";
+"cost_summary_style_title" = "รูปแบบการแสดงผล";
+"cost_summary_style_inline" = "อินไลน์เท่านั้น";
+"cost_summary_style_submenu" = "เมนูย่อยเท่านั้น";
+"cost_summary_style_both" = "ทั้งสอง";
+"cost_summary_style_inline_help" = "แสดงสรุปค่าใช้จ่ายในเมนูหลักโดยตรง";
+"cost_summary_style_submenu_help" = "แสดงเมนูย่อยค่าใช้จ่ายแบบละเอียดแทน";
+"cost_summary_style_both_help" = "แสดงทั้งสรุปในเมนูหลักและเมนูย่อยค่าใช้จ่ายแบบละเอียด";
+"cost_history_window_title" = "กรอบเวลาประวัติ";
+"cost_history_window_help" = "กำหนดจำนวนวันของบันทึกการใช้งานในเครื่องที่จะแสดงในเมนู";
 "cost_history_days_title" = "กรอบเวลาประวัติ: %d วัน";
 "cost_auto_refresh_info" = "รีเฟรชอัตโนมัติ: รายชั่วโมง · หมดเวลา: 10m";
 "refresh_cadence_title" = "จังหวะการรีเฟรช";
 "refresh_cadence_subtitle" = "ความถี่ในการ CodexBar ผู้ให้บริการโพลในเบื้องหลัง";
 "manual_refresh_hint" = "การรีเฟรชอัตโนมัติปิดอยู่ ใช้คําสั่งรีเฟรชของเมนู";
+"refresh_on_open_title" = "รีเฟรชเมื่อเปิดเมนู";
+"refresh_on_open_subtitle" = "ดึงข้อมูลการใช้งานล่าสุดของผู้ให้บริการทุกรายทุกครั้งที่คุณเปิดเมนู";
 "check_provider_status_title" = "ตรวจสอบสถานะผู้ให้บริการ";
 "check_provider_status_subtitle" = "โพล OpenAI/Claude หน้าสถานะและ Google Workspace for Gemini/Antigravity โดยแสดงเหตุการณ์ในไอคอนและเมนู";
 "session_quota_notifications_title" = "การแจ้งเตือนโควต้าเซสชัน";
@@ -443,6 +454,7 @@
 "quota_warning_warn_at" = "เตือนที่";
 "quota_warning_global_threshold_subtitle" = "เปอร์เซ็นต์ที่เหลืออยู่สําหรับกรอบเวลาเซสชันและรายสัปดาห์ เว้นแต่ผู้ให้บริการจะแทนที่";
 "quota_warning_sound" = "เล่นเสียงแจ้งเตือน";
+"quota_warning_onscreen_alert" = "แสดงการแจ้งเตือนข้อความบนหน้าจอ";
 "quota_warning_provider_inherits" = "ใช้การตั้งค่าคําเตือนโควต้าส่วนกลาง เว้นแต่จะมีการกําหนดหน้าต่างเองที่นี่";
 "quota_warning_customize_thresholds" = "ปรับแต่งเกณฑ์ %@";
 "quota_warning_enable_warnings" = "เปิดใช้งานคําเตือน %@";
@@ -540,6 +552,8 @@
 "show_debug_settings_subtitle" = "แสดงเครื่องมือการแก้ไขปัญหาในแท็บ แก้ไขข้อบกพร่อง";
 "surprise_me_title" = "ทําให้ฉันประหลาดใจ";
 "surprise_me_subtitle" = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
+"session_limit_confetti_title" = "คอนเฟตตีขีดจำกัดเซสชัน";
+"session_limit_confetti_subtitle" = "แสดงคอนเฟตตีเต็มหน้าจอเมื่อการใช้งานเซสชันถูกรีเซ็ต";
 "weekly_limit_confetti_title" = "ลูกปาจํากัดรายสัปดาห์";
 "weekly_limit_confetti_subtitle" = "เล่นลูกปาแบบเต็มหน้าจอเมื่อรีเซ็ตการใช้งานรายสัปดาห์";
 "hide_personal_info_title" = "ซ่อนข้อมูลส่วนบุคคล";
@@ -643,6 +657,7 @@
 
 /* Provider status */
 "status_operational" = "การดําเนินงาน";
+"status_degraded" = "ประสิทธิภาพลดลง";
 "status_partial_outage" = "ไฟฟ้าดับบางส่วน";
 "status_major_outage" = "ไฟฟ้าดับครั้งใหญ่";
 "status_critical_issue" = "ปัญหาสําคัญ";
@@ -699,6 +714,7 @@
 "Add Account..." = "เพิ่มบัญชี...";
 "Usage Dashboard" = "แดชบอร์ดการใช้งาน";
 "Status Page" = "หน้าสถานะ";
+"Open Status Page" = "เปิดหน้าสถานะ";
 "Settings..." = "การตั้งค่า...";
 "About CodexBar" = "เกี่ยวกับ CodexBar";
 "Quit" = "ออก";
@@ -985,6 +1001,8 @@
 "Enterprise host" = "โฮสต์องค์กร";
 "Extra usage balance: %@" = "ยอดการใช้งานเพิ่มเติม: %@";
 "Keychain Access Required" = "Keychain ต้องเข้าถึง";
+"keychain_prompt_learn_more" = "ดูเพิ่มเติม…";
+"keychain_prompt_privacy_note" = "macOS เป็นผู้จัดการการป้อนรหัสผ่านเข้าสู่ระบบ Mac ไม่ใช่ CodexBar คุณปิดการเข้าถึง Keychain ได้ทุกเมื่อใน การตั้งค่า → ขั้นสูง";
 "Kiro menu bar value" = "ค่าแถบเมนู Kiro";
 "Label" = "ฉลาก";
 "No organizations loaded. Click Refresh after setting your API key." = "ไม่มีองค์กรโหลด คลิกรีเฟรชหลังจากตั้งค่าปุ่ม API";
@@ -1099,8 +1117,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "เครดิตรีเซ็ตขีดจำกัด";
-"1 manual reset available" = "มีการรีเซ็ตด้วยตนเอง 1 ครั้ง";
-"%d manual resets available" = "มีการรีเซ็ตด้วยตนเอง %d ครั้ง";
+"1 available" = "1 รายการ";
+"%d available" = "%d รายการ";
 "Next expires %@" = "รายการถัดไปหมดอายุ %@";
 "byte_unit_byte" = "ไบต์";
 "byte_unit_bytes" = "ไบต์";

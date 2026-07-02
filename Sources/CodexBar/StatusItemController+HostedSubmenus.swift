@@ -17,6 +17,7 @@ extension StatusItemController {
             Self.costHistoryChartID,
             Self.usageHistoryChartID,
             Self.storageBreakdownID,
+            Self.statusComponentsID,
             Self.zaiHourlyUsageChartID,
         ]
         return menu.items.contains { item in
@@ -93,6 +94,14 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.statusComponentsID:
+            if let providerRawValue = self.hostedSubviewProviderRawValue(for: placeholder),
+               let provider = UsageProvider(rawValue: providerRawValue)
+            {
+                self.appendStatusComponentsItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
         case Self.zaiHourlyUsageChartID:
             if let providerRawValue = placeholder.toolTip,
                let provider = UsageProvider(rawValue: providerRawValue)
@@ -157,6 +166,12 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.statusComponentsID:
+            if let provider = identity.provider {
+                self.appendStatusComponentsItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
         case Self.zaiHourlyUsageChartID:
             if let provider = identity.provider {
                 self.appendZaiHourlyUsageChartItem(to: menu, provider: provider, width: width)
@@ -181,13 +196,21 @@ extension StatusItemController {
     -> HostedSubviewIdentity? {
         for item in menu.items {
             guard let chartID = item.representedObject as? String else { continue }
-            let providerRawValue = item.toolTip
+            let providerRawValue = self.hostedSubviewProviderRawValue(for: item)
             return HostedSubviewIdentity(
                 chartID: chartID,
                 provider: providerRawValue.flatMap(UsageProvider.init(rawValue:)),
                 providerRawValue: providerRawValue)
         }
         return nil
+    }
+
+    private func hostedSubviewProviderRawValue(for item: NSMenuItem) -> String? {
+        if let providerRawValue = item.toolTip {
+            return providerRawValue
+        }
+        guard item.representedObject as? String == Self.statusComponentsID else { return nil }
+        return item.identifier?.rawValue
     }
 
     private func recordHostedSubviewRenderSignature(
@@ -216,6 +239,8 @@ extension StatusItemController {
             identity.provider.map(self.usageHistoryRenderSignature(for:)) ?? "missing-provider"
         case Self.storageBreakdownID:
             identity.provider.map(self.storageBreakdownRenderSignature(for:)) ?? "missing-provider"
+        case Self.statusComponentsID:
+            identity.provider.map(self.statusComponentsRenderSignature(for:)) ?? "missing-provider"
         case Self.zaiHourlyUsageChartID:
             identity.provider.map(self.zaiHourlyUsageRenderSignature(for:)) ?? "missing-provider"
         default:
@@ -251,6 +276,16 @@ extension StatusItemController {
             snapshot?.secondary == nil ? "0" : "1",
             snapshot?.tertiary == nil ? "0" : "1",
         ].joined(separator: "|")
+    }
+
+    func statusComponentsRenderSignature(for provider: UsageProvider) -> String {
+        let components = self.store.statusComponents(for: provider)
+        guard !components.isEmpty else { return "none" }
+        func signature(_ component: ProviderStatusComponent) -> String {
+            let childSig = component.children.map(signature).joined(separator: ",")
+            return "\(component.id)=\(component.indicator.rawValue)[\(childSig)]"
+        }
+        return components.map(signature).joined(separator: ";")
     }
 
     private func storageBreakdownRenderSignature(for provider: UsageProvider) -> String {
@@ -464,6 +499,77 @@ extension StatusItemController {
         item.representedObject = Self.storageBreakdownID
         item.toolTip = provider.rawValue
         submenu.addItem(item)
+        return true
+    }
+
+    @discardableResult
+    func appendStatusComponentsItem(
+        to submenu: NSMenu,
+        provider: UsageProvider,
+        width: CGFloat) -> Bool
+    {
+        // The list of component rows is shown only once the provider's status has been fetched.
+        // Before the first fetch lands the submenu still renders (just the website link below), so
+        // every provider with a status feed gets the native submenu rather than a bare link; it
+        // re-hydrates with the live component list once data arrives (see makeStatusComponentsSubmenu).
+        let components = self.store.statusComponents(for: provider)
+        if !components.isEmpty {
+            if self.menuCardRenderingEnabledForController {
+                final class HostingRelay {
+                    weak var hosting: MenuHostingView<StatusComponentsMenuView>?
+                }
+                let relay = HostingRelay()
+                let listView = StatusComponentsMenuView(
+                    components: components,
+                    width: width,
+                    onToggle: {
+                        // Re-measure the live content after SwiftUI applies the expand/collapse so the
+                        // row grows/shrinks to fit exactly (no leftover blank space).
+                        DispatchQueue.main.async {
+                            guard let hosting = relay.hosting else { return }
+                            hosting.applyMeasuredHeight(
+                                width: width,
+                                height: hosting.measuredFittingHeight(width: width))
+                        }
+                    })
+                let hosting = MenuHostingView(rootView: listView)
+                relay.hosting = hosting
+                hosting.applyMeasuredHeight(width: width, height: hosting.measuredFittingHeight(width: width))
+
+                let listItem = NSMenuItem()
+                listItem.view = hosting
+                listItem.isEnabled = false
+                listItem.representedObject = Self.statusComponentsID
+                listItem.toolTip = provider.rawValue
+                submenu.addItem(listItem)
+            } else {
+                let placeholder = NSMenuItem()
+                placeholder.isEnabled = false
+                placeholder.representedObject = Self.statusComponentsID
+                placeholder.toolTip = provider.rawValue
+                submenu.addItem(placeholder)
+            }
+
+            submenu.addItem(.separator())
+        }
+
+        let linkItem = NSMenuItem(
+            title: L("Open Status Page"),
+            action: #selector(self.openStatusPageFromMenuItem(_:)),
+            keyEquivalent: "")
+        linkItem.target = self
+        // Tag the link with the chart identity so the menu is still recognized as a status
+        // submenu (and re-hydrates) when the component list hasn't loaded yet and the link is the
+        // only row. The identifier also scopes the action to this submenu's provider so a later
+        // menu selection change cannot open another provider's status page.
+        linkItem.representedObject = Self.statusComponentsID
+        linkItem.identifier = NSUserInterfaceItemIdentifier(provider.rawValue)
+        if let image = NSImage(systemSymbolName: "arrow.up.right.square", accessibilityDescription: nil) {
+            image.isTemplate = true
+            image.size = NSSize(width: 16, height: 16)
+            linkItem.image = image
+        }
+        submenu.addItem(linkItem)
         return true
     }
 

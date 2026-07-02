@@ -250,6 +250,63 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `smart provider switch resizes persistent refresh row to rendered menu width`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        let previousMenuRefresh = StatusItemController.menuRefreshEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        defer {
+            StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering
+            StatusItemController.setMenuRefreshEnabledForTesting(previousMenuRefresh)
+        }
+
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        menu.minimumWidth = 420
+
+        let descriptor = controller.makeMenuDescriptor(provider: .claude, includeContextualActions: true)
+        controller.updateMenuContentPreservingSwitcher(
+            menu,
+            context: StatusItemController.MenuUpdateContext(
+                provider: .claude,
+                currentProvider: .claude,
+                switcherSelection: .provider(.claude),
+                menuWidth: StatusItemController.menuCardBaseWidth,
+                codexAccountDisplay: nil,
+                tokenAccountDisplay: nil,
+                openAIContext: StatusItemController.OpenAIWebContext(
+                    hasUsageBreakdown: false,
+                    hasCreditsHistory: false,
+                    hasCostHistory: false,
+                    canShowBuyCredits: false,
+                    hasOpenAIWebMenuItems: false),
+                descriptor: descriptor))
+
+        let expectedWidth = controller.renderedMenuWidth(for: menu)
+        #expect(expectedWidth == 420)
+        let refreshView = try #require(menu.items.first { $0.title == "Refresh" }?.view as? PersistentRefreshMenuView)
+        #expect(abs(refreshView.frame.width - expectedWidth) <= 0.5)
+    }
+
+    @Test
     func `manual refresh keeps codex quota visible after switching away and back`() async throws {
         let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = false

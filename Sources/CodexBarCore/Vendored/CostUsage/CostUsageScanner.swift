@@ -64,14 +64,26 @@ enum CostUsageScanner {
         let day: String
         let model: String
         let turnID: String?
+        let eventIndex: Int?
         let input: Int
         let cached: Int
         let output: Int
     }
 
     struct CodexScanState {
-        var seenSessionIds: Set<String> = []
+        var contributingSessionIds: Set<String> = []
         var seenFileIds: Set<String> = []
+        var seenCodexUsageRowKeys: Set<String> = []
+    }
+
+    struct CodexScannedSession {
+        let id: String?
+        let contributedUsage: Bool
+
+        init(id: String?, days: [String: [String: [Int]]]) {
+            self.id = id
+            self.contributedUsage = !days.isEmpty
+        }
     }
 
     private struct CodexTimestampedTotals {
@@ -450,9 +462,9 @@ enum CostUsageScanner {
         case .openai, .azureopenai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
              .alibabatokenplan, .factory,
              .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp,
-             .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .abacus,
-             .mistral, .deepseek, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode, .stepfun, .bedrock, .grok,
-             .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes:
+             .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .sakana,
+             .abacus, .mistral, .deepseek, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode, .stepfun,
+             .bedrock, .grok, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes:
             return emptyReport
         }
     }
@@ -588,12 +600,18 @@ enum CostUsageScanner {
         self.codexRootsFingerprint(self.codexSessionsRoots(options: options))
     }
 
+    /// Bump when the cost FORMULA changes (not the rates) so caches written by an older formula
+    /// are invalidated and repriced. The pricing fingerprints below only capture rate constants,
+    /// so formula-only fixes would otherwise reuse stale precomputed costs.
+    private static let codexCostFormulaVersion = 2
+
     private static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
+        let versionPrefix = "costFormulaVersion=\(Self.codexCostFormulaVersion)\n"
         guard let modelsDevArtifact else {
-            let fingerprint = CostUsagePricing.codexBuiltInPricingFingerprint()
+            let fingerprint = versionPrefix + CostUsagePricing.codexBuiltInPricingFingerprint()
             return "builtin-\(Self.sha256Hex(Data(fingerprint.utf8)))"
         }
-        let fingerprint = self.modelsDevPricingFingerprint(modelsDevArtifact.catalog)
+        let fingerprint = versionPrefix + self.modelsDevPricingFingerprint(modelsDevArtifact.catalog)
         return "models-dev-v\(modelsDevArtifact.version)-\(Self.sha256Hex(Data(fingerprint.utf8)))"
     }
 
@@ -1459,6 +1477,7 @@ enum CostUsageScanner {
         initialRawTotalsBaseline: CostUsageCodexTotals? = nil,
         initialHasDivergentTotals: Bool = false,
         initialCodexTurnID: String? = nil,
+        initialCodexUsageRowIndex: Int = 0,
         inheritedTotalsResolver: ((String, String) -> CodexForkBaseline)? = nil) -> CodexParseResult
     {
         let throwingResolver: ((String, String) throws -> CodexForkBaseline)? = inheritedTotalsResolver
@@ -1475,6 +1494,7 @@ enum CostUsageScanner {
                 initialRawTotalsBaseline: initialRawTotalsBaseline,
                 initialHasDivergentTotals: initialHasDivergentTotals,
                 initialCodexTurnID: initialCodexTurnID,
+                initialCodexUsageRowIndex: initialCodexUsageRowIndex,
                 inheritedTotalsResolver: throwingResolver,
                 checkCancellation: nil)) ?? CodexParseResult(
             days: [:],
@@ -1500,6 +1520,7 @@ enum CostUsageScanner {
         initialRawTotalsBaseline: CostUsageCodexTotals? = nil,
         initialHasDivergentTotals: Bool = false,
         initialCodexTurnID: String? = nil,
+        initialCodexUsageRowIndex: Int = 0,
         inheritedTotalsResolver: ((String, String) throws -> CodexForkBaseline)? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> CodexParseResult
     {
@@ -1513,6 +1534,7 @@ enum CostUsageScanner {
         var hasUnresolvedForkBaseline = false
         var unresolvedForkTotalWatermark: CostUsageCodexTotals?
         var currentTurnID = initialCodexTurnID
+        var codexUsageRowIndex = initialCodexUsageRowIndex
         var rawTotalsBaseline = initialRawTotalsBaseline ?? initialTotals
         var sawDivergentTotals = initialHasDivergentTotals
         var deferredError: Error?
@@ -1726,13 +1748,14 @@ enum CostUsageScanner {
             }
 
             if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-            let cachedClamp = min(deltaCached, deltaInput)
+            let eventIndex = codexUsageRowIndex
+            codexUsageRowIndex += 1
             let normModel = CostUsagePricing.normalizeCodexModel(model)
             add(
                 dayKey: dayKey,
                 model: normModel,
                 input: deltaInput,
-                cached: cachedClamp,
+                cached: deltaCached,
                 output: deltaOutput)
             if CostUsageDayRange.isInRange(
                 dayKey: dayKey,
@@ -1743,8 +1766,9 @@ enum CostUsageScanner {
                     day: dayKey,
                     model: normModel,
                     turnID: record.turnID ?? currentTurnID,
+                    eventIndex: eventIndex,
                     input: deltaInput,
-                    cached: cachedClamp,
+                    cached: deltaCached,
                     output: deltaOutput))
             }
         }
@@ -2063,13 +2087,14 @@ enum CostUsageScanner {
                         }
 
                         if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-                        let cachedClamp = min(deltaCached, deltaInput)
+                        let eventIndex = codexUsageRowIndex
+                        codexUsageRowIndex += 1
                         let normModel = CostUsagePricing.normalizeCodexModel(model)
                         add(
                             dayKey: dayKey,
                             model: normModel,
                             input: deltaInput,
-                            cached: cachedClamp,
+                            cached: deltaCached,
                             output: deltaOutput)
                         if CostUsageDayRange.isInRange(
                             dayKey: dayKey,
@@ -2080,8 +2105,9 @@ enum CostUsageScanner {
                                 day: dayKey,
                                 model: normModel,
                                 turnID: Self.codexTurnID(from: payload) ?? currentTurnID,
+                                eventIndex: eventIndex,
                                 input: deltaInput,
-                                cached: cachedClamp,
+                                cached: deltaCached,
                                 output: deltaOutput))
                         }
                     }
@@ -2138,10 +2164,6 @@ enum CostUsageScanner {
         }
 
         let cached = cache.files[metadata.path]
-        if let cachedSessionId = cached?.sessionId, state.seenSessionIds.contains(cachedSessionId) {
-            Self.dropCachedCodexFile(path: metadata.path, cached: cached, cache: &cache)
-            return
-        }
 
         let input = CodexFileScanInput(fileURL: fileURL, metadata: metadata, cached: cached)
         if Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {

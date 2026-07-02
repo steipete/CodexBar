@@ -57,6 +57,47 @@ struct OverviewMenuCardVisibilityTests {
         #expect(model.placeholder == "Limits not available")
         #expect(!model.isOverviewErrorOnly)
     }
+
+    @Test
+    func `claude subscription-only quota keeps local cost content`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 4200,
+            sessionCostUSD: 1.25,
+            last30DaysTokens: 42000,
+            last30DaysCostUSD: 12.50,
+            daily: [],
+            updatedAt: now)
+        let quotaError = ClaudeStatusProbeError.parseFailed(
+            ClaudeStatusProbe.subscriptionQuotaUnavailableDescription).localizedDescription
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: nil,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: quotaError,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            tokenCostMenuSectionEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.placeholder == "Limits not available")
+        #expect(model.subtitleStyle == .info)
+        #expect(model.tokenUsage != nil)
+        #expect(model.metrics.isEmpty)
+        #expect(!model.isOverviewErrorOnly)
+    }
 }
 
 struct ProviderInlineDashboardModelTests {
@@ -221,6 +262,7 @@ struct ProviderInlineDashboardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            tokenCostInlineDashboardEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -1200,7 +1242,7 @@ struct MenuCardModelTests {
             hidePersonalInfo: true,
             now: now))
 
-        #expect(model.email == "Hidden")
+        #expect(model.email.isEmpty)
         #expect(model.subtitleText.contains("codex@example.com") == false)
         #expect(model.creditsHintCopyText?.isEmpty == true)
         #expect(model.creditsHintText?.contains("codex@example.com") == false)

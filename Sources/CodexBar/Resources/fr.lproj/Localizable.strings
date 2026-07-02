@@ -417,11 +417,22 @@
 "start_at_login_subtitle" = "Ouvre automatiquement CodexBar au démarrage de votre Mac.";
 "show_cost_summary" = "Afficher le récapitulatif des coûts";
 "show_cost_summary_subtitle" = "Lit les journaux d'utilisation locaux. Affiche le coût d'aujourd'hui et de la période sélectionnée dans le menu.";
+"cost_summary_style_title" = "Style d’affichage";
+"cost_summary_style_inline" = "Intégré seulement";
+"cost_summary_style_submenu" = "Sous-menu seulement";
+"cost_summary_style_both" = "Les deux";
+"cost_summary_style_inline_help" = "Affiche le résumé des coûts directement dans le menu principal.";
+"cost_summary_style_submenu_help" = "Affiche plutôt le sous-menu Coût détaillé.";
+"cost_summary_style_both_help" = "Affiche le résumé du menu principal et le sous-menu Coût détaillé.";
+"cost_history_window_title" = "Fenêtre d'historique";
+"cost_history_window_help" = "Définit le nombre de jours de journaux d'utilisation locaux affichés dans le menu.";
 "cost_history_days_title" = "Fenêtre d'historique : %d jours";
 "cost_auto_refresh_info" = "Actualisation automatique : toutes les heures · Délai d'expiration : 10 min";
 "refresh_cadence_title" = "Fréquence d'actualisation";
 "refresh_cadence_subtitle" = "Définit la fréquence à laquelle CodexBar interroge les fournisseurs en arrière-plan.";
 "manual_refresh_hint" = "L'actualisation automatique est désactivée ; utilisez la commande Actualiser du menu.";
+"refresh_on_open_title" = "Actualiser à l'ouverture du menu";
+"refresh_on_open_subtitle" = "Récupère l'utilisation la plus récente de chaque fournisseur à chaque ouverture du menu.";
 "check_provider_status_title" = "Vérifier l'état des fournisseurs";
 "check_provider_status_subtitle" = "Interroge les pages d'état OpenAI/Claude et Google Workspace pour Gemini/Antigravity, et affiche les incidents dans l'icône et le menu.";
 "session_quota_notifications_title" = "Notifications de quota de session";
@@ -443,6 +454,7 @@
 "quota_warning_warn_at" = "Avertir à";
 "quota_warning_global_threshold_subtitle" = "Pourcentages restants pour les fenêtres de session et hebdomadaires, sauf si un fournisseur les remplace.";
 "quota_warning_sound" = "Lire un son de notification";
+"quota_warning_onscreen_alert" = "Afficher une alerte textuelle à l’écran";
 "quota_warning_provider_inherits" = "Utilise les réglages globaux d'alerte de quota, sauf personnalisation de cette fenêtre.";
 "quota_warning_customize_thresholds" = "Personnaliser les seuils %@";
 "quota_warning_enable_warnings" = "Activer les alertes %@";
@@ -540,6 +552,8 @@
 "show_debug_settings_subtitle" = "Exposez les outils de dépannage dans l’onglet Débogage.";
 "surprise_me_title" = "Surprenez-moi";
 "surprise_me_subtitle" = "Vérifiez si vous aimez que vos agents s'amusent là-haut.";
+"session_limit_confetti_title" = "Confettis de limite de session";
+"session_limit_confetti_subtitle" = "Affiche des confettis en plein écran lorsque l'utilisation de la session est réinitialisée.";
 "weekly_limit_confetti_title" = "Confettis de limite hebdomadaire";
 "weekly_limit_confetti_subtitle" = "Jouez des confettis en plein écran lorsque l'utilisation hebdomadaire est réinitialisée.";
 "hide_personal_info_title" = "Masquer les informations personnelles";
@@ -643,6 +657,7 @@
 
 /* Provider status */
 "status_operational" = "Opérationnel";
+"status_degraded" = "Performances dégradées";
 "status_partial_outage" = "Dégradation partielle";
 "status_major_outage" = "Panne majeure";
 "status_critical_issue" = "Problème critique";
@@ -699,6 +714,7 @@
 "Add Account..." = "Ajouter un compte...";
 "Usage Dashboard" = "Tableau de bord d'utilisation";
 "Status Page" = "Page d'état";
+"Open Status Page" = "Ouvrir la page d'état";
 "Settings..." = "Réglages…";
 "About CodexBar" = "À propos de CodexBar";
 "Quit" = "Quitter";
@@ -982,6 +998,8 @@
 "Enterprise host" = "Hôte d'entreprise";
 "Extra usage balance: %@" = "Solde d'utilisation supplémentaire : %@";
 "Keychain Access Required" = "Accès au Trousseau requis";
+"keychain_prompt_learn_more" = "En savoir plus…";
+"keychain_prompt_privacy_note" = "La saisie du mot de passe de connexion au Mac est gérée par macOS, pas par CodexBar. Vous pouvez désactiver l'accès au Trousseau à tout moment dans Réglages → Avancé.";
 "Kiro menu bar value" = "Valeur de la barre de menu Kiro";
 "Label" = "Libellé";
 "No organizations loaded. Click Refresh after setting your API key." = "Aucune organisation chargée. Cliquez sur Actualiser après avoir défini votre clé API.";
@@ -1091,8 +1109,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crédits de réinitialisation de limite";
-"1 manual reset available" = "1 réinitialisation manuelle disponible";
-"%d manual resets available" = "%d réinitialisations manuelles disponibles";
+"1 available" = "1 disponible";
+"%d available" = "%d disponibles";
 "Next expires %@" = "Prochaine expiration %@";
 "Other (%d items)" = "Autres (%d éléments)";
 "Expand" = "Développer";

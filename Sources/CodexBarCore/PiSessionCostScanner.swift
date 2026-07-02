@@ -620,6 +620,8 @@ enum PiSessionCostScanner {
     {
         switch provider {
         case .codex:
+            // Pi records input, cache reads, and cache writes as disjoint counts. Codex pricing
+            // expects cached input to be a subset of total input, so reconstruct that total here.
             CostUsagePricing.codexCostUSD(
                 model: modelName,
                 inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,

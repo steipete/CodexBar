@@ -90,6 +90,7 @@ public enum ProviderDescriptorRegistry {
         .perplexity: PerplexityProviderDescriptor.descriptor,
         .mimo: MiMoProviderDescriptor.descriptor,
         .doubao: DoubaoProviderDescriptor.descriptor,
+        .sakana: SakanaProviderDescriptor.descriptor,
         .abacus: AbacusProviderDescriptor.descriptor,
         .mistral: MistralProviderDescriptor.descriptor,
         .deepseek: DeepSeekProviderDescriptor.descriptor,

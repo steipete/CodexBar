@@ -417,11 +417,22 @@
 "start_at_login_subtitle" = "Öppnar CodexBar automatiskt när du startar din Mac.";
 "show_cost_summary" = "Visa kostnadssammanfattning";
 "show_cost_summary_subtitle" = "Läser lokala användningsloggar. Visar idag och valt historikfönster i menyn.";
+"cost_summary_style_title" = "Visningsstil";
+"cost_summary_style_inline" = "Endast inbäddad";
+"cost_summary_style_submenu" = "Endast undermeny";
+"cost_summary_style_both" = "Båda";
+"cost_summary_style_inline_help" = "Visar kostnadssammanfattningen direkt i huvudmenyn.";
+"cost_summary_style_submenu_help" = "Visar den detaljerade Kostnad-undermenyn i stället.";
+"cost_summary_style_both_help" = "Visar både huvudmenyns sammanfattning och den detaljerade Kostnad-undermenyn.";
+"cost_history_window_title" = "Historikfönster";
+"cost_history_window_help" = "Anger hur många dagar med lokala användningsloggar som visas i menyn.";
 "cost_history_days_title" = "Historikfönster: %d dagar";
 "cost_auto_refresh_info" = "Automatisk uppdatering: varje timme · Timeout: 10 min";
 "refresh_cadence_title" = "Uppdateringsintervall";
 "refresh_cadence_subtitle" = "Hur ofta CodexBar kontrollerar leverantörer i bakgrunden.";
 "manual_refresh_hint" = "Automatisk uppdatering är avstängd. Använd Uppdatera i menyn.";
+"refresh_on_open_title" = "Uppdatera när menyn öppnas";
+"refresh_on_open_subtitle" = "Hämtar den senaste användningen för varje leverantör varje gång du öppnar menyn.";
 "check_provider_status_title" = "Kontrollera leverantörsstatus";
 "check_provider_status_subtitle" = "Kontrollerar OpenAI/Claude-statussidor och Google Workspace för Gemini/Antigravity och visar incidenter i ikonen och menyn.";
 "session_quota_notifications_title" = "Aviseringar för sessionskvot";
@@ -443,6 +454,7 @@
 "quota_warning_warn_at" = "Varna vid";
 "quota_warning_global_threshold_subtitle" = "Återstående procent för sessions- och veckofönster, om inte en leverantör åsidosätter dem.";
 "quota_warning_sound" = "Spela aviseringsljud";
+"quota_warning_onscreen_alert" = "Visa textavisering på skärmen";
 "quota_warning_provider_inherits" = "Använder de globala kvotvarningsinställningarna om inte ett fönster anpassas här.";
 "quota_warning_customize_thresholds" = "Anpassa trösklar för %@";
 "quota_warning_enable_warnings" = "Aktivera varningar för %@";
@@ -539,6 +551,8 @@
 "show_debug_settings_subtitle" = "Visa felsökningsverktyg på fliken Felsök.";
 "surprise_me_title" = "Överraska mig";
 "surprise_me_subtitle" = "Kontrollera om du vill att agenterna ska få leka lite där uppe.";
+"session_limit_confetti_title" = "Konfetti för sessionsgräns";
+"session_limit_confetti_subtitle" = "Visa konfetti i helskärm när sessionsanvändningen återställs.";
 "weekly_limit_confetti_title" = "Veckogränskonfetti";
 "weekly_limit_confetti_subtitle" = "Spela konfetti i helskärm när veckoförbrukningen återställs.";
 "hide_personal_info_title" = "Dölj personuppgifter";
@@ -642,6 +656,7 @@
 
 /* Provider status */
 "status_operational" = "Fungerar normalt";
+"status_degraded" = "Försämrad prestanda";
 "status_partial_outage" = "Delvis avbrott";
 "status_major_outage" = "Större avbrott";
 "status_critical_issue" = "Kritiskt problem";
@@ -698,6 +713,7 @@
 "Add Account..." = "Lägg till konto...";
 "Usage Dashboard" = "Användningsinstrumentpanel";
 "Status Page" = "Statussida";
+"Open Status Page" = "Öppna statussida";
 "Settings..." = "Inställningar...";
 "About CodexBar" = "Om CodexBar";
 "Quit" = "Avsluta";
@@ -1043,6 +1059,8 @@
 "%@: %@ credits" = "%@: %@ krediter";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Kimi-autentiseringstoken så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Keychain Access Required" = "Åtkomst till Nyckelring krävs";
+"keychain_prompt_learn_more" = "Läs mer…";
+"keychain_prompt_privacy_note" = "Inmatningen av Mac-inloggningslösenordet hanteras av macOS, inte CodexBar. Du kan när som helst inaktivera åtkomst till Nyckelring under Inställningar → Avancerat.";
 "Username" = "Användarnamn";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din MiniMax-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "30d spend" = "30 d kostnad";
@@ -1090,8 +1108,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Krediter för gränsåterställning";
-"1 manual reset available" = "1 manuell återställning tillgänglig";
-"%d manual resets available" = "%d manuella återställningar tillgängliga";
+"1 available" = "1 tillgänglig";
+"%d available" = "%d tillgängliga";
 "Next expires %@" = "Nästa upphör %@";
 "Other (%d items)" = "Övrigt (%d objekt)";
 "Expand" = "Expandera";
