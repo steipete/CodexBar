@@ -77,6 +77,30 @@ struct AdvancedPane: View {
                 Divider()
 
                 SettingsSection(contentSpacing: 10) {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(L("historical_pace_weeks_title"))
+                                .font(.body)
+                            Text(L("historical_pace_weeks_subtitle"))
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer(minLength: 12)
+                        Stepper(value: self.$settings.historicalPaceMinimumWeeks, in: 2...8, step: 1) {
+                            Text(String(
+                                format: L("historical_pace_weeks_value"),
+                                self.settings.historicalPaceMinimumWeeks))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .frame(minWidth: 58, alignment: .trailing)
+                        }
+                    }
+                }
+
+                Divider()
+
+                SettingsSection(contentSpacing: 10) {
                     PreferenceToggleRow(
                         title: L("hide_personal_info_title"),
                         subtitle: L("hide_personal_info_subtitle"),

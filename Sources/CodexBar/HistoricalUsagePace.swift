@@ -758,13 +758,18 @@ actor HistoricalUsageHistoryStore {
 }
 
 enum CodexHistoricalPaceEvaluator {
-    static let minimumCompleteWeeksForHistorical = 3
+    static let defaultMinimumCompleteWeeksForHistorical = 3
     static let minimumWeeksForRisk = 5
     private static let recencyTauWeeks: Double = 3
     private static let epsilon: Double = 1e-9
     private static let resetBucketSeconds: TimeInterval = 5 * 60
 
-    static func evaluate(window: RateWindow, now: Date, dataset: CodexHistoricalDataset?) -> UsagePace? {
+    static func evaluate(
+        window: RateWindow,
+        now: Date,
+        dataset: CodexHistoricalDataset?,
+        minimumCompleteWeeks: Int = Self.defaultMinimumCompleteWeeksForHistorical) -> UsagePace?
+    {
         guard let dataset else { return nil }
         guard let resetsAt = window.resetsAt else { return nil }
         let minutes = window.windowMinutes ?? 10080
@@ -785,7 +790,7 @@ enum CodexHistoricalPaceEvaluator {
         let scopedWeeks = dataset.weeks.filter { week in
             week.windowMinutes == minutes && week.resetsAt < normalizedResetsAt
         }
-        guard scopedWeeks.count >= Self.minimumCompleteWeeksForHistorical else { return nil }
+        guard scopedWeeks.count >= max(2, minimumCompleteWeeks) else { return nil }
 
         let weightedWeeks = scopedWeeks.map { week in
             let ageWeeks = Self.clamp(
@@ -893,7 +898,8 @@ enum CodexHistoricalPaceEvaluator {
             actualUsedPercent: actual,
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
-            runOutProbability: runOutProbability)
+            runOutProbability: runOutProbability,
+            projectedRemainingUsage: max(0, (expectedCurve.last ?? expectedNow) - expectedNow))
     }
 
     private static func firstCrossing(

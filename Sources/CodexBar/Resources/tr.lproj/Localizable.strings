@@ -550,6 +550,9 @@
 "no_writable_bin_dirs" = "Yazılabilir bin dizini bulunamadı.";
 "show_debug_settings_title" = "Hata Ayıklama Ayarlarını Göster";
 "show_debug_settings_subtitle" = "Sorun giderme araçlarını Hata Ayıklama sekmesinde göster.";
+"historical_pace_weeks_title" = "Historical pace weeks";
+"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
+"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Beni şaşırt";
 "surprise_me_subtitle" = "Ajanlarınızın yukarıda biraz eğlenmesini istiyorsanız işaretleyin.";
 "session_limit_confetti_title" = "Oturum sınırı konfeti";
@@ -727,6 +730,7 @@
 "Resets now" = "Şimdi sıfırlanır";
 "reset_tomorrow_format" = "yarın, %@";
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
+"Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "Güncellendi: %@";
 "Updated %@h ago" = "%@ saat önce güncellendi";
 "Updated %@m ago" = "%@ dakika önce güncellendi";

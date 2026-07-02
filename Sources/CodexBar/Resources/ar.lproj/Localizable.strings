@@ -550,6 +550,9 @@
 "no_writable_bin_dirs" = "لم يتم العثور على أي سجلات قابلة للكتابة.";
 "show_debug_settings_title" = "عرض إعدادات التصحيح";
 "show_debug_settings_subtitle" = "اعرض أدوات استكشاف الأخطاء في تبويب التصحيح.";
+"historical_pace_weeks_title" = "Historical pace weeks";
+"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
+"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "فاجئني";
 "surprise_me_subtitle" = "تحقق إذا كنت تحب وكلائنك يستمتعون هناك.";
 "session_limit_confetti_title" = "قصاصات ورقية لحد الجلسة";
@@ -729,6 +732,7 @@
 "Resets now" = "إعادة التعيين الآن";
 "reset_tomorrow_format" = "غدًا، %@";
 "Lasts until reset" = "يستمر حتى إعادة التعيين";
+"Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "تحديث %@";
 "Updated %@h ago" = "تم التحديث %@h قبل";
 "Updated %@m ago" = "تم التحديث %@m قبل";

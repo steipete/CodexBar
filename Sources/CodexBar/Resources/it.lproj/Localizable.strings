@@ -552,6 +552,9 @@
 "no_writable_bin_dirs" = "Nessuna directory bin scrivibile trovata.";
 "show_debug_settings_title" = "Mostra impostazioni debug";
 "show_debug_settings_subtitle" = "Espone strumenti di diagnosi nella scheda Debug.";
+"historical_pace_weeks_title" = "Settimane per il ritmo storico";
+"historical_pace_weeks_subtitle" = "Numero minimo di settimane Codex complete prima che il ritmo storico sostituisca quello lineare.";
+"historical_pace_weeks_value" = "%d settimane";
 "surprise_me_title" = "Sorprendimi";
 "surprise_me_subtitle" = "Per chi apprezza un po' di personalità dagli agenti.";
 "session_limit_confetti_title" = "Coriandoli limite sessione";
@@ -731,6 +734,7 @@
 "Resets now" = "Si resetta ora";
 "reset_tomorrow_format" = "domani, %@";
 "Lasts until reset" = "Valido fino al reset";
+"Try 1.5x!" = "Prova 1,5x!";
 "Updated %@" = "Aggiornato %@";
 "Updated %@h ago" = "Aggiornato %@ h fa";
 "Updated %@m ago" = "Aggiornato %@ min fa";

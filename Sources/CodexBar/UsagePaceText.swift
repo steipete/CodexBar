@@ -45,7 +45,7 @@ enum UsagePaceText {
     private static func detailRightLabel(for pace: UsagePace, context: DetailContext, now: Date) -> String? {
         let etaLabel: String?
         if pace.willLastToReset {
-            etaLabel = L("Lasts until reset")
+            etaLabel = self.combinedLastsLabel(for: pace)
         } else if let etaSeconds = pace.etaSeconds {
             let etaText = Self.durationText(seconds: etaSeconds, now: now)
             if context == .session {
@@ -67,6 +67,21 @@ enum UsagePaceText {
             return L("%@ · %@", etaLabel, riskLabel)
         }
         return riskLabel
+    }
+
+    private static func combinedLastsLabel(for pace: UsagePace) -> String {
+        guard let speedLabel = self.speedHintLabel(for: pace) else {
+            return L("Lasts until reset")
+        }
+        return L("%@ · %@", L("Lasts until reset"), speedLabel)
+    }
+
+    private static func speedHintLabel(for pace: UsagePace) -> String? {
+        guard pace.deltaPercent < -15,
+              let multiplier = pace.speedMultiplierToReset,
+              multiplier >= 1.5
+        else { return nil }
+        return L("Try 1.5x!")
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
