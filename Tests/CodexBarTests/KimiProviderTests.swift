@@ -568,6 +568,34 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
+    func `reflects partial subscription usage in monthly window`() throws {
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "2048",
+            used: "375",
+            remaining: "1673",
+            resetTime: "2026-01-09T15:23:13.373329235Z")
+        // A live, partially-used balance (not the fully-exhausted 1.0 fixture): amountUsedRatio is a
+        // real consumption ratio, so the Monthly window must track it rather than pin to 100%.
+        let subscriptionBalance = KimiSubscriptionBalance(
+            feature: "FEATURE_OMNI",
+            type: "SUBSCRIPTION",
+            amountUsedRatio: 0.7716,
+            expireTime: "2026-07-23T00:00:00Z")
+
+        let snapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimit: nil,
+            subscriptionBalance: subscriptionBalance,
+            updatedAt: now)
+        let usageSnapshot = snapshot.toUsageSnapshot()
+
+        let monthly = try #require(usageSnapshot.extraRateWindows?.first)
+        #expect(monthly.id == "kimi-monthly")
+        #expect(abs(monthly.window.usedPercent - 77.16) < 0.0001)
+    }
+
+    @Test
     func `converts to usage snapshot without rate limit`() {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
