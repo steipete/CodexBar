@@ -764,9 +764,10 @@ extension StatusItemController {
                 self.store.weeklyPace(provider: provider, window: window, now: now)
             }
         case .resetTime:
+            let resetWindow = self.menuBarResetTimeWindow(for: provider, snapshot: snapshot)
             return MenuBarDisplayText.displayText(
                 mode: mode,
-                percentWindow: percentWindow,
+                percentWindow: resetWindow,
                 showUsed: self.settings.usageBarsShowUsed,
                 resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
                 now: now)

@@ -1,0 +1,29 @@
+{
+  "total_credits": 20000,
+  "used_credits": 0,
+  "remaining_credits": 20000,
+  "credit_packages_details": [
+    {
+      "package_id": "6107592317211223800",
+      "group_id": "2040544334402560487",
+      "total_count": "20000",
+      "usage_count": "0",
+      "remains_count": "20000"
+    }
+  ],
+  "balance_breakdown": {
+    "total_balance": 20000,
+    "buckets": [
+      {
+        "source": 2,
+        "balance": 20000,
+        "expire_time_ms": 1784995199999,
+        "order_id_prefix": "ORD-CR"
+      }
+    ]
+  },
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": "success"
+  }
+}

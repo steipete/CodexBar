@@ -289,6 +289,21 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `token count string supports fixed two decimal abbreviations`() {
+        #expect(UsageFormatter.tokenCountString(88000, fractionDigits: 2) == "88.00K")
+        #expect(UsageFormatter.tokenCountString(2500, fractionDigits: 2) == "2.50K")
+        #expect(UsageFormatter.tokenCountString(7_576_430, fractionDigits: 2) == "7.58M")
+        #expect(UsageFormatter.tokenCountString(1_100_000_000, fractionDigits: 2) == "1.10B")
+    }
+
+    @Test
+    func `optional percent string keeps two decimal places`() {
+        #expect(UsageFormatter.optionalPercentString(74.6) == "74.60%")
+        #expect(UsageFormatter.optionalPercentString(3.8) == "3.80%")
+        #expect(UsageFormatter.optionalPercentString(nil) == "—")
+    }
+
+    @Test
     func `clean plan maps O auth to ollama`() {
         #expect(UsageFormatter.cleanPlanName("oauth") == "Ollama")
     }

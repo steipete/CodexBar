@@ -9,6 +9,8 @@
 - Menu: add an opt-in setting to refresh provider usage whenever the menu opens without changing the periodic refresh clock. Thanks @dstier-git!
 - Qoder: add big-model credit usage from qoder.com and qoder.com.cn browser sessions or manual cookies. Thanks @Yuxin-Qiao!
 - Quota warnings: add an optional centered on-screen text alert that stays click-through and does not steal focus. Thanks @SAASEmpiree!
+- MiniMax: fetch Token Plan recharge-credit balance from the console `token_plan_credit` endpoint when a browser session cookie is available. Thanks @Yuxin-Qiao!
+- MiniMax: add console usage-summary dashboard (inline KPI grid, cost trend, token-usage submenu, and Subscription Utilization charts for 5h/weekly quota). Thanks @Yuxin-Qiao!
 
 ### Fixed
 - Sakana AI: parse server-rendered quota reset timestamps as UTC instead of device-local time (#1826). Thanks @ss251!
@@ -18,6 +20,11 @@
 - Claude history: keep OAuth utilization separate across account switches while preserving continuity through token refreshes.
 - Linux CLI: keep Claude OAuth usage subprocess-free, skip version probes, and let Auto bypass unsupported web sources. Thanks @derekszen!
 - Usage display: make Usage widgets follow the used-versus-remaining preference already shared by menus and Overview rows (#1738). Thanks @OlegLustenko and @FrancoLan!
+- MiniMax: route Token Plan credit lookups to the matching `www.*` host when `MINIMAX_HOST` selects a China or global platform domain.
+- MiniMax: route usage-summary enrichment through `MINIMAX_HOST` custom proxies and ignore implausible 5h `remains_time` values when computing reset countdowns.
+- MiniMax: open the menu Usage Dashboard action at `platform.*.com/console/usage` instead of the Coding Plan page.
+- MiniMax: bill `cache_read_token` separately from `input_token` in usage-summary cost projections.
+- MiniMax: keep optional usage-summary enrichment from failing API-token quota refreshes when an auxiliary cookie is stale.
 - OpenCode Go: keep rolling usage available when the dashboard omits the optional weekly window. Thanks @mohkg1017!
 - Menu bar: make Show most-used provider rank only providers selected for Overview. Thanks @dstier-git!
 - Codex: show expiring reset-credit availability even when optional credits and extra usage are hidden, while preserving CLI `--no-credits`. Thanks @simon-ami!

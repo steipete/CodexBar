@@ -2,6 +2,7 @@
 
 " providers" = " providers";
 "(System)" = "(سیستم)";
+"7d" = "7 روز";
 "30d" = "30 روز";
 "A managed Codex login is already running. Wait for it to finish before adding " = "یک ورود Codex مدیریت شده هم اکنون در حال اجرا است. صبر کنید تا تمام شود و بعد   را اضافه کنید";
 "API key" = "کلید API";
@@ -53,6 +54,26 @@
 "CLI paths" = "مسیرهای CLI";
 "CLI sessions" = "جلسات CLI";
 "Caches" = "کش ها";
+"Cache hit: %@" = "نرخ اصابت کش: %@";
+"Cache hit" = "اصابت کش";
+"%@ usage" = "مصرف %@";
+"Latest usage" = "آخرین مصرف";
+"7d tokens" = "مصرف ۷ روز";
+"Last 7 days: %@ tokens" = "۷ روز گذشته: %@ توکن";
+"Last 7 days" = "۷ روز گذشته";
+"Usage trend" = "روند مصرف";
+"MiniMax 7 day token usage trend" = "روند ۷ روزه توکن MiniMax";
+"Language models only; data may be delayed" = "فقط مدل‌های زبانی؛ داده ممکن است با تأخیر باشد";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ ورودی · %@ خروجی · اصابت کش %@";
+"%@ input · %@ output · %@ cache hit" = "%@ ورودی · %@ خروجی · اصابت کش %@";
+"Total consumed" = "کل مصرف";
+"Daily peak" = "اوج روزانه";
+"Active days" = "روزهای فعال";
+"Active days: %@" = "روزهای فعال: %@";
+"Streak: %@ days" = "پیوستگی: %@ روز";
+"Usage rank: top %@%%" = "رتبه مصرف: %@%% برتر";
+"Token usage details" = "جزئیات مصرف توکن";
+"Day totals" = "جمع روز";
 "Cancel" = "لغو";
 "Check for Updates…" = "به روزرسانی ها را بررسی کنید...";
 "Check for updates automatically" = "به طور خودکار به روزرسانی ها را بررسی کنید";
@@ -124,6 +145,7 @@
 "Enabled" = "فعال";
 "Error" = "خطا";
 "Error simulation" = "شبیه سازی خطا";
+"Expires: %@" = "انقضا: %@";
 "Expose troubleshooting tools in the Debug tab." = "ابزارهای عیب یابی را در تب اشکال زدایی آشکار کنید.";
 "Failed" = "شکست خورد";
 "False" = "نادرست";
@@ -923,6 +945,7 @@
 "Weekly" = "هفتگی";
 "not detected" = "شناسایی نشد";
 "Estimated from local Codex logs for the selected account." = "برآورد شده از لاگ های محلی Codex حساب انتخاب شده.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "برآورد شده از خلاصه مصرف MiniMax و قیمت‌گذاری رسمی pay-as-you-go · ممکن است با صورتحساب متفاوت باشد";
 "minimax_usage_amount_format" = "استفاده: %@ / %@";
 "minimax_used_percent_format" = "%@ استفاده شده";
 "minimax_service_text_generation" = "تولید متن";

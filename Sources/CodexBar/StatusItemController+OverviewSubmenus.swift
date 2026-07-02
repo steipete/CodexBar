@@ -18,6 +18,7 @@ extension StatusItemController {
             return submenu
         }
         if UsageStore.tokenCostRequiresProviderSnapshot(provider),
+           provider != .minimax,
            let submenu = self.makeCostHistorySubmenu(provider: provider, width: width)
         {
             return submenu

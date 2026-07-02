@@ -2,6 +2,7 @@
 
 " providers" = " penyedia";
 "(System)" = "(Sistem)";
+"7d" = "7 hari";
 "30d" = "30 hari";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Login Codex terkelola sudah berjalan. Tunggu hingga selesai sebelum menambahkan ";
 "API key" = "Kunci API";
@@ -925,6 +926,7 @@
 "Weekly" = "Mingguan";
 "not detected" = "tidak terdeteksi";
 "Estimated from local Codex logs for the selected account." = "Diperkirakan dari log Codex lokal untuk akun yang dipilih.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Diperkirakan dari ringkasan penggunaan MiniMax dan harga pay-as-you-go yang dipublikasikan · dapat berbeda dari tagihan";
 "minimax_usage_amount_format" = "Penggunaan: %@ / %@";
 "minimax_used_percent_format" = "Terpakai %@";
 "minimax_service_text_generation" = "Pembuatan Teks";

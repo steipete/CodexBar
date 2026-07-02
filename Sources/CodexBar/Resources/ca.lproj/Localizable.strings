@@ -2,6 +2,7 @@
 
 " providers" = " proveïdors";
 "(System)" = "(Sistema)";
+"7d" = "7 d";
 "30d" = "30 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Ja hi ha un inici de sessió gestionat de Codex en curs. Espera que acabi abans d'afegir ";
 "API key" = "Clau d'API";
@@ -1023,6 +1024,7 @@
 "Est. total (%@): %@" = "Total estimat (%@): %@";
 "Est. total (30d): %@" = "Total estimat (30 d): %@";
 "Estimated from local Codex logs for the selected account." = "Estimat a partir dels registres locals de Codex per al compte seleccionat.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Estimat a partir del resum d'ús de MiniMax i els preus publicats de pagament per ús · pot diferir de la factura";
 "Google accounts" = "Comptes de Google";
 "Google OAuth" = "Google OAuth";
 "Hourly Tokens" = "Tokens per hora";

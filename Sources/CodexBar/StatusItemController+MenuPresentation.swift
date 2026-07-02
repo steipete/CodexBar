@@ -477,6 +477,18 @@ struct MenuCardSectionContainerView<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
+        Group {
+            if self.refreshMonitor != nil {
+                TimelineView(.periodic(from: .now, by: 60)) { _ in
+                    self.cardContent
+                }
+            } else {
+                self.cardContent
+            }
+        }
+    }
+
+    private var cardContent: some View {
         self.content()
             .environment(\.menuItemHighlighted, self.highlightState.isHighlighted)
             .environment(\.menuCardRefreshMonitor, self.refreshMonitor)

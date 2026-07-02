@@ -2,6 +2,7 @@
 
 " providers" = "Anbieter";
 "(System)" = "(System)";
+"7d" = "7d";
 "30d" = "30d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Eine verwaltete Codex-Anmeldung läuft bereits. Warten Sie, bis der Vorgang abgeschlossen ist, bevor Sie ihn hinzufügen";
 "API key" = "API-Schlüssel";
@@ -916,6 +917,7 @@
 "Weekly" = "Wöchentlich";
 "not detected" = "nicht erkannt";
 "Estimated from local Codex logs for the selected account." = "Geschätzt aus lokalen Codex-Protokollen für das ausgewählte Konto.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Geschätzt anhand der MiniMax-Nutzungsübersicht und veröffentlichter Pay-as-you-go-Preise · kann von der Rechnung abweichen";
 "minimax_usage_amount_format" = "Verwendung: %@ / %@";
 "minimax_used_percent_format" = "Verbraucht %@";
 "minimax_service_text_generation" = "Textgenerierung";

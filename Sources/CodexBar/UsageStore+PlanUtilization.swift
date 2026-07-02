@@ -19,6 +19,17 @@ extension UsageStore {
         switch provider {
         case .codex, .claude:
             true
+        case .minimax:
+            if self.planUtilizationHistory[provider]?.isEmpty == false {
+                true
+            } else if let snapshot = self.snapshots[provider] {
+                !self.planUtilizationSeriesSamples(
+                    provider: provider,
+                    snapshot: snapshot,
+                    capturedAt: snapshot.updatedAt).isEmpty
+            } else {
+                false
+            }
         default:
             if self.planUtilizationHistory[provider]?.isEmpty == false {
                 true
@@ -226,9 +237,15 @@ extension UsageStore {
     private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
         switch provider {
         case .codex, .claude:
-            true
+            return true
+        case .minimax:
+            guard let snapshot = self.snapshots[provider] else { return false }
+            return !self.planUtilizationSeriesSamples(
+                provider: provider,
+                snapshot: snapshot,
+                capturedAt: snapshot.updatedAt).isEmpty
         default:
-            self.settings.historicalTrackingEnabled
+            return self.settings.historicalTrackingEnabled
         }
     }
 
@@ -536,6 +553,9 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
+        case .minimax:
+            appendWindow(snapshot.primary, name: .session)
+            appendWindow(snapshot.secondary, name: .weekly)
         case .antigravity:
             let namedWeeklyWindows = snapshot.extraRateWindows?
                 .filter {

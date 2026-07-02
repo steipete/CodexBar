@@ -66,6 +66,7 @@ public struct MiniMaxUsageFetcher: Sendable {
                     return try await self.attachingBillingIfAvailable(
                         to: snapshot,
                         context: context,
+                        groupID: groupID,
                         includeBillingHistory: includeBillingHistory,
                         now: now)
                 } catch {
@@ -83,6 +84,7 @@ public struct MiniMaxUsageFetcher: Sendable {
             return try await self.attachingBillingIfAvailable(
                 to: snapshot,
                 context: context,
+                groupID: groupID,
                 includeBillingHistory: includeBillingHistory,
                 now: now)
         } catch let error as MiniMaxUsageError {
@@ -100,6 +102,7 @@ public struct MiniMaxUsageFetcher: Sendable {
                 return try await self.attachingBillingIfAvailable(
                     to: snapshot,
                     context: context,
+                    groupID: groupID,
                     includeBillingHistory: includeBillingHistory,
                     now: now)
             }
@@ -113,42 +116,14 @@ public struct MiniMaxUsageFetcher: Sendable {
         now: Date = Date(),
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MiniMaxUsageSnapshot
     {
-        let cleaned = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else {
-            throw MiniMaxUsageError.invalidCredentials
-        }
-
-        // Historically, MiniMax API token fetching used a China endpoint by default in some configurations. If the
-        // user has no persisted region and we default to `.global`, retry the China endpoint when the global host
-        // rejects the token so upgrades don't regress existing setups.
-        if region != .global {
-            return try await self.fetchUsageOnce(apiToken: cleaned, region: region, now: now, transport: transport)
-        }
-
-        do {
-            return try await self.fetchUsageOnce(
-                apiToken: cleaned,
-                region: .global,
-                now: now,
-                transport: transport)
-        } catch let error as MiniMaxUsageError {
-            guard case .invalidCredentials = error else { throw error }
-            Self.log.debug("MiniMax API token rejected for global host, retrying China mainland host")
-            do {
-                return try await self.fetchUsageOnce(
-                    apiToken: cleaned,
-                    region: .chinaMainland,
-                    now: now,
-                    transport: transport)
-            } catch {
-                // Preserve the original invalid-credentials error so the fetch pipeline can fall back to web.
-                Self.log.debug("MiniMax China mainland retry failed, preserving global invalidCredentials")
-                throw MiniMaxUsageError.invalidCredentials
-            }
-        }
+        try await self.fetchAPITokenUsage(
+            apiToken: apiToken,
+            region: region,
+            now: now,
+            session: transport).snapshot
     }
 
-    private static func fetchUsageOnce(
+    static func fetchUsageOnce(
         apiToken: String,
         region: MiniMaxAPIRegion,
         now: Date,
@@ -440,27 +415,42 @@ public struct MiniMaxUsageFetcher: Sendable {
     private static func attachingBillingIfAvailable(
         to snapshot: MiniMaxUsageSnapshot,
         context: WebFetchContext,
+        groupID: String?,
         includeBillingHistory: Bool,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
-        guard includeBillingHistory else { return snapshot }
-        do {
-            let billing = try await self.fetchBillingSummary(context: context, now: now)
-            return snapshot.withBillingSummary(billing)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw error
-        } catch let error as MiniMaxUsageError {
-            if case .invalidCredentials = error, context.authorizationToken != nil {
+        let enrichedSnapshot: MiniMaxUsageSnapshot
+        if includeBillingHistory {
+            do {
+                let billing = try await self.fetchBillingSummary(context: context, now: now)
+                enrichedSnapshot = snapshot.withBillingSummary(billing)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
                 throw error
+            } catch let error as MiniMaxUsageError {
+                if case .invalidCredentials = error, context.authorizationToken != nil {
+                    throw error
+                }
+                Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
+                enrichedSnapshot = snapshot
+            } catch {
+                Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
+                enrichedSnapshot = snapshot
             }
-            Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
-            return snapshot
-        } catch {
-            Self.log.debug("MiniMax billing history unavailable: \(error.localizedDescription)")
-            return snapshot
+        } else {
+            enrichedSnapshot = snapshot
         }
+
+        let summaryEnrichedSnapshot = try await self.attachingUsageSummaryIfAvailable(
+            to: enrichedSnapshot,
+            context: context,
+            groupID: groupID)
+
+        return try await self.attachingTokenPlanCreditIfAvailable(
+            to: summaryEnrichedSnapshot,
+            context: context,
+            groupID: groupID)
     }
 
     private static func fetchBillingSummary(context: WebFetchContext, now: Date) async throws -> MiniMaxBillingSummary {
@@ -985,14 +975,16 @@ enum MiniMaxUsageParser {
             remaining: remaining,
             remainingPercent: first?.currentIntervalRemainingPercent)
 
-        let windowMinutes = self.windowMinutes(
-            start: self.dateFromEpoch(first?.startTime),
-            end: self.dateFromEpoch(first?.endTime))
+        let startDate = self.dateFromEpoch(first?.startTime)
+        let endDate = self.dateFromEpoch(first?.endTime)
+        let windowMinutes = self.windowMinutes(start: startDate, end: endDate)
+        let intervalWindowType = self.parseWindowInfo(startTime: startDate, endTime: endDate, now: now).windowType
 
         let resetsAt = self.resetsAt(
-            end: self.dateFromEpoch(first?.endTime),
+            end: endDate,
             remains: first?.remainsTime,
-            now: now)
+            now: now,
+            windowType: intervalWindowType)
 
         let planName = self.parsePlanName(data: payload.data)
 
@@ -1038,21 +1030,6 @@ enum MiniMaxUsageParser {
             return Date(timeIntervalSince1970: TimeInterval(raw))
         }
         return nil
-    }
-
-    private static func windowMinutes(start: Date?, end: Date?) -> Int? {
-        guard let start, let end else { return nil }
-        let minutes = Int(end.timeIntervalSince(start) / 60)
-        return minutes > 0 ? minutes : nil
-    }
-
-    private static func resetsAt(end: Date?, remains: Int?, now: Date) -> Date? {
-        if let end, end > now {
-            return end
-        }
-        guard let remains, remains > 0 else { return nil }
-        let seconds: TimeInterval = remains > 1_000_000 ? TimeInterval(remains) / 1000 : TimeInterval(remains)
-        return now.addingTimeInterval(seconds)
     }
 
     private static func parsePlanName(data: MiniMaxCodingPlanData) -> String? {
@@ -1500,19 +1477,7 @@ enum MiniMaxUsageParser {
         resetsAt: Date?) -> String
     {
         if let resetsAt, resetsAt > now {
-            let interval = resetsAt.timeIntervalSince(now)
-            if interval < 60 {
-                return "Resets in \(Int(interval)) seconds"
-            } else if interval < 3600 {
-                let minutes = Int(interval / 60)
-                return "Resets in \(minutes) minute\(minutes == 1 ? "" : "s")"
-            } else if interval < 86400 {
-                let hours = Int(interval / 3600)
-                return "Resets in \(hours) hour\(hours == 1 ? "" : "s")"
-            } else {
-                let days = Int(interval / 86400)
-                return "Resets in \(days) day\(days == 1 ? "" : "s")"
-            }
+            return MiniMaxServiceUsage.generateResetDescription(resetsAt: resetsAt, now: now)
         }
 
         return "\(windowType): \(timeRange)"
@@ -1592,7 +1557,11 @@ enum MiniMaxUsageParser {
         }
 
         let isUnlimited = self.isUnlimitedQuotaWindow(input, windowType: windowType)
-        let resetsAt = isUnlimited ? nil : self.resetsAt(end: endTime, remains: input.remainsTime, now: now)
+        let resetsAt = isUnlimited ? nil : self.resetsAt(
+            end: endTime,
+            remains: input.remainsTime,
+            now: now,
+            windowType: windowType)
         let resetDescription = if isUnlimited {
             "Unlimited"
         } else {

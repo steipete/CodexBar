@@ -2,6 +2,7 @@
 
 " providers" = " proveedores";
 "(System)" = "(Sistema)";
+"7d" = "7 d";
 "30d" = "30 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Ya hay un inicio de sesión gestionado de Codex en curso. Espera a que termine antes de añadir ";
 "API key" = "Clave de API";
@@ -670,6 +671,7 @@
 /* Cost estimation */
 "cost_header_estimated" = "Coste (estimado)";
 "cost_estimate_hint" = "Estimado a partir de registros locales · puede diferir de tu factura";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Estimado a partir del resumen de uso de MiniMax y los precios publicados de pago por uso · puede diferir de la factura";
 
 /* Popup panels */
 "No usage configured." = "No hay uso configurado.";

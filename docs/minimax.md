@@ -39,6 +39,8 @@ falls back across the provider's supported web requests when needed.
   - `MINIMAX_HOST=platform.minimaxi.com`
   - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
   - `MINIMAX_REMAINS_URL=...` (full URL override)
+  - `MINIMAX_TOKEN_PLAN_CREDIT_URL=...` (full URL override for recharge-credit balance)
+- `MINIMAX_HOST` also selects the matching `www.*` credit and usage-summary hosts for MiniMax-owned domains (`minimaxi.com` → `www.minimaxi.com`, `minimax.io` → `www.minimax.io`). Custom proxy hosts (for example `proxy.example.test:8443`) route coding-plan, remains, billing-history, and usage-summary requests through the override while keeping credit/summary on the configured host path.
 - Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
 - Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io` or `minimaxi.com`.
 
@@ -50,6 +52,12 @@ falls back across the provider's supported web requests when needed.
 
 ## Snapshot mapping
 - Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.
+- Token Plan recharge credits (积分余额) are fetched from `GET https://www.minimaxi.com/backend/account/token_plan_credit` (or the global `www.minimax.io` host) using the browser session cookie. API-token remains responses do not include this balance.
+- Console usage summary (`GET .../backend/account/token_plan/usage_summary`) enriches web-session refreshes with 30-day token/cost trends, cache-hit stats, and per-model breakdowns when a browser cookie is available. API-token refreshes only attempt summary enrichment when an explicit manual or environment cookie is configured.
+- API-token refreshes only merge recharge credits when an explicit manual or environment cookie is configured; cached browser cookies are not attached automatically to avoid cross-account balance bleed.
+- Pay-as-you-go cost projections treat `input_token` and `cache_read_token` as separate counters when pricing usage-summary model rows.
+- Menu **Usage Dashboard** opens `https://platform.minimax.io/console/usage` or `https://platform.minimaxi.com/console/usage` based on the configured API region. Settings **Open Token Plan** still opens the Coding Plan page.
+- 5-hour and weekly reset countdowns prefer plausible `remains_time` values but fall back to `end_time` when the API countdown is far outside the declared window.
 - Web-session billing history, when available, is mapped into the shared inline usage dashboard:
   - 30-day token trend.
   - Top model and top method breakdowns.
@@ -60,6 +68,9 @@ quota card and omits the chart instead of treating the whole provider as failed.
 
 ## Key files
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxTokenPlanCreditFetcher.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageSummary.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsagePricing.swift`
 - `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
 - `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`
 
@@ -77,6 +88,7 @@ codexbar diagnose --provider minimax --format json --pretty
 - Structural diagnostic JSON with provider, source/source mode, auth summary, usage summary, fetch attempts, and error categories.
 - Per-service quota percentages, used values, limits, remaining values, reset metadata, and unlimited state. These are
   the same non-secret values shown in the menu and help diagnose boosted quota denominators.
+- Recharge-credit balance (`pointsBalance`) when a browser session successfully fetched `token_plan_credit`.
 - All sensitive fields (API tokens, cookies, emails, auth headers) are redacted via `LogRedactor`.
 - Errors are mapped to safe categories (`network`, `auth`, `api`, `parse`) with user-friendly descriptions.
 - No raw API responses, raw error messages, tokens, cookies, emails, account IDs, org IDs, or billing history.

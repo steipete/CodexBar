@@ -2,6 +2,7 @@
 
 " providers" = " sağlayıcı";
 "(System)" = "(Sistem)";
+"7d" = "7 gün";
 "30d" = "30 gün";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Yönetilen bir Codex girişi zaten çalışıyor. Eklemeden önce bitmesini bekleyin ";
 "API key" = "API anahtarı";
@@ -920,6 +921,7 @@
 "Weekly" = "Haftalık";
 "not detected" = "algılanmadı";
 "Estimated from local Codex logs for the selected account." = "Seçili hesap için yerel Codex günlüklerinden tahmin edildi.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "MiniMax kullanım özetinden ve yayımlanan kullandıkça öde fiyatlarından tahmin edildi · faturadan farklı olabilir";
 "minimax_usage_amount_format" = "Kullanım: %@ / %@";
 "minimax_used_percent_format" = "%@ kullanıldı";
 "minimax_service_text_generation" = "Metin Üretimi";

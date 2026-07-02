@@ -8,7 +8,10 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     private static let codingPlanQuery = "cycle_type=3"
     private static let remainsPath = "v1/api/openplatform/coding_plan/remains"
     private static let tokenPlanRemainsPath = "v1/token_plan/remains"
+    private static let tokenPlanCreditPath = "backend/account/token_plan_credit"
+    private static let tokenPlanUsageSummaryPath = "backend/account/token_plan/usage_summary"
     private static let billingHistoryPath = "account/amount"
+    private static let usageDashboardPath = "console/usage"
 
     public var displayName: String {
         switch self {
@@ -37,6 +40,23 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
         }
     }
 
+    public var webBaseURLString: String {
+        switch self {
+        case .global:
+            "https://www.minimax.io"
+        case .chinaMainland:
+            "https://www.minimaxi.com"
+        }
+    }
+
+    public var tokenPlanCreditURL: URL {
+        URL(string: self.webBaseURLString)!.appendingPathComponent(Self.tokenPlanCreditPath)
+    }
+
+    public var tokenPlanUsageSummaryURL: URL {
+        URL(string: self.webBaseURLString)!.appendingPathComponent(Self.tokenPlanUsageSummaryPath)
+    }
+
     public var codingPlanURL: URL {
         var components = URLComponents(string: self.baseURLString)!
         components.path = "/" + Self.codingPlanPath
@@ -63,10 +83,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     }
 
     public var dashboardURL: URL {
-        var components = URLComponents(string: self.baseURLString)!
-        components.path = "/" + Self.codingPlanPath
-        components.query = Self.codingPlanQuery
-        return components.url!
+        URL(string: self.baseURLString)!.appendingPathComponent(Self.usageDashboardPath)
     }
 
     public func billingHistoryURL(page: Int, limit: Int) -> URL {

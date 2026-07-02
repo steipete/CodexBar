@@ -258,6 +258,9 @@ struct PlanUtilizationHistoryChartMenuView: View {
             {
                 names.insert(.opus)
             }
+        case .minimax:
+            if snapshot.primary != nil { names.insert(.session) }
+            if snapshot.secondary != nil { names.insert(.weekly) }
         default:
             let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
                 + (snapshot.extraRateWindows?.filter(\.usageKnown).map(\.window) ?? [])

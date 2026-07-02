@@ -430,6 +430,26 @@ struct ProviderDiagnosticExportTests {
         #expect(details.remainingPrompts == 750)
         #expect(details.windowMinutes == 300)
         #expect(details.usedPercent == 25)
+        #expect(details.pointsBalance == nil)
+    }
+
+    @Test
+    func `MiniMax details include recharge credit balance`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = MiniMaxUsageSnapshot(
+            planName: "Max",
+            availablePrompts: 1000,
+            currentPrompts: 250,
+            remainingPrompts: 750,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: now.addingTimeInterval(18000),
+            updatedAt: now,
+            services: nil,
+            pointsBalance: 20000)
+
+        let details = MiniMaxDiagnosticDetails(from: snapshot)
+        #expect(details.pointsBalance == 20000)
     }
 
     @Test

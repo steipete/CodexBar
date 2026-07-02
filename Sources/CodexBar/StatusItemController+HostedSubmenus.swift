@@ -16,6 +16,7 @@ extension StatusItemController {
             Self.creditsHistoryChartID,
             Self.costHistoryChartID,
             Self.usageHistoryChartID,
+            Self.miniMaxUsageSummaryChartID,
             Self.storageBreakdownID,
             Self.statusComponentsID,
             Self.zaiHourlyUsageChartID,
@@ -83,6 +84,14 @@ extension StatusItemController {
                let provider = UsageProvider(rawValue: providerRawValue)
             {
                 self.appendUsageHistoryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        case Self.miniMaxUsageSummaryChartID:
+            if let providerRawValue = placeholder.toolTip,
+               let provider = UsageProvider(rawValue: providerRawValue)
+            {
+                self.appendMiniMaxUsageSummaryChartItem(to: menu, provider: provider, width: width)
             } else {
                 false
             }
@@ -157,6 +166,12 @@ extension StatusItemController {
         case Self.usageHistoryChartID:
             if let provider = identity.provider {
                 self.appendUsageHistoryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
+        case Self.miniMaxUsageSummaryChartID:
+            if let provider = identity.provider {
+                self.appendMiniMaxUsageSummaryChartItem(to: menu, provider: provider, width: width)
             } else {
                 false
             }
@@ -237,6 +252,8 @@ extension StatusItemController {
             identity.provider.map(self.costHistoryRenderSignature(for:)) ?? "missing-provider"
         case Self.usageHistoryChartID:
             identity.provider.map(self.usageHistoryRenderSignature(for:)) ?? "missing-provider"
+        case Self.miniMaxUsageSummaryChartID:
+            identity.provider.map(self.miniMaxUsageSummaryRenderSignature(for:)) ?? "missing-provider"
         case Self.storageBreakdownID:
             identity.provider.map(self.storageBreakdownRenderSignature(for:)) ?? "missing-provider"
         case Self.statusComponentsID:
@@ -252,6 +269,17 @@ extension StatusItemController {
             String(Double(width).bitPattern, radix: 16),
             contentSignature,
         ].joined(separator: "|")
+    }
+
+    private func miniMaxUsageSummaryRenderSignature(for provider: UsageProvider) -> String {
+        guard provider == .minimax,
+              let usage = self.store.snapshot(for: provider)?.minimaxUsage?.usageSummary
+        else {
+            return "none"
+        }
+        return usage.days.suffix(30).map {
+            "\($0.date):\($0.totalToken):\($0.cacheHitPercent ?? -1):\($0.models.count)"
+        }.joined(separator: "|")
     }
 
     private func costHistoryRenderSignature(for provider: UsageProvider) -> String {

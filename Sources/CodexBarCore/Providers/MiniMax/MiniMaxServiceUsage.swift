@@ -204,22 +204,44 @@ extension MiniMaxServiceUsage {
         return nil
     }
 
+    public static func resetCountdownPhrase(from resetsAt: Date, now: Date = Date()) -> String {
+        let seconds = max(0, resetsAt.timeIntervalSince(now))
+        if seconds < 1 { return "now" }
+        if seconds < 60 {
+            let value = max(1, Int(ceil(seconds)))
+            return value == 1 ? "1 second" : "\(value) seconds"
+        }
+
+        let totalMinutes = max(1, Int(ceil(seconds / 60.0)))
+        let days = totalMinutes / (24 * 60)
+        let hours = (totalMinutes / 60) % 24
+        let minutes = totalMinutes % 60
+
+        if days > 0 {
+            var parts: [String] = []
+            parts.append(days == 1 ? "1 day" : "\(days) days")
+            if hours > 0 {
+                parts.append(hours == 1 ? "1 hour" : "\(hours) hours")
+            }
+            if minutes > 0 {
+                parts.append(minutes == 1 ? "1 minute" : "\(minutes) minutes")
+            }
+            return parts.joined(separator: " ")
+        }
+        if hours > 0 {
+            if minutes > 0 {
+                let hourPart = hours == 1 ? "1 hour" : "\(hours) hours"
+                let minutePart = minutes == 1 ? "1 minute" : "\(minutes) minutes"
+                return "\(hourPart) \(minutePart)"
+            }
+            return hours == 1 ? "1 hour" : "\(hours) hours"
+        }
+        return totalMinutes == 1 ? "1 minute" : "\(totalMinutes) minutes"
+    }
+
     public static func generateResetDescription(resetsAt: Date, now: Date = Date()) -> String {
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.hour, .minute], from: now, to: resetsAt)
-
-        guard let hours = components.hour, let minutes = components.minute else {
-            return "Resets soon"
-        }
-
-        if hours > 0, minutes > 0 {
-            return "Resets in \(hours) hours \(minutes) minutes"
-        } else if hours > 0 {
-            return "Resets in \(hours) hour\(hours > 1 ? "s" : "")"
-        } else if minutes > 0 {
-            return "Resets in \(minutes) minute\(minutes > 1 ? "s" : "")"
-        } else {
-            return "Resets now"
-        }
+        let phrase = self.resetCountdownPhrase(from: resetsAt, now: now)
+        if phrase == "now" { return "Resets now" }
+        return "Resets in \(phrase)"
     }
 }

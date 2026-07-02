@@ -16,7 +16,7 @@ extension StatusItemController {
         }
 
         let resetDates = self.menuBarCountdownProviders().compactMap { provider in
-            self.menuBarMetricWindow(
+            self.menuBarResetTimeWindow(
                 for: provider,
                 snapshot: self.store.snapshot(for: provider))?.resetsAt
         }
