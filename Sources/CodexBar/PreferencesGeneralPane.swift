@@ -92,11 +92,8 @@ struct GeneralPane: View {
                         Picker(L("terminal_app_title"), selection: self.$settings.terminalApp) {
                             ForEach(TerminalApp.pickerOptions(selected: self.settings.terminalApp)) { option in
                                 HStack(spacing: 6) {
-                                    if let icon = option.appIcon {
+                                    if let icon = option.pickerIcon {
                                         Image(nsImage: icon)
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(width: 16, height: 16)
                                     }
                                     Text(option.label)
                                 }
