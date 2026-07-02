@@ -39,6 +39,7 @@ extension UsageStore {
     }
 
     private func runResetBoundaryRefresh(boundaryRefreshAt: Date) async {
+        guard Self.shouldRecordResetBoundaryAttempt(isRefreshing: self.isRefreshing) else { return }
         self.recordAttemptedResetBoundaryRefresh(boundaryRefreshAt)
         await self.refresh()
     }
@@ -71,6 +72,10 @@ extension UsageStore {
             attemptedBoundaryRefreshes: attemptedBoundaryRefreshes,
             now: now)?
             .refreshAt
+    }
+
+    nonisolated static func shouldRecordResetBoundaryAttempt(isRefreshing: Bool) -> Bool {
+        !isRefreshing
     }
 
     private nonisolated static func nextResetBoundaryRefreshCandidate(

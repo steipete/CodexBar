@@ -53,6 +53,35 @@ struct UsageStoreResetBoundaryRefreshTests {
     }
 
     @Test
+    func inFlightBoundaryRefreshRemainsRetryable() {
+        let now = Date(timeIntervalSince1970: 2750)
+        let resetsAt = now.addingTimeInterval(-3 * 60)
+        let boundaryRefreshAt = resetsAt.addingTimeInterval(UsageStore.resetBoundaryRefreshGraceSeconds)
+        let snapshot = Self.snapshot(
+            updatedAt: resetsAt.addingTimeInterval(-60),
+            primaryResetsAt: resetsAt)
+
+        #expect(UsageStore.shouldRecordResetBoundaryAttempt(isRefreshing: true) == false)
+        #expect(UsageStore.shouldRecordResetBoundaryAttempt(isRefreshing: false) == true)
+
+        let refreshAt = UsageStore.nextResetBoundaryRefreshDate(
+            snapshots: [.codex: snapshot],
+            normalRefreshInterval: 30 * 60,
+            attemptedBoundaryRefreshes: [],
+            now: now)
+
+        #expect(refreshAt == now.addingTimeInterval(UsageStore.resetBoundaryRefreshMinimumDelaySeconds))
+
+        let suppressedAfterRecordedAttempt = UsageStore.nextResetBoundaryRefreshDate(
+            snapshots: [.codex: snapshot],
+            normalRefreshInterval: 30 * 60,
+            attemptedBoundaryRefreshes: [boundaryRefreshAt],
+            now: now)
+
+        #expect(suppressedAfterRecordedAttempt == nil)
+    }
+
+    @Test
     func ignoresResetBoundaryAfterNormalPoll() {
         let now = Date(timeIntervalSince1970: 3000)
         let resetsAt = now.addingTimeInterval(40 * 60)
