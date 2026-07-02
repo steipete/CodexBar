@@ -2,11 +2,86 @@ import Foundation
 
 struct KimiUsageResponse: Codable {
     let usages: [KimiUsage]
+    let user: KimiUser?
 }
 
 struct KimiCodeAPIUsageResponse: Codable {
     let usage: KimiUsageDetail
     let limits: [KimiRateLimit]?
+    let user: KimiUser?
+}
+
+struct KimiUser: Codable, Sendable {
+    let membership: KimiMembership?
+}
+
+struct KimiMembership: Codable, Sendable {
+    let level: String?
+}
+
+enum KimiMembershipLevel {
+    private static let names: [String: String] = [
+        "LEVEL_FREE": "Free",
+        "LEVEL_BASIC": "Andante",
+        "LEVEL_STANDARD": "Moderato",
+        "LEVEL_INTERMEDIATE": "Allegretto",
+        "LEVEL_ADVANCED": "Allegro",
+        "LEVEL_PREMIUM": "Vivace",
+    ]
+
+    static func displayName(_ rawLevel: String?) -> String? {
+        guard let rawLevel = rawLevel?.trimmingCharacters(in: .whitespacesAndNewlines), !rawLevel.isEmpty else {
+            return nil
+        }
+        return self.names[rawLevel] ?? rawLevel
+    }
+}
+
+struct KimiCodeAPIModelsResponse: Codable {
+    let data: [KimiCodeAPIModel]
+}
+
+struct KimiCodeAPIModel: Codable, Sendable {
+    let id: String
+    let displayName: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+    }
+}
+
+enum KimiCodePricing {
+    // Pricing per million tokens in USD, matching pi-provider-kimi-code.
+    // Source: https://platform.kimi.com/docs/pricing/chat-k27-code
+    private static let standard = Rates(input: 0.897, output: 3.724, cacheRead: 0.179, cacheWrite: 0.897)
+    private static let highSpeed = Rates(input: 1.793, output: 7.448, cacheRead: 0.359, cacheWrite: 1.793)
+
+    private struct Rates {
+        let input: Double
+        let output: Double
+        let cacheRead: Double
+        let cacheWrite: Double
+    }
+
+    static func isHighSpeed(_ text: String?) -> Bool {
+        guard let text else { return false }
+        return text.range(of: #"high\s*[- ]?\s*speed|fast"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    static func costUSD(
+        modelName: String,
+        inputTokens: Int,
+        cacheReadTokens: Int,
+        cacheWriteTokens: Int,
+        outputTokens: Int) -> Double
+    {
+        let rates = self.isHighSpeed(modelName) ? self.highSpeed : self.standard
+        return (Double(inputTokens) * rates.input
+            + Double(cacheReadTokens) * rates.cacheRead
+            + Double(cacheWriteTokens) * rates.cacheWrite
+            + Double(outputTokens) * rates.output) / 1_000_000
+    }
 }
 
 struct KimiUsage: Codable {
@@ -89,12 +164,12 @@ public struct KimiUsageDetail: Codable, Sendable {
     }
 }
 
-struct KimiRateLimit: Codable {
+struct KimiRateLimit: Codable, Sendable {
     let window: KimiWindow
     let detail: KimiUsageDetail
 }
 
-struct KimiWindow: Codable {
+struct KimiWindow: Codable, Sendable {
     let duration: Int
     let timeUnit: String
 }

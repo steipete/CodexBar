@@ -12,6 +12,19 @@ extension SettingsStore {
             self.costSummaryDisplayStyle.showsCostSubmenu
     }
 
+    var costUsageSourceOptions: CostUsageSourceOptions {
+        CostUsageSourceOptions(
+            piSessionsEnabled: self.costUsagePiSessionsEnabled,
+            kimiCodeSessionsEnabled: self.costUsageKimiCodeSessionsEnabled)
+    }
+
+    var costUsageSourceSignature: String {
+        [
+            "pi=\(self.costUsagePiSessionsEnabled ? 1 : 0)",
+            "kimiCode=\(self.costUsageKimiCodeSessionsEnabled ? 1 : 0)",
+        ].joined(separator: "|")
+    }
+
     func applyTokenCostDefaultIfNeeded() {
         // Settings are persisted in UserDefaults.standard.
         guard UserDefaults.standard.object(forKey: "tokenCostUsageEnabled") == nil else { return }
@@ -86,6 +99,32 @@ extension SettingsStore {
             ]
         }()
 
-        return claudeRoots.contains(where: hasAnyJsonl(in:))
+        if claudeRoots.contains(where: hasAnyJsonl(in:)) { return true }
+
+        let piRoot = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent(".pi", isDirectory: true)
+            .appendingPathComponent("agent", isDirectory: true)
+            .appendingPathComponent("sessions", isDirectory: true)
+        if hasAnyJsonl(in: piRoot) { return true }
+
+        let kimiHome: URL = {
+            let raw = env[KimiSettingsReader.codeHomeEnvironmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let raw, !raw.isEmpty {
+                return URL(fileURLWithPath: raw, isDirectory: true)
+            }
+            return fileManager.homeDirectoryForCurrentUser
+                .appendingPathComponent(".kimi-code", isDirectory: true)
+        }()
+        let kimiSessionsRoot = kimiHome.appendingPathComponent("sessions", isDirectory: true)
+        guard fileManager.fileExists(atPath: kimiSessionsRoot.path) else { return false }
+        guard let enumerator = fileManager.enumerator(
+            at: kimiSessionsRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        else { return false }
+        for case let url as URL in enumerator where url.lastPathComponent == "wire.jsonl" {
+            return true
+        }
+        return false
     }
 }

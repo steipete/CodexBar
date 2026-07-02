@@ -850,7 +850,7 @@ extension CodexBarCLI {
 
         let providers = Self.costProviders(from: selection)
         guard !providers.isEmpty else {
-            return Self.serveError(status: .badRequest, message: "cost is only supported for Claude and Codex")
+            return Self.serveError(status: .badRequest, message: "cost is only supported for Claude, Codex, and Kimi")
         }
 
         let fetcher = CostUsageFetcher()
@@ -859,7 +859,8 @@ extension CodexBarCLI {
             do {
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
-                    forceRefresh: false)
+                    forceRefresh: false,
+                    sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
             } catch {
                 payload.append(Self.makeCostPayload(provider: provider, snapshot: nil, error: error))

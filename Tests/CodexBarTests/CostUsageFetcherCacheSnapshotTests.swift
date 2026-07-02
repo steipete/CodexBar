@@ -132,12 +132,14 @@ struct CostUsageFetcherCacheSnapshotTests {
             historyDays: 1,
             refreshPricingInBackground: false,
             scannerOptions: options,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
             now: day,
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         #expect(cached?.sessionTokens == 207)
         #expect(cached?.last30DaysTokens == 207)
@@ -167,7 +169,8 @@ struct CostUsageFetcherCacheSnapshotTests {
             historyDays: 1,
             scannerOptions: CostUsageScanner.Options(
                 codexSessionsRoot: env.codexSessionsRoot,
-                cacheRoot: env.cacheRoot))
+                cacheRoot: env.cacheRoot),
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         #expect(cached?.sessionTokens == 165)
         #expect(cached?.last30DaysTokens == 165)
@@ -200,7 +203,8 @@ struct CostUsageFetcherCacheSnapshotTests {
             historyDays: 1,
             refreshPricingInBackground: false,
             scannerOptions: options,
-            piScannerOptions: piOptions)
+            piScannerOptions: piOptions,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         cache.roots = [env.root.appendingPathComponent("other/sessions", isDirectory: true).path: 0]
@@ -209,7 +213,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
             now: day,
             historyDays: 1,
-            scannerOptions: options)
+            scannerOptions: options,
+            sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
 
         #expect(cached?.sessionTokens == 165)
         #expect(cached?.last30DaysTokens == 165)

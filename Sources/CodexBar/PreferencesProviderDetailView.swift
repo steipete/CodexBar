@@ -83,6 +83,13 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         else {
             return nil
         }
+        if provider == .kimi {
+            let prefix = "Tier:"
+            let value = rawPlan.hasPrefix(prefix)
+                ? rawPlan.dropFirst(prefix.count).trimmingCharacters(in: .whitespacesAndNewlines)
+                : rawPlan
+            return (label: "Tier", value: value)
+        }
         guard provider == .openrouter || provider == .mimo || provider == .moonshot || provider == .poe else {
             return (label: L("Plan"), value: rawPlan)
         }

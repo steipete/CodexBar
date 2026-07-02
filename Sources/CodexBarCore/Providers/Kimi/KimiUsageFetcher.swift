@@ -12,7 +12,9 @@ public struct KimiUsageFetcher: Sendable {
     public static func fetchCodeAPIUsage(
         apiKey: String,
         baseURL: URL = KimiSettingsReader.defaultCodeAPIBaseURL,
-        now: Date = Date()) async throws -> KimiUsageSnapshot
+        identityHeaders: [String: String] = [:],
+        now: Date = Date(),
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiUsageSnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw KimiAPIError.missingAPIKey
@@ -25,10 +27,13 @@ public struct KimiUsageFetcher: Sendable {
         let endpoint = self.codeAPIUsageEndpoint(baseURL: validatedBaseURL)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
+        for (name, value) in identityHeaders {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
         guard response.statusCode == 200 else {
             let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"
@@ -39,12 +44,48 @@ public struct KimiUsageFetcher: Sendable {
         return try self.parseCodeAPIUsage(from: data, now: now)
     }
 
+    public static func fetchCodeAPIModelDisplayName(
+        apiKey: String,
+        baseURL: URL = KimiSettingsReader.defaultCodeAPIBaseURL,
+        identityHeaders: [String: String] = [:],
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> String?
+    {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KimiAPIError.missingAPIKey
+        }
+
+        guard let validatedBaseURL = ProviderEndpointOverrideValidator().validatedURL(baseURL.absoluteString) else {
+            throw KimiAPIError.invalidRequest("Kimi Code API base URL must use HTTPS without user info")
+        }
+
+        let endpoint = self.codeAPIModelsEndpoint(baseURL: validatedBaseURL)
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "GET"
+        for (name, value) in identityHeaders {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let response = try await transport.response(for: request)
+        guard response.statusCode == 200 else {
+            throw self.codeAPIError(statusCode: response.statusCode)
+        }
+
+        let models = try JSONDecoder().decode(KimiCodeAPIModelsResponse.self, from: response.data)
+        return models.data.first { $0.id == "kimi-for-coding" }?.displayName
+    }
+
     static func _parseCodeAPIUsageForTesting(_ data: Data, now: Date = Date()) throws -> KimiUsageSnapshot {
         try self.parseCodeAPIUsage(from: data, now: now)
     }
 
     static func _codeAPIUsageEndpointForTesting(baseURL: URL) -> URL {
         self.codeAPIUsageEndpoint(baseURL: baseURL)
+    }
+
+    static func _codeAPIModelsEndpointForTesting(baseURL: URL) -> URL {
+        self.codeAPIModelsEndpoint(baseURL: baseURL)
     }
 
     static func _codeAPIErrorForTesting(statusCode: Int) -> KimiAPIError {
@@ -113,33 +154,43 @@ public struct KimiUsageFetcher: Sendable {
 
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
-            rateLimit: codingUsage.limits?.first?.detail,
-            updatedAt: now)
+            rateLimits: codingUsage.limits ?? [],
+            updatedAt: now,
+            membershipLevel: usageResponse.user?.membership?.level)
     }
 
     private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
         let response = try JSONDecoder().decode(KimiCodeAPIUsageResponse.self, from: data)
         return KimiUsageSnapshot(
             weekly: response.usage,
-            rateLimit: response.limits?.first?.detail,
-            updatedAt: now)
+            rateLimits: response.limits ?? [],
+            updatedAt: now,
+            membershipLevel: response.user?.membership?.level)
     }
 
     private static func codeAPIUsageEndpoint(baseURL: URL) -> URL {
+        self.codeAPIV1Endpoint(baseURL: baseURL, pathComponent: "usages")
+    }
+
+    private static func codeAPIModelsEndpoint(baseURL: URL) -> URL {
+        self.codeAPIV1Endpoint(baseURL: baseURL, pathComponent: "models")
+    }
+
+    private static func codeAPIV1Endpoint(baseURL: URL, pathComponent: String) -> URL {
         let normalizedPath = baseURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         if normalizedPath == "coding/v1" || normalizedPath.hasSuffix("/coding/v1") {
-            return baseURL.appendingPathComponent("usages")
+            return baseURL.appendingPathComponent(pathComponent)
         }
         if normalizedPath == "coding" || normalizedPath.hasSuffix("/coding") {
             return baseURL
                 .appendingPathComponent("v1")
-                .appendingPathComponent("usages")
+                .appendingPathComponent(pathComponent)
         }
 
         return baseURL
             .appendingPathComponent("coding")
             .appendingPathComponent("v1")
-            .appendingPathComponent("usages")
+            .appendingPathComponent(pathComponent)
     }
 
     private static func codeAPIError(statusCode: Int) -> KimiAPIError {

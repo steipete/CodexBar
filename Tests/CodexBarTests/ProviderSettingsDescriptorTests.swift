@@ -229,6 +229,18 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `kimi exposes only its provider specific cost source toggle`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi-cost-source")
+        fixture.settings.costUsageEnabled = true
+        let context = fixture.settingsContext(provider: .kimi)
+
+        let toggles = KimiProviderImplementation().settingsToggles(context: context)
+
+        #expect(toggles.map(\.id) == ["kimi-cost-kimi-code-sessions"])
+        #expect(toggles.first?.binding.wrappedValue == false)
+    }
+
+    @Test
     func `kimi presentation follows selected source label`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi-presentation")
         fixture.settings.kimiUsageDataSource = .api
@@ -239,7 +251,7 @@ struct ProviderSettingsDescriptorTests {
             .presentation(context: context)
             .detailLine(context)
 
-        #expect(detailLine == "api")
+        #expect(detailLine == "Kimi Code API key")
     }
 
     @Test

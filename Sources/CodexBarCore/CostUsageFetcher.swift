@@ -17,6 +17,19 @@ public enum CostUsageError: LocalizedError, Sendable {
     }
 }
 
+public struct CostUsageSourceOptions: Sendable, Equatable {
+    public var piSessionsEnabled: Bool
+    public var kimiCodeSessionsEnabled: Bool
+
+    public init(
+        piSessionsEnabled: Bool = true,
+        kimiCodeSessionsEnabled: Bool = false)
+    {
+        self.piSessionsEnabled = piSessionsEnabled
+        self.kimiCodeSessionsEnabled = kimiCodeSessionsEnabled
+    }
+}
+
 public struct CostUsageFetcher: Sendable {
     private let scannerOptions: CostUsageScanner.Options?
 
@@ -31,13 +44,15 @@ public struct CostUsageFetcher: Sendable {
     public func loadCachedCodexTokenSnapshot(
         now: Date = Date(),
         codexHomePath: String? = nil,
-        historyDays: Int = 30) async -> CostUsageTokenSnapshot?
+        historyDays: Int = 30,
+        sourceOptions: CostUsageSourceOptions = CostUsageSourceOptions()) async -> CostUsageTokenSnapshot?
     {
         await Self.loadCachedCodexTokenSnapshot(
             now: now,
             codexHomePath: codexHomePath,
             historyDays: historyDays,
-            scannerOptions: self.scannerOptionsOverride())
+            scannerOptions: self.scannerOptionsOverride(),
+            sourceOptions: sourceOptions)
     }
 
     public func loadTokenSnapshot(
@@ -48,7 +63,8 @@ public struct CostUsageFetcher: Sendable {
         allowVertexClaudeFallback: Bool = false,
         codexHomePath: String? = nil,
         historyDays: Int = 30,
-        refreshPricingInBackground: Bool = true) async throws -> CostUsageTokenSnapshot
+        refreshPricingInBackground: Bool = true,
+        sourceOptions: CostUsageSourceOptions = CostUsageSourceOptions()) async throws -> CostUsageTokenSnapshot
     {
         try await Self.loadTokenSnapshot(
             provider: provider,
@@ -59,7 +75,8 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath,
             historyDays: historyDays,
             refreshPricingInBackground: refreshPricingInBackground,
-            scannerOptions: self.scannerOptionsOverride())
+            scannerOptions: self.scannerOptionsOverride(),
+            sourceOptions: sourceOptions)
     }
 
     @available(*, deprecated, message: "Codex token-cost scans are uncapped; this limit is ignored.")
@@ -100,9 +117,14 @@ public struct CostUsageFetcher: Sendable {
         refreshPricingInBackground: Bool = true,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
         piScannerOptions overridePiScannerOptions: PiSessionCostScanner
-            .Options? = nil) async throws -> CostUsageTokenSnapshot
+            .Options? = nil,
+        kimiCodeScannerOptions overrideKimiCodeScannerOptions: KimiCodeSessionCostScanner
+            .Options? = nil,
+        sourceOptions: CostUsageSourceOptions = CostUsageSourceOptions()) async throws -> CostUsageTokenSnapshot
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock else {
+        guard provider == .codex || provider == .claude || provider == .vertexai || provider == .bedrock || provider ==
+            .kimi
+        else {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
@@ -121,6 +143,55 @@ public struct CostUsageFetcher: Sendable {
                 now: now,
                 historyDays: clampedHistoryDays,
                 useCurrentLocalDayForSession: false)
+        }
+
+        if provider == .kimi {
+            var kimiOptions = overrideKimiCodeScannerOptions ?? KimiCodeSessionCostScanner.Options()
+            if kimiOptions.cacheRoot == nil {
+                kimiOptions.cacheRoot = overrideScannerOptions?.cacheRoot
+            }
+            if kimiOptions.kimiCodeSessionsRoot == nil {
+                kimiOptions.kimiCodeSessionsRoot = Self.kimiCodeSessionsRoot(environment: environment)
+            }
+            if forceRefresh {
+                kimiOptions.refreshMinIntervalSeconds = 0
+            }
+            var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
+            if resolvedPiOptions.cacheRoot == nil {
+                resolvedPiOptions.cacheRoot = kimiOptions.cacheRoot ?? overrideScannerOptions?.cacheRoot
+            }
+            if forceRefresh {
+                resolvedPiOptions.refreshMinIntervalSeconds = 0
+            }
+            let piOptions = resolvedPiOptions
+            let scanKimiOptions = kimiOptions
+
+            let daily = try await CostUsageScanExecutor.run { checkCancellation in
+                var reports: [CostUsageDailyReport] = []
+                if sourceOptions.kimiCodeSessionsEnabled {
+                    try reports.append(KimiCodeSessionCostScanner.loadDailyReportCancellable(
+                        provider: provider,
+                        since: since,
+                        until: until,
+                        now: now,
+                        options: scanKimiOptions,
+                        checkCancellation: checkCancellation))
+                    try checkCancellation()
+                }
+                if sourceOptions.piSessionsEnabled {
+                    try reports.append(PiSessionCostScanner.loadDailyReportCancellable(
+                        provider: provider,
+                        since: since,
+                        until: until,
+                        now: now,
+                        options: piOptions,
+                        checkCancellation: checkCancellation))
+                    try checkCancellation()
+                }
+                return CostUsageDailyReport.merged(reports)
+            }
+
+            return Self.tokenSnapshot(from: daily, now: now, historyDays: clampedHistoryDays)
         }
 
         var options = overrideScannerOptions ?? CostUsageScanner.Options()
@@ -192,7 +263,7 @@ public struct CostUsageFetcher: Sendable {
                 try checkCancellation()
             }
 
-            if provider == .codex || provider == .claude {
+            if sourceOptions.piSessionsEnabled, provider == .codex || provider == .claude {
                 let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
                     provider: provider,
                     since: since,
@@ -213,7 +284,8 @@ public struct CostUsageFetcher: Sendable {
         now: Date = Date(),
         codexHomePath: String? = nil,
         historyDays: Int = 30,
-        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async -> CostUsageTokenSnapshot?
+        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
+        sourceOptions: CostUsageSourceOptions = CostUsageSourceOptions()) async -> CostUsageTokenSnapshot?
     {
         if let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !codexHomePath.isEmpty
@@ -245,12 +317,13 @@ public struct CostUsageFetcher: Sendable {
                 }
             }
 
-            if let piDaily = PiSessionCostScanner.loadCachedDailyReport(
-                provider: .codex,
-                since: since,
-                until: until,
-                now: now,
-                cacheRoot: options.cacheRoot)
+            if sourceOptions.piSessionsEnabled,
+               let piDaily = PiSessionCostScanner.loadCachedDailyReport(
+                   provider: .codex,
+                   since: since,
+                   until: until,
+                   now: now,
+                   cacheRoot: options.cacheRoot)
             {
                 reports.append(piDaily)
             }
@@ -262,6 +335,18 @@ public struct CostUsageFetcher: Sendable {
                 historyDays: clampedHistoryDays)
         }
         return cachedSnapshot.flatMap(\.self)
+    }
+
+    private static func kimiCodeSessionsRoot(environment: [String: String]) -> URL {
+        let raw = environment[KimiSettingsReader.codeHomeEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let home = if let raw, !raw.isEmpty {
+            URL(fileURLWithPath: raw, isDirectory: true)
+        } else {
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".kimi-code", isDirectory: true)
+        }
+        return home.appendingPathComponent("sessions", isDirectory: true)
     }
 
     private static func loadBedrockDailyReport(
@@ -308,12 +393,17 @@ public struct CostUsageFetcher: Sendable {
         let totalTokensFromSummary = daily.summary?.totalTokens
         let totalTokensFromEntries = daily.data.compactMap(\.totalTokens).reduce(0, +)
         let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
+        let sessionRequests = sessionEntry?.requestCount
+        let totalRequestsFromEntries = daily.data.compactMap(\.requestCount).reduce(0, +)
+        let last30DaysRequests = totalRequestsFromEntries > 0 ? totalRequestsFromEntries : nil
 
         return CostUsageTokenSnapshot(
             sessionTokens: sessionTokens,
             sessionCostUSD: sessionCostUSD,
+            sessionRequests: sessionRequests,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
+            last30DaysRequests: last30DaysRequests,
             historyDays: historyDays,
             daily: daily.data,
             updatedAt: now)

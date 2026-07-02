@@ -83,6 +83,8 @@ extension UsageStore {
         _ = self.settings.usageBarsShowUsed
         _ = self.settings.costUsageEnabled
         _ = self.settings.costUsageHistoryDays
+        _ = self.settings.costUsagePiSessionsEnabled
+        _ = self.settings.costUsageKimiCodeSessionsEnabled
         _ = self.settings.randomBlinkEnabled
         _ = self.settings.configRevision
         for implementation in ProviderCatalog.all {
@@ -1532,7 +1534,9 @@ extension UsageStore {
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
         let costScope = self.tokenCostScope(for: provider)
-        let costScopeSignature = "\(costScope.signature)|historyDays=\(historyDays)"
+        let sourceOptions = self.settings.costUsageSourceOptions
+        let sourceSignature = self.settings.costUsageSourceSignature
+        let costScopeSignature = "\(costScope.signature)|historyDays=\(historyDays)|\(sourceSignature)"
         if !force,
            let last = self.lastTokenFetchAt[provider],
            self.lastTokenFetchScope[provider] == costScopeSignature,
@@ -1583,7 +1587,8 @@ extension UsageStore {
                         forceRefresh: force,
                         allowVertexClaudeFallback: !self.isEnabled(.claude),
                         codexHomePath: costScope.codexHomePath,
-                        historyDays: historyDays)
+                        historyDays: historyDays,
+                        sourceOptions: sourceOptions)
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))

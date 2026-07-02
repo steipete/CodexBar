@@ -627,11 +627,13 @@ extension CodexBarCLI {
                 return false
             }
         }
-        if provider == .kimi,
-           sourceMode == .auto,
-           environment.map({ ProviderTokenResolver.kimiAPIToken(environment: $0) != nil }) == true
-        {
-            return false
+        if provider == .kimi, sourceMode == .auto, let environment {
+            let hasToken = ProviderTokenResolver.kimiAPIToken(environment: environment) != nil
+            if hasToken || KimiSettingsReader.hasKimiCodeCredential(environment: environment) {
+                // Keep CLI-owned credentials on the API path even after expiry so the provider can
+                // surface explicit re-authentication/API-key remediation without attempting web access.
+                return false
+            }
         }
         if provider == .mimo,
            sourceMode == .auto,

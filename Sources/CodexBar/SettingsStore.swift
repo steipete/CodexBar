@@ -406,12 +406,7 @@ extension SettingsStore {
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
         let copilotBudgetExtrasEnabled = userDefaults.object(forKey: "copilotBudgetExtrasEnabled") as? Bool ?? false
         let copilotIconSecondaryWindowIDRaw = Self.loadCopilotIconSecondaryWindowIDRaw(userDefaults: userDefaults)
-        let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
-        let rawCostUsageHistoryDays = userDefaults.object(forKey: "tokenCostUsageHistoryDays") as? Int ?? 30
-        let costUsageHistoryDays = max(1, min(365, rawCostUsageHistoryDays))
-        let costSummaryDisplayStyleRaw = Self.loadCostSummaryDisplayStyleRaw(
-            userDefaults: userDefaults,
-            costUsageEnabled: costUsageEnabled)
+        let costDefaults = Self.loadCostDefaults(userDefaults: userDefaults)
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnReset = Self.loadConfettiOnResetDefaults(userDefaults: userDefaults)
@@ -485,9 +480,11 @@ extension SettingsStore {
             menuBarMetricPreferencesRaw: resolvedPreferences,
             copilotBudgetExtrasEnabled: copilotBudgetExtrasEnabled,
             copilotIconSecondaryWindowIDRaw: copilotIconSecondaryWindowIDRaw,
-            costUsageEnabled: costUsageEnabled,
-            costUsageHistoryDays: costUsageHistoryDays,
-            costSummaryDisplayStyleRaw: costSummaryDisplayStyleRaw,
+            costUsageEnabled: costDefaults.usageEnabled,
+            costUsageHistoryDays: costDefaults.historyDays,
+            costSummaryDisplayStyleRaw: costDefaults.summaryDisplayStyleRaw,
+            costUsagePiSessionsEnabled: costDefaults.piSessionsEnabled,
+            costUsageKimiCodeSessionsEnabled: costDefaults.kimiCodeSessionsEnabled,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnSessionLimitResetsEnabled: confettiOnReset.session,
@@ -510,6 +507,36 @@ extension SettingsStore {
             providersSortedAlphabetically: providersSortedAlphabetically,
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"))
+    }
+
+    private struct CostDefaults {
+        let usageEnabled: Bool
+        let historyDays: Int
+        let summaryDisplayStyleRaw: String
+        let piSessionsEnabled: Bool
+        let kimiCodeSessionsEnabled: Bool
+    }
+
+    private static func loadCostDefaults(userDefaults: UserDefaults) -> CostDefaults {
+        let usageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
+        let rawHistoryDays = userDefaults.object(forKey: "tokenCostUsageHistoryDays") as? Int ?? 30
+        let kimiCodeSessionsEnabled: Bool
+        if let stored = userDefaults.object(forKey: "tokenCostKimiCodeSessionsEnabled") as? Bool {
+            kimiCodeSessionsEnabled = stored
+        } else {
+            // The Kimi Code source was introduced as enabled-by-default before release.
+            // Persist the corrected opt-in default so future migrations preserve this choice.
+            kimiCodeSessionsEnabled = false
+            userDefaults.set(false, forKey: "tokenCostKimiCodeSessionsEnabled")
+        }
+        return CostDefaults(
+            usageEnabled: usageEnabled,
+            historyDays: max(1, min(365, rawHistoryDays)),
+            summaryDisplayStyleRaw: self.loadCostSummaryDisplayStyleRaw(
+                userDefaults: userDefaults,
+                costUsageEnabled: usageEnabled),
+            piSessionsEnabled: userDefaults.object(forKey: "tokenCostPiSessionsEnabled") as? Bool ?? true,
+            kimiCodeSessionsEnabled: kimiCodeSessionsEnabled)
     }
 
     private static func loadCostSummaryDisplayStyleRaw(

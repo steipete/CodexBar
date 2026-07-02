@@ -3,7 +3,7 @@ import Commander
 import Foundation
 
 extension CodexBarCLI {
-    private static let costSupportedProviders: Set<UsageProvider> = [.claude, .codex]
+    private static let costSupportedProviders: Set<UsageProvider> = [.claude, .codex, .kimi]
 
     static func runCost(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
@@ -23,7 +23,7 @@ extension CodexBarCLI {
         guard !providers.isEmpty else {
             Self.exit(
                 code: .failure,
-                message: "Error: cost is only supported for Claude and Codex.",
+                message: "Error: cost is only supported for Claude, Codex, and Kimi.",
                 output: output,
                 kind: .args)
         }
@@ -45,7 +45,8 @@ extension CodexBarCLI {
                     provider: provider,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,
-                    refreshPricingInBackground: false)
+                    refreshPricingInBackground: false,
+                    sourceOptions: CostUsageSourceOptions(piSessionsEnabled: true, kimiCodeSessionsEnabled: true))
                 switch format {
                 case .text:
                     sections.append(Self.renderCostText(provider: provider, snapshot: snapshot, useColor: useColor))

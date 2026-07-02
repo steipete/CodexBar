@@ -202,7 +202,7 @@ extension UsageMenuCardView.Model {
         {
             return Self.poeInlineDashboard(usage, now: input.now)
         }
-        if [.codex, .claude, .vertexai, .bedrock].contains(input.provider),
+        if [.codex, .claude, .vertexai, .bedrock, .kimi].contains(input.provider),
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty
@@ -297,6 +297,10 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
     {
+        if provider == .kimi {
+            return self.tokenHistoryInlineDashboard(provider: provider, snapshot: snapshot)
+        }
+
         let historyDays = max(1, min(365, snapshot.historyDays))
         let historyTitle = snapshot.historyLabel
             ?? (historyDays == 1
@@ -360,6 +364,63 @@ extension UsageMenuCardView.Model {
                     value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
                     emphasis: false),
             ] + Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest),
+            points: points,
+            detailLines: details)
+    }
+
+    private static func tokenHistoryInlineDashboard(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
+    {
+        let historyDays = max(1, min(365, snapshot.historyDays))
+        let historyTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
+            ?? (historyDays == 1
+                ? L("Today tokens")
+                : historyDays == 30
+                ? L("30d tokens")
+                : String(format: L("%@ tokens"), String(format: L("Last %d days"), historyDays)))
+        let requestHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("requests"))" }
+            ?? (historyDays == 1
+                ? L("Today requests")
+                : historyDays == 30
+                ? L("30d requests")
+                : String(format: L("%@ requests"), String(format: L("Last %d days"), historyDays)))
+        let periodLabel = snapshot.historyLabel?.lowercased()
+            ?? (historyDays == 1 ? "today" : "\(historyDays) day")
+        let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
+            guard let tokens = entry.totalTokens else { return nil }
+            return InlineUsageDashboardModel.Point(
+                id: entry.date,
+                label: Self.shortDayLabel(entry.date),
+                value: Double(tokens),
+                accessibilityValue: "\(entry.date): \(UsageFormatter.tokenCountString(tokens)) tokens")
+        }
+        let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
+        var details: [String] = []
+        if let topModel = Self.topCostModel(from: snapshot.daily) {
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+        }
+        if let requestCount = snapshot.last30DaysRequests {
+            details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
+        }
+        let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        return InlineUsageDashboardModel(
+            accessibilityLabel: "\(providerName) \(periodLabel) token trend",
+            valueStyle: .tokens,
+            kpis: [
+                .init(
+                    title: L("Today"),
+                    value: snapshot.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: true),
+                .init(
+                    title: historyTitle,
+                    value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: false),
+                .init(
+                    title: L("Latest"),
+                    value: latest?.totalTokens.map(UsageFormatter.tokenCountString) ?? "—",
+                    emphasis: false),
+            ],
             points: points,
             detailLines: details)
     }
