@@ -54,8 +54,8 @@
 "CLI paths" = "Percorsi CLI";
 "CLI sessions" = "Sessioni CLI";
 "Caches" = "Cache";
-"Cache hit: %@" = "Cache hit: %@";
-"Cache hit" = "Cache hit";
+"Cache hit: %@" = "Hit della cache: %@";
+"Cache hit" = "Hit della cache";
 "%@ usage" = "Utilizzo %@";
 "Latest usage" = "Ultimo utilizzo";
 "7d tokens" = "Token 7g";
@@ -64,8 +64,8 @@
 "Usage trend" = "Andamento utilizzo";
 "MiniMax 7 day token usage trend" = "Trend utilizzo token MiniMax 7 giorni";
 "Language models only; data may be delayed" = "Solo modelli linguistici; i dati possono essere in ritardo";
-"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ input · %@ output · %@ cache hit";
-"%@ input · %@ output · %@ cache hit" = "%@ input · %@ output · %@ cache hit";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ input · %@ output · %@ hit cache";
+"%@ input · %@ output · %@ cache hit" = "%@ input · %@ output · %@ hit cache";
 "Total consumed" = "Totale consumato";
 "Daily peak" = "Picco giornaliero";
 "Active days" = "Giorni attivi";
