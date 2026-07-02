@@ -50,7 +50,7 @@ public enum ClaudeProviderDescriptor {
             return [ClaudeAdminAPIFetchStrategy()]
         }
 
-        let planningInput = await Self.makePlanningInput(context: context)
+        let planningInput = Self.makePlanningInput(context: context)
         let plan = ClaudeSourcePlanner.resolve(input: planningInput)
         let manualCookieHeader = Self.manualCookieHeader(from: context)
 
@@ -67,7 +67,8 @@ public enum ClaudeProviderDescriptor {
                     useWebExtras: context.runtime == .app
                         && planningInput.webExtrasEnabled,
                     manualCookieHeader: manualCookieHeader,
-                    browserDetection: context.browserDetection)
+                    browserDetection: context.browserDetection,
+                    hasWebFallback: planningInput.hasWebSession)
             case .auto:
                 fatalError("Planner must not emit .auto as an executable step.")
             }
@@ -79,22 +80,47 @@ public enum ClaudeProviderDescriptor {
         context.sourceMode == .auto && ClaudeAdminAPISettingsReader.apiKey(environment: context.env) != nil
     }
 
-    private static func makePlanningInput(context: ProviderFetchContext) async -> ClaudeSourcePlanningInput {
+    private static func makePlanningInput(context: ProviderFetchContext) -> ClaudeSourcePlanningInput {
         let webExtrasEnabled = context.settings?.claude?.webExtrasEnabled ?? false
         let needsOAuthAvailability = context.runtime == .app && context.sourceMode == .auto
+        let hasWebSession = Self.hasPlausibleWebSession(context: context)
 
         return ClaudeSourcePlanningInput(
             runtime: context.runtime,
             selectedDataSource: Self.sourceDataSource(from: context.sourceMode),
             webExtrasEnabled: webExtrasEnabled,
-            hasWebSession: ClaudeWebFetchStrategy.isAvailableForFallback(
-                context: context,
-                browserDetection: context.browserDetection),
+            hasWebSession: hasWebSession,
             hasCLI: ClaudeCLIResolver.isAvailable(environment: context.env),
             hasOAuthCredentials: needsOAuthAvailability && ClaudeOAuthPlanningAvailability.isAvailable(
                 runtime: context.runtime,
                 sourceMode: context.sourceMode,
                 environment: context.env))
+    }
+
+    private static func hasPlausibleWebSession(context: ProviderFetchContext) -> Bool {
+        switch context.sourceMode {
+        case .api, .oauth, .cli:
+            return false
+        case .web:
+            // Explicit web performs its cookie/session work inside the bounded fetch.
+            return context.settings?.claude?.cookieSource != .off
+        case .auto:
+            break
+        }
+
+        guard ClaudeWebFetchStrategy.isSupportedOnCurrentPlatform else { return false }
+
+        switch context.settings?.claude?.cookieSource {
+        case .off?:
+            return false
+        case .manual?:
+            return ClaudeWebFetchStrategy.hasManualSessionKey(context: context)
+        case .auto?, nil:
+            // Browser/Keychain inspection can block. Keep planning synchronous and let the web step
+            // perform the bounded availability check if app-auto actually reaches its last fallback.
+            // CLI auto continues to perform its real session import inside the bounded web fetch.
+            return true
+        }
     }
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
@@ -170,10 +196,16 @@ private struct ClaudePlannedFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        if context.sourceMode == .auto {
-            return self.plannedStep.isPlausiblyAvailable
+        guard context.sourceMode == .auto else {
+            return await self.base.isAvailable(context)
         }
-        return await self.base.isAvailable(context)
+        guard self.plannedStep.isPlausiblyAvailable else { return false }
+        if context.runtime == .app,
+           self.plannedStep.dataSource == .cli || self.plannedStep.dataSource == .web
+        {
+            return await self.base.isAvailable(context)
+        }
+        return true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -333,16 +365,23 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         let fetcher = ClaudeUsageFetcher(
             browserDetection: context.browserDetection,
             environment: context.env,
+            runtime: context.runtime,
             dataSource: .oauth,
             oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
-            allowBackgroundDelegatedRefresh: context.runtime == .cli,
+            allowBackgroundDelegatedRefresh: false,
             allowStartupBootstrapPrompt: context.runtime == .app &&
                 (context.sourceMode == .auto || context.sourceMode == .oauth),
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
-        return self.makeResult(
+        return ProviderFetchResult(
             usage: Self.snapshot(from: usage),
-            sourceLabel: "oauth")
+            credits: nil,
+            dashboard: nil,
+            sourceLabel: "oauth",
+            strategyID: self.id,
+            strategyKind: self.kind,
+            claudeOAuthKeychainPersistentRefHash: usage.oauthKeychainPersistentRefHash,
+            claudeOAuthHistoryOwnerIdentifier: usage.oauthHistoryOwnerIdentifier)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
@@ -373,23 +412,86 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 }
 
+private final class ClaudeWebFetchDeadlineState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var deadline: ContinuousClock.Instant?
+
+    func remainingBudget(
+        fullBudget: Duration,
+        now: ContinuousClock.Instant) -> Duration
+    {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+
+        let deadline: ContinuousClock.Instant
+        if let existingDeadline = self.deadline {
+            deadline = existingDeadline
+        } else {
+            deadline = now.advanced(by: fullBudget)
+            self.deadline = deadline
+        }
+        return max(.zero, now.duration(to: deadline))
+    }
+}
+
 struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
+    typealias UsageLoader = @Sendable (ProviderFetchContext) async throws -> ClaudeUsageSnapshot
+    typealias DeadlineNow = @Sendable () -> ContinuousClock.Instant
+
+    #if DEBUG
+    @TaskLocal static var availabilityProbeOverrideForTesting:
+        (@Sendable (ProviderFetchContext, BrowserDetection) -> Bool)?
+    @TaskLocal static var usageLoaderOverrideForTesting: UsageLoader?
+    #endif
+
     let id: String = "claude.web"
     let kind: ProviderFetchKind = .web
     let browserDetection: BrowserDetection
+    private let usageLoader: UsageLoader?
+    private let deadlineState: ClaudeWebFetchDeadlineState
+    private let deadlineNow: DeadlineNow
+
+    init(
+        browserDetection: BrowserDetection,
+        usageLoader: UsageLoader? = nil,
+        deadlineNow: @escaping DeadlineNow = { ContinuousClock.now })
+    {
+        self.browserDetection = browserDetection
+        self.usageLoader = usageLoader
+        self.deadlineState = ClaudeWebFetchDeadlineState()
+        self.deadlineNow = deadlineNow
+    }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.isAvailableForFallback(context: context, browserDetection: self.browserDetection)
+        let appAutoRemainingBudget: Duration?
+        if context.runtime == .app, context.sourceMode == .auto {
+            guard let fullBudget = Self.timeoutDuration(context.webTimeout) else { return false }
+            let remainingBudget = self.deadlineState.remainingBudget(
+                fullBudget: fullBudget,
+                now: self.deadlineNow())
+            guard remainingBudget > .zero else { return false }
+            appAutoRemainingBudget = remainingBudget
+        } else {
+            appAutoRemainingBudget = nil
+        }
+
+        return switch context.settings?.claude?.cookieSource {
+        case .off?:
+            false
+        case .manual?:
+            Self.hasManualSessionKey(context: context)
+        case .auto?, nil:
+            if let appAutoRemainingBudget {
+                await Self.hasBrowserSessionKey(context: context, before: appAutoRemainingBudget)
+            } else {
+                // Explicit web and CLI auto perform the real browser import inside the bounded fetch.
+                true
+            }
+        }
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let fetcher = ClaudeUsageFetcher(
-            browserDetection: browserDetection,
-            dataSource: .web,
-            useWebExtras: false,
-            manualCookieHeader: Self.manualCookieHeader(from: context),
-            webOrganizationID: context.settings?.claude?.organizationID)
-        let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        let usage = try await self.loadUsage(before: context.webTimeout, context: context)
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
             sourceLabel: "web")
@@ -397,26 +499,122 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto else { return false }
-        _ = error
+        guard !Task.isCancelled,
+              !(error is CancellationError),
+              (error as? URLError)?.code != .cancelled
+        else {
+            return false
+        }
         // In CLI runtime auto mode, web comes before CLI so fallback is required.
         // In app runtime auto mode, web is terminal and should surface its concrete error.
         return context.runtime == .cli
     }
 
-    fileprivate static func isAvailableForFallback(
+    fileprivate static func hasManualSessionKey(context: ProviderFetchContext) -> Bool {
+        ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: self.manualCookieHeader(from: context))
+    }
+
+    fileprivate static func hasBrowserSessionKey(
         context: ProviderFetchContext,
-        browserDetection: BrowserDetection) -> Bool
+        before timeout: Duration) async -> Bool
     {
-        if let header = self.manualCookieHeader(from: context) {
-            return ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header)
+        let browserDetection = context.browserDetection
+        let sourceTask = Task<Bool, Error> {
+            #if DEBUG
+            if let override = Self.availabilityProbeOverrideForTesting {
+                return override(context, browserDetection)
+            }
+            #endif
+            return ClaudeWebAPIFetcher.hasSessionKey(browserDetection: browserDetection)
         }
-        guard context.settings?.claude?.cookieSource != .off else { return false }
-        return ClaudeWebAPIFetcher.hasSessionKey(browserDetection: browserDetection)
+        let race = BoundedTaskJoin(sourceTask: sourceTask)
+        switch await race.value(joinGrace: timeout) {
+        case let .value(isAvailable):
+            return isAvailable
+        case .failure, .timedOut:
+            return false
+        }
     }
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.claude?.cookieSource == .manual else { return nil }
         return CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader)
+    }
+
+    private func loadUsage(
+        before timeout: TimeInterval,
+        context: ProviderFetchContext) async throws -> ClaudeUsageSnapshot
+    {
+        guard let timeoutDuration = Self.timeoutDuration(timeout) else {
+            throw ClaudeWebFetchStrategyError.invalidTimeout
+        }
+        let remainingBudget = self.deadlineState.remainingBudget(
+            fullBudget: timeoutDuration,
+            now: self.deadlineNow())
+        guard remainingBudget > .zero else {
+            try Task.checkCancellation()
+            throw ClaudeWebFetchStrategyError.timedOut(seconds: timeout)
+        }
+        let sourceTask = Task<ClaudeUsageSnapshot, Error> {
+            if let usageLoader = self.usageLoader {
+                return try await usageLoader(context)
+            }
+            #if DEBUG
+            if let usageLoader = Self.usageLoaderOverrideForTesting {
+                return try await usageLoader(context)
+            }
+            #endif
+            let fetcher = ClaudeUsageFetcher(
+                browserDetection: self.browserDetection,
+                dataSource: .web,
+                useWebExtras: false,
+                manualCookieHeader: Self.manualCookieHeader(from: context),
+                webOrganizationID: context.settings?.claude?.organizationID)
+            return try await fetcher.loadLatestUsage(model: "sonnet")
+        }
+        let race = BoundedTaskJoin(sourceTask: sourceTask)
+        switch await race.value(joinGrace: remainingBudget) {
+        case let .value(usage):
+            try Task.checkCancellation()
+            return usage
+        case let .failure(error):
+            throw error
+        case .timedOut:
+            try Task.checkCancellation()
+            throw ClaudeWebFetchStrategyError.timedOut(seconds: timeout)
+        }
+    }
+
+    private static func timeoutDuration(_ timeout: TimeInterval) -> Duration? {
+        guard timeout.isFinite,
+              timeout >= 0,
+              timeout <= TimeInterval(Int64.max)
+        else {
+            return nil
+        }
+        return .seconds(timeout)
+    }
+
+    fileprivate static var isSupportedOnCurrentPlatform: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+}
+
+public enum ClaudeWebFetchStrategyError: LocalizedError, Equatable, Sendable {
+    case invalidTimeout
+    case timedOut(seconds: TimeInterval)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidTimeout:
+            "Claude web usage fetch timeout must be a finite, nonnegative value within the supported range."
+        case let .timedOut(seconds):
+            "Claude web usage fetch timed out after \(seconds.formatted()) seconds."
+        }
     }
 }
 
@@ -426,9 +624,19 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let useWebExtras: Bool
     let manualCookieHeader: String?
     let browserDetection: BrowserDetection
+    let hasWebFallback: Bool
 
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        true
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        // The interactive Claude REPL can open browser OAuth when it starts logged out. Background Auto refreshes
+        // must establish CLI authentication through the non-interactive status command before starting that REPL.
+        guard context.runtime == .app,
+              context.sourceMode == .auto,
+              ProviderInteractionContext.current == .background
+        else {
+            return true
+        }
+        guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
+        return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -447,11 +655,12 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "claude")
     }
 
-    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.runtime == .app, context.sourceMode == .auto else { return false }
-        // Only fall through when web is actually available; otherwise preserve actionable CLI errors.
-        return ClaudeWebFetchStrategy.isAvailableForFallback(
-            context: context,
-            browserDetection: self.browserDetection)
+        guard !ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(error.localizedDescription) else {
+            return false
+        }
+        // Reuse the bounded planning result instead of repeating browser/Keychain work after CLI failure.
+        return self.hasWebFallback
     }
 }

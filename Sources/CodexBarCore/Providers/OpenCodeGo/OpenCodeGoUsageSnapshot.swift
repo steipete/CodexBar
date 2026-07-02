@@ -2,6 +2,7 @@ import Foundation
 
 public struct OpenCodeGoUsageSnapshot: Sendable {
     public let isBalanceOnly: Bool
+    public let hasWeeklyUsage: Bool
     public let hasMonthlyUsage: Bool
     public let rollingUsagePercent: Double
     public let weeklyUsagePercent: Double
@@ -15,6 +16,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
 
     public init(
         isBalanceOnly: Bool = false,
+        hasWeeklyUsage: Bool = true,
         hasMonthlyUsage: Bool,
         rollingUsagePercent: Double,
         weeklyUsagePercent: Double,
@@ -27,6 +29,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         updatedAt: Date)
     {
         self.isBalanceOnly = isBalanceOnly
+        self.hasWeeklyUsage = hasWeeklyUsage
         self.hasMonthlyUsage = hasMonthlyUsage
         self.rollingUsagePercent = rollingUsagePercent
         self.weeklyUsagePercent = weeklyUsagePercent
@@ -42,6 +45,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
     public static func zenBalanceOnly(balanceUSD: Double, updatedAt: Date) -> OpenCodeGoUsageSnapshot {
         OpenCodeGoUsageSnapshot(
             isBalanceOnly: true,
+            hasWeeklyUsage: false,
             hasMonthlyUsage: false,
             rollingUsagePercent: 0,
             weeklyUsagePercent: 0,
@@ -64,18 +68,22 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         }
 
         let rollingReset = self.updatedAt.addingTimeInterval(TimeInterval(self.rollingResetInSec))
-        let weeklyReset = self.updatedAt.addingTimeInterval(TimeInterval(self.weeklyResetInSec))
-
         let primary = RateWindow(
             usedPercent: self.rollingUsagePercent,
             windowMinutes: 5 * 60,
             resetsAt: rollingReset,
             resetDescription: nil)
-        let secondary = RateWindow(
-            usedPercent: self.weeklyUsagePercent,
-            windowMinutes: 7 * 24 * 60,
-            resetsAt: weeklyReset,
-            resetDescription: nil)
+        let secondary: RateWindow?
+        if self.hasWeeklyUsage {
+            let weeklyReset = self.updatedAt.addingTimeInterval(TimeInterval(self.weeklyResetInSec))
+            secondary = RateWindow(
+                usedPercent: self.weeklyUsagePercent,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil)
+        } else {
+            secondary = nil
+        }
         let tertiary: RateWindow?
         if self.hasMonthlyUsage {
             let monthlyReset = self.updatedAt.addingTimeInterval(TimeInterval(self.monthlyResetInSec))
@@ -122,6 +130,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
     public func withZenBalanceUSD(_ balance: Double?) -> OpenCodeGoUsageSnapshot {
         OpenCodeGoUsageSnapshot(
             isBalanceOnly: self.isBalanceOnly,
+            hasWeeklyUsage: self.hasWeeklyUsage,
             hasMonthlyUsage: self.hasMonthlyUsage,
             rollingUsagePercent: self.rollingUsagePercent,
             weeklyUsagePercent: self.weeklyUsagePercent,

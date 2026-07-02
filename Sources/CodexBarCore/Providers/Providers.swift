@@ -48,6 +48,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case crof
     case venice
     case commandcode
+    case qoder
     case stepfun
     case bedrock
     case grok
@@ -57,6 +58,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case deepgram
     case poe
     case chutes
+    case crossmodel
     case longcat
 }
 
@@ -106,6 +108,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case crof
     case venice
     case commandcode
+    case qoder
     case stepfun
     case bedrock
     case grok
@@ -115,6 +118,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case deepgram
     case poe
     case chutes
+    case crossmodel
     case longcat
     case combined
 }
@@ -267,6 +271,16 @@ public enum ProviderBrowserCookieDefaults {
 
     /// LongCat Auto imports only from Chrome by default to avoid prompting unrelated browser keychains.
     public static var longcatCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
+
+    /// Qoder sessions are documented through Chrome cookie import. Keep automatic import narrow
+    /// so enabling this provider does not probe unrelated browser keychains.
+    public static var qoderCookieImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
         [.chrome]
         #else

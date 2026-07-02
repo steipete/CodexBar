@@ -21,6 +21,7 @@
 "Animation pattern" = "Pola animasi";
 "Antigravity login is managed in the app" = "Login Antigravity dikelola di dalam aplikasi";
 "Applies only to the Security.framework OAuth keychain reader." = "Hanya berlaku untuk pembaca keychain OAuth Security.framework.";
+"Alternatively, set a custom path in Settings." = "Atau, atur jalur kustom di Pengaturan.";
 "Auto falls back to the next source if the preferred one fails." = "Otomatis beralih ke sumber berikutnya jika yang dipilih gagal.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Otomatis menggunakan API terlebih dahulu, lalu beralih ke CLI saat autentikasi gagal.";
 "Auto-detect" = "Deteksi otomatis";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Pasang Claude CLI (npm i -g @anthropic-ai/claude-code) dan coba lagi.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Pasang Codex CLI (npm i -g @openai/codex) dan coba lagi.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Pasang Gemini CLI (npm i -g @google/gemini-cli) dan coba lagi.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Pasang JetBrains IDE dengan AI Assistant aktif, lalu segarkan CodexBar.";
 "JetBrains AI is ready" = "JetBrains AI siap";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "Pertahankan sesi CLI";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Tampilkan ikon penyedia di pengalih (jika tidak, tampilkan garis progres mingguan).";
 "Show reset time as clock" = "Tampilkan waktu reset sebagai jam";
 "Show usage as used" = "Tampilkan penggunaan sebagai terpakai";
+"Sign in with Claude Code..." = "Masuk dengan Claude Code...";
 "Sign in via button below" = "Masuk via tombol di bawah";
 "Skip teardown between probes (debug-only)." = "Lewati pembersihan antar probe (hanya debug).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Tumpuk akun token di menu (jika tidak, tampilkan bilah pengalih akun).";
@@ -433,6 +436,8 @@
 "refresh_cadence_title" = "Frekuensi penyegaran";
 "refresh_cadence_subtitle" = "Seberapa sering CodexBar memeriksa penyedia di latar belakang.";
 "manual_refresh_hint" = "Penyegaran otomatis nonaktif; gunakan perintah Segarkan di menu.";
+"refresh_on_open_title" = "Segarkan saat menu dibuka";
+"refresh_on_open_subtitle" = "Ambil penggunaan terbaru untuk setiap penyedia setiap kali Anda membuka menu.";
 "check_provider_status_title" = "Periksa status penyedia";
 "check_provider_status_subtitle" = "Memeriksa halaman status OpenAI/Claude dan Google Workspace untuk Gemini/Antigravity, menampilkan insiden di ikon dan menu.";
 "session_quota_notifications_title" = "Notifikasi kuota sesi";
@@ -454,6 +459,7 @@
 "quota_warning_warn_at" = "Peringatkan pada";
 "quota_warning_global_threshold_subtitle" = "Persentase sisa untuk jendela sesi dan mingguan kecuali penyedia menimpanya.";
 "quota_warning_sound" = "Mainkan suara notifikasi";
+"quota_warning_onscreen_alert" = "Tampilkan peringatan teks di layar";
 "quota_warning_provider_inherits" = "Menggunakan pengaturan peringatan kuota global kecuali jendela dikustomisasi di sini.";
 "quota_warning_customize_thresholds" = "Kustomisasi ambang batas %@";
 "quota_warning_enable_warnings" = "Aktifkan peringatan %@";
@@ -551,6 +557,8 @@
 "show_debug_settings_subtitle" = "Tampilkan alat pemecahan masalah di tab Debug.";
 "surprise_me_title" = "Kejutkan saya";
 "surprise_me_subtitle" = "Centang jika Anda suka agen bersenang-senang di atas sana.";
+"session_limit_confetti_title" = "Konfeti batas sesi";
+"session_limit_confetti_subtitle" = "Tampilkan konfeti layar penuh saat penggunaan sesi direset.";
 "weekly_limit_confetti_title" = "Confetti batas mingguan";
 "weekly_limit_confetti_subtitle" = "Mainkan confetti layar penuh saat penggunaan mingguan direset.";
 "hide_personal_info_title" = "Sembunyikan informasi pribadi";
@@ -727,6 +735,8 @@
 "reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
 "Updated %@" = "Diperbarui %@";
+"Updated relative %@" = "Diperbarui %@";
+"Updated absolute %@" = "Diperbarui %@";
 "Updated %@h ago" = "Diperbarui %@ jam lalu";
 "Updated %@m ago" = "Diperbarui %@ menit lalu";
 "Updated just now" = "Baru saja diperbarui";
@@ -782,6 +792,7 @@
 "Est. total (%@): %@" = "Perkiraan total (%@): %@";
 "Hover a bar for details" = "Arahkan kursor ke bilah untuk detail";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ token";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "Tidak ada penyedia dipilih untuk Ikhtisar.";
 "No overview data available." = "Tidak ada data ikhtisar tersedia.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Otomatis menggunakan API IDE lokal terlebih dahulu, lalu Google OAuth saat IDE ditutup.";
@@ -998,6 +1009,8 @@
 "Enterprise host" = "Host enterprise";
 "Extra usage balance: %@" = "Saldo penggunaan ekstra: %@";
 "Keychain Access Required" = "Akses Keychain Diperlukan";
+"keychain_prompt_learn_more" = "Pelajari Lebih Lanjut…";
+"keychain_prompt_privacy_note" = "macOS—bukan CodexBar—menangani pemasukan kata sandi masuk Mac. Anda dapat menonaktifkan semua akses Keychain kapan saja di Pengaturan → Lanjutan.";
 "Kiro menu bar value" = "Nilai menu bar Kiro";
 "Label" = "Label";
 "No organizations loaded. Click Refresh after setting your API key." = "Tidak ada organisasi dimuat. Klik Segarkan setelah mengatur kunci API Anda.";
@@ -1109,8 +1122,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Kredit pengaturan ulang batas";
-"1 manual reset available" = "1 pengaturan ulang manual tersedia";
-"%d manual resets available" = "%d pengaturan ulang manual tersedia";
+"1 available" = "1 tersedia";
+"%d available" = "%d tersedia";
 "Next expires %@" = "Berikutnya kedaluwarsa %@";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";
@@ -1120,3 +1133,4 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"CrossModel API spend trend" = "Tren pengeluaran API CrossModel";

@@ -85,6 +85,20 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `localized cached credits failure preserves cached suffix while sanitizing body`() {
+        let result = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
+            let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-localized-cached-credits")
+            store.lastCreditsError =
+                "Last Codex credits refresh failed: Codex connection failed: failed to fetch codex rate limits: "
+                    + "GET https://chatgpt.com/backend-api/wham/usage failed: 500 Cached values from 2m ago."
+
+            return store.userFacingLastCreditsError
+        }
+
+        #expect(result == "Codex 使用量暫時無法取得。請嘗試重新整理。 使用 2m ago 的快取值。")
+    }
+
+    @Test
     func `cached missing codex CLI failure preserves cached suffix`() {
         let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-cached-missing-cli")
         store.lastCreditsError =
@@ -127,6 +141,23 @@ struct CodexUserFacingErrorTests {
         #expect(
             store.userFacingLastOpenAIDashboardError ==
                 "OpenAI web refresh timed out. Refresh OpenAI cookies and try again.")
+    }
+
+    @Test
+    func `localized cached open A I web timeout preserves cached suffix`() {
+        let result = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
+            let store = self.makeUsageStore(suite: "CodexUserFacingErrorTests-localized-openai-web-timeout")
+            store.lastOpenAIDashboardError =
+                "Last OpenAI dashboard refresh failed: "
+                    + "The operation couldn’t be completed. (NSURLErrorDomain error -1001.). "
+                    + "Cached values from 2m ago."
+
+            return store.userFacingLastOpenAIDashboardError
+        }
+
+        #expect(
+            result ==
+                "OpenAI Web 重新整理逾時。請重新整理 OpenAI Cookie 後再試一次。 使用 2m ago 的快取值。")
     }
 
     @Test

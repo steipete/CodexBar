@@ -81,6 +81,7 @@ struct ClaudeOAuthTests {
         #expect(snap.opus?.usedPercent == 5)
         #expect(snap.primary.resetsAt != nil)
         #expect(snap.loginMethod == "Claude Pro")
+        #expect(snap.oauthHistoryOwnerIdentifier?.count == 64)
     }
 
     @Test
@@ -369,7 +370,7 @@ struct ClaudeOAuthTests {
                 scopes: ["user:profile"],
                 rateLimitTier: nil)
         }
-        let fetchOverride: (@Sendable (String) async throws -> OAuthUsageResponse)? = { _ in
+        let fetchOverride: (@Sendable (String, Bool) async throws -> OAuthUsageResponse)? = { _, _ in
             throw ClaudeOAuthFetchError.rateLimited(retryAfter: nil)
         }
 
@@ -449,6 +450,30 @@ struct ClaudeOAuthTests {
             ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: "2.1.70 (Claude Code)")
                 == "claude-code/2.1.70")
         #expect(ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: nil) == "claude-code/2.1.0")
+    }
+
+    @Test
+    func `oauth usage fallback user agent skips version detector`() {
+        var detectionCount = 0
+        let fallback = ClaudeOAuthUsageFetcher._userAgentForTesting(
+            detectClaudeVersion: false,
+            versionDetector: {
+                detectionCount += 1
+                return "2.1.70 (Claude Code)"
+            })
+
+        #expect(fallback == "claude-code/2.1.0")
+        #expect(detectionCount == 0)
+
+        let detected = ClaudeOAuthUsageFetcher._userAgentForTesting(
+            detectClaudeVersion: true,
+            versionDetector: {
+                detectionCount += 1
+                return "2.1.70 (Claude Code)"
+            })
+
+        #expect(detected == "claude-code/2.1.70")
+        #expect(detectionCount == 1)
     }
 
     @Test

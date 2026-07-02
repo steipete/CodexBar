@@ -1112,8 +1112,11 @@ extension StatusItemController {
         // provider fetch failed and needs a retry; periodic freshness is handled by the refresh timer.
         // AppKit menu tracking is modal, so starting provider refreshes while it is active can make the menu
         // feel frozen and can block keyboard focus from returning.
+        // Exception: when `refreshAllProvidersOnMenuOpen` is enabled, every enabled provider is refreshed on
+        // open regardless of freshness — still after the delay below, and still via the light usage-only
+        // primitive so the OpenAI dashboard scrape stays deferred until the menu closes.
         let providersNeedingRetryAtOpen = self.delayedRefreshRetryProviders(for: menu).filter {
-            self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+            self.store.needsUsageRefreshRetry(for: $0)
         }
         if !providersNeedingRetryAtOpen.isEmpty {
             self.deferMenuInteractionRefreshIfNeeded(providers: providersNeedingRetryAtOpen)
@@ -1129,13 +1132,18 @@ extension StatusItemController {
             self.onDelayedMenuRefreshAttemptForTesting?()
             #endif
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
-            let availableProviders = Set(self.store.enabledProvidersForBackgroundWork())
-            let retryProviders = self.delayedRefreshRetryProviders(for: menu).filter {
-                availableProviders.contains($0) &&
-                    (self.store.refreshingProviders.contains($0) ||
-                        self.store.isStale(provider: $0) ||
-                        self.store.snapshot(for: $0) == nil)
-            }
+            let refreshAllOnOpen = self.settings.refreshAllProvidersOnMenuOpen
+            let enabledProviders = self.store.enabledProvidersForBackgroundWork()
+            let visibleProviders = self.delayedRefreshRetryProviders(for: menu)
+            let plan = MenuOpenRefreshPlan.resolve(.init(
+                refreshAllOnOpen: refreshAllOnOpen,
+                enabledProviders: enabledProviders,
+                visibleProviders: visibleProviders,
+                refreshingProviders: self.store.refreshingProviders,
+                staleProviders: Set(visibleProviders.filter { self.store.isStale(provider: $0) }),
+                missingProviders: Set(visibleProviders.filter { !self.store.hasSatisfiedUsageFetch(for: $0) })))
+            if plan.refreshCodexDashboard { self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all") }
+            let retryProviders = plan.providers
             guard !retryProviders.isEmpty else {
                 self.clearSatisfiedDeferredMenuInteractionRefreshes(
                     for: self.delayedRefreshRetryProviders(for: menu))
@@ -1151,13 +1159,26 @@ extension StatusItemController {
             }
             self.deferMenuInteractionRefreshIfNeeded(providers: retryProviders)
             await ProviderInteractionContext.$current.withValue(.background) {
-                for provider in retryProviders {
-                    guard !Task.isCancelled else { return }
-                    await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                if plan.scheduling == .concurrent {
+                    // Refresh concurrently so one slow provider doesn't delay the rest, mirroring the
+                    // periodic refresh in `UsageStore.runRefresh`. `coalesceIfRefreshing` makes each call
+                    // wait for any in-flight refresh (e.g. a manual refresh) instead of overriding it.
+                    await withTaskGroup(of: Void.self) { group in
+                        for provider in retryProviders {
+                            group.addTask {
+                                await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                            }
+                        }
+                    }
+                } else {
+                    for provider in retryProviders {
+                        guard !Task.isCancelled else { return }
+                        await self.store.refreshProvider(provider, coalesceIfRefreshing: true)
+                    }
                 }
             }
             let stillNeedsRetry = retryProviders.contains {
-                self.store.isStale(provider: $0) || self.store.snapshot(for: $0) == nil
+                self.store.needsUsageRefreshRetry(for: $0)
             }
             if !stillNeedsRetry {
                 self.clearSatisfiedDeferredMenuInteractionRefreshes(for: retryProviders)
@@ -1175,7 +1196,7 @@ extension StatusItemController {
         let providersToCheck = self.delayedRefreshRetryProviders(for: menu)
         guard !providersToCheck.isEmpty else { return false }
         return providersToCheck.contains { provider in
-            self.store.isStale(provider: provider) || self.store.snapshot(for: provider) == nil
+            self.store.needsUsageRefreshRetry(for: provider)
         }
     }
 

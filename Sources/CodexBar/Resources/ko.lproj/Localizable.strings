@@ -428,6 +428,8 @@
 "refresh_cadence_title" = "새로 고침 주기";
 "refresh_cadence_subtitle" = "CodexBar가 백그라운드에서 공급자를 폴링하는 빈도입니다.";
 "manual_refresh_hint" = "자동 새로 고침이 꺼져 있습니다. 메뉴의 새로 고침 명령을 사용하세요.";
+"refresh_on_open_title" = "메뉴를 열 때 새로 고침";
+"refresh_on_open_subtitle" = "메뉴를 열 때마다 모든 공급자의 최신 사용량을 가져옵니다.";
 "check_provider_status_title" = "공급자 상태 확인";
 "check_provider_status_subtitle" = "OpenAI/Claude 상태 페이지와 Gemini/Antigravity용 Google Workspace를 폴링하여 아이콘과 메뉴에 문제를 표시합니다.";
 "session_quota_notifications_title" = "세션 할당량 알림";
@@ -449,6 +451,7 @@
 "quota_warning_warn_at" = "경고 기준";
 "quota_warning_global_threshold_subtitle" = "공급자가 재정의하지 않는 한 세션 및 주간 범위의 잔여 백분율입니다.";
 "quota_warning_sound" = "알림 소리 재생";
+"quota_warning_onscreen_alert" = "화면에 텍스트 알림 표시";
 "quota_warning_provider_inherits" = "여기서 범위를 사용자 설정하지 않는 한 전역 할당량 경고 설정을 사용합니다.";
 "quota_warning_customize_thresholds" = "%@ 임곗값 사용자 설정";
 "quota_warning_enable_warnings" = "%@ 경고 사용";
@@ -538,6 +541,8 @@
 "show_debug_settings_subtitle" = "디버그 탭에 문제 해결 도구를 표시합니다.";
 "surprise_me_title" = "깜짝 놀래주기";
 "surprise_me_subtitle" = "에이전트가 저 위에서 조금 즐기는 모습이 마음에 드는지 확인해 보세요.";
+"session_limit_confetti_title" = "세션 한도 색종이";
+"session_limit_confetti_subtitle" = "세션 사용량이 재설정될 때 전체 화면 색종이를 표시합니다.";
 "weekly_limit_confetti_title" = "주간 한도 색종이";
 "weekly_limit_confetti_subtitle" = "주간 사용량이 재설정될 때 전체 화면 색종이를 재생합니다.";
 "hide_personal_info_title" = "개인 정보 가리기";
@@ -698,6 +703,8 @@
 "reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
 "Updated %@" = "%@에 업데이트됨";
+"Updated relative %@" = "%@에 업데이트됨";
+"Updated absolute %@" = "%@에 업데이트됨";
 "Updated %@h ago" = "%@시간 전 업데이트됨";
 "Updated %@m ago" = "%@분 전 업데이트됨";
 "Updated just now" = "방금 업데이트됨";
@@ -960,6 +967,8 @@
 "Enterprise host" = "엔터프라이즈 호스트";
 "Extra usage balance: %@" = "추가 사용량 잔액: %@";
 "Keychain Access Required" = "키체인 접근 필요";
+"keychain_prompt_learn_more" = "더 알아보기…";
+"keychain_prompt_privacy_note" = "Mac 로그인 암호 입력은 CodexBar가 아닌 macOS에서 처리합니다. 설정 → 고급에서 언제든지 키체인 접근을 비활성화할 수 있습니다.";
 "Kiro menu bar value" = "Kiro 메뉴 막대 값";
 "Label" = "레이블";
 "No organizations loaded. Click Refresh after setting your API key." = "불러온 조직이 없습니다. API 키를 설정한 후 새로 고침을 클릭하세요.";
@@ -1073,8 +1082,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "한도 재설정 크레딧";
-"1 manual reset available" = "수동 재설정 1회 사용 가능";
-"%d manual resets available" = "수동 재설정 %d회 사용 가능";
+"1 available" = "1회 사용 가능";
+"%d available" = "%d회 사용 가능";
 "Next expires %@" = "다음 만료: %@";
 "Other (%d items)" = "기타(%d개 항목)";
 "Expand" = "펼치기";
@@ -1087,3 +1096,4 @@
 "byte_unit_megabytes" = "메가바이트";
 "byte_unit_gigabyte" = "기가바이트";
 "byte_unit_gigabytes" = "기가바이트";
+"CrossModel API spend trend" = "CrossModel API 지출 추이";

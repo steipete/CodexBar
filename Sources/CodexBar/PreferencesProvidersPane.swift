@@ -226,11 +226,13 @@ struct ProvidersPane: View {
     func providerSubtitle(_ provider: UsageProvider) -> String {
         let meta = self.store.metadata(for: provider)
         let usageText: String
-        if let snapshot = self.store.snapshot(for: provider) {
+        if self.store.isStale(provider: provider) {
+            usageText = L("last_fetch_failed")
+        } else if self.store.knownLimitsAvailability(for: provider)?.isUnavailable == true {
+            usageText = L("Limits not available")
+        } else if let snapshot = self.store.snapshot(for: provider) {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
-        } else if self.store.isStale(provider: provider) {
-            usageText = L("last_fetch_failed")
         } else {
             usageText = L("usage_not_fetched_yet")
         }
@@ -250,10 +252,12 @@ struct ProvidersPane: View {
 
     func providerSidebarSubtitle(_ provider: UsageProvider) -> String {
         let meta = self.store.metadata(for: provider)
-        let usageText: String = if let snapshot = self.store.snapshot(for: provider) {
-            snapshot.updatedAt.relativeDescription()
-        } else if self.store.isStale(provider: provider) {
+        let usageText: String = if self.store.isStale(provider: provider) {
             L("last_fetch_failed")
+        } else if self.store.knownLimitsAvailability(for: provider)?.isUnavailable == true {
+            L("Limits not available")
+        } else if let snapshot = self.store.snapshot(for: provider) {
+            snapshot.updatedAt.relativeDescription()
         } else {
             L("usage_not_fetched_yet")
         }
@@ -742,6 +746,7 @@ struct ProvidersPane: View {
             account: self.store.accountInfo(for: provider),
             isRefreshing: self.store.refreshingProviders.contains(provider),
             lastError: codexProjection?.userFacingErrors.usage ?? self.store.userFacingError(for: provider),
+            limitsAvailability: self.store.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),

@@ -78,7 +78,158 @@ struct CodexCombinedMetricHighestUsageTests {
         #expect(highest?.usedPercent == 80)
     }
 
-    private func makeStore(suiteName: String) -> UsageStore {
+    @Test
+    func `combined claude metric stays eligible when only one lane is exhausted`() {
+        let store = self.makeStore(
+            suiteName: "CodexCombinedMetricHighestUsageTests-claude-one-exhausted",
+            claudeCombined: true)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 50,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .claude)
+
+        // Claude's session lane is exhausted but the weekly lane still has room, so the combined
+        // metric must keep Claude eligible (mirroring Codex) instead of dropping it from ranking.
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .claude)
+        #expect(highest?.usedPercent == 100)
+    }
+
+    @Test
+    func `combined claude metric is excluded when both lanes are exhausted`() {
+        let store = self.makeStore(
+            suiteName: "CodexCombinedMetricHighestUsageTests-claude-both-exhausted",
+            claudeCombined: true)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 80,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .claude)
+
+        // Both Claude lanes are exhausted, so the combined metric must drop Claude from ranking and
+        // surface Codex instead.
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    @Test
+    func `combined claude metric excludes an exhausted weekly-only account with a synthetic placeholder`() {
+        let store = self.makeStore(
+            suiteName: "CodexCombinedMetricHighestUsageTests-claude-placeholder-exhausted",
+            claudeCombined: true)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 80,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+        // Claude web weekly-only account: a synthetic 0% session placeholder plus an exhausted weekly lane.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil,
+                    isSyntheticPlaceholder: true),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .claude)
+
+        // The placeholder is not a real lane, so the only real Claude lane (weekly) is fully exhausted —
+        // Claude must be excluded from ranking, not kept eligible by the phantom 0% session.
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    @Test
+    func `combined claude metric excludes an exhausted spend-limit-only account`() {
+        let store = self.makeStore(
+            suiteName: "CodexCombinedMetricHighestUsageTests-claude-spend-limit-exhausted",
+            claudeCombined: true)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 80,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: Date()),
+            provider: .codex)
+        // Claude spend-limit-only account: exhausted providerCost, no secondary/tertiary, and an
+        // explicitly marked 0% 5h placeholder primary. The metric resolves to the exhausted spend-limit window.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil,
+                    isSyntheticPlaceholder: true),
+                secondary: nil,
+                providerCost: ProviderCostSnapshot(
+                    used: 100,
+                    limit: 100,
+                    currencyCode: "USD",
+                    period: "Spend limit",
+                    updatedAt: Date()),
+                updatedAt: Date()),
+            provider: .claude)
+
+        // The spend limit is exhausted and there are no real lanes, so Claude must be excluded from
+        // ranking (the marked 0% placeholder must not keep it eligible); Codex surfaces instead.
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .codex)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    private func makeStore(suiteName: String, claudeCombined: Bool = false) -> UsageStore {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: suiteName),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -86,6 +237,9 @@ struct CodexCombinedMetricHighestUsageTests {
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+        if claudeCombined {
+            settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+        }
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {

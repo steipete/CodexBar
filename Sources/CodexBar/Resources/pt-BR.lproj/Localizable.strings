@@ -428,6 +428,8 @@
 "refresh_cadence_title" = "Cadência de atualização";
 "refresh_cadence_subtitle" = "Frequência com que o CodexBar consulta provedores em segundo plano.";
 "manual_refresh_hint" = "A atualização automática está desativada; use Atualizar no menu.";
+"refresh_on_open_title" = "Atualizar ao abrir o menu";
+"refresh_on_open_subtitle" = "Busca o uso mais recente de cada provedor sempre que você abre o menu.";
 "check_provider_status_title" = "Verificar status dos provedores";
 "check_provider_status_subtitle" = "Consulta páginas de status da OpenAI/Claude e o Google Workspace para Gemini/Antigravity, exibindo incidentes no ícone e no menu.";
 "session_quota_notifications_title" = "Notificações de cota de sessão";
@@ -449,6 +451,7 @@
 "quota_warning_warn_at" = "Alertar em";
 "quota_warning_global_threshold_subtitle" = "Percentuais restantes para as janelas de sessão e semanal, a menos que um provedor defina valores próprios.";
 "quota_warning_sound" = "Reproduzir som de notificação";
+"quota_warning_onscreen_alert" = "Mostrar alerta de texto na tela";
 "quota_warning_provider_inherits" = "Usa as configurações globais de alerta de cota, a menos que uma janela seja personalizada aqui.";
 "quota_warning_customize_thresholds" = "Personalizar limites de %@";
 "quota_warning_enable_warnings" = "Ativar alertas de %@";
@@ -546,6 +549,8 @@
 "show_debug_settings_subtitle" = "Exibe ferramentas de diagnóstico na aba Depuração.";
 "surprise_me_title" = "Surpreenda-me";
 "surprise_me_subtitle" = "Veja se você gosta dos seus agentes se divertindo ali em cima.";
+"session_limit_confetti_title" = "Confete do limite de sessão";
+"session_limit_confetti_subtitle" = "Mostra confete em tela cheia quando o uso da sessão for redefinido.";
 "weekly_limit_confetti_title" = "Confete do limite semanal";
 "weekly_limit_confetti_subtitle" = "Mostra confete em tela cheia quando o uso semanal for renovado.";
 "hide_personal_info_title" = "Ocultar informações pessoais";
@@ -722,6 +727,8 @@
 "reset_tomorrow_format" = "amanhã, %@";
 "Lasts until reset" = "Dura até a renovação";
 "Updated %@" = "Atualizado %@";
+"Updated relative %@" = "Atualizado %@";
+"Updated absolute %@" = "Atualizado %@";
 "Updated %@h ago" = "Atualizado há %@h";
 "Updated %@m ago" = "Atualizado há %@m";
 "Updated just now" = "Atualizado agora mesmo";
@@ -990,6 +997,8 @@
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo de uso extra: %@";
 "Keychain Access Required" = "Acesso ao Chaves necessário";
+"keychain_prompt_learn_more" = "Saiba mais…";
+"keychain_prompt_privacy_note" = "A digitação da senha de início de sessão do Mac é processada pelo macOS, não pelo CodexBar. Você pode desativar o acesso às Chaves a qualquer momento em Ajustes → Avançado.";
 "Kiro menu bar value" = "Valor do Kiro na barra de menu";
 "Label" = "Rótulo";
 "No organizations loaded. Click Refresh after setting your API key." = "Nenhuma organização carregada. Clique em Atualizar depois de definir sua chave API.";
@@ -1103,8 +1112,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Créditos de redefinição de limite";
-"1 manual reset available" = "1 redefinição manual disponível";
-"%d manual resets available" = "%d redefinições manuais disponíveis";
+"1 available" = "1 disponível";
+"%d available" = "%d disponíveis";
 "Next expires %@" = "Próximo expira %@";
 "Other (%d items)" = "Outros (%d itens)";
 "Expand" = "Expandir";
@@ -1117,3 +1126,4 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+"CrossModel API spend trend" = "Tendência de gastos da API CrossModel";

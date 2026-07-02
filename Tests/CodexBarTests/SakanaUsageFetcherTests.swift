@@ -5,22 +5,22 @@ import FoundationNetworking
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct SakanaUsageFetcherTests {
     @Test
     func `billing html maps five hour and weekly windows`() throws {
         let now = Date(timeIntervalSince1970: 1_782_222_000)
         let usage = try SakanaUsageFetcher.parseBillingHTML(
             Self.billingHTML,
-            now: now,
-            timeZone: Self.shanghaiTimeZone).toUsageSnapshot()
+            now: now).toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 92)
         #expect(usage.primary?.windowMinutes == 300)
-        #expect(usage.primary?.resetsAt == Self.date(year: 2026, month: 6, day: 23, hour: 22, minute: 53))
+        #expect(usage.primary?.resetsAt == Self.date(year: 2026, month: 6, day: 23, hour: 14, minute: 53))
         #expect(usage.primary?.resetDescription == nil)
         #expect(usage.secondary?.usedPercent == 32)
         #expect(usage.secondary?.windowMinutes == 10080)
-        #expect(usage.secondary?.resetsAt == Self.date(year: 2026, month: 6, day: 29, hour: 8, minute: 0))
+        #expect(usage.secondary?.resetsAt == Self.date(year: 2026, month: 6, day: 29, hour: 0, minute: 0))
         #expect(usage.secondary?.resetDescription == nil)
         #expect(usage.identity?.providerID == .sakana)
         #expect(usage.identity?.loginMethod == "Standard $20/mo")
@@ -113,8 +113,7 @@ struct SakanaUsageFetcherTests {
     @Test
     func `unparsed reset date does not become reset description`() throws {
         let usage = try SakanaUsageFetcher.parseBillingHTML(
-            Self.billingHTML.replacing("June 23, 2026 at 10:53 PM", with: "soon-ish"),
-            timeZone: Self.shanghaiTimeZone).toUsageSnapshot()
+            Self.billingHTML.replacing("June 23, 2026 at 2:53 PM", with: "soon-ish")).toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 92)
         #expect(usage.primary?.resetsAt == nil)
@@ -124,18 +123,16 @@ struct SakanaUsageFetcherTests {
     @Test
     func `window without reset line still maps percent`() throws {
         let html = Self.billingHTML.replacing(
-            "<p class=\"text-muted-foreground text-xs tabular-nums\">Resets on June 23, 2026 at 10:53 PM</p>",
+            "<p class=\"text-muted-foreground text-xs tabular-nums\">Resets on June 23, 2026 at 2:53 PM</p>",
             with: "")
-        let usage = try SakanaUsageFetcher.parseBillingHTML(
-            html,
-            timeZone: Self.shanghaiTimeZone).toUsageSnapshot()
+        let usage = try SakanaUsageFetcher.parseBillingHTML(html).toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 92)
         #expect(usage.primary?.windowMinutes == 300)
         #expect(usage.primary?.resetsAt == nil)
         #expect(usage.primary?.resetDescription == nil)
         #expect(usage.secondary?.usedPercent == 32)
-        #expect(usage.secondary?.resetsAt == Self.date(year: 2026, month: 6, day: 29, hour: 8, minute: 0))
+        #expect(usage.secondary?.resetsAt == Self.date(year: 2026, month: 6, day: 29, hour: 0, minute: 0))
     }
 
     @Test
@@ -145,15 +142,32 @@ struct SakanaUsageFetcherTests {
             with: "")
 
         #expect(throws: SakanaUsageError.parseFailed("Invalid 5-hour usage percentage.")) {
-            _ = try SakanaUsageFetcher.parseBillingHTML(html, timeZone: Self.shanghaiTimeZone)
+            _ = try SakanaUsageFetcher.parseBillingHTML(html)
         }
     }
 
-    private static let shanghaiTimeZone = TimeZone(identifier: "Asia/Shanghai")!
+    @Test
+    func `reset date is parsed as UTC regardless of the device's local timezone`() throws {
+        // The console always server-renders "Resets on <date>" in UTC (the client corrects it to
+        // the viewer's local time only after JS hydration, which this HTML-only fetcher never
+        // runs). Regression coverage for steipete/CodexBar#1826: force the process default far
+        // from UTC (UTC+14) so this fails if TimeZone.current ever leaks back into the parser --
+        // on a UTC CI runner the pre-fix TimeZone.current code would coincidentally still produce
+        // the right answer, so this test would not have caught the original bug without the
+        // override.
+        let originalTimeZone = NSTimeZone.default
+        NSTimeZone.default = TimeZone(secondsFromGMT: 14 * 60 * 60)!
+        defer { NSTimeZone.default = originalTimeZone }
+
+        let usage = try SakanaUsageFetcher.parseBillingHTML(Self.billingHTML).toUsageSnapshot()
+
+        #expect(usage.primary?.resetsAt == Self.date(year: 2026, month: 6, day: 23, hour: 14, minute: 53))
+        #expect(usage.primary?.resetsAt?.timeIntervalSince1970 == 1_782_226_380)
+    }
 
     private static func date(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = Self.shanghaiTimeZone
+        calendar.timeZone = TimeZone(identifier: "UTC")!
         return calendar.date(from: DateComponents(
             year: year,
             month: month,
@@ -162,16 +176,17 @@ struct SakanaUsageFetcherTests {
             minute: minute))
     }
 
+    /// Raw server response values are UTC; browser hydration localizes them afterward.
     private static let billingHTML = """
     <main>
       <div data-slot="card-title"><span>Standard</span><span>$20/mo</span></div>
       <div data-slot="card-title">Usage limit</div>
       <p class="font-medium text-sm">5-hour</p>
-      <p class="text-muted-foreground text-xs tabular-nums">Resets on June 23, 2026 at 10:53 PM</p>
+      <p class="text-muted-foreground text-xs tabular-nums">Resets on June 23, 2026 at 2:53 PM</p>
       <button aria-label="The 5-hour window starts with your first request."></button>
       <p class="text-muted-foreground text-sm">92% used</p>
       <p class="font-medium text-sm">Weekly</p>
-      <p class="text-muted-foreground text-xs tabular-nums">Resets on June 29, 2026 at 8:00 AM</p>
+      <p class="text-muted-foreground text-xs tabular-nums">Resets on June 29, 2026 at 12:00 AM</p>
       <button aria-label="Weekly usage resets every Monday at 00:00 UTC."></button>
       <p class="text-muted-foreground text-sm">32% used</p>
     </main>

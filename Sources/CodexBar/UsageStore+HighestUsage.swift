@@ -3,11 +3,16 @@ import Foundation
 
 @MainActor
 extension UsageStore {
-    /// Returns the enabled provider with the highest usage percentage (closest to rate limit).
+    /// Returns the enabled candidate provider with the highest usage percentage (closest to rate limit).
     /// Excludes providers that are fully rate-limited.
-    func providerWithHighestUsage() -> (provider: UsageProvider, usedPercent: Double)? {
+    func providerWithHighestUsage(candidateProviders: [UsageProvider]? = nil)
+        -> (provider: UsageProvider, usedPercent: Double)?
+    {
+        let candidateSet = candidateProviders.map(Set.init)
         var highest: (provider: UsageProvider, usedPercent: Double)?
-        for provider in self.enabledProviders() {
+        for provider in self.enabledProviders()
+            where candidateSet?.contains(provider) ?? true
+        {
             guard let snapshot = self.snapshots[provider] else { continue }
             guard let window = self.menuBarMetricWindowForHighestUsage(provider: provider, snapshot: snapshot) else {
                 continue
@@ -47,8 +52,20 @@ extension UsageStore {
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         guard metricPercent >= 100 else { return false }
-        if provider == .codex, effectivePreference == .primaryAndSecondary {
-            let percents = [snapshot.primary?.usedPercent, snapshot.secondary?.usedPercent].compactMap(\.self)
+        if provider == .codex || provider == .claude, effectivePreference == .primaryAndSecondary {
+            // A Claude spend-limit-only snapshot has no real session/weekly lanes; the metric resolves to
+            // the spend-limit window, so reaching here (metricPercent >= 100) means the spend limit itself
+            // is exhausted. Mirror that resolver fallback and exclude, instead of inspecting the raw 0%
+            // placeholder primary that would otherwise keep it eligible.
+            if provider == .claude, MenuBarMetricWindowResolver.claudeSpendLimitWindow(snapshot: snapshot) != nil {
+                return true
+            }
+            // Ignore synthesized placeholder lanes (e.g. Claude web's null `five_hour` 0% session) so a
+            // fully exhausted weekly-only account is excluded rather than kept eligible by a phantom 0%.
+            let percents = [snapshot.primary, snapshot.secondary]
+                .compactMap(\.self)
+                .filter { !$0.isSyntheticPlaceholder }
+                .map(\.usedPercent)
             guard !percents.isEmpty else { return true }
             return percents.allSatisfy { $0 >= 100 }
         }

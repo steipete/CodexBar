@@ -62,7 +62,12 @@ extension CodexBarCLI {
         let antigravityPlanDebug = values.flags.contains("antigravityPlanDebug")
         let augmentDebug = values.flags.contains("augmentDebug")
         let webDebugDumpHTML = values.flags.contains("webDebugDumpHtml")
-        let webTimeout = Self.decodeWebTimeout(from: values) ?? 60
+        let webTimeout: TimeInterval
+        do {
+            webTimeout = try Self.decodeWebTimeout(from: values) ?? 60
+        } catch {
+            Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .args)
+        }
         let verbose = values.flags.contains("verbose")
         let noColor = values.flags.contains("noColor")
         let useColor = Self.shouldUseColor(noColor: noColor, format: format)
@@ -364,9 +369,7 @@ extension CodexBarCLI {
                     context: fetchContext)
             }
 
-            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-            let shouldDetectVersion = descriptor.cli.versionDetector != nil
-                && result.strategyKind != ProviderFetchKind.webDashboard
+            let shouldDetectVersion = Self.shouldDetectVersion(provider: provider, result: result)
             let version = Self.normalizeVersion(
                 raw: shouldDetectVersion
                     ? Self.detectVersion(for: provider, browserDetection: command.browserDetection)
@@ -438,6 +441,13 @@ extension CodexBarCLI {
         }
 
         return await Self.finishUsageOutput(output, provider: provider, command: command)
+    }
+
+    static func shouldDetectVersion(provider: UsageProvider, result: ProviderFetchResult) -> Bool {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        guard descriptor.cli.versionDetector != nil else { return false }
+        guard result.strategyKind != .webDashboard else { return false }
+        return !(provider == .claude && result.strategyKind == .oauth)
     }
 
     private static func holdsAntigravitySession(
@@ -582,6 +592,10 @@ extension CodexBarCLI {
         if provider == .codex, sourceMode == .auto {
             return false
         }
+        if provider == .claude, sourceMode == .auto {
+            // Claude's cross-platform planner skips its unavailable web step and falls back to the CLI.
+            return false
+        }
         if provider == .opencodego {
             if sourceMode == .auto || settings?.opencodego?.cookieSource == .manual {
                 return false
@@ -595,6 +609,11 @@ extension CodexBarCLI {
         if provider == .sakana,
            sourceMode == .auto || sourceMode == .web,
            environment.map({ SakanaSettingsReader.cookieHeader(environment: $0) != nil }) == true
+        {
+            return false
+        }
+        if provider == .qoder,
+           settings?.qoder?.cookieSource == .manual
         {
             return false
         }

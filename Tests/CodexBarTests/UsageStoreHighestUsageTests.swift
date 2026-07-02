@@ -40,6 +40,11 @@ struct UsageStoreHighestUsageTests {
         let highest = store.providerWithHighestUsage()
         #expect(highest?.provider == .claude)
         #expect(highest?.usedPercent == 60)
+
+        let overviewHighest = store.providerWithHighestUsage(candidateProviders: [.codex])
+        #expect(overviewHighest?.provider == .codex)
+        #expect(overviewHighest?.usedPercent == 25)
+        #expect(store.providerWithHighestUsage(candidateProviders: []) == nil)
     }
 
     @Test

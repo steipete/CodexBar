@@ -1,5 +1,11 @@
 import Foundation
 
+#if canImport(CryptoKit)
+import CryptoKit
+#else
+import Crypto
+#endif
+
 #if os(macOS)
 import Security
 #endif
@@ -36,6 +42,49 @@ public struct ClaudeOAuthCredentials: Sendable {
     public var expiresIn: TimeInterval? {
         guard let expiresAt else { return nil }
         return expiresAt.timeIntervalSinceNow
+    }
+
+    /// A one-way discriminator for history owned by this credential.
+    ///
+    /// Prefer the refresh token because access tokens routinely rotate for the same principal. If a provider
+    /// supplies only an access token, rotating that token intentionally starts a new history bucket rather than
+    /// risking that two identityless accounts share one. The source secret never leaves this computation.
+    var historyOwnerIdentifier: String? {
+        let normalizedRefreshToken = self.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let normalizedRefreshToken, !normalizedRefreshToken.isEmpty {
+            return Self.makeHistoryOwnerIdentifier(secretKind: "refresh", secret: normalizedRefreshToken)
+        }
+
+        let normalizedAccessToken = self.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedAccessToken.isEmpty else { return nil }
+        return Self.makeHistoryOwnerIdentifier(secretKind: "access", secret: normalizedAccessToken)
+    }
+
+    static func historyOwnerIdentifier(forRefreshToken refreshToken: String) -> String? {
+        let normalized = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return Self.makeHistoryOwnerIdentifier(secretKind: "refresh", secret: normalized)
+    }
+
+    private static func makeHistoryOwnerIdentifier(secretKind: String, secret: String) -> String? {
+        let material = Data("codexbar:claude-oauth-history-owner:v1\0\(secretKind)\0\(secret)".utf8)
+        return SHA256.hash(data: material).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func normalizedHistoryOwnerIdentifier(_ identifier: String?) -> String? {
+        guard let identifier else { return nil }
+        let normalized = identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.count == 64,
+              normalized.unicodeScalars.allSatisfy({ scalar in
+                  switch scalar.value {
+                  case 48...57, 97...102:
+                      true
+                  default:
+                      false
+                  }
+              })
+        else { return nil }
+        return normalized
     }
 
     public static func parse(data: Data) throws -> ClaudeOAuthCredentials {
@@ -130,6 +179,13 @@ public struct ClaudeOAuthCredentialRecord: Sendable {
     public let credentials: ClaudeOAuthCredentials
     public let owner: ClaudeOAuthCredentialOwner
     public let source: ClaudeOAuthCredentialSource
+    private let inheritedHistoryOwnerIdentifier: String?
+
+    /// An opaque, one-way owner identifier that survives a refresh-token rotation proven by a successful refresh.
+    /// Records from unrelated credential sources do not inherit this value and derive a fresh identifier instead.
+    var historyOwnerIdentifier: String? {
+        self.inheritedHistoryOwnerIdentifier ?? self.credentials.historyOwnerIdentifier
+    }
 
     public init(
         credentials: ClaudeOAuthCredentials,
@@ -139,6 +195,20 @@ public struct ClaudeOAuthCredentialRecord: Sendable {
         self.credentials = credentials
         self.owner = owner
         self.source = source
+        self.inheritedHistoryOwnerIdentifier = nil
+    }
+
+    init(
+        credentials: ClaudeOAuthCredentials,
+        owner: ClaudeOAuthCredentialOwner,
+        source: ClaudeOAuthCredentialSource,
+        historyOwnerIdentifier: String?)
+    {
+        self.credentials = credentials
+        self.owner = owner
+        self.source = source
+        self.inheritedHistoryOwnerIdentifier = ClaudeOAuthCredentials.normalizedHistoryOwnerIdentifier(
+            historyOwnerIdentifier)
     }
 }
 

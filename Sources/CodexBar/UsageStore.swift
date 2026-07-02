@@ -11,6 +11,7 @@ extension UsageStore {
     var menuObservationToken: Int {
         _ = self.snapshots
         _ = self.errors
+        _ = self.knownLimitsAvailabilityByProvider
         _ = self.lastSourceLabels
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
@@ -40,6 +41,7 @@ extension UsageStore {
     var iconObservationToken: Int {
         _ = self.snapshots
         _ = self.errors
+        _ = self.knownLimitsAvailabilityByProvider
         _ = self.credits
         _ = self.lastCreditsError
         _ = self.openAIDashboard
@@ -133,6 +135,7 @@ final class UsageStore {
 
     var snapshots: [UsageProvider: UsageSnapshot] = [:]
     var errors: [UsageProvider: String] = [:]
+    var knownLimitsAvailabilityByProvider: [UsageProvider: UsageLimitsAvailability] = [:]
     var lastSourceLabels: [UsageProvider: String] = [:]
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
@@ -263,7 +266,8 @@ final class UsageStore {
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
-    @ObservationIgnored var weeklyLimitResetDetectorStates: [String: WeeklyLimitResetDetectorState] = [:]
+    @ObservationIgnored var sessionLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
+    @ObservationIgnored var weeklyLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored let accountInfoCacheTTL: TimeInterval = 30
@@ -320,6 +324,10 @@ final class UsageStore {
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
         self.planUtilizationHistory = planUtilizationHistoryStore.load()
+        self.sessionLimitResetDetectorStates = Self.loadLimitResetDetectorStates(
+            from: settings.userDefaults,
+            defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,
+            logName: "session")
         self.weeklyLimitResetDetectorStates = Self.loadWeeklyLimitResetDetectorStates(from: settings.userDefaults)
         if let codexAccountUsageSnapshotStore = self.codexAccountUsageSnapshotStore {
             self.codexAccountSnapshots = codexAccountUsageSnapshotStore.load(
@@ -479,6 +487,18 @@ final class UsageStore {
 
     func isStale(provider: UsageProvider) -> Bool {
         self.errors[provider] != nil
+    }
+
+    func knownLimitsAvailability(for provider: UsageProvider) -> UsageLimitsAvailability? {
+        self.knownLimitsAvailabilityByProvider[provider]
+    }
+
+    func hasSatisfiedUsageFetch(for provider: UsageProvider) -> Bool {
+        self.snapshot(for: provider) != nil || self.knownLimitsAvailability(for: provider)?.isUnavailable == true
+    }
+
+    func needsUsageRefreshRetry(for provider: UsageProvider) -> Bool {
+        self.isStale(provider: provider) || !self.hasSatisfiedUsageFetch(for: provider)
     }
 
     func isEnabled(_ provider: UsageProvider) -> Bool {
@@ -767,6 +787,7 @@ final class UsageStore {
     enum SessionQuotaWindowSource: String {
         case primary
         case copilotSecondaryFallback
+        case zaiTertiary
         case antigravityQuotaSummary
         case antigravityLegacy
     }
@@ -786,7 +807,8 @@ final class UsageStore {
         self.sessionQuotaNotifier.postQuotaWarning(
             event: event,
             provider: provider,
-            soundEnabled: self.settings.quotaWarningSoundEnabled)
+            soundEnabled: self.settings.quotaWarningSoundEnabled,
+            onScreenAlertEnabled: self.settings.quotaWarningOnScreenAlertEnabled)
     }
 
     func handleSessionQuotaTransition(provider: UsageProvider, snapshot: UsageSnapshot) {
@@ -926,6 +948,7 @@ extension UsageStore {
         try? output.write(to: url, atomically: true, encoding: .utf8)
         await MainActor.run {
             let snippet = String(output.prefix(180)).replacingOccurrences(of: "\n", with: " ")
+            self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
             self.errors[.claude] = "[Claude] \(snippet) (saved: \(url.path))"
             NSWorkspace.shared.open(url)
         }
@@ -941,6 +964,7 @@ extension UsageStore {
             return url
         } catch {
             await MainActor.run {
+                self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 self.errors[provider] = "Failed to save log: \(error.localizedDescription)"
             }
             return nil
@@ -951,7 +975,7 @@ extension UsageStore {
         await AugmentStatusProbe.latestDumps()
     }
 
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -980,6 +1004,7 @@ extension UsageStore {
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let crossModelDebugContext = self.crossModelAPIKeyDebugContext(processEnvironment: processEnvironment)
         let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
@@ -1012,6 +1037,7 @@ extension UsageStore {
                 .sakana: "Sakana AI debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",
                 .commandcode: "Command Code debug log not yet implemented",
+                .qoder: "Qoder debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
                 .bedrock: "Bedrock debug log not yet implemented",
                 .grok: "Grok debug log not yet implemented",
@@ -1081,6 +1107,8 @@ extension UsageStore {
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
                     return Self.apiKeyDebugLine(openRouterDebugContext)
+                case .crossmodel:
+                    return Self.apiKeyDebugLine(crossModelDebugContext)
                 case .elevenlabs:
                     return Self.apiKeyDebugLine(elevenLabsDebugContext)
                 case .warp:
@@ -1097,7 +1125,8 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory, .copilot, .devin,
                      .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity, .mimo, .doubao,
-                     .sakana, .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .stepfun,
+                     .sakana, .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus, .commandcode, .qoder,
+                     .stepfun,
                      .bedrock, .grok, .groq, .t3chat, .llmproxy, .litellm, .zed, .deepgram, .poe, .chutes, .longcat:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
@@ -1217,104 +1246,6 @@ extension UsageStore {
             interaction: ProviderInteractionContext.current,
             refreshPhase: ProviderRefreshContext.current)
         #endif
-    }
-
-    private struct APIKeyDebugContext {
-        let label: String
-        let resolution: ProviderTokenResolution?
-        let configToken: String?
-        let hasEnvToken: Bool
-        let hasTokenAccount: Bool
-    }
-
-    private func openAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        let config = self.settings.providerConfig(for: .openai)
-        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: processEnvironment,
-            provider: .openai,
-            config: config)
-        return APIKeyDebugContext(
-            label: "OPENAI_API_KEY",
-            resolution: ProviderTokenResolver.openAIAPIResolution(environment: environment),
-            configToken: config?.sanitizedAPIKey,
-            hasEnvToken: OpenAIAPISettingsReader.apiKey(environment: processEnvironment) != nil,
-            hasTokenAccount: false)
-    }
-
-    private func azureOpenAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        let config = self.settings.providerConfig(for: .azureopenai)
-        let environment = ProviderConfigEnvironment.applyProviderConfigOverrides(
-            base: processEnvironment,
-            provider: .azureopenai,
-            config: config)
-        return APIKeyDebugContext(
-            label: "AZURE_OPENAI_API_KEY",
-            resolution: ProviderTokenResolver.azureOpenAIResolution(environment: environment),
-            configToken: config?.sanitizedAPIKey,
-            hasEnvToken: AzureOpenAISettingsReader.apiKey(environment: processEnvironment) != nil,
-            hasTokenAccount: false)
-    }
-
-    private func openRouterAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        let config = self.settings.providerConfig(for: .openrouter)
-        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: processEnvironment,
-            provider: .openrouter,
-            config: config)
-        return APIKeyDebugContext(
-            label: "OPENROUTER_API_KEY",
-            resolution: ProviderTokenResolver.openRouterResolution(environment: environment),
-            configToken: config?.sanitizedAPIKey,
-            hasEnvToken: OpenRouterSettingsReader.apiToken(environment: processEnvironment) != nil,
-            hasTokenAccount: false)
-    }
-
-    private func elevenLabsAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        let config = self.settings.providerConfig(for: .elevenlabs)
-        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: processEnvironment,
-            provider: .elevenlabs,
-            config: config)
-        return APIKeyDebugContext(
-            label: "ELEVENLABS_API_KEY",
-            resolution: ProviderTokenResolver.elevenLabsResolution(environment: environment),
-            configToken: config?.sanitizedAPIKey,
-            hasEnvToken: ElevenLabsSettingsReader.apiKey(environment: processEnvironment) != nil,
-            hasTokenAccount: false)
-    }
-
-    private nonisolated static func apiKeyDebugLine(_ context: APIKeyDebugContext) -> String {
-        self.apiKeyDebugLine(
-            label: context.label,
-            resolution: context.resolution,
-            configToken: context.configToken,
-            hasEnvToken: context.hasEnvToken,
-            hasTokenAccount: context.hasTokenAccount)
-    }
-
-    private nonisolated static func apiKeyDebugLine(
-        label: String,
-        resolution: ProviderTokenResolution?,
-        configToken: String?,
-        hasEnvToken: Bool,
-        hasTokenAccount: Bool = false) -> String
-    {
-        let hasAny = resolution != nil
-        let hasConfigToken = !(configToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        let source: String = if resolution == nil {
-            "none"
-        } else if hasTokenAccount, hasEnvToken {
-            "settings-token-account (overrides env)"
-        } else if hasTokenAccount {
-            "settings-token-account"
-        } else if hasConfigToken, hasEnvToken {
-            "settings-config (overrides env)"
-        } else if hasConfigToken {
-            "settings-config"
-        } else {
-            resolution?.source.rawValue ?? "environment"
-        }
-        return "\(label)=\(hasAny ? "present" : "missing") source=\(source)"
     }
 
     private static func debugCursorLog(

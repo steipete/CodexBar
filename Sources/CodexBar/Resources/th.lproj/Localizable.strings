@@ -21,6 +21,7 @@
 "Animation pattern" = "รูปแบบแอนิเมชั่น";
 "Antigravity login is managed in the app" = "Antigravity เข้าสู่ระบบได้รับการจัดการในแอป";
 "Applies only to the Security.framework OAuth keychain reader." = "นําไปใช้กับโปรแกรมอ่านพวงกุญแจ Security.framework OAuth เท่านั้น";
+"Alternatively, set a custom path in Settings." = "หรือกำหนดเส้นทางเองในการตั้งค่า";
 "Auto falls back to the next source if the preferred one fails." = "อัตโนมัติจะถอยกลับไปยังแหล่งที่มาถัดไปหากแหล่งที่ต้องการล้มเหลว";
 "Auto uses API first, then falls back to CLI on auth failures." = "อัตโนมัติใช้ API ก่อน จากนั้นจึงกลับไป CLI เมื่อการตรวจสอบสิทธิ์ล้มเหลว";
 "Auto-detect" = "ตรวจจับอัตโนมัติ";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "ติดตั้ง Claude CLI (npm i -g @anthropic-ai/claude-code) แล้วลองอีกครั้ง";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "ติดตั้ง Codex CLI (npm i -g @openai/codex) แล้วลองอีกครั้ง";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "ติดตั้ง Gemini CLI (npm i -g @google/gemini-cli) แล้วลองอีกครั้ง";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "ติดตั้ง JetBrains IDE ที่เปิดใช้ AI Assistant แล้วรีเฟรช CodexBar";
 "JetBrains AI is ready" = "JetBrains AI พร้อมแล้ว";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "รักษาเซสชัน CLI ให้มีชีวิตอยู่";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "แสดงไอคอนผู้ให้บริการในตัวสลับ (มิฉะนั้นให้แสดงรายการความคืบหน้ารายสัปดาห์)";
 "Show reset time as clock" = "แสดงเวลารีเซ็ตเป็นนาฬิกา";
 "Show usage as used" = "แสดงการใช้งานตามที่ใช้";
+"Sign in with Claude Code..." = "ลงชื่อเข้าใช้ด้วย Claude Code...";
 "Sign in via button below" = "ลงชื่อเข้าใช้ผ่านปุ่มด้านล่าง";
 "Skip teardown between probes (debug-only)." = "ข้ามการฉีกขาดระหว่างโพรบ (ดีบักเท่านั้น)";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "สแต็คบัญชีโทเค็นในเมนู (มิฉะนั้นจะแสดงแถบตัวสลับบัญชี)";
@@ -431,6 +434,8 @@
 "refresh_cadence_title" = "จังหวะการรีเฟรช";
 "refresh_cadence_subtitle" = "ความถี่ในการ CodexBar ผู้ให้บริการโพลในเบื้องหลัง";
 "manual_refresh_hint" = "การรีเฟรชอัตโนมัติปิดอยู่ ใช้คําสั่งรีเฟรชของเมนู";
+"refresh_on_open_title" = "รีเฟรชเมื่อเปิดเมนู";
+"refresh_on_open_subtitle" = "ดึงข้อมูลการใช้งานล่าสุดของผู้ให้บริการทุกรายทุกครั้งที่คุณเปิดเมนู";
 "check_provider_status_title" = "ตรวจสอบสถานะผู้ให้บริการ";
 "check_provider_status_subtitle" = "โพล OpenAI/Claude หน้าสถานะและ Google Workspace for Gemini/Antigravity โดยแสดงเหตุการณ์ในไอคอนและเมนู";
 "session_quota_notifications_title" = "การแจ้งเตือนโควต้าเซสชัน";
@@ -452,6 +457,7 @@
 "quota_warning_warn_at" = "เตือนที่";
 "quota_warning_global_threshold_subtitle" = "เปอร์เซ็นต์ที่เหลืออยู่สําหรับกรอบเวลาเซสชันและรายสัปดาห์ เว้นแต่ผู้ให้บริการจะแทนที่";
 "quota_warning_sound" = "เล่นเสียงแจ้งเตือน";
+"quota_warning_onscreen_alert" = "แสดงการแจ้งเตือนข้อความบนหน้าจอ";
 "quota_warning_provider_inherits" = "ใช้การตั้งค่าคําเตือนโควต้าส่วนกลาง เว้นแต่จะมีการกําหนดหน้าต่างเองที่นี่";
 "quota_warning_customize_thresholds" = "ปรับแต่งเกณฑ์ %@";
 "quota_warning_enable_warnings" = "เปิดใช้งานคําเตือน %@";
@@ -549,6 +555,8 @@
 "show_debug_settings_subtitle" = "แสดงเครื่องมือการแก้ไขปัญหาในแท็บ แก้ไขข้อบกพร่อง";
 "surprise_me_title" = "ทําให้ฉันประหลาดใจ";
 "surprise_me_subtitle" = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
+"session_limit_confetti_title" = "คอนเฟตตีขีดจำกัดเซสชัน";
+"session_limit_confetti_subtitle" = "แสดงคอนเฟตตีเต็มหน้าจอเมื่อการใช้งานเซสชันถูกรีเซ็ต";
 "weekly_limit_confetti_title" = "ลูกปาจํากัดรายสัปดาห์";
 "weekly_limit_confetti_subtitle" = "เล่นลูกปาแบบเต็มหน้าจอเมื่อรีเซ็ตการใช้งานรายสัปดาห์";
 "hide_personal_info_title" = "ซ่อนข้อมูลส่วนบุคคล";
@@ -725,6 +733,8 @@
 "reset_tomorrow_format" = "พรุ่งนี้ %@";
 "Lasts until reset" = "คงอยู่จนกว่าจะรีเซ็ต";
 "Updated %@" = "อัพเดท %@";
+"Updated relative %@" = "อัพเดท %@";
+"Updated absolute %@" = "อัพเดท %@";
 "Updated %@h ago" = "อัพเดท %@h ที่ผ่านมา";
 "Updated %@m ago" = "อัพเดท %@m ที่ผ่านมา";
 "Updated just now" = "อัปเดตเมื่อเร็ว ๆ นี้";
@@ -780,6 +790,7 @@
 "Est. total (%@): %@" = "รวมโดยประมาณ (%@): %@";
 "Hover a bar for details" = "วางเมาส์เหนือแถบเพื่อดูรายละเอียด";
 "%@: %@ · %@ tokens" = "%@: %@ · โทเค็น %@";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "ไม่มีผู้ให้บริการที่เลือกสําหรับภาพรวม";
 "No overview data available." = "ไม่มีข้อมูลภาพรวม";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "อัตโนมัติจะใช้ IDE API ภายในเครื่องก่อน จากนั้นจึง Google OAuth เมื่อปิด IDE";
@@ -996,6 +1007,8 @@
 "Enterprise host" = "โฮสต์องค์กร";
 "Extra usage balance: %@" = "ยอดการใช้งานเพิ่มเติม: %@";
 "Keychain Access Required" = "Keychain ต้องเข้าถึง";
+"keychain_prompt_learn_more" = "ดูเพิ่มเติม…";
+"keychain_prompt_privacy_note" = "macOS เป็นผู้จัดการการป้อนรหัสผ่านเข้าสู่ระบบ Mac ไม่ใช่ CodexBar คุณปิดการเข้าถึง Keychain ได้ทุกเมื่อใน การตั้งค่า → ขั้นสูง";
 "Kiro menu bar value" = "ค่าแถบเมนู Kiro";
 "Label" = "ฉลาก";
 "No organizations loaded. Click Refresh after setting your API key." = "ไม่มีองค์กรโหลด คลิกรีเฟรชหลังจากตั้งค่าปุ่ม API";
@@ -1110,8 +1123,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "เครดิตรีเซ็ตขีดจำกัด";
-"1 manual reset available" = "มีการรีเซ็ตด้วยตนเอง 1 ครั้ง";
-"%d manual resets available" = "มีการรีเซ็ตด้วยตนเอง %d ครั้ง";
+"1 available" = "1 รายการ";
+"%d available" = "%d รายการ";
 "Next expires %@" = "รายการถัดไปหมดอายุ %@";
 "byte_unit_byte" = "ไบต์";
 "byte_unit_bytes" = "ไบต์";
@@ -1121,3 +1134,4 @@
 "byte_unit_megabytes" = "เมกะไบต์";
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
+"CrossModel API spend trend" = "แนวโน้มค่าใช้จ่ายของ CrossModel API";

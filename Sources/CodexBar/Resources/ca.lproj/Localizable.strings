@@ -429,6 +429,8 @@
 "refresh_cadence_title" = "Freqüència d'actualització";
 "refresh_cadence_subtitle" = "Amb quina freqüència el CodexBar consulta els proveïdors en segon pla.";
 "manual_refresh_hint" = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
+"refresh_on_open_title" = "Actualitza en obrir el menú";
+"refresh_on_open_subtitle" = "Obté l'ús més recent de cada proveïdor cada vegada que obres el menú.";
 "check_provider_status_title" = "Comproveu l'estat del proveïdor";
 "check_provider_status_subtitle" = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a Gemini/Antigravity, mostrant incidències a la icona i al menú.";
 "session_quota_notifications_title" = "Notificacions de quota de sessió";
@@ -443,6 +445,7 @@
 "quota_warning_warn_at" = "Aviseu al";
 "quota_warning_global_threshold_subtitle" = "Percentatges restants per a les finestres de sessió i setmanal, llevat que un proveïdor els substitueixi.";
 "quota_warning_sound" = "Reprodueix el so de notificació";
+"quota_warning_onscreen_alert" = "Mostra una alerta de text a la pantalla";
 "quota_warning_provider_inherits" = "Fa servir la configuració global d'avís de quota llevat que es personalitzi una finestra aquí.";
 "quota_warning_customize_thresholds" = "Personalitza els llindars de %@";
 "quota_warning_enable_warnings" = "Activeu els avisos de %@";
@@ -538,6 +541,8 @@
 "show_debug_settings_subtitle" = "Mostreu eines de diagnòstic a la pestanya Depuració.";
 "surprise_me_title" = "Sorprèn-me";
 "surprise_me_subtitle" = "Activeu-ho si us agrada que els vostres agents es diverteixin allà dalt.";
+"session_limit_confetti_title" = "Confeti del límit de sessió";
+"session_limit_confetti_subtitle" = "Mostra confeti a pantalla completa quan es restableixi l'ús de la sessió.";
 "weekly_limit_confetti_title" = "Confeti del límit setmanal";
 "weekly_limit_confetti_subtitle" = "Mostreu confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "hide_personal_info_title" = "Amagueu la informació personal";
@@ -848,6 +853,8 @@
 "Enterprise host" = "Host Enterprise";
 "Extra usage balance: %@" = "Saldo d'ús extra: %@";
 "Keychain Access Required" = "Cal accés al Clauer";
+"keychain_prompt_learn_more" = "Més informació…";
+"keychain_prompt_privacy_note" = "macOS —no CodexBar— gestiona la introducció de la contrasenya d'inici de sessió del Mac. Pots desactivar l'accés al Clauer en qualsevol moment a Configuració → Avançat.";
 "Kiro menu bar value" = "Valor de Kiro a la barra de menús";
 "Label" = "Etiqueta";
 "No organizations loaded. Click Refresh after setting your API key." = "No hi ha organitzacions carregades. Feu clic a Actualitza després de configurar la clau API.";
@@ -961,8 +968,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Crèdits de restabliment del límit";
-"1 manual reset available" = "Hi ha 1 restabliment manual disponible";
-"%d manual resets available" = "Hi ha %d restabliments manuals disponibles";
+"1 available" = "1 disponible";
+"%d available" = "%d disponibles";
 "Next expires %@" = "El següent caduca %@";
 "Other (%d items)" = "Altres (%d elements)";
 "Expand" = "Amplia";
@@ -1111,6 +1118,8 @@
 "Unavailable" = "No disponible";
 "Update ready, restart now?" = "Actualització a punt, voleu reiniciar ara?";
 "Updated %@" = "Actualitzat %@";
+"Updated relative %@" = "Actualitzat %@";
+"Updated absolute %@" = "Actualitzat %@";
 "Updated %@h ago" = "Actualitzat fa %@h";
 "Updated %@m ago" = "Actualitzat fa %@m";
 "Updated just now" = "Actualitzat ara mateix";
@@ -1120,3 +1129,4 @@
 "Weekly" = "Setmanal";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
+"CrossModel API spend trend" = "Tendència de despesa de l'API de CrossModel";

@@ -65,6 +65,10 @@ struct AdvancedPane: View {
                         subtitle: L("surprise_me_subtitle"),
                         binding: self.$settings.randomBlinkEnabled)
                     PreferenceToggleRow(
+                        title: L("session_limit_confetti_title"),
+                        subtitle: L("session_limit_confetti_subtitle"),
+                        binding: self.$settings.confettiOnSessionLimitResetsEnabled)
+                    PreferenceToggleRow(
                         title: L("weekly_limit_confetti_title"),
                         subtitle: L("weekly_limit_confetti_subtitle"),
                         binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)

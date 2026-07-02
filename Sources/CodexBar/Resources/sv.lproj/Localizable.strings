@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "Uppdateringsintervall";
 "refresh_cadence_subtitle" = "Hur ofta CodexBar kontrollerar leverantörer i bakgrunden.";
 "manual_refresh_hint" = "Automatisk uppdatering är avstängd. Använd Uppdatera i menyn.";
+"refresh_on_open_title" = "Uppdatera när menyn öppnas";
+"refresh_on_open_subtitle" = "Hämtar den senaste användningen för varje leverantör varje gång du öppnar menyn.";
 "check_provider_status_title" = "Kontrollera leverantörsstatus";
 "check_provider_status_subtitle" = "Kontrollerar OpenAI/Claude-statussidor och Google Workspace för Gemini/Antigravity och visar incidenter i ikonen och menyn.";
 "session_quota_notifications_title" = "Aviseringar för sessionskvot";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "Varna vid";
 "quota_warning_global_threshold_subtitle" = "Återstående procent för sessions- och veckofönster, om inte en leverantör åsidosätter dem.";
 "quota_warning_sound" = "Spela aviseringsljud";
+"quota_warning_onscreen_alert" = "Visa textavisering på skärmen";
 "quota_warning_provider_inherits" = "Använder de globala kvotvarningsinställningarna om inte ett fönster anpassas här.";
 "quota_warning_customize_thresholds" = "Anpassa trösklar för %@";
 "quota_warning_enable_warnings" = "Aktivera varningar för %@";
@@ -548,6 +551,8 @@
 "show_debug_settings_subtitle" = "Visa felsökningsverktyg på fliken Felsök.";
 "surprise_me_title" = "Överraska mig";
 "surprise_me_subtitle" = "Kontrollera om du vill att agenterna ska få leka lite där uppe.";
+"session_limit_confetti_title" = "Konfetti för sessionsgräns";
+"session_limit_confetti_subtitle" = "Visa konfetti i helskärm när sessionsanvändningen återställs.";
 "weekly_limit_confetti_title" = "Veckogränskonfetti";
 "weekly_limit_confetti_subtitle" = "Spela konfetti i helskärm när veckoförbrukningen återställs.";
 "hide_personal_info_title" = "Dölj personuppgifter";
@@ -724,6 +729,8 @@
 "reset_tomorrow_format" = "imorgon %@";
 "Lasts until reset" = "Räcker till återställning";
 "Updated %@" = "Uppdaterad %@";
+"Updated relative %@" = "Uppdaterad %@";
+"Updated absolute %@" = "Uppdaterad %@";
 "Updated %@h ago" = "Uppdaterad för %@ h sedan";
 "Updated %@m ago" = "Uppdaterad för %@ min sedan";
 "Updated just now" = "Uppdaterad nyss";
@@ -1054,6 +1061,8 @@
 "%@: %@ credits" = "%@: %@ krediter";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Kimi-autentiseringstoken så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Keychain Access Required" = "Åtkomst till Nyckelring krävs";
+"keychain_prompt_learn_more" = "Läs mer…";
+"keychain_prompt_privacy_note" = "Inmatningen av Mac-inloggningslösenordet hanteras av macOS, inte CodexBar. Du kan när som helst inaktivera åtkomst till Nyckelring under Inställningar → Avancerat.";
 "Username" = "Användarnamn";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din MiniMax-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "30d spend" = "30 d kostnad";
@@ -1101,8 +1110,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Krediter för gränsåterställning";
-"1 manual reset available" = "1 manuell återställning tillgänglig";
-"%d manual resets available" = "%d manuella återställningar tillgängliga";
+"1 available" = "1 tillgänglig";
+"%d available" = "%d tillgängliga";
 "Next expires %@" = "Nästa upphör %@";
 "Other (%d items)" = "Övrigt (%d objekt)";
 "Expand" = "Expandera";
@@ -1115,3 +1124,4 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"CrossModel API spend trend" = "CrossModel API-utgiftstrend";

@@ -138,7 +138,7 @@ extension UsageStore {
                     } else {
                         self.credits = nil
                         self.lastCreditsSource = .none
-                        self.lastCreditsError = "Codex credits are still loading; will retry shortly."
+                        self.lastCreditsError = L("Codex credits are still loading; will retry shortly.")
                     }
                 }
                 return

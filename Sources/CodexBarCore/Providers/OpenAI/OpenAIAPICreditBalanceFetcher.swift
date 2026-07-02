@@ -37,6 +37,7 @@ public enum OpenAIAPICreditBalanceError: LocalizedError, Sendable, Equatable {
     case missingCredentials
     case networkError(String)
     case apiError(Int)
+    case unauthorized
     case forbidden
     case parseFailed(String)
 
@@ -48,6 +49,9 @@ public enum OpenAIAPICreditBalanceError: LocalizedError, Sendable, Equatable {
             "OpenAI API credit balance network error: \(message)"
         case let .apiError(statusCode):
             "OpenAI API credit balance error: HTTP \(statusCode)"
+        case .unauthorized:
+            "OpenAI rejected this key for credit balance access (HTTP 401). Use an organization Admin API key " +
+                "for usage; project and service-account keys do not provide organization usage access."
         case .forbidden:
             "OpenAI API credit balance endpoint returned HTTP 403. Use a legacy/user API key with billing access; " +
                 "project keys may not expose credit grants."
@@ -142,10 +146,14 @@ public enum OpenAIAPICreditBalanceFetcher {
             throw OpenAIAPICreditBalanceError.networkError(error.localizedDescription)
         }
 
-        guard response.statusCode != 403 else {
+        switch response.statusCode {
+        case 200:
+            break
+        case 401:
+            throw OpenAIAPICreditBalanceError.unauthorized
+        case 403:
             throw OpenAIAPICreditBalanceError.forbidden
-        }
-        guard response.statusCode == 200 else {
+        default:
             throw OpenAIAPICreditBalanceError.apiError(response.statusCode)
         }
 

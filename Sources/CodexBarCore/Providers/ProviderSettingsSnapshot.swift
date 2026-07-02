@@ -39,6 +39,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         mimo: MiMoProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
         mistral: MistralProviderSettings? = nil,
+        qoder: QoderProviderSettings? = nil,
         stepfun: StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot(
@@ -72,6 +73,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             mimo: mimo,
             abacus: abacus,
             mistral: mistral,
+            qoder: qoder,
             stepfun: stepfun)
     }
 
@@ -427,6 +429,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct QoderProviderSettings: ProviderCookieSettings {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct StepFunProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualToken: String
@@ -476,6 +488,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let mimo: MiMoProviderSettings?
     public let abacus: AbacusProviderSettings?
     public let mistral: MistralProviderSettings?
+    public let qoder: QoderProviderSettings?
     public let stepfun: StepFunProviderSettings?
 
     public var jetbrainsIDEBasePath: String? {
@@ -513,6 +526,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         mimo: MiMoProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
         mistral: MistralProviderSettings? = nil,
+        qoder: QoderProviderSettings? = nil,
         stepfun: StepFunProviderSettings? = nil)
     {
         self.debugMenuEnabled = debugMenuEnabled
@@ -545,6 +559,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.mimo = mimo
         self.abacus = abacus
         self.mistral = mistral
+        self.qoder = qoder
         self.stepfun = stepfun
     }
 }
@@ -578,6 +593,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
+    case qoder(ProviderSettingsSnapshot.QoderProviderSettings)
     case stepfun(ProviderSettingsSnapshot.StepFunProviderSettings)
 }
 
@@ -612,6 +628,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
+    public var qoder: ProviderSettingsSnapshot.QoderProviderSettings?
     public var stepfun: ProviderSettingsSnapshot.StepFunProviderSettings?
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
@@ -650,6 +667,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .mimo(value): self.mimo = value
         case let .abacus(value): self.abacus = value
         case let .mistral(value): self.mistral = value
+        case let .qoder(value): self.qoder = value
         case let .stepfun(value): self.stepfun = value
         }
     }
@@ -686,6 +704,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             mimo: self.mimo,
             abacus: self.abacus,
             mistral: self.mistral,
+            qoder: self.qoder,
             stepfun: self.stepfun)
     }
 }
