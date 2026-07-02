@@ -117,6 +117,13 @@ extension UsageStore {
         self.errors[provider] = error
     }
 
+    func _setKnownLimitsAvailabilityForTesting(
+        _ availability: UsageLimitsAvailability?,
+        provider: UsageProvider)
+    {
+        self.knownLimitsAvailabilityByProvider[provider] = availability
+    }
+
     func _setCodexHistoricalDatasetForTesting(_ dataset: CodexHistoricalDataset?, accountKey: String? = nil) {
         self.codexHistoricalDataset = dataset
         self.codexHistoricalDatasetAccountKey = accountKey

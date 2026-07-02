@@ -21,6 +21,7 @@
 "Animation pattern" = "الگوی انیمیشن";
 "Antigravity login is managed in the app" = "ورود Antigravity در اپلیکیشن مدیریت می شود";
 "Applies only to the Security.framework OAuth keychain reader." = "فقط برای Security.framework OAuth خواننده جاکلیدی کاربرد دارد.";
+"Alternatively, set a custom path in Settings." = "یا در تنظیمات یک مسیر سفارشی تعیین کنید.";
 "Auto falls back to the next source if the preferred one fails." = "اگر منبع ترجیحی خراب شود، خودکار به منبع بعدی برمی گردد.";
 "Auto uses API first, then falls back to CLI on auth failures." = "خودکار اول از API استفاده می کند، سپس در صورت خطاهای احراز هویت به CLI برمی گردد.";
 "Auto-detect" = "تشخیص خودکار";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Claude CLI (npm i -g @anthropic-ai/claude-code) را نصب کنید و دوباره امتحان کنید.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Codex CLI (npm i -g @openai/codex) را نصب کنید و دوباره امتحان کنید.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Gemini CLI (npm i -g @google/gemini-cli) را نصب کنید و دوباره امتحان کنید.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "یک IDE از JetBrains با AI Assistant فعال نصب کنید، سپس CodexBar را تازه‌سازی کنید.";
 "JetBrains AI is ready" = "JetBrains هوش مصنوعی آماده است";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "جلسات CLI را زنده نگه دارید";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "آیکون های ارائه دهنده را در سوئیچر نشان دهید (در غیر این صورت یک خط پیشرفت هفتگی نمایش دهید).";
 "Show reset time as clock" = "نمایش زمان بازنشانی به صورت ساعت";
 "Show usage as used" = "کاربرد نمایش همان طور که استفاده می شود";
+"Sign in with Claude Code..." = "ورود با Claude Code...";
 "Sign in via button below" = "از طریق دکمه زیر وارد شوید";
 "Skip teardown between probes (debug-only)." = "رد کردن بین پروب ها (فقط برای اشکال زدایی).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "حساب های توکن را در منو انباشته کنید (در غیر این صورت نوار تعویض حساب نمایش داده شود).";
@@ -730,6 +733,8 @@
 "reset_tomorrow_format" = "فردا، %@";
 "Lasts until reset" = "تا زمان ریست ادامه دارد";
 "Updated %@" = "به روزرسانی %@";
+"Updated relative %@" = "به روزرسانی %@";
+"Updated absolute %@" = "به روزرسانی %@";
 "Updated %@h ago" = "%@h پیش به روزرسانی شده است";
 "Updated %@m ago" = "%@m پیش به روزرسانی شده";
 "Updated just now" = "همین الان به روزرسانی شد";
@@ -785,6 +790,7 @@
 "Est. total (%@): %@" = "برآورد کل (%@): %@";
 "Hover a bar for details" = "برای جزئیات بیشتر روی یک نوار نگه دارید";
 "%@: %@ · %@ tokens" = "%@: %@ · توکن های %@";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "هیچ ارائه دهنده ای برای مرور کلی انتخاب نشده است.";
 "No overview data available." = "داده های کلی در دسترس نیست.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Auto ابتدا از IDE API محلی استفاده می کند، سپس وقتی IDE بسته است Google OAuth می کند.";
@@ -1128,3 +1134,4 @@
 "byte_unit_megabytes" = "مگابایت";
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
+"CrossModel API spend trend" = "روند هزینه‌ی CrossModel API";

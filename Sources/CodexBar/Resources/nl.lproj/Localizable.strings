@@ -730,6 +730,8 @@
 "reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Gaat mee tot reset";
 "Updated %@" = "Bijgewerkt %@";
+"Updated relative %@" = "Bijgewerkt %@";
+"Updated absolute %@" = "Bijgewerkt %@";
 "Updated %@h ago" = "%@u geleden bijgewerkt";
 "Updated %@m ago" = "%@m geleden bijgewerkt";
 "Updated just now" = "Zojuist bijgewerkt";
@@ -1123,3 +1125,4 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+"CrossModel API spend trend" = "CrossModel API-uitgaventrend";

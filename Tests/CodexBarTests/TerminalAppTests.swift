@@ -54,6 +54,23 @@ struct TerminalAppTests {
     }
 
     @Test
+    func `installed terminals always include Terminal and detected alternatives`() {
+        let iTermURL = URL(fileURLWithPath: "/Applications/iTerm.app")
+        let installed = TerminalApp.installed { bundleIdentifier in
+            bundleIdentifier == TerminalApp.iTerm.bundleIdentifier ? iTermURL : nil
+        }
+
+        #expect(installed == [.terminal, .iTerm])
+        #expect(TerminalApp.installed { _ in nil } == [.terminal])
+    }
+
+    @Test
+    func `picker options preserve an unavailable persisted selection`() {
+        #expect(TerminalApp.pickerOptions(selected: .terminal) { _ in nil } == [.terminal])
+        #expect(TerminalApp.pickerOptions(selected: .iTerm) { _ in nil } == [.terminal, .iTerm])
+    }
+
+    @Test
     func `all cases have unique bundle identifiers`() {
         let ids = TerminalApp.allCases.map(\.bundleIdentifier)
         #expect(Set(ids).count == TerminalApp.allCases.count)

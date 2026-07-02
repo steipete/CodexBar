@@ -35,6 +35,7 @@ struct CodexAccountUsageSnapshot: Identifiable {
 
 extension UsageStore {
     func activateCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID) {
+        self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
         guard let cached = self.accountSnapshots[provider]?.first(where: { $0.account.id == accountID }) else {
             self.snapshots.removeValue(forKey: provider)
             self.errors.removeValue(forKey: provider)
@@ -504,7 +505,7 @@ extension UsageStore {
         return false
     }
 
-    private static func errorIsCancellation(_ error: any Error) -> Bool {
+    nonisolated static func errorIsCancellation(_ error: any Error) -> Bool {
         if error is CancellationError {
             return true
         }
@@ -1248,6 +1249,7 @@ extension UsageStore {
                 self.snapshots[provider] = backfilled
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
+                self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 self.failureGates[provider]?.recordSuccess()
                 return backfilled
             }
@@ -1258,6 +1260,7 @@ extension UsageStore {
                 account: account)
         case let .failure(error):
             await MainActor.run {
+                self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 guard let message = self.tokenAccountErrorMessage(error) else {
                     self.errors[provider] = nil
                     return

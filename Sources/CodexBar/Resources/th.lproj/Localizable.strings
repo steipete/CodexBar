@@ -21,6 +21,7 @@
 "Animation pattern" = "รูปแบบแอนิเมชั่น";
 "Antigravity login is managed in the app" = "Antigravity เข้าสู่ระบบได้รับการจัดการในแอป";
 "Applies only to the Security.framework OAuth keychain reader." = "นําไปใช้กับโปรแกรมอ่านพวงกุญแจ Security.framework OAuth เท่านั้น";
+"Alternatively, set a custom path in Settings." = "หรือกำหนดเส้นทางเองในการตั้งค่า";
 "Auto falls back to the next source if the preferred one fails." = "อัตโนมัติจะถอยกลับไปยังแหล่งที่มาถัดไปหากแหล่งที่ต้องการล้มเหลว";
 "Auto uses API first, then falls back to CLI on auth failures." = "อัตโนมัติใช้ API ก่อน จากนั้นจึงกลับไป CLI เมื่อการตรวจสอบสิทธิ์ล้มเหลว";
 "Auto-detect" = "ตรวจจับอัตโนมัติ";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "ติดตั้ง Claude CLI (npm i -g @anthropic-ai/claude-code) แล้วลองอีกครั้ง";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "ติดตั้ง Codex CLI (npm i -g @openai/codex) แล้วลองอีกครั้ง";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "ติดตั้ง Gemini CLI (npm i -g @google/gemini-cli) แล้วลองอีกครั้ง";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "ติดตั้ง JetBrains IDE ที่เปิดใช้ AI Assistant แล้วรีเฟรช CodexBar";
 "JetBrains AI is ready" = "JetBrains AI พร้อมแล้ว";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "รักษาเซสชัน CLI ให้มีชีวิตอยู่";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "แสดงไอคอนผู้ให้บริการในตัวสลับ (มิฉะนั้นให้แสดงรายการความคืบหน้ารายสัปดาห์)";
 "Show reset time as clock" = "แสดงเวลารีเซ็ตเป็นนาฬิกา";
 "Show usage as used" = "แสดงการใช้งานตามที่ใช้";
+"Sign in with Claude Code..." = "ลงชื่อเข้าใช้ด้วย Claude Code...";
 "Sign in via button below" = "ลงชื่อเข้าใช้ผ่านปุ่มด้านล่าง";
 "Skip teardown between probes (debug-only)." = "ข้ามการฉีกขาดระหว่างโพรบ (ดีบักเท่านั้น)";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "สแต็คบัญชีโทเค็นในเมนู (มิฉะนั้นจะแสดงแถบตัวสลับบัญชี)";
@@ -730,6 +733,8 @@
 "reset_tomorrow_format" = "พรุ่งนี้ %@";
 "Lasts until reset" = "คงอยู่จนกว่าจะรีเซ็ต";
 "Updated %@" = "อัพเดท %@";
+"Updated relative %@" = "อัพเดท %@";
+"Updated absolute %@" = "อัพเดท %@";
 "Updated %@h ago" = "อัพเดท %@h ที่ผ่านมา";
 "Updated %@m ago" = "อัพเดท %@m ที่ผ่านมา";
 "Updated just now" = "อัปเดตเมื่อเร็ว ๆ นี้";
@@ -785,6 +790,7 @@
 "Est. total (%@): %@" = "รวมโดยประมาณ (%@): %@";
 "Hover a bar for details" = "วางเมาส์เหนือแถบเพื่อดูรายละเอียด";
 "%@: %@ · %@ tokens" = "%@: %@ · โทเค็น %@";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "ไม่มีผู้ให้บริการที่เลือกสําหรับภาพรวม";
 "No overview data available." = "ไม่มีข้อมูลภาพรวม";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "อัตโนมัติจะใช้ IDE API ภายในเครื่องก่อน จากนั้นจึง Google OAuth เมื่อปิด IDE";
@@ -1128,3 +1134,4 @@
 "byte_unit_megabytes" = "เมกะไบต์";
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
+"CrossModel API spend trend" = "แนวโน้มค่าใช้จ่ายของ CrossModel API";

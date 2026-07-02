@@ -21,6 +21,7 @@
 "Animation pattern" = "Pola animasi";
 "Antigravity login is managed in the app" = "Login Antigravity dikelola di dalam aplikasi";
 "Applies only to the Security.framework OAuth keychain reader." = "Hanya berlaku untuk pembaca keychain OAuth Security.framework.";
+"Alternatively, set a custom path in Settings." = "Atau, atur jalur kustom di Pengaturan.";
 "Auto falls back to the next source if the preferred one fails." = "Otomatis beralih ke sumber berikutnya jika yang dipilih gagal.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Otomatis menggunakan API terlebih dahulu, lalu beralih ke CLI saat autentikasi gagal.";
 "Auto-detect" = "Deteksi otomatis";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Pasang Claude CLI (npm i -g @anthropic-ai/claude-code) dan coba lagi.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Pasang Codex CLI (npm i -g @openai/codex) dan coba lagi.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Pasang Gemini CLI (npm i -g @google/gemini-cli) dan coba lagi.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Pasang JetBrains IDE dengan AI Assistant aktif, lalu segarkan CodexBar.";
 "JetBrains AI is ready" = "JetBrains AI siap";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "Pertahankan sesi CLI";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Tampilkan ikon penyedia di pengalih (jika tidak, tampilkan garis progres mingguan).";
 "Show reset time as clock" = "Tampilkan waktu reset sebagai jam";
 "Show usage as used" = "Tampilkan penggunaan sebagai terpakai";
+"Sign in with Claude Code..." = "Masuk dengan Claude Code...";
 "Sign in via button below" = "Masuk via tombol di bawah";
 "Skip teardown between probes (debug-only)." = "Lewati pembersihan antar probe (hanya debug).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Tumpuk akun token di menu (jika tidak, tampilkan bilah pengalih akun).";
@@ -732,6 +735,8 @@
 "reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
 "Updated %@" = "Diperbarui %@";
+"Updated relative %@" = "Diperbarui %@";
+"Updated absolute %@" = "Diperbarui %@";
 "Updated %@h ago" = "Diperbarui %@ jam lalu";
 "Updated %@m ago" = "Diperbarui %@ menit lalu";
 "Updated just now" = "Baru saja diperbarui";
@@ -787,6 +792,7 @@
 "Est. total (%@): %@" = "Perkiraan total (%@): %@";
 "Hover a bar for details" = "Arahkan kursor ke bilah untuk detail";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ token";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "Tidak ada penyedia dipilih untuk Ikhtisar.";
 "No overview data available." = "Tidak ada data ikhtisar tersedia.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Otomatis menggunakan API IDE lokal terlebih dahulu, lalu Google OAuth saat IDE ditutup.";
@@ -1127,3 +1133,4 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"CrossModel API spend trend" = "Tren pengeluaran API CrossModel";

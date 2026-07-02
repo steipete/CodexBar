@@ -72,46 +72,39 @@ struct GeneralPane: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(L("language_title"))
-                                    .font(.body)
-                                Text(L("language_subtitle"))
-                                    .font(.footnote)
-                                    .foregroundStyle(.tertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer()
-                            Picker(L("language_title"), selection: self.$settings.appLanguage) {
-                                ForEach(AppLanguage.allCases) { option in
-                                    Text(option.label).tag(option.rawValue)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: 200)
-                        }
-                    }
-
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L("terminal_app_title"))
-                                .font(.body)
-                            Text(L("terminal_app_subtitle"))
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                        Picker(L("terminal_app_title"), selection: self.$settings.terminalApp) {
-                            ForEach(TerminalApp.allCases) { option in
-                                Text(option.label).tag(option)
+                    PreferenceControlRow(
+                        title: L("language_title"),
+                        subtitle: L("language_subtitle"))
+                    {
+                        Picker(L("language_title"), selection: self.$settings.appLanguage) {
+                            ForEach(AppLanguage.allCases) { option in
+                                Text(option.label).tag(option.rawValue)
                             }
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .frame(maxWidth: 200)
+                    }
+
+                    PreferenceControlRow(
+                        title: L("terminal_app_title"),
+                        subtitle: L("terminal_app_subtitle"))
+                    {
+                        Picker(L("terminal_app_title"), selection: self.$settings.terminalApp) {
+                            ForEach(TerminalApp.pickerOptions(selected: self.settings.terminalApp)) { option in
+                                HStack(spacing: 6) {
+                                    if let icon = option.appIcon {
+                                        Image(nsImage: icon)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 16, height: 16)
+                                    }
+                                    Text(option.label)
+                                }
+                                .tag(option)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
                     }
 
                     PreferenceToggleRow(
@@ -143,28 +136,20 @@ struct GeneralPane: View {
 
                             if self.settings.costUsageEnabled {
                                 VStack(alignment: .leading, spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack(alignment: .center, spacing: 12) {
-                                            Text(L("cost_summary_style_title"))
-                                                .font(.body)
-                                            Spacer(minLength: 16)
-                                            Picker(
-                                                L("cost_summary_style_title"),
-                                                selection: self.$settings.costSummaryDisplayStyle)
-                                            {
-                                                ForEach(CostSummaryDisplayStyle.allCases) { style in
-                                                    Text(style.label).tag(style)
-                                                }
+                                    PreferenceControlRow(
+                                        title: L("cost_summary_style_title"),
+                                        subtitle: self.settings.costSummaryDisplayStyle.helpText)
+                                    {
+                                        Picker(
+                                            L("cost_summary_style_title"),
+                                            selection: self.$settings.costSummaryDisplayStyle)
+                                        {
+                                            ForEach(CostSummaryDisplayStyle.allCases) { style in
+                                                Text(style.label).tag(style)
                                             }
-                                            .labelsHidden()
-                                            .pickerStyle(.menu)
-                                            .frame(width: CostSummarySettingsLayout.controlWidth)
                                         }
-
-                                        Text(self.settings.costSummaryDisplayStyle.helpText)
-                                            .font(.footnote)
-                                            .foregroundStyle(.tertiary)
-                                            .fixedSize(horizontal: false, vertical: true)
+                                        .labelsHidden()
+                                        .pickerStyle(.menu)
                                     }
                                     .padding(.top, 4)
 
@@ -191,15 +176,10 @@ struct GeneralPane: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(L("refresh_cadence_title"))
-                                    .font(.body)
-                                Text(L("refresh_cadence_subtitle"))
-                                    .font(.footnote)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            Spacer()
+                        PreferenceControlRow(
+                            title: L("refresh_cadence_title"),
+                            subtitle: L("refresh_cadence_subtitle"))
+                        {
                             Picker(L("Refresh cadence"), selection: self.$settings.refreshFrequency) {
                                 ForEach(RefreshFrequency.allCases) { option in
                                     Text(option.label).tag(option)
@@ -207,7 +187,6 @@ struct GeneralPane: View {
                             }
                             .labelsHidden()
                             .pickerStyle(.menu)
-                            .frame(maxWidth: 200)
                         }
                         if self.settings.refreshFrequency == .manual {
                             Text(L("manual_refresh_hint"))
@@ -305,10 +284,6 @@ struct GeneralPane: View {
     }
 }
 
-private enum CostSummarySettingsLayout {
-    static let controlWidth: CGFloat = 210
-}
-
 @MainActor
 struct CostHistoryDaysEditor: View {
     @Bindable var settings: SettingsStore
@@ -320,25 +295,24 @@ struct CostHistoryDaysEditor: View {
     var body: some View {
         let title = Self.title(days: self.settings.costUsageHistoryDays)
 
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Stepper(
-                value: self.$settings.costUsageHistoryDays,
-                in: 1...365,
-                step: 1)
-            {
-                Text(title)
-                    .font(.footnote)
-            }
+        PreferenceControlRow(title: title) {
+            HStack(spacing: 8) {
+                TextField(
+                    title,
+                    value: self.$settings.costUsageHistoryDays,
+                    format: .number)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+                    .monospacedDigit()
+                    .frame(width: 72)
 
-            TextField(
-                title,
-                value: self.$settings.costUsageHistoryDays,
-                format: .number)
+                Stepper(value: self.$settings.costUsageHistoryDays, in: 1...365, step: 1) {
+                    EmptyView()
+                }
                 .labelsHidden()
-                .textFieldStyle(.roundedBorder)
-                .font(.footnote)
-                .monospacedDigit()
-                .frame(width: 64)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 }

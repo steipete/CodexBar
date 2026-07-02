@@ -12,7 +12,7 @@ enum PreferencesTab: String, CaseIterable, Hashable {
 
     static let defaultWidth: CGFloat = 546
     static let providersWidth: CGFloat = 792
-    static let windowHeight: CGFloat = 662
+    static let windowHeight: CGFloat = 794
 
     var title: String {
         switch self {

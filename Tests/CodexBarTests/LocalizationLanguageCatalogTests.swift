@@ -274,6 +274,7 @@ struct LocalizationLanguageCatalogTests {
             "Password",
             "Provider",
             "Token",
+            "%@: %@",
             "byte_unit_byte",
             "byte_unit_gigabyte",
             "byte_unit_kilobyte",

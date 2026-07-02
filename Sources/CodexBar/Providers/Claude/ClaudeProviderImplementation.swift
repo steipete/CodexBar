@@ -179,9 +179,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 isVisible: nil,
                 onChange: nil,
                 trailingText: {
-                    guard let entry = CookieHeaderCache.loadForDisplay(provider: .claude) else { return nil }
-                    let when = entry.storedAt.relativeDescription()
-                    return "Cached: \(entry.sourceLabel) • \(when)"
+                    ProviderCookieSourceUI.cachedTrailingText(provider: .claude)
                 }),
         ]
     }
@@ -233,7 +231,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         if self.shouldOpenTerminalForOAuthError(store: context.store) {
             return ("Open Terminal", .openTerminal(command: "claude"))
         }
-        return ("Sign in with Claude Code...", .switchAccount(.claude))
+        return (L("Sign in with Claude Code..."), .switchAccount(.claude))
     }
 
     @MainActor

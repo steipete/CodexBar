@@ -1118,6 +1118,8 @@
 "Unavailable" = "No disponible";
 "Update ready, restart now?" = "Actualització a punt, voleu reiniciar ara?";
 "Updated %@" = "Actualitzat %@";
+"Updated relative %@" = "Actualitzat %@";
+"Updated absolute %@" = "Actualitzat %@";
 "Updated %@h ago" = "Actualitzat fa %@h";
 "Updated %@m ago" = "Actualitzat fa %@m";
 "Updated just now" = "Actualitzat ara mateix";
@@ -1127,3 +1129,4 @@
 "Weekly" = "Setmanal";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
+"CrossModel API spend trend" = "Tendència de despesa de l'API de CrossModel";

@@ -21,6 +21,7 @@
 "Animation pattern" = "نمط الرسوم المتحركة";
 "Antigravity login is managed in the app" = "يتم إدارة Antigravity تسجيل الدخول في التطبيق";
 "Applies only to the Security.framework OAuth keychain reader." = "ينطبق فقط على قارئ سلسلة مفاتيح Security.framework OAuth.";
+"Alternatively, set a custom path in Settings." = "بدلاً من ذلك، عيّن مسارًا مخصصًا في الإعدادات.";
 "Auto falls back to the next source if the preferred one fails." = "التلقائي يعود إلى المصدر التالي إذا فشل المصدر المفضل.";
 "Auto uses API first, then falls back to CLI on auth failures." = "يستخدم التلقائي API أولا، ثم يعود إلى CLI عند فشل التصديق.";
 "Auto-detect" = "الكشف التلقائي";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "ثبت Claude CLI (npm i -g @anthropic-ai/claude-code) وجرب مرة أخرى.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "ثبت Codex CLI (npm i -g @openai/codex) وجرب مرة أخرى.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "ثبت Gemini CLI (npm i -g @google/gemini-cli) وجرب مرة أخرى.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "ثبّت بيئة JetBrains IDE مع تفعيل AI Assistant، ثم حدّث CodexBar.";
 "JetBrains AI is ready" = "JetBrains الذكاء الاصطناعي جاهز";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "حافظ على الجلسات CLI حية";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "عرض أيقونات المزودين في جهاز التبديل (وإلا اعرض خط تقدم أسبوعي).";
 "Show reset time as clock" = "عرض وقت إعادة التعيين كساعة";
 "Show usage as used" = "استخدام العرض كما هو مستخدم";
+"Sign in with Claude Code..." = "تسجيل الدخول باستخدام Claude Code...";
 "Sign in via button below" = "سجل الدخول عبر الزر أدناه";
 "Skip teardown between probes (debug-only)." = "تخطي التفكيك بين المجسات (تصحيح فقط).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "قم بتكديس حسابات الرموز في القائمة (وإلا اعرض شريط تبديل الحسابات).";
@@ -730,6 +733,8 @@
 "reset_tomorrow_format" = "غدًا، %@";
 "Lasts until reset" = "يستمر حتى إعادة التعيين";
 "Updated %@" = "تحديث %@";
+"Updated relative %@" = "تحديث %@";
+"Updated absolute %@" = "تحديث %@";
 "Updated %@h ago" = "تم التحديث %@h قبل";
 "Updated %@m ago" = "تم التحديث %@m قبل";
 "Updated just now" = "تم التحديث للتو";
@@ -785,6 +790,7 @@
 "Est. total (%@): %@" = "التقدير الكلي (%@): %@";
 "Hover a bar for details" = "مرر المؤشر على الشريط لمزيد من التفاصيل";
 "%@: %@ · %@ tokens" = "%@: %@ · رموز %@";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "لم يتم اختيار أي مقدمي خدمة للنظرة العامة.";
 "No overview data available." = "لا توجد بيانات عامة متوفرة.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "يستخدم الأوتوماتيكي IDE API المحلي أولا، ثم Google OAuth عندما يكون IDE مغلقا.";
@@ -1128,3 +1134,4 @@
 "byte_unit_megabytes" = "ميغابايتات";
 "byte_unit_gigabyte" = "غيغابايت";
 "byte_unit_gigabytes" = "غيغابايتات";
+"CrossModel API spend trend" = "اتجاه إنفاق CrossModel API";

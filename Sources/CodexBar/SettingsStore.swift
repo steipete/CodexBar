@@ -83,15 +83,15 @@ enum KiroMenuBarDisplayMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .automatic: "Automatic"
-        case .hidden: "Hidden"
-        case .creditsLeft: "Credits left"
-        case .percentLeft: "Percent left"
-        case .creditsAndPercent: "Credits + percent"
-        case .usedAndTotal: "Used / total"
-        case .overageCreditsWhenExhausted: "Overage credits at zero"
-        case .overageCostWhenExhausted: "Overage cost at zero"
-        case .overageCreditsAndCostWhenExhausted: "Overage credits + cost at zero"
+        case .automatic: L("Automatic")
+        case .hidden: L("Hidden")
+        case .creditsLeft: L("Credits left")
+        case .percentLeft: L("Percent left")
+        case .creditsAndPercent: L("Credits + percent")
+        case .usedAndTotal: L("Used / total")
+        case .overageCreditsWhenExhausted: L("Overage credits at zero")
+        case .overageCostWhenExhausted: L("Overage cost at zero")
+        case .overageCreditsAndCostWhenExhausted: L("Overage credits + cost at zero")
         }
     }
 }

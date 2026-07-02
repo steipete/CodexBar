@@ -320,6 +320,9 @@
 "Unsupported" = "No compatible";
 "Update Channel" = "Canal de actualizaciones";
 "Updated" = "Actualizado";
+"Updated %@" = "Actualizado %@";
+"Updated relative %@" = "Actualizado %@";
+"Updated absolute %@" = "Actualizado %@";
 "Updates unavailable in this build." = "Actualizaciones no disponibles en esta compilación.";
 "Usage" = "Uso";
 "Usage breakdown" = "Desglose de uso";
@@ -983,3 +986,4 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
 "Open Status Page" = "Abrir página de estado";
+"CrossModel API spend trend" = "Tendencia de gasto de la API de CrossModel";

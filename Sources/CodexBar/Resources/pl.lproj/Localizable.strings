@@ -21,6 +21,7 @@
 "Animation pattern" = "Wzór animacji";
 "Antigravity login is managed in the app" = "Logowanie do Antigravity jest zarządzane w aplikacji";
 "Applies only to the Security.framework OAuth keychain reader." = "Dotyczy wyłącznie czytnika pęku kluczy OAuth Security.framework.";
+"Alternatively, set a custom path in Settings." = "Ewentualnie ustaw niestandardową ścieżkę w Ustawieniach.";
 "Auto falls back to the next source if the preferred one fails." = "Automatycznie przełącza na kolejne źródło, jeśli preferowane zawiedzie.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Tryb Auto najpierw używa API, a przy błędach uwierzytelniania przełącza się na CLI.";
 "Auto-detect" = "Automatyczne wykrywanie";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Zainstaluj Claude CLI (`npm i -g @anthropic-ai/claude-code`) i spróbuj ponownie.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Zainstaluj Codex CLI (`npm i -g @openai/codex`) i spróbuj ponownie.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Zainstaluj Gemini CLI (`npm i -g @google/gemini-cli`) i spróbuj ponownie.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Zainstaluj IDE JetBrains z włączonym AI Assistant, a następnie odśwież CodexBar.";
 "JetBrains AI is ready" = "JetBrains AI jest gotowe";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "Utrzymuj sesje CLI aktywne";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Pokazuj ikony dostawców w przełączniku (w przeciwnym razie linię postępu tygodniowego).";
 "Show reset time as clock" = "Pokaż czas resetu jako godzinę";
 "Show usage as used" = "Pokazuj użycie jako wykorzystane";
+"Sign in with Claude Code..." = "Zaloguj się przez Claude Code...";
 "Sign in via button below" = "Zaloguj się przyciskiem poniżej";
 "Skip teardown between probes (debug-only)." = "Pomiń sprzątanie między probe'ami (tylko do debugowania).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Układa konta tokenów w stos w menu (w przeciwnym razie pokazuje pasek przełączania kont).";
@@ -732,6 +735,8 @@
 "reset_tomorrow_format" = "jutro, %@";
 "Lasts until reset" = "Wystarcza do resetu";
 "Updated %@" = "Zaktualizowano %@";
+"Updated relative %@" = "Zaktualizowano %@";
+"Updated absolute %@" = "Zaktualizowano %@";
 "Updated %@h ago" = "Zaktualizowano %@ godz. temu";
 "Updated %@m ago" = "Zaktualizowano %@ min temu";
 "Updated just now" = "Zaktualizowano przed chwilą";
@@ -787,6 +792,7 @@
 "Est. total (%@): %@" = "Szac. łączna wartość (%@): %@";
 "Hover a bar for details" = "Najedź na słupek, aby zobaczyć szczegóły";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ tokenów";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "Nie wybrano dostawców dla Przeglądu.";
 "No overview data available." = "Brak dostępnych danych Przeglądu.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Tryb Auto najpierw używa lokalnego API IDE, a potem Google OAuth, gdy IDE jest zamknięte.";
@@ -1127,3 +1133,4 @@
 "byte_unit_megabytes" = "megabajty";
 "byte_unit_gigabyte" = "gigabajt";
 "byte_unit_gigabytes" = "gigabajty";
+"CrossModel API spend trend" = "Trend wydatków API CrossModel";

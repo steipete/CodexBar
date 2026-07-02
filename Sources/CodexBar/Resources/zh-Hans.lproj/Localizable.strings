@@ -704,6 +704,8 @@
 "reset_tomorrow_format" = "明天 %@";
 "Lasts until reset" = "持续到重置";
 "Updated %@" = "更新于 %@";
+"Updated relative %@" = "%@已更新";
+"Updated absolute %@" = "更新于 %@";
 "Updated %@h ago" = "%@ 小时前更新";
 "Updated %@m ago" = "%@ 分钟前更新";
 "Updated just now" = "刚刚更新";
@@ -830,6 +832,7 @@
 "Cache read" = "缓存读取";
 "Claude Admin API 30 day spend trend" = "Claude Admin API 30 天支出趋势";
 "OpenRouter API key spend trend" = "OpenRouter API 密钥支出趋势";
+"CrossModel API spend trend" = "CrossModel API 支出趋势";
 "z.ai hourly token trend" = "z.ai 每小时 token 趋势";
 "MiniMax 30 day token usage trend" = "MiniMax 30 天 token 用量趋势";
 "Today cash" = "今日现金";

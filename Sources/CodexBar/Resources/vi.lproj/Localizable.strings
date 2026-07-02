@@ -726,6 +726,8 @@
 "reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
 "Updated %@" = "Đã cập nhật %@";
+"Updated relative %@" = "Đã cập nhật %@";
+"Updated absolute %@" = "Đã cập nhật %@";
 "Updated %@h ago" = "Đã cập nhật %@ h trước";
 "Updated %@m ago" = "Đã cập nhật %@ tháng trước";
 "Updated just now" = "Vừa cập nhật";
@@ -1124,3 +1126,4 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"CrossModel API spend trend" = "Xu hướng chi tiêu API CrossModel";

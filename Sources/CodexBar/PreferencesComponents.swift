@@ -1,6 +1,45 @@
 import AppKit
 import SwiftUI
 
+enum PreferenceControlLayout {
+    static let width: CGFloat = 210
+}
+
+@MainActor
+struct PreferenceControlRow<Control: View>: View {
+    let title: String
+    let subtitle: String?
+    private let control: Control
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder control: () -> Control)
+    {
+        self.title = title
+        self.subtitle = subtitle
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: self.subtitle == nil ? .center : .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.title)
+                    .font(.body)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 16)
+            self.control
+                .frame(width: PreferenceControlLayout.width, alignment: .trailing)
+        }
+    }
+}
+
 @MainActor
 struct PreferenceToggleRow: View {
     let title: String

@@ -727,6 +727,8 @@
 "reset_tomorrow_format" = "amanhã, %@";
 "Lasts until reset" = "Dura até a renovação";
 "Updated %@" = "Atualizado %@";
+"Updated relative %@" = "Atualizado %@";
+"Updated absolute %@" = "Atualizado %@";
 "Updated %@h ago" = "Atualizado há %@h";
 "Updated %@m ago" = "Atualizado há %@m";
 "Updated just now" = "Atualizado agora mesmo";
@@ -1124,3 +1126,4 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+"CrossModel API spend trend" = "Tendência de gastos da API CrossModel";

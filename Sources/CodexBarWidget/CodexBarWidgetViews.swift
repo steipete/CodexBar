@@ -299,6 +299,7 @@ private struct ProviderSwitchChip: View {
         case .ollama: "Ollama"
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
+        case .crossmodel: "CrossModel"
         case .elevenlabs: "ElevenLabs"
         case .warp: "Warp"
         case .windsurf: "Windsurf"
@@ -313,6 +314,7 @@ private struct ProviderSwitchChip: View {
         case .crof: "Crof"
         case .venice: "Venice"
         case .commandcode: "Command Code"
+        case .qoder: "Qoder"
         case .stepfun: "StepFun"
         case .bedrock: "Bedrock"
         case .grok: "Grok"
@@ -346,6 +348,14 @@ private struct SwitcherSmallUsageView: View {
                     title: "Code review",
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
+            }
+            if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
+                ValueLine(
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
             }
         }
     }
@@ -442,6 +452,14 @@ private struct SmallUsageView: View {
                     title: "Code review",
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
+            }
+            if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
+                ValueLine(
+                    title: token.sessionLabel,
+                    value: WidgetFormat.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
             }
         }
         .padding(12)
@@ -611,6 +629,17 @@ struct WidgetUsageRow: Identifiable, Equatable {
             return selected
         }
         return Array(rows.prefix(max(0, limit)))
+    }
+
+    static func compactTokenUsage(
+        for entry: WidgetSnapshot.ProviderEntry) -> WidgetSnapshot.TokenUsageSummary?
+    {
+        guard self.rows(for: entry).isEmpty,
+              entry.codeReviewRemainingPercent == nil
+        else {
+            return nil
+        }
+        return entry.tokenUsage
     }
 
     private static func antigravityQuotaFamily(for row: WidgetUsageRow) -> AntigravityQuotaFamily? {
@@ -830,6 +859,8 @@ enum WidgetColors {
             Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
         case .openrouter:
             Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
+        case .crossmodel:
+            Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255) // CrossModel purple
         case .elevenlabs:
             Color(red: 235 / 255, green: 235 / 255, blue: 230 / 255)
         case .warp:
@@ -858,6 +889,8 @@ enum WidgetColors {
             Color(red: 51 / 255, green: 153 / 255, blue: 1.0)
         case .commandcode:
             Color(red: 0, green: 0, blue: 0)
+        case .qoder:
+            Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255)
         case .stepfun:
             Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
         case .bedrock:

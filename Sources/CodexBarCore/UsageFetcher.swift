@@ -185,6 +185,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let mimoUsage: MiMoUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
     public let sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot?
+    public let crossModelUsage: CrossModelUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
     public let claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot?
@@ -215,6 +216,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case mimoUsage
         case openRouterUsage
         case sakanaPayAsYouGo
+        case crossModelUsage
         case openAIAPIUsage
         case codexResetCredits
         case claudeAdminAPIUsage
@@ -245,6 +247,7 @@ public struct UsageSnapshot: Codable, Sendable {
         mimoUsage: MiMoUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
         sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot? = nil,
+        crossModelUsage: CrossModelUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot? = nil,
@@ -274,6 +277,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mimoUsage = mimoUsage
         self.openRouterUsage = openRouterUsage
         self.sakanaPayAsYouGo = sakanaPayAsYouGo
+        self.crossModelUsage = crossModelUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
         self.claudeAdminAPIUsage = claudeAdminAPIUsage
@@ -322,6 +326,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.sakanaPayAsYouGo = try container.decodeIfPresent(
             SakanaPayAsYouGoSnapshot.self,
             forKey: .sakanaPayAsYouGo)
+        self.crossModelUsage = try container.decodeIfPresent(CrossModelUsageSnapshot.self, forKey: .crossModelUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
@@ -375,6 +380,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.mimoUsage, forKey: .mimoUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encodeIfPresent(self.sakanaPayAsYouGo, forKey: .sakanaPayAsYouGo)
+        try container.encodeIfPresent(self.crossModelUsage, forKey: .crossModelUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -554,6 +560,7 @@ public struct UsageSnapshot: Codable, Sendable {
             mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
             sakanaPayAsYouGo: self.sakanaPayAsYouGo,
+            crossModelUsage: self.crossModelUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,
@@ -638,6 +645,13 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
         account: AccountInfo? = nil,
         lastErrorDescription: String? = nil) -> Self
     {
+        if provider == .claude {
+            guard snapshot == nil else { return .available }
+            return ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(lastErrorDescription)
+                ? .unavailable
+                : .available
+        }
+
         if provider == .doubao || provider == .antigravity {
             guard let snapshot,
                   snapshot.identity(for: provider) != nil

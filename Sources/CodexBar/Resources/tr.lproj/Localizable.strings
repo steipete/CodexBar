@@ -21,6 +21,7 @@
 "Animation pattern" = "Animasyon deseni";
 "Antigravity login is managed in the app" = "Antigravity girişi uygulama içinden yönetilir";
 "Applies only to the Security.framework OAuth keychain reader." = "Yalnızca Security.framework OAuth Anahtarlık okuyucusu için geçerlidir.";
+"Alternatively, set a custom path in Settings." = "Alternatif olarak Ayarlar'da özel bir yol belirleyin.";
 "Auto falls back to the next source if the preferred one fails." = "Otomatik mod, tercih edilen kaynak başarısız olursa bir sonrakine geçer.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Otomatik mod önce API'yi kullanır, kimlik doğrulama başarısız olursa CLI'ya geçer.";
 "Auto-detect" = "Otomatik algıla";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Claude CLI'yi kurun (npm i -g @anthropic-ai/claude-code) ve tekrar deneyin.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Codex CLI'yi kurun (npm i -g @openai/codex) ve tekrar deneyin.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Gemini CLI'yi kurun (npm i -g @google/gemini-cli) ve tekrar deneyin.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "AI Assistant etkin bir JetBrains IDE kurun, ardından CodexBar'ı yenileyin.";
 "JetBrains AI is ready" = "JetBrains AI hazır";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "CLI oturumlarını canlı tut";
@@ -278,6 +280,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Değiştiricide sağlayıcı simgelerini göster (aksi takdirde haftalık ilerleme çizgisi göster).";
 "Show reset time as clock" = "Sıfırlama süresini saat olarak göster";
 "Show usage as used" = "Kullanımı harcanan olarak göster";
+"Sign in with Claude Code..." = "Claude Code ile giriş yap...";
 "Sign in via button below" = "Aşağıdaki düğmeyle oturum açın";
 "Skip teardown between probes (debug-only)." = "Sorgular arası sökmeyi atla (yalnızca hata ayıklama).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Menüde jeton hesaplarını yığınla göster (aksi takdirde hesap değiştirici çubuk göster).";
@@ -728,6 +731,8 @@
 "reset_tomorrow_format" = "yarın, %@";
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
 "Updated %@" = "Güncellendi: %@";
+"Updated relative %@" = "Güncellendi: %@";
+"Updated absolute %@" = "Güncellendi: %@";
 "Updated %@h ago" = "%@ saat önce güncellendi";
 "Updated %@m ago" = "%@ dakika önce güncellendi";
 "Updated just now" = "Az önce güncellendi";
@@ -783,6 +788,7 @@
 "Est. total (%@): %@" = "Tah. toplam (%@): %@";
 "Hover a bar for details" = "Ayrıntılar için bir çubuğun üzerine gelin";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ jeton";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "Genel Bakış için sağlayıcı seçilmedi.";
 "No overview data available." = "Kullanılabilir genel bakış verisi yok.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Otomatik mod önce yerel IDE API'sini kullanır, IDE kapatıldığında Google OAuth'a geçer.";
@@ -1125,3 +1131,4 @@
 "byte_unit_megabytes" = "megabayt";
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
+"CrossModel API spend trend" = "CrossModel API harcama eğilimi";
