@@ -781,6 +781,14 @@
 "Top method" = "Top method";
 "30d cash" = "30d cash";
 "30d billing history from MiniMax web session" = "30d billing history from MiniMax web session";
+"MiniMax web session expired" = "MiniMax web session expired";
+"MiniMax web session account does not match" = "MiniMax web session account does not match";
+"No MiniMax browser session found" = "No MiniMax browser session found";
+"MiniMax web data endpoints are unavailable" = "MiniMax web data endpoints are unavailable";
+"MiniMax web session unavailable" = "MiniMax web session unavailable";
+"Re-import MiniMax session from browser" = "Re-import MiniMax session from browser";
+"Open MiniMax login page" = "Open MiniMax login page";
+"MiniMax web session: %@" = "MiniMax web session: %@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer billing can lag.";
 "Rate limit: %d / %@" = "Rate limit: %d / %@";
 "Key remaining" = "Key remaining";

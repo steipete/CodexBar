@@ -36,17 +36,8 @@ struct MiniMaxWebEnrichmentResolverTests {
     }
 
     @Test
-    func `browser import gate allows optional usage in app background refresh`() {
+    func `browser import gate only allows user initiated app refresh`() {
         let context = self.makeContext(runtime: .app, includeOptionalUsage: true)
-
-        ProviderInteractionContext.$current.withValue(.background) {
-            #expect(MiniMaxWebEnrichmentResolver.allowsBrowserCookieImport(context: context))
-        }
-    }
-
-    @Test
-    func `browser import gate requires user initiated refresh when optional usage is disabled`() {
-        let context = self.makeContext(runtime: .app, includeOptionalUsage: false)
 
         ProviderInteractionContext.$current.withValue(.background) {
             #expect(!MiniMaxWebEnrichmentResolver.allowsBrowserCookieImport(context: context))
@@ -67,10 +58,10 @@ struct MiniMaxWebEnrichmentResolverTests {
 
         let context = self.makeContext(runtime: .app)
         let explicit = MiniMaxWebEnrichmentResolver.explicitCandidates(context: context)
-        let all = MiniMaxWebEnrichmentResolver.candidates(context: context)
+        let api = MiniMaxWebEnrichmentResolver.apiEnrichmentCandidates(context: context)
 
         #expect(!explicit.contains { $0.sourceLabel == "Chrome" })
-        #expect(all.contains { $0.sourceLabel == "Chrome" })
+        #expect(api.contains { $0.isCached && $0.sourceLabel == "Chrome" })
     }
 
     private func makeContext(

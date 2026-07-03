@@ -1,5 +1,19 @@
 import Foundation
 
+public enum MiniMaxWebSessionState: Sendable, Equatable {
+    case notChecked
+    case unavailable(reason: MiniMaxWebSessionUnavailableReason)
+    case expired
+    case accountMismatch
+    case valid(sourceLabel: String)
+}
+
+public enum MiniMaxWebSessionUnavailableReason: Sendable, Equatable {
+    case noBrowserSession
+    case keychainAccessDisabled
+    case endpointsUnavailable
+}
+
 public struct MiniMaxUsageSnapshot: Sendable {
     public let planName: String?
     public let availablePrompts: Int?
@@ -16,6 +30,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
     public let pointsBalanceExpiresAt: Date?
     public let subscriptionExpiresAt: Date?
     public let subscriptionRenewsAt: Date?
+    public let webSessionState: MiniMaxWebSessionState
 
     public var primaryService: MiniMaxServiceUsage? {
         self.orderedQuotaServices.first
@@ -81,7 +96,8 @@ public struct MiniMaxUsageSnapshot: Sendable {
         pointsBalance: Double? = nil,
         pointsBalanceExpiresAt: Date? = nil,
         subscriptionExpiresAt: Date? = nil,
-        subscriptionRenewsAt: Date? = nil)
+        subscriptionRenewsAt: Date? = nil,
+        webSessionState: MiniMaxWebSessionState = .notChecked)
     {
         self.planName = planName
         self.availablePrompts = availablePrompts
@@ -98,6 +114,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
         self.pointsBalanceExpiresAt = pointsBalanceExpiresAt
         self.subscriptionExpiresAt = subscriptionExpiresAt
         self.subscriptionRenewsAt = subscriptionRenewsAt
+        self.webSessionState = webSessionState
     }
 
     public func withBillingSummary(_ billingSummary: MiniMaxBillingSummary?) -> MiniMaxUsageSnapshot {
@@ -116,7 +133,28 @@ public struct MiniMaxUsageSnapshot: Sendable {
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
-            subscriptionRenewsAt: self.subscriptionRenewsAt)
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
+    }
+
+    func withWebSessionState(_ state: MiniMaxWebSessionState) -> MiniMaxUsageSnapshot {
+        MiniMaxUsageSnapshot(
+            planName: self.planName,
+            availablePrompts: self.availablePrompts,
+            currentPrompts: self.currentPrompts,
+            remainingPrompts: self.remainingPrompts,
+            windowMinutes: self.windowMinutes,
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            updatedAt: self.updatedAt,
+            services: self.services,
+            billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
+            pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: state)
     }
 }
 

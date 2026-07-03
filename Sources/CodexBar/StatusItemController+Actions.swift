@@ -241,6 +241,21 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    @objc func reimportMiniMaxWebSession() {
+        CookieHeaderCache.clear(provider: .minimax)
+        Task {
+            await self.performStoreRefresh(
+                for: .minimax,
+                refreshOpenMenusWhenComplete: true,
+                interaction: .userInitiated)
+        }
+    }
+
+    @objc func openMiniMaxLoginPage() {
+        guard let url = self.dashboardURL(for: .minimax) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     func dashboardURL(
         for provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?

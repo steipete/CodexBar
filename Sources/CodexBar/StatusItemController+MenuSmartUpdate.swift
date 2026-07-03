@@ -102,7 +102,7 @@ extension StatusItemController {
     /// Adds everything below the provider switcher (account switchers, card content, and
     /// actionable sections) to `target`, which may be a detached scratch menu; interaction
     /// closures always capture `captureMenu`, the live menu the rows will serve.
-    private func addSwitcherScopedMenuContent(
+    func addSwitcherScopedMenuContent(
         into target: NSMenu,
         captureMenu: NSMenu,
         context: MenuUpdateContext)

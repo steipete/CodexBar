@@ -145,6 +145,7 @@ extension StatusItemController {
                     menuWasFreshBeforeOpen: menuWasFreshBeforeOpen)
             }
             self.installProviderSwitcherShortcutMonitorIfNeeded(for: menu)
+            self.scheduleMiniMaxMergedMenuPrewarmIfNeeded(menu)
             // Only schedule refresh after menu is registered as open - refreshNow is called async
             self.scheduleOpenMenuRefresh(for: menu)
         }
@@ -167,6 +168,8 @@ extension StatusItemController {
         }
 
         self.clearMergedSwitcherContentCache(for: menu)
+        self.miniMaxMergedMenuPrewarmTask?.cancel()
+        self.miniMaxMergedMenuPrewarmTask = nil
         let wasTracked = self.openMenus.removeValue(forKey: key) != nil
         let menuTrackingEnded = wasTracked && self.openMenus.isEmpty
         if self.openMenus.isEmpty {
@@ -219,6 +222,11 @@ extension StatusItemController {
             breadcrumb: "populateMenu:\(provider?.rawValue ?? "merged")")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: provider) }
         defer { self.refreshMenuCardHeights(in: menu) }
+        defer {
+            if self.openMenus[ObjectIdentifier(menu)] != nil {
+                self.scheduleMiniMaxMergedMenuPrewarmIfNeeded(menu)
+            }
+        }
 
         let enabledProviders = self.store.enabledProvidersForDisplay()
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
@@ -456,7 +464,7 @@ extension StatusItemController {
         }
     }
 
-    private func openAIWebContext(
+    func openAIWebContext(
         currentProvider: UsageProvider,
         showAllAccounts: Bool) -> OpenAIWebContext
     {

@@ -32,6 +32,8 @@ struct MergedSwitcherContentCacheContext {
 }
 
 extension StatusItemController {
+    private static let miniMaxMergedMenuPrewarmDelay: Duration = .milliseconds(120)
+
     func preservingMergedSwitcherContentCachesDuringInvalidation(_ body: () -> Void) {
         let previous = self.preservesMergedSwitcherContentCachesDuringInvalidation
         self.preservesMergedSwitcherContentCachesDuringInvalidation = true
@@ -138,5 +140,80 @@ extension StatusItemController {
         // after AppKit has restored their menu so provider-scoped busy state is available.
         self.updatePersistentRefreshItemsEnabled()
         return true
+    }
+
+    /// Builds MiniMax's richer card while the user is reading the currently selected provider.
+    /// The first switch can then use the same detached-item cache as subsequent switch-backs.
+    func scheduleMiniMaxMergedMenuPrewarmIfNeeded(_ menu: NSMenu) {
+        guard self.shouldMergeIcons,
+              self.store.enabledProvidersForDisplay().contains(.minimax),
+              self.lastMergedSwitcherSelection != .provider(.minimax)
+        else { return }
+
+        self.miniMaxMergedMenuPrewarmTask?.cancel()
+        self.miniMaxMergedMenuPrewarmTask = Task { @MainActor [weak self, weak menu] in
+            try? await Task.sleep(for: Self.miniMaxMergedMenuPrewarmDelay)
+            guard !Task.isCancelled, let self, let menu else { return }
+            guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
+            self.prewarmMiniMaxMergedMenuContent(in: menu)
+            self.miniMaxMergedMenuPrewarmTask = nil
+        }
+    }
+
+    func prewarmMiniMaxMergedMenuContent(in menu: NSMenu) {
+        let enabledProviders = self.store.enabledProvidersForDisplay()
+        guard self.shouldMergeIcons, enabledProviders.contains(.minimax) else { return }
+
+        let tokenAccountDisplay = self.tokenAccountMenuDisplay(for: .minimax)
+        let codexAccountDisplay: CodexAccountMenuDisplay? = nil
+        let descriptor = self.makeMenuDescriptor(provider: .minimax, includeContextualActions: true)
+        let menuWidth = self.menuCardWidth(
+            for: enabledProviders,
+            selectedProvider: .minimax,
+            descriptor: descriptor)
+        if self.reusableMergedSwitcherContent(
+            for: .provider(.minimax),
+            in: menu,
+            menuWidth: menuWidth,
+            codexAccountDisplay: codexAccountDisplay,
+            tokenAccountDisplay: tokenAccountDisplay) != nil
+        {
+            return
+        }
+
+        let previousCodexDisplay = self.lastCodexAccountMenuDisplay
+        let previousTokenDisplay = self.lastTokenAccountMenuDisplay
+        defer {
+            self.lastCodexAccountMenuDisplay = previousCodexDisplay
+            self.lastTokenAccountMenuDisplay = previousTokenDisplay
+        }
+
+        let scratch = NSMenu()
+        scratch.autoenablesItems = false
+        self.addSwitcherScopedMenuContent(
+            into: scratch,
+            captureMenu: menu,
+            context: MenuUpdateContext(
+                provider: .minimax,
+                currentProvider: .minimax,
+                switcherSelection: .provider(.minimax),
+                menuWidth: menuWidth,
+                codexAccountDisplay: codexAccountDisplay,
+                tokenAccountDisplay: tokenAccountDisplay,
+                openAIContext: self.openAIWebContext(
+                    currentProvider: .minimax,
+                    showAllAccounts: tokenAccountDisplay?.showAll ?? false),
+                descriptor: descriptor))
+        let items = scratch.items
+        scratch.removeAllItems()
+        self.cacheMergedSwitcherContent(
+            items,
+            in: menu,
+            selection: .provider(.minimax),
+            context: MergedSwitcherContentCacheContext(
+                menuWidth: menuWidth,
+                codexAccountDisplay: codexAccountDisplay,
+                tokenAccountDisplay: tokenAccountDisplay,
+                contentVersion: self.menuSession.contentVersion))
     }
 }

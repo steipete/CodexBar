@@ -10,6 +10,7 @@ struct MiniMaxTokenPlanCreditTests {
         let snapshot = try MiniMaxTokenPlanCreditFetcher.parseSnapshot(data: data)
         #expect(snapshot.balance == 20000)
         #expect(snapshot.expiresAt == Date(timeIntervalSince1970: 1_784_995_199.999))
+        #expect(snapshot.groupIDs == ["2040544334402560487"])
     }
 
     @Test

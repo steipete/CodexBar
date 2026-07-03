@@ -753,6 +753,14 @@
 "Top method" = "主要方法";
 "30d cash" = "近 30 天费用";
 "30d billing history from MiniMax web session" = "来自 MiniMax Web 会话的近 30 天账单历史";
+"MiniMax web session expired" = "MiniMax 网页会话已过期";
+"MiniMax web session account does not match" = "MiniMax 网页会话与 API 账号不匹配";
+"No MiniMax browser session found" = "未找到 MiniMax 浏览器会话";
+"MiniMax web data endpoints are unavailable" = "MiniMax 网页数据接口不可用";
+"MiniMax web session unavailable" = "MiniMax 网页会话不可用";
+"Re-import MiniMax session from browser" = "从浏览器重新导入 MiniMax 会话";
+"Open MiniMax login page" = "打开 MiniMax 登录页";
+"MiniMax web session: %@" = "MiniMax 网页会话：%@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer 账单数据可能延迟。";
 "Rate limit: %d / %@" = "速率限制：%d / %@";
 "Key remaining" = "密钥剩余额度";

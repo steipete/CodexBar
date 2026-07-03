@@ -442,6 +442,8 @@ public struct MiniMaxUsageFetcher: Sendable {
             enrichedSnapshot = snapshot
         }
 
+        guard includeBillingHistory else { return enrichedSnapshot }
+
         let summaryEnrichedSnapshot = try await self.attachingUsageSummaryIfAvailable(
             to: enrichedSnapshot,
             context: context,

@@ -183,8 +183,9 @@ for ARCH in "${ARCH_LIST[@]}"; do
   stage_build_products "$ARCH"
 done
 
-APP_FINAL="$ROOT/CodexBar.app"
-APP_STAGE="$ROOT/.build/package/CodexBar.app"
+APP_FINAL="${CODEXBAR_PACKAGE_OUTPUT:-$ROOT/CodexBar.app}"
+APP_STAGE="${CODEXBAR_PACKAGE_STAGE:-$ROOT/.build/package/CodexBar.app}"
+mkdir -p "$(dirname "$APP_FINAL")" "$(dirname "$APP_STAGE")"
 rm -rf "$APP_STAGE"
 APP="$APP_STAGE"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
@@ -453,6 +454,9 @@ chmod -R a+rX "$APP/Contents/Frameworks/Sparkle.framework"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/CodexBar"
 # Re-sign Sparkle and all nested components with the selected package identity.
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+# Finder metadata and quarantine attributes copied from downloaded artifacts make
+# codesign reject nested Sparkle apps even though their file contents are valid.
+xattr -cr "$SPARKLE"
 if [[ "$SIGNING_MODE" == "adhoc" ]]; then
   CODESIGN_ID="-"
   CODESIGN_ARGS=(--force --sign "$CODESIGN_ID")
@@ -526,6 +530,10 @@ if [[ -d "${APP}/Contents/PlugIns/CodexBarWidget.appex" ]]; then
 fi
 
 # Finally sign the app bundle itself
+# Signing nested bundles can reattach provenance metadata on some local volumes.
+# Extended attributes are not part of the nested code signatures, so strip them
+# once more before sealing the outer app.
+xattr -cr "$APP"
 codesign "${CODESIGN_ARGS[@]}" \
   --entitlements "$APP_ENTITLEMENTS" \
   "$APP"

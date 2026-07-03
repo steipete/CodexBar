@@ -129,6 +129,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     /// Persistent Refresh rows are weakly tracked so their enabled state can change during menu tracking.
     let persistentRefreshItems = NSHashTable<NSMenuItem>.weakObjects()
     var menuCardHeightCache: [MenuCardHeightCacheKey: CGFloat] = [:]
+    var miniMaxMergedMenuPrewarmTask: Task<Void, Never>?
     var measuredStandardMenuWidthCache: [String: CGFloat] = [:]
     var lastMenuAdjunctReadinessSignature = ""
     var lastMenuAdjunctReadinessBaselineVersion = 0

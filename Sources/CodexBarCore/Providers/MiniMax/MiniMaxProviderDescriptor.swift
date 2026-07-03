@@ -90,10 +90,12 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
             apiToken: apiToken,
             region: preferredRegion)
         var usage = apiResult.snapshot
-        for candidate in context.includeOptionalUsage
-            ? MiniMaxWebEnrichmentResolver.explicitCandidates(context: context)
+        let candidates = context.includeOptionalUsage
+            ? MiniMaxWebEnrichmentResolver.apiEnrichmentCandidates(context: context)
             : []
-        {
+        var rejectedCredentials = false
+        var accountMismatch = false
+        for candidate in candidates {
             let cookieOverride = candidate.override
             guard let cookie = MiniMaxCookieHeader.normalized(from: cookieOverride.cookieHeader) else { continue }
             let fetchContext = MiniMaxUsageFetcher.WebFetchContext(
@@ -102,18 +104,43 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
                 region: apiResult.resolvedRegion,
                 environment: context.env,
                 transport: ProviderHTTPClient.shared)
-            usage = try await MiniMaxUsageFetcher.attachingUsageSummaryIfAvailable(
-                to: usage,
+            let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+                of: usage,
                 context: fetchContext,
                 groupID: cookieOverride.groupID)
-            usage = try await MiniMaxUsageFetcher.attachingTokenPlanCreditIfAvailable(
-                to: usage,
-                context: fetchContext,
-                groupID: cookieOverride.groupID)
-            if usage.usageSummary != nil || usage.pointsBalance != nil {
+            usage = attempt.snapshot
+            if attempt.accountMismatch {
+                accountMismatch = true
+                if candidate.isCached {
+                    CookieHeaderCache.clear(provider: .minimax)
+                }
+                continue
+            }
+            if attempt.receivedWebData {
                 MiniMaxWebEnrichmentResolver.cacheValidated(candidate)
+                usage = usage.withWebSessionState(.valid(sourceLabel: candidate.sourceLabel))
                 break
             }
+            if attempt.rejectedCredentials {
+                rejectedCredentials = true
+                if candidate.isCached {
+                    CookieHeaderCache.clear(provider: .minimax)
+                }
+            }
+        }
+        if context.includeOptionalUsage, usage.webSessionState == .notChecked {
+            let state: MiniMaxWebSessionState = if accountMismatch {
+                .accountMismatch
+            } else if rejectedCredentials {
+                .expired
+            } else if KeychainAccessGate.isDisabled {
+                .unavailable(reason: .keychainAccessDisabled)
+            } else if candidates.isEmpty {
+                .unavailable(reason: .noBrowserSession)
+            } else {
+                .unavailable(reason: .endpointsUnavailable)
+            }
+            usage = usage.withWebSessionState(state)
         }
         return self.makeResult(
             usage: usage.toUsageSnapshot(),

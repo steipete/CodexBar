@@ -5,11 +5,12 @@ enum MiniMaxWebEnrichmentResolver {
         let override: MiniMaxCookieOverride
         let sourceLabel: String
         let shouldCache: Bool
+        let isCached: Bool
     }
 
+    /// Full candidate chain for cookie-first web refreshes (desktop, cache, browser, explicit).
     static func candidates(context: ProviderFetchContext) -> [Candidate] {
-        var candidates: [Candidate] = []
-        candidates.append(contentsOf: self.explicitCandidates(context: context))
+        var candidates = self.explicitCandidates(context: context)
 
         #if os(macOS)
         if let session = MiniMaxDesktopCookieImporter.importSession(),
@@ -21,39 +22,24 @@ enum MiniMaxWebEnrichmentResolver {
                     sourceLabel: session.sourceLabel,
                     browserDetection: context.browserDetection),
                 sourceLabel: session.sourceLabel,
-                shouldCache: true))
+                shouldCache: true,
+                isCached: false))
         }
-        if let cached = CookieHeaderCache.load(provider: .minimax),
-           let override = MiniMaxCookieHeader.override(from: cached.cookieHeader)
-        {
-            candidates.append(Candidate(
-                override: self.enrichWithBrowserTokens(
-                    override,
-                    sourceLabel: cached.sourceLabel,
-                    browserDetection: context.browserDetection),
-                sourceLabel: cached.sourceLabel,
-                shouldCache: false))
-        }
-        if self.allowsBrowserCookieImport(context: context) {
-            let sessions = (try? MiniMaxCookieImporter.importSessions(
-                browserDetection: context.browserDetection)) ?? []
-            for session in sessions {
-                guard let override = MiniMaxCookieHeader.override(from: session.cookieHeader) else { continue }
-                candidates.append(Candidate(
-                    override: self.enrichWithBrowserTokens(
-                        override,
-                        sourceLabel: session.sourceLabel,
-                        browserDetection: context.browserDetection),
-                    sourceLabel: session.sourceLabel,
-                    shouldCache: true))
-            }
-        }
+        candidates.append(contentsOf: self.cachedAndBrowserCandidates(context: context))
         #endif
         return self.deduplicated(candidates)
     }
 
-    /// Cookies from explicit user configuration only. API-token enrichment must not attach
-    /// cached or imported browser/desktop sessions that may belong to a different MiniMax account.
+    /// API-token enrichment: explicit cookies, validated cache, and user-initiated browser import only.
+    static func apiEnrichmentCandidates(context: ProviderFetchContext) -> [Candidate] {
+        var candidates = self.explicitCandidates(context: context)
+        #if os(macOS)
+        candidates.append(contentsOf: self.cachedAndBrowserCandidates(context: context))
+        #endif
+        return self.deduplicated(candidates)
+    }
+
+    /// Cookies from explicit user configuration only.
     static func explicitCandidates(context: ProviderFetchContext) -> [Candidate] {
         var candidates: [Candidate] = []
         if let settings = context.settings?.minimax,
@@ -61,14 +47,16 @@ enum MiniMaxWebEnrichmentResolver {
            !header.isEmpty,
            let override = MiniMaxCookieHeader.override(from: header)
         {
-            candidates.append(Candidate(override: override, sourceLabel: "settings", shouldCache: false))
+            candidates.append(Candidate(
+                override: override, sourceLabel: "settings", shouldCache: false, isCached: false))
         }
         if let raw = ProviderTokenResolver.minimaxCookie(environment: context.env),
            let override = MiniMaxCookieHeader.override(from: raw)
         {
-            candidates.append(Candidate(override: override, sourceLabel: "environment", shouldCache: false))
+            candidates.append(Candidate(
+                override: override, sourceLabel: "environment", shouldCache: false, isCached: false))
         }
-        return self.deduplicated(candidates)
+        return candidates
     }
 
     static func cacheValidated(_ candidate: Candidate) {
@@ -86,8 +74,39 @@ enum MiniMaxWebEnrichmentResolver {
 
     #if os(macOS)
     static func allowsBrowserCookieImport(context: ProviderFetchContext) -> Bool {
-        context.runtime == .app &&
-            (ProviderInteractionContext.current == .userInitiated || context.includeOptionalUsage)
+        context.runtime == .app && ProviderInteractionContext.current == .userInitiated
+    }
+
+    private static func cachedAndBrowserCandidates(context: ProviderFetchContext) -> [Candidate] {
+        var candidates: [Candidate] = []
+        if let cached = CookieHeaderCache.load(provider: .minimax),
+           let override = MiniMaxCookieHeader.override(from: cached.cookieHeader)
+        {
+            candidates.append(Candidate(
+                override: self.enrichWithBrowserTokens(
+                    override,
+                    sourceLabel: cached.sourceLabel,
+                    browserDetection: context.browserDetection),
+                sourceLabel: cached.sourceLabel,
+                shouldCache: false,
+                isCached: true))
+        }
+        if self.allowsBrowserCookieImport(context: context) {
+            let sessions = (try? MiniMaxCookieImporter.importSessions(
+                browserDetection: context.browserDetection)) ?? []
+            for session in sessions {
+                guard let override = MiniMaxCookieHeader.override(from: session.cookieHeader) else { continue }
+                candidates.append(Candidate(
+                    override: self.enrichWithBrowserTokens(
+                        override,
+                        sourceLabel: session.sourceLabel,
+                        browserDetection: context.browserDetection),
+                    sourceLabel: session.sourceLabel,
+                    shouldCache: true,
+                    isCached: false))
+            }
+        }
+        return candidates
     }
 
     private static func enrichWithBrowserTokens(

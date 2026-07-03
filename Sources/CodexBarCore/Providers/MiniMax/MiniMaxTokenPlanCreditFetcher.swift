@@ -7,6 +7,7 @@ enum MiniMaxTokenPlanCreditFetcher {
     struct CreditSnapshot: Equatable {
         let balance: Double?
         let expiresAt: Date?
+        let groupIDs: Set<String>
     }
 
     static func fetch(
@@ -57,7 +58,8 @@ enum MiniMaxTokenPlanCreditFetcher {
         try self.validateBaseResponse(in: payload)
         return CreditSnapshot(
             balance: self.balance(from: payload),
-            expiresAt: self.earliestExpiry(from: payload))
+            expiresAt: self.earliestExpiry(from: payload),
+            groupIDs: self.groupIDs(from: payload))
     }
 
     static func resolveCreditURL(region: MiniMaxAPIRegion, environment: [String: String]) throws -> URL {
@@ -136,6 +138,20 @@ enum MiniMaxTokenPlanCreditFetcher {
             guard let raw = self.doubleValue(bucket["expire_time_ms"]), raw > 0 else { return nil }
             return Date(timeIntervalSince1970: raw / 1000.0)
         }.min()
+    }
+
+    private static func groupIDs(from payload: [String: Any]) -> Set<String> {
+        guard let packages = payload["credit_packages_details"] as? [[String: Any]] else { return [] }
+        return Set(packages.compactMap { package in
+            if let value = package["group_id"] as? String {
+                let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return cleaned.isEmpty ? nil : cleaned
+            }
+            if let value = package["group_id"] as? NSNumber {
+                return value.stringValue
+            }
+            return nil
+        })
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {

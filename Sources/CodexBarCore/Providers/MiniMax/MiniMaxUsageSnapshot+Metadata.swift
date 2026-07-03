@@ -21,7 +21,8 @@ extension MiniMaxUsageSnapshot {
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
-            subscriptionRenewsAt: self.subscriptionRenewsAt)
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
     }
 
     func withSubscriptionMetadata(_ metadata: MiniMaxSubscriptionMetadata) -> MiniMaxUsageSnapshot {
@@ -40,7 +41,8 @@ extension MiniMaxUsageSnapshot {
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: metadata.subscriptionExpiresAt ?? self.subscriptionExpiresAt,
-            subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt)
+            subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
     }
 
     func withUsageSummary(_ usageSummary: MiniMaxUsageSummary?) -> MiniMaxUsageSnapshot {
@@ -59,7 +61,8 @@ extension MiniMaxUsageSnapshot {
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
-            subscriptionRenewsAt: self.subscriptionRenewsAt)
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
     }
 
     func withPointsBalanceIfMissing(_ pointsBalance: Double?, expiresAt: Date?) -> MiniMaxUsageSnapshot {
@@ -85,7 +88,8 @@ extension MiniMaxUsageSnapshot {
             pointsBalance: resolvedBalance,
             pointsBalanceExpiresAt: resolvedExpiry,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
-            subscriptionRenewsAt: self.subscriptionRenewsAt)
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
     }
 }
 

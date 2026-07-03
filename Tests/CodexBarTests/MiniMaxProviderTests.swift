@@ -1097,6 +1097,87 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `web enrichment reports expired credentials without discarding API quota`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            return Self.httpResponse(url: url, body: "{}", statusCode: 403, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=expired",
+            authorizationToken: nil,
+            region: .global,
+            environment: [:],
+            transport: transport)
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: context,
+            groupID: nil)
+
+        #expect(attempt.rejectedCredentials)
+        #expect(!attempt.receivedWebData)
+        #expect(!attempt.accountMismatch)
+        #expect(attempt.snapshot.currentPrompts == 25)
+        #expect(attempt.snapshot.usageSummary == nil)
+        #expect(attempt.snapshot.pointsBalance == nil)
+        #expect(await transport.requests().count == 2)
+    }
+
+    @Test
+    func `web enrichment rejects credit response for a different group`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path.contains("usage_summary") {
+                return Self.httpResponse(url: url, body: "{}", statusCode: 503, contentType: "application/json")
+            }
+            let body = """
+            {
+              "remaining_credits": 20000,
+              "credit_packages_details": [{"group_id":"different-group"}],
+              "base_resp":{"status_code":0}
+            }
+            """
+            return Self.httpResponse(url: url, body: body, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=valid",
+            authorizationToken: nil,
+            region: .global,
+            environment: [:],
+            transport: transport)
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: context,
+            groupID: "expected-group")
+
+        #expect(attempt.accountMismatch)
+        #expect(!attempt.receivedWebData)
+        #expect(attempt.snapshot.pointsBalance == nil)
+        #expect(attempt.snapshot.currentPrompts == 25)
+    }
+
+    }
+
+    @Test
     func `web usage fetch keeps quota when billing history is forbidden`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
