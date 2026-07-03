@@ -67,6 +67,7 @@ struct SettingsSidebarView: View {
                 Text(String(format: L("providers_on_count"), self.enabledProviderCount))
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
+                    .padding(.trailing, 10)
             }
         }
     }

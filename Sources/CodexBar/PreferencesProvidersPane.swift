@@ -89,9 +89,6 @@ struct ProvidersPane: View {
                         })
                 }
             })
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 self.runSettingsDidBecomeActiveHooks()
             }

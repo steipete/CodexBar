@@ -13,6 +13,8 @@ enum SettingsPane: Hashable {
 
     static let windowWidth: CGFloat = 920
     static let windowHeight: CGFloat = 640
+    static let windowMinWidth: CGFloat = 780
+    static let windowMinHeight: CGFloat = 520
     static let sidebarWidth: CGFloat = 224
 
     var title: String {
@@ -70,7 +72,13 @@ struct PreferencesView: View {
             self.detailView
                 .navigationTitle(self.selection.pane.title)
         }
-        .frame(width: SettingsPane.windowWidth, height: SettingsPane.windowHeight)
+        .frame(
+            minWidth: SettingsPane.windowMinWidth,
+            idealWidth: SettingsPane.windowWidth,
+            maxWidth: .infinity,
+            minHeight: SettingsPane.windowMinHeight,
+            idealHeight: SettingsPane.windowHeight,
+            maxHeight: .infinity)
         .id(self.settings.appLanguage)
         .background {
             SettingsWindowAppearanceBridge(colorScheme: self.colorScheme)

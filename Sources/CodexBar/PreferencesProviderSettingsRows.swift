@@ -1,39 +1,6 @@
 import CodexBarCore
 import SwiftUI
 
-struct ProviderSettingsSection<Content: View>: View {
-    let title: String
-    let spacing: CGFloat
-    let verticalPadding: CGFloat
-    let horizontalPadding: CGFloat
-    @ViewBuilder let content: () -> Content
-
-    init(
-        title: String,
-        spacing: CGFloat = 12,
-        verticalPadding: CGFloat = 10,
-        horizontalPadding: CGFloat = 4,
-        @ViewBuilder content: @escaping () -> Content)
-    {
-        self.title = title
-        self.spacing = spacing
-        self.verticalPadding = verticalPadding
-        self.horizontalPadding = horizontalPadding
-        self.content = content
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: self.spacing) {
-            Text(L(self.title))
-                .font(.headline)
-            self.content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, self.verticalPadding)
-        .padding(.horizontal, self.horizontalPadding)
-    }
-}
-
 @MainActor
 struct ProviderSettingsToggleRowView: View {
     let toggle: ProviderSettingsToggleDescriptor
@@ -103,11 +70,17 @@ struct ProviderSettingsPickerRowView: View {
 
     var body: some View {
         let isEnabled = self.picker.isEnabled?() ?? true
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(L(self.picker.title))
-                    .font(.subheadline.weight(.semibold))
-                    .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
+        let subtitle = self.picker.dynamicSubtitle?() ?? self.picker.subtitle
+        let trimmedSubtitle = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        LabeledContent {
+            HStack(spacing: 8) {
+                if let trailingText = self.picker.trailingText?(), !trailingText.isEmpty {
+                    Text(trailingText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
 
                 Picker("", selection: self.picker.binding) {
                     ForEach(self.picker.options) { option in
@@ -116,27 +89,12 @@ struct ProviderSettingsPickerRowView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .controlSize(.small)
-
-                if let trailingText = self.picker.trailingText?(), !trailingText.isEmpty {
-                    Text(trailingText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.leading, 4)
-                }
-
-                Spacer(minLength: 0)
+                .fixedSize()
             }
-
-            let subtitle = self.picker.dynamicSubtitle?() ?? self.picker.subtitle
-            if !subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(L(subtitle))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        } label: {
+            SettingsRowLabel(
+                L(self.picker.title),
+                subtitle: trimmedSubtitle.isEmpty ? nil : L(trimmedSubtitle))
         }
         .disabled(!isEnabled)
         .onChange(of: self.picker.binding.wrappedValue) { _, selection in
