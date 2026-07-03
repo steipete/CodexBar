@@ -730,6 +730,7 @@
 "Resets now" = "Şimdi sıfırlanır";
 "reset_tomorrow_format" = "yarın, %@";
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
+"1.5× headroom" = "1,5× pay";
 "Updated %@" = "Güncellendi: %@";
 "Updated relative %@" = "Güncellendi: %@";
 "Updated absolute %@" = "Güncellendi: %@";

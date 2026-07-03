@@ -308,6 +308,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
 "System" = "System";
 "Temporarily shows the loading animation after the next refresh." = "Visar tillfälligt laddningsanimationen efter nästa uppdatering.";
+"terminal_app_subtitle" = "Terminal som används av åtgärden Öppna Terminal";
+"terminal_app_title" = "Standardterminal";
 "Tertiary (\\(label))" = "Tertiär (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiär (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Standardkontot för Codex på den här Macen.";
@@ -728,6 +730,7 @@
 "Resets now" = "Återställs nu";
 "reset_tomorrow_format" = "imorgon %@";
 "Lasts until reset" = "Räcker till återställning";
+"1.5× headroom" = "1,5× marginal";
 "Updated %@" = "Uppdaterad %@";
 "Updated relative %@" = "Uppdaterad %@";
 "Updated absolute %@" = "Uppdaterad %@";

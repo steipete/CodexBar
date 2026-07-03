@@ -53,6 +53,35 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `mcp O auth only keychain payload throws`() {
+        let json = """
+        {
+          "mcpOAuth": {
+            "plugin:slack:slack": {
+              "accessToken": ""
+            }
+          }
+        }
+        """
+        #expect(throws: ClaudeOAuthCredentialsError.self) {
+            _ = try ClaudeOAuthCredentials.parse(data: Data(json.utf8))
+        }
+    }
+
+    @Test
+    func `detects mcp O auth only keychain payload shape`() {
+        let json = """
+        {
+          "mcpOAuth": {
+            "craft": { "accessToken": "" }
+          }
+        }
+        """
+        let data = Data(json.utf8)
+        #expect(ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: data))
+    }
+
+    @Test
     func `treats missing expiry as expired`() {
         let creds = ClaudeOAuthCredentials(
             accessToken: "token",

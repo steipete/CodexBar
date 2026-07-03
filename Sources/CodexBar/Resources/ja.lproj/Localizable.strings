@@ -307,6 +307,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "System" = "システム";
 "Temporarily shows the loading animation after the next refresh." = "次回の更新後に読み込みアニメーションを一時的に表示します。";
+"terminal_app_subtitle" = "「ターミナルを開く」アクションで使用するターミナル";
+"terminal_app_title" = "デフォルトのターミナル";
 "Tertiary (\\(label))" = "第3（\\(label)）";
 "Tertiary (\\(tertiaryTitle))" = "第3（\\(tertiaryTitle)）";
 "The default Codex account on this Mac." = "この Mac のデフォルトの Codex アカウントです。";
@@ -726,6 +728,7 @@
 "Resets now" = "まもなくリセット";
 "reset_tomorrow_format" = "明日 %@";
 "Lasts until reset" = "リセットまで持続";
+"1.5× headroom" = "1.5倍の余裕";
 "Updated %@" = "%@ に更新";
 "Updated relative %@" = "%@ に更新";
 "Updated absolute %@" = "%@ に更新";

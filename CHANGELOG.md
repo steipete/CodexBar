@@ -2,6 +2,22 @@
 
 ## 0.38.1 — Unreleased
 
+### Added
+- Codex: show a conservative 1.5× pace-headroom hint in menus and CLI output when usage is safely ahead of the reset curve. Thanks @astuteprogrammer!
+
+### Changed
+- Website: redesign codexbar.app around faster download, provider discovery, feature, CLI, and widget paths with responsive dark/light and localized layouts. Thanks @vyctorbrzezowski!
+- Architecture: accept a bounded opt-in adaptive refresh design with a deterministic 2–30-minute cadence and no behavioral telemetry. Thanks @hhh2210!
+- Architecture: define the security and identity boundaries required before custom HTTP JSON providers can be implemented safely.
+- Claude: accept a display-only multi-account design based on read-only `claude-swap --list --json`, without account switching or credential storage.
+- Notifications: accept a default-off predictive pace warning design that alerts once per risk episode and re-arms only after authoritative recovery.
+- OpenCode Go: accept bounded automatic multi-workspace fan-out while preserving the configured workspace as an exact single-workspace override.
+- Xiaomi MiMo: require authoritative cadence evidence before showing reserve or deficit projections, avoiding guesses from plan dates or names.
+
+### Fixed
+- Localization: translate the Default Terminal setting across every supported app language. Thanks @Zihao-Qi!
+- Claude: block background delegated CLI OAuth refresh when the keychain holds MCP-only state (`mcpOAuth` without `claudeAiOauth`) while preserving explicit Refresh recovery (#1844). Thanks @Yuxin-Qiao!
+
 ## 0.38.0 — 2026-07-03
 
 ### Added

@@ -785,7 +785,7 @@ struct HistoricalUsagePaceTests {
         #expect(try #require(pace.runOutProbability) > 0)
         #expect(pace.deltaPercent > 0)
 
-        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
         #expect(detail.leftLabel == "5% in deficit")
         #expect(detail.rightLabel?.contains("Lasts until reset") == false)
     }
@@ -816,7 +816,7 @@ struct HistoricalUsagePaceTests {
             #expect(pace.etaSeconds == 0)
             #expect(pace.runOutProbability == 1)
 
-            let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+            let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
             #expect(detail.rightLabel == "Runs out now · ≈ 100% run-out risk")
         }
     }

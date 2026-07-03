@@ -316,6 +316,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "将 CodexBarCLI 作为 codexbar 符号链接到 /usr/local/bin 和 /opt/homebrew/bin。";
 "System" = "系统";
 "Temporarily shows the loading animation after the next refresh." = "下次刷新后临时显示加载动画。";
+"terminal_app_subtitle" = "“打开终端”操作使用的终端";
+"terminal_app_title" = "默认终端";
 "Tertiary (\\(label))" = "第三（\\(label)）";
 "Tertiary (\\(tertiaryTitle))" = "第三（\\(tertiaryTitle)）";
 "The default Codex account on this Mac." = "此 Mac 上的默认 Codex 账户。";
@@ -703,6 +705,7 @@
 "Resets now" = "立即重置";
 "reset_tomorrow_format" = "明天 %@";
 "Lasts until reset" = "持续到重置";
+"1.5× headroom" = "1.5 倍余量";
 "Updated %@" = "更新于 %@";
 "Updated relative %@" = "%@已更新";
 "Updated absolute %@" = "更新于 %@";

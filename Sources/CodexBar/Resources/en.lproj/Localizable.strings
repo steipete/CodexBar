@@ -732,6 +732,7 @@
 "Resets now" = "Resets now";
 "reset_tomorrow_format" = "tomorrow, %@";
 "Lasts until reset" = "Lasts until reset";
+"1.5× headroom" = "1.5× headroom";
 "Updated %@" = "Updated %@";
 "Updated relative %@" = "Updated %@";
 "Updated absolute %@" = "Updated %@";

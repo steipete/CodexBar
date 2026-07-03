@@ -5,6 +5,7 @@ import SweetCookieKit
 
 public enum KeychainAccessGate {
     private static let flagKey = "debugDisableKeychainAccess"
+    static let disableAccessEnvironmentKey = "CODEXBAR_DISABLE_KEYCHAIN_ACCESS"
     @TaskLocal private static var taskOverrideValue: Bool?
     private nonisolated(unsafe) static var overrideValue: Bool?
     private static let processForceDisabledLock = NSLock()
@@ -13,6 +14,7 @@ public enum KeychainAccessGate {
     public nonisolated(unsafe) static var isDisabled: Bool {
         get {
             if let taskOverrideValue { return taskOverrideValue }
+            if self.isDisabledByEnvironment() { return true }
             #if DEBUG
             if Self.forcesDisabledUnderTests {
                 return true
@@ -32,6 +34,12 @@ public enum KeychainAccessGate {
             BrowserCookieKeychainAccessGate.isDisabled = self.isDisabled
             #endif
         }
+    }
+
+    static func isDisabledByEnvironment(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        environment[self.disableAccessEnvironmentKey] == "1"
     }
 
     public static func forceDisabledForProcess(reason: String) {
