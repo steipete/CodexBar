@@ -9,6 +9,19 @@ extension StatusItemController {
         selectedProvider: UsageProvider?,
         descriptor: MenuDescriptor) -> CGFloat
     {
+        let mergedCacheKey: String? = if self.shouldMergeIcons, providers.count > 1 {
+            [
+                "version=\(self.menuSession.contentVersion)",
+                "providers=\(providers.map(\.rawValue).joined(separator: ","))",
+                "locale=\(self.menuLocalizationSignature())",
+            ].joined(separator: "|")
+        } else {
+            nil
+        }
+        if let mergedCacheKey, let cached = self.mergedMenuWidthCache[mergedCacheKey] {
+            return cached
+        }
+
         let sectionSets: [[MenuDescriptor.Section]] = if self.shouldMergeIcons, providers.count > 1 {
             providers.map { provider in
                 if provider == selectedProvider {
@@ -21,7 +34,13 @@ extension StatusItemController {
         } else {
             [descriptor.sections]
         }
-        return self.measuredMenuCardWidth(for: sectionSets)
+        let width = self.measuredMenuCardWidth(for: sectionSets)
+        if let mergedCacheKey {
+            // Only one content version is useful. Keeping stale versions would retain widths
+            // indefinitely while provider snapshots refresh in the background.
+            self.mergedMenuWidthCache = [mergedCacheKey: width]
+        }
+        return width
     }
 
     func measuredMenuCardWidth(for sectionSets: [[MenuDescriptor.Section]]) -> CGFloat {

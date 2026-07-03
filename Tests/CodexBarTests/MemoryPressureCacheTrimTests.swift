@@ -113,6 +113,7 @@ struct MemoryPressureCacheTrimTests {
 
         controller.menuCardHeightCache[key] = 42
         controller.measuredStandardMenuWidthCache["width"] = 300
+        controller.mergedMenuWidthCache["merged"] = 320
         controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)] = [
             .overview: entry,
             .provider(.codex): entry,
@@ -122,11 +123,12 @@ struct MemoryPressureCacheTrimTests {
         let summary = controller.trimRebuildableCachesForMemoryPressure()
 
         #expect(summary.menuCardHeights == 1)
-        #expect(summary.menuWidths == 1)
+        #expect(summary.menuWidths == 2)
         #expect(summary.mergedSwitcherSelections == 2)
         #expect(summary.recycledMenuCardViews == 1)
         #expect(controller.menuCardHeightCache.isEmpty)
         #expect(controller.measuredStandardMenuWidthCache.isEmpty)
+        #expect(controller.mergedMenuWidthCache.isEmpty)
         #expect(controller.mergedSwitcherContentCaches.isEmpty)
         #expect(controller.menuCardViewRecyclePool.isEmpty)
     }

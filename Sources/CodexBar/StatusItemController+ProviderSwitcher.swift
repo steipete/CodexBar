@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import QuartzCore
 
 struct PendingProviderSwitcherRebuild {
     let menu: NSMenu
@@ -324,6 +325,7 @@ extension StatusItemController {
     }
 
     func requestProviderSwitcherMenuRebuild(_ menu: NSMenu, provider: UsageProvider?) {
+        self.providerSwitcherRebuildRequestedAt = CACurrentMediaTime()
         guard self.providerSwitcherPointerInteractionMenuID == ObjectIdentifier(menu) else {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: provider)
             return

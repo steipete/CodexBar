@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import QuartzCore
 import SwiftUI
 
 extension StatusItemController {
@@ -20,6 +21,9 @@ extension StatusItemController {
         _ menu: NSMenu,
         context: MenuUpdateContext)
     {
+        let updateStartedAt = CACurrentMediaTime()
+        let requestedAt = self.providerSwitcherRebuildRequestedAt
+        self.providerSwitcherRebuildRequestedAt = nil
         self.performMenuMutationWithoutAnimation {
             let contentStartIndex = self.providerSwitcherContentStartIndex(in: menu)
             if let switcherView = menu.items.first?.view as? ProviderSwitcherView {
@@ -45,13 +49,14 @@ extension StatusItemController {
                 let outgoingCodexAccountDisplay = self.lastCodexAccountMenuDisplay
                 let outgoingTokenAccountDisplay = self.lastTokenAccountMenuDisplay
                 self.rememberMergedSwitcherState(enabledProviders, context.switcherSelection)
+                let replacementStartedAt = CACurrentMediaTime()
                 let displacedItems = self.replaceMenuContentKeepingRowsVisible(
                     menu,
                     fromIndex: contentStartIndex,
                     with: cachedItems)
+                let replacementEndedAt = CACurrentMediaTime()
                 // Cached items may have changed refresh state while detached from a menu.
                 self.updatePersistentRefreshItemsEnabled()
-                self.refreshMenuCardHeights(in: menu)
                 self.cacheMergedSwitcherContent(
                     displacedItems,
                     in: menu,
@@ -69,6 +74,14 @@ extension StatusItemController {
                     contentStartIndex: contentStartIndex,
                     menuWidth: context.menuWidth,
                     contentVersion: self.menuSession.contentVersion)
+                self.logProviderSwitcherPerformanceIfSlow(
+                    provider: context.provider,
+                    cacheHit: true,
+                    requestedAt: requestedAt,
+                    updateStartedAt: updateStartedAt,
+                    buildDuration: 0,
+                    replacementDuration: replacementEndedAt - replacementStartedAt,
+                    layoutDuration: 0)
                 return
             }
 
@@ -85,18 +98,61 @@ extension StatusItemController {
                 preserveHighlightedItem: true)
             defer { self.clearMenuCardViewRecyclePool() }
             self.rememberMergedSwitcherState(enabledProviders, context.switcherSelection)
+            let buildStartedAt = CACurrentMediaTime()
             let scratch = NSMenu()
             scratch.autoenablesItems = false
             self.addSwitcherScopedMenuContent(into: scratch, captureMenu: menu, context: context)
+            let buildEndedAt = CACurrentMediaTime()
+            let replacementStartedAt = CACurrentMediaTime()
             self.reconcileMenuContent(menu, fromIndex: contentStartIndex, shapes: shapes, with: scratch)
+            let replacementEndedAt = CACurrentMediaTime()
+            let layoutStartedAt = CACurrentMediaTime()
             self.refreshMenuCardHeights(in: menu)
+            let layoutEndedAt = CACurrentMediaTime()
             self.cacheVisibleMergedSwitcherContent(
                 in: menu,
                 selection: context.switcherSelection,
                 contentStartIndex: contentStartIndex,
                 menuWidth: context.menuWidth,
                 contentVersion: self.menuSession.contentVersion)
+            self.logProviderSwitcherPerformanceIfSlow(
+                provider: context.provider,
+                cacheHit: false,
+                requestedAt: requestedAt,
+                updateStartedAt: updateStartedAt,
+                buildDuration: buildEndedAt - buildStartedAt,
+                replacementDuration: replacementEndedAt - replacementStartedAt,
+                layoutDuration: layoutEndedAt - layoutStartedAt)
         }
+    }
+
+    private func logProviderSwitcherPerformanceIfSlow(
+        provider: UsageProvider?,
+        cacheHit: Bool,
+        requestedAt: CFTimeInterval?,
+        updateStartedAt: CFTimeInterval,
+        buildDuration: CFTimeInterval,
+        replacementDuration: CFTimeInterval,
+        layoutDuration: CFTimeInterval)
+    {
+        let endedAt = CACurrentMediaTime()
+        let totalDuration = requestedAt.map { endedAt - $0 } ?? (endedAt - updateStartedAt)
+        guard totalDuration >= 0.008 else { return }
+        self.menuLogger.debug(
+            "provider switch performance",
+            metadata: [
+                "provider": provider?.rawValue ?? "overview",
+                "cacheHit": cacheHit ? "1" : "0",
+                "queueMs": Self.formatMenuPerformanceDuration(updateStartedAt - (requestedAt ?? updateStartedAt)),
+                "buildMs": Self.formatMenuPerformanceDuration(buildDuration),
+                "replaceMs": Self.formatMenuPerformanceDuration(replacementDuration),
+                "layoutMs": Self.formatMenuPerformanceDuration(layoutDuration),
+                "totalMs": Self.formatMenuPerformanceDuration(totalDuration),
+            ])
+    }
+
+    private static func formatMenuPerformanceDuration(_ duration: CFTimeInterval) -> String {
+        String(format: "%.1f", duration * 1000)
     }
 
     /// Adds everything below the provider switcher (account switchers, card content, and

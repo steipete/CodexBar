@@ -8,12 +8,13 @@ extension StatusItemController {
         }
         let summary = MemoryPressureCacheTrimSummary(
             menuCardHeights: self.menuCardHeightCache.count,
-            menuWidths: self.measuredStandardMenuWidthCache.count,
+            menuWidths: self.measuredStandardMenuWidthCache.count + self.mergedMenuWidthCache.count,
             mergedSwitcherSelections: mergedSwitcherSelectionCount,
             recycledMenuCardViews: self.menuCardViewRecyclePool.count)
 
         self.menuCardHeightCache.removeAll(keepingCapacity: false)
         self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: false)
+        self.mergedMenuWidthCache.removeAll(keepingCapacity: false)
         self.mergedSwitcherContentCaches.removeAll(keepingCapacity: false)
         self.menuCardViewRecyclePool.removeAll(keepingCapacity: false)
 

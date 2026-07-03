@@ -168,8 +168,6 @@ extension StatusItemController {
         }
 
         self.clearMergedSwitcherContentCache(for: menu)
-        self.miniMaxMergedMenuPrewarmTask?.cancel()
-        self.miniMaxMergedMenuPrewarmTask = nil
         let wasTracked = self.openMenus.removeValue(forKey: key) != nil
         let menuTrackingEnded = wasTracked && self.openMenus.isEmpty
         if self.openMenus.isEmpty {
@@ -225,6 +223,8 @@ extension StatusItemController {
         defer {
             if self.openMenus[ObjectIdentifier(menu)] != nil {
                 self.scheduleMiniMaxMergedMenuPrewarmIfNeeded(menu)
+            } else {
+                self.prewarmMiniMaxMergedMenuContentIfNeeded(in: menu)
             }
         }
 

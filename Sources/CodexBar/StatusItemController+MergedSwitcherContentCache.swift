@@ -32,8 +32,6 @@ struct MergedSwitcherContentCacheContext {
 }
 
 extension StatusItemController {
-    private static let miniMaxMergedMenuPrewarmDelay: Duration = .milliseconds(120)
-
     func preservingMergedSwitcherContentCachesDuringInvalidation(_ body: () -> Void) {
         let previous = self.preservesMergedSwitcherContentCachesDuringInvalidation
         self.preservesMergedSwitcherContentCachesDuringInvalidation = true
@@ -150,13 +148,14 @@ extension StatusItemController {
               self.lastMergedSwitcherSelection != .provider(.minimax)
         else { return }
 
-        self.miniMaxMergedMenuPrewarmTask?.cancel()
-        self.miniMaxMergedMenuPrewarmTask = Task { @MainActor [weak self, weak menu] in
-            try? await Task.sleep(for: Self.miniMaxMergedMenuPrewarmDelay)
-            guard !Task.isCancelled, let self, let menu else { return }
+        // An open NSMenu runs the main thread in event-tracking mode. A MainActor Task
+        // continuation can therefore starve until the menu closes, defeating the prewarm.
+        // Queue directly into that run-loop mode so the detached content is ready before
+        // the user's first switch to MiniMax.
+        ProviderSwitcherTrackingRunLoopScheduler.schedule { [weak self, weak menu] in
+            guard let self, let menu else { return }
             guard self.openMenus[ObjectIdentifier(menu)] != nil else { return }
             self.prewarmMiniMaxMergedMenuContent(in: menu)
-            self.miniMaxMergedMenuPrewarmTask = nil
         }
     }
 
@@ -215,5 +214,10 @@ extension StatusItemController {
                 codexAccountDisplay: codexAccountDisplay,
                 tokenAccountDisplay: tokenAccountDisplay,
                 contentVersion: self.menuSession.contentVersion))
+    }
+
+    func prewarmMiniMaxMergedMenuContentIfNeeded(in menu: NSMenu) {
+        guard self.lastMergedSwitcherSelection != .provider(.minimax) else { return }
+        self.prewarmMiniMaxMergedMenuContent(in: menu)
     }
 }
