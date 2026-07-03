@@ -1,121 +1,205 @@
 #!/usr/bin/env bash
-# Live verification for CodexBar #1844 / PR #1848
-# Usage: ./Scripts/verify_1844_live.sh
+# Isolated live verification for CodexBar #1844 / PR #1848.
+# Uses only synthetic credentials under a disposable HOME and keychain.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-ARTIFACT="${TMPDIR:-/tmp}/codexbar-1844-verify"
-mkdir -p "$ARTIFACT"
-
-CLI="${CODEXBAR_CLI:-$ROOT/.build/release/CodexBarCLI}"
-if [[ ! -x "$CLI" ]]; then
-  CLI="$ROOT/CodexBar.app/Contents/Helpers/CodexBarCLI"
-fi
-if [[ ! -x "$CLI" ]]; then
-  echo "Building CodexBarCLI..."
-  swift build -c release --product CodexBarCLI
-  CLI="$ROOT/.build/release/CodexBarCLI"
-fi
-
 log() { printf '[verify-1844] %s\n' "$*"; }
 
-log "Phase 1: macOS integration tests"
+ARTIFACT="$(mktemp -d "${TMPDIR:-/tmp}/codexbar-1844-verify.XXXXXX")"
+chmod 700 "$ARTIFACT"
+HOME_FIXTURE="$ARTIFACT/home"
+KEYCHAIN="$ARTIFACT/claude-fixture.keychain-db"
+KEYCHAIN_PASSWORD="codexbar-1844-synthetic-fixture"
+CONFIG="$ARTIFACT/config.json"
+CLI="${CODEXBAR_CLI:-$ROOT/CodexBar.app/Contents/Helpers/CodexBarCLI}"
+APP="${CODEXBAR_APP_BINARY:-$ROOT/CodexBar.app/Contents/MacOS/CodexBar}"
+MCP_PAYLOAD='{"mcpOAuth":{"plugin:synthetic":{"accessToken":"synthetic-mcp-token"}}}'
+EXPIRED_PAYLOAD='{"claudeAiOauth":{"accessToken":"synthetic-expired-token","expiresAt":1000,"scopes":["user:profile"],"refreshToken":"synthetic-refresh-token"}}'
+
+if [[ ! -x "$CLI" ]]; then
+  log "Missing packaged CLI: $CLI"
+  log "Run ./Scripts/package_app.sh, then retry."
+  exit 2
+fi
+if [[ ! -x "$APP" ]]; then
+  log "Missing packaged app binary: $APP"
+  exit 2
+fi
+
+cleanup() {
+  /usr/bin/security delete-keychain "$KEYCHAIN" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+log "Artifacts: $ARTIFACT"
+log "Phase 1: focused integration tests"
 {
   swift test --filter ClaudeOAuthTests
   swift test --filter ClaudeUsageTests
   swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
   swift test --filter 'expired claude CLI owner blocks background'
+  swift test --filter ClaudeOAuthCredentialsStoreSecurityCLITests
+  swift test --filter ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests
 } 2>&1 | tee "$ARTIFACT/integration-tests.log"
 log "Phase 1 passed"
 
-KEYCHAIN_SERVICE="Claude Code-credentials"
-KEYCHAIN_ACCOUNT="codexbar-verify-1844"
-CREDS_REAL="$HOME/.claude/.credentials.json"
-CREDS_BACKUP="$ARTIFACT/credentials.json.backup"
-CONFIG="$ARTIFACT/config.json"
-MCP_PAYLOAD='{"mcpOAuth":{"plugin:slack:slack":{"accessToken":""},"craft":{"accessToken":""}}}'
-EXPIRED_PAYLOAD='{"claudeAiOauth":{"accessToken":"verify-expired-redacted","expiresAt":1000,"scopes":["user:profile"],"refreshToken":"verify-refresh-redacted"}}'
+log "Phase 2: disposable HOME, keychain, credentials, config, and Claude CLI canary"
+mkdir -p "$HOME_FIXTURE/.claude" "$HOME_FIXTURE/Library/Preferences" "$ARTIFACT/bin"
+chmod 700 "$HOME_FIXTURE" "$HOME_FIXTURE/.claude" "$HOME_FIXTURE/Library" \
+  "$HOME_FIXTURE/Library/Preferences" "$ARTIFACT/bin"
+printf '%s\n' "$EXPIRED_PAYLOAD" >"$HOME_FIXTURE/.claude/.credentials.json"
+chmod 600 "$HOME_FIXTURE/.claude/.credentials.json"
+printf '%s\n' '{"version":1,"providers":[{"id":"claude","enabled":true,"source":"oauth"}]}' >"$CONFIG"
+chmod 600 "$CONFIG"
+printf '%s\n' '#!/usr/bin/env bash' 'printf touched >"$CODEXBAR_CLAUDE_TOUCH_CANARY"' 'exit 99' \
+  >"$ARTIFACT/bin/claude"
+chmod 700 "$ARTIFACT/bin/claude"
 
-HAD_CREDS=0
-[[ -f "$CREDS_REAL" ]] && HAD_CREDS=1 && cp -p "$CREDS_REAL" "$CREDS_BACKUP"
-
-cleanup() {
-  security delete-generic-password -s "$KEYCHAIN_SERVICE" -a "$KEYCHAIN_ACCOUNT" >/dev/null 2>&1 || true
-  if [[ "$HAD_CREDS" -eq 1 && -f "$CREDS_BACKUP" ]]; then
-    mv -f "$CREDS_BACKUP" "$CREDS_REAL"
-  else
-    rm -f "$CREDS_REAL"
-  fi
-}
-trap cleanup EXIT
-
-log "Phase 2: optional Keychain fixture E2E"
-log "Approve the macOS Keychain prompt if shown (required once to install the test fixture)."
-
-security delete-generic-password -s "$KEYCHAIN_SERVICE" -a "$KEYCHAIN_ACCOUNT" >/dev/null 2>&1 || true
-if ! security add-generic-password \
-  -a "$KEYCHAIN_ACCOUNT" \
-  -s "$KEYCHAIN_SERVICE" \
+/usr/bin/security list-keychains -d user >"$ARTIFACT/keychains-before.txt"
+/usr/bin/security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+/usr/bin/security set-keychain-settings -t 3600 "$KEYCHAIN"
+/usr/bin/security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+/usr/bin/security add-generic-password \
+  -a codexbar-verify-1844 \
+  -s 'Claude Code-credentials' \
   -w "$MCP_PAYLOAD" \
-  -T "$CLI" \
-  -U 2>"$ARTIFACT/keychain-install.err"; then
-  log "Phase 2 skipped: could not install Keychain fixture (see $ARTIFACT/keychain-install.err)"
-  log "Phase 1 integration results remain valid for review."
-  exit 0
+  -A \
+  "$KEYCHAIN"
+/usr/bin/security list-keychains -d user >"$ARTIFACT/keychains-after.txt"
+if ! cmp -s "$ARTIFACT/keychains-before.txt" "$ARTIFACT/keychains-after.txt"; then
+  log "Phase 2 failed: creating the disposable keychain changed the user search list"
+  exit 1
 fi
+/usr/bin/security find-generic-password \
+  -s 'Claude Code-credentials' \
+  -w \
+  "$KEYCHAIN" >"$ARTIFACT/keychain-fixture.json"
+cmp -s "$ARTIFACT/keychain-fixture.json" <(printf '%s\n' "$MCP_PAYLOAD")
 
-mkdir -p "$HOME/.claude"
-printf '%s\n' "$EXPIRED_PAYLOAD" >"$CREDS_REAL"
-chmod 600 "$CREDS_REAL"
-printf '%s\n' '{"version":1,"providers":[{"id":"claude","enabled":true}]}' >"$CONFIG"
-
-PROC_LOG="$ARTIFACT/e2e-proc.log"
+PROC_LOG="$ARTIFACT/e2e-processes.log"
+STDOUT="$ARTIFACT/e2e-stdout.json"
+STDERR="$ARTIFACT/e2e-stderr.jsonl"
+CANARY="$ARTIFACT/claude-touch-canary"
 : >"$PROC_LOG"
-log "Running background Claude OAuth CLI probe"
+
+set +e
 (
-  CODEXBAR_CONFIG="$CONFIG" CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW=1 \
-    "$CLI" usage --provider claude --source oauth --format json --json-output --log-level debug \
-      >"$ARTIFACT/e2e-stdout.json" 2>"$ARTIFACT/e2e-stderr.jsonl"
+  env \
+    HOME="$HOME_FIXTURE" \
+    CFFIXED_USER_HOME="$HOME_FIXTURE" \
+    CODEXBAR_CONFIG="$CONFIG" \
+    CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 \
+    CODEXBAR_CLAUDE_SECURITY_CLI_KEYCHAIN="$KEYCHAIN" \
+    CODEXBAR_CLAUDE_TOUCH_CANARY="$CANARY" \
+    CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW=1 \
+    PATH="$ARTIFACT/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    "$CLI" usage --provider claude --source oauth --format json --pretty --log-level debug \
+      >"$STDOUT" 2>"$STDERR"
 ) &
 PID=$!
 while kill -0 "$PID" 2>/dev/null; do
-  { date -u +%H:%M:%S; pgrep -P "$PID" -l 2>/dev/null || true
-    pgrep -fl '/usr/bin/open|firefox|claude' 2>/dev/null | rg -v 'CodexBarCLI|verify_1844' || true
+  {
+    date -u +%H:%M:%S
+    pgrep -P "$PID" -l 2>/dev/null || true
   } >>"$PROC_LOG"
-  sleep 0.05
+  sleep 0.02
 done
-wait "$PID" || true
+wait "$PID"
+CLI_STATUS=$?
+set -e
 
 {
-  echo "# CodexBar #1844 E2E verification"
+  echo "# CodexBar #1844 isolated E2E verification"
   echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "claude: $(claude --version 2>/dev/null || echo n/a)"
+  echo "candidate: $(git rev-parse HEAD)"
+  echo "packaged-cli: $CLI"
+  echo "cli-exit: $CLI_STATUS"
+  echo "default-keychain-search-list-unchanged: yes"
+  echo "real-home-referenced: no"
+  echo "claude-touch-canary: $([[ -e "$CANARY" ]] && echo touched || echo untouched)"
   echo
   echo "## stdout"
-  cat "$ARTIFACT/e2e-stdout.json"
+  cat "$STDOUT"
   echo
   echo "## stderr (filtered)"
-  rg -i 'mcp|delegated|expired|oauth|touch|open|only prompt' "$ARTIFACT/e2e-stderr.jsonl" || true
+  rg -i 'mcp|delegated|expired|oauth|touch|open|only prompt|user action' "$STDERR" || true
   echo
   echo "## child processes"
   cat "$PROC_LOG"
 } | tee "$ARTIFACT/E2E-REPORT.md"
 
-if rg -q '/usr/bin/open|firefox' "$PROC_LOG" 2>/dev/null; then
-  log "Phase 2 failed: browser or open helper launched"
+if [[ "$CLI_STATUS" -eq 0 ]]; then
+  log "Phase 2 failed: the MCP-only fixture unexpectedly produced successful OAuth usage"
   exit 1
 fi
-if rg -q 'delegated refresh touch' "$ARTIFACT/e2e-stderr.jsonl" 2>/dev/null; then
-  log "Phase 2 failed: delegated CLI touch ran"
+if [[ -e "$CANARY" ]]; then
+  log "Phase 2 failed: delegated Claude CLI touch ran"
   exit 1
 fi
-if ! rg -qi 'mcp oauth|MCP OAuth state only|only prompt on user action' \
-  "$ARTIFACT/e2e-stderr.jsonl" "$ARTIFACT/e2e-stdout.json" 2>/dev/null; then
-  log "Phase 2 failed: expected fail-closed OAuth messaging not found"
+if rg -q '/usr/bin/open|(^|/)open$|firefox|Google Chrome|Safari' "$PROC_LOG" 2>/dev/null; then
+  log "Phase 2 failed: an open helper or browser was a probe child"
+  exit 1
+fi
+if ! rg -qi 'MCP OAuth state only|mcpOAuthOnlyKeychain|MCP OAuth' "$STDERR" "$STDOUT"; then
+  log "Phase 2 failed: expected MCP-only fail-closed message not found"
   exit 1
 fi
 
-log "Phase 2 passed: background probe failed closed without open or delegated CLI touch"
+log "Phase 2 passed: exact packaged CLI failed closed without delegated touch or browser child"
+
+log "Phase 3: isolated packaged app runtime smoke"
+APP_PROC_LOG="$ARTIFACT/app-processes.log"
+APP_STDOUT="$ARTIFACT/app-stdout.log"
+APP_STDERR="$ARTIFACT/app-stderr.log"
+: >"$APP_PROC_LOG"
+(
+  env \
+    HOME="$HOME_FIXTURE" \
+    CFFIXED_USER_HOME="$HOME_FIXTURE" \
+    CODEXBAR_CONFIG="$CONFIG" \
+    CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 \
+    CODEXBAR_CLAUDE_SECURITY_CLI_KEYCHAIN="$KEYCHAIN" \
+    CODEXBAR_CLAUDE_TOUCH_CANARY="$CANARY" \
+    CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW=1 \
+    PATH="$ARTIFACT/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    "$APP" >"$APP_STDOUT" 2>"$APP_STDERR"
+) &
+APP_PID=$!
+for _ in $(seq 1 250); do
+  if ! kill -0 "$APP_PID" 2>/dev/null; then
+    log "Phase 3 failed: packaged app exited before the 5-second isolation smoke completed"
+    wait "$APP_PID" || true
+    exit 1
+  fi
+  {
+    date -u +%H:%M:%S
+    pgrep -P "$APP_PID" -l 2>/dev/null || true
+  } >>"$APP_PROC_LOG"
+  sleep 0.02
+done
+kill "$APP_PID"
+wait "$APP_PID" 2>/dev/null || true
+
+if [[ -e "$CANARY" ]]; then
+  log "Phase 3 failed: packaged app invoked delegated Claude CLI touch"
+  exit 1
+fi
+if rg -q '/usr/bin/open|(^|/)open$|firefox|Google Chrome|Safari' "$APP_PROC_LOG" 2>/dev/null; then
+  log "Phase 3 failed: an open helper or browser was an app child"
+  exit 1
+fi
+{
+  echo
+  echo "## packaged app runtime"
+  echo "app-binary: $APP"
+  echo "isolated-runtime-seconds: 5"
+  echo "app-stayed-running: yes"
+  echo "claude-touch-canary: untouched"
+  echo "browser-child: none"
+} | tee -a "$ARTIFACT/E2E-REPORT.md"
+
+log "Phase 3 passed: packaged app stayed running in isolation without delegated touch or browser child"
 log "Report: $ARTIFACT/E2E-REPORT.md"

@@ -1,47 +1,44 @@
-## macOS verification (2026-07-03)
+## Maintainer verification (2026-07-03)
 
-Contributor verification for the Phase 1 guard in this PR. Full write-up: [`docs/verify-1844-proof.md`](https://github.com/Yuxin-Qiao/CodexBar/blob/cursor/fix-claude-oauth-background-refresh-1114/docs/verify-1844-proof.md) on the PR branch.
+Local current-main port of https://github.com/steipete/CodexBar/pull/1848. This is a Phase 1 guard related to https://github.com/steipete/CodexBar/issues/1844; it intentionally does not close the issue.
 
-**Environment:** macOS arm64, Claude Code 2.1.193, branch `cursor/fix-claude-oauth-background-refresh-1114` @ `7befb637`
-
-### Integration tests
+### Focused regression proof
 
 ```bash
 swift test --filter ClaudeOAuthTests
 swift test --filter ClaudeUsageTests
 swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
 swift test --filter 'expired claude CLI owner blocks background'
+swift test --filter ClaudeOAuthCredentialsStoreSecurityCLITests
+swift test --filter ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests
 ```
 
-**Result:** all selected suites and the targeted storage-owner regression passed on macOS release-linked binaries.
+Result: **104 tests passed** (33 + 39 + 12 + 1 + 17 + 2).
 
 | Behavior | Result |
 |----------|--------|
-| Background `onlyOnUserAction` suppresses delegated refresh (`securityCLIExperimental`) | Pass |
-| Coordinator skips background `claude /status` when keychain is MCP-only | Pass |
-| Explicit user Refresh bypasses the MCP-only guard and delegated-refresh cooldown | Pass |
+| Background `onlyOnUserAction` suppresses delegated refresh with `securityCLIExperimental` | Pass |
+| MCP-only background guard prevents `claude /status` touch | Pass |
+| Explicit user Refresh bypasses the MCP-only guard and cooldown | Pass |
 | Explicit user Refresh retries after an in-flight background failure | Pass |
-| Expired Claude CLI owner fails fast with `mcpOAuthOnlyKeychain` in background | Pass |
+| Expired Claude CLI-owned credentials fail closed with `mcpOAuthOnlyKeychain` | Pass |
+| Isolated keychain path is accepted only with general keychain access disabled | Pass |
 
-Representative logs:
-
-```text
-Claude OAuth delegated refresh skipped: Claude keychain has MCP OAuth state only
-Claude OAuth credentials expired; Claude keychain has MCP OAuth state only
-```
-
-No delegated CLI touch or `/usr/bin/open` activity is exercised in these tests.
-
-### Keychain fixture E2E
-
-Not completed in unattended automation (macOS Keychain write requires interactive approval). Optional follow-up on a machine with the reporter's keychain shape, or locally via:
+### Isolated built-bundle proof
 
 ```bash
+./Scripts/package_app.sh
 ./Scripts/verify_1844_live.sh
 ```
 
-### Conclusion
+The verifier used only synthetic data under a unique temporary directory:
 
-Phase 1 code paths are covered by macOS integration tests and demonstrate fail-closed behavior for MCP-only keychain payloads without background delegated CLI refresh.
+- disposable `HOME` and `CFFIXED_USER_HOME`
+- disposable keychain passed directly to `/usr/bin/security`
+- general Security.framework/cache keychain access disabled
+- isolated `.claude/.credentials.json` and CodexBar config
+- synthetic `claude` executable that writes a canary if delegated refresh touches it
 
-@clawsweeper re-review
+The packaged `CodexBarCLI` exited 3 with the MCP-only guidance, the canary stayed untouched, no browser/open child appeared, and the user keychain search list was unchanged. The packaged `CodexBar.app` binary then stayed running for a five-second isolated smoke with the same untouched canary and no browser/open child.
+
+Final full-suite and autoreview results belong in the landing evidence after the local candidate is committed. No public PR/issue mutation was performed.

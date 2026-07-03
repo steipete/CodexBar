@@ -177,7 +177,8 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         if let mcpOAuthOnlyFailure = self.mcpOAuthOnlyKeychainFailureIfPresent(
             interaction: configuration.interaction,
             readStrategy: configuration.readStrategy,
-            keychainAccessDisabled: configuration.keychainAccessDisabled)
+            keychainAccessDisabled: configuration.keychainAccessDisabled,
+            environment: configuration.environment)
         {
             self.recordAttempt(now: now, cooldown: self.defaultCooldownInterval, state: state)
             self.log.warning(
@@ -415,13 +416,15 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
     private static func mcpOAuthOnlyKeychainFailureIfPresent(
         interaction: ProviderInteraction,
         readStrategy: ClaudeOAuthKeychainReadStrategy,
-        keychainAccessDisabled: Bool) -> String?
+        keychainAccessDisabled: Bool,
+        environment: [String: String]) -> String?
     {
         guard interaction != .userInitiated else { return nil }
         guard ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
             interaction: interaction,
             readStrategy: readStrategy,
-            keychainAccessDisabled: keychainAccessDisabled)
+            keychainAccessDisabled: keychainAccessDisabled,
+            environment: environment)
         else {
             return nil
         }

@@ -1,66 +1,41 @@
-# Verification: Claude MCP-only keychain guard (#1844)
+# Verification: Claude MCP-only keychain guard
 
-Verification artifact for [PR #1848](https://github.com/steipete/CodexBar/pull/1848).
-
-| Field | Value |
-|-------|-------|
-| Branch | `cursor/fix-claude-oauth-background-refresh-1114` |
-| Date | 2026-07-03 |
-| Platform | macOS arm64 |
-| Claude Code CLI | 2.1.193 |
+Verification artifact for https://github.com/steipete/CodexBar/pull/1848, related to https://github.com/steipete/CodexBar/issues/1844.
 
 ## Scope
 
-This documents **Phase 1** behavior: CodexBar must fail closed when `Claude Code-credentials` contains only `mcpOAuth`, and must not invoke delegated `claude /status` refresh from background paths (which can launch the default browser via `/usr/bin/open`).
+This verifies the Phase 1 safety behavior: CodexBar fails closed when `Claude Code-credentials` contains only `mcpOAuth`, and background paths do not invoke delegated `claude /status` refresh. Explicit user Refresh remains able to attempt recovery.
 
-Phase 1 does **not** implement discovery of a new Claude Code primary OAuth storage location. That remains follow-up on #1844.
+The change does not discover Claude Code 2.1.x's primary OAuth storage location. Issue 1844 must remain open for that work and reporter-environment confirmation.
 
-## Automated verification (macOS integration tests)
-
-Command:
+## Focused regression proof
 
 ```bash
-./Scripts/verify_1844_live.sh
-# Phase 1 only (default when Keychain fixture install is unavailable):
 swift test --filter ClaudeOAuthTests
 swift test --filter ClaudeUsageTests
 swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
 swift test --filter 'expired claude CLI owner blocks background'
+swift test --filter ClaudeOAuthCredentialsStoreSecurityCLITests
+swift test --filter ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests
 ```
 
-Result: **all selected suites and the targeted storage-owner regression passed** on macOS release-linked binaries.
+Result on macOS arm64: **104 tests passed** (33 + 39 + 12 + 1 + 17 + 2).
 
-| Check | Result |
-|-------|--------|
-| Background `onlyOnUserAction` suppresses delegated refresh with `securityCLIExperimental` reader | Pass |
-| Delegated refresh coordinator skips background CLI touch when keychain payload is MCP-only | Pass |
-| Explicit user Refresh bypasses the MCP-only guard and delegated-refresh cooldown | Pass |
-| Explicit user Refresh retries after an in-flight background failure | Pass |
-| Expired Claude CLI-owned credentials fail fast with `mcpOAuthOnlyKeychain` in background | Pass |
-| Parser rejects MCP-only keychain shape | Pass |
+The covered behaviors include MCP-only shape detection, background fail-closed behavior, explicit user Refresh recovery, in-flight background/user interaction races, and fail-closed isolated-keychain argument construction.
 
-Representative log lines:
+## Isolated built-bundle proof
 
-```text
-Claude keychain security CLI output is MCP OAuth only; falling back
-Claude OAuth delegated refresh skipped: Claude keychain has MCP OAuth state only
-Claude OAuth credentials expired; Claude keychain has MCP OAuth state only
+```bash
+./Scripts/package_app.sh
+./Scripts/verify_1844_live.sh
 ```
 
-## Optional Keychain fixture E2E
+The verifier creates a unique temporary directory and places every synthetic credential fixture beneath it. `HOME` and `CFFIXED_USER_HOME` point there. A disposable keychain is passed as an explicit operand to `/usr/bin/security`; CodexBar's general keychain access is disabled so its Security.framework cache cannot read or write the user's login keychain. The script verifies that creating the disposable keychain does not change the user keychain search list.
 
-`./Scripts/verify_1844_live.sh` can install a temporary `Claude Code-credentials` entry and run a background `CodexBarCLI usage --provider claude --source oauth` probe.
+The packaged `CodexBarCLI` read an expired synthetic Claude credential file plus an MCP-only disposable keychain item. It exited 3 with the expected MCP-only guidance. A synthetic `claude` executable would have written a canary if delegated refresh ran; the canary stayed untouched, and no browser/open child appeared. The packaged `CodexBar.app` binary also stayed running for a five-second isolated smoke with no canary or browser/open child.
 
-This step requires approving a macOS Keychain write prompt once. Unattended automation cannot complete that step.
+No real `~/.claude/.credentials.json`, Claude account, or CodexBar cache keychain item was read or mutated. The default keychain search list was read before and after fixture creation only to prove it remained unchanged.
 
-Expected when the fixture is installed:
+## Remaining proof
 
-- Fail-closed OAuth error referencing MCP-only keychain or background suppression
-- No `/usr/bin/open` or default-browser child processes during the probe
-- No `Claude OAuth delegated refresh touch` log line
-
-## Assessment
-
-Integration tests cover the production code paths changed in PR #1848 and demonstrate the guard described in #1844.
-
-A full reporter-environment replay (existing corrupted keychain on Claude Code 2.1.x plus menu Refresh UI proof) is optional supplementary evidence, not required to validate the Phase 1 code paths.
+The final local port still requires `make check`, the complete sharded `make test`, and autoreview. A reporter-environment menu Refresh replay remains useful supplementary evidence but is outside this isolated proof and is not grounds to close issue 1844.
