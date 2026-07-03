@@ -311,10 +311,10 @@ extension StatusItemController {
         if canSmartUpdate {
             self.updateMenuContentPreservingSwitcher(
                 menu,
-                context: MenuUpdateContext(
-                    provider: selectedProvider,
+                context: self.menuUpdateContext(
+                    selectedProvider: selectedProvider,
                     currentProvider: currentProvider,
-                    switcherSelection: switcherSelection ?? .provider(currentProvider),
+                    switcherSelection: switcherSelection,
                     menuWidth: menuWidth,
                     codexAccountDisplay: codexAccountDisplay,
                     tokenAccountDisplay: tokenAccountDisplay,
@@ -344,10 +344,10 @@ extension StatusItemController {
         if canPreserveProviderSwitcher {
             self.updateMenuContentPreservingSwitcher(
                 menu,
-                context: MenuUpdateContext(
-                    provider: selectedProvider,
+                context: self.menuUpdateContext(
+                    selectedProvider: selectedProvider,
                     currentProvider: currentProvider,
-                    switcherSelection: switcherSelection ?? .provider(currentProvider),
+                    switcherSelection: switcherSelection,
                     menuWidth: menuWidth,
                     codexAccountDisplay: codexAccountDisplay,
                     tokenAccountDisplay: tokenAccountDisplay,

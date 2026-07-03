@@ -16,6 +16,27 @@ extension StatusItemController {
         let descriptor: MenuDescriptor
     }
 
+    func menuUpdateContext(
+        selectedProvider: UsageProvider?,
+        currentProvider: UsageProvider,
+        switcherSelection: ProviderSwitcherSelection?,
+        menuWidth: CGFloat,
+        codexAccountDisplay: CodexAccountMenuDisplay?,
+        tokenAccountDisplay: TokenAccountMenuDisplay?,
+        openAIContext: OpenAIWebContext,
+        descriptor: MenuDescriptor) -> MenuUpdateContext
+    {
+        MenuUpdateContext(
+            provider: selectedProvider,
+            currentProvider: currentProvider,
+            switcherSelection: switcherSelection ?? .provider(currentProvider),
+            menuWidth: menuWidth,
+            codexAccountDisplay: codexAccountDisplay,
+            tokenAccountDisplay: tokenAccountDisplay,
+            openAIContext: openAIContext,
+            descriptor: descriptor)
+    }
+
     /// Smart update: rebuild everything below the provider switcher while keeping the switcher view intact.
     func updateMenuContentPreservingSwitcher(
         _ menu: NSMenu,
@@ -74,14 +95,14 @@ extension StatusItemController {
                     contentStartIndex: contentStartIndex,
                     menuWidth: context.menuWidth,
                     contentVersion: self.menuSession.contentVersion)
-                self.logProviderSwitcherPerformanceIfSlow(
+                self.logProviderSwitcherPerformanceIfSlow(ProviderSwitcherPerformanceSample(
                     provider: context.provider,
                     cacheHit: true,
                     requestedAt: requestedAt,
                     updateStartedAt: updateStartedAt,
                     buildDuration: 0,
                     replacementDuration: replacementEndedAt - replacementStartedAt,
-                    layoutDuration: 0)
+                    layoutDuration: 0))
                 return
             }
 
@@ -115,38 +136,41 @@ extension StatusItemController {
                 contentStartIndex: contentStartIndex,
                 menuWidth: context.menuWidth,
                 contentVersion: self.menuSession.contentVersion)
-            self.logProviderSwitcherPerformanceIfSlow(
+            self.logProviderSwitcherPerformanceIfSlow(ProviderSwitcherPerformanceSample(
                 provider: context.provider,
                 cacheHit: false,
                 requestedAt: requestedAt,
                 updateStartedAt: updateStartedAt,
                 buildDuration: buildEndedAt - buildStartedAt,
                 replacementDuration: replacementEndedAt - replacementStartedAt,
-                layoutDuration: layoutEndedAt - layoutStartedAt)
+                layoutDuration: layoutEndedAt - layoutStartedAt))
         }
     }
 
-    private func logProviderSwitcherPerformanceIfSlow(
-        provider: UsageProvider?,
-        cacheHit: Bool,
-        requestedAt: CFTimeInterval?,
-        updateStartedAt: CFTimeInterval,
-        buildDuration: CFTimeInterval,
-        replacementDuration: CFTimeInterval,
-        layoutDuration: CFTimeInterval)
-    {
+    private struct ProviderSwitcherPerformanceSample {
+        let provider: UsageProvider?
+        let cacheHit: Bool
+        let requestedAt: CFTimeInterval?
+        let updateStartedAt: CFTimeInterval
+        let buildDuration: CFTimeInterval
+        let replacementDuration: CFTimeInterval
+        let layoutDuration: CFTimeInterval
+    }
+
+    private func logProviderSwitcherPerformanceIfSlow(_ sample: ProviderSwitcherPerformanceSample) {
         let endedAt = CACurrentMediaTime()
-        let totalDuration = requestedAt.map { endedAt - $0 } ?? (endedAt - updateStartedAt)
+        let totalDuration = sample.requestedAt.map { endedAt - $0 } ?? (endedAt - sample.updateStartedAt)
         guard totalDuration >= 0.008 else { return }
         self.menuLogger.debug(
             "provider switch performance",
             metadata: [
-                "provider": provider?.rawValue ?? "overview",
-                "cacheHit": cacheHit ? "1" : "0",
-                "queueMs": Self.formatMenuPerformanceDuration(updateStartedAt - (requestedAt ?? updateStartedAt)),
-                "buildMs": Self.formatMenuPerformanceDuration(buildDuration),
-                "replaceMs": Self.formatMenuPerformanceDuration(replacementDuration),
-                "layoutMs": Self.formatMenuPerformanceDuration(layoutDuration),
+                "provider": sample.provider?.rawValue ?? "overview",
+                "cacheHit": sample.cacheHit ? "1" : "0",
+                "queueMs": Self.formatMenuPerformanceDuration(
+                    sample.updateStartedAt - (sample.requestedAt ?? sample.updateStartedAt)),
+                "buildMs": Self.formatMenuPerformanceDuration(sample.buildDuration),
+                "replaceMs": Self.formatMenuPerformanceDuration(sample.replacementDuration),
+                "layoutMs": Self.formatMenuPerformanceDuration(sample.layoutDuration),
                 "totalMs": Self.formatMenuPerformanceDuration(totalDuration),
             ])
     }
