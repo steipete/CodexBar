@@ -52,18 +52,20 @@ struct AntigravityProcessLauncherLinuxTests {
             handle.closePTY()
         }
 
-        var lines: [String] = []
         for _ in 0..<200 {
             if FileManager.default.fileExists(atPath: outputURL.path),
                let output = try? String(contentsOf: outputURL, encoding: .utf8)
             {
-                lines = output
+                let lines = output
                     .split(separator: "\n")
                     .map(String.init)
-                if lines.count >= 2 { break }
+                if lines.count >= 2, output.hasSuffix("\n") { break }
             }
             Thread.sleep(forTimeInterval: 0.01)
         }
+        let lines = try String(contentsOf: outputURL, encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
         #expect(lines == [NSHomeDirectory(), "closed"])
     }
 }
