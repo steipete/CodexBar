@@ -38,7 +38,9 @@ extension UsageStore {
         }
     }
 
-    private func runResetBoundaryRefresh(boundaryRefreshAt: Date) async {
+    func runResetBoundaryRefresh(boundaryRefreshAt: Date) async {
+        self.resetBoundaryRefreshTask = nil
+        self.scheduledResetBoundaryRefreshAt = nil
         guard Self.shouldRecordResetBoundaryAttempt(isRefreshing: self.isRefreshing) else { return }
         self.recordAttemptedResetBoundaryRefresh(boundaryRefreshAt)
         await self.refresh()

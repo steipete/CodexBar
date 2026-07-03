@@ -82,6 +82,38 @@ struct UsageStoreResetBoundaryRefreshTests {
     }
 
     @Test
+    @MainActor
+    func inFlightBoundaryRefreshClearsFiredScheduleMarker() async {
+        let now = Date(timeIntervalSince1970: 2800)
+        let resetsAt = now.addingTimeInterval(-3 * 60)
+        let boundaryRefreshAt = resetsAt.addingTimeInterval(UsageStore.resetBoundaryRefreshGraceSeconds)
+        let retryAt = now.addingTimeInterval(UsageStore.resetBoundaryRefreshMinimumDelaySeconds)
+        let snapshot = Self.snapshot(
+            updatedAt: resetsAt.addingTimeInterval(-60),
+            primaryResetsAt: resetsAt)
+        let settings = testSettingsStore(suiteName: "UsageStoreResetBoundaryRefreshTests-inflight-marker")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.snapshots[.codex] = snapshot
+        store.isRefreshing = true
+        store.scheduledResetBoundaryRefreshAt = retryAt
+
+        await store.runResetBoundaryRefresh(boundaryRefreshAt: boundaryRefreshAt)
+
+        #expect(store.scheduledResetBoundaryRefreshAt == nil)
+        #expect(store.attemptedResetBoundaryRefreshes.isEmpty)
+
+        store.isRefreshing = false
+        store.scheduleResetBoundaryRefreshIfNeeded(normalRefreshInterval: 30 * 60, now: now)
+        defer { store.cancelResetBoundaryRefresh() }
+
+        #expect(store.scheduledResetBoundaryRefreshAt == retryAt)
+    }
+
+    @Test
     func ignoresResetBoundaryAfterNormalPoll() {
         let now = Date(timeIntervalSince1970: 3000)
         let resetsAt = now.addingTimeInterval(40 * 60)
