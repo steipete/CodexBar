@@ -36,6 +36,6 @@ The packaged `CodexBarCLI` read an expired synthetic Claude credential file plus
 
 No real `~/.claude/.credentials.json`, Claude account, or CodexBar cache keychain item was read or mutated. The default keychain search list was read before and after fixture creation only to prove it remained unchanged.
 
-## Remaining proof
+## Final local gates
 
-The final local port still requires `make check`, the complete sharded `make test`, and autoreview. A reporter-environment menu Refresh replay remains useful supplementary evidence but is outside this isolated proof and is not grounds to close issue 1844.
+`make check` passed, all 45 `make test` shards passed, and autoreview reported no accepted/actionable findings. A reporter-environment menu Refresh replay remains useful supplementary evidence but is outside this isolated proof and is not grounds to close issue 1844.

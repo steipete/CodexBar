@@ -32,7 +32,7 @@ Contributing issues on `main`:
 
 - [x] Focused macOS integration tests (2026-07-03) — details in `docs/verify-1844-proof.md`
 - [x] Release-built `CodexBar.app` and packaged `CodexBarCLI` isolated live proof
-- [ ] Final `make check`, sharded `make test`, and autoreview on the local port
+- [x] Final `make check`, 45-shard `make test`, and autoreview on the local port
 - [ ] Optional: Menu Refresh screenshot on a host with the reporter's keychain shape
 
 ### Commands

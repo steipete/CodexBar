@@ -41,4 +41,4 @@ The verifier used only synthetic data under a unique temporary directory:
 
 The packaged `CodexBarCLI` exited 3 with the MCP-only guidance, the canary stayed untouched, no browser/open child appeared, and the user keychain search list was unchanged. The packaged `CodexBar.app` binary then stayed running for a five-second isolated smoke with the same untouched canary and no browser/open child.
 
-Final full-suite and autoreview results belong in the landing evidence after the local candidate is committed. No public PR/issue mutation was performed.
+Final local gates passed: `make check`, all 45 `make test` shards, and autoreview with no accepted/actionable findings. No public PR/issue mutation was performed.
