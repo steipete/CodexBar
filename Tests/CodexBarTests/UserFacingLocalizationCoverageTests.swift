@@ -32,6 +32,11 @@ struct UserFacingLocalizationCoverageTests {
                 ".value(\"Utilization Start\"",
                 ".value(\"Utilization End\"",
             ],
+            "Sources/CodexBar/Providers/JetBrains/JetBrainsLoginFlow.swift": [
+                "                \"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar.\",",
+                "                \"Alternatively, set a custom path in Settings.\",",
+                "title: \"No JetBrains IDE detected\"",
+            ],
             "Sources/CodexBar/PreferencesCodexAccountsSection.swift": [
                 "?? \"No system account\"",
                 "return \"Adding Account…\"",
@@ -77,13 +82,9 @@ struct UserFacingLocalizationCoverageTests {
                 "Text(\"No organizations loaded. Click Refresh after setting your API key.\")",
                 "Button(\"Refresh organizations\")",
             ],
-            "Sources/CodexBar/PreferencesProviderSidebarView.swift": [
-                ".help(\"Drag to reorder\")",
+            "Sources/CodexBar/PreferencesSidebar.swift": [
                 "\"Disabled —",
-                ".accessibilityLabel(\"Reorder\")",
-            ],
-            "Sources/CodexBar/StatusItemController+UsageHistoryMenu.swift": [
-                "Text(\"Subscription Utilization\")",
+                ".accessibilityLabel(\"Sort",
             ],
             "Sources/CodexBar/StatusItemController+CostMenuCard.swift": [
                 "static let costMenuTitle",

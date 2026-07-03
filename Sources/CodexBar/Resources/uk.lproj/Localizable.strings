@@ -234,6 +234,7 @@
 "Picker subtitle" = "Підзаголовок засобу вибору";
 "Placeholder" = "Заповнювач";
 "Plan" = "План";
+"Plan Usage" = "Використання плану";
 "Play full-screen confetti when weekly usage resets." = "Відтворення конфетті на весь екран, коли тижневе використання скидається.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для";
 "Prevents any Keychain access while enabled." = "Запобігає будь-якому доступу Keychain, коли ввімкнено.";
@@ -301,7 +302,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Зберігається в ~/.codexbar/config.json. Вставте ключ MiniMax API.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Зберігається в ~/.codexbar/config.json. Ви також можете надати KILO_API_KEY або";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Зберігає локальну історію використання Codex (8 тижнів) для персоналізації прогнозів Pace.";
-"Subscription Utilization" = "Використання підписки";
 "Surprise me" = "Здивуйте мене";
 "Switcher shows icons" = "Перемикач показує значки";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
@@ -431,6 +431,8 @@
 "refresh_cadence_title" = "Оновити каденцію";
 "refresh_cadence_subtitle" = "Як часто CodexBar опитує постачальників у фоновому режимі.";
 "manual_refresh_hint" = "Автооновлення вимкнено; скористайтеся командою меню «Оновити».";
+"refresh_on_open_title" = "Оновлювати при відкритті меню";
+"refresh_on_open_subtitle" = "Отримує найновіші дані про використання для кожного провайдера щоразу, коли ви відкриваєте меню.";
 "check_provider_status_title" = "Перевірте статус провайдера";
 "check_provider_status_subtitle" = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для Gemini/Antigravity, виявляючи інциденти в значку та меню.";
 "session_quota_notifications_title" = "Сповіщення про квоту сеансу";
@@ -452,6 +454,7 @@
 "quota_warning_warn_at" = "Попередити при";
 "quota_warning_global_threshold_subtitle" = "Відсотки, що залишилися для вікон сесії та тижня, якщо постачальник не замінить їх.";
 "quota_warning_sound" = "Відтворити звук сповіщення";
+"quota_warning_onscreen_alert" = "Показувати текстове сповіщення на екрані";
 "quota_warning_provider_inherits" = "Використовує глобальні параметри попередження про квоту, якщо тут не налаштовано вікно.";
 "quota_warning_customize_thresholds" = "Налаштувати порогові значення %@";
 "quota_warning_enable_warnings" = "Увімкнути %@ попереджень";
@@ -549,6 +552,8 @@
 "show_debug_settings_subtitle" = "Розкрийте інструменти усунення несправностей на вкладці Debug.";
 "surprise_me_title" = "Здивуйте мене";
 "surprise_me_subtitle" = "Перевірте, чи подобається вам, що ваші агенти розважаються там.";
+"session_limit_confetti_title" = "Конфеті для ліміту сесії";
+"session_limit_confetti_subtitle" = "Показувати конфеті на весь екран, коли використання сесії скидається.";
 "weekly_limit_confetti_title" = "Щотижневий ліміт конфетті";
 "weekly_limit_confetti_subtitle" = "Відтворення конфетті на весь екран, коли тижневе використання скидається.";
 "hide_personal_info_title" = "Приховати особисту інформацію";
@@ -725,6 +730,8 @@
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
 "Updated %@" = "Оновлено %@";
+"Updated relative %@" = "Оновлено %@";
+"Updated absolute %@" = "Оновлено %@";
 "Updated %@h ago" = "Оновлено %@ год тому";
 "Updated %@m ago" = "Оновлено %@хв тому";
 "Updated just now" = "Оновлено щойно";
@@ -1118,3 +1125,15 @@
 "byte_unit_megabytes" = "мегабайти";
 "byte_unit_gigabyte" = "гігабайт";
 "byte_unit_gigabytes" = "гігабайти";
+"CrossModel API spend trend" = "Тенденція витрат CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "Увімкнути";
+"Disable" = "Вимкнути";
+"providers_on_count" = "%d увімкнено";
+"section_cost_summary" = "Зведення витрат";
+"section_command_line" = "Командний рядок";
+"section_privacy" = "Конфіденційність";
+"section_diagnostics" = "Діагностика";
+"section_updates" = "Оновлення";
+"section_links" = "Посилання";

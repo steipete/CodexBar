@@ -234,6 +234,7 @@
 "Picker subtitle" = "ピッカーのサブタイトル";
 "Placeholder" = "プレースホルダ";
 "Plan" = "プラン";
+"Plan Usage" = "プラン使用状況";
 "Play full-screen confetti when weekly usage resets." = "週間使用量がリセットされたときに全画面の紙吹雪を表示します。";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "OpenAI/Claude のステータスページと Google Workspace をポーリングして、";
 "Prevents any Keychain access while enabled." = "有効にすると、キーチェーンへのアクセスをすべて防ぎます。";
@@ -301,7 +302,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json に保存されます。MiniMax API キーを貼り付けてください。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "~/.codexbar/config.json に保存されます。KILO_API_KEY を指定することもできます。または ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "ローカルの Codex 使用履歴（8 週間分）を保存して、ペース予測をパーソナライズします。";
-"Subscription Utilization" = "サブスクリプション利用率";
 "Surprise me" = "サプライズ";
 "Switcher shows icons" = "切替バーにアイコンを表示";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
@@ -428,6 +428,8 @@
 "refresh_cadence_title" = "更新間隔";
 "refresh_cadence_subtitle" = "CodexBar がバックグラウンドでプロバイダをポーリングする頻度です。";
 "manual_refresh_hint" = "自動更新はオフです。メニューの「更新」コマンドを使用してください。";
+"refresh_on_open_title" = "メニューを開いたときに更新";
+"refresh_on_open_subtitle" = "メニューを開くたびに、すべてのプロバイダーの最新の使用状況を取得します。";
 "check_provider_status_title" = "プロバイダのステータスを確認";
 "check_provider_status_subtitle" = "OpenAI/Claude のステータスページと Gemini/Antigravity 用の Google Workspace をポーリングし、障害情報をアイコンとメニューに表示します。";
 "session_quota_notifications_title" = "セッションクォータ通知";
@@ -449,6 +451,7 @@
 "quota_warning_warn_at" = "警告する残量";
 "quota_warning_global_threshold_subtitle" = "プロバイダ側で上書きされない限り、セッションおよび週間ウインドウの残量パーセントに適用されます。";
 "quota_warning_sound" = "通知音を再生";
+"quota_warning_onscreen_alert" = "画面上にテキストアラートを表示";
 "quota_warning_provider_inherits" = "ここでウインドウをカスタマイズしない限り、グローバルのクォータ警告設定を使用します。";
 "quota_warning_customize_thresholds" = "%@ のしきい値をカスタマイズ";
 "quota_warning_enable_warnings" = "%@ の警告を有効にする";
@@ -546,6 +549,8 @@
 "show_debug_settings_subtitle" = "デバッグタブにトラブルシューティングツールを表示します。";
 "surprise_me_title" = "サプライズ";
 "surprise_me_subtitle" = "エージェントたちがメニューバーで少し遊ぶのが好きか試してみてください。";
+"session_limit_confetti_title" = "セッション上限の紙吹雪";
+"session_limit_confetti_subtitle" = "セッション使用量がリセットされたときに全画面の紙吹雪を表示します。";
 "weekly_limit_confetti_title" = "週間上限の紙吹雪";
 "weekly_limit_confetti_subtitle" = "週間使用量がリセットされたときに全画面の紙吹雪を再生します。";
 "hide_personal_info_title" = "個人情報を隠す";
@@ -722,6 +727,8 @@
 "reset_tomorrow_format" = "明日 %@";
 "Lasts until reset" = "リセットまで持続";
 "Updated %@" = "%@ に更新";
+"Updated relative %@" = "%@ に更新";
+"Updated absolute %@" = "%@ に更新";
 "Updated %@h ago" = "%@時間前に更新";
 "Updated %@m ago" = "%@分前に更新";
 "Updated just now" = "たった今更新";
@@ -1119,3 +1126,15 @@
 "byte_unit_megabytes" = "メガバイト";
 "byte_unit_gigabyte" = "ギガバイト";
 "byte_unit_gigabytes" = "ギガバイト";
+"CrossModel API spend trend" = "CrossModel API の支出推移";
+
+/* Settings sidebar redesign */
+"Enable" = "有効にする";
+"Disable" = "無効にする";
+"providers_on_count" = "%d 件オン";
+"section_cost_summary" = "コスト概要";
+"section_command_line" = "コマンドライン";
+"section_privacy" = "プライバシー";
+"section_diagnostics" = "診断";
+"section_updates" = "アップデート";
+"section_links" = "リンク";

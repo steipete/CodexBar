@@ -234,6 +234,7 @@
 "Picker subtitle" = "Subtítol del selector";
 "Placeholder" = "Text de marcador";
 "Plan" = "Pla";
+"Plan Usage" = "Ús del pla";
 "Play full-screen confetti when weekly usage resets." = "Mostreu confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a ";
 "Prevents any Keychain access while enabled." = "Impedeix qualsevol accés al Clauer mentre estigui activat.";
@@ -302,7 +303,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Desat a ~/.codexbar/config.json. Enganxeu la vostra clau d'API de MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Desat a ~/.codexbar/config.json. També podeu proporcionar KILO_API_KEY o ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Desa l'historial d'ús local de Codex (8 setmanes) per personalitzar les prediccions de Ritme.";
-"Subscription Utilization" = "Ús de la subscripció";
 "Surprise me" = "Sorprèn-me";
 "Switcher shows icons" = "El selector mostra icones";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Creeu un enllaç simbòlic de CodexBarCLI a /usr/local/bin i /opt/homebrew/bin com a codexbar.";
@@ -429,6 +429,8 @@
 "refresh_cadence_title" = "Freqüència d'actualització";
 "refresh_cadence_subtitle" = "Amb quina freqüència el CodexBar consulta els proveïdors en segon pla.";
 "manual_refresh_hint" = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
+"refresh_on_open_title" = "Actualitza en obrir el menú";
+"refresh_on_open_subtitle" = "Obté l'ús més recent de cada proveïdor cada vegada que obres el menú.";
 "check_provider_status_title" = "Comproveu l'estat del proveïdor";
 "check_provider_status_subtitle" = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a Gemini/Antigravity, mostrant incidències a la icona i al menú.";
 "session_quota_notifications_title" = "Notificacions de quota de sessió";
@@ -443,6 +445,7 @@
 "quota_warning_warn_at" = "Aviseu al";
 "quota_warning_global_threshold_subtitle" = "Percentatges restants per a les finestres de sessió i setmanal, llevat que un proveïdor els substitueixi.";
 "quota_warning_sound" = "Reprodueix el so de notificació";
+"quota_warning_onscreen_alert" = "Mostra una alerta de text a la pantalla";
 "quota_warning_provider_inherits" = "Fa servir la configuració global d'avís de quota llevat que es personalitzi una finestra aquí.";
 "quota_warning_customize_thresholds" = "Personalitza els llindars de %@";
 "quota_warning_enable_warnings" = "Activeu els avisos de %@";
@@ -538,6 +541,8 @@
 "show_debug_settings_subtitle" = "Mostreu eines de diagnòstic a la pestanya Depuració.";
 "surprise_me_title" = "Sorprèn-me";
 "surprise_me_subtitle" = "Activeu-ho si us agrada que els vostres agents es diverteixin allà dalt.";
+"session_limit_confetti_title" = "Confeti del límit de sessió";
+"session_limit_confetti_subtitle" = "Mostra confeti a pantalla completa quan es restableixi l'ús de la sessió.";
 "weekly_limit_confetti_title" = "Confeti del límit setmanal";
 "weekly_limit_confetti_subtitle" = "Mostreu confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "hide_personal_info_title" = "Amagueu la informació personal";
@@ -1113,6 +1118,8 @@
 "Unavailable" = "No disponible";
 "Update ready, restart now?" = "Actualització a punt, voleu reiniciar ara?";
 "Updated %@" = "Actualitzat %@";
+"Updated relative %@" = "Actualitzat %@";
+"Updated absolute %@" = "Actualitzat %@";
 "Updated %@h ago" = "Actualitzat fa %@h";
 "Updated %@m ago" = "Actualitzat fa %@m";
 "Updated just now" = "Actualitzat ara mateix";
@@ -1122,3 +1129,15 @@
 "Weekly" = "Setmanal";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
+"CrossModel API spend trend" = "Tendència de despesa de l'API de CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Activa";
+"Disable" = "Desactiva";
+"providers_on_count" = "%d actius";
+"section_cost_summary" = "Resum de costos";
+"section_command_line" = "Línia d'ordres";
+"section_privacy" = "Privadesa";
+"section_diagnostics" = "Diagnòstics";
+"section_updates" = "Actualitzacions";
+"section_links" = "Enllaços";

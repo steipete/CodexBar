@@ -21,6 +21,7 @@
 "Animation pattern" = "Animation pattern";
 "Antigravity login is managed in the app" = "Antigravity login is managed in the app";
 "Applies only to the Security.framework OAuth keychain reader." = "Applies only to the Security.framework OAuth keychain reader.";
+"Alternatively, set a custom path in Settings." = "Alternatively, set a custom path in Settings.";
 "Auto falls back to the next source if the preferred one fails." = "Auto falls back to the next source if the preferred one fails.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Auto uses API first, then falls back to CLI on auth failures.";
 "Auto-detect" = "Auto-detect";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Install the Codex CLI (npm i -g @openai/codex) and try again.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar.";
 "JetBrains AI is ready" = "JetBrains AI is ready";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "Keep CLI sessions alive";
@@ -234,6 +236,7 @@
 "Picker subtitle" = "Picker subtitle";
 "Placeholder" = "Placeholder";
 "Plan" = "Plan";
+"Plan Usage" = "Plan Usage";
 "Play full-screen confetti when weekly usage resets." = "Play full-screen confetti when weekly usage resets.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Polls OpenAI/Claude status pages and Google Workspace for ";
 "Prevents any Keychain access while enabled." = "Prevents any Keychain access while enabled.";
@@ -278,6 +281,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Show provider icons in the switcher (otherwise show a weekly progress line).";
 "Show reset time as clock" = "Show reset time as clock";
 "Show usage as used" = "Show usage as used";
+"Sign in with Claude Code..." = "Sign in with Claude Code...";
 "Sign in via button below" = "Sign in via button below";
 "Skip teardown between probes (debug-only)." = "Skip teardown between probes (debug-only).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Stack token accounts in the menu (otherwise show an account switcher bar).";
@@ -301,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Stored in ~/.codexbar/config.json. Paste your MiniMax API key.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Stores local Codex usage history (8 weeks) to personalize Pace predictions.";
-"Subscription Utilization" = "Subscription Utilization";
 "Surprise me" = "Surprise me";
 "Switcher shows icons" = "Switcher shows icons";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.";
@@ -431,6 +434,8 @@
 "refresh_cadence_title" = "Refresh cadence";
 "refresh_cadence_subtitle" = "How often CodexBar polls providers in the background.";
 "manual_refresh_hint" = "Auto-refresh is off; use the menu's Refresh command.";
+"refresh_on_open_title" = "Refresh when the menu opens";
+"refresh_on_open_subtitle" = "Fetch the latest usage for every provider each time you open the menu.";
 "check_provider_status_title" = "Check provider status";
 "check_provider_status_subtitle" = "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu.";
 "session_quota_notifications_title" = "Session quota notifications";
@@ -452,6 +457,7 @@
 "quota_warning_warn_at" = "Warn at";
 "quota_warning_global_threshold_subtitle" = "Remaining percentages for session and weekly windows unless a provider overrides them.";
 "quota_warning_sound" = "Play notification sound";
+"quota_warning_onscreen_alert" = "Show on-screen text alert";
 "quota_warning_provider_inherits" = "Uses the global quota warning settings unless a window is customized here.";
 "quota_warning_customize_thresholds" = "Customize %@ thresholds";
 "quota_warning_enable_warnings" = "Enable %@ warnings";
@@ -549,6 +555,8 @@
 "show_debug_settings_subtitle" = "Expose troubleshooting tools in the Debug tab.";
 "surprise_me_title" = "Surprise me";
 "surprise_me_subtitle" = "Check if you like your agents having some fun up there.";
+"session_limit_confetti_title" = "Session limit confetti";
+"session_limit_confetti_subtitle" = "Play full-screen confetti when session usage resets.";
 "weekly_limit_confetti_title" = "Weekly limit confetti";
 "weekly_limit_confetti_subtitle" = "Play full-screen confetti when weekly usage resets.";
 "hide_personal_info_title" = "Hide personal information";
@@ -725,6 +733,8 @@
 "reset_tomorrow_format" = "tomorrow, %@";
 "Lasts until reset" = "Lasts until reset";
 "Updated %@" = "Updated %@";
+"Updated relative %@" = "Updated %@";
+"Updated absolute %@" = "Updated %@";
 "Updated %@h ago" = "Updated %@h ago";
 "Updated %@m ago" = "Updated %@m ago";
 "Updated just now" = "Updated just now";
@@ -780,6 +790,7 @@
 "Est. total (%@): %@" = "Est. total (%@): %@";
 "Hover a bar for details" = "Hover a bar for details";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ tokens";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "No providers selected for Overview.";
 "No overview data available." = "No overview data available.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Auto uses the local IDE API first, then Google OAuth when the IDE is closed.";
@@ -848,6 +859,7 @@
 "Cache read" = "Cache read";
 "Claude Admin API 30 day spend trend" = "Claude Admin API 30 day spend trend";
 "OpenRouter API key spend trend" = "OpenRouter API key spend trend";
+"CrossModel API spend trend" = "CrossModel API spend trend";
 "z.ai hourly token trend" = "z.ai hourly token trend";
 "MiniMax 30 day token usage trend" = "MiniMax 30 day token usage trend";
 "Today cash" = "Today cash";
@@ -1123,3 +1135,14 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+
+/* Settings sidebar redesign */
+"Enable" = "Enable";
+"Disable" = "Disable";
+"providers_on_count" = "%d on";
+"section_cost_summary" = "Cost summary";
+"section_command_line" = "Command line";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostics";
+"section_updates" = "Updates";
+"section_links" = "Links";

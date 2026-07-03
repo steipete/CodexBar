@@ -7,6 +7,7 @@ extension UsageStore {
         self.refreshingProviders.remove(provider)
         self.snapshots.removeValue(forKey: provider)
         self.errors[provider] = nil
+        self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
         self.lastSourceLabels.removeValue(forKey: provider)
         self.lastFetchAttempts.removeValue(forKey: provider)
         self.accountSnapshots.removeValue(forKey: provider)

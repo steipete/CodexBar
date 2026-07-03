@@ -35,6 +35,12 @@ struct GlobalQuotaWarningSettingsView: View {
                     .font(.footnote)
             }
             .toggleStyle(.checkbox)
+
+            Toggle(isOn: self.$settings.quotaWarningOnScreenAlertEnabled) {
+                Text(L("quota_warning_onscreen_alert"))
+                    .font(.footnote)
+            }
+            .toggleStyle(.checkbox)
         }
         .padding(.leading, 20)
     }
@@ -56,14 +62,13 @@ struct ProviderQuotaWarningSettingsView: View {
     @Bindable var settings: SettingsStore
 
     var body: some View {
-        ProviderSettingsSection(title: L("quota_warnings_title")) {
-            Text(L("quota_warning_provider_inherits"))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
+        Section {
             self.windowRow(.session)
             self.windowRow(.weekly)
+        } header: {
+            Text(L("quota_warnings_title"))
+        } footer: {
+            Text(L("quota_warning_provider_inherits"))
         }
     }
 

@@ -102,6 +102,20 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `allows doubao coding plan credential fields`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(
+            id: .doubao,
+            apiKey: "AKLT-config",
+            secretKey: "sk-config",
+            region: "cn-shanghai"))
+        let issues = CodexBarConfigValidator.validate(config)
+
+        #expect(!issues.contains(where: { $0.provider == .doubao && $0.code == "secret_key_unused" }))
+        #expect(!issues.contains(where: { $0.provider == .doubao && $0.code == "region_unused" }))
+    }
+
+    @Test
     func `warns when zai team token account is missing BigModel context`() {
         let accounts = ProviderTokenAccountData(
             version: 1,
