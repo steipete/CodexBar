@@ -434,20 +434,21 @@ extension UsageMenuCardView.Model {
             showUsed: input.usageBarsShowUsed)
     }
 
-    private static let monthlyResetWindowMinutes = 30 * 24 * 60
+    private static let monthlyWindowSentinelMinutes = 30 * 24 * 60
 
     private static func supportsResetWindowPace(provider: UsageProvider, window: RateWindow) -> Bool {
         switch provider {
         case .cursor:
             window.windowMinutes != nil
         case .alibaba, .alibabatokenplan, .doubao, .opencodego:
-            window.windowMinutes == self.monthlyResetWindowMinutes
+            window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false
         }
     }
 
     private static func resetWindowForPace(provider: UsageProvider, window: RateWindow) -> RateWindow {
+        // Provider snapshots use 30 days as a monthly sentinel; use the reset date for the real calendar-cycle length.
         guard self.usesInferredMonthlyDuration(provider: provider, window: window),
               let resetsAt = window.resetsAt,
               let minutes = self.inferredMonthlyWindowMinutes(endingAt: resetsAt)
@@ -462,7 +463,7 @@ extension UsageMenuCardView.Model {
     }
 
     private static func usesInferredMonthlyDuration(provider: UsageProvider, window: RateWindow) -> Bool {
-        guard window.windowMinutes == self.monthlyResetWindowMinutes else { return false }
+        guard window.windowMinutes == self.monthlyWindowSentinelMinutes else { return false }
         switch provider {
         case .alibaba, .alibabatokenplan, .doubao, .opencodego:
             return true
