@@ -182,6 +182,7 @@ extension UsageMenuCardView.Model {
                 usage: usageSummary)
         }
         if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
+           input.provider != .minimax || input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
