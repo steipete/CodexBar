@@ -246,7 +246,7 @@ extension ZaiUsageSnapshot {
 /// Z.ai quota limit API response
 private struct ZaiQuotaLimitResponse: Decodable {
     let code: Int
-    let msg: String
+    let msg: String?
     let data: ZaiQuotaLimitData?
     let success: Bool
 
@@ -462,7 +462,7 @@ public struct ZaiUsageFetcher: Sendable {
         let apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
 
         guard apiResponse.isSuccess else {
-            throw ZaiUsageError.apiError(apiResponse.msg)
+            throw ZaiUsageError.apiError(apiResponse.msg ?? "Unknown error")
         }
 
         guard let responseData = apiResponse.data else {
