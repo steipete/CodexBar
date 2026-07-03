@@ -1,5 +1,5 @@
 ---
-summary: "Proposed security and architecture boundary for declarative HTTP JSON providers."
+summary: "Accepted security and architecture boundary for declarative HTTP JSON providers."
 read_when:
   - Evaluating issue 1735
   - Designing runtime-defined provider identities
@@ -8,7 +8,8 @@ read_when:
 
 # Declarative custom provider design
 
-Status: owner decision required. This document defines a bounded MVP; it does not authorize or implement the feature.
+Status: accepted design boundary. This document defines a bounded MVP; it does not authorize runtime networking or
+implement the feature.
 
 Issue: [#1735](https://github.com/steipete/CodexBar/issues/1735)
 
@@ -21,7 +22,7 @@ decoders. A custom provider adds two new trust boundaries:
 1. a config file chooses where CodexBar sends a secret;
 2. untrusted response data controls user-visible usage, cost, and identity fields.
 
-Recommended direction: approve a config-only, GET-only, HTTP JSON MVP after separating runtime provider instance identity
+Accepted direction: pursue a config-only, GET-only, HTTP JSON MVP after separating runtime provider instance identity
 from the closed `UsageProvider` enum. Do not add a single `.custom` enum case: multiple configured providers would then
 collide in caches, status items, history, widgets, and settings.
 
@@ -31,6 +32,8 @@ collide in caches, status items, history, widgets, and settings.
 - `ProviderDescriptorRegistry` bootstraps exactly one descriptor for every `UsageProvider.allCases` value.
 - `ProviderImplementationRegistry` constructs implementations with an exhaustive `UsageProvider` switch.
 - Usage, errors, status, history, icons, settings, and menu state are keyed by `UsageProvider` across the app.
+- The settings sidebar now persists provider-pane selection as `provider:<UsageProvider.rawValue>` and still assumes one
+  pane per compile-time provider, reinforcing that dynamic identities need the shared seam rather than a parallel UI path.
 - LLM Proxy and LiteLLM accept a configured base URL, but their request paths, auth header, decoding, and snapshot
   mapping remain provider-specific Swift code.
 - `ProviderEndpointOverrideValidator` already provides hardened HTTPS host parsing and an explicit loopback-HTTP mode,
@@ -236,16 +239,19 @@ change.
   failure output.
 - `make test`, `make check`, structured autoreview, and exact-head CI are green for every implementation PR.
 
-## Owner decisions
+## Accepted owner decisions
 
-1. Is arbitrary declarative provider support worth the runtime identity migration and long-term schema support?
-2. Is unauthenticated loopback HTTP acceptable, or should MVP require HTTPS everywhere?
-3. Should a derived environment variable plus local URL/auth approval be the only MVP secret source, or should a
-   user-created Keychain item be designed now?
-4. Is one primary rate window enough for MVP, with cost and identity optional?
-5. Should custom providers initially be CLI-only until the shared app runtime accepts dynamic identities cleanly?
+1. Declarative provider support is worth the runtime identity migration and long-term versioned schema support.
+2. MVP may use unauthenticated loopback HTTP only under the same separate approval gate, including typed confirmation of
+   the normalized URL. Every authenticated request requires HTTPS.
+3. A derived per-instance environment variable plus local URL/auth approval is the only MVP secret source. Keychain
+   storage is deferred; the initial design must not imply or preserve a second secret path.
+4. MVP supports one primary rate window, with cost and identity optional. Multi-window and aggregation semantics remain
+   out of scope.
+5. The first integrated surface is CLI-only. App settings and menu integration wait until the shared runtime accepts
+   dynamic identities without provider-specific side paths.
 
-Recommendation: approve the security boundary and identity-seam spike, with derived environment secrets, local URL
-approval, and one GET endpoint. Keep the feature disabled until the independent identity migration and
-transport/evaluator tests are complete. If the identity migration is not acceptable, close #1735 as unsupported rather
-than shipping a single `.custom` slot or a parallel custom-provider UI path.
+Implementation gate: keep custom-provider networking disabled until the independent identity migration, pure evaluator,
+bounded transport, approval flow, and their required proof land as separately reviewable changes. If an implementation
+cannot preserve this boundary, stop rather than shipping a single `.custom` slot, a parallel UI path, or a compatibility
+fallback.
