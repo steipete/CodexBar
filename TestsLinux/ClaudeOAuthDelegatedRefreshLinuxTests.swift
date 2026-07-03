@@ -63,13 +63,8 @@ struct ClaudeOAuthDelegatedRefreshLinuxTests {
             interaction: .background,
             promptMode: .onlyOnUserAction)
 
-        #if os(Linux)
-        #expect(result.attempts == 1)
-        #expect(result.message.contains("still unavailable after delegated Claude CLI refresh"))
-        #else
         #expect(result.attempts == 0)
         #expect(result.message.contains("background repair is suppressed"))
-        #endif
     }
 
     private func runDelegatedRefresh(
