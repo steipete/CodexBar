@@ -311,6 +311,20 @@ struct ZaiUsageParsingTests {
     }
 
     @Test
+    func `failed response without message reports the API code`() {
+        let json = """
+        { "code": 1001, "success": false }
+        """
+
+        #expect {
+            _ = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+        } throws: { error in
+            guard case let ZaiUsageError.apiError(message) = error else { return false }
+            return message == "Z.ai quota API returned code 1001"
+        }
+    }
+
+    @Test
     func `success without data returns parse failed`() {
         let json = """
         { "code": 200, "msg": "Operation successful", "success": true }

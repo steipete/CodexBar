@@ -253,6 +253,12 @@ private struct ZaiQuotaLimitResponse: Decodable {
     var isSuccess: Bool {
         self.success && self.code == 200
     }
+
+    var errorMessage: String {
+        let message = self.msg?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let message, !message.isEmpty { return message }
+        return "Z.ai quota API returned code \(self.code)"
+    }
 }
 
 private struct ZaiQuotaLimitData: Decodable {
@@ -462,7 +468,7 @@ public struct ZaiUsageFetcher: Sendable {
         let apiResponse = try decoder.decode(ZaiQuotaLimitResponse.self, from: data)
 
         guard apiResponse.isSuccess else {
-            throw ZaiUsageError.apiError(apiResponse.msg ?? "Unknown error")
+            throw ZaiUsageError.apiError(apiResponse.errorMessage)
         }
 
         guard let responseData = apiResponse.data else {
