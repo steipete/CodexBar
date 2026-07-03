@@ -139,28 +139,31 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 }
             }
 
-            if self.hasSettings {
+            if !self.settingsPickers.isEmpty || !self.settingsActions.isEmpty {
                 Section {
                     ForEach(self.settingsPickers) { picker in
                         ProviderSettingsPickerRowView(picker: picker)
                     }
-                    if let tokenAccounts = self.settingsTokenAccounts,
-                       tokenAccounts.isVisible?() ?? true
-                    {
-                        ProviderSettingsTokenAccountsRowView(descriptor: tokenAccounts)
-                    }
-                    ForEach(self.settingsFields) { field in
-                        ProviderSettingsFieldRowView(field: field)
-                    }
                     ForEach(self.settingsActions) { descriptor in
                         ProviderSettingsActionsRowView(descriptor: descriptor)
-                    }
-                    if let organizations = self.settingsOrganizations {
-                        ProviderSettingsOrganizationsRowView(descriptor: organizations)
                     }
                 } header: {
                     Text(L("Settings"))
                 }
+            }
+
+            if let tokenAccounts = self.settingsTokenAccounts,
+               tokenAccounts.isVisible?() ?? true
+            {
+                ProviderSettingsTokenAccountsRowView(descriptor: tokenAccounts)
+            }
+
+            ForEach(self.settingsFields) { field in
+                ProviderSettingsFieldRowView(field: field)
+            }
+
+            if let organizations = self.settingsOrganizations {
+                ProviderSettingsOrganizationsRowView(descriptor: organizations)
             }
 
             if self.showsSupplementarySettingsContent {
@@ -180,14 +183,6 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
             }
         }
         .formStyle(.grouped)
-    }
-
-    private var hasSettings: Bool {
-        !self.settingsPickers.isEmpty ||
-            !self.settingsFields.isEmpty ||
-            !self.settingsActions.isEmpty ||
-            self.settingsTokenAccounts != nil ||
-            self.settingsOrganizations != nil
     }
 }
 
