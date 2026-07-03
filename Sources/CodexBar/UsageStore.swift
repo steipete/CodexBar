@@ -107,6 +107,9 @@ extension UsageStore {
 @MainActor
 @Observable
 final class UsageStore {
+    nonisolated static let resetBoundaryRefreshGraceSeconds: TimeInterval = 30
+    nonisolated static let resetBoundaryRefreshMinimumDelaySeconds: TimeInterval = 5
+
     private struct ProviderAvailabilityCacheEntry {
         let available: Bool
         let configRevision: Int
@@ -252,6 +255,9 @@ final class UsageStore {
     @ObservationIgnored var lastStorageRefreshAt: Date?
     @ObservationIgnored var managedCodexAccountsForStorageOverride: [ManagedCodexAccount]?
     @ObservationIgnored private var pathDebugRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var resetBoundaryRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var scheduledResetBoundaryRefreshAt: Date?
+    @ObservationIgnored var attemptedResetBoundaryRefreshes: Set<Date> = []
     @ObservationIgnored var codexPlanHistoryBackfillTask: Task<Void, Never>?
     @ObservationIgnored let historicalUsageHistoryStore: HistoricalUsageHistoryStore
     @ObservationIgnored let planUtilizationHistoryStore: PlanUtilizationHistoryStore
@@ -673,6 +679,9 @@ final class UsageStore {
             self.persistWidgetSnapshot(reason: "refresh")
         }
 
+        self.scheduleResetBoundaryRefreshIfNeeded(
+            normalRefreshInterval: self.settings.refreshFrequency.seconds)
+
         if allowsStartupConnectivityRetry {
             self.completeStartupConnectivityRetryPass(currentAttempt: startupConnectivityRetryAttempt ?? 0)
         }
@@ -703,6 +712,7 @@ final class UsageStore {
 
     private func startTimer() {
         self.timerTask?.cancel()
+        self.cancelResetBoundaryRefresh()
         guard let wait = self.settings.refreshFrequency.seconds else { return }
 
         // Background poller so the menu stays responsive; canceled when settings change or store deallocates.
@@ -782,6 +792,7 @@ final class UsageStore {
         self.startupConnectivityRetryTask?.cancel()
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
+        self.resetBoundaryRefreshTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
