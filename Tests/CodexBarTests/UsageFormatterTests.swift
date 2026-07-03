@@ -223,7 +223,7 @@ struct UsageFormatterTests {
     @Test
     func `reset countdown days and exact hours`() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let reset = now.addingTimeInterval((26 * 3600))
+        let reset = now.addingTimeInterval(26 * 3600)
         #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 1d 2h")
     }
 
