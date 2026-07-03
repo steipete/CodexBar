@@ -1175,8 +1175,6 @@ struct MiniMaxUsageParserTests {
         #expect(attempt.snapshot.currentPrompts == 25)
     }
 
-    }
-
     @Test
     func `web usage fetch keeps quota when billing history is forbidden`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))

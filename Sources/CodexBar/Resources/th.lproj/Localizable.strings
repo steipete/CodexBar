@@ -781,6 +781,14 @@
 "Top method" = "วิธียอดนิยม";
 "30d cash" = "30d เงินสด";
 "30d billing history from MiniMax web session" = "30d ประวัติการเรียกเก็บเงินจากเซสชันเว็บ MiniMax";
+"MiniMax web session expired" = "เซสชันเว็บ MiniMax หมดอายุแล้ว";
+"MiniMax web session account does not match" = "เซสชันเว็บ MiniMax ไม่ตรงกับบัญชี API";
+"No MiniMax browser session found" = "ไม่พบเซสชันเบราว์เซอร์ MiniMax";
+"MiniMax web data endpoints are unavailable" = "เอ็นด์พอยต์ข้อมูลเว็บ MiniMax ไม่พร้อมใช้งาน";
+"MiniMax web session unavailable" = "เซสชันเว็บ MiniMax ไม่พร้อมใช้งาน";
+"Re-import MiniMax session from browser" = "นำเข้าเซสชัน MiniMax จากเบราว์เซอร์อีกครั้ง";
+"Open MiniMax login page" = "เปิดหน้าเข้าสู่ระบบ MiniMax";
+"MiniMax web session: %@" = "เซสชันเว็บ MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "AWS การเรียกเก็บเงิน Cost Explorer อาจล่าช้า";
 "Rate limit: %d / %@" = "จํากัดอัตรา: %d / %@";
 "Key remaining" = "กุญแจที่เหลืออยู่";

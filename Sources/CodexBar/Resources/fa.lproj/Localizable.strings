@@ -781,6 +781,14 @@
 "Top method" = "روش تاپ";
 "30d cash" = "30d پول نقد";
 "30d billing history from MiniMax web session" = "تاریخچه صورتحساب 30d از جلسه وب MiniMax";
+"MiniMax web session expired" = "جلسه وب MiniMax منقضی شده است";
+"MiniMax web session account does not match" = "جلسه وب MiniMax با حساب API مطابقت ندارد";
+"No MiniMax browser session found" = "جلسه مرورگر MiniMax یافت نشد";
+"MiniMax web data endpoints are unavailable" = "نقاط پایانی داده وب MiniMax در دسترس نیستند";
+"MiniMax web session unavailable" = "جلسه وب MiniMax در دسترس نیست";
+"Re-import MiniMax session from browser" = "وارد کردن مجدد جلسه MiniMax از مرورگر";
+"Open MiniMax login page" = "باز کردن صفحه ورود MiniMax";
+"MiniMax web session: %@" = "جلسه وب MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "AWS صورتحساب اکسپلورر هزینه ممکن است کند شود.";
 "Rate limit: %d / %@" = "محدودیت نرخ: %d / %@";
 "Key remaining" = "کلید باقی مانده";

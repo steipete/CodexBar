@@ -781,6 +781,14 @@
 "Top method" = "الطريقة العليا";
 "30d cash" = "30d نقدا";
 "30d billing history from MiniMax web session" = "30d تاريخ الفوترة من جلسة الويب MiniMax";
+"MiniMax web session expired" = "انتهت صلاحية جلسة الويب MiniMax";
+"MiniMax web session account does not match" = "جلسة الويب MiniMax لا تطابق حساب API";
+"No MiniMax browser session found" = "لم يتم العثور على جلسة متصفح MiniMax";
+"MiniMax web data endpoints are unavailable" = "نقاط نهاية بيانات الويب MiniMax غير متاحة";
+"MiniMax web session unavailable" = "جلسة الويب MiniMax غير متاحة";
+"Re-import MiniMax session from browser" = "إعادة استيراد جلسة MiniMax من المتصفح";
+"Open MiniMax login page" = "فتح صفحة تسجيل الدخول MiniMax";
+"MiniMax web session: %@" = "جلسة الويب MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "AWS قد تتأخر فوترة Cost Explorer.";
 "Rate limit: %d / %@" = "الحد الأقصى للسعر: %d / %@";
 "Key remaining" = "المفتاح المتبقي";
