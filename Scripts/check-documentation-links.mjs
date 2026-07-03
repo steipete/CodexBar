@@ -132,7 +132,7 @@ function localDocPath(rawLink, baseDirectory, sourcePath) {
 function markdownFiles(relativeDir) {
   const dir = path.join(repoRoot, relativeDir);
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name.startsWith(".")) return [];
+    if (entry.name.startsWith(".") || entry.name === "node_modules") return [];
     const relativePath = path.join(relativeDir, entry.name);
     if (entry.isDirectory()) return markdownFiles(relativePath);
     return entry.isFile() && entry.name.endsWith(".md") ? [relativePath] : [];

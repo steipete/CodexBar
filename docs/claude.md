@@ -128,6 +128,9 @@ Admin API key setup:
   - Extracts percent left/used and reset text near those headers.
   - Parses `Account:` and `Org:` lines when present.
   - Surfaces CLI errors (e.g. token expired) directly.
+  - Some Education and organization-managed subscriptions return only a subscription notice, with no numeric
+    session or weekly quota fields. CodexBar reports those limits as unavailable, keeps local cost/token history
+    visible, and never derives quota percentages from spend or token totals.
 
 ## Cost usage (local log scan)
 - Source roots:

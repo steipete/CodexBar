@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CodexBarCLI
 @testable import CodexBarCore
@@ -72,6 +73,19 @@ struct PlatformGatingTests {
     }
 
     @Test
+    func claudeOAuthUsageDoesNotDetectCLIVersion() {
+        #expect(!CodexBarCLI.shouldDetectVersion(
+            provider: .claude,
+            result: self.makeResult(kind: .oauth)))
+        #expect(CodexBarCLI.shouldDetectVersion(
+            provider: .claude,
+            result: self.makeResult(kind: .cli)))
+        #expect(CodexBarCLI.shouldDetectVersion(
+            provider: .codex,
+            result: self.makeResult(kind: .oauth)))
+    }
+
+    @Test
     func claudeWebFetcher_isNotSupportedOnLinux() async {
         #if os(Linux)
         let error = await #expect(throws: ClaudeWebAPIFetcher.FetchError.self) {
@@ -111,7 +125,6 @@ struct PlatformGatingTests {
         #expect(Bool(true))
         #endif
     }
-
     private func makeClaudeAutoContext() -> ProviderFetchContext {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -144,5 +157,18 @@ struct PlatformGatingTests {
             secondaryResetDescription: nil,
             opusResetDescription: nil,
             rawText: "stub")
+    }
+
+    private func makeResult(kind: ProviderFetchKind) -> ProviderFetchResult {
+        ProviderFetchResult(
+            usage: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date(timeIntervalSince1970: 0)),
+            credits: nil,
+            dashboard: nil,
+            sourceLabel: "test",
+            strategyID: "test",
+            strategyKind: kind)
     }
 }

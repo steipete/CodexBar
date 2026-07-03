@@ -137,11 +137,10 @@ public enum SakanaUsageFetcher {
 
     static func parseBillingHTML(
         _ html: String,
-        now: Date = Date(),
-        timeZone: TimeZone = .current) throws -> SakanaUsageSnapshot
+        now: Date = Date()) throws -> SakanaUsageSnapshot
     {
-        let fiveHour = try self.parseWindow(label: "5-hour", html: html, timeZone: timeZone)
-        let weekly = try self.parseWindow(label: "Weekly", html: html, timeZone: timeZone)
+        let fiveHour = try self.parseWindow(label: "5-hour", html: html)
+        let weekly = try self.parseWindow(label: "Weekly", html: html)
         guard fiveHour != nil || weekly != nil else {
             throw SakanaUsageError.parseFailed("Usage limit windows were not found.")
         }
@@ -155,8 +154,7 @@ public enum SakanaUsageFetcher {
 
     private static func parseWindow(
         label: String,
-        html: String,
-        timeZone: TimeZone) throws -> SakanaUsageSnapshot.QuotaWindow?
+        html: String) throws -> SakanaUsageSnapshot.QuotaWindow?
     {
         guard let windowBody = self.windowBody(label: label, html: html) else { return nil }
         guard let percentText = self.capture(
@@ -173,7 +171,7 @@ public enum SakanaUsageFetcher {
             in: windowBody)
         return SakanaUsageSnapshot.QuotaWindow(
             usedPercent: percent,
-            resetsAt: resetText.flatMap { self.parseResetDate($0, timeZone: timeZone) })
+            resetsAt: resetText.flatMap(self.parseResetDate))
     }
 
     private static func windowBody(label: String, html: String) -> String? {
@@ -218,11 +216,15 @@ public enum SakanaUsageFetcher {
             in: html)
     }
 
-    private static func parseResetDate(_ value: String, timeZone: TimeZone) -> Date? {
+    /// The billing page always server-renders "Resets on <date>" in UTC — the client only
+    /// corrects it to the viewer's local timezone after JS hydration, which this HTML-only
+    /// scraper never runs. Parsing with any other timezone silently shifts every reset by the
+    /// device's UTC offset (see steipete/CodexBar#1826).
+    private static func parseResetDate(_ value: String) -> Date? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
+        formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
         return formatter.date(from: trimmed)
     }

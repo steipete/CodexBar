@@ -9,8 +9,8 @@ struct KiroProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsPickerDescriptor(
                 id: "kiroMenuBarDisplay",
-                title: "Kiro menu bar value",
-                subtitle: "Show or hide Kiro credits, percent, or both next to the menu bar icon.",
+                title: L("Kiro menu bar value"),
+                subtitle: L("Show or hide Kiro credits, percent, or both next to the menu bar icon."),
                 binding: Binding(
                     get: { context.settings.kiroMenuBarDisplayMode.rawValue },
                     set: { rawValue in

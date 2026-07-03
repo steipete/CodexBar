@@ -134,7 +134,7 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
     {
-        guard provider != .mimo else { return nil }
+        guard provider != .mimo, provider != .qoder else { return nil }
         if provider == .antigravity {
             guard let window = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 5 * 60) else {
                 return nil
@@ -143,6 +143,11 @@ extension UsageStore {
                 ? .antigravityQuotaSummary
                 : .antigravityLegacy
             return (window, source)
+        }
+        // z.ai's typed sessionTokenLimit is rendered in the tertiary lane when the response also
+        // contains its weekly token limit and MCP time limit. Prefer that semantic session lane.
+        if provider == .zai, let tertiary = snapshot.tertiary {
+            return (tertiary, .zaiTertiary)
         }
         if let primary = snapshot.primary, Self.isSessionWindow(primary) {
             return (primary, .primary)
@@ -194,12 +199,17 @@ extension UsageStore {
 @MainActor
 protocol SessionQuotaNotifying: AnyObject {
     func post(transition: SessionQuotaTransition, provider: UsageProvider, badge: NSNumber?)
-    func postQuotaWarning(event: QuotaWarningEvent, provider: UsageProvider, soundEnabled: Bool)
+    func postQuotaWarning(
+        event: QuotaWarningEvent,
+        provider: UsageProvider,
+        soundEnabled: Bool,
+        onScreenAlertEnabled: Bool)
 }
 
 @MainActor
 final class SessionQuotaNotifier: SessionQuotaNotifying {
     private let logger = CodexBarLog.logger(LogCategories.sessionQuotaNotifications)
+    private lazy var alertOverlay = QuotaWarningAlertOverlayController()
 
     init() {}
 
@@ -219,7 +229,12 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
         AppNotifications.shared.post(idPrefix: idPrefix, title: title, body: body, badge: badge)
     }
 
-    func postQuotaWarning(event: QuotaWarningEvent, provider: UsageProvider, soundEnabled: Bool = true) {
+    func postQuotaWarning(
+        event: QuotaWarningEvent,
+        provider: UsageProvider,
+        soundEnabled: Bool = true,
+        onScreenAlertEnabled: Bool = false)
+    {
         let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let threshold = event.threshold
         let copy = QuotaWarningNotificationLogic.notificationCopy(
@@ -232,6 +247,9 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
         if soundEnabled {
             (NSSound(named: "Glass") ?? NSSound(named: "Ping"))?.play()
+        }
+        if onScreenAlertEnabled {
+            self.alertOverlay.show(title: copy.title, message: copy.body)
         }
         NotificationCenter.default.post(
             name: .codexbarQuotaWarningDidPost,
