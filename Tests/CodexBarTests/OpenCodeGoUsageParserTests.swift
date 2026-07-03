@@ -233,6 +233,23 @@ struct OpenCodeGoUsageParserTests {
     }
 
     @Test
+    func `ignores nonfinite reset timestamps`() throws {
+        let text = """
+        {
+          "rollingUsage": { "usagePercent": 17, "resetAt": "1e309" },
+          "weeklyUsage": { "usagePercent": 75, "resetInSec": 7200 }
+        }
+        """
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(
+            text: text,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.rollingResetInSec == 0)
+        #expect(snapshot.weeklyResetInSec == 7200)
+    }
+
+    @Test
     func `computes usage percent from totals and treats monthly as optional`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [

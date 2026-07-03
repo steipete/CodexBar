@@ -423,7 +423,7 @@ public struct OpenCodeUsageFetcher: Sendable {
     }
 
     private static func doubleValue(from value: Any?) -> Double? {
-        switch value {
+        let number: Double? = switch value {
         case let number as Double:
             number
         case let number as NSNumber:
@@ -433,6 +433,8 @@ public struct OpenCodeUsageFetcher: Sendable {
         default:
             nil
         }
+        guard let number, number.isFinite else { return nil }
+        return number
     }
 
     private static func intValue(from value: Any?) -> Int? {
