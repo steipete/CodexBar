@@ -16,27 +16,6 @@ extension StatusItemController {
         let descriptor: MenuDescriptor
     }
 
-    func menuUpdateContext(
-        selectedProvider: UsageProvider?,
-        currentProvider: UsageProvider,
-        switcherSelection: ProviderSwitcherSelection?,
-        menuWidth: CGFloat,
-        codexAccountDisplay: CodexAccountMenuDisplay?,
-        tokenAccountDisplay: TokenAccountMenuDisplay?,
-        openAIContext: OpenAIWebContext,
-        descriptor: MenuDescriptor) -> MenuUpdateContext
-    {
-        MenuUpdateContext(
-            provider: selectedProvider,
-            currentProvider: currentProvider,
-            switcherSelection: switcherSelection ?? .provider(currentProvider),
-            menuWidth: menuWidth,
-            codexAccountDisplay: codexAccountDisplay,
-            tokenAccountDisplay: tokenAccountDisplay,
-            openAIContext: openAIContext,
-            descriptor: descriptor)
-    }
-
     /// Smart update: rebuild everything below the provider switcher while keeping the switcher view intact.
     func updateMenuContentPreservingSwitcher(
         _ menu: NSMenu,

@@ -228,6 +228,51 @@ extension StatusItemController {
             }
         }
 
+        let snapshot = self.makeMenuPopulateSnapshot(menu: menu, provider: provider)
+        let gate = self.mergedMenuSmartUpdateGate(menu: menu, snapshot: snapshot)
+
+        #if DEBUG
+        if self.openMenus[ObjectIdentifier(menu)] != nil {
+            self.menuLogger.debug(
+                "populateMenu(open): provider=\(String(describing: provider)) " +
+                    "display=\(snapshot.enabledProviders.map(\.rawValue)) " +
+                    "available=\(self.store.enabledProviders().map(\.rawValue)) " +
+                    "selection=\(String(describing: snapshot.switcherSelection)) " +
+                    "last=\(String(describing: self.lastMergedSwitcherSelection)) " +
+                    "smart=\(gate.canSmartUpdate)")
+        }
+        #endif
+
+        if gate.canSmartUpdate {
+            self.updateMenuContentPreservingSwitcher(menu, context: snapshot.menuUpdateContext)
+            return
+        }
+
+        #if DEBUG
+        if self.openMenus[ObjectIdentifier(menu)] != nil {
+            self.menuLogger.debug(
+                "populateMenu(open): preserveSwitcher=\(gate.canPreserveProviderSwitcher) " +
+                    "widthMatch=\(gate.providerSwitcherWidthMatches)")
+        }
+        #endif
+
+        if gate.canPreserveProviderSwitcher {
+            self.updateMenuContentPreservingSwitcher(menu, context: snapshot.menuUpdateContext)
+            return
+        }
+
+        #if DEBUG
+        if self.openMenus[ObjectIdentifier(menu)] != nil, menu.items.first?.view is ProviderSwitcherView {
+            self.menuLogger.debug("populateMenu(open): rebuilding whole menu and replacing provider switcher")
+        }
+        #endif
+        self.rebuildMenuContent(menu, context: snapshot.menuRebuildContext)
+    }
+
+    private func makeMenuPopulateSnapshot(
+        menu: NSMenu,
+        provider: UsageProvider?) -> MenuPopulateSnapshot
+    {
         let enabledProviders = self.store.enabledProvidersForDisplay()
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
         let switcherSelection = self.shouldMergeIcons && enabledProviders.count > 1
@@ -261,30 +306,46 @@ extension StatusItemController {
             for: enabledProviders,
             selectedProvider: selectedProvider,
             descriptor: descriptor)
+        return MenuPopulateSnapshot(
+            enabledProviders: enabledProviders,
+            includesOverview: includesOverview,
+            switcherSelection: switcherSelection,
+            selectedProvider: selectedProvider,
+            currentProvider: currentProvider,
+            codexAccountDisplay: codexAccountDisplay,
+            tokenAccountDisplay: tokenAccountDisplay,
+            openAIContext: openAIContext,
+            descriptor: descriptor,
+            menuWidth: menuWidth)
+    }
 
+    private func mergedMenuSmartUpdateGate(
+        menu: NSMenu,
+        snapshot: MenuPopulateSnapshot) -> MergedMenuSmartUpdateGate
+    {
         let hasTokenSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let hasCodexSwitcher = menu.items.contains { $0.view is CodexAccountSwitcherView }
-        let switcherProvidersMatch = enabledProviders == self.lastSwitcherProviders
+        let switcherProvidersMatch = snapshot.enabledProviders == self.lastSwitcherProviders
         let switcherUsageBarsShowUsedMatch = self.settings.usageBarsShowUsed == self.lastSwitcherUsageBarsShowUsed
-        let switcherSelectionMatches = switcherSelection == self.lastMergedSwitcherSelection
-        let switcherOverviewAvailabilityMatches = includesOverview == self.lastSwitcherIncludesOverview
+        let switcherSelectionMatches = snapshot.switcherSelection == self.lastMergedSwitcherSelection
+        let switcherOverviewAvailabilityMatches = snapshot.includesOverview == self.lastSwitcherIncludesOverview
         let menuLocalizationMatches = self.menuLocalizationSignature() == self.lastMenuLocalizationSignature
-        let tokenSwitcherCompatible = tokenAccountDisplay == self.lastTokenAccountMenuDisplay &&
-            ((tokenAccountDisplay?.showSwitcher == true && hasTokenSwitcher) ||
-                (tokenAccountDisplay?.showSwitcher != true && !hasTokenSwitcher))
-        let codexSwitcherCompatible = codexAccountDisplay == self.lastCodexAccountMenuDisplay &&
-            ((codexAccountDisplay?.showSwitcher == true && hasCodexSwitcher) ||
-                (codexAccountDisplay?.showSwitcher != true && !hasCodexSwitcher))
+        let tokenSwitcherCompatible = snapshot.tokenAccountDisplay == self.lastTokenAccountMenuDisplay &&
+            ((snapshot.tokenAccountDisplay?.showSwitcher == true && hasTokenSwitcher) ||
+                (snapshot.tokenAccountDisplay?.showSwitcher != true && !hasTokenSwitcher))
+        let codexSwitcherCompatible = snapshot.codexAccountDisplay == self.lastCodexAccountMenuDisplay &&
+            ((snapshot.codexAccountDisplay?.showSwitcher == true && hasCodexSwitcher) ||
+                (snapshot.codexAccountDisplay?.showSwitcher != true && !hasCodexSwitcher))
         let reusableRowWidthsMatch = self.reusableFixedWidthRows(in: menu).allSatisfy { item in
             guard let view = item.view else { return false }
-            return abs(view.frame.width - menuWidth) <= 0.5
+            return abs(view.frame.width - snapshot.menuWidth) <= 0.5
         }
         let providerSwitcherWidthMatches = (menu.items.first?.view as? ProviderSwitcherView).map { view in
-            abs(view.frame.width - menuWidth) <= 0.5
+            abs(view.frame.width - snapshot.menuWidth) <= 0.5
         } ?? false
         let canSmartUpdate = self.shouldMergeIcons &&
-            enabledProviders.count > 1 &&
-            !isOverviewSelected &&
+            snapshot.enabledProviders.count > 1 &&
+            !snapshot.isOverviewSelected &&
             switcherProvidersMatch &&
             switcherUsageBarsShowUsedMatch &&
             switcherSelectionMatches &&
@@ -295,36 +356,8 @@ extension StatusItemController {
             reusableRowWidthsMatch &&
             !menu.items.isEmpty &&
             menu.items.first?.view is ProviderSwitcherView
-
-        #if DEBUG
-        if self.openMenus[ObjectIdentifier(menu)] != nil {
-            self.menuLogger.debug(
-                "populateMenu(open): provider=\(String(describing: provider)) " +
-                    "display=\(enabledProviders.map(\.rawValue)) " +
-                    "available=\(self.store.enabledProviders().map(\.rawValue)) " +
-                    "selection=\(String(describing: switcherSelection)) " +
-                    "last=\(String(describing: self.lastMergedSwitcherSelection)) " +
-                    "smart=\(canSmartUpdate)")
-        }
-        #endif
-
-        if canSmartUpdate {
-            self.updateMenuContentPreservingSwitcher(
-                menu,
-                context: self.menuUpdateContext(
-                    selectedProvider: selectedProvider,
-                    currentProvider: currentProvider,
-                    switcherSelection: switcherSelection,
-                    menuWidth: menuWidth,
-                    codexAccountDisplay: codexAccountDisplay,
-                    tokenAccountDisplay: tokenAccountDisplay,
-                    openAIContext: openAIContext,
-                    descriptor: descriptor))
-            return
-        }
-
         let canPreserveProviderSwitcher = self.shouldMergeIcons &&
-            enabledProviders.count > 1 &&
+            snapshot.enabledProviders.count > 1 &&
             switcherProvidersMatch &&
             switcherUsageBarsShowUsedMatch &&
             switcherOverviewAvailabilityMatches &&
@@ -332,48 +365,10 @@ extension StatusItemController {
             providerSwitcherWidthMatches &&
             !menu.items.isEmpty &&
             menu.items.first?.view is ProviderSwitcherView
-
-        #if DEBUG
-        if self.openMenus[ObjectIdentifier(menu)] != nil {
-            self.menuLogger.debug(
-                "populateMenu(open): preserveSwitcher=\(canPreserveProviderSwitcher) " +
-                    "widthMatch=\(providerSwitcherWidthMatches)")
-        }
-        #endif
-
-        if canPreserveProviderSwitcher {
-            self.updateMenuContentPreservingSwitcher(
-                menu,
-                context: self.menuUpdateContext(
-                    selectedProvider: selectedProvider,
-                    currentProvider: currentProvider,
-                    switcherSelection: switcherSelection,
-                    menuWidth: menuWidth,
-                    codexAccountDisplay: codexAccountDisplay,
-                    tokenAccountDisplay: tokenAccountDisplay,
-                    openAIContext: openAIContext,
-                    descriptor: descriptor))
-            return
-        }
-
-        #if DEBUG
-        if self.openMenus[ObjectIdentifier(menu)] != nil, menu.items.first?.view is ProviderSwitcherView {
-            self.menuLogger.debug("populateMenu(open): rebuilding whole menu and replacing provider switcher")
-        }
-        #endif
-        self.rebuildMenuContent(
-            menu,
-            context: MenuRebuildContext(
-                enabledProviders: enabledProviders,
-                includesOverview: includesOverview,
-                switcherSelection: switcherSelection,
-                currentProvider: currentProvider,
-                selectedProvider: selectedProvider,
-                menuWidth: menuWidth,
-                codexAccountDisplay: codexAccountDisplay,
-                tokenAccountDisplay: tokenAccountDisplay,
-                openAIContext: openAIContext,
-                descriptor: descriptor))
+        return MergedMenuSmartUpdateGate(
+            canSmartUpdate: canSmartUpdate,
+            canPreserveProviderSwitcher: canPreserveProviderSwitcher,
+            providerSwitcherWidthMatches: providerSwitcherWidthMatches)
     }
 
     private func reusableFixedWidthRows(in menu: NSMenu) -> [NSMenuItem] {
