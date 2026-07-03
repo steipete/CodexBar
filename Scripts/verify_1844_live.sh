@@ -43,6 +43,7 @@ log "Phase 1: focused integration tests"
   swift test --filter 'expired claude CLI owner blocks background'
   swift test --filter ClaudeOAuthCredentialsStoreSecurityCLITests
   swift test --filter ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests
+  swift test --filter ClaudeOAuthCredentialsStoreMCPOnlyGuardTests
 } 2>&1 | tee "$ARTIFACT/integration-tests.log"
 log "Phase 1 passed"
 

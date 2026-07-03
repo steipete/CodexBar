@@ -1,8 +1,8 @@
 ## Summary
 
-Partial fix related to https://github.com/steipete/CodexBar/issues/1844: when Claude Code stores only MCP OAuth state in `Claude Code-credentials` (no `claudeAiOauth`), CodexBar no longer runs background delegated `claude /status` refresh—which can launch the default browser via `/usr/bin/open`.
+Fixes the background browser-launch regression in https://github.com/steipete/CodexBar/issues/1844: when Claude Code stores only MCP OAuth state in `Claude Code-credentials` (no `claudeAiOauth`), CodexBar no longer runs background delegated `claude /status` refresh—which can launch the default browser via `/usr/bin/open`.
 
-**Scope:** Phase 1 guard only. Does not discover Claude Code 2.1.x's primary OAuth storage location.
+**Scope:** fail-closed safety guard for both keychain readers. Discovery of Claude Code 2.1.x's primary OAuth storage location remains tracked by https://github.com/steipete/CodexBar/issues/1823.
 
 ## Problem
 
@@ -16,7 +16,7 @@ Contributing issues on `main`:
 ## Changes
 
 1. **Honor stored keychain prompt mode for delegated refresh** across all keychain read strategies (including `securityCLIExperimental`). Background refresh with `onlyOnUserAction` fails closed with existing user-action guidance instead of calling `claude /status`.
-2. **Detect MCP-only keychain payloads** via `ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain`, skip delegated CLI touch, and fail fast during expired Claude CLI credential load.
+2. **Detect MCP-only keychain payloads through both keychain readers** via `ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain`, skip delegated CLI touch, and fail fast during expired Claude CLI credential load.
 3. **Split security CLI read paths**: `readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled` vs parsed credential load.
 4. **Isolated verification helper**: the production `/usr/bin/security` reader can target a disposable keychain only while all general keychain access is disabled. `Scripts/verify_1844_live.sh` combines that keychain with disposable `HOME`, `CFFIXED_USER_HOME`, credentials, config, and a synthetic `claude` touch canary.
 
@@ -27,6 +27,7 @@ Contributing issues on `main`:
 - Added: coordinator test—background MCP-only guard plus explicit Refresh recovery
 - Added: store test—expired CLI owner fails closed in background and delegates on explicit Refresh
 - Added: fail-closed tests for the isolated-keychain argument seam
+- Added: standard Security.framework reader regression—background fails closed while explicit Refresh delegates
 
 ## Verification
 
@@ -43,7 +44,8 @@ swift test --filter ClaudeOAuthTests
 swift test --filter ClaudeUsageTests
 swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
 swift test --filter 'expired claude CLI owner blocks background'
+swift test --filter ClaudeOAuthCredentialsStoreMCPOnlyGuardTests
 ./Scripts/verify_1844_live.sh
 ```
 
-Related: https://github.com/steipete/CodexBar/issues/1844 (Phase 1 only; the issue must remain open for primary OAuth storage discovery and reporter-environment confirmation.)
+Fixes https://github.com/steipete/CodexBar/issues/1844. Primary OAuth storage discovery remains tracked by https://github.com/steipete/CodexBar/issues/1823.

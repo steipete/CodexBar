@@ -350,14 +350,16 @@ extension ClaudeOAuthCredentialsStore {
         guard !keychainAccessDisabled || self.isolatedSecurityCLIKeychainPath(environment: environment) != nil else {
             return false
         }
-        guard readStrategy == .securityCLIExperimental else { return false }
-        guard let payload = self.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
-            interaction: interaction,
-            readStrategy: readStrategy,
-            environment: environment)
-        else {
-            return false
+        let payload: Data? = switch readStrategy {
+        case .securityFramework:
+            self.readRawClaudeKeychainPayloadViaSecurityFrameworkWithoutPrompt()
+        case .securityCLIExperimental:
+            self.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
+                interaction: interaction,
+                readStrategy: readStrategy,
+                environment: environment)
         }
+        guard let payload else { return false }
         return ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: payload)
     }
 }

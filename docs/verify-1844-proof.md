@@ -4,9 +4,9 @@ Verification artifact for https://github.com/steipete/CodexBar/pull/1848, relate
 
 ## Scope
 
-This verifies the Phase 1 safety behavior: CodexBar fails closed when `Claude Code-credentials` contains only `mcpOAuth`, and background paths do not invoke delegated `claude /status` refresh. Explicit user Refresh remains able to attempt recovery.
+This verifies the safety behavior: CodexBar fails closed through both keychain readers when `Claude Code-credentials` contains only `mcpOAuth`, and background paths do not invoke delegated `claude /status` refresh. Explicit user Refresh remains able to attempt recovery.
 
-The change does not discover Claude Code 2.1.x's primary OAuth storage location. Issue 1844 must remain open for that work and reporter-environment confirmation.
+The change does not discover Claude Code 2.1.x's primary OAuth storage location. That broader provider-auth work remains tracked by https://github.com/steipete/CodexBar/issues/1823.
 
 ## Focused regression proof
 
@@ -17,11 +17,12 @@ swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
 swift test --filter 'expired claude CLI owner blocks background'
 swift test --filter ClaudeOAuthCredentialsStoreSecurityCLITests
 swift test --filter ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests
+swift test --filter ClaudeOAuthCredentialsStoreMCPOnlyGuardTests
 ```
 
-Result on macOS arm64: **104 tests passed** (33 + 39 + 12 + 1 + 17 + 2).
+Result on macOS arm64: **105 tests passed** (33 + 39 + 12 + 1 + 17 + 2 + 1).
 
-The covered behaviors include MCP-only shape detection, background fail-closed behavior, explicit user Refresh recovery, in-flight background/user interaction races, and fail-closed isolated-keychain argument construction.
+The covered behaviors include MCP-only shape detection through both keychain readers, background fail-closed behavior, explicit user Refresh recovery, in-flight background/user interaction races, and fail-closed isolated-keychain argument construction.
 
 ## Isolated built-bundle proof
 
@@ -38,4 +39,4 @@ No real `~/.claude/.credentials.json`, Claude account, or CodexBar cache keychai
 
 ## Final local gates
 
-`make check` passed, all 45 `make test` shards passed, and autoreview reported no accepted/actionable findings. A reporter-environment menu Refresh replay remains useful supplementary evidence but is outside this isolated proof and is not grounds to close issue 1844.
+`make check` passed, all 45 `make test` shards passed, exact-SHA autoreview reported no accepted/actionable findings, and the source-blind behavior contract passed. A reporter-environment menu Refresh replay remains useful supplementary evidence but is not required for the isolated browser-launch safety proof.
