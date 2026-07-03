@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import CodexBar
@@ -51,6 +52,41 @@ struct TerminalAppTests {
     @Test
     func `only two cases exist`() {
         #expect(TerminalApp.allCases.count == 2)
+    }
+
+    @Test
+    func `installed terminals always include Terminal and detected alternatives`() {
+        let iTermURL = URL(fileURLWithPath: "/Applications/iTerm.app")
+        let installed = TerminalApp.installed { bundleIdentifier in
+            bundleIdentifier == TerminalApp.iTerm.bundleIdentifier ? iTermURL : nil
+        }
+
+        #expect(installed == [.terminal, .iTerm])
+        #expect(TerminalApp.installed { _ in nil } == [.terminal])
+    }
+
+    @Test
+    func `picker options preserve an unavailable persisted selection`() {
+        #expect(TerminalApp.pickerOptions(selected: .terminal) { _ in nil } == [.terminal])
+        #expect(TerminalApp.pickerOptions(selected: .iTerm) { _ in nil } == [.terminal, .iTerm])
+    }
+
+    @Test
+    @MainActor
+    func `picker icon has compact intrinsic size`() {
+        let source = NSImage(size: NSSize(width: 128, height: 64))
+
+        let icon = TerminalApp.pickerIcon(from: source)
+
+        #expect(icon.size == NSSize(width: 16, height: 16))
+    }
+
+    @Test
+    @MainActor
+    func `zero size picker icon remains compact`() {
+        let icon = TerminalApp.pickerIcon(from: NSImage(size: .zero))
+
+        #expect(icon.size == NSSize(width: 16, height: 16))
     }
 
     @Test

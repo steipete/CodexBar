@@ -36,8 +36,11 @@ Alternatively, set the environment variable `SAKANA_COOKIE` to the raw cookie he
 - The secondary row shows the **weekly quota** as a seven-day window and uses its billing-page reset timestamp when
   one is present.
 - `usedPercent` for each window is parsed from the billing page's adjacent `% used` text.
-- Reset dates are parsed from the billing page using the device's local time zone (`TimeZone.current`).
-  The fetcher detects `"MMMM d, yyyy 'at' h:mm a"` format strings.
+- Reset dates are parsed as **UTC**, not the device's local time zone. The billing page always server-renders
+  "Resets on <date>" in UTC — the browser only corrects it to the viewer's local time client-side, after JS
+  hydration, which this HTML-only fetcher never runs. (Parsing with `TimeZone.current` instead shifted every reset
+  by the device's UTC offset; see [#1826](https://github.com/steipete/CodexBar/issues/1826).) The fetcher detects
+  `"MMMM d, yyyy 'at' h:mm a"` format strings.
 - Plan name and price label (e.g. `Standard $20/mo`) are joined and surfaced as the `loginMethod` identity field for
   plan display in the menu.
 - Token cost tracking (`supportsTokenCost: false`): not supported; cost summary is unavailable.

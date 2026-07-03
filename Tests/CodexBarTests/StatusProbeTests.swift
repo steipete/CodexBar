@@ -564,6 +564,13 @@ struct StatusProbeTests {
             let lower = message.lowercased()
             #expect(lower.contains("subscription"))
             #expect(!lower.contains("still loading"))
+            #expect(ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(message))
+
+            let errorDescription = ClaudeStatusProbeError.parseFailed(message).localizedDescription
+            #expect(UsageLimitsAvailability.resolve(
+                provider: .claude,
+                snapshot: nil,
+                lastErrorDescription: errorDescription) == .unavailable)
         } catch {
             #expect(Bool(false), "Unexpected error: \(error)")
         }

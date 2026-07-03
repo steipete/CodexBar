@@ -99,6 +99,10 @@ public enum ProviderTokenResolver {
         self.openRouterResolution(environment: environment)?.token
     }
 
+    public static func crossModelToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.crossModelResolution(environment: environment)?.token
+    }
+
     public static func elevenLabsToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -338,6 +342,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
+    }
+
+    public static func crossModelResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(CrossModelSettingsReader.apiToken(environment: environment))
     }
 
     public static func elevenLabsResolution(

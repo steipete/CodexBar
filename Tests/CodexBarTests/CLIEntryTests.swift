@@ -399,6 +399,20 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .sakana,
             environment: [:]))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .qoder,
+            settings: ProviderSettingsSnapshot.make(
+                qoder: .init(
+                    cookieSource: .manual,
+                    manualCookieHeader: "sid=manual"))))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .qoder,
+            settings: ProviderSettingsSnapshot.make(
+                qoder: .init(
+                    cookieSource: .auto,
+                    manualCookieHeader: nil))))
         XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .opencode,

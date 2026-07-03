@@ -95,6 +95,8 @@ public enum ProviderConfigEnvironment {
             self.applyAzureOpenAIOverrides(base: base, config: config)
         case .kimi:
             self.applyKimiOverrides(base: base, config: config)
+        case .doubao:
+            self.applyDoubaoOverrides(base: base, config: config)
         case .sakana:
             self.applySakanaOverrides(base: base, config: config)
         default:
@@ -140,7 +142,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm:
+        case .chutes, .poe, .litellm, .crossmodel:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -155,6 +157,8 @@ public enum ProviderConfigEnvironment {
             PoeSettingsReader.apiKeyEnvironmentKey
         case .litellm:
             LiteLLMSettingsReader.apiKeyEnvironmentKey
+        case .crossmodel:
+            CrossModelSettingsReader.envKey
         default:
             nil
         }
@@ -287,6 +291,42 @@ public enum ProviderConfigEnvironment {
         return env
     }
 
+    private static func applyDoubaoOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        let apiKey = config.sanitizedAPIKey
+        let secretKey = config.sanitizedSecretKey
+
+        if let apiKey, self.doubaoAccessKeyID(from: apiKey) == nil {
+            self.clearDoubaoCodingPlanCredentialKeys(in: &env)
+            env[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] = apiKey
+            if let region = config.sanitizedRegion {
+                env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+            }
+            return env
+        }
+
+        let accessKeyID = self.doubaoAccessKeyID(from: apiKey) ?? DoubaoSettingsReader.accessKeyID(environment: base)
+        let secretAccessKey = secretKey ?? DoubaoSettingsReader.secretAccessKey(environment: base)
+
+        if let accessKeyID, let secretAccessKey {
+            env[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] = accessKeyID
+            env[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] = secretAccessKey
+            if let region = config.sanitizedRegion ?? self.firstDoubaoRegionValue(in: base) {
+                env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+            }
+            return env
+        }
+
+        if let region = config.sanitizedRegion {
+            env[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+        }
+        return env
+    }
+
     private static func applySakanaOverrides(
         base: [String: String],
         config: ProviderConfig?) -> [String: String]
@@ -297,6 +337,28 @@ public enum ProviderConfigEnvironment {
             env[SakanaSettingsReader.cookieHeaderKey] = cookieHeader
         }
         return env
+    }
+
+    private static func doubaoAccessKeyID(from apiKey: String?) -> String? {
+        guard let apiKey, apiKey.hasPrefix("AKLT") else { return nil }
+        return apiKey
+    }
+
+    private static func clearDoubaoCodingPlanCredentialKeys(in environment: inout [String: String]) {
+        for key in DoubaoSettingsReader.accessKeyIDEnvironmentKeys {
+            environment.removeValue(forKey: key)
+        }
+        for key in DoubaoSettingsReader.secretAccessKeyEnvironmentKeys {
+            environment.removeValue(forKey: key)
+        }
+    }
+
+    private static func firstDoubaoRegionValue(in environment: [String: String]) -> String? {
+        for key in DoubaoSettingsReader.regionEnvironmentKeys {
+            guard let value = DoubaoSettingsReader.cleaned(environment[key]) else { continue }
+            return value
+        }
+        return nil
     }
 
     private static func applyAzureOpenAIOverrides(

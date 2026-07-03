@@ -36,6 +36,22 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func `weekly pace detail treats rounded zero delta as on pace`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let pace = UsagePace(
+            stage: .slightlyBehind,
+            deltaPercent: -0.4,
+            expectedUsedPercent: 50.4,
+            actualUsedPercent: 50,
+            etaSeconds: nil,
+            willLastToReset: true)
+
+        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+
+        #expect(detail.leftLabel == "On pace")
+    }
+
+    @Test
     func `weekly pace detail reports lasts until reset`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(

@@ -30,11 +30,17 @@ extension UsageStore {
         let entries = UsageProvider.allCases.compactMap { provider in
             self.makeWidgetEntry(for: provider)
         }
-        return WidgetSnapshot(entries: entries, enabledProviders: enabledProviders, generatedAt: Date())
+        return WidgetSnapshot(
+            entries: entries,
+            enabledProviders: enabledProviders,
+            usageBarsShowUsed: self.settings.usageBarsShowUsed,
+            generatedAt: Date())
     }
 
     private func makeWidgetEntry(for provider: UsageProvider) -> WidgetSnapshot.ProviderEntry? {
-        guard let snapshot = self.snapshots[provider] else { return nil }
+        let snapshot = self.snapshots[provider]
+        let storedTokenSnapshot = self.tokenSnapshots[provider]
+        guard snapshot != nil || (provider == .claude && storedTokenSnapshot != nil) else { return nil }
 
         let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) ?? self
             .tokenSnapshots[provider]
@@ -46,11 +52,11 @@ extension UsageStore {
         } ?? []
 
         let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
-        let usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot)
+        let usageRows = snapshot.map { self.widgetUsageRows(provider: provider, snapshot: $0) } ?? []
 
         let creditsRemaining: Double?
         let codeReviewRemaining: Double?
-        if provider == .codex {
+        if provider == .codex, let snapshot {
             let projection = self.codexConsumerProjection(
                 surface: .widget,
                 snapshotOverride: snapshot,
@@ -65,10 +71,10 @@ extension UsageStore {
 
         return WidgetSnapshot.ProviderEntry(
             provider: provider,
-            updatedAt: snapshot.updatedAt,
-            primary: snapshot.primary,
-            secondary: snapshot.secondary,
-            tertiary: snapshot.tertiary,
+            updatedAt: snapshot?.updatedAt ?? tokenSnapshot?.updatedAt ?? Date(),
+            primary: snapshot?.primary,
+            secondary: snapshot?.secondary,
+            tertiary: snapshot?.tertiary,
             usageRows: usageRows,
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,
@@ -137,6 +143,11 @@ extension UsageStore {
         let primaryTitle: String = {
             if provider == .grok,
                let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)
+            {
+                return dyn
+            }
+            if provider == .doubao,
+               let dyn = DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
             {
                 return dyn
             }

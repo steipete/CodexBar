@@ -198,9 +198,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     }
 
     private static func currentClaudeOAuthDelegatedRefreshPolicy() -> ClaudeOAuthKeychainPromptPolicy {
+        // Delegated refresh must honor the stored prompt mode for every keychain read strategy.
+        // securityCLIExperimental is not "prompt policy N/A" for CLI touch repair.
         ClaudeOAuthKeychainPromptPolicy(
-            mode: ClaudeOAuthKeychainPromptPreference.current(),
-            isApplicable: ClaudeOAuthKeychainPromptPreference.isApplicable(),
+            mode: ClaudeOAuthKeychainPromptPreference.storedMode(),
+            isApplicable: true,
             interaction: ProviderInteractionContext.current)
     }
 
@@ -208,7 +210,6 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         policy: ClaudeOAuthKeychainPromptPolicy,
         allowBackgroundDelegatedRefresh: Bool) throws
     {
-        guard policy.isApplicable else { return }
         if policy.mode == .never {
             throw ClaudeUsageError.oauthFailed("Delegated refresh is disabled by 'never' keychain policy.")
         }
@@ -1153,6 +1154,22 @@ extension ClaudeUsageFetcher {
 
     // MARK: - Web API path (uses browser cookies)
 
+    /// The 5-hour session (`primary`) window for a Claude web usage payload.
+    ///
+    /// When `five_hour` is null the web fetcher reports a synthesized 0% session (an account with no live
+    /// session window). Flag that placeholder so lane classifiers — e.g. the combined Session + Weekly
+    /// menu-bar metric — surface the weekly lane instead of a phantom 5h session. The flag keys off the
+    /// reported presence of the session object, so a real session that is merely idle (0% used, possibly
+    /// with no reset) stays unflagged and keeps rendering.
+    static func webPrimaryWindow(from webData: ClaudeWebAPIFetcher.WebUsageData) -> RateWindow {
+        RateWindow(
+            usedPercent: webData.sessionPercentUsed,
+            windowMinutes: 5 * 60,
+            resetsAt: webData.sessionResetsAt,
+            resetDescription: webData.sessionResetsAt.map { Self.formatResetDate($0) },
+            isSyntheticPlaceholder: !webData.hasLiveSessionWindow)
+    }
+
     private func loadViaWebAPI() async throws -> ClaudeUsageSnapshot {
         let webData: ClaudeWebAPIFetcher.WebUsageData =
             if let header = self.manualCookieHeader {
@@ -1171,11 +1188,7 @@ extension ClaudeUsageFetcher {
                 }
             }
         // Convert web API data to ClaudeUsageSnapshot format
-        let primary = RateWindow(
-            usedPercent: webData.sessionPercentUsed,
-            windowMinutes: 5 * 60,
-            resetsAt: webData.sessionResetsAt,
-            resetDescription: webData.sessionResetsAt.map { Self.formatResetDate($0) })
+        let primary = Self.webPrimaryWindow(from: webData)
 
         let secondary: RateWindow? = webData.weeklyPercentUsed.map { pct in
             RateWindow(
@@ -1384,6 +1397,8 @@ extension ClaudeUsageFetcher {
             "decodeFailed"
         case .missingOAuth:
             "missingOAuth"
+        case .mcpOAuthOnlyKeychain:
+            "mcpOAuthOnlyKeychain"
         case .missingAccessToken:
             "missingAccessToken"
         case .notFound:

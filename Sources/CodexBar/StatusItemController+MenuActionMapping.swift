@@ -25,9 +25,9 @@ extension StatusItemController {
 
     func codexAddAccountSubtitle() -> String? {
         if self.settings.hasUnreadableManagedCodexAccountStore {
-            return "Managed account storage unavailable"
+            return L("Managed account storage unavailable")
         }
         guard self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount else { return nil }
-        return "Managed Codex login in progress…"
+        return L("Managed Codex login in progress…")
     }
 }
