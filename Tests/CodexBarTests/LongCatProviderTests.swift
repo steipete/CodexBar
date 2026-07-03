@@ -190,4 +190,83 @@ struct LongCatProviderTests {
             #expect(LongCatWebFetchStrategy.allowsBrowserImport(context: appOff) == false)
         }
     }
+
+    // MARK: - HTTP status handling (fetchUsage over an injected transport)
+
+    @Test
+    func `fetch surfaces invalid session on 401`() async {
+        let transport = LongCatScriptedTransport(results: [.status(401)])
+        await #expect(throws: LongCatAPIError.invalidSession) {
+            _ = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        }
+    }
+
+    @Test
+    func `fetch surfaces invalid session on 403`() async {
+        let transport = LongCatScriptedTransport(results: [.status(403)])
+        await #expect(throws: LongCatAPIError.invalidSession) {
+            _ = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        }
+    }
+
+    @Test
+    func `fetch treats a blocked login redirect as invalid session`() async {
+        // The shared transport's redirect guard drops the cross-origin login hop, so an
+        // expired cookie surfaces here as a raw 3xx; it must still read as invalid-session.
+        let transport = LongCatScriptedTransport(results: [.status(302)])
+        await #expect(throws: LongCatAPIError.invalidSession) {
+            _ = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        }
+    }
+
+    @Test
+    func `fetch maps a full live response over the transport`() async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000,"availableToken":380000}}}"#),
+            .body(#"{"code":0,"data":{"totalQuota":1000,"list":[{"availableToken":600,"expireTime":1750000000000}]}}"#),
+        ])
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.accountName == "Leo")
+        #expect(snapshot.totalQuota == 500_000)
+        #expect(snapshot.usedQuota == 120_000)
+        #expect(snapshot.fuelPackTotal == 1000)
+        #expect(snapshot.fuelPackRemaining == 600)
+    }
+}
+
+/// Scripted transport for exercising `LongCatUsageFetcher.fetchUsage` HTTP paths
+/// without a network. Returns the given results in order; an exhausted script
+/// yields an empty 200 so best-effort follow-up probes decode to nil.
+private actor LongCatScriptedTransport: ProviderHTTPTransport {
+    enum Result {
+        case status(Int)
+        case body(String)
+    }
+
+    private var results: [Result]
+
+    init(results: [Result]) {
+        self.results = results
+    }
+
+    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        let result = self.results.isEmpty ? .status(200) : self.results.removeFirst()
+        let statusCode: Int
+        let body: String
+        switch result {
+        case let .status(code):
+            statusCode = code
+            body = ""
+        case let .body(text):
+            statusCode = 200
+            body = text
+        }
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil)!
+        return (Data(body.utf8), response)
+    }
 }
