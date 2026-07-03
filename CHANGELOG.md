@@ -16,6 +16,7 @@
 
 ### Fixed
 - Localization: translate the Default Terminal setting across every supported app language. Thanks @Zihao-Qi!
+- z.ai: parse successful BigModel CN quota responses that omit the optional message field, while preserving useful API-code errors. Thanks @joeVenner!
 - Claude: block background delegated CLI OAuth refresh when the keychain holds MCP-only state (`mcpOAuth` without `claudeAiOauth`) while preserving explicit Refresh recovery (#1844). Thanks @Yuxin-Qiao!
 
 ## 0.38.0 — 2026-07-03
