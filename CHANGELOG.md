@@ -12,6 +12,7 @@
 
 ### Changed
 - Settings: complete redesign as a System Settings-style window — a sidebar lists app panes plus every provider (search, drag reorder, status dots, enable via context menu), panes use native grouped forms, the window keeps one size instead of resizing per tab, and the last selected pane is remembered across launches.
+- Menu: group Plan Usage, Cost, and Storage rows so related account usage is easier to scan. Thanks @Zihao-Qi!
 
 ### Fixed
 - Usage refresh: refresh provider data shortly after known quota reset boundaries instead of leaving expired reset times visible until the next normal poll. Thanks @pavbar!
