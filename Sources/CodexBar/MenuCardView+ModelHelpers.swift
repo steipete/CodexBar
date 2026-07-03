@@ -411,12 +411,12 @@ extension UsageMenuCardView.Model {
         return pace.expectedUsedPercent >= 3 || pace.etaSeconds == 0 ? pace : nil
     }
 
-    static func cursorBillingCyclePaceDetail(
+    static func billingCyclePaceDetail(
         window: RateWindow,
         input: Input,
         pace: UsagePace? = nil) -> PaceDetail?
     {
-        guard input.provider == .cursor,
+        guard input.provider == .cursor || input.provider == .opencodego,
               window.windowMinutes != nil,
               window.remainingPercent > 0
         else { return nil }

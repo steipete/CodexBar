@@ -1166,7 +1166,7 @@ extension UsageMenuCardView.Model {
             let opusResetText: String? = input.provider == .perplexity
                 ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
-            let tertiaryPaceDetail = Self.cursorBillingCyclePaceDetail(window: opus, input: input)
+            let tertiaryPaceDetail = Self.billingCyclePaceDetail(window: opus, input: input)
             metrics.append(Metric(
                 id: "tertiary",
                 title: labels.tertiary,
@@ -1318,7 +1318,9 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
-        if let paceDetail = Self.cursorBillingCyclePaceDetail(window: primary, input: input) {
+        if input.provider == .cursor,
+           let paceDetail = Self.billingCyclePaceDetail(window: primary, input: input)
+        {
             primaryDetailLeft = paceDetail.leftLabel
             primaryDetailRight = paceDetail.rightLabel
             primaryPacePercent = paceDetail.pacePercent
@@ -1434,10 +1436,11 @@ extension UsageMenuCardView.Model {
         {
             paceDetail = PaceDetail(leftLabel: detail, rightLabel: nil, pacePercent: nil, paceOnTop: true)
         }
-        if let cursorPaceDetail = Self.cursorBillingCyclePaceDetail(
-            window: weekly,
-            input: input,
-            pace: input.weeklyPace)
+        if input.provider == .cursor,
+           let cursorPaceDetail = Self.billingCyclePaceDetail(
+               window: weekly,
+               input: input,
+               pace: input.weeklyPace)
         {
             paceDetail = cursorPaceDetail
         }
