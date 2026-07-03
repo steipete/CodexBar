@@ -235,6 +235,7 @@
 "Picker subtitle" = "Підзаголовок засобу вибору";
 "Placeholder" = "Заповнювач";
 "Plan" = "План";
+"Plan Usage" = "Використання плану";
 "Play full-screen confetti when weekly usage resets." = "Відтворення конфетті на весь екран, коли тижневе використання скидається.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для";
 "Prevents any Keychain access while enabled." = "Запобігає будь-якому доступу Keychain, коли ввімкнено.";
@@ -302,7 +303,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Зберігається в ~/.codexbar/config.json. Вставте ключ MiniMax API.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Зберігається в ~/.codexbar/config.json. Ви також можете надати KILO_API_KEY або";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Зберігає локальну історію використання Codex (8 тижнів) для персоналізації прогнозів Pace.";
-"Subscription Utilization" = "Використання підписки";
 "Surprise me" = "Здивуйте мене";
 "Switcher shows icons" = "Перемикач показує значки";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
@@ -1128,3 +1128,14 @@
 "byte_unit_gigabyte" = "гігабайт";
 "byte_unit_gigabytes" = "гігабайти";
 "CrossModel API spend trend" = "Тенденція витрат CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "Увімкнути";
+"Disable" = "Вимкнути";
+"providers_on_count" = "%d увімкнено";
+"section_cost_summary" = "Зведення витрат";
+"section_command_line" = "Командний рядок";
+"section_privacy" = "Конфіденційність";
+"section_diagnostics" = "Діагностика";
+"section_updates" = "Оновлення";
+"section_links" = "Посилання";

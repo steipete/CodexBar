@@ -235,6 +235,7 @@
 "Picker subtitle" = "Subtítulo del selector";
 "Placeholder" = "Marcador de posición";
 "Plan" = "Plan";
+"Plan Usage" = "Uso del plan";
 "Play full-screen confetti when weekly usage resets." = "Mostrar confeti a pantalla completa cuando se reinicia el uso semanal.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Consulta las páginas de estado de OpenAI/Claude y Google Workspace para ";
 "Prevents any Keychain access while enabled." = "Impide cualquier acceso al Llavero mientras esté activado.";
@@ -303,7 +304,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Almacenado en ~/.codexbar/config.json. Pega tu clave de API de MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Almacenado en ~/.codexbar/config.json. También puedes proporcionar KILO_API_KEY o ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Almacena el historial de uso local de Codex (8 semanas) para personalizar las predicciones de Ritmo.";
-"Subscription Utilization" = "Uso de la suscripción";
 "Surprise me" = "Sorpréndeme";
 "Switcher shows icons" = "El selector muestra iconos";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Crear un enlace simbólico de CodexBarCLI en /usr/local/bin y /opt/homebrew/bin como codexbar.";
@@ -989,3 +989,14 @@
 "byte_unit_gigabytes" = "gigabytes";
 "Open Status Page" = "Abrir página de estado";
 "CrossModel API spend trend" = "Tendencia de gasto de la API de CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Activar";
+"Disable" = "Desactivar";
+"providers_on_count" = "%d activados";
+"section_cost_summary" = "Resumen de costos";
+"section_command_line" = "Línea de comandos";
+"section_privacy" = "Privacidad";
+"section_diagnostics" = "Diagnósticos";
+"section_updates" = "Actualizaciones";
+"section_links" = "Enlaces";

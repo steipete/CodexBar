@@ -236,6 +236,7 @@
 "Picker subtitle" = "Väljarunderrubrik";
 "Placeholder" = "Platshållare";
 "Plan" = "Plan";
+"Plan Usage" = "Plananvändning";
 "Play full-screen confetti when weekly usage resets." = "Spela konfetti i helskärm när veckoförbrukningen återställs.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Kontrollerar OpenAI/Claude-statussidor och Google Workspace för ";
 "Prevents any Keychain access while enabled." = "Förhindrar all åtkomst till Nyckelring när det är aktiverat.";
@@ -303,7 +304,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Sparas i ~/.codexbar/config.json. Klistra in din MiniMax-API-nyckel.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Sparas i ~/.codexbar/config.json. Du kan också ange KILO_API_KEY eller ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Sparar lokal Codex-användningshistorik (8 veckor) för att anpassa taktprognoser.";
-"Subscription Utilization" = "Abonnemangsutnyttjande";
 "Surprise me" = "Överraska mig";
 "Switcher shows icons" = "Växlaren visar ikoner";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
@@ -1127,3 +1127,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "CrossModel API-utgiftstrend";
+
+/* Settings sidebar redesign */
+"Enable" = "Aktivera";
+"Disable" = "Inaktivera";
+"providers_on_count" = "%d på";
+"section_cost_summary" = "Kostnadsöversikt";
+"section_command_line" = "Kommandorad";
+"section_privacy" = "Integritet";
+"section_diagnostics" = "Diagnostik";
+"section_updates" = "Uppdateringar";
+"section_links" = "Länkar";

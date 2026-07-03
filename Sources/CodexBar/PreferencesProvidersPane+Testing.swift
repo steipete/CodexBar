@@ -181,7 +181,7 @@ enum ProvidersPaneTestHarness {
             onRefresh: {},
             showsSupplementarySettingsContent: true,
             supplementarySettingsContent: {
-                ProviderSettingsSection(title: "Accounts") {
+                Section("Accounts") {
                     Text("Supplementary")
                 }
             }).body

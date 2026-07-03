@@ -761,13 +761,7 @@ extension StatusItemController {
                 currentProvider: context.currentProvider,
                 context: context.openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
-            if self.addUsageHistoryMenuItemIfNeeded(
-                to: menu,
-                provider: context.currentProvider,
-                width: context.menuWidth)
-            {
-                menu.addItem(.separator())
-            }
+            self.addUsageHistoryClusterIfNeeded(to: menu, context: context)
             self.addMiniMaxUsageSummarySectionIfNeeded(to: menu, context: context)
             if self.addZaiHourlyUsageMenuItemIfNeeded(
                 to: menu,
@@ -1353,24 +1347,6 @@ extension StatusItemController {
                 submenu: costSubmenu,
                 width: width))
         }
-    }
-
-    @discardableResult
-    func addStorageMenuCardSection(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
-        guard let storageText = self.store.storageFootprintText(for: provider) else { return false }
-        let storageSubmenu = self.makeStorageBreakdownSubmenu(provider: provider, width: width)
-        let menuFont = NSFont.menuFont(ofSize: 0)
-        let title = NSMutableAttributedString(string: L("Storage"), attributes: [.font: menuFont])
-        title.append(NSAttributedString(
-            string: "  \(storageText)",
-            attributes: [.font: menuFont, .foregroundColor: NSColor.secondaryLabelColor]))
-        let item = NSMenuItem(title: L("Storage"), action: nil, keyEquivalent: "")
-        item.attributedTitle = title
-        item.isEnabled = storageSubmenu != nil
-        item.representedObject = "menuCardStorage"
-        item.submenu = storageSubmenu
-        menu.addItem(item)
-        return true
     }
 
     private func switcherIcon(for provider: UsageProvider) -> NSImage {

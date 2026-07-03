@@ -258,6 +258,7 @@
 "Picker subtitle" = "Picker subtitle";
 "Placeholder" = "Placeholder";
 "Plan" = "Plan";
+"Plan Usage" = "Plan Usage";
 "Play full-screen confetti when weekly usage resets." = "Play full-screen confetti when weekly usage resets.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Polls OpenAI/Claude status pages and Google Workspace for ";
 "Prevents any Keychain access while enabled." = "Prevents any Keychain access while enabled.";
@@ -326,7 +327,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Stored in ~/.codexbar/config.json. Paste your MiniMax API key.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Stores local Codex usage history (8 weeks) to personalize Pace predictions.";
-"Subscription Utilization" = "Subscription Utilization";
 "Surprise me" = "Surprise me";
 "Switcher shows icons" = "Switcher shows icons";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.";
@@ -1166,3 +1166,14 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+
+/* Settings sidebar redesign */
+"Enable" = "Enable";
+"Disable" = "Disable";
+"providers_on_count" = "%d on";
+"section_cost_summary" = "Cost summary";
+"section_command_line" = "Command line";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostics";
+"section_updates" = "Updates";
+"section_links" = "Links";

@@ -69,20 +69,6 @@ struct StatusMenuTests {
         return store
     }
 
-    func enableProvidersForInstantOpenTesting(
-        _ enabledProviders: Set<UsageProvider>,
-        settings: SettingsStore)
-    {
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            settings.setProviderEnabled(
-                provider: provider,
-                metadata: metadata,
-                enabled: enabledProviders.contains(provider))
-        }
-    }
-
     private func switcherButtons(in menu: NSMenu) -> [NSButton] {
         guard let switcherView = menu.items.first?.view as? ProviderSwitcherView else { return [] }
         return switcherView.subviews

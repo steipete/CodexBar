@@ -21,10 +21,10 @@
 /* Begin PBXFileReference section */
 		02F15F392AF9D502F0503F8F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		1AFF48072AC06EBE060E3AFE /* CombinedBurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedBurnDownWidgetViews.swift; sourceTree = "<group>"; };
-		44CDB462FCE6D1105E6594FE /* CodexBar-minimax-runtime */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "CodexBar-minimax-runtime"; path = ..; sourceTree = SOURCE_ROOT; };
 		50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetBundle.swift; sourceTree = "<group>"; };
 		549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetProvider.swift; sourceTree = "<group>"; };
 		84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetViews.swift; sourceTree = "<group>"; };
+		9FA0A78FB7CA1D877E7BA54B /* codexbar */ = {isa = PBXFileReference; lastKnownFileType = folder; name = codexbar; path = ..; sourceTree = SOURCE_ROOT; };
 		A57F0B3D6EEDEFD75EE3F3A0 /* BurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurnDownWidgetViews.swift; sourceTree = "<group>"; };
 		B99BBE05D3817388F9649AD0 /* BurnDownWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurnDownWidgetProvider.swift; sourceTree = "<group>"; };
 		E430B27E4F28973A5E77EA3F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -48,7 +48,7 @@
 		4FAD1E2FCD6C4AC65D308ABC /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				44CDB462FCE6D1105E6594FE /* CodexBar-minimax-runtime */,
+				9FA0A78FB7CA1D877E7BA54B /* codexbar */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
