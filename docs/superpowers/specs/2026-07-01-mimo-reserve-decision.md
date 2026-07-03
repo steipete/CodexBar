@@ -7,7 +7,7 @@ read_when:
 
 # MiMo reserve reporting
 
-**Status:** blocked on authoritative period contract
+**Status:** accepted fail-closed evidence contract; not implemented
 **Issue:** [#1205](https://github.com/steipete/CodexBar/issues/1205)
 **Date:** 2026-07-01
 
@@ -28,14 +28,13 @@ response supplies the former and an end timestamp, but not the period start, dur
 - Shared pace calculations intentionally return no reserve/deficit result when window duration is unknown.
 - Closed PR [#1310](https://github.com/steipete/CodexBar/pull/1310) inferred 30 or 31 days from the period end. That
   misclassifies annual plans during their final month and treats calendar proximity as a data contract.
-- Open PR [#1789](https://github.com/steipete/CodexBar/pull/1789) changes shared pace presentation. MiMo must not
-  bypass that decision with provider-specific math.
-- Open PR [#1565](https://github.com/steipete/CodexBar/pull/1565) changes MiMo cookie import only; it does not supply
+- Shared pace presentation owns reserve/deficit calculations. MiMo must not bypass it with provider-specific math.
+- PR [#1565](https://github.com/steipete/CodexBar/pull/1565) concerns MiMo cookie import only; it does not supply
   missing cadence data.
 
 ## Options
 
-### A. Wait for an authoritative window — recommended
+### A. Wait for an authoritative window — accepted
 
 Keep `windowMinutes` nil. Enable reserve text only when a documented response supplies period start/duration, an
 unambiguous cadence, or a separate token-credit reset contract.
@@ -65,7 +64,7 @@ Not recommended as the initial contract: it withholds pace until a rollover, fai
 period, and turns historical coincidence into authority. It could become a separately approved heuristic with explicit
 confidence and expiry rules.
 
-## Recommended contract
+## Accepted contract
 
 1. Preserve MiMo's used percentage and `resetsAt` exactly as received.
 2. Keep `windowMinutes` nil while cadence is unknown; shared reserve/deficit text stays absent.
@@ -74,6 +73,8 @@ confidence and expiry rules.
 5. If upstream adds a cadence enum, map only documented values and leave unknown values nil.
 6. Annual-plan support needs explicit proof of the token-credit reset window, not only subscription expiry.
 7. Use shared `UsagePace` and menu-card presentation once the window is authoritative; no MiMo-specific reserve formula.
+8. Treat missing, malformed, contradictory, or undocumented period evidence identically: fail closed without reserve or
+   deficit text.
 
 ## Proof required before implementation
 
@@ -91,7 +92,9 @@ confidence and expiry rules.
 - Invalid, reversed, or unknown period fields fail closed.
 - `make check` and `make test` pass on the exact implementation head.
 
-## Decision requested
+## Decision
 
-Approve the fail-closed contract above, or explicitly authorize a labeled heuristic and its acceptable error cases. The
-recommended next step is obtaining an annual-plan payload plus an authoritative token-credit reset source.
+CodexBar accepts the fail-closed contract above. This decision does not authorize runtime inference or change current MiMo
+behavior: `windowMinutes` remains nil and reserve/deficit text remains absent until authoritative evidence satisfies the
+contract. Issue [#1205](https://github.com/steipete/CodexBar/issues/1205) stays open for that evidence and a separately
+reviewed implementation. The next useful input is an annual-plan payload plus an authoritative token-credit reset source.
