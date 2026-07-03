@@ -7,7 +7,7 @@ read_when:
 
 # OpenCode Go multi-workspace usage
 
-**Status:** needs maintainer decision
+**Status:** automatic fan-out accepted; not implemented
 **Issue:** [#1626](https://github.com/steipete/CodexBar/issues/1626)
 **Date:** 2026-07-01
 
@@ -27,13 +27,13 @@ rendered result.
 - Current discovery parsing yields workspace identifiers only. A stable, authenticated response field or endpoint for
   display names still needs redacted live proof before names become a persisted contract.
 - The current snapshot, refresh state, settings field, CLI projection, and menu card are single-workspace.
-- Open PR [#1788](https://github.com/steipete/CodexBar/pull/1788) changes the same parser and snapshot files. Any
-  implementation must start after that PR is resolved and rebase onto its final shape.
+- Merged PR [#1788](https://github.com/steipete/CodexBar/pull/1788) made the weekly usage window optional. Multi-workspace
+  projection must preserve that rolling-only result shape independently for every workspace.
 - Shared token-account rows are the wrong identity model: separate workspace results reuse one credential.
 
 ## Options
 
-### A. Automatic fan-out with stacked cards — recommended
+### A. Automatic fan-out with stacked cards — accepted
 
 Discover all workspaces on refresh, fetch them with the same authenticated session, and render one stacked card per
 workspace. Keep the existing workspace override as an explicit single-workspace filter for troubleshooting and large
@@ -56,20 +56,26 @@ Show one provider card and put workspace results in a submenu.
 Benefits: compact menu. Costs: hides usage, adds provider-specific navigation, and does not reuse the shared stacked-card
 presentation.
 
-## Recommended contract
+## Accepted contract
 
 Choose option A with these boundaries:
 
 1. Add `OpenCodeGoWorkspace` with an identifier and optional display name. Never use a name as a request key.
-2. Discover once per refresh, preserve server order or sort by stable display label, and deduplicate identifiers.
-3. Fetch workspaces with a bounded task group. Isolate per-workspace failures; one failure must not erase successful
-   sibling snapshots.
-4. Store workspace-scoped snapshots separately from token accounts. Project the workspace name through provider identity
-   for stacked-card and CLI labels.
-5. Preserve the existing override as a single-workspace filter. An invalid override reports that workspace's error and
-   does not silently select the first discovered workspace.
-6. If the live contract exposes no stable display name, show a redacted identifier suffix and defer name persistence.
-7. Keep workspace data inside the OpenCode Go provider. Do not reuse identity or plan fields from another provider.
+2. Discover once per refresh, normalize and deduplicate identifiers, then sort by normalized identifier. Response timing,
+   server order, and display-name changes must not reorder cards.
+3. Process no more than 20 discovered workspaces per refresh and no more than 4 workspace pipelines concurrently. If
+   discovery returns more, show that results are truncated and direct the user to the single-workspace override.
+4. Isolate results per workspace. One workspace failure must not erase or relabel successful siblings; if a previous
+   snapshot is retained, mark it stale and associate the current error with the same stable identifier.
+5. Store workspace-scoped snapshots separately from token accounts. Project a safe workspace label through provider
+   identity for stacked-card and CLI output, but keep the identifier as the association key.
+6. Preserve the existing override as a single-workspace filter. When set, skip discovery and fetch exactly that normalized
+   identifier. Invalid input fails before networking; request failure never falls back to another workspace.
+7. Reuse the one in-memory authenticated session for every workspace pipeline. Never copy or persist cookies per
+   workspace, and never include raw credentials or workspace identifiers in logs.
+8. If the live contract exposes no stable display name, show a short redacted ordinal or identifier suffix and defer name
+   persistence. Persisting names requires separate authenticated contract proof.
+9. Keep workspace data inside the OpenCode Go provider. Do not reuse identity or plan fields from another provider.
 
 ## Proof required before implementation
 
@@ -85,11 +91,16 @@ Choose option A with these boundaries:
 - Shared credentials produce one request per workspace without persisting duplicate cookies.
 - Results stay associated with their workspace when responses complete out of order.
 - Partial failures preserve successful sibling cards.
+- More than 20 discovered workspaces produce 20 deterministic results plus a visible truncation state.
+- At most four workspace pipelines run concurrently.
 - Manual override fetches only the requested workspace.
+- Invalid overrides fail before any network request; valid failed overrides do not fall back.
 - CLI JSON and menu models label every workspace deterministically.
 - `make check` and `make test` pass on the exact implementation head.
 
-## Decision requested
+## Decision
 
-Approve automatic all-workspace fan-out with stacked cards and a single-workspace override, or choose settings-based
-selection. Do not implement workspace names until the authenticated response contract is proven.
+CodexBar accepts automatic workspace fan-out with stacked cards and the existing single-workspace override, bounded by the
+contract above. This document does not change runtime behavior. Implementation still requires redacted authenticated
+multi-workspace proof, focused parser/model tests, packaged UI proof, and separate review. Workspace-name persistence
+remains out of scope until the authenticated response contract is proven.
