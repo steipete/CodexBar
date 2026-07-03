@@ -16,6 +16,7 @@ enum SettingsPane: Hashable {
     static let windowMinWidth: CGFloat = 780
     static let windowMinHeight: CGFloat = 520
     static let sidebarWidth: CGFloat = 224
+    static let sidebarMinWidth: CGFloat = 224
 
     var title: String {
         switch self {
@@ -40,6 +41,7 @@ struct PreferencesView: View {
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
 
     init(
         settings: SettingsStore,
@@ -64,9 +66,16 @@ struct PreferencesView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: self.columnVisibilityBinding) {
             SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
-                .navigationSplitViewColumnWidth(SettingsPane.sidebarWidth)
+                .frame(
+                    minWidth: SettingsPane.sidebarMinWidth,
+                    idealWidth: SettingsPane.sidebarWidth,
+                    maxWidth: SettingsPane.sidebarWidth)
+                .navigationSplitViewColumnWidth(
+                    min: SettingsPane.sidebarMinWidth,
+                    ideal: SettingsPane.sidebarWidth,
+                    max: SettingsPane.sidebarWidth)
                 .toolbar(removing: .sidebarToggle)
         } detail: {
             self.detailView
@@ -86,6 +95,7 @@ struct PreferencesView: View {
         }
         .onAppear {
             self.ensureValidSelection()
+            self.columnVisibility = .doubleColumn
         }
         .onChange(of: self.settings.debugMenuEnabled) { _, _ in
             self.ensureValidSelection()
@@ -117,10 +127,66 @@ struct PreferencesView: View {
         }
     }
 
+    private var columnVisibilityBinding: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { self.columnVisibility },
+            set: { self.columnVisibility = Self.visibleColumnVisibility(for: $0) })
+    }
+
+    private static func visibleColumnVisibility(for proposedVisibility: NavigationSplitViewVisibility)
+        -> NavigationSplitViewVisibility
+    {
+        switch proposedVisibility {
+        case .detailOnly:
+            .doubleColumn
+        default:
+            proposedVisibility
+        }
+    }
+
     private func ensureValidSelection() {
         if !self.settings.debugMenuEnabled, self.selection.pane == .debug {
             self.selection.pane = .general
         }
+    }
+}
+
+@MainActor
+enum SettingsWindowSizing {
+    private static let sidebarSplitViewIdentifier = "SidebarNavigationSplitView"
+
+    static func enforceMinimumSize(_ window: NSWindow) {
+        let toolbarHeight = max(0, window.frame.height - window.contentLayoutRect.height)
+        let minimumSize = NSSize(
+            width: SettingsPane.windowMinWidth,
+            height: SettingsPane.windowMinHeight + toolbarHeight)
+        window.minSize = minimumSize
+        self.enforceSidebarWidth(in: window)
+
+        guard window.frame.width < minimumSize.width || window.frame.height < minimumSize.height else {
+            return
+        }
+
+        var frame = window.frame
+        let repairedSize = NSSize(
+            width: max(frame.width, minimumSize.width),
+            height: max(frame.height, minimumSize.height))
+        frame.origin.y += frame.height - repairedSize.height
+        frame.size = repairedSize
+        window.setFrame(frame, display: true)
+    }
+
+    private static func enforceSidebarWidth(in window: NSWindow) {
+        guard let splitView = window.contentView?.firstDescendantSplitView(matching: {
+            $0.identifier?.rawValue.contains(self.sidebarSplitViewIdentifier) == true
+        }), splitView.subviews.indices.contains(0) else {
+            return
+        }
+
+        let sidebar = splitView.subviews[0]
+        guard sidebar.frame.width < SettingsPane.sidebarWidth else { return }
+        splitView.setPosition(SettingsPane.sidebarWidth, ofDividerAt: 0)
+        splitView.adjustSubviews()
     }
 }
 
@@ -134,11 +200,15 @@ enum SettingsWindowAppearance {
         application: NSApplication = NSApp,
         scheduleReset: ResetScheduler = Self.scheduleReset)
     {
+        SettingsWindowSizing.enforceMinimumSize(window)
         window.appearanceSource = application
         // Pulse the exact effective appearance so the native toolbar redraws without
         // dropping inherited accessibility attributes, then restore KVO inheritance.
         window.appearance = application.effectiveAppearance
         scheduleReset { [weak window] in
+            if let window {
+                SettingsWindowSizing.enforceMinimumSize(window)
+            }
             window?.appearance = nil
             window?.viewsNeedDisplay = true
         }
@@ -149,6 +219,20 @@ enum SettingsWindowAppearance {
             await Task.yield()
             action()
         }
+    }
+}
+
+extension NSView {
+    fileprivate func firstDescendantSplitView(matching predicate: (NSSplitView) -> Bool) -> NSSplitView? {
+        if let splitView = self as? NSSplitView, predicate(splitView) {
+            return splitView
+        }
+        for subview in self.subviews {
+            if let splitView = subview.firstDescendantSplitView(matching: predicate) {
+                return splitView
+            }
+        }
+        return nil
     }
 }
 
