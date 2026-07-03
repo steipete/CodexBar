@@ -731,6 +731,7 @@
 "Resets now" = "Réinitialise maintenant";
 "reset_tomorrow_format" = "demain, %@";
 "Lasts until reset" = "Dure jusqu'à la réinitialisation";
+"1.5× headroom" = "marge de 1,5×";
 "Updated %@" = "%@ mis à jour";
 "Updated relative %@" = "%@ mis à jour";
 "Updated absolute %@" = "%@ mis à jour";

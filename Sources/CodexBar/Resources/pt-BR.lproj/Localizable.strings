@@ -728,6 +728,7 @@
 "Resets now" = "Renova agora";
 "reset_tomorrow_format" = "amanhã, %@";
 "Lasts until reset" = "Dura até a renovação";
+"1.5× headroom" = "folga de 1,5×";
 "Updated %@" = "Atualizado %@";
 "Updated relative %@" = "Atualizado %@";
 "Updated absolute %@" = "Atualizado %@";

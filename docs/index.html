@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="bg-black">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CodexBar — every AI coding limit in your menu bar</title>
+    <title>CodexBar — every AI coding limit, in your menu bar</title>
     <meta
       name="description"
       content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 56 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more."
@@ -32,7 +32,6 @@
     <link rel="alternate" hreflang="th" href="https://codexbar.app/?lang=th" />
     <link rel="alternate" hreflang="ca" href="https://codexbar.app/?lang=ca" />
     <link rel="alternate" hreflang="sv" href="https://codexbar.app/?lang=sv" />
-
     <meta property="og:title" content="CodexBar" />
     <meta
       property="og:description"
@@ -45,312 +44,730 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:image" content="https://codexbar.app/social.png" />
     <meta name="twitter:card" content="summary_large_image" />
-
-    <link rel="icon" href="./icon.png" type="image/png" />
+    <link rel="icon" type="image/png" href="./icon.png" />
     <link rel="apple-touch-icon" href="./icon.png" />
     <script>
-      (function () {
+      (() => {
+        const queryTheme = new URLSearchParams(location.search).get('theme');
+        let storedTheme = 'system';
         try {
-          var supported = ['en', 'zh-CN', 'zh-TW', 'ja-JP', 'es', 'pt-BR', 'ko', 'de', 'fr', 'ar', 'it', 'vi', 'nl', 'tr', 'uk', 'id', 'pl', 'fa', 'th', 'ca', 'sv'];
-          var aliases = { 'zh-hans': 'zh-CN', 'zh-cn': 'zh-CN', 'zh-hant': 'zh-TW', 'zh-tw': 'zh-TW', 'zh-hk': 'zh-TW', ja: 'ja-JP', pt: 'pt-BR', 'pt-br': 'pt-BR' };
-          function normalizeLocale(value) {
-            if (!value) return null;
-            var lower = value.toLowerCase();
-            if (aliases[lower]) return aliases[lower];
-            for (var i = 0; i < supported.length; i += 1) {
-              if (supported[i].toLowerCase() === lower || lower.indexOf(supported[i].toLowerCase() + '-') === 0) return supported[i];
-            }
-            return null;
-          }
-          var queryLocale = normalizeLocale(new URLSearchParams(location.search).get('lang'));
-          var storedLocale = normalizeLocale(localStorage.getItem('codexbar-language'));
-          var browserLocale = null;
-          var browserLanguages = navigator.languages || [navigator.language];
-          for (var i = 0; i < browserLanguages.length && !browserLocale; i += 1) browserLocale = normalizeLocale(browserLanguages[i]);
-          var locale = queryLocale || storedLocale || browserLocale || 'en';
-          document.documentElement.lang = locale;
-          document.documentElement.dir = locale === 'ar' || locale === 'fa' ? 'rtl' : 'ltr';
-          document.documentElement.dataset.locale = locale;
-
-          var queryTheme = new URLSearchParams(location.search).get('theme');
-          var theme = queryTheme === 'light' || queryTheme === 'dark'
-            ? queryTheme
-            : localStorage.getItem('codexbar-theme');
-          if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+          storedTheme = localStorage.getItem('codexbar-theme') || 'system';
         } catch (_) {}
+        const preference = queryTheme === 'light' || queryTheme === 'dark' ? queryTheme : storedTheme;
+        const resolvedTheme = preference === 'system'
+          ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : preference;
+        document.documentElement.dataset.theme = resolvedTheme;
+        document.documentElement.dataset.themePreference = preference;
       })();
     </script>
-    <link rel="stylesheet" href="./site.css?v=10" />
+    <link rel="stylesheet" href="./site-utilities.css?v=1" />
+    <link rel="stylesheet" href="./site.css?v=3" />
+
   </head>
-  <body>
-    <div class="backdrop" aria-hidden="true">
-      <span class="plane p1"></span>
-      <span class="plane p2"></span>
-      <span class="trace t1"></span>
-      <span class="trace t2"></span>
-      <span class="trace t3"></span>
-      <span class="trace t4"></span>
-    </div>
-    <header class="masthead">
-      <a class="brand" href="./" aria-label="CodexBar">
-        <img class="mark" src="./icon.png" alt="" width="28" height="28" />
-        <span class="wordmark">CodexBar</span>
+
+  <body class="min-h-screen overflow-x-hidden text-zinc-100">
+    <header class="absolute inset-x-0 top-0 z-20 flex h-[var(--header-height)] items-center justify-between bg-transparent px-5 sm:px-8 md:grid md:grid-cols-[1fr_auto_1fr] lg:px-12">
+      <a href="#top" class="button-press flex w-fit items-center gap-2.5 text-sm font-semibold tracking-[-0.03em] text-white sm:text-base" aria-label="CodexBar home" data-i18n-aria-label="nav.home">
+        <img src="./icon.png" alt="" class="h-7 w-7 rounded-[7px] sm:h-8 sm:w-8 sm:rounded-lg" />
+        <span>CodexBar</span>
       </a>
-      <nav class="nav" aria-label="Primary" data-i18n-aria-label="nav.primary">
-        <a class="nav-link" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md" data-i18n="nav.docs">Docs</a>
-        <a class="nav-link" href="https://github.com/steipete/CodexBar" data-i18n="nav.source">Source</a>
-        <label class="language-control" for="language-select">
-          <span class="sr-only" data-i18n="nav.language">Language</span>
-          <select id="language-select" name="language" class="language-select" aria-label="Language" data-i18n-aria-label="nav.language">
-            <option value="en">English</option>
-            <option value="zh-CN">简体中文</option>
-            <option value="zh-TW">繁體中文</option>
-            <option value="ja-JP">日本語</option>
-            <option value="es">Español</option>
-            <option value="pt-BR">Português (BR)</option>
-            <option value="ko">한국어</option>
-            <option value="de">Deutsch</option>
-            <option value="fr">Français</option>
-            <option value="ar">العربية</option>
-            <option value="it">Italiano</option>
-            <option value="vi">Tiếng Việt</option>
-            <option value="nl">Nederlands</option>
-            <option value="tr">Türkçe</option>
-            <option value="uk">Українська</option>
-            <option value="id">Bahasa Indonesia</option>
-            <option value="pl">Polski</option>
-            <option value="fa">فارسی</option>
-            <option value="th">ไทย</option>
-            <option value="ca">Català</option>
-            <option value="sv">Svenska</option>
-          </select>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="m3 4.5 3 3 3-3" />
+
+      <nav class="hidden items-center justify-center gap-3 md:flex" aria-label="Project links" data-i18n-aria-label="nav.projectLinks">
+        <a
+          href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md"
+          class="button-press hidden text-[14px] text-zinc-400 hover:text-white sm:block"
+         data-i18n="nav.docs">docs</a>
+        <span class="hidden text-sm text-zinc-700 sm:block" aria-hidden="true" data-project-separator>/</span>
+        <a
+          href="https://github.com/steipete/CodexBar"
+          class="button-press group flex items-center justify-center gap-2.5 text-[14px] text-zinc-400 hover:text-white"
+          aria-label="CodexBar source on GitHub" data-i18n-aria-label="nav.sourceGitHub"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.4-1.3-5.4-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.1 1.2a10.8 10.8 0 0 1 5.7 0C16.9 4.7 18 5 18 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.4 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.4 11.4 0 0 0 12 .8Z" />
           </svg>
-        </label>
-        <button class="theme-toggle" type="button" aria-label="Switch color theme" aria-pressed="false" title="Switch color theme">
-          <svg class="sun" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-            <circle cx="8" cy="8" r="2.75" />
-            <path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9" />
-          </svg>
-          <svg class="moon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M13.2 10.1A5.8 5.8 0 0 1 5.9 2.8a6 6 0 1 0 7.3 7.3Z" />
-          </svg>
+          <span class="hidden sm:inline" data-i18n-rich="nav.sourceStars">
+            source
+          </span>
+        </a>
+      </nav>
+
+      <nav class="flex items-center justify-end gap-2 sm:gap-3" aria-label="Display and download" data-i18n-aria-label="nav.displayDownload">
+        <button class="theme-option grid" id="theme-toggle" type="button" data-theme-value="system" aria-label="Theme: system. Switch to light" title="System theme">
+              <svg data-theme-icon="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect width="20" height="14" x="2" y="3" rx="2" />
+                <line x1="8" x2="16" y1="21" y2="21" />
+                <line x1="12" x2="12" y1="17" y2="21" />
+              </svg>
+              <svg data-theme-icon="light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
+              </svg>
+              <svg data-theme-icon="dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+              </svg>
         </button>
-        <a class="btn primary" href="https://github.com/steipete/CodexBar/releases/latest" data-i18n="nav.download">Download</a>
+
+        <div class="language-picker" id="language-picker">
+          <button
+            class="language-picker-trigger button-press"
+            id="language-picker-trigger"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls="language-picker-menu"
+            aria-label="Language" data-i18n-aria-label="nav.language"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" />
+            </svg>
+            <span data-lang-short>EN</span>
+          </button>
+          <div class="language-picker-menu" id="language-picker-menu" hidden>
+            <div class="language-picker-menu-scroll" id="language-picker-list" role="listbox" aria-label="Language" data-i18n-aria-label="nav.language"></div>
+          </div>
+        </div>
+
+        <span class="header-divider hidden sm:block" aria-hidden="true"></span>
+        <a
+          href="https://github.com/steipete/CodexBar/releases/latest"
+          class="download-button button-press inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium sm:h-10 sm:px-5"
+        >
+          <span class="grid h-4 w-4 place-items-center" aria-hidden="true">
+            <img src="./images/apple.svg" alt="" class="apple-icon" />
+          </span>
+          <span data-i18n="nav.download">download</span>
+        </a>
       </nav>
     </header>
 
-    <main>
-      <section class="lede">
-        <h1><span data-i18n="hero.prefix">Every AI coding limit,</span> <span class="grad" data-i18n="hero.accent">in your menu bar.</span></h1>
-        <p class="dek" data-i18n="hero.description">
-          CodexBar tracks usage windows, credit balances, and reset countdowns across the providers you actually pay for —
-          one status item each, or merge them into one.
-        </p>
-        <div class="actions">
-          <a class="btn primary lg" href="https://github.com/steipete/CodexBar/releases/latest" data-i18n="hero.download">Download for macOS</a>
-          <div class="brew" role="group" aria-label="Homebrew install command">
-            <code id="brew-cmd">brew install --cask steipete/tap/codexbar</code>
-            <button class="brew-copy" type="button" aria-label="Copy to clipboard" title="Copy" data-i18n-aria-label="clipboard.copy" data-i18n-title="clipboard.copy">
-              <svg class="ic" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="5" y="5" width="9" height="9" rx="1.5" />
-                <path d="M5 11H3.5A1.5 1.5 0 0 1 2 9.5v-7A1.5 1.5 0 0 1 3.5 1h7A1.5 1.5 0 0 1 12 2.5V5" />
-              </svg>
-              <svg class="ok" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="3 8 6 11 13 4" />
-              </svg>
-            </button>
+    <main id="top">
+      <section class="hero-section relative overflow-hidden">
+          <div class="mockup-stage" id="mockup-stage" aria-hidden="true">
+          <div class="mockup-glow" aria-hidden="true"></div>
+          <div class="mockup-wrap" id="mockup-wrap">
+            <img
+              src="./hero-mockup.svg"
+              alt="MacBook menu bar"
+              data-i18n-alt="mockup.macbookAlt"
+              class="block h-full w-full select-none object-contain"
+              draggable="false"
+              width="6111"
+              height="3239"
+              fetchpriority="high"
+            />
+          </div>
+          <div class="mockup-hud-layer">
+            <div class="mockup-artboard">
+            <div class="mockup-hud-anchor">
+            <div class="system-menubar" aria-label="macOS menu bar status items" data-i18n-aria-label="mockup.menuBarAria">
+              <img class="sf-symbol sf-symbol--openclaw" src="./images/menubar/openclaw-menubar.svg" alt="" aria-hidden="true" />
+              <div class="menu-bar-mark" aria-label="CodexBar menu bar icon" data-i18n-aria-label="mockup.menuIconAria">
+                <span></span>
+                <span></span>
+              </div>
+              <img class="sf-symbol" src="./images/menubar/wifi.png" alt="" aria-hidden="true" style="filter: brightness(0) invert(86%) drop-shadow(0 0.08em 0.18em rgba(0, 0, 0, 0.58))" />
+              <img class="sf-symbol" src="./images/menubar/personalhotspot.png" alt="" aria-hidden="true" style="filter: brightness(0) invert(86%) drop-shadow(0 0.08em 0.18em rgba(0, 0, 0, 0.58))" />
+              <img class="sf-symbol" src="./images/menubar/person-circle.png" alt="" aria-hidden="true" style="filter: brightness(0) invert(86%) drop-shadow(0 0.08em 0.18em rgba(0, 0, 0, 0.58))" />
+              <span class="time" id="menu-time">Sun Jun 28&nbsp;&nbsp;9:41 AM</span>
+            </div>
+            <aside class="codex-popover" aria-label="Open CodexBar usage panel" data-i18n-aria-label="mockup.usagePanelAria">
+              <header class="popover-top">
+                <p><strong>Codex</strong><span data-i18n="mockup.updatedJustNow">Updated just now</span></p>
+                <p class="right"><strong>user@example.com</strong><span data-i18n="mockup.plus">Plus</span></p>
+              </header>
+
+              <section class="popover-section">
+                <h3 data-i18n="mockup.session">Session</h3>
+                <div class="usage-meter" style="--fill: 60%; --danger: 58%; --meter-delay: 420ms;"><i style="--tick: 20%;"></i><i style="--tick: 48%;"></i></div>
+                <p class="usage-row">
+                  <span><strong data-i18n="mockup.left60">60% left</strong><strong data-i18n="mockup.reserve2">2% in reserve</strong></span>
+                  <span class="right"><strong data-i18n="mockup.resets2h53m">Resets in 2h 53m</strong><strong data-i18n="mockup.lastsUntilReset">Lasts until reset</strong></span>
+                </p>
+              </section>
+
+              <section class="popover-section">
+                <h3 data-i18n="mockup.weekly">Weekly</h3>
+                <div class="usage-meter" style="--fill: 73%; --danger: 73%; --meter-delay: 520ms;"><i style="--tick: 20%;"></i><i style="--tick: 48%;"></i></div>
+                <p class="usage-row">
+                  <span><strong data-i18n="mockup.left73">73% left</strong><strong data-i18n="mockup.onPace">On pace</strong></span>
+                  <span class="right"><strong data-i18n="mockup.resets5d4h">Resets in 5d 4h</strong><strong data-i18n="mockup.runsOut4d21h">Runs out in 4d 21h</strong></span>
+                </p>
+              </section>
+
+              <section class="reset-credit">
+                <p><strong data-i18n="mockup.limitResetCredits">Limit Reset Credits</strong><span data-i18n="mockup.nextExpires28d2h">Next expires in 28d 2h</span></p>
+                <p><strong data-i18n="mockup.manualResetAvailable">1 reset available</strong></p>
+              </section>
+
+              <section class="number-grid" aria-label="Recent Codex usage" data-i18n-aria-label="mockup.recentUsageAria">
+                <p class="popover-number"><span data-i18n="mockup.today">Today</span><strong>$51.56</strong></p>
+                <p class="popover-number"><span data-i18n="mockup.last31DaysCost">Last 31 days Cost</span><strong>$5,251.23</strong></p>
+                <p class="popover-number"><span data-i18n="mockup.last31DaysTokens">Last 31 days tokens</span><strong>5.9B</strong></p>
+                <p class="popover-number"><span data-i18n="mockup.latestTokens">Latest tokens</span><strong>85M</strong></p>
+              </section>
+
+              <figure class="usage-chart" aria-label="31 day usage chart" data-i18n-aria-label="mockup.usageChartAria">
+                <i style="--h: 52%;"></i><i style="--h: 55%;"></i><i style="--h: 38%;"></i><i style="--h: 60%;"></i><i style="--h: 34%;"></i><i style="--h: 73%;"></i><i style="--h: 33%;"></i><i style="--h: 10%;"></i><i style="--h: 28%;"></i><i style="--h: 47%;"></i><i style="--h: 18%;"></i><i style="--h: 5%;"></i><i style="--h: 20%;"></i><i style="--h: 18%;"></i><i style="--h: 4%;"></i><i style="--h: 9%;"></i><i style="--h: 32%;"></i><i style="--h: 40%;"></i><i style="--h: 28%;"></i><i style="--h: 38%;"></i><i style="--h: 45%;"></i><i style="--h: 31%;"></i><i style="--h: 39%;"></i><i style="--h: 42%;"></i><i style="--h: 34%;"></i><i style="--h: 8%;"></i><i style="--h: 6%;"></i><i style="--h: 7%;"></i><i style="--h: 17%;"></i><i style="--h: 38%;"></i><i style="--h: 4%;"></i>
+              </figure>
+
+              <p class="popover-note"><strong data-i18n="mockup.topModel">Top model: Example-1</strong><br /><span data-i18n="mockup.estimatedLogs">Estimated from local Codex logs for the selected acco...</span></p>
+
+              <section class="popover-foot">
+                <strong data-i18n="mockup.credits">Credits</strong>
+                <div class="credit-meter"></div>
+                <p class="credit-row"><strong data-i18n="mockup.zeroLeft">0 left</strong><span>1K tokens</span></p>
+                <p class="buy-row">
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" /><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+                  <span data-i18n="mockup.buyCredits">Buy credits...</span>
+                </p>
+              </section>
+            </aside>
+            </div>
+            </div>
           </div>
         </div>
-        <p class="fineprint" data-i18n="hero.fineprint">Free &amp; open source · macOS 14+ · Universal via GitHub Releases and Homebrew</p>
+
+        <div class="hero-content px-5 sm:px-8 lg:px-12">
+          <div class="section-inner">
+        <div class="hero-copy">
+          <div class="reveal flex items-center justify-center gap-2.5 text-[15px] tracking-[-0.025em] text-zinc-400 sm:justify-start sm:text-lg">
+            <span data-i18n="hero.badgeStart">AI usage limits</span>
+            <img src="./icon.png" alt="" class="h-6 w-6 rounded-md shadow-[0_0_1.5rem_rgba(14,165,233,0.24)]" />
+            <span data-i18n="hero.badgeEnd">for macOS</span>
+          </div>
+
+          <h1 class="reveal reveal-2 mt-5 text-[clamp(3rem,5.7vw,60px)] font-semibold leading-[0.98] tracking-[-0.06em] text-zinc-100">
+            <span class="hero-title-line" data-i18n="hero.prefix">Every AI coding limit,</span>
+            <span class="hero-title-line" data-i18n="hero.accent">in your menu bar.</span>
+          </h1>
+
+          <p class="reveal reveal-3 mt-6 max-w-[38rem] text-balance text-[clamp(1rem,1.25vw,1.28rem)] leading-[1.42] tracking-[-0.035em] text-zinc-400">
+            <span data-i18n="hero.descriptionShort">Track usage windows, credit balances, and reset countdowns across the AI tools you actually pay for.</span>
+          </p>
+
+          <div class="hero-cta-row reveal reveal-4 mt-8 sm:mt-10">
+            <a
+              href="https://github.com/steipete/CodexBar/releases/latest"
+              class="download-button hero-download button-press inline-flex h-11 items-center gap-2 rounded-full px-5 text-sm font-medium"
+            >
+              <span class="grid h-4 w-4 place-items-center" aria-hidden="true">
+                <img src="./images/apple.svg" alt="" class="apple-icon" />
+              </span>
+              <span data-i18n="hero.download">Download for macOS</span>
+            </a>
+            <button
+              id="brew-copy"
+              type="button"
+              class="button-press brew-pill inline-flex h-11 max-w-full items-center gap-3 rounded-full px-4 font-mono text-[13px] text-zinc-100 hover:bg-white/10"
+              aria-label="Copy Homebrew install command" data-i18n-aria-label="clipboard.copyBrew"
+            >
+              <span class="text-zinc-400" aria-hidden="true">$</span>
+              <span data-brew-label class="truncate text-zinc-100">brew install --cask steipete/tap/codexbar</span>
+              <span data-brew-icon class="grid h-5 w-5 shrink-0 place-items-center text-zinc-400" aria-hidden="true">
+                <svg data-icon="copy" class="h-3.5 w-3.5" viewBox="0 0 18 18" fill="none">
+                  <rect x="6.25" y="3.25" width="8.5" height="8.5" rx="1.4" stroke="currentColor" stroke-width="1.5" />
+                  <path d="M11.75 14.75H4.65c-.77 0-1.4-.63-1.4-1.4v-7.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                </svg>
+                <svg data-icon="check" class="h-3.5 w-3.5" viewBox="0 0 18 18" fill="none">
+                  <path d="M4.5 9.25 7.5 12.25 13.5 6.25" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <span class="sr-only" data-brew-status aria-live="polite"></span>
+            </button>
+          </div>
+
+          <p class="reveal reveal-5 mt-5 text-sm tracking-[-0.02em] text-zinc-600">
+            <span data-i18n="hero.fineprintShort">Free &amp; open source · macOS 14+</span>
+          </p>
+        </div>
+          </div>
+        </div>
       </section>
 
-      <section class="providers" aria-labelledby="providers-h">
-        <header class="section-head">
-          <h2 id="providers-h" data-i18n="providers.title">56 providers, one menu bar</h2>
-          <p data-i18n="providers.description">Popular providers become status items with their own usage windows, reset countdowns, charts, and provider menus.</p>
+      <section class="provider-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-provider-section>
+        <div class="section-inner">
+        <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
+          <h2 class="provider-reveal max-w-3xl text-balance text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
+            <span data-i18n-rich="providers.title">56 providers,{mobileBreak}one menu bar</span>
+          </h2>
+          <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
+            <span data-i18n="providers.description">Popular providers become status items with their own usage windows, reset countdowns, charts, and provider menus.</span>
+          </p>
         </header>
-        <ul class="grid">
-        <li><a class="provider" style="--brand:#49A3B0" href="https://github.com/steipete/CodexBar/blob/main/docs/codex.md">
-          <img class="chip-logo no-bg" src="./logos/codex.svg" data-dark-src="./logos/codex-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Codex</span><span class="auth">OAuth</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#CC7C5E" href="https://github.com/steipete/CodexBar/blob/main/docs/claude.md">
-          <img class="chip-logo" src="./logos/claude.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Claude</span><span class="auth">OAuth</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#1A1A1A" href="https://github.com/steipete/CodexBar/blob/main/docs/cursor.md">
-          <img class="chip-logo" src="./logos/cursor.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Cursor</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#3B82F6" href="https://github.com/steipete/CodexBar/blob/main/docs/opencode.md">
-          <img class="chip-logo preserve-color" src="./logos/opencode.svg" data-dark-src="./logos/opencode-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">OpenCode</span><span class="auth" data-i18n="auth.cookiesGo">Cookies + Go</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF6A00" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-coding-plan.md">
-          <img class="chip-logo" src="./logos/alibaba.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Alibaba</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF6A00" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-token-plan.md">
-          <img class="chip-logo" src="./logos/alibaba.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Alibaba Token</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#AB87EA" href="https://github.com/steipete/CodexBar/blob/main/docs/gemini.md">
-          <img class="chip-logo" src="./logos/gemini.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Gemini</span><span class="auth">OAuth</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#60BA7E" href="https://github.com/steipete/CodexBar/blob/main/docs/antigravity.md">
-          <img class="chip-logo" src="./logos/antigravity.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Antigravity</span><span class="auth" data-i18n="auth.local">Local</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF6B35" href="https://github.com/steipete/CodexBar/blob/main/docs/factory.md">
-          <img class="chip-logo no-bg" src="./logos/droid.svg" data-dark-src="./logos/droid-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Droid</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#A855F7" href="https://github.com/steipete/CodexBar/blob/main/docs/copilot.md">
-          <img class="chip-logo" src="./logos/copilot.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Copilot</span><span class="auth" data-i18n="auth.deviceFlow">Device flow</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#0F172A" href="https://github.com/steipete/CodexBar/blob/main/docs/devin.md">
-          <img class="chip-logo" src="./logos/devin.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Devin</span><span class="auth" data-i18n="auth.bearerLocal">Bearer / Local</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#E85A6A" href="https://github.com/steipete/CodexBar/blob/main/docs/zai.md">
-          <img class="chip-logo no-bg" src="./logos/zai.svg" data-dark-src="./logos/zai-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">z.ai</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FE6060" href="https://github.com/steipete/CodexBar/blob/main/docs/minimax.md">
-          <img class="chip-logo" src="./logos/minimax.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">MiniMax</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FE603C" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi.md">
-          <img class="chip-logo" src="./logos/kimi.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kimi</span><span class="auth" data-i18n="auth.token">Token</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#4C00FF" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi-k2.md">
-          <img class="chip-logo" src="./logos/kimi-k2.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kimi K2</span><span class="auth" data-i18n="auth.legacyApi">Legacy API</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#f8f676" href="https://github.com/steipete/CodexBar/blob/main/docs/kilo.md">
-          <img class="chip-logo no-bg" src="./logos/kilo.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kilo</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF9900;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/kiro.md">
-          <img class="chip-logo no-bg" src="./logos/kiro.svg" data-dark-src="./logos/kiro-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Kiro</span><span class="auth">CLI</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#4285F4" href="https://github.com/steipete/CodexBar/blob/main/docs/vertexai.md">
-          <img class="chip-logo" src="./logos/vertex-ai.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Vertex AI</span><span class="auth">gcloud</span></span>
-        </a></li>
-        <li><a class="provider logo-dark" style="--brand:#6366F1" href="https://github.com/steipete/CodexBar/blob/main/docs/augment.md">
-          <img class="chip-logo" src="./logos/augment.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Augment</span><span class="auth">CLI</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#DC2626" href="https://github.com/steipete/CodexBar/blob/main/docs/amp.md">
-          <img class="chip-logo" src="./logos/amp.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Amp</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#888888" href="https://github.com/steipete/CodexBar/blob/main/docs/ollama.md">
-          <img class="chip-logo" src="./logos/ollama.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Ollama</span><span class="auth" data-i18n="auth.apiKeyCookies">API key + Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#141414" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
-          <img class="chip-logo" src="./logos/synthetic.svg" data-dark-src="./logos/synthetic-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Synthetic</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF3399" href="https://github.com/steipete/CodexBar/blob/main/docs/jetbrains.md">
-          <img class="chip-logo" src="./logos/jetbrains-ai.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">JetBrains AI</span><span class="auth" data-i18n="auth.local">Local</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#7B68EE" href="https://github.com/steipete/CodexBar/blob/main/docs/warp.md">
-          <img class="chip-logo" src="./logos/warp.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Warp</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#EAEAE6;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/elevenlabs.md">
-          <img class="chip-logo" src="./logos/elevenlabs.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">ElevenLabs</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#6467F2" href="https://github.com/steipete/CodexBar/blob/main/docs/openrouter.md">
-          <img class="chip-logo" src="./logos/openrouter.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">OpenRouter</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#4C89F0" href="https://github.com/steipete/CodexBar/blob/main/docs/litellm.md">
-          <img class="chip-logo" src="./logos/litellm.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">LiteLLM</span><span class="auth" data-i18n="auth.virtualKey">Virtual key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#20B2AA" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
-          <img class="chip-logo" src="./logos/perplexity.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Perplexity</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#38BDF8" href="https://github.com/steipete/CodexBar/blob/main/docs/abacus.md">
-          <img class="chip-logo no-bg" src="./logos/abacus-ai.png" data-dark-src="./logos/abacus-ai-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Abacus AI</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#FF500F" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current">
-          <img class="chip-logo" src="./logos/mistral.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Mistral</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#527DF0" href="https://github.com/steipete/CodexBar/blob/main/docs/deepseek.md">
-          <img class="chip-logo" src="./logos/deepseek.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">DeepSeek</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#2563EB" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#t3-chat">
-          <img class="chip-logo" src="./logos/t3chat.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">T3 Chat</span><span class="auth" data-i18n="auth.cookies">Cookies</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#44C800;--ink:#0a0a0c" href="https://github.com/steipete/CodexBar/blob/main/docs/codebuff.md">
-          <img class="chip-logo no-bg" src="./logos/codebuff.png" data-dark-src="./logos/codebuff-dark.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Codebuff</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#26AD61" href="https://github.com/steipete/CodexBar/blob/main/docs/poe.md">
-          <img class="chip-logo" src="./logos/poe.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Poe</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#3184FF" href="https://github.com/steipete/CodexBar/blob/main/docs/chutes.md">
-          <img class="chip-logo" src="./logos/chutes.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Chutes</span><span class="auth" data-i18n="auth.apiKey">API key</span></span>
-        </a></li>
-        <li><a class="provider" style="--brand:#084EFF" href="https://github.com/steipete/CodexBar/blob/main/docs/zed.md">
-          <img class="chip-logo" src="./logos/zed.svg" alt="" width="20" height="20" /><span class="meta"><span class="name">Zed</span><span class="auth" data-i18n="auth.local">Local</span></span>
-        </a></li>
-        <li><a class="provider add" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md">
-          <span class="chip">+</span><span class="meta"><span class="name" data-i18n="providers.yourProvider">Your provider</span><span class="auth" data-i18n="providers.authoringGuide">Authoring guide</span></span>
-        </a></li>
+
+        <ul class="relative z-10 mt-12 grid list-none gap-3 p-0 tablet:grid-cols-3 xl:grid-cols-5">
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/codex.md"><span class="provider-logo" data-icon="◎" style="--brand:#49A3B0;--icon:url('./logos/codex-dark.svg')"><img src="./logos/codex-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codex</strong><span data-i18n="auth.oauth">OAuth</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/claude.md"><span class="provider-logo" data-icon="✳" style="--brand:#CC7C5E;--icon:url('./logos/claude.svg')"><img src="./logos/claude.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Claude</strong><span data-i18n="auth.oauth">OAuth</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/cursor.md"><span class="provider-logo" data-icon="◆" style="--brand:#1A1A1A;--icon:url('./logos/cursor.svg')"><img src="./logos/cursor.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Cursor</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/opencode.md"><span class="provider-logo" data-icon="OC" style="--brand:#3B82F6;--icon:url('./logos/opencode-dark.svg')"><img src="./logos/opencode-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>OpenCode</strong><span data-i18n="auth.cookiesGo">Cookies + Go</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-coding-plan.md"><span class="provider-logo" data-icon="a" style="--brand:#FF6A00;--icon:url('./logos/alibaba.svg')"><img src="./logos/alibaba.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Alibaba</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/alibaba-token-plan.md"><span class="provider-logo" style="--brand:#FF6A00;--icon:url('./logos/alibaba.svg')"><img src="./logos/alibaba.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Alibaba Token</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/gemini.md"><span class="provider-logo" data-icon="◇" style="--brand:#AB87EA;--icon:url('./logos/gemini.svg')"><img src="./logos/gemini.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Gemini</strong><span data-i18n="auth.oauth">OAuth</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/antigravity.md"><span class="provider-logo" data-icon="A" style="--brand:#60BA7E;--icon:url('./logos/antigravity.svg')"><img src="./logos/antigravity.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Antigravity</strong><span data-i18n="auth.local">Local</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/factory.md"><span class="provider-logo" data-icon="✺" style="--brand:#FF6B35;--icon:url('./logos/droid-dark.svg')"><img src="./logos/droid-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Droid</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/copilot.md"><span class="provider-logo" data-icon="⌘" style="--brand:#A855F7;--icon:url('./logos/copilot.svg')"><img src="./logos/copilot.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Copilot</strong><span data-i18n="auth.deviceFlow">Device flow</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/devin.md"><span class="provider-logo" style="--brand:#0F172A;--icon:url('./logos/devin.svg')"><img src="./logos/devin.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Devin</strong><span data-i18n="auth.bearerLocal">Bearer / Local</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/zai.md"><span class="provider-logo" data-icon="Z" style="--brand:#E85A6A;--icon:url('./logos/zai-dark.svg')"><img src="./logos/zai-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>z.ai</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/minimax.md"><span class="provider-logo" data-icon="≋" style="--brand:#FE6060;--icon:url('./logos/minimax.svg')"><img src="./logos/minimax.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>MiniMax</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi.md"><span class="provider-logo" data-icon="K" style="--brand:#FE603C;--icon:url('./logos/kimi.svg')"><img src="./logos/kimi.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kimi</strong><span data-i18n="auth.token">Token</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/kimi-k2.md"><span class="provider-logo" data-icon="K2" style="--brand:#4C00FF;--icon:url('./logos/kimi-k2.svg')"><img src="./logos/kimi-k2.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kimi K2</strong><span data-i18n="auth.legacyApi">Legacy API</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/kilo.md"><span class="provider-logo" data-icon="kg" style="--brand:#f8f676;--icon:url('./logos/kilo.svg')"><img src="./logos/kilo.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kilo</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/kiro.md"><span class="provider-logo" data-icon="•" style="--brand:#FF9900;--icon:url('./logos/kiro-dark.svg')"><img src="./logos/kiro-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Kiro</strong><span data-i18n="auth.cli">CLI</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/vertexai.md"><span class="provider-logo" data-icon="VA" style="--brand:#4285F4;--icon:url('./logos/vertex-ai.svg')"><img src="./logos/vertex-ai.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Vertex AI</strong><span data-i18n="auth.gcloud">gcloud</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/augment.md"><span class="provider-logo" data-icon="{ }" style="--brand:#6366F1;--icon:url('./logos/augment.svg')"><img src="./logos/augment.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Augment</strong><span data-i18n="auth.cli">CLI</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/amp.md"><span class="provider-logo" data-icon="amp" style="--brand:#DC2626;--icon:url('./logos/amp.svg')"><img src="./logos/amp.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Amp</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/ollama.md"><span class="provider-logo" data-icon="ll" style="--brand:#888888;--icon:url('./logos/ollama.svg')"><img src="./logos/ollama.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Ollama</strong><span data-i18n="auth.apiKeyCookies">API key + Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current"><span class="provider-logo" data-icon="✽" style="--brand:#141414;--icon:url('./logos/synthetic-dark.svg')"><img src="./logos/synthetic-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Synthetic</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/jetbrains.md"><span class="provider-logo" data-icon="JB" style="--brand:#FF3399;--icon:url('./logos/jetbrains-ai.svg')"><img src="./logos/jetbrains-ai.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>JetBrains AI</strong><span data-i18n="auth.local">Local</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/warp.md"><span class="provider-logo" data-icon="W" style="--brand:#7B68EE;--icon:url('./logos/warp.svg')"><img src="./logos/warp.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Warp</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/elevenlabs.md"><span class="provider-logo" style="--brand:#EAEAE6;--icon:url('./logos/elevenlabs.svg')"><img src="./logos/elevenlabs.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>ElevenLabs</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/openrouter.md"><span class="provider-logo" data-icon="OR" style="--brand:#6467F2;--icon:url('./logos/openrouter.svg')"><img src="./logos/openrouter.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>OpenRouter</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/litellm.md"><span class="provider-logo" style="--brand:#4C89F0;--icon:url('./logos/litellm.svg')"><img src="./logos/litellm.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>LiteLLM</strong><span data-i18n="auth.virtualKey">Virtual key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current"><span class="provider-logo" data-icon="∞" style="--brand:#20B2AA;--icon:url('./logos/perplexity.svg')"><img src="./logos/perplexity.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Perplexity</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/abacus.md"><span class="provider-logo" style="--brand:#38BDF8;--icon:url('./logos/abacus-ai-dark.svg')"><img src="./logos/abacus-ai-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Abacus AI</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/providers.md#fetch-strategies-current"><span class="provider-logo" style="--brand:#FF500F;--icon:url('./logos/mistral.svg')"><img src="./logos/mistral.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Mistral</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/deepseek.md"><span class="provider-logo" style="--brand:#527DF0;--icon:url('./logos/deepseek.svg')"><img src="./logos/deepseek.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>DeepSeek</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/t3chat.md"><span class="provider-logo" style="--brand:#2563EB;--icon:url('./logos/t3chat.svg')"><img src="./logos/t3chat.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>T3 Chat</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/codebuff.md"><span class="provider-logo" style="--brand:#44C800;--icon:url('./logos/codebuff-dark.svg')"><img src="./logos/codebuff-dark.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Codebuff</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/poe.md"><span class="provider-logo" style="--brand:#26AD61;--icon:url('./logos/poe.svg')"><img src="./logos/poe.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Poe</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/chutes.md"><span class="provider-logo" style="--brand:#3184FF;--icon:url('./logos/chutes.svg')"><img src="./logos/chutes.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Chutes</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/zed.md"><span class="provider-logo" style="--brand:#084EFF;--icon:url('./logos/zed.svg')"><img src="./logos/zed.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Zed</strong><span data-i18n="auth.local">Local</span></p></a></li>
+          <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md"><span class="provider-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 .83.18 2 2 0 0 0 .83-.18l8.58-3.9a1 1 0 0 0 0-1.831z"/><path d="M16 17h6"/><path d="M19 14v6"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 .825.178"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l2.116-.962"/></svg></span><p><strong data-i18n="providers.yourProvider">Your provider</strong><span class="provider-authoring"><span data-i18n="providers.authoringGuide">Authoring guide</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></span></p></a></li>
         </ul>
+        </div>
       </section>
 
-      <section class="showcase">
-      <figure class="shot">
-        <img src="./codexbar.png" alt="CodexBar menu bar popover showing provider tiles with usage bars, reset countdowns, and credit details." data-i18n-alt="showcase.alt" />
-      </figure>
-      <div class="features">
-        <article>
-          <h3 data-i18n="features.resetsTitle">Resets you can plan around</h3>
-          <p data-i18n="features.resetsBody">Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
-        </article>
-        <article>
-          <h3 data-i18n="features.spendTitle">Credits, spend, and cost scans</h3>
-          <p data-i18n="features.spendBody">Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
-        </article>
-        <article>
-          <h3 data-i18n="features.statusTitle">Status &amp; incidents</h3>
-          <p data-i18n="features.statusBody">Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
-        </article>
-        <article>
-          <h3 data-i18n="features.cliTitle">CLI &amp; widgets</h3>
-          <p data-i18n-rich="features.cliBody">WidgetKit widgets for supported providers and a bundled <code>codexbar</code> CLI for scripts and CI — macOS and Linux builds on every release.</p>
-        </article>
-      </div>
+      <section class="features-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
+        <div class="section-inner">
+          <h2 class="features-heading provider-reveal text-balance" data-i18n="features.title">Limits, spend, and status</h2>
+
+          <div class="features-grid relative z-10">
+            <article class="feature-card provider-reveal" style="--reveal-delay: 80ms">
+              <div class="feature-card-copy">
+                <h3 data-i18n="features.resetsTitle">Resets you can plan around</h3>
+                <p data-i18n="features.resetsBody">Per-provider session, weekly, and monthly windows with countdowns to the next reset — no more guessing whether to start a long task.</p>
+              </div>
+              <div class="feature-card-visual" aria-hidden="true">
+                <img src="./features/feature-resets.webp" alt="" width="1620" height="1020" loading="lazy" />
+                <div class="feature-card-overlay is-usage-menu">
+                  <div class="feature-usage-panel">
+                    <header class="feature-usage-header">
+                      <p><strong>Codex</strong><span data-i18n="mockup.updatedJustNow">Updated just now</span></p>
+                      <p class="feature-usage-account"><strong>user@example.com</strong><span data-i18n="mockup.plus">Plus</span></p>
+                    </header>
+
+                    <section class="feature-usage-block">
+                      <h4 class="feature-usage-title" data-i18n="mockup.session">Session</h4>
+                      <div class="feature-usage-track" aria-hidden="true">
+                        <div class="feature-usage-fill" style="--amount: 100%">
+                          <i style="--flex: 89"></i>
+                          <i class="is-reserve" style="--flex: 5"></i>
+                          <i class="is-spent" style="--flex: 6"></i>
+                        </div>
+                      </div>
+                      <div class="feature-usage-meta">
+                        <div>
+                          <p><strong data-i18n="mockup.left89">89% left</strong><span class="is-subtle" data-i18n="mockup.reserve5">5% in reserve</span></p>
+                        </div>
+                        <div>
+                          <p><strong data-i18n="mockup.resets4h12m">Resets in 4h 12m</strong><span class="is-subtle" data-i18n="mockup.lastsUntilReset">Lasts until reset</span></p>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section class="feature-usage-block">
+                      <h4 class="feature-usage-title" data-i18n="mockup.weekly">Weekly</h4>
+                      <div class="feature-usage-track" aria-hidden="true">
+                        <div class="feature-usage-fill" style="--amount: 100%">
+                          <i style="--flex: 98"></i>
+                          <i class="is-spent" style="--flex: 2"></i>
+                        </div>
+                      </div>
+                      <div class="feature-usage-meta">
+                        <div>
+                          <p><strong data-i18n="mockup.left98">98% left</strong></p>
+                        </div>
+                        <div>
+                          <p><strong data-i18n="mockup.resets6d23h">Resets in 6d 23h</strong></p>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="feature-card provider-reveal" style="--reveal-delay: 140ms">
+              <div class="feature-card-copy">
+                <h3 data-i18n="features.spendTitle">Credits, spend, and cost scans</h3>
+                <p data-i18n="features.spendBody">Credit balances and monthly spend where the provider exposes them, plus configurable local cost scans for Codex and Claude.</p>
+              </div>
+              <div class="feature-card-visual" aria-hidden="true">
+                <img src="./features/feature-credits.webp" alt="" width="1620" height="1020" loading="lazy" />
+                <div class="feature-card-overlay">
+                  <div class="feature-cost-panel">
+                    <div class="feature-credit-head">
+                      <p><strong data-i18n="mockup.limitResetCredits">Limit Reset Credits</strong><span data-i18n="mockup.nextExpires27d21h">Next expires in 27d 21h</span></p>
+                      <p><strong data-i18n="mockup.manualResetAvailable">1 reset available</strong></p>
+                    </div>
+                    <dl class="feature-cost-stats">
+                      <div>
+                        <dt data-i18n="mockup.today">Today</dt>
+                        <dd>$86.62</dd>
+                      </div>
+                      <div>
+                        <dt data-i18n="mockup.last31DaysCost">Last 31 days Cost</dt>
+                        <dd>$5,286.29</dd>
+                      </div>
+                      <div>
+                        <dt data-i18n="mockup.last31DaysTokens">Last 31 days tokens</dt>
+                        <dd>5.9B</dd>
+                      </div>
+                      <div>
+                        <dt data-i18n="mockup.latestTokens">Latest tokens</dt>
+                        <dd>119M</dd>
+                      </div>
+                    </dl>
+                    <div class="feature-cost-chart" aria-hidden="true">
+                      <i style="--h: 72%"></i><i style="--h: 77%"></i><i style="--h: 53%"></i><i style="--h: 81%"></i><i style="--h: 46%"></i><i style="--h: 96%"></i><i style="--h: 47%"></i><i style="--h: 10%"></i><i style="--h: 29%"></i><i style="--h: 64%"></i><i style="--h: 21%"></i><i style="--h: 5%"></i><i style="--h: 23%"></i><i style="--h: 22%"></i><i style="--h: 4%"></i><i style="--h: 10%"></i><i style="--h: 37%"></i><i style="--h: 45%"></i><i style="--h: 33%"></i><i style="--h: 50%"></i><i style="--h: 58%"></i><i style="--h: 35%"></i><i style="--h: 48%"></i><i style="--h: 55%"></i><i style="--h: 40%"></i><i style="--h: 8%"></i><i style="--h: 7%"></i><i style="--h: 8%"></i><i style="--h: 20%"></i><i style="--h: 54%"></i><i style="--h: 22%"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="feature-card provider-reveal" style="--reveal-delay: 200ms">
+              <div class="feature-card-copy">
+                <h3 data-i18n="features.statusTitle">Status &amp; incidents</h3>
+                <p data-i18n="features.statusBody">Provider status polling surfaces incident badges in the menu and an indicator overlay on the bar icon.</p>
+              </div>
+              <div class="feature-card-visual" aria-hidden="true">
+                <img src="./features/feature-status.webp" alt="" width="1620" height="1020" loading="lazy" />
+                <div class="feature-card-overlay is-status-menu">
+                  <div class="feature-status-panel">
+                    <p class="feature-status-summary"><span data-i18n="mockup.partialDegradation">Partial degradation</span> <span data-i18n="mockup.twoIncidents">2 incidents</span></p>
+                    <ul class="feature-status-list" aria-hidden="true">
+                      <li class="is-critical">
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">Codex API</span>
+                        <span class="feature-status-label" data-i18n="mockup.majorOutage">Major outage</span>
+                      </li>
+                      <li class="is-minor">
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">Chat Completions</span>
+                        <span class="feature-status-label" data-i18n="mockup.degraded">Degraded</span>
+                      </li>
+                      <li>
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">CLI</span>
+                        <span class="feature-status-label" data-i18n="mockup.operational">Operational</span>
+                      </li>
+                      <li>
+                        <span class="feature-status-dot"></span>
+                        <span class="feature-status-name">Responses</span>
+                        <span class="feature-status-label" data-i18n="mockup.operational">Operational</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
       </section>
 
-      <section class="detail">
-      <article class="block">
-        <h3 data-i18n="detail.installTitle">Install &amp; updates</h3>
-        <p data-i18n-rich="detail.installBody">
-          Universal app via <a href="https://github.com/steipete/CodexBar/releases/latest">GitHub Releases</a> with Sparkle auto-updates, or via
-          <code>brew install --cask steipete/tap/codexbar</code> (updates via <code>brew upgrade</code>).
-        </p>
-      </article>
-      <article class="block">
-        <h3 data-i18n="detail.cliTitle">CLI</h3>
-        <p data-i18n-rich="detail.cliBody">
-          A bundled <code>codexbar</code> binary plus standalone tarballs for macOS and Linux on each release. On Linux:
-          <code>brew install steipete/tap/codexbar</code>.
-        </p>
-      </article>
-      <article class="block">
-        <h3 data-i18n="detail.privacyTitle">Privacy</h3>
-        <p data-i18n-rich="detail.privacyBody">
-          Reuses existing provider sessions — OAuth, device flow, API keys, browser cookies, local files — so no passwords are stored.
-          Audit notes in <a href="https://github.com/steipete/CodexBar/issues/12">issue #12</a>.
-        </p>
-      </article>
-      <article class="block">
-        <h3 data-i18n="detail.permissionsTitle">macOS permissions</h3>
-        <p data-i18n="detail.permissionsBody">
-          Full Disk Access for Safari cookies, Keychain access for cookie decryption and OAuth flows, and Files &amp; Folders prompts
-          when provider helpers read project directories.
-        </p>
-      </article>
+      <section class="cli-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
+        <div class="section-inner relative z-10">
+          <div class="split-layout">
+            <div class="split-visual-wrap provider-reveal" role="img" aria-label="CodexBar CLI output preview" data-i18n-aria-label="cli.outputPreviewAria">
+              <div class="cli-terminal">
+                <div class="cli-terminal-chrome">
+                  <div class="cli-terminal-dots" aria-hidden="true">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <p class="cli-terminal-title">codexbar · terminal</p>
+                  <div class="cli-terminal-chrome-spacer" aria-hidden="true"></div>
+                </div>
+
+                <div class="cli-terminal-body">
+                  <section class="cli-provider-block">
+                    <p class="cli-provider-label">== Codex (oauth) ==</p>
+                    <div class="cli-row">
+                      <span class="cli-row-label" data-i18n="mockup.session">Session</span>
+                      <span class="cli-row-value" data-i18n="cli.left99">99% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i></div>
+                      <span class="cli-row-note" data-i18n="cli.resets5h">Resets in 5h</span>
+                    </div>
+                    <div class="cli-row">
+                      <span class="cli-row-label" data-i18n="mockup.weekly">Weekly</span>
+                      <span class="cli-row-value" data-i18n="cli.left100">100% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i></div>
+                      <span class="cli-row-note" data-i18n="cli.resets7d">Resets in 7d</span>
+                    </div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="mockup.credits">Credits</span><span class="cli-row-value" data-i18n="mockup.zeroLeft">0 left</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="mockup.limitResetCredits">Limit Reset Credits</span><span class="cli-row-value" data-i18n="cli.available1">1 available</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="cli.nextResetCredit">Next reset credit</span><span class="cli-row-value" data-i18n="cli.expires27d22h">expires in 27d 22h</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="cli.account">Account</span><span class="cli-row-value">user@example.com</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="cli.plan">Plan</span><span class="cli-row-value">Plus</span></div>
+                  </section>
+
+                  <section class="cli-provider-block">
+                    <p class="cli-provider-label">== elevenlabs ==</p>
+                    <div class="cli-row">
+                      <span class="cli-row-label" data-i18n="cli.total">Total</span>
+                      <span class="cli-row-value" data-i18n="cli.left79">79% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i><i></i><i></i></div>
+                      <span class="cli-row-note" data-i18n="cli.resets23d18h">Resets in 23d 18h</span>
+                    </div>
+                    <div class="cli-row">
+                      <span class="cli-row-label" data-i18n="cli.auto">Auto</span>
+                      <span class="cli-row-value" data-i18n="cli.left74">74% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i><i></i><i></i><i></i></div>
+                      <span class="cli-row-note" data-i18n="cli.resets23d18h">Resets in 23d 18h</span>
+                    </div>
+                    <div class="cli-row">
+                      <span class="cli-row-label">API</span>
+                      <span class="cli-row-value" data-i18n="cli.left99">99% left</span>
+                      <div class="cli-meter" aria-hidden="true"><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i class="is-filled"></i><i></i></div>
+                      <span class="cli-row-note" data-i18n="cli.resets23d18h">Resets in 23d 18h</span>
+                    </div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="cli.account">Account</span><span class="cli-row-value">user@example.com</span></div>
+                    <div class="cli-row is-meta"><span class="cli-row-label" data-i18n="cli.plan">Plan</span><span class="cli-row-value">Elevenlabs Pro</span></div>
+                  </section>
+                </div>
+
+                <div class="cli-terminal-foot">
+                  <p><strong>&gt;</strong> codexbar<span class="cli-terminal-cursor" aria-hidden="true">▍</span></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="split-copy">
+              <h2 class="split-copy-heading provider-reveal" style="--reveal-delay: 70ms">
+                <span class="section-title-line">CodexBar</span>
+                <span class="section-title-line" data-i18n="cli.titleLine2">on CLI</span>
+              </h2>
+              <p class="split-copy-lead provider-reveal" style="--reveal-delay: 110ms">
+                <span data-i18n-rich="cli.lead">A bundled {codexbar} binary with the same usage output as the menu bar — scripts, CI, and quick terminal checks.</span>
+              </p>
+              <p class="split-copy-note provider-reveal" style="--reveal-delay: 150ms">
+                <span data-i18n="cli.note">Standalone tarballs for macOS and Linux on every release.</span>
+              </p>
+              <p class="cli-footnote provider-reveal" style="--reveal-delay: 190ms">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path fill="currentColor" d="M12 2.5 4.5 6.5v5.8c0 4.55 3.08 8.02 7.5 9.2 4.42-1.18 7.5-4.65 7.5-9.2V6.5L12 2.5Z" opacity="0.22" />
+                  <path d="M12 2.5 4.5 6.5v5.8c0 4.55 3.08 8.02 7.5 9.2 4.42-1.18 7.5-4.65 7.5-9.2V6.5L12 2.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                  <path d="m9.25 11.75 1.9 1.9 3.6-3.6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span data-i18n="cli.privacy">CodexBar reuses existing provider sessions — no passwords stored on disk.</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="widgets-section px-5 py-20 sm:px-8 lg:px-12 lg:py-28" data-scroll-section>
+        <div class="section-inner relative z-10">
+          <div class="split-layout split-layout--copy-left">
+            <div class="split-copy">
+              <h2 class="split-copy-heading provider-reveal">
+                <span class="section-title-line">CodexBar</span>
+                <span class="section-title-line" data-i18n="widgets.titleLine2">widgets</span>
+              </h2>
+              <p class="split-copy-lead provider-reveal" style="--reveal-delay: 70ms">
+                <span data-i18n="widgets.lead">WidgetKit widgets for supported providers — usage windows, reset countdowns, and spend where available. Drop them on your Home Screen and desktop.</span>
+              </p>
+              <p class="split-copy-note provider-reveal" style="--reveal-delay: 120ms">
+                <span data-i18n="widgets.note">Small, medium, and large sizes. Switch providers without leaving the widget.</span>
+              </p>
+            </div>
+
+            <div class="split-visual-wrap provider-reveal" style="--reveal-delay: 80ms">
+              <div class="mac-widget-sheet" role="img" aria-label="macOS widget gallery preview" data-i18n-aria-label="widgets.galleryAria">
+                <div class="mac-widget-sheet__body">
+                  <aside class="mac-widget-sidebar" aria-label="Widget categories" data-i18n-aria-label="widgets.categoriesAria">
+                    <div class="mac-widget-search">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-3.2-3.2" />
+                      </svg>
+                      <span>codexb</span>
+                    </div>
+                    <ul class="mac-widget-nav">
+                      <li>
+                        <span class="mac-widget-nav-icon" aria-hidden="true">
+                          <svg viewBox="0 0 16 16" fill="currentColor" width="10" height="10">
+                            <rect x="1" y="1" width="6" height="6" rx="1.2" />
+                            <rect x="9" y="1" width="6" height="6" rx="1.2" />
+                            <rect x="1" y="9" width="6" height="6" rx="1.2" />
+                            <rect x="9" y="9" width="6" height="6" rx="1.2" />
+                          </svg>
+                        </span>
+                        <span data-i18n="widgets.allWidgets">All Widgets</span>
+                      </li>
+                      <li class="is-active">
+                        <span class="mac-widget-nav-icon is-app" aria-hidden="true">
+                          <img src="./icon.png" alt="" loading="lazy" />
+                        </span>
+                        CodexBar
+                      </li>
+                    </ul>
+                  </aside>
+
+                  <div class="mac-widget-main">
+                    <p class="mac-widget-main__title">CodexBar</p>
+                    <div class="mac-widget-gallery-wrap">
+                    <div class="mac-widget-gallery">
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-small">
+                          <div class="widget-preview">
+                            <img src="./widgets/03-codexbar-metric-compact.png" alt="" width="204" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Metric</h4>
+                          <p data-i18n="widgets.metricCaption">Compact widget for credits or cost.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/01-codexbar-history-small.png" alt="" width="428" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar History</h4>
+                          <p data-i18n="widgets.historyCaption">Usage history chart with recent totals.</p>
+                        </article>
+                        <article class="widget-tile is-large">
+                          <div class="widget-preview">
+                            <img src="./widgets/02-codexbar-history-large.png" alt="" width="388" height="370" loading="lazy" />
+                          </div>
+                          <h4>CodexBar History</h4>
+                          <p data-i18n="widgets.historyCaption">Usage history chart with recent totals.</p>
+                        </article>
+                      </div>
+
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-small">
+                          <div class="widget-preview">
+                            <img src="./widgets/06-codexbar-usage-compact.png" alt="" width="204" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Usage</h4>
+                          <p data-i18n="widgets.usageCaption">Session and weekly usage with credits and costs.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/07-codexbar-usage-wide.png" alt="" width="428" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Usage</h4>
+                          <p data-i18n="widgets.usageCaption">Session and weekly usage with credits and costs.</p>
+                        </article>
+                        <article class="widget-tile is-large">
+                          <div class="widget-preview">
+                            <img src="./widgets/08-codexbar-usage-large.png" alt="" width="388" height="388" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Usage</h4>
+                          <p data-i18n="widgets.usageCaption">Session and weekly usage with credits and costs.</p>
+                        </article>
+                      </div>
+
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-small">
+                          <div class="widget-preview">
+                            <img src="./widgets/09-codexbar-switcher-compact.png" alt="" width="204" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Switcher</h4>
+                          <p data-i18n="widgets.switcherCaption">Usage widget with a provider switcher.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/10-codexbar-switcher-wide.png" alt="" width="428" height="204" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Switcher</h4>
+                          <p data-i18n="widgets.switcherCaption">Usage widget with a provider switcher.</p>
+                        </article>
+                        <article class="widget-tile is-large">
+                          <div class="widget-preview">
+                            <img src="./widgets/11-codexbar-switcher-large.png" alt="" width="388" height="388" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Switcher</h4>
+                          <p data-i18n="widgets.switcherCaption">Usage widget with a provider switcher.</p>
+                        </article>
+                      </div>
+
+                      <div class="mac-widget-row">
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/04-codexbar-burndown.png" alt="" width="427" height="203" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Burn Down</h4>
+                          <p data-i18n="widgets.burndownCaption">Remaining budget compared with an ideal steady burn rate.</p>
+                        </article>
+                        <article class="widget-tile is-medium">
+                          <div class="widget-preview">
+                            <img src="./widgets/05-codexbar-burndown-combined.png" alt="" width="427" height="203" loading="lazy" />
+                          </div>
+                          <h4>CodexBar Burn Down (Combined)</h4>
+                          <p data-i18n="widgets.burndownCombinedCaption">Session and weekly burn-down charts in one tile.</p>
+                        </article>
+                      </div>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mac-widget-sheet__foot">
+                  <p data-i18n="widgets.dragToDesktop">Drag a widget to the desktop…</p>
+                  <span class="mac-widget-ok">OK</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="technical-section px-5 py-16 sm:px-8 lg:px-12 lg:py-20" data-scroll-section>
+        <div class="section-inner">
+        <p class="section-eyebrow provider-reveal" data-i18n="detail.more">More</p>
+
+        <div class="technical-grid relative z-10">
+          <article class="technical-block provider-reveal" style="--reveal-delay: 60ms">
+            <h3 data-i18n="detail.installTitle">Install &amp; updates</h3>
+            <p>
+              <span data-i18n-rich="detail.installBody">Universal app via {releases} with Sparkle auto-updates, or via {cask} (updates via {upgrade}).</span>
+            </p>
+          </article>
+          <article class="technical-block provider-reveal" style="--reveal-delay: 110ms">
+            <h3 data-i18n="detail.cliTitle">CLI</h3>
+            <p>
+              <span data-i18n-rich="detail.cliBody">A bundled {codexbar} binary plus standalone tarballs for macOS and Linux on each release. On Linux: {linuxCommand}.</span>
+            </p>
+          </article>
+          <article class="technical-block provider-reveal" style="--reveal-delay: 160ms">
+            <h3 data-i18n="detail.privacyTitle">Privacy</h3>
+            <p>
+              <span data-i18n-rich="detail.privacyBody">Reuses existing provider sessions — OAuth, device flow, API keys, browser cookies, local files — so no passwords are stored. Audit notes in {issue}.</span>
+            </p>
+          </article>
+          <article class="technical-block provider-reveal" style="--reveal-delay: 210ms">
+            <h3 data-i18n="detail.permissionsTitle">macOS permissions</h3>
+            <p>
+              <span data-i18n="detail.permissionsBody">Full Disk Access for Safari cookies, Keychain access for cookie decryption and OAuth flows, and Files &amp; Folders prompts when provider helpers read project directories.</span>
+            </p>
+          </article>
+        </div>
+        </div>
       </section>
     </main>
 
-    <footer class="foot">
-      <p>
-        <span data-i18n="footer.builtBy">Built by</span> <a href="https://steipete.me">Peter Steinberger</a> ·
-        <a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md" data-i18n="footer.changelog">Changelog</a> ·
-        <a href="https://github.com/steipete/CodexBar/blob/main/LICENSE">MIT</a> ·
-        <a href="https://trimmy.app">trimmy.app</a>
-      </p>
+    <footer class="site-footer px-5 sm:px-8 lg:px-12">
+      <span data-i18n="footer.builtBy">Built by</span>
+      <a href="https://github.com/steipete">Peter Steinberger</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md" data-i18n="footer.changelog">Changelog</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://github.com/steipete/CodexBar/blob/main/LICENSE">MIT</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://trimmy.app">trimmy.app</a>
     </footer>
 
-    <script type="module" src="./site.js?v=1"></script>
+    <script type="module" src="./site.js?v=4"></script>
+
   </body>
 </html>

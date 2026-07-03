@@ -727,6 +727,7 @@
 "Resets now" = "Đặt lại ngay";
 "reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
+"1.5× headroom" = "dư địa 1,5×";
 "Updated %@" = "Đã cập nhật %@";
 "Updated relative %@" = "Đã cập nhật %@";
 "Updated absolute %@" = "Đã cập nhật %@";

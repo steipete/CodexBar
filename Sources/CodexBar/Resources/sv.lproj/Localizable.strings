@@ -730,6 +730,7 @@
 "Resets now" = "Återställs nu";
 "reset_tomorrow_format" = "imorgon %@";
 "Lasts until reset" = "Räcker till återställning";
+"1.5× headroom" = "1,5× marginal";
 "Updated %@" = "Uppdaterad %@";
 "Updated relative %@" = "Uppdaterad %@";
 "Updated absolute %@" = "Uppdaterad %@";

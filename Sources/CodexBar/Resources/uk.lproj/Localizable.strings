@@ -731,6 +731,7 @@
 "Resets now" = "Скидає зараз";
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
+"1.5× headroom" = "запас 1,5×";
 "Updated %@" = "Оновлено %@";
 "Updated relative %@" = "Оновлено %@";
 "Updated absolute %@" = "Оновлено %@";

@@ -373,13 +373,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func weeklyPaceDetail(
+        provider: UsageProvider,
         window: RateWindow,
         now: Date,
         pace: UsagePace?,
         showUsed: Bool) -> PaceDetail?
     {
         guard let pace else { return nil }
-        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: provider, pace: pace, now: now)
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
@@ -426,6 +427,7 @@ extension UsageMenuCardView.Model {
             workDays: input.workDaysPerWeek)
         guard let resolved = Self.displayableWeeklyPace(resolved) else { return nil }
         return Self.weeklyPaceDetail(
+            provider: input.provider,
             window: window,
             now: input.now,
             pace: resolved,
@@ -591,6 +593,7 @@ extension UsageMenuCardView.Model {
                 defaultWindowMinutes: 10080,
                 workDays: input.workDaysPerWeek))
             return Self.weeklyPaceDetail(
+                provider: provider,
                 window: window,
                 now: input.now,
                 pace: pace,

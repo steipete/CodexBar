@@ -893,7 +893,8 @@ enum CodexHistoricalPaceEvaluator {
             actualUsedPercent: actual,
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
-            runOutProbability: runOutProbability)
+            runOutProbability: runOutProbability,
+            projectedRemainingUsage: max(0, (expectedCurve.last ?? expectedNow) - expectedNow))
     }
 
     private static func firstCrossing(

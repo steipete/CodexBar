@@ -731,6 +731,7 @@
 "Resets now" = "Wordt nu gereset";
 "reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Gaat mee tot reset";
+"1.5× headroom" = "1,5× speelruimte";
 "Updated %@" = "Bijgewerkt %@";
 "Updated relative %@" = "Bijgewerkt %@";
 "Updated absolute %@" = "Bijgewerkt %@";

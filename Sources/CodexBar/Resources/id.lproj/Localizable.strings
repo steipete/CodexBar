@@ -734,6 +734,7 @@
 "Resets now" = "Reset sekarang";
 "reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
+"1.5× headroom" = "ruang 1,5×";
 "Updated %@" = "Diperbarui %@";
 "Updated relative %@" = "Diperbarui %@";
 "Updated absolute %@" = "Diperbarui %@";
