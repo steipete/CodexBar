@@ -16,9 +16,9 @@ struct PreferencesSelectionTests {
     }
 
     @Test
-    func `selection restores persisted pane and saves changes`() {
+    func `selection restores persisted pane and saves changes`() throws {
         let suite = "PreferencesSelectionTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
 
         #expect(PreferencesSelection(userDefaults: defaults).pane == .general)
