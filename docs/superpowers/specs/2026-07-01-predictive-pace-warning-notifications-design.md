@@ -1,29 +1,28 @@
 ---
-summary: "Decision proposal for opt-in predictive pace warning notifications."
+summary: "Accepted design for opt-in predictive pace warning notifications."
 read_when:
   - Reviewing or implementing predictive quota notifications
   - Changing pace-driven notification cooldown or recovery behavior
 ---
 
-# Predictive Pace Warning Notifications — Decision Proposal
+# Predictive pace warning notifications
 
-**Status:** proposed; maintainer sign-off required
+**Status:** accepted design; not implemented
 **Date:** 2026-07-01
 **Issue:** #1299
 
-## Decision requested
+## Decision
 
-Should CodexBar add a separate, default-off notification that warns when an existing pace projection predicts that a Codex or Claude session or weekly quota will run out before reset?
-
-## Recommendation
-
-Approve the bounded behavior below, then implement it separately from #1789. Keep the feature opt-in, use the existing pace model as the only forecast authority, and keep cooldown state in memory. Do not add configurable thresholds or additional provider scope in the first version.
+CodexBar may add the bounded, default-off warning below in a separate implementation PR. Send one alert per risk
+episode, not hourly reminders. Re-arm only after a successful, authoritative observation says the quota will last until
+reset. Keep the existing pace model as the only forecast authority and keep episode state in memory. Do not add
+configurable thresholds or additional provider scope in the first version.
 
 ## Why this is a decision, not an implementation PR
 
 `VISION.md` requires sign-off for new features. The trigger mechanics are straightforward, but notification noise, provider scope, cooldown behavior, and default state are product choices. PR #1789 already changes pace presentation, historical confidence settings, and localization; combining proactive notifications with it would make both decisions harder to review.
 
-## Proposed behavior
+## Accepted behavior
 
 ### Scope and default
 
@@ -47,14 +46,19 @@ A missing probability does not suppress a warning because linear/workday pace do
 
 Key state by provider, stable account discriminator, and window. Do not share state across accounts.
 
+The key must include the reset-window identity so a new quota window cannot inherit the previous window's warning state.
 For each key:
 
 1. First eligible observation may notify; this is already a forecast derived from history/current-window progress, not an ordinary percentage transition.
-2. After notifying, suppress further warnings for one hour while the projection remains ineligible to last until reset.
-3. After one hour, a still-at-risk projection may notify again. This bounds a long-running warning state to at most one notification per hour.
-4. Any successful observation where the pace recovers (`willLastToReset == true`) clears the cooldown immediately. A later relapse may notify without waiting for the old cooldown.
-5. Missing pace, missing window, failed refresh, or incomplete provider enrichment neither notifies nor counts as recovery. Preserve current state until a successful, authoritative observation arrives.
-6. Keep this state in memory only. App restart resets cooldowns; do not add persisted notification history.
+2. After notifying, suppress every later observation while that risk episode remains active. Elapsed time alone never
+   permits a repeat.
+3. A successful observation where the pace recovers (`willLastToReset == true`) re-arms the key. A later relapse may
+   notify once.
+4. Low-confidence risk, missing pace, missing window, failed refresh, or incomplete provider enrichment neither notifies
+   nor counts as recovery. Preserve current state until a successful, authoritative observation arrives.
+5. A new reset-window identity starts with fresh state. Prune expired window keys rather than carrying episode state
+   across resets.
+6. Keep this state in memory only. App restart resets episodes; do not add persisted notification history.
 
 ### Copy and privacy
 
@@ -78,7 +82,7 @@ When personal information is hidden, do not include email, organization, workspa
 
 ## Implementation seams after approval
 
-- A pure evaluator/state reducer accepting provider, account discriminator, window, pace, current time, and prior state.
+- A pure evaluator/state reducer accepting provider, account discriminator, reset-window identity, pace, and prior state.
 - A small `UsageStore` integration after successful snapshot/pace calculation, separate from static threshold transition state.
 - One default-off `SettingsStore` value and one General notifications control.
 - Localized notification title/body through the existing presenter.
@@ -91,21 +95,22 @@ When personal information is hidden, do not include email, organization, workspa
 - `willLastToReset == true`, missing/non-positive ETA, and probability below `0.5` do not notify.
 - Nil probability remains eligible.
 - Provider/account/window keys are isolated.
-- Same at-risk key is suppressed within one hour and eligible at/after one hour.
-- Recovery clears cooldown; missing pace and failed/incomplete refresh do not.
-- Restart/new evaluator has no persisted cooldown.
+- Same at-risk key never repeats merely because time passes.
+- A successful healthy observation re-arms the key; missing, low-confidence, and failed/incomplete observations do not.
+- A new reset-window identity has independent state and expired identities are pruned.
+- Restart/new evaluator has no persisted episode state.
 - Hidden-personal-info copy omits identity; visible copy uses only the provider-owned account label.
 - Existing threshold and depleted/restored notification tests remain unchanged and green.
 
 ## Tradeoffs
 
 - Default off limits surprise and notification fatigue, but reduces discovery.
-- Hourly reminders help sustained risk remain visible, but are noisier than one alert per relapse. The opt-in default and fixed cooldown bound that cost.
+- One alert per risk episode minimizes notification fatigue, but a sustained forecast is not repeated until it first
+  recovers and then relapses.
 - In-memory state is simple and privacy-preserving, but a relaunch can produce another warning.
 - Restricting scope to Codex and Claude leaves other providers out until their pace and account identity semantics are reviewed.
 
-## Approval choices
+## Recorded product choice
 
-1. **Approve as proposed (recommended):** default off; Codex/Claude; session/weekly; one-hour provider/account/window cooldown; recovery clears; in-memory state.
-2. **Approve one alert per relapse:** same scope, but no hourly repeat while continuously at risk.
-3. **Decline:** retain display-only pace and existing reactive notifications.
+Approved: default off; Codex/Claude; session/weekly; one alert per provider/account/reset-window risk episode;
+authoritative recovery re-arms; in-memory state. Hourly repeats are rejected.
