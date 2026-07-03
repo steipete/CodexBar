@@ -12,25 +12,44 @@ public struct LongCatUsageFetcher: Sendable {
     private static let tokenUsagePath = "/api/lc-platform/v1/tokenUsage"
     private static let pendingFuelPath = "/api/lc-platform/v1/pending-fuel-packages"
 
-    public static func fetchUsage(cookieHeader: String, now: Date = Date()) async throws -> LongCatUsageSnapshot {
+    public static func fetchUsage(
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        now: Date = Date()) async throws -> LongCatUsageSnapshot
+    {
         // Account name. The user-current payload also carries a session token and
         // phone number, so its body is never logged. This is the required probe:
         // a Meituan envelope with HTTP 200 but code 401/403 surfaces as
         // `.invalidSession` here (via unwrap) so expired cookies are reported
         // rather than masked by an empty snapshot.
         var account: [String: Any]?
-        if let data = try await self.get(self.userCurrentPath, cookieHeader: cookieHeader, required: true) {
+        if let data = try await self.get(
+            self.userCurrentPath,
+            cookieHeader: cookieHeader,
+            transport: transport,
+            required: true)
+        {
             account = try LongCatEnvelope.unwrap(self.json(data)) as? [String: Any]
         }
 
         var usage: [String: Any]?
-        if let data = try? await self.get(self.tokenUsagePath, cookieHeader: cookieHeader, required: false) {
+        if let data = try? await self.get(
+            self.tokenUsagePath,
+            cookieHeader: cookieHeader,
+            transport: transport,
+            required: false)
+        {
             self.logRawShape(self.tokenUsagePath, data)
             usage = (try? LongCatEnvelope.unwrap(self.json(data))) as? [String: Any]
         }
 
         var fuel: [String: Any]?
-        if let data = try? await self.get(self.pendingFuelPath, cookieHeader: cookieHeader, required: false) {
+        if let data = try? await self.get(
+            self.pendingFuelPath,
+            cookieHeader: cookieHeader,
+            transport: transport,
+            required: false)
+        {
             self.logRawShape(self.pendingFuelPath, data)
             fuel = (try? LongCatEnvelope.unwrap(self.json(data))) as? [String: Any]
         }
@@ -76,17 +95,14 @@ public struct LongCatUsageFetcher: Sendable {
         var sawRemaining = false
         var nearestExpiry: Date?
         for package in packages {
-            if let value = LongCatJSON.firstNumber(
-                in: package,
-                keys: ["availableToken", "remainToken", "remainQuota", "remainingQuota", "remain", "availableQuota"])
-            {
+            // Field names are pinned to the shapes captured from live longcat.chat
+            // responses (see LongCatProviderTests): a fuel package reports its remaining
+            // balance under `availableToken` and its expiry under `expireTime`.
+            if let value = LongCatJSON.double(package["availableToken"]) {
                 remaining += value
                 sawRemaining = true
             }
-            if let expiry = self.parseDate(
-                package["expireTime"] ?? package["expiredTime"] ?? package["expireAt"]
-                    ?? package["gmtExpire"] ?? package["expireDate"])
-            {
+            if let expiry = self.parseDate(package["expireTime"]) {
                 if nearestExpiry == nil || expiry < nearestExpiry! { nearestExpiry = expiry }
             }
         }
@@ -100,7 +116,12 @@ public struct LongCatUsageFetcher: Sendable {
 
     // MARK: - HTTP
 
-    private static func get(_ path: String, cookieHeader: String, required: Bool) async throws -> Data? {
+    private static func get(
+        _ path: String,
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport,
+        required: Bool) async throws -> Data?
+    {
         guard let url = URL(string: self.host + path) else {
             throw LongCatAPIError.invalidRequest("bad URL: \(path)")
         }
@@ -115,7 +136,7 @@ public struct LongCatUsageFetcher: Sendable {
             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         guard response.statusCode == 200 else {
             if response.statusCode == 401 || response.statusCode == 403 {
                 throw LongCatAPIError.invalidSession
