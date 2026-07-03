@@ -9,7 +9,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const indexHtml = fs.readFileSync(path.join(repoRoot, "docs/index.html"), "utf8");
 const expectedCodes = [
   "en", "zh-CN", "zh-TW", "ja-JP", "es", "pt-BR", "ko", "de", "fr", "ar", "it",
-  "vi", "nl", "tr", "uk", "id", "pl", "fa", "th", "ca", "sv",
+  "vi", "nl", "tr", "uk", "ru", "id", "pl", "fa", "th", "ca", "sv",
 ];
 const catalogCodes = localeCatalog.map((locale) => locale.code);
 const appLanguageSource = fs.readFileSync(
