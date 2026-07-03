@@ -1,20 +1,21 @@
 ---
-summary: "Decision proposal for Claude subscription accounts and per-account menu bar items."
+summary: "Accepted design for Claude subscription accounts and per-account menu bar items."
 read_when:
   - Reviewing Claude multi-account support
   - Designing per-account status items
   - Evaluating claude-swap integration
 ---
 
-# Claude multi-account and status item proposal
+# Claude multi-account and status item decision
 
-Status: **product and auth decision required; do not merge an implementation yet.**
+Status: **Phase 1 design accepted; do not merge an implementation until its independent adapter and model proof is
+complete.**
 
 Related: [#1756](https://github.com/steipete/CodexBar/issues/1756),
 [#1268](https://github.com/steipete/CodexBar/issues/1268), and the bounded Claude sign-in repair in
 [#1811](https://github.com/steipete/CodexBar/pull/1811).
 
-## Recommendation
+## Accepted direction
 
 1. Add an opt-in, read-only `claude-swap` adapter as the first Claude subscription multi-account source.
 2. Normalize its results behind a provider-neutral account snapshot before adding any status item UI.
@@ -60,22 +61,28 @@ Keychain and prompt behavior. The safer seam is a credential-free usage adapter 
 | Discover Claude Code Keychain entries | Claude Code / ambiguous | Unknown | Undocumented enumeration; prompt and identity hazards | Reject |
 | Existing token accounts | CodexBar config | Low for OAuth | Access token expires without refresh metadata | Keep for current cookie/API-key uses |
 
-As of `claude-swap` v0.15.0, `cswap --list --json` returns a versioned object with `schemaVersion: 1`, an active account
-number, account slots, redaction-sensitive email labels, 5-hour and 7-day usage percentages, and reset timestamps.
-Handled failures return an error object and non-zero exit. CodexBar does not need `--token-status`, credential files,
-Keychain access, or raw OAuth values for the display-only phase.
+As of [`claude-swap` v0.16.0](https://github.com/realiti4/claude-swap/releases/tag/v0.16.0),
+`cswap --list --json` still returns a versioned object with `schemaVersion: 1`, an active account number, account slots,
+redaction-sensitive email labels, 5-hour and 7-day usage percentages, and reset timestamps. Handled failures return an
+error object and non-zero exit. v0.16.0 also adds mutation-capable automatic switching; that does not expand this
+integration. CodexBar does not need `--token-status`, credential files, Keychain access, or raw OAuth values for the
+display-only phase.
 
 ## Phase 1 adapter contract
 
 - Disabled by default. User chooses an executable path and enables “Read accounts from claude-swap.”
-- Execute an argument array directly: `cswap --list --json`. Never invoke a shell.
+- Execute exactly the argument array `cswap --list --json`. Never invoke a shell or accept config-defined passthrough
+  arguments.
 - Require `schemaVersion == 1`; reject unknown versions and partial top-level shapes.
 - Bound runtime and stdout, terminate on timeout, and retain the last successful snapshot with a stale marker.
 - Parse only slot number, active state, usage status, 5-hour/7-day percentages, and reset timestamps.
 - Treat email as display-only sensitive data. Never log or persist it. Respect Hide Personal Info.
 - Use the source-issued numeric slot for identity (`claude-swap:<slot>`), not email or credential-derived values.
-- Never read `claude-swap` storage, Claude Code storage, environment credentials, or Keychain entries.
-- Never run `--switch`, `--switch-to`, `--add-account`, export, import, or purge in Phase 1.
+- CodexBar never reads `claude-swap` storage, Claude Code storage, environment credentials, or Keychain entries. The
+  subprocess remains solely responsible for its own credential access. The adapter copies only allow-listed
+  usage/identity fields into its model and never logs or persists raw stdout.
+- Never run `auto`, `run`, `--switch`, `--switch-to`, `--add-account`, export, import, purge, or any other command in
+  Phase 1.
 - Isolate adapter failure from ambient Claude usage. Users without `claude-swap` see no behavior change.
 
 The executable is an optional external dependency, not a bundled component. Preferences should show detected version,
@@ -138,16 +145,16 @@ No real credential, browser session, or provider call was used.
 
 ![Packaged synthetic Claude sign-in proof](screenshots/claude-sign-in-synthetic-proof.png)
 
-## Required decisions
+## Accepted decisions
 
-1. Approve an optional external `claude-swap` read-only dependency? **Recommend yes.**
-2. Keep switching out of Phase 1? **Recommend yes; display first, switching later.**
-3. Approve provider-neutral account snapshots before status item work? **Recommend yes.**
-4. Approve a four-item cap and mutual exclusion with Merge Icons? **Recommend yes.**
-5. Use aliases/ordinals rather than email in status item labels? **Recommend yes.**
+1. The optional external `claude-swap` dependency is accepted only for exact read-only `cswap --list --json` execution.
+2. Switching, automatic switching, account mutation, and session launching stay out of Phase 1.
+3. Provider-neutral account snapshots land before any per-account status item work.
+4. Per-account status items are capped at four and mutually exclusive with Merge Icons.
+5. Status item labels use aliases or privacy-safe ordinals, never email identity.
 
-If any answer changes, settle it before implementation because it changes storage, status item migration, or the auth
-boundary.
+Any change to these decisions requires a new product/auth review before implementation because it changes storage,
+status item migration, process authority, or the credential boundary.
 
 ## Implementation and validation sequence
 

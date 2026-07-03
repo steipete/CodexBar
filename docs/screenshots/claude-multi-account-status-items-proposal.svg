@@ -33,7 +33,7 @@
     </g>
   </g>
   <text x="60" y="104" class="title">Claude account display</text>
-  <text x="60" y="132" class="muted">PROPOSED — PRODUCT DECISION, NOT IMPLEMENTED</text>
+  <text x="60" y="132" class="muted">ACCEPTED DESIGN — NOT IMPLEMENTED</text>
 
   <g filter="url(#shadow)">
     <rect x="60" y="172" width="690" height="520" rx="18" fill="#202228" stroke="#34363e"/>
@@ -50,7 +50,7 @@
     <rect x="292" y="262" width="426" height="64" rx="10" fill="#292b32"/>
     <circle cx="314" cy="284" r="8" fill="#45c46b"/>
     <text x="334" y="288" class="body">Read accounts from claude-swap</text>
-    <text x="334" y="310" class="muted">v0.15.0 · schema 1 · read-only</text>
+    <text x="334" y="310" class="muted">v0.16.0 · schema 1 · list only</text>
 
     <text x="292" y="366" class="muted">Menu bar display</text>
     <rect x="292" y="383" width="426" height="176" rx="12" fill="#292b32"/>
