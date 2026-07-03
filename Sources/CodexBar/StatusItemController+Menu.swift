@@ -68,6 +68,9 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        // Fire-and-forget signal for the adaptive refresh timer; never schedules or performs a refresh.
+        self.store.noteMenuOpened()
+
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }
 

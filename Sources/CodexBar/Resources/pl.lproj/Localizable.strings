@@ -676,6 +676,7 @@
 "refresh_5min" = "Co 5 min";
 "refresh_15min" = "Co 15 min";
 "refresh_30min" = "Co 30 min";
+"refresh_adaptive" = "Adaptacyjny";
 
 /* Additional keys */
 "not_found" = "Nie znaleziono";

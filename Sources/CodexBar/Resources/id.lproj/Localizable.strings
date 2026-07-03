@@ -676,6 +676,7 @@
 "refresh_5min" = "5 mnt";
 "refresh_15min" = "15 mnt";
 "refresh_30min" = "30 mnt";
+"refresh_adaptive" = "Adaptif";
 
 /* Additional keys */
 "not_found" = "Tidak ditemukan";

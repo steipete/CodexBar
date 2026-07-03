@@ -643,6 +643,7 @@
 "refresh_5min" = "5 分钟";
 "refresh_15min" = "15 分钟";
 "refresh_30min" = "30 分钟";
+"refresh_adaptive" = "自适应";
 "not_found" = "未找到";
 "CodexBar can't show its menu bar icon" = "CodexBar 无法显示菜单栏图标";
 "Dismiss" = "关闭";

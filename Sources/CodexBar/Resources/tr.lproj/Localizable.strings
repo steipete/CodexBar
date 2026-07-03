@@ -672,6 +672,7 @@
 "refresh_5min" = "5 dak";
 "refresh_15min" = "15 dak";
 "refresh_30min" = "30 dak";
+"refresh_adaptive" = "Uyarlanabilir";
 
 /* Additional keys */
 "not_found" = "Bulunamadı";

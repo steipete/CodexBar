@@ -667,6 +667,7 @@
 "refresh_5min" = "5 phút";
 "refresh_15min" = "15 phút";
 "refresh_30min" = "30 phút";
+"refresh_adaptive" = "Thích ứng";
 
 /* Additional keys */
 "not_found" = "Không tìm thấy";

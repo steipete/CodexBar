@@ -674,6 +674,7 @@
 "refresh_5min" = "5 นาที";
 "refresh_15min" = "15 นาที";
 "refresh_30min" = "30 นาที";
+"refresh_adaptive" = "ปรับอัตโนมัติ";
 
 /* Additional keys */
 "not_found" = "ไม่พบ";

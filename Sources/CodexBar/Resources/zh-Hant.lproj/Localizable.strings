@@ -657,6 +657,7 @@
 "refresh_5min" = "5 分鐘";
 "refresh_15min" = "15 分鐘";
 "refresh_30min" = "30 分鐘";
+"refresh_adaptive" = "自適應";
 "not_found" = "找不到";
 "CodexBar can't show its menu bar icon" = "CodexBar 無法顯示選單列圖示";
 "Dismiss" = "關閉";

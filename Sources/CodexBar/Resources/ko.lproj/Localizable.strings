@@ -648,6 +648,7 @@
 "refresh_5min" = "5분";
 "refresh_15min" = "15분";
 "refresh_30min" = "30분";
+"refresh_adaptive" = "적응형";
 "not_found" = "찾을 수 없음";
 "cost_header_estimated" = "비용(추정)";
 "cost_estimate_hint" = "로컬 로그에서 추정 · 실제 청구액과 다를 수 있음";

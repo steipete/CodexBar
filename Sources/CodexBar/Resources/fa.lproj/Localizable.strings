@@ -674,6 +674,7 @@
 "refresh_5min" = "۵ دقیقه";
 "refresh_15min" = "۱۵ دقیقه";
 "refresh_30min" = "۳۰ دقیقه";
+"refresh_adaptive" = "تطبیقی";
 
 /* Additional keys */
 "not_found" = "پیدا نشد";

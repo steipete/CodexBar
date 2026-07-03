@@ -674,6 +674,7 @@
 "refresh_5min" = "5 دقائق";
 "refresh_15min" = "15 دقيقة";
 "refresh_30min" = "30 دقيقة";
+"refresh_adaptive" = "تكيفي";
 
 /* Additional keys */
 "not_found" = "لم يعثر عليه";

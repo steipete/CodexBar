@@ -668,6 +668,7 @@
 "refresh_5min" = "5分";
 "refresh_15min" = "15分";
 "refresh_30min" = "30分";
+"refresh_adaptive" = "アダプティブ";
 
 /* Additional keys */
 "not_found" = "見つかりません";
