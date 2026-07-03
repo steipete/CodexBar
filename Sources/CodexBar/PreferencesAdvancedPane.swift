@@ -1,130 +1,70 @@
-import KeyboardShortcuts
+import CodexBarCore
 import SwiftUI
 
 @MainActor
 struct AdvancedPane: View {
     @Bindable var settings: SettingsStore
+    @Bindable var store: UsageStore
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(contentSpacing: 8) {
-                    Text(L("section_keyboard_shortcut"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    HStack(alignment: .center, spacing: 12) {
-                        Text(L("open_menu_shortcut_title"))
-                            .font(.body)
-                        Spacer()
-                        OpenMenuShortcutRecorder()
-                    }
-                    Text(L("open_menu_shortcut_subtitle"))
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                }
-
-                Divider()
-
-                SettingsSection(contentSpacing: 10) {
-                    HStack(spacing: 12) {
-                        Button {
-                            Task { await self.installCLI() }
-                        } label: {
-                            if self.isInstallingCLI {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Text(L("install_cli"))
-                            }
-                        }
-                        .disabled(self.isInstallingCLI)
-
-                        if let status = self.cliStatus {
-                            Text(status)
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(2)
+        Form {
+            Section {
+                LabeledContent {
+                    Button {
+                        Task { await self.installCLI() }
+                    } label: {
+                        if self.isInstallingCLI {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(L("install_cli"))
                         }
                     }
-                    Text(L("install_cli_subtitle"))
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                    .disabled(self.isInstallingCLI)
+                } label: {
+                    SettingsRowLabel(L("install_cli"), subtitle: L("install_cli_subtitle"))
                 }
-
-                Divider()
-
-                SettingsSection(contentSpacing: 10) {
-                    PreferenceToggleRow(
-                        title: L("show_debug_settings_title"),
-                        subtitle: L("show_debug_settings_subtitle"),
-                        binding: self.$settings.debugMenuEnabled)
-                    PreferenceToggleRow(
-                        title: L("surprise_me_title"),
-                        subtitle: L("surprise_me_subtitle"),
-                        binding: self.$settings.randomBlinkEnabled)
-                    PreferenceToggleRow(
-                        title: L("weekly_limit_confetti_title"),
-                        subtitle: L("weekly_limit_confetti_subtitle"),
-                        binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)
-                }
-
-                Divider()
-
-                SettingsSection(contentSpacing: 10) {
-                    PreferenceToggleRow(
-                        title: L("hide_personal_info_title"),
-                        subtitle: L("hide_personal_info_subtitle"),
-                        binding: self.$settings.hidePersonalInfo)
-                    PreferenceToggleRow(
-                        title: L("show_provider_storage_usage_title"),
-                        subtitle: L("show_provider_storage_usage_subtitle"),
-                        binding: self.$settings.providerStorageFootprintsEnabled)
-                }
-
-                Divider()
-
-                SettingsSection(
-                    title: L("section_keychain_access"),
-                    caption: L("keychain_access_caption"))
-                {
-                    PreferenceToggleRow(
-                        title: L("disable_keychain_access_title"),
-                        subtitle: L("disable_keychain_access_subtitle"),
-                        binding: self.$settings.debugDisableKeychainAccess)
+            } header: {
+                Text(L("section_command_line"))
+            } footer: {
+                if let status = self.cliStatus {
+                    Text(status)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+
+            Section {
+                Toggle(isOn: self.$settings.hidePersonalInfo) {
+                    SettingsRowLabel(L("hide_personal_info_title"), subtitle: L("hide_personal_info_subtitle"))
+                }
+
+                Toggle(isOn: self.$settings.debugDisableKeychainAccess) {
+                    SettingsRowLabel(
+                        L("disable_keychain_access_title"),
+                        subtitle: L("disable_keychain_access_subtitle"))
+                }
+            } header: {
+                Text(L("section_privacy"))
+            } footer: {
+                Text(L("keychain_access_caption"))
+            }
+
+            Section {
+                Toggle(isOn: self.$settings.providerStorageFootprintsEnabled) {
+                    SettingsRowLabel(
+                        L("show_provider_storage_usage_title"),
+                        subtitle: L("show_provider_storage_usage_subtitle"))
+                }
+
+                Toggle(isOn: self.$settings.debugMenuEnabled) {
+                    SettingsRowLabel(L("show_debug_settings_title"), subtitle: L("show_debug_settings_subtitle"))
+                }
+            } header: {
+                Text(L("section_diagnostics"))
+            }
         }
-    }
-}
-
-@MainActor
-struct OpenMenuShortcutRecorder: NSViewRepresentable {
-    static let preferredWidth: CGFloat = 170
-
-    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
-        KeyboardShortcuts.RecorderCocoa(for: .openMenu)
-    }
-
-    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
-        nsView.shortcutName = .openMenu
-    }
-
-    func sizeThatFits(
-        _: ProposedViewSize,
-        nsView: KeyboardShortcuts.RecorderCocoa,
-        context: Context)
-        -> CGSize?
-    {
-        Self.fittedSize(intrinsicHeight: nsView.intrinsicContentSize.height)
-    }
-
-    static func fittedSize(intrinsicHeight: CGFloat) -> CGSize {
-        CGSize(width: self.preferredWidth, height: intrinsicHeight)
+        .formStyle(.grouped)
+        .toggleStyle(.switch)
     }
 }
 

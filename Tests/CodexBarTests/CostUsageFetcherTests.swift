@@ -563,7 +563,7 @@ struct CostUsageFetcherTests {
             outputTokens: 10) ?? 0
         let piCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
-            inputTokens: 50,
+            inputTokens: 55,
             cachedInputTokens: 5,
             outputTokens: 5) ?? 0
 

@@ -503,7 +503,7 @@ struct KiroStatusProbeTests {
     }
 
     @Test
-    func `tty runner cleans a same group helper after normal exit`() throws {
+    func `tty runner cleans a same group helper after normal exit`() async throws {
         let childPIDFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-kiro-normal-exit-\(UUID().uuidString).pid")
         let cliURL = try self.makeCLI(
@@ -545,6 +545,11 @@ struct KiroStatusProbeTests {
         let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
         let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
         defer { _ = kill(childPID, SIGKILL) }
+
+        let cleanupDeadline = Date().addingTimeInterval(1)
+        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(kill(childPID, 0) == -1)
     }
 

@@ -178,8 +178,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             accessToken: credentials.accessToken,
             accountId: credentials.accountId,
             env: context.env)
-        let shouldFetchResetCredits = context.includeOptionalUsage || context.includeCredits
-        let resetCredits: CodexRateLimitResetCreditsSnapshot? = if shouldFetchResetCredits {
+        let resetCredits: CodexRateLimitResetCreditsSnapshot? = if Self.shouldFetchResetCredits(context) {
             try? await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
                 accessToken: credentials.accessToken,
                 accountId: credentials.accountId,
@@ -194,6 +193,15 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             credentials: credentials,
             updatedAt: updatedAt)
         return try await Self.replacingWithCLIMonthlyLimitIfAvailable(oauthResult, context: context)
+    }
+
+    private static func shouldFetchResetCredits(_ context: ProviderFetchContext) -> Bool {
+        switch context.runtime {
+        case .app:
+            true
+        case .cli:
+            context.includeCredits
+        }
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -380,6 +388,10 @@ extension CodexOAuthFetchStrategy {
 
     static func _shouldTryCLIForMonthlyLimitForTesting(_ result: ProviderFetchResult) -> Bool {
         self.shouldTryCLIForMonthlyLimit(result)
+    }
+
+    static func _shouldFetchResetCreditsForTesting(_ context: ProviderFetchContext) -> Bool {
+        self.shouldFetchResetCredits(context)
     }
 }
 

@@ -98,6 +98,7 @@ public enum ProviderDescriptorRegistry {
         .crof: CrofProviderDescriptor.descriptor,
         .venice: VeniceProviderDescriptor.descriptor,
         .commandcode: CommandCodeProviderDescriptor.descriptor,
+        .qoder: QoderProviderDescriptor.descriptor,
         .stepfun: StepFunProviderDescriptor.descriptor,
         .bedrock: BedrockProviderDescriptor.descriptor,
         .grok: GrokProviderDescriptor.descriptor,
@@ -107,6 +108,7 @@ public enum ProviderDescriptorRegistry {
         .deepgram: DeepgramProviderDescriptor.descriptor,
         .poe: PoeProviderDescriptor.descriptor,
         .chutes: ChutesProviderDescriptor.descriptor,
+        .crossmodel: CrossModelProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

@@ -234,6 +234,7 @@
 "Picker subtitle" = "선택기 부제목";
 "Placeholder" = "플레이스홀더";
 "Plan" = "요금제";
+"Plan Usage" = "요금제 사용량";
 "Play full-screen confetti when weekly usage resets." = "주간 사용량이 재설정되면 전체 화면 색종이를 재생합니다.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "OpenAI/Claude 상태 페이지와 Google Workspace를 폴링하여 ";
 "Prevents any Keychain access while enabled." = "사용 중에는 모든 키체인 접근을 차단합니다.";
@@ -301,7 +302,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json에 저장됩니다. MiniMax API 키를 붙여넣으세요.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "~/.codexbar/config.json에 저장됩니다. KILO_API_KEY를 제공할 수도 있습니다. ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "사용 속도 예측을 개인화하기 위해 로컬 Codex 사용 기록(8주)을 저장합니다.";
-"Subscription Utilization" = "구독 사용률";
 "Surprise me" = "랜덤으로 선택";
 "Switcher shows icons" = "전환기에 아이콘 표시";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI를 codexbar로 /usr/local/bin 및 /opt/homebrew/bin에 심볼릭 링크합니다.";
@@ -428,6 +428,8 @@
 "refresh_cadence_title" = "새로 고침 주기";
 "refresh_cadence_subtitle" = "CodexBar가 백그라운드에서 공급자를 폴링하는 빈도입니다.";
 "manual_refresh_hint" = "자동 새로 고침이 꺼져 있습니다. 메뉴의 새로 고침 명령을 사용하세요.";
+"refresh_on_open_title" = "메뉴를 열 때 새로 고침";
+"refresh_on_open_subtitle" = "메뉴를 열 때마다 모든 공급자의 최신 사용량을 가져옵니다.";
 "check_provider_status_title" = "공급자 상태 확인";
 "check_provider_status_subtitle" = "OpenAI/Claude 상태 페이지와 Gemini/Antigravity용 Google Workspace를 폴링하여 아이콘과 메뉴에 문제를 표시합니다.";
 "session_quota_notifications_title" = "세션 할당량 알림";
@@ -449,6 +451,7 @@
 "quota_warning_warn_at" = "경고 기준";
 "quota_warning_global_threshold_subtitle" = "공급자가 재정의하지 않는 한 세션 및 주간 범위의 잔여 백분율입니다.";
 "quota_warning_sound" = "알림 소리 재생";
+"quota_warning_onscreen_alert" = "화면에 텍스트 알림 표시";
 "quota_warning_provider_inherits" = "여기서 범위를 사용자 설정하지 않는 한 전역 할당량 경고 설정을 사용합니다.";
 "quota_warning_customize_thresholds" = "%@ 임곗값 사용자 설정";
 "quota_warning_enable_warnings" = "%@ 경고 사용";
@@ -538,6 +541,8 @@
 "show_debug_settings_subtitle" = "디버그 탭에 문제 해결 도구를 표시합니다.";
 "surprise_me_title" = "깜짝 놀래주기";
 "surprise_me_subtitle" = "에이전트가 저 위에서 조금 즐기는 모습이 마음에 드는지 확인해 보세요.";
+"session_limit_confetti_title" = "세션 한도 색종이";
+"session_limit_confetti_subtitle" = "세션 사용량이 재설정될 때 전체 화면 색종이를 표시합니다.";
 "weekly_limit_confetti_title" = "주간 한도 색종이";
 "weekly_limit_confetti_subtitle" = "주간 사용량이 재설정될 때 전체 화면 색종이를 재생합니다.";
 "hide_personal_info_title" = "개인 정보 가리기";
@@ -698,6 +703,8 @@
 "reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
 "Updated %@" = "%@에 업데이트됨";
+"Updated relative %@" = "%@에 업데이트됨";
+"Updated absolute %@" = "%@에 업데이트됨";
 "Updated %@h ago" = "%@시간 전 업데이트됨";
 "Updated %@m ago" = "%@분 전 업데이트됨";
 "Updated just now" = "방금 업데이트됨";
@@ -1089,3 +1096,15 @@
 "byte_unit_megabytes" = "메가바이트";
 "byte_unit_gigabyte" = "기가바이트";
 "byte_unit_gigabytes" = "기가바이트";
+"CrossModel API spend trend" = "CrossModel API 지출 추이";
+
+/* Settings sidebar redesign */
+"Enable" = "활성화";
+"Disable" = "비활성화";
+"providers_on_count" = "%d개 켜짐";
+"section_cost_summary" = "비용 요약";
+"section_command_line" = "명령줄";
+"section_privacy" = "개인정보 보호";
+"section_diagnostics" = "진단";
+"section_updates" = "업데이트";
+"section_links" = "링크";

@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuNativeSectionSpacingTests {
     @Test
-    func `storage credits and cost never create adjacent separators`() throws {
+    func `usage history cost and storage stay together without adjacent separators`() throws {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
         defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
@@ -72,6 +72,9 @@ struct StatusMenuNativeSectionSpacingTests {
 
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
+        let usageHistoryIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "usageHistorySubmenu"
+        })
         let storageIndex = try #require(menu.items.firstIndex {
             ($0.representedObject as? String) == "menuCardStorage"
         })
@@ -81,9 +84,14 @@ struct StatusMenuNativeSectionSpacingTests {
         let costIndex = try #require(menu.items.firstIndex {
             ($0.representedObject as? String) == "menuCardCost"
         })
-        #expect(storageIndex < creditsIndex)
-        #expect(creditsIndex < costIndex)
-        #expect(menu.items[costIndex + 1].isSeparatorItem)
+        #expect(creditsIndex < usageHistoryIndex)
+        #expect(usageHistoryIndex < costIndex)
+        #expect(costIndex < storageIndex)
+        #expect(menu.items[usageHistoryIndex].title == "Plan Usage")
+        #expect(menu.items[storageIndex].view == nil)
+        #expect(menu.items[storageIndex].title.hasPrefix("Storage"))
+        #expect(menu.items[storageIndex].title.contains("1 KB"))
+        #expect(menu.items[storageIndex + 1].isSeparatorItem)
         #expect(!zip(menu.items, menu.items.dropFirst()).contains { first, second in
             first.isSeparatorItem && second.isSeparatorItem
         })

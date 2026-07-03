@@ -622,7 +622,7 @@ extension UsageStore {
             self.lastOpenAIDashboardTargetIsolationKey = isolationKey
             if let previousIsolationKey, previousIsolationKey != isolationKey {
                 self.openAIWebAccountDidChange = true
-                self.openAIDashboardCookieImportStatus = "Codex account changed; importing browser cookies…"
+                self.openAIDashboardCookieImportStatus = L("Codex account changed; importing browser cookies…")
             } else {
                 self.openAIDashboardCookieImportStatus = nil
             }

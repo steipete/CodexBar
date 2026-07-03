@@ -40,7 +40,6 @@ struct CodexResetCreditsContent: View {
 extension UsageMenuCardView.Model {
     static func codexResetCreditsText(input: Input) -> String? {
         guard input.provider == .codex,
-              input.showOptionalCreditsAndExtraUsage,
               let resetCredits = input.snapshot?.codexResetCredits,
               resetCredits.availableCount > 0
         else {
@@ -55,7 +54,6 @@ extension UsageMenuCardView.Model {
 
     static func codexResetCreditsDetailText(input: Input) -> String? {
         guard input.provider == .codex,
-              input.showOptionalCreditsAndExtraUsage,
               let resetCredits = input.snapshot?.codexResetCredits,
               let expiresAt = resetCredits.nextExpiringAvailableCredit?.expiresAt
         else {

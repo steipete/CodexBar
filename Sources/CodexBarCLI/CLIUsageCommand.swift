@@ -612,6 +612,11 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .qoder,
+           settings?.qoder?.cookieSource == .manual
+        {
+            return false
+        }
         if provider == .ollama,
            sourceMode == .auto
         {
