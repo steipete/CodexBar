@@ -35,6 +35,7 @@ enum CLIRenderer {
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendLimitsUnavailableLine(
@@ -144,6 +145,64 @@ enum CLIRenderer {
     {
         guard let usage = snapshot.mimoUsage else { return }
         lines.append(self.labelValueLine("Balance", value: usage.balanceDetail, useColor: useColor))
+    }
+
+    private static func appendCrossModelUsageLines(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.crossModelUsage else { return }
+
+        lines.append(self.labelValueLine("Balance", value: usage.balanceDisplay, useColor: useColor))
+        if let daily = usage.daily {
+            lines.append(self.crossModelUsageLine(
+                title: "Today",
+                usage: usage,
+                window: daily,
+                metric: .tokens,
+                useColor: useColor))
+        }
+        if let weekly = usage.weekly {
+            lines.append(self.crossModelUsageLine(
+                title: "Week",
+                usage: usage,
+                window: weekly,
+                metric: .requests,
+                useColor: useColor))
+        }
+        if let monthly = usage.monthly {
+            lines.append(self.crossModelUsageLine(
+                title: "Month",
+                usage: usage,
+                window: monthly,
+                metric: .requests,
+                useColor: useColor))
+        }
+    }
+
+    private enum CrossModelMetric {
+        case tokens
+        case requests
+    }
+
+    private static func crossModelUsageLine(
+        title: String,
+        usage: CrossModelUsageSnapshot,
+        window: CrossModelUsageWindow,
+        metric: CrossModelMetric,
+        useColor: Bool) -> String
+    {
+        let metricText = switch metric {
+        case .tokens:
+            "\(UsageFormatter.tokenCountString(window.totalTokens)) tokens"
+        case .requests:
+            "\(UsageFormatter.tokenCountString(window.requestCount)) requests"
+        }
+        return self.labelValueLine(
+            title,
+            value: "\(usage.currencyString(window.cost)) · \(metricText)",
+            useColor: useColor)
     }
 
     private static func appendTertiaryLines(
@@ -351,6 +410,7 @@ enum CLIRenderer {
         lines: inout [String])
     {
         if provider == .warp || provider == .kilo || provider == .mistral || provider == .deepseek ||
+            provider == .qoder ||
             provider == .crof
         {
             if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {

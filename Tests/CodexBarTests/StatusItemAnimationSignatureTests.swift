@@ -405,6 +405,159 @@ struct StatusItemAnimationSignatureTests {
     }
 
     @Test
+    func `highest usage icon ranks only overview providers`() throws {
+        let suite = "StatusItemAnimationSignatureTests-highest-usage-overview-subset"
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.menuBarShowsHighestUsage = true
+
+        let registry = ProviderRegistry.shared
+        let codexMeta = try #require(registry.metadata[.codex])
+        let claudeMeta = try #require(registry.metadata[.claude])
+        settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        settings.setMergedOverviewProviderSelection(
+            provider: .claude,
+            isSelected: false,
+            activeProviders: store.enabledProvidersForDisplay())
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .codex)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .claude)
+
+        #expect(store.providerWithHighestUsage()?.provider == .claude)
+        #expect(controller.primaryProviderForUnifiedIcon() == .codex)
+    }
+
+    @Test(arguments: [nil, 100.0] as [Double?])
+    func `highest usage icon keeps nonempty overview authoritative when unrankable`(
+        overviewUsedPercent: Double?) throws
+    {
+        let suite = "StatusItemAnimationSignatureTests-highest-usage-overview-fallback"
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.menuBarShowsHighestUsage = true
+        settings.selectedMenuProvider = .claude
+        settings.mergedMenuLastSelectedWasOverview = false
+
+        let registry = ProviderRegistry.shared
+        let codexMeta = try #require(registry.metadata[.codex])
+        let claudeMeta = try #require(registry.metadata[.claude])
+        settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        settings.setMergedOverviewProviderSelection(
+            provider: .claude,
+            isSelected: false,
+            activeProviders: store.enabledProvidersForDisplay())
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        if let overviewUsedPercent {
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: overviewUsedPercent,
+                        windowMinutes: nil,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    secondary: nil,
+                    updatedAt: Date()),
+                provider: .codex)
+        }
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .claude)
+
+        #expect(store.providerWithHighestUsage(candidateProviders: [.codex]) == nil)
+        #expect(controller.primaryProviderForUnifiedIcon() == .codex)
+    }
+
+    @Test
+    func `highest usage icon allows broad fallback for explicit empty overview`() throws {
+        let suite = "StatusItemAnimationSignatureTests-highest-usage-empty-overview"
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.menuBarShowsHighestUsage = true
+        settings.selectedMenuProvider = .claude
+
+        let registry = ProviderRegistry.shared
+        let codexMeta = try #require(registry.metadata[.codex])
+        let claudeMeta = try #require(registry.metadata[.claude])
+        settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: true)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let activeProviders = store.enabledProvidersForDisplay()
+        settings.setMergedOverviewProviderSelection(
+            provider: .codex,
+            isSelected: false,
+            activeProviders: activeProviders)
+        settings.setMergedOverviewProviderSelection(
+            provider: .claude,
+            isSelected: false,
+            activeProviders: activeProviders)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(settings.resolvedMergedOverviewProviders(activeProviders: store.enabledProvidersForDisplay()) == [])
+        #expect(controller.primaryProviderForUnifiedIcon() == .claude)
+    }
+
+    @Test
     func `merged icon follows overview provider order when first overview provider is loading`() {
         let suite = "StatusItemAnimationSignatureTests-merged-overview-provider-order"
         let settings = testSettingsStore(suiteName: suite)

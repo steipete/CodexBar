@@ -58,6 +58,8 @@ public enum UsageFormatter {
         if mainValue != key { return mainValue }
 
         switch key {
+        case "Updated relative %@": return "Updated %@"
+        case "Updated absolute %@": return "Updated %@"
         case "usage_percent_suffix_left": return "left"
         case "usage_percent_suffix_used": return "used"
         case "reset_tomorrow_format": return "tomorrow, %@"
@@ -78,12 +80,19 @@ public enum UsageFormatter {
         return String(format: format, locale: self.currentLocale(), arguments: args)
     }
 
+    public static func percentText(_ percent: Double, suffix: String) -> String {
+        let clamped = min(100, max(0, percent))
+        let text = self.localized("%.0f%% %@", clamped, suffix)
+        guard clamped > 0, clamped < 1 else { return text }
+        return text.replacingOccurrences(of: "0%", with: "<1%")
+    }
+
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
         let percent = showUsed ? used : remaining
         let suffix = showUsed
             ? self.localized("usage_percent_suffix_used")
             : self.localized("usage_percent_suffix_left")
-        return "\(self.percentString(percent)) \(suffix)"
+        return self.percentText(percent, suffix: suffix)
     }
 
     public static func percentString(_ percent: Double) -> String {
@@ -171,7 +180,7 @@ public enum UsageFormatter {
             let rel = RelativeDateTimeFormatter()
             rel.locale = self.currentLocale()
             rel.unitsStyle = .abbreviated
-            return self.localized("Updated %@", rel.localizedString(for: date, relativeTo: now))
+            return self.localized("Updated relative %@", rel.localizedString(for: date, relativeTo: now))
             #else
             let seconds = max(0, Int(now.timeIntervalSince(date)))
             if seconds < 3600 {
@@ -183,7 +192,7 @@ public enum UsageFormatter {
             #endif
         } else {
             return self.localized(
-                "Updated %@",
+                "Updated absolute %@",
                 date.formatted(.dateTime.hour().minute().locale(self.currentLocale())))
         }
     }

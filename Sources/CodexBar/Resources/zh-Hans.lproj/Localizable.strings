@@ -239,6 +239,7 @@
 "Picker subtitle" = "选择器副标题";
 "Placeholder" = "占位符";
 "Plan" = "套餐";
+"Plan Usage" = "套餐用量";
 "Play full-screen confetti when weekly usage resets." = "当每周用量重置时播放全屏彩纸。";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "轮询 OpenAI/Claude 状态页面和 Google Workspace，以检查";
 "Prevents any Keychain access while enabled." = "启用时阻止任何钥匙串访问。";
@@ -310,7 +311,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "存储在 ~/.codexbar/config.json 中。请粘贴你的 MiniMax API 密钥。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "存储本地 Codex 用量历史（8 周），用于个性化进度预测。";
-"Subscription Utilization" = "订阅使用率";
 "Surprise me" = "给我惊喜";
 "Switcher shows icons" = "切换器显示图标";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "将 CodexBarCLI 作为 codexbar 符号链接到 /usr/local/bin 和 /opt/homebrew/bin。";
@@ -435,6 +435,8 @@
 "refresh_cadence_title" = "刷新频率";
 "refresh_cadence_subtitle" = "CodexBar 在后台轮询提供商的频率。";
 "manual_refresh_hint" = "自动刷新已关闭；请使用菜单中的“刷新”命令。";
+"refresh_on_open_title" = "打开菜单时刷新";
+"refresh_on_open_subtitle" = "每次打开菜单时获取每个提供商的最新用量。";
 "check_provider_status_title" = "检查提供商状态";
 "check_provider_status_subtitle" = "轮询 OpenAI/Claude 状态页面和 Google Workspace 的 Gemini/Antigravity，在图标和菜单中显示故障信息。";
 "session_quota_notifications_title" = "会话配额通知";
@@ -449,6 +451,7 @@
 "quota_warning_warn_at" = "预警阈值";
 "quota_warning_global_threshold_subtitle" = "会话和每周窗口的剩余百分比，除非提供商单独覆盖。";
 "quota_warning_sound" = "播放通知声音";
+"quota_warning_onscreen_alert" = "显示屏幕文字提醒";
 "quota_warning_provider_inherits" = "默认使用全局配额预警设置，除非在这里自定义窗口。";
 "quota_warning_customize_thresholds" = "自定义 %@ 阈值";
 "quota_warning_enable_warnings" = "启用 %@ 预警";
@@ -537,6 +540,8 @@
 "historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "给我惊喜";
 "surprise_me_subtitle" = "看看你是否喜欢你的智能体在上面找点乐子。";
+"session_limit_confetti_title" = "会话限制彩带";
+"session_limit_confetti_subtitle" = "会话用量重置时播放全屏彩带。";
 "weekly_limit_confetti_title" = "每周限制彩纸";
 "weekly_limit_confetti_subtitle" = "当每周用量重置时播放全屏彩纸。";
 "hide_personal_info_title" = "隐藏个人信息";
@@ -703,6 +708,8 @@
 "Lasts until reset" = "持续到重置";
 "Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "更新于 %@";
+"Updated relative %@" = "%@已更新";
+"Updated absolute %@" = "更新于 %@";
 "Updated %@h ago" = "%@ 小时前更新";
 "Updated %@m ago" = "%@ 分钟前更新";
 "Updated just now" = "刚刚更新";
@@ -829,6 +836,7 @@
 "Cache read" = "缓存读取";
 "Claude Admin API 30 day spend trend" = "Claude Admin API 30 天支出趋势";
 "OpenRouter API key spend trend" = "OpenRouter API 密钥支出趋势";
+"CrossModel API spend trend" = "CrossModel API 支出趋势";
 "z.ai hourly token trend" = "z.ai 每小时 token 趋势";
 "MiniMax 30 day token usage trend" = "MiniMax 30 天 token 用量趋势";
 "Today cash" = "今日现金";
@@ -968,6 +976,8 @@
 "Enterprise host" = "Enterprise 主机";
 "Extra usage balance: %@" = "额外使用量余额：%@";
 "Keychain Access Required" = "需要钥匙串访问权限";
+"keychain_prompt_learn_more" = "了解更多…";
+"keychain_prompt_privacy_note" = "Mac 登录密码由 macOS（而非 CodexBar）处理。你可以随时在“设置”→“高级”中停用所有钥匙串访问。";
 "Kiro menu bar value" = "Kiro 菜单栏数值";
 "Label" = "标签";
 "No organizations loaded. Click Refresh after setting your API key." = "尚未加载组织。设置 API 密钥后点击“刷新”。";
@@ -1083,8 +1093,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "限额重置额度";
-"1 manual reset available" = "1 次手动重置可用";
-"%d manual resets available" = "%d 次手动重置可用";
+"1 available" = "1 次可用";
+"%d available" = "%d 次可用";
 "Next expires %@" = "下一个将于 %@ 到期";
 "Other (%d items)" = "其他（%d 项）";
 "Expand" = "展开";
@@ -1097,3 +1107,14 @@
 "byte_unit_megabytes" = "兆字节";
 "byte_unit_gigabyte" = "吉字节";
 "byte_unit_gigabytes" = "吉字节";
+
+/* Settings sidebar redesign */
+"Enable" = "启用";
+"Disable" = "停用";
+"providers_on_count" = "%d 个已开启";
+"section_cost_summary" = "费用摘要";
+"section_command_line" = "命令行";
+"section_privacy" = "隐私";
+"section_diagnostics" = "诊断";
+"section_updates" = "更新";
+"section_links" = "链接";

@@ -21,6 +21,7 @@
 "Animation pattern" = "الگوی انیمیشن";
 "Antigravity login is managed in the app" = "ورود Antigravity در اپلیکیشن مدیریت می شود";
 "Applies only to the Security.framework OAuth keychain reader." = "فقط برای Security.framework OAuth خواننده جاکلیدی کاربرد دارد.";
+"Alternatively, set a custom path in Settings." = "یا در تنظیمات یک مسیر سفارشی تعیین کنید.";
 "Auto falls back to the next source if the preferred one fails." = "اگر منبع ترجیحی خراب شود، خودکار به منبع بعدی برمی گردد.";
 "Auto uses API first, then falls back to CLI on auth failures." = "خودکار اول از API استفاده می کند، سپس در صورت خطاهای احراز هویت به CLI برمی گردد.";
 "Auto-detect" = "تشخیص خودکار";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Claude CLI (npm i -g @anthropic-ai/claude-code) را نصب کنید و دوباره امتحان کنید.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Codex CLI (npm i -g @openai/codex) را نصب کنید و دوباره امتحان کنید.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Gemini CLI (npm i -g @google/gemini-cli) را نصب کنید و دوباره امتحان کنید.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "یک IDE از JetBrains با AI Assistant فعال نصب کنید، سپس CodexBar را تازه‌سازی کنید.";
 "JetBrains AI is ready" = "JetBrains هوش مصنوعی آماده است";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "جلسات CLI را زنده نگه دارید";
@@ -234,6 +236,7 @@
 "Picker subtitle" = "زیرعنوان پیکر";
 "Placeholder" = "جایگزین جایگزین";
 "Plan" = "طرح";
+"Plan Usage" = "استفاده از طرح";
 "Play full-screen confetti when weekly usage resets." = "وقتی استفاده هفتگی ریست می شود، کنفتی تمام صفحه را پخش کنید.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "نظرسنجی ها OpenAI/Claude صفحات وضعیت و Google Workspace for ";
 "Prevents any Keychain access while enabled." = "در حالت فعال بودن از هرگونه دسترسی Keychain جلوگیری می کند.";
@@ -278,6 +281,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "آیکون های ارائه دهنده را در سوئیچر نشان دهید (در غیر این صورت یک خط پیشرفت هفتگی نمایش دهید).";
 "Show reset time as clock" = "نمایش زمان بازنشانی به صورت ساعت";
 "Show usage as used" = "کاربرد نمایش همان طور که استفاده می شود";
+"Sign in with Claude Code..." = "ورود با Claude Code...";
 "Sign in via button below" = "از طریق دکمه زیر وارد شوید";
 "Skip teardown between probes (debug-only)." = "رد کردن بین پروب ها (فقط برای اشکال زدایی).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "حساب های توکن را در منو انباشته کنید (در غیر این صورت نوار تعویض حساب نمایش داده شود).";
@@ -301,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "ذخیره شده در ~/.codexbar/config.json. کلید MiniMax API خود را بچسبانید.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "ذخیره شده در ~/.codexbar/config.json. همچنین می توانید KILO_API_KEY or  ارائه دهید";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "تاریخچه استفاده Codex محلی (۸ هفته) را برای شخصی سازی پیش بینی های سرعت ذخیره می کند.";
-"Subscription Utilization" = "استفاده از اشتراک";
 "Surprise me" = "سورپرایزم کن";
 "Switcher shows icons" = "سوئیچر آیکون ها را نشان می دهد";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI به /usr/local/bin و /opt/homebrew/bin به عنوان codexbar.";
@@ -431,6 +434,8 @@
 "refresh_cadence_title" = "کادانس تازه سازی";
 "refresh_cadence_subtitle" = "چند وقت یکبار CodexBar ارائه دهندگان نظرسنجی در پس زمینه انجام می دهند.";
 "manual_refresh_hint" = "تازه سازی خودکار خاموش است؛ از فرمان تازه سازی منو استفاده کنید.";
+"refresh_on_open_title" = "بازخوانی هنگام باز کردن منو";
+"refresh_on_open_subtitle" = "هر بار که منو را باز می‌کنید، آخرین میزان مصرف هر ارائه‌دهنده دریافت می‌شود.";
 "check_provider_status_title" = "وضعیت ارائه دهنده را بررسی کنید";
 "check_provider_status_subtitle" = "نظرسنجی ها OpenAI/Claude صفحات وضعیت و Google Workspace برای Gemini/Antigravity که حوادث را در آیکون و منو نمایش می دهد.";
 "session_quota_notifications_title" = "اعلان های سهمیه نشست";
@@ -452,6 +457,7 @@
 "quota_warning_warn_at" = "هشدار در";
 "quota_warning_global_threshold_subtitle" = "درصدهای باقی مانده برای جلسات و بازه های هفتگی مگر اینکه ارائه دهنده آن ها را لغو کند.";
 "quota_warning_sound" = "صدای اعلان پخش کن";
+"quota_warning_onscreen_alert" = "نمایش هشدار متنی روی صفحه";
 "quota_warning_provider_inherits" = "از تنظیمات هشدار سهمیه جهانی استفاده می کند مگر اینکه پنجره ای اینجا سفارشی شده باشد.";
 "quota_warning_customize_thresholds" = "آستانه های %@ شخصی سازی کنید";
 "quota_warning_enable_warnings" = "فعال کردن هشدارهای %@";
@@ -552,6 +558,8 @@
 "historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "سورپرایزم کن";
 "surprise_me_subtitle" = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
+"session_limit_confetti_title" = "کاغذرنگی حد جلسه";
+"session_limit_confetti_subtitle" = "وقتی میزان استفادهٔ جلسه بازنشانی می‌شود، کاغذرنگی تمام‌صفحه نمایش بده.";
 "weekly_limit_confetti_title" = "کنفتی محدود هفتگی";
 "weekly_limit_confetti_subtitle" = "وقتی استفاده هفتگی ریست می شود، کنفتی تمام صفحه را پخش کنید.";
 "hide_personal_info_title" = "مخفی کردن اطلاعات شخصی";
@@ -729,6 +737,8 @@
 "Lasts until reset" = "تا زمان ریست ادامه دارد";
 "Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "به روزرسانی %@";
+"Updated relative %@" = "به روزرسانی %@";
+"Updated absolute %@" = "به روزرسانی %@";
 "Updated %@h ago" = "%@h پیش به روزرسانی شده است";
 "Updated %@m ago" = "%@m پیش به روزرسانی شده";
 "Updated just now" = "همین الان به روزرسانی شد";
@@ -784,6 +794,7 @@
 "Est. total (%@): %@" = "برآورد کل (%@): %@";
 "Hover a bar for details" = "برای جزئیات بیشتر روی یک نوار نگه دارید";
 "%@: %@ · %@ tokens" = "%@: %@ · توکن های %@";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "هیچ ارائه دهنده ای برای مرور کلی انتخاب نشده است.";
 "No overview data available." = "داده های کلی در دسترس نیست.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Auto ابتدا از IDE API محلی استفاده می کند، سپس وقتی IDE بسته است Google OAuth می کند.";
@@ -1000,6 +1011,8 @@
 "Enterprise host" = "میزبان سازمانی";
 "Extra usage balance: %@" = "تعادل استفاده اضافی: %@";
 "Keychain Access Required" = "دسترسی Keychain مورد نیاز است";
+"keychain_prompt_learn_more" = "بیشتر بدانید…";
+"keychain_prompt_privacy_note" = "macOS، نه CodexBar، ورود گذرواژهٔ Mac را مدیریت می‌کند. می‌توانید دسترسی به Keychain را هر زمان از تنظیمات ← پیشرفته غیرفعال کنید.";
 "Kiro menu bar value" = "Kiro مقدار نوار منو";
 "Label" = "برچسب";
 "No organizations loaded. Click Refresh after setting your API key." = "هیچ سازمانی بارگذاری نشده بود. پس از تنظیم کلید API روی «تازه سازی» کلیک کنید.";
@@ -1114,8 +1127,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "اعتبارهای بازنشانی محدودیت";
-"1 manual reset available" = "۱ بازنشانی دستی موجود است";
-"%d manual resets available" = "%d بازنشانی دستی موجود است";
+"1 available" = "۱ مورد موجود";
+"%d available" = "%d مورد موجود";
 "Next expires %@" = "مورد بعدی در %@ منقضی می‌شود";
 "byte_unit_byte" = "بایت";
 "byte_unit_bytes" = "بایت";
@@ -1125,3 +1138,15 @@
 "byte_unit_megabytes" = "مگابایت";
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
+"CrossModel API spend trend" = "روند هزینه‌ی CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "فعال‌سازی";
+"Disable" = "غیرفعال‌سازی";
+"providers_on_count" = "%d فعال";
+"section_cost_summary" = "خلاصه هزینه";
+"section_command_line" = "خط فرمان";
+"section_privacy" = "حریم خصوصی";
+"section_diagnostics" = "عیب‌یابی";
+"section_updates" = "به‌روزرسانی‌ها";
+"section_links" = "پیوندها";

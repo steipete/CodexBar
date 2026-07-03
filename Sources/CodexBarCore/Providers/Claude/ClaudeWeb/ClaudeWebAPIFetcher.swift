@@ -183,6 +183,12 @@ public enum ClaudeWebAPIFetcher {
         public let accountOrganization: String?
         public let accountEmail: String?
         public let loginMethod: String?
+        /// Whether the API reported a `five_hour` session object. When `false` (the API sent
+        /// `five_hour: null`, as enterprise/credit accounts with no live session do), `sessionPercentUsed`
+        /// is the synthesized `0` placeholder rather than a real reading. Distinguishing this from a real
+        /// session that happens to be at `0%` (with or without a reset) lets lane classifiers drop the
+        /// placeholder without hiding a genuine empty session.
+        public let hasLiveSessionWindow: Bool
 
         public init(
             sessionPercentUsed: Double,
@@ -194,7 +200,8 @@ public enum ClaudeWebAPIFetcher {
             extraUsageCost: ProviderCostSnapshot?,
             accountOrganization: String?,
             accountEmail: String?,
-            loginMethod: String?)
+            loginMethod: String?,
+            hasLiveSessionWindow: Bool = true)
         {
             self.sessionPercentUsed = sessionPercentUsed
             self.sessionResetsAt = sessionResetsAt
@@ -206,6 +213,7 @@ public enum ClaudeWebAPIFetcher {
             self.accountOrganization = accountOrganization
             self.accountEmail = accountEmail
             self.loginMethod = loginMethod
+            self.hasLiveSessionWindow = hasLiveSessionWindow
         }
     }
 
@@ -323,7 +331,8 @@ public enum ClaudeWebAPIFetcher {
                 extraUsageCost: extra,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: usage.accountEmail,
-                loginMethod: usage.loginMethod)
+                loginMethod: usage.loginMethod,
+                hasLiveSessionWindow: usage.hasLiveSessionWindow)
         }
         if let account = await fetchAccountInfo(
             sessionKey: renewalTracker.sessionKey,
@@ -341,7 +350,8 @@ public enum ClaudeWebAPIFetcher {
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: usage.accountOrganization,
                 accountEmail: account.email,
-                loginMethod: account.loginMethod)
+                loginMethod: account.loginMethod,
+                hasLiveSessionWindow: usage.hasLiveSessionWindow)
         }
         if usage.accountOrganization == nil, let name = organization.name {
             usage = WebUsageData(
@@ -354,7 +364,8 @@ public enum ClaudeWebAPIFetcher {
                 extraUsageCost: usage.extraUsageCost,
                 accountOrganization: name,
                 accountEmail: usage.accountEmail,
-                loginMethod: usage.loginMethod)
+                loginMethod: usage.loginMethod,
+                hasLiveSessionWindow: usage.hasLiveSessionWindow)
         }
         if let cacheSourceLabel {
             self.persistSessionKeyIfNeeded(
@@ -601,7 +612,8 @@ public enum ClaudeWebAPIFetcher {
         // Parse five_hour (session) usage
         var sessionPercent: Double?
         var sessionResets: Date?
-        if let fiveHour = json["five_hour"] as? [String: Any] {
+        let fiveHour = json["five_hour"] as? [String: Any]
+        if let fiveHour {
             if let utilization = fiveHour["utilization"] as? Int {
                 sessionPercent = Double(utilization)
             }
@@ -610,7 +622,10 @@ public enum ClaudeWebAPIFetcher {
             }
         }
         // Enterprise/credit-based accounts return null for five_hour; treat as 0% rather than an error.
+        // Track the object's presence so a real 0% session (with or without a reset) is not mistaken for
+        // the synthesized null-session placeholder downstream.
         let resolvedSessionPercent = sessionPercent ?? 0.0
+        let hasLiveSessionWindow = fiveHour != nil
 
         // Parse seven_day (weekly) usage
         var weeklyPercent: Double?
@@ -647,7 +662,8 @@ public enum ClaudeWebAPIFetcher {
             extraUsageCost: extraUsageCost,
             accountOrganization: nil,
             accountEmail: nil,
-            loginMethod: nil)
+            loginMethod: nil,
+            hasLiveSessionWindow: hasLiveSessionWindow)
     }
 
     private static func percentValue(from value: Any?) -> Double? {

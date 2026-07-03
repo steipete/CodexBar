@@ -21,6 +21,7 @@
 "Animation pattern" = "Animasyon deseni";
 "Antigravity login is managed in the app" = "Antigravity girişi uygulama içinden yönetilir";
 "Applies only to the Security.framework OAuth keychain reader." = "Yalnızca Security.framework OAuth Anahtarlık okuyucusu için geçerlidir.";
+"Alternatively, set a custom path in Settings." = "Alternatif olarak Ayarlar'da özel bir yol belirleyin.";
 "Auto falls back to the next source if the preferred one fails." = "Otomatik mod, tercih edilen kaynak başarısız olursa bir sonrakine geçer.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Otomatik mod önce API'yi kullanır, kimlik doğrulama başarısız olursa CLI'ya geçer.";
 "Auto-detect" = "Otomatik algıla";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Claude CLI'yi kurun (npm i -g @anthropic-ai/claude-code) ve tekrar deneyin.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Codex CLI'yi kurun (npm i -g @openai/codex) ve tekrar deneyin.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Gemini CLI'yi kurun (npm i -g @google/gemini-cli) ve tekrar deneyin.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "AI Assistant etkin bir JetBrains IDE kurun, ardından CodexBar'ı yenileyin.";
 "JetBrains AI is ready" = "JetBrains AI hazır";
 "JetBrains IDE" = "JetBrains IDE";
 "Keep CLI sessions alive" = "CLI oturumlarını canlı tut";
@@ -234,6 +236,7 @@
 "Picker subtitle" = "Seçici alt başlığı";
 "Placeholder" = "Yer tutucu";
 "Plan" = "Plan";
+"Plan Usage" = "Plan Kullanımı";
 "Play full-screen confetti when weekly usage resets." = "Haftalık kullanım sıfırlandığında tam ekran konfeti oynat.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "OpenAI/Claude durum sayfalarını ve Google Workspace'i ";
 "Prevents any Keychain access while enabled." = "Etkinleştirildiğinde tüm Anahtarlık erişimini engeller.";
@@ -278,6 +281,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Değiştiricide sağlayıcı simgelerini göster (aksi takdirde haftalık ilerleme çizgisi göster).";
 "Show reset time as clock" = "Sıfırlama süresini saat olarak göster";
 "Show usage as used" = "Kullanımı harcanan olarak göster";
+"Sign in with Claude Code..." = "Claude Code ile giriş yap...";
 "Sign in via button below" = "Aşağıdaki düğmeyle oturum açın";
 "Skip teardown between probes (debug-only)." = "Sorgular arası sökmeyi atla (yalnızca hata ayıklama).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Menüde jeton hesaplarını yığınla göster (aksi takdirde hesap değiştirici çubuk göster).";
@@ -301,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json dosyasında depolandı. MiniMax API anahtarınızı yapıştırın.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "~/.codexbar/config.json dosyasında depolandı. Ayrıca KILO_API_KEY sağlayabilirsiniz veya ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Hız tahminlerini kişiselleştirmek için yerel Codex kullanım geçmişini (8 hafta) depolar.";
-"Subscription Utilization" = "Abonelik Kullanımı";
 "Surprise me" = "Beni şaşırt";
 "Switcher shows icons" = "Değiştirici simgeleri gösterir";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI'yi codexbar olarak /usr/local/bin ve /opt/homebrew/bin dizinlerine sembolik bağlayın.";
@@ -431,6 +434,8 @@
 "refresh_cadence_title" = "Yenileme sıklığı";
 "refresh_cadence_subtitle" = "CodexBar'ın arka planda sağlayıcıları ne sıklıkla sorgulayacağı.";
 "manual_refresh_hint" = "Otomatik yenileme kapalı; menüdeki Yenile komutunu kullanın.";
+"refresh_on_open_title" = "Menü açıldığında yenile";
+"refresh_on_open_subtitle" = "Menüyü her açtığınızda her sağlayıcının en güncel kullanımını getirir.";
 "check_provider_status_title" = "Sağlayıcı durumunu denetle";
 "check_provider_status_subtitle" = "OpenAI/Claude durum sayfalarını ve Google Workspace'i (Gemini/Antigravity) sorgular, olayları simge ve menüde gösterir.";
 "session_quota_notifications_title" = "Oturum kota bildirimleri";
@@ -452,6 +457,7 @@
 "quota_warning_warn_at" = "Uyarı eşikleri";
 "quota_warning_global_threshold_subtitle" = "Bir sağlayıcı geçersiz kılmadıkça oturum ve haftalık pencereler için kalan yüzdelerval.";
 "quota_warning_sound" = "Bildirim sesi çal";
+"quota_warning_onscreen_alert" = "Ekranda metin uyarısı göster";
 "quota_warning_provider_inherits" = "Bir pencere burada özelleştirilmediği sürece genel kota uyarı ayarlarını kullanır.";
 "quota_warning_customize_thresholds" = "%@ eşiklerini özelleştir";
 "quota_warning_enable_warnings" = "%@ uyarılarını etkinleştir";
@@ -552,6 +558,8 @@
 "historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Beni şaşırt";
 "surprise_me_subtitle" = "Ajanlarınızın yukarıda biraz eğlenmesini istiyorsanız işaretleyin.";
+"session_limit_confetti_title" = "Oturum sınırı konfeti";
+"session_limit_confetti_subtitle" = "Oturum kullanımı sıfırlandığında tam ekran konfeti göster.";
 "weekly_limit_confetti_title" = "Haftalık limit konfetisi";
 "weekly_limit_confetti_subtitle" = "Haftalık kullanım sıfırlandığında tam ekran konfeti oynat.";
 "hide_personal_info_title" = "Kişisel bilgileri gizle";
@@ -727,6 +735,8 @@
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
 "Try 1.5x!" = "Try 1.5x!";
 "Updated %@" = "Güncellendi: %@";
+"Updated relative %@" = "Güncellendi: %@";
+"Updated absolute %@" = "Güncellendi: %@";
 "Updated %@h ago" = "%@ saat önce güncellendi";
 "Updated %@m ago" = "%@ dakika önce güncellendi";
 "Updated just now" = "Az önce güncellendi";
@@ -782,6 +792,7 @@
 "Est. total (%@): %@" = "Tah. toplam (%@): %@";
 "Hover a bar for details" = "Ayrıntılar için bir çubuğun üzerine gelin";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ jeton";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "Genel Bakış için sağlayıcı seçilmedi.";
 "No overview data available." = "Kullanılabilir genel bakış verisi yok.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Otomatik mod önce yerel IDE API'sini kullanır, IDE kapatıldığında Google OAuth'a geçer.";
@@ -997,6 +1008,8 @@
 "Enterprise host" = "Kurumsal sunucu";
 "Extra usage balance: %@" = "Ekstra kullanım bakiyesi: %@";
 "Keychain Access Required" = "Anahtarlık Erişimi Gerekli";
+"keychain_prompt_learn_more" = "Daha Fazla Bilgi…";
+"keychain_prompt_privacy_note" = "Mac oturum açma parolası girişini CodexBar değil macOS yönetir. Anahtarlık erişimini istediğiniz zaman Ayarlar → Gelişmiş bölümünden devre dışı bırakabilirsiniz.";
 "Kiro menu bar value" = "Kiro menü çubuğu değeri";
 "Label" = "Etiket";
 "No organizations loaded. Click Refresh after setting your API key." = "Kuruluş yüklenmedi. API anahtarınızı ayarladıktan sonra Yenile'ye tıklayın.";
@@ -1111,8 +1124,8 @@
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
 "Limit Reset Credits" = "Limit Sıfırlama Kredileri";
-"1 manual reset available" = "1 manuel sıfırlama kullanılabilir";
-"%d manual resets available" = "%d manuel sıfırlama kullanılabilir";
+"1 available" = "1 kullanılabilir";
+"%d available" = "%d kullanılabilir";
 "Next expires %@" = "Sonraki sona erme %@";
 "byte_unit_byte" = "bayt";
 "byte_unit_bytes" = "bayt";
@@ -1122,3 +1135,15 @@
 "byte_unit_megabytes" = "megabayt";
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
+"CrossModel API spend trend" = "CrossModel API harcama eğilimi";
+
+/* Settings sidebar redesign */
+"Enable" = "Etkinleştir";
+"Disable" = "Devre dışı bırak";
+"providers_on_count" = "%d açık";
+"section_cost_summary" = "Maliyet özeti";
+"section_command_line" = "Komut satırı";
+"section_privacy" = "Gizlilik";
+"section_diagnostics" = "Tanılama";
+"section_updates" = "Güncellemeler";
+"section_links" = "Bağlantılar";

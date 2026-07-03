@@ -4,6 +4,7 @@ import SwiftUI
 
 @MainActor
 struct ProvidersPane: View {
+    let provider: UsageProvider
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
@@ -16,26 +17,9 @@ struct ProvidersPane: View {
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
-    @State private var providerSearchText = ""
-    @State private var selectedProvider: UsageProvider?
-
-    private var providers: [UsageProvider] {
-        guard self.settings.providersSortedAlphabetically else {
-            return self.settings.orderedProviders()
-        }
-        return CodexBarConfig.alphabeticalProviderOrder(enablement: { provider in
-            self.settings.isProviderEnabled(provider: provider, metadata: self.store.metadata(for: provider))
-        })
-    }
-
-    private var filteredProviders: [UsageProvider] {
-        Self.filteredProviders(
-            self.providers,
-            query: self.providerSearchText,
-            displayName: { provider in self.store.metadata(for: provider).displayName })
-    }
 
     init(
+        provider: UsageProvider = .codex,
         settings: SettingsStore,
         store: UsageStore,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
@@ -43,6 +27,7 @@ struct ProvidersPane: View {
         codexAmbientLoginRunner: any CodexAmbientLoginRunning = DefaultCodexAmbientLoginRunner(),
         runProviderLoginFlow: @escaping @MainActor (UsageProvider) async -> Void = { _ in })
     {
+        self.provider = provider
         self.settings = settings
         self.store = store
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
@@ -56,119 +41,78 @@ struct ProvidersPane: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            ProviderSidebarListView(
-                providers: self.filteredProviders,
-                orderedProviders: self.providers,
-                store: self.store,
-                isEnabled: { provider in self.binding(for: provider) },
-                subtitle: { provider in self.providerSidebarSubtitle(provider) },
-                searchText: self.$providerSearchText,
-                selection: self.$selectedProvider,
-                sortAlphabetically: Binding(
-                    get: { self.settings.providersSortedAlphabetically },
-                    set: { self.settings.providersSortedAlphabetically = $0 }),
-                moveProviders: { fromOffsets, toOffset in
-                    self.moveProviders(fromOffsets: fromOffsets, toOffset: toOffset)
-                })
-
-            if let provider = self.selectedVisibleProvider {
-                ProviderDetailView(
-                    provider: provider,
-                    store: self.store,
-                    isEnabled: self.binding(for: provider),
-                    subtitle: self.providerSubtitle(provider),
-                    model: self.menuCardModel(for: provider),
-                    settingsPickers: self.extraSettingsPickers(for: provider),
-                    settingsToggles: self.extraSettingsToggles(for: provider),
-                    settingsFields: self.extraSettingsFields(for: provider),
-                    settingsActions: self.extraSettingsActions(for: provider),
-                    settingsTokenAccounts: self.tokenAccountDescriptor(for: provider),
-                    settingsOrganizations: self.extraSettingsOrganizations(for: provider),
-                    errorDisplay: self.providerErrorDisplay(provider),
-                    isErrorExpanded: self.expandedBinding(for: provider),
-                    onCopyError: { text in self.copyToPasteboard(text) },
-                    onRefresh: {
-                        self.triggerRefresh(for: provider)
-                    },
-                    showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
-                    supplementarySettingsContent: {
-                        if let state = self.codexAccountsSectionState(for: provider) {
-                            CodexAccountsSectionView(
-                                state: state,
-                                setActiveVisibleAccount: { visibleAccountID in
-                                    Task { @MainActor in
-                                        await self.selectCodexVisibleAccount(id: visibleAccountID)
-                                    }
-                                },
-                                reauthenticateAccount: { account in
-                                    Task { @MainActor in
-                                        await self.reauthenticateCodexAccount(account)
-                                    }
-                                },
-                                removeAccount: { account in
-                                    self.requestManagedCodexAccountRemoval(account)
-                                },
-                                requestSystemVisibleAccount: { visibleAccountID in
-                                    Task { @MainActor in
-                                        await self.requestCodexSystemVisibleAccount(id: visibleAccountID)
-                                    }
-                                },
-                                addAccount: {
-                                    Task { @MainActor in
-                                        await self.addManagedCodexAccount()
-                                    }
-                                })
-                        }
-                    })
-            } else {
-                Text(L("select_a_provider"))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .onAppear {
-            self.ensureSelection()
-        }
-        .onChange(of: self.providers) { _, _ in
-            self.ensureSelection()
-        }
-        .onChange(of: self.providerSearchText) { _, _ in
-            self.ensureSelection()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            self.runSettingsDidBecomeActiveHooks()
-        }
-        .alert(
-            self.activeConfirmation?.title ?? "",
-            isPresented: Binding(
-                get: { self.activeConfirmation != nil },
-                set: { isPresented in
-                    if !isPresented { self.activeConfirmation = nil }
-                }),
-            actions: {
-                if let active = self.activeConfirmation {
-                    Button(active.confirmTitle) {
-                        active.onConfirm()
-                        self.activeConfirmation = nil
-                    }
-                    Button(L("cancel"), role: .cancel) { self.activeConfirmation = nil }
-                }
+        ProviderDetailView(
+            provider: self.provider,
+            store: self.store,
+            isEnabled: self.binding(for: self.provider),
+            subtitle: self.providerSubtitle(self.provider),
+            model: self.menuCardModel(for: self.provider),
+            settingsPickers: self.extraSettingsPickers(for: self.provider),
+            settingsToggles: self.extraSettingsToggles(for: self.provider),
+            settingsFields: self.extraSettingsFields(for: self.provider),
+            settingsActions: self.extraSettingsActions(for: self.provider),
+            settingsTokenAccounts: self.tokenAccountDescriptor(for: self.provider),
+            settingsOrganizations: self.extraSettingsOrganizations(for: self.provider),
+            errorDisplay: self.providerErrorDisplay(self.provider),
+            isErrorExpanded: self.expandedBinding(for: self.provider),
+            onCopyError: { text in self.copyToPasteboard(text) },
+            onRefresh: {
+                self.triggerRefresh(for: self.provider)
             },
-            message: {
-                if let active = self.activeConfirmation {
-                    Text(active.message)
+            showsSupplementarySettingsContent: self.codexAccountsSectionState(for: self.provider) != nil,
+            supplementarySettingsContent: {
+                if let state = self.codexAccountsSectionState(for: self.provider) {
+                    CodexAccountsSectionView(
+                        state: state,
+                        setActiveVisibleAccount: { visibleAccountID in
+                            Task { @MainActor in
+                                await self.selectCodexVisibleAccount(id: visibleAccountID)
+                            }
+                        },
+                        reauthenticateAccount: { account in
+                            Task { @MainActor in
+                                await self.reauthenticateCodexAccount(account)
+                            }
+                        },
+                        removeAccount: { account in
+                            self.requestManagedCodexAccountRemoval(account)
+                        },
+                        requestSystemVisibleAccount: { visibleAccountID in
+                            Task { @MainActor in
+                                await self.requestCodexSystemVisibleAccount(id: visibleAccountID)
+                            }
+                        },
+                        addAccount: {
+                            Task { @MainActor in
+                                await self.addManagedCodexAccount()
+                            }
+                        })
                 }
             })
-    }
-
-    private var selectedVisibleProvider: UsageProvider? {
-        let filteredProviders = self.filteredProviders
-        if let selected = self.selectedProvider, filteredProviders.contains(selected) {
-            return selected
-        }
-        return filteredProviders.first
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                self.runSettingsDidBecomeActiveHooks()
+            }
+            .alert(
+                self.activeConfirmation?.title ?? "",
+                isPresented: Binding(
+                    get: { self.activeConfirmation != nil },
+                    set: { isPresented in
+                        if !isPresented { self.activeConfirmation = nil }
+                    }),
+                actions: {
+                    if let active = self.activeConfirmation {
+                        Button(active.confirmTitle) {
+                            active.onConfirm()
+                            self.activeConfirmation = nil
+                        }
+                        Button(L("cancel"), role: .cancel) { self.activeConfirmation = nil }
+                    }
+                },
+                message: {
+                    if let active = self.activeConfirmation {
+                        Text(active.message)
+                    }
+                })
     }
 
     static func filteredProviders(
@@ -188,18 +132,6 @@ struct ProvidersPane: View {
     func moveProviders(fromOffsets: IndexSet, toOffset: Int) {
         guard !self.settings.providersSortedAlphabetically else { return }
         self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
-    }
-
-    private func ensureSelection() {
-        let filteredProviders = self.filteredProviders
-        guard !filteredProviders.isEmpty else {
-            self.selectedProvider = nil
-            return
-        }
-        if let selected = self.selectedProvider, filteredProviders.contains(selected) {
-            return
-        }
-        self.selectedProvider = filteredProviders.first
     }
 
     private func triggerRefresh(for provider: UsageProvider) {
@@ -226,11 +158,13 @@ struct ProvidersPane: View {
     func providerSubtitle(_ provider: UsageProvider) -> String {
         let meta = self.store.metadata(for: provider)
         let usageText: String
-        if let snapshot = self.store.snapshot(for: provider) {
+        if self.store.isStale(provider: provider) {
+            usageText = L("last_fetch_failed")
+        } else if self.store.knownLimitsAvailability(for: provider)?.isUnavailable == true {
+            usageText = L("Limits not available")
+        } else if let snapshot = self.store.snapshot(for: provider) {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
-        } else if self.store.isStale(provider: provider) {
-            usageText = L("last_fetch_failed")
         } else {
             usageText = L("usage_not_fetched_yet")
         }
@@ -250,10 +184,12 @@ struct ProvidersPane: View {
 
     func providerSidebarSubtitle(_ provider: UsageProvider) -> String {
         let meta = self.store.metadata(for: provider)
-        let usageText: String = if let snapshot = self.store.snapshot(for: provider) {
-            snapshot.updatedAt.relativeDescription()
-        } else if self.store.isStale(provider: provider) {
+        let usageText: String = if self.store.isStale(provider: provider) {
             L("last_fetch_failed")
+        } else if self.store.knownLimitsAvailability(for: provider)?.isUnavailable == true {
+            L("Limits not available")
+        } else if let snapshot = self.store.snapshot(for: provider) {
+            snapshot.updatedAt.relativeDescription()
         } else {
             L("usage_not_fetched_yet")
         }
@@ -742,6 +678,7 @@ struct ProvidersPane: View {
             account: self.store.accountInfo(for: provider),
             isRefreshing: self.store.refreshingProviders.contains(provider),
             lastError: codexProjection?.userFacingErrors.usage ?? self.store.userFacingError(for: provider),
+            limitsAvailability: self.store.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),

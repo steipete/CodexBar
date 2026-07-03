@@ -8,6 +8,8 @@ struct DoubaoProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.doubaoAPIToken
+        _ = settings.doubaoSecretAccessKey
+        _ = settings.doubaoRegion
     }
 
     @MainActor
@@ -15,11 +17,11 @@ struct DoubaoProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "doubao-api-token",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. Get your API key from the Volcengine "
-                    + "Ark console.",
+                title: "API key / Access key ID",
+                subtitle: "Use a Volcengine access key ID with the secret field for Coding Plan usage, "
+                    + "or leave the secret blank to use an Ark API key.",
                 kind: .secure,
-                placeholder: "ark-...",
+                placeholder: "ark-... or AKLT...",
                 binding: context.stringBinding(\.doubaoAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
@@ -33,6 +35,26 @@ struct DoubaoProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "doubao-secret-access-key",
+                title: "Secret access key",
+                subtitle: "Volcengine secret access key for the signed Coding Plan usage API.",
+                kind: .secure,
+                placeholder: "",
+                binding: context.stringBinding(\.doubaoSecretAccessKey),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "doubao-region",
+                title: "Region",
+                subtitle: "Volcengine Ark region. Defaults to cn-beijing.",
+                kind: .plain,
+                placeholder: DoubaoSettingsReader.defaultRegion,
+                binding: context.stringBinding(\.doubaoRegion),
+                actions: [],
                 isVisible: nil,
                 onActivate: nil),
         ]

@@ -8,19 +8,63 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public let resetDescription: String?
     /// Optional percent restored on the next regeneration tick for providers with rolling recovery.
     public let nextRegenPercent: Double?
+    /// Whether this window was synthesized to stand in for a quota lane the provider did not actually
+    /// report, rather than being a real zero-usage window.
+    ///
+    /// Claude web returns a `0%` five-hour window when `five_hour` is `null` (an account with no live
+    /// session but a real weekly lane). Lane classifiers — e.g. the combined "Session + Weekly" menu-bar
+    /// metric — must treat such a window as "no session lane present" instead of surfacing a phantom
+    /// `5h 0%`/`5h 100%` session. A genuine session, even one freshly reset to 0%, is NOT a placeholder.
+    /// Missing values decode as `false` for older cached payloads.
+    public let isSyntheticPlaceholder: Bool
 
     public init(
         usedPercent: Double,
         windowMinutes: Int?,
         resetsAt: Date?,
         resetDescription: String?,
-        nextRegenPercent: Double? = nil)
+        nextRegenPercent: Double? = nil,
+        isSyntheticPlaceholder: Bool = false)
     {
         self.usedPercent = usedPercent
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
         self.nextRegenPercent = nextRegenPercent
+        self.isSyntheticPlaceholder = isSyntheticPlaceholder
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case usedPercent
+        case windowMinutes
+        case resetsAt
+        case resetDescription
+        case nextRegenPercent
+        case isSyntheticPlaceholder
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.usedPercent = try container.decode(Double.self, forKey: .usedPercent)
+        self.windowMinutes = try container.decodeIfPresent(Int.self, forKey: .windowMinutes)
+        self.resetsAt = try container.decodeIfPresent(Date.self, forKey: .resetsAt)
+        self.resetDescription = try container.decodeIfPresent(String.self, forKey: .resetDescription)
+        self.nextRegenPercent = try container.decodeIfPresent(Double.self, forKey: .nextRegenPercent)
+        self.isSyntheticPlaceholder =
+            try container.decodeIfPresent(Bool.self, forKey: .isSyntheticPlaceholder) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.usedPercent, forKey: .usedPercent)
+        try container.encodeIfPresent(self.windowMinutes, forKey: .windowMinutes)
+        try container.encodeIfPresent(self.resetsAt, forKey: .resetsAt)
+        try container.encodeIfPresent(self.resetDescription, forKey: .resetDescription)
+        try container.encodeIfPresent(self.nextRegenPercent, forKey: .nextRegenPercent)
+        // Only persist the flag when set, keeping payloads identical for the common (real-window) case.
+        if self.isSyntheticPlaceholder {
+            try container.encode(true, forKey: .isSyntheticPlaceholder)
+        }
     }
 
     public var remainingPercent: Double {
@@ -40,7 +84,10 @@ public struct RateWindow: Codable, Equatable, Sendable {
             windowMinutes: windowMinutes,
             resetsAt: cachedReset,
             resetDescription: self.resetDescription ?? cached?.resetDescription,
-            nextRegenPercent: self.nextRegenPercent)
+            nextRegenPercent: self.nextRegenPercent,
+            // Preserve the placeholder marker: backfilling a stale reset onto Claude web's null-session
+            // placeholder must not let it masquerade as a real session lane.
+            isSyntheticPlaceholder: self.isSyntheticPlaceholder)
     }
 }
 
@@ -137,6 +184,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let deepseekUsage: DeepSeekUsageSummary?
     public let mimoUsage: MiMoUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
+    public let crossModelUsage: CrossModelUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
     public let claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot?
@@ -166,6 +214,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case ampUsage
         case mimoUsage
         case openRouterUsage
+        case crossModelUsage
         case openAIAPIUsage
         case codexResetCredits
         case claudeAdminAPIUsage
@@ -195,6 +244,7 @@ public struct UsageSnapshot: Codable, Sendable {
         deepseekUsage: DeepSeekUsageSummary? = nil,
         mimoUsage: MiMoUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
+        crossModelUsage: CrossModelUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot? = nil,
@@ -223,6 +273,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepseekUsage = deepseekUsage
         self.mimoUsage = mimoUsage
         self.openRouterUsage = openRouterUsage
+        self.crossModelUsage = crossModelUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
         self.claudeAdminAPIUsage = claudeAdminAPIUsage
@@ -268,6 +319,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepseekUsage = nil // Not persisted, fetched fresh each time
         self.mimoUsage = try container.decodeIfPresent(MiMoUsageSnapshot.self, forKey: .mimoUsage)
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
+        self.crossModelUsage = try container.decodeIfPresent(CrossModelUsageSnapshot.self, forKey: .crossModelUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
@@ -320,6 +372,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.ampUsage, forKey: .ampUsage)
         try container.encodeIfPresent(self.mimoUsage, forKey: .mimoUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
+        try container.encodeIfPresent(self.crossModelUsage, forKey: .crossModelUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -498,6 +551,7 @@ public struct UsageSnapshot: Codable, Sendable {
             deepseekUsage: self.deepseekUsage,
             mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
+            crossModelUsage: self.crossModelUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,
@@ -582,6 +636,13 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
         account: AccountInfo? = nil,
         lastErrorDescription: String? = nil) -> Self
     {
+        if provider == .claude {
+            guard snapshot == nil else { return .available }
+            return ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(lastErrorDescription)
+                ? .unavailable
+                : .available
+        }
+
         if provider == .doubao || provider == .antigravity {
             guard let snapshot,
                   snapshot.identity(for: provider) != nil

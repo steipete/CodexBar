@@ -18,6 +18,7 @@ extension SettingsStore {
         _ = self.quotaWarningWindowEnabled(.session)
         _ = self.quotaWarningWindowEnabled(.weekly)
         _ = self.quotaWarningSoundEnabled
+        _ = self.quotaWarningOnScreenAlertEnabled
         _ = self.quotaWarningMarkersVisible
         _ = self.weeklyProgressWorkDays
         _ = self.usageBarsShowUsed
@@ -39,6 +40,7 @@ extension SettingsStore {
         _ = self.appLanguage
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled
+        _ = self.confettiOnSessionLimitResetsEnabled
         _ = self.confettiOnWeeklyLimitResetsEnabled
         _ = self.claudeOAuthKeychainPromptMode
         _ = self.claudeOAuthKeychainReadStrategy

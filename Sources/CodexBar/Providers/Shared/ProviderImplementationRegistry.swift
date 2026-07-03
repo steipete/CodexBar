@@ -58,6 +58,7 @@ enum ProviderImplementationRegistry {
         case .crof: CrofProviderImplementation()
         case .venice: VeniceProviderImplementation()
         case .commandcode: CommandCodeProviderImplementation()
+        case .qoder: QoderProviderImplementation()
         case .stepfun: StepFunProviderImplementation()
         case .bedrock: BedrockProviderImplementation()
         case .grok: GrokProviderImplementation()
@@ -67,6 +68,7 @@ enum ProviderImplementationRegistry {
         case .deepgram: DeepgramProviderImplementation()
         case .poe: PoeProviderImplementation()
         case .chutes: ChutesProviderImplementation()
+        case .crossmodel: CrossModelProviderImplementation()
         }
     }
 

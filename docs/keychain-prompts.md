@@ -16,6 +16,10 @@ CodexBar does not need your browser password. macOS owns the prompt, and the pro
 that is requesting access. For support reports, include that requesting app/path when possible and do not paste
 passwords, cookie headers, OAuth tokens, API keys, or Keychain item values.
 
+Before a Keychain read that may require interaction, CodexBar shows an explanation of the item and its purpose.
+**Learn More** opens this page without dismissing that explanation or starting the macOS prompt. Choose **OK** only
+when you are ready to continue, or use the opt-out below.
+
 ## If the prompt appears after uninstalling CodexBar
 
 Deleting `CodexBar.app` prevents a new process from launching from that bundle, but it does not terminate a process

@@ -1,9 +1,9 @@
 # CodexBar
 
-A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 53 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more.
+A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 56 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more.
 
 Canonical documentation:
-- CodexBar — every AI coding limit in your menu bar: https://codexbar.app/ - A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 53 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more.
+- CodexBar — every AI coding limit, in your menu bar: https://codexbar.app/ - A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 56 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, and more.
 
 Source: https://github.com/steipete/CodexBar
 

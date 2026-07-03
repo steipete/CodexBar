@@ -18,6 +18,7 @@
 
 ## Testing Guidelines
 - Add/extend XCTest cases under `Tests/CodexBarTests/*Tests.swift` (`FeatureNameTests` with `test_caseDescription` methods).
+- Swift Testing: prefer backticked sentence names; no camelCase.
 - Model names in tests/code: released models or clearly fictitious names only; never expose unreleased names.
 - Always run `make test` before handoff; add focused `swift test --filter ...` runs for parser/provider fixes when possible.
 - After any code change, run `make check` and fix all reported format/lint issues before handoff.

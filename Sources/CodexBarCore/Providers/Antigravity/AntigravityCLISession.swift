@@ -1105,6 +1105,33 @@ final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @un
 // MARK: - Production Stale Session Identity + Storage
 
 struct AntigravityProcessIdentityProvider: AntigravityCLIProcessIdentityProviding {
+    static var currentUserID: UInt32 {
+        UInt32(getuid())
+    }
+
+    func ownerUserID(for pid: pid_t) -> UInt32? {
+        #if canImport(Darwin)
+        var info = proc_bsdinfo()
+        let size = proc_pidinfo(
+            pid,
+            PROC_PIDTBSDINFO,
+            0,
+            &info,
+            Int32(MemoryLayout<proc_bsdinfo>.stride))
+        guard size == Int32(MemoryLayout<proc_bsdinfo>.stride) else { return nil }
+        return info.pbi_uid
+        #else
+        guard let status = try? String(contentsOfFile: "/proc/\(pid)/status", encoding: .utf8),
+              let uidLine = status.split(separator: "\n").first(where: { $0.hasPrefix("Uid:") }),
+              let owner = uidLine.split(whereSeparator: \.isWhitespace).dropFirst().first,
+              let userID = UInt32(owner)
+        else {
+            return nil
+        }
+        return userID
+        #endif
+    }
+
     func identity(for pid: pid_t) -> AntigravityCLIProcessIdentity? {
         #if canImport(Darwin)
         var pathBuffer = [CChar](repeating: 0, count: 4096)
