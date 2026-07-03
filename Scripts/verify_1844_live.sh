@@ -55,9 +55,25 @@ printf '%s\n' "$EXPIRED_PAYLOAD" >"$HOME_FIXTURE/.claude/.credentials.json"
 chmod 600 "$HOME_FIXTURE/.claude/.credentials.json"
 printf '%s\n' '{"version":1,"providers":[{"id":"claude","enabled":true,"source":"oauth"}]}' >"$CONFIG"
 chmod 600 "$CONFIG"
-printf '%s\n' '#!/usr/bin/env bash' 'printf touched >"$CODEXBAR_CLAUDE_TOUCH_CANARY"' 'exit 99' \
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf "args:" >>"$CODEXBAR_CLAUDE_INVOCATIONS"' \
+  'printf " %q" "$@" >>"$CODEXBAR_CLAUDE_INVOCATIONS"' \
+  'printf "\\n" >>"$CODEXBAR_CLAUDE_INVOCATIONS"' \
+  'if [[ "$*" == "auth status --json" ]]; then printf "{\"loggedIn\":true}\\n"; exit 0; fi' \
+  'if [[ "$*" == "--version" ]]; then printf "2.1.0\\n"; exit 0; fi' \
+  'if IFS= read -r line; then' \
+  '  printf "stdin:%s\\n" "$line" >>"$CODEXBAR_CLAUDE_INVOCATIONS"' \
+  '  if [[ "$line" == *"/status"* ]]; then printf touched >"$CODEXBAR_CLAUDE_TOUCH_CANARY"; fi' \
+  'fi' \
+  'exit 99' \
   >"$ARTIFACT/bin/claude"
-chmod 700 "$ARTIFACT/bin/claude"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'printf touched >"$CODEXBAR_OPEN_TOUCH_CANARY"' \
+  'exit 99' \
+  >"$ARTIFACT/bin/open"
+chmod 700 "$ARTIFACT/bin/claude" "$ARTIFACT/bin/open"
 
 /usr/bin/security list-keychains -d user >"$ARTIFACT/keychains-before.txt"
 /usr/bin/security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
@@ -83,8 +99,11 @@ cmp -s "$ARTIFACT/keychain-fixture.json" <(printf '%s\n' "$MCP_PAYLOAD")
 PROC_LOG="$ARTIFACT/e2e-processes.log"
 STDOUT="$ARTIFACT/e2e-stdout.json"
 STDERR="$ARTIFACT/e2e-stderr.jsonl"
-CANARY="$ARTIFACT/claude-touch-canary"
+CANARY="$ARTIFACT/claude-status-canary"
+INVOCATIONS="$ARTIFACT/claude-invocations.log"
+OPEN_CANARY="$ARTIFACT/open-touch-canary"
 : >"$PROC_LOG"
+: >"$INVOCATIONS"
 
 set +e
 (
@@ -95,7 +114,10 @@ set +e
     CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 \
     CODEXBAR_CLAUDE_SECURITY_CLI_KEYCHAIN="$KEYCHAIN" \
     CODEXBAR_CLAUDE_TOUCH_CANARY="$CANARY" \
+    CODEXBAR_CLAUDE_INVOCATIONS="$INVOCATIONS" \
+    CODEXBAR_OPEN_TOUCH_CANARY="$OPEN_CANARY" \
     CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW=1 \
+    CLAUDE_CLI_PATH="$ARTIFACT/bin/claude" \
     PATH="$ARTIFACT/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$CLI" usage --provider claude --source oauth --format json --pretty --log-level debug \
       >"$STDOUT" 2>"$STDERR"
@@ -120,13 +142,17 @@ set -e
   echo "cli-exit: $CLI_STATUS"
   echo "default-keychain-search-list-unchanged: yes"
   echo "real-home-referenced: no"
-  echo "claude-touch-canary: $([[ -e "$CANARY" ]] && echo touched || echo untouched)"
+  echo "claude-status-canary: $([[ -e "$CANARY" ]] && echo touched || echo untouched)"
+  echo "open-touch-canary: $([[ -e "$OPEN_CANARY" ]] && echo touched || echo untouched)"
   echo
   echo "## stdout"
   cat "$STDOUT"
   echo
   echo "## stderr (filtered)"
   rg -i 'mcp|delegated|expired|oauth|touch|open|only prompt|user action' "$STDERR" || true
+  echo
+  echo "## Claude CLI invocations"
+  cat "$INVOCATIONS"
   echo
   echo "## child processes"
   cat "$PROC_LOG"
@@ -137,7 +163,11 @@ if [[ "$CLI_STATUS" -eq 0 ]]; then
   exit 1
 fi
 if [[ -e "$CANARY" ]]; then
-  log "Phase 2 failed: delegated Claude CLI touch ran"
+  log "Phase 2 failed: delegated Claude CLI /status touch ran"
+  exit 1
+fi
+if [[ -e "$OPEN_CANARY" ]]; then
+  log "Phase 2 failed: browser/open helper ran"
   exit 1
 fi
 if rg -q '/usr/bin/open|(^|/)open$|firefox|Google Chrome|Safari' "$PROC_LOG" 2>/dev/null; then
@@ -149,13 +179,14 @@ if ! rg -qi 'MCP OAuth state only|mcpOAuthOnlyKeychain|MCP OAuth' "$STDERR" "$ST
   exit 1
 fi
 
-log "Phase 2 passed: exact packaged CLI failed closed without delegated touch or browser child"
+log "Phase 2 passed: exact packaged CLI failed closed without delegated /status touch or browser child"
 
 log "Phase 3: isolated packaged app runtime smoke"
 APP_PROC_LOG="$ARTIFACT/app-processes.log"
 APP_STDOUT="$ARTIFACT/app-stdout.log"
 APP_STDERR="$ARTIFACT/app-stderr.log"
 : >"$APP_PROC_LOG"
+: >"$INVOCATIONS"
 (
   env \
     HOME="$HOME_FIXTURE" \
@@ -164,14 +195,19 @@ APP_STDERR="$ARTIFACT/app-stderr.log"
     CODEXBAR_DISABLE_KEYCHAIN_ACCESS=1 \
     CODEXBAR_CLAUDE_SECURITY_CLI_KEYCHAIN="$KEYCHAIN" \
     CODEXBAR_CLAUDE_TOUCH_CANARY="$CANARY" \
+    CODEXBAR_CLAUDE_INVOCATIONS="$INVOCATIONS" \
+    CODEXBAR_OPEN_TOUCH_CANARY="$OPEN_CANARY" \
     CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW=1 \
+    CLAUDE_CLI_PATH="$ARTIFACT/bin/claude" \
     PATH="$ARTIFACT/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$APP" >"$APP_STDOUT" 2>"$APP_STDERR"
 ) &
 APP_PID=$!
-for _ in $(seq 1 250); do
+APP_OBSERVED_CLI=0
+POST_DISCOVERY_TICKS=0
+for _ in $(seq 1 1000); do
   if ! kill -0 "$APP_PID" 2>/dev/null; then
-    log "Phase 3 failed: packaged app exited before the 5-second isolation smoke completed"
+    log "Phase 3 failed: packaged app exited before the isolated startup smoke completed"
     wait "$APP_PID" || true
     exit 1
   fi
@@ -179,13 +215,28 @@ for _ in $(seq 1 250); do
     date -u +%H:%M:%S
     pgrep -P "$APP_PID" -l 2>/dev/null || true
   } >>"$APP_PROC_LOG"
+  if rg -q '^args: --version$' "$INVOCATIONS"; then
+    APP_OBSERVED_CLI=1
+    POST_DISCOVERY_TICKS=$((POST_DISCOVERY_TICKS + 1))
+    if [[ "$POST_DISCOVERY_TICKS" -ge 250 ]]; then
+      break
+    fi
+  fi
   sleep 0.02
 done
 kill "$APP_PID"
 wait "$APP_PID" 2>/dev/null || true
 
+if [[ "$APP_OBSERVED_CLI" -ne 1 ]]; then
+  log "Phase 3 failed: packaged app never exercised the isolated Claude CLI fixture"
+  exit 1
+fi
 if [[ -e "$CANARY" ]]; then
-  log "Phase 3 failed: packaged app invoked delegated Claude CLI touch"
+  log "Phase 3 failed: packaged app invoked delegated Claude CLI /status touch"
+  exit 1
+fi
+if [[ -e "$OPEN_CANARY" ]]; then
+  log "Phase 3 failed: packaged app invoked browser/open helper"
   exit 1
 fi
 if rg -q '/usr/bin/open|(^|/)open$|firefox|Google Chrome|Safari' "$APP_PROC_LOG" 2>/dev/null; then
@@ -196,11 +247,16 @@ fi
   echo
   echo "## packaged app runtime"
   echo "app-binary: $APP"
-  echo "isolated-runtime-seconds: 5"
+  echo "isolated-claude-cli-discovery-observed: yes"
+  echo "post-discovery-observation-seconds: 5"
   echo "app-stayed-running: yes"
-  echo "claude-touch-canary: untouched"
+  echo "claude-status-canary: untouched"
+  echo "open-touch-canary: untouched"
   echo "browser-child: none"
+  echo
+  echo "## packaged app Claude CLI invocations"
+  cat "$INVOCATIONS"
 } | tee -a "$ARTIFACT/E2E-REPORT.md"
 
-log "Phase 3 passed: packaged app stayed running in isolation without delegated touch or browser child"
+log "Phase 3 passed: packaged app exercised CLI discovery without delegated /status touch or browser child"
 log "Report: $ARTIFACT/E2E-REPORT.md"

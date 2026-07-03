@@ -39,8 +39,10 @@ The verifier used only synthetic data under a unique temporary directory:
 - disposable keychain passed directly to `/usr/bin/security`
 - general Security.framework/cache keychain access disabled
 - isolated `.claude/.credentials.json` and CodexBar config
-- synthetic `claude` executable that writes a canary if delegated refresh touches it
+- synthetic `claude` executable that records benign discovery separately from `/status` touch
 
-The packaged `CodexBarCLI` exited 3 with the MCP-only guidance, the canary stayed untouched, no browser/open child appeared, and the user keychain search list was unchanged. The packaged `CodexBar.app` binary then stayed running for a five-second isolated smoke with the same untouched canary and no browser/open child.
+The packaged `CodexBarCLI` exited 3 with the MCP-only guidance, no `/status` or browser/open canary appeared, and the user keychain search list was unchanged. The packaged `CodexBar.app` then exercised the synthetic CLI with `--version`, stayed running for five seconds after discovery, and still sent no `/status` or browser/open touch.
+
+For the explicit recovery path, I launched the same isolated built app, selected the real Claude tab, and clicked Refresh. Before the click the invocation log contained only `--version`; after the click it received `/status`, while the browser/open canary remained untouched. This proves user Refresh remains interaction-aware without weakening the background guard.
 
 Final local gates passed: `make check`, all 45 `make test` shards, exact-SHA autoreview, and source-blind behavior validation.

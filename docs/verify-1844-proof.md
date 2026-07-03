@@ -33,10 +33,14 @@ The covered behaviors include MCP-only shape detection through both keychain rea
 
 The verifier creates a unique temporary directory and places every synthetic credential fixture beneath it. `HOME` and `CFFIXED_USER_HOME` point there. A disposable keychain is passed as an explicit operand to `/usr/bin/security`; CodexBar's general keychain access is disabled so its Security.framework cache cannot read or write the user's login keychain. The script verifies that creating the disposable keychain does not change the user keychain search list.
 
-The packaged `CodexBarCLI` read an expired synthetic Claude credential file plus an MCP-only disposable keychain item. It exited 3 with the expected MCP-only guidance. A synthetic `claude` executable would have written a canary if delegated refresh ran; the canary stayed untouched, and no browser/open child appeared. The packaged `CodexBar.app` binary also stayed running for a five-second isolated smoke with no canary or browser/open child.
+The packaged `CodexBarCLI` read an expired synthetic Claude credential file plus an MCP-only disposable keychain item. It exited 3 with the expected MCP-only guidance. A synthetic `claude` executable distinguishes benign discovery (`--version`) from an interactive `/status` touch. The packaged `CodexBar.app` exercised that exact CLI fixture, stayed running for five seconds after discovery, and never sent `/status`; the status and browser/open canaries stayed untouched.
 
 No real `~/.claude/.credentials.json`, Claude account, or CodexBar cache keychain item was read or mutated. The default keychain search list was read before and after fixture creation only to prove it remained unchanged.
 
+## Isolated user-Refresh replay
+
+The release-built app was also launched with the same disposable HOME, credentials, config, keychain, and classified Claude CLI fixture. Before interaction, the invocation log contained only `claude --version`; no `/status` or browser/open canary appeared. Using the real menu, the Claude tab was selected and Refresh was clicked. The fixture then received `/status`, proving the explicit user path still delegates, while the browser/open canary remained untouched. Cleanup deleted the disposable keychain and restored the user's previously running CodexBar app.
+
 ## Final local gates
 
-`make check` passed, all 45 `make test` shards passed, exact-SHA autoreview reported no accepted/actionable findings, and the source-blind behavior contract passed. A reporter-environment menu Refresh replay remains useful supplementary evidence but is not required for the isolated browser-launch safety proof.
+`make check` passed, all 45 `make test` shards passed, exact-SHA autoreview reported no accepted/actionable findings, and the source-blind behavior contract passed.
