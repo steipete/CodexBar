@@ -12,7 +12,7 @@ extension StatusItemController {
     @discardableResult
     func addUsageHistoryMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
         guard let submenu = self.makeUsageHistorySubmenu(provider: provider, width: width) else { return false }
-        let item = NSMenuItem(title: L("Subscription Utilization"), action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: L("Plan Usage"), action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.representedObject = "usageHistorySubmenu"
         item.submenu = submenu

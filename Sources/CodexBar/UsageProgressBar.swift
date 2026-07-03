@@ -119,7 +119,7 @@ struct UsageProgressBar: View {
         }
         .frame(height: 6)
         .accessibilityLabel(self.accessibilityLabel)
-        .accessibilityValue("\(Self.displayPercent(self.clamped)) percent")
+        .accessibilityValue(L("%d percent", Self.displayPercent(self.clamped)))
     }
 
     /// Aligns edge rendering with the rounded percent label: sub-0.5% is empty and 99.5%+ is full.

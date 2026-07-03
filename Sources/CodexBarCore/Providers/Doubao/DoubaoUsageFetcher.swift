@@ -11,6 +11,7 @@ public struct DoubaoUsageSnapshot: Sendable {
     public let apiKeyValid: Bool
     public let totalTokens: Int?
     public let requestLimitsReliable: Bool
+    public let codingPlanUsage: DoubaoCodingPlanUsage?
     public init(
         remainingRequests: Int,
         limitRequests: Int,
@@ -18,7 +19,8 @@ public struct DoubaoUsageSnapshot: Sendable {
         updatedAt: Date,
         apiKeyValid: Bool = false,
         totalTokens: Int? = nil,
-        requestLimitsReliable: Bool = true)
+        requestLimitsReliable: Bool = true,
+        codingPlanUsage: DoubaoCodingPlanUsage? = nil)
     {
         self.remainingRequests = remainingRequests
         self.limitRequests = limitRequests
@@ -27,9 +29,14 @@ public struct DoubaoUsageSnapshot: Sendable {
         self.apiKeyValid = apiKeyValid
         self.totalTokens = totalTokens
         self.requestLimitsReliable = requestLimitsReliable
+        self.codingPlanUsage = codingPlanUsage
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
+        if let codingPlanUsage {
+            return codingPlanUsage.toUsageSnapshot(updatedAt: self.updatedAt)
+        }
+
         let primary: RateWindow?
         if self.limitRequests > 0, self.requestLimitsReliable {
             let used = max(0, self.limitRequests - self.remainingRequests)
@@ -66,6 +73,61 @@ public struct DoubaoUsageSnapshot: Sendable {
     }
 }
 
+public struct DoubaoCodingPlanUsage: Sendable, Equatable {
+    public struct Quota: Sendable, Equatable {
+        public let level: String
+        public let percent: Double
+        public let resetTime: Date?
+
+        public init(level: String, percent: Double, resetTime: Date?) {
+            self.level = level
+            self.percent = percent
+            self.resetTime = resetTime
+        }
+    }
+
+    public let status: String?
+    public let updateTime: Date?
+    public let quotas: [Quota]
+
+    public init(status: String?, updateTime: Date?, quotas: [Quota]) {
+        self.status = status
+        self.updateTime = updateTime
+        self.quotas = quotas
+    }
+
+    public func toUsageSnapshot(updatedAt: Date) -> UsageSnapshot {
+        let primary = self.rateWindow(levels: ["session", "5-hour", "five_hour"], minutes: 5 * 60)
+        let secondary = self.rateWindow(levels: ["weekly", "week"], minutes: 7 * 24 * 60)
+        let tertiary = self.rateWindow(levels: ["monthly", "month"], minutes: 30 * 24 * 60)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .doubao,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: self.status)
+
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            providerCost: nil,
+            updatedAt: self.updateTime ?? updatedAt,
+            identity: identity)
+    }
+
+    private func rateWindow(levels: Set<String>, minutes: Int) -> RateWindow? {
+        guard let quota = self.quotas.first(where: { levels.contains($0.level.lowercased()) }) else {
+            return nil
+        }
+        let percent = min(100, max(0, quota.percent))
+        return RateWindow(
+            usedPercent: percent,
+            windowMinutes: minutes,
+            resetsAt: quota.resetTime,
+            resetDescription: nil)
+    }
+}
+
 public enum DoubaoUsageError: LocalizedError, Sendable {
     case missingCredentials
     case networkError(String)
@@ -89,6 +151,8 @@ public enum DoubaoUsageError: LocalizedError, Sendable {
 public struct DoubaoUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.doubaoUsage)
     private static let apiURL = URL(string: "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions")!
+    private static let codingPlanAPIURL = URL(
+        string: "https://open.volcengineapi.com/?Action=GetCodingPlanUsage&Version=2024-01-01")!
 
     /// Models to probe, ordered by likelihood. We try multiple models because
     /// different key types may not have access to every model.
@@ -141,6 +205,71 @@ public struct DoubaoUsageFetcher: Sendable {
             }
         }
         throw lastError ?? DoubaoUsageError.apiError(0, "All probe models failed")
+    }
+
+    public static func fetchCodingPlanUsage(
+        credentials: DoubaoCodingPlanCredentials,
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        date: Date = Date()) async throws -> DoubaoUsageSnapshot
+    {
+        guard !credentials.accessKeyID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !credentials.secretAccessKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw DoubaoUsageError.missingCredentials
+        }
+
+        let body = Data()
+        var request = URLRequest(url: self.codingPlanAPIURL)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        DoubaoVolcengineSigner.sign(
+            request: &request,
+            body: body,
+            credentials: credentials,
+            date: date)
+
+        let response = try await transport.response(for: request)
+        guard response.statusCode == 200 else {
+            let summary = Self.apiErrorSummary(statusCode: response.statusCode, data: response.data)
+            Self.log.error("Doubao coding plan API returned \(response.statusCode): \(summary)")
+            throw DoubaoUsageError.apiError(response.statusCode, summary)
+        }
+
+        let codingPlanUsage = try self.decodeCodingPlanUsage(from: response.data)
+        return DoubaoUsageSnapshot(
+            remainingRequests: 0,
+            limitRequests: 0,
+            resetTime: nil,
+            updatedAt: codingPlanUsage.updateTime ?? date,
+            apiKeyValid: true,
+            codingPlanUsage: codingPlanUsage)
+    }
+
+    static func decodeCodingPlanUsage(from data: Data) throws -> DoubaoCodingPlanUsage {
+        let response: CodingPlanUsageResponse
+        do {
+            response = try JSONDecoder().decode(CodingPlanUsageResponse.self, from: data)
+        } catch {
+            throw DoubaoUsageError.parseFailed(error.localizedDescription)
+        }
+        let usage = response.result
+        let quotas = usage.quotaUsage.map { quota in
+            DoubaoCodingPlanUsage.Quota(
+                level: quota.level,
+                percent: quota.percent,
+                resetTime: self.date(fromEpoch: quota.resetTimestamp))
+        }
+        return DoubaoCodingPlanUsage(
+            status: usage.status,
+            updateTime: self.date(fromEpoch: usage.updateTimestamp),
+            quotas: quotas)
+    }
+
+    private static func date(fromEpoch timestamp: TimeInterval?) -> Date? {
+        guard let timestamp, timestamp > 0 else { return nil }
+        return Date(timeIntervalSince1970: timestamp)
     }
 
     private static func confirmAmbiguousZeroRemaining(
@@ -342,6 +471,24 @@ public struct DoubaoUsageFetcher: Sendable {
             return "Unexpected response body (\(data.count) bytes)."
         }
 
+        // Volcengine Top OpenAPI error shape: { "ResponseMetadata": { "Error": { "Code": ..., "Message": ... } } }
+        if let metadata = json["ResponseMetadata"] as? [String: Any],
+           let volcError = metadata["Error"] as? [String: Any]
+        {
+            let code = (volcError["Code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (volcError["Message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch (code?.isEmpty == false ? code : nil, message?.isEmpty == false ? message : nil) {
+            case let (code?, message?):
+                return Self.compactText("\(code): \(message)")
+            case let (code?, nil):
+                return Self.compactText(code)
+            case let (nil, message?):
+                return Self.compactText(message)
+            case (nil, nil):
+                break
+            }
+        }
+
         if let error = json["error"] as? [String: Any],
            let message = error["message"] as? String
         {
@@ -365,5 +512,37 @@ public struct DoubaoUsageFetcher: Sendable {
         if collapsed.count <= maxLength { return collapsed }
         let limitIndex = collapsed.index(collapsed.startIndex, offsetBy: maxLength)
         return "\(collapsed[..<limitIndex])..."
+    }
+
+    private struct CodingPlanUsageResponse: Decodable {
+        let result: ResultPayload
+
+        private enum CodingKeys: String, CodingKey {
+            case result = "Result"
+        }
+    }
+
+    private struct ResultPayload: Decodable {
+        let status: String?
+        let updateTimestamp: TimeInterval?
+        let quotaUsage: [QuotaPayload]
+
+        private enum CodingKeys: String, CodingKey {
+            case status = "Status"
+            case updateTimestamp = "UpdateTimestamp"
+            case quotaUsage = "QuotaUsage"
+        }
+    }
+
+    private struct QuotaPayload: Decodable {
+        let level: String
+        let percent: Double
+        let resetTimestamp: TimeInterval?
+
+        private enum CodingKeys: String, CodingKey {
+            case level = "Level"
+            case percent = "Percent"
+            case resetTimestamp = "ResetTimestamp"
+        }
     }
 }

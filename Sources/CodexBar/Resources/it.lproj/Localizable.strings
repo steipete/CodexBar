@@ -21,6 +21,7 @@
 "Animation pattern" = "Schema animazione";
 "Antigravity login is managed in the app" = "L'accesso ad Antigravity è gestito nell'app";
 "Applies only to the Security.framework OAuth keychain reader." = "Si applica solo al lettore OAuth del portachiavi di Security.framework.";
+"Alternatively, set a custom path in Settings." = "In alternativa, imposta un percorso personalizzato in Impostazioni.";
 "Auto falls back to the next source if the preferred one fails." = "In modalità Auto passa alla fonte successiva se quella preferita fallisce.";
 "Auto uses API first, then falls back to CLI on auth failures." = "Auto usa prima l'API, poi passa alla CLI se l'autenticazione fallisce.";
 "Auto-detect" = "Rilevamento automatico";
@@ -148,6 +149,7 @@
 "Install the Claude CLI (npm i -g @anthropic-ai/claude-code) and try again." = "Installa la Claude CLI (npm i -g @anthropic-ai/claude-code) e riprova.";
 "Install the Codex CLI (npm i -g @openai/codex) and try again." = "Installa la Codex CLI (npm i -g @openai/codex) e riprova.";
 "Install the Gemini CLI (npm i -g @google/gemini-cli) and try again." = "Installa la Gemini CLI (npm i -g @google/gemini-cli) e riprova.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Installa un IDE JetBrains con AI Assistant abilitato, poi aggiorna CodexBar.";
 "JetBrains AI is ready" = "JetBrains AI è pronto";
 "JetBrains IDE" = "IDE JetBrains";
 "Keep CLI sessions alive" = "Mantieni attive le sessioni CLI";
@@ -234,6 +236,7 @@
 "Picker subtitle" = "Sottotitolo selettore";
 "Placeholder" = "Segnaposto";
 "Plan" = "Piano";
+"Plan Usage" = "Utilizzo piano";
 "Play full-screen confetti when weekly usage resets." = "Mostra coriandoli a schermo intero quando l'utilizzo settimanale si resetta.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Interroga le pagine di stato di OpenAI/Claude e Google Workspace per ";
 "Prevents any Keychain access while enabled." = "Impedisce qualsiasi accesso al portachiavi quando è attivo.";
@@ -278,6 +281,7 @@
 "Show provider icons in the switcher (otherwise show a weekly progress line)." = "Mostra le icone dei provider nel selettore (altrimenti mostra una linea di progresso settimanale).";
 "Show reset time as clock" = "Mostra l'ora di reset come orario";
 "Show usage as used" = "Mostra l'utilizzo come consumato";
+"Sign in with Claude Code..." = "Accedi con Claude Code...";
 "Sign in via button below" = "Accedi con il pulsante qui sotto";
 "Skip teardown between probes (debug-only)." = "Salta il teardown tra i probe (solo debug).";
 "Stack token accounts in the menu (otherwise show an account switcher bar)." = "Impila gli account token nel menu (altrimenti mostra una barra per cambiare account).";
@@ -301,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Memorizzato in ~/.codexbar/config.json. Incolla la tua chiave API MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire KILO_API_KEY o ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Memorizza la cronologia di utilizzo locale di Codex (8 settimane) per personalizzare le previsioni di andamento.";
-"Subscription Utilization" = "Utilizzo abbonamento";
 "Surprise me" = "Sorprendimi";
 "Switcher shows icons" = "Il selettore mostra icone";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Crea il symlink di CodexBarCLI in /usr/local/bin e /opt/homebrew/bin come codexbar.";
@@ -732,6 +735,8 @@
 "reset_tomorrow_format" = "domani, %@";
 "Lasts until reset" = "Valido fino al reset";
 "Updated %@" = "Aggiornato %@";
+"Updated relative %@" = "Aggiornato %@";
+"Updated absolute %@" = "Aggiornato %@";
 "Updated %@h ago" = "Aggiornato %@ h fa";
 "Updated %@m ago" = "Aggiornato %@ min fa";
 "Updated just now" = "Aggiornato ora";
@@ -787,6 +792,7 @@
 "Est. total (%@): %@" = "Totale stimato (%@): %@";
 "Hover a bar for details" = "Passa il mouse su una barra per i dettagli";
 "%@: %@ · %@ tokens" = "%@: %@ • %@ token";
+"%@: %@" = "%@: %@";
 "No providers selected for Overview." = "Nessun provider selezionato per Panoramica.";
 "No overview data available." = "Nessun dato di panoramica disponibile.";
 "Auto uses the local IDE API first, then Google OAuth when the IDE is closed." = "Auto usa prima l'API IDE locale, poi Google OAuth quando l'IDE è chiuso.";
@@ -1127,3 +1133,15 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
+"CrossModel API spend trend" = "Andamento di spesa dell'API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Attiva";
+"Disable" = "Disattiva";
+"providers_on_count" = "%d attivi";
+"section_cost_summary" = "Riepilogo costi";
+"section_command_line" = "Riga di comando";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostica";
+"section_updates" = "Aggiornamenti";
+"section_links" = "Link";

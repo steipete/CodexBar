@@ -116,6 +116,19 @@ struct CLIDiagnoseCommandTests {
     }
 
     @Test
+    func `generic diagnose auth summary detects CrossModel environment credentials`() {
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .crossmodel,
+            account: nil,
+            config: nil,
+            environment: [CrossModelSettingsReader.envKey: "cm-test"],
+            settings: nil)
+
+        #expect(summary.configured)
+        #expect(summary.modes == ["api"])
+    }
+
+    @Test
     func `generic diagnose auth summary requires complete Bedrock credentials`() {
         let partial = CodexBarCLI._diagnosticAuthSummaryForTesting(
             provider: .bedrock,

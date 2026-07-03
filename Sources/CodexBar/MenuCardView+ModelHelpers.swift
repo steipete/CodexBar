@@ -228,6 +228,8 @@ extension UsageMenuCardView.Model {
             "Requests"
         } else if input.provider == .grok {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
+        } else if input.provider == .doubao {
+            DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }
@@ -414,7 +416,8 @@ extension UsageMenuCardView.Model {
         pace: UsagePace? = nil) -> PaceDetail?
     {
         guard input.provider == .cursor,
-              window.windowMinutes != nil
+              window.windowMinutes != nil,
+              window.remainingPercent > 0
         else { return nil }
         let resolved = pace ?? UsagePace.weekly(
             window: window,
@@ -647,6 +650,20 @@ extension UsageMenuCardView.Model {
         }
 
         return nil
+    }
+
+    static func crossModelSpendNotes(_ usage: CrossModelUsageSnapshot) -> [String] {
+        let candidates: [(String, Double?)] = [
+            (L("Today"), usage.daily?.cost),
+            (L("This week"), usage.weekly?.cost),
+            (L("This month"), usage.monthly?.cost),
+        ]
+        let rendered = candidates.compactMap { candidate -> String? in
+            guard let value = candidate.1 else { return nil }
+            return "\(candidate.0): \(usage.currencyString(value))"
+        }
+        guard !rendered.isEmpty else { return [] }
+        return [rendered.joined(separator: " · ")]
     }
 
     static func openRouterQuotaDetail(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {

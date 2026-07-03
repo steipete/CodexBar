@@ -2,8 +2,9 @@ import CodexBarCore
 import Foundation
 
 struct CodexUIErrorMapper {
-    private static let codexCLINotSignedInMessage =
-        "Codex CLI is not signed in. Run `codex login --device-auth`, then refresh."
+    private static var codexCLINotSignedInMessage: String {
+        L("Codex CLI is not signed in. Run `codex login --device-auth`, then refresh.")
+    }
 
     static func userFacingMessage(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return nil }
@@ -20,7 +21,7 @@ struct CodexUIErrorMapper {
         }
 
         if self.looksCodexCLIMissing(lower: lower) {
-            return CodexStatusProbeError.codexNotInstalled.localizedDescription
+            return L("Codex CLI missing. Install via `npm i -g @openai/codex` (or bun install) and restart.")
         }
 
         if self.looksCodexCLILoginRequired(lower: lower) {
@@ -28,24 +29,25 @@ struct CodexUIErrorMapper {
         }
 
         if self.looksExpired(lower: lower) {
-            return "Codex session expired. Sign in again."
+            return L("Codex session expired. Sign in again.")
         }
 
         if lower.contains("frame load interrupted") {
-            return "OpenAI web refresh was interrupted. Refresh OpenAI cookies and try again."
+            return L("OpenAI web refresh was interrupted. Refresh OpenAI cookies and try again.")
         }
 
         if self.looksOpenAIWebTimeout(lower: lower) {
-            return "OpenAI web refresh timed out. Refresh OpenAI cookies and try again."
+            return L("OpenAI web refresh timed out. Refresh OpenAI cookies and try again.")
         }
 
         if self.looksOpenAIWebNetworkError(lower: lower) {
-            return "OpenAI web refresh hit a network error. "
-                + "Check your connection, then refresh OpenAI cookies and try again."
+            return L(
+                "OpenAI web refresh hit a network error. " +
+                    "Check your connection, then refresh OpenAI cookies and try again.")
         }
 
         if self.looksInternalTransport(lower: lower) {
-            return "Codex usage is temporarily unavailable. Try refreshing."
+            return L("Codex usage is temporarily unavailable. Try refreshing.")
         }
 
         return trimmed
@@ -55,20 +57,47 @@ struct CodexUIErrorMapper {
         let cachedMarker = " Cached values from "
         guard let suffixRange = raw.range(of: cachedMarker) else { return nil }
 
-        let suffix = String(raw[suffixRange.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawPrefix = String(raw[..<suffixRange.lowerBound])
+        let stamp = self.cachedStamp(raw: raw, suffixRange: suffixRange, marker: cachedMarker)
         if lower.hasPrefix("last codex credits refresh failed:"),
-           let base = self.userFacingMessage(String(raw[..<suffixRange.lowerBound]))
+           let base = self.userFacingMessage(self.failureMessage(
+               rawPrefix: rawPrefix,
+               prefix: "Last Codex credits refresh failed:"))
         {
-            return "\(base) \(suffix)"
+            return "\(base) \(L("Cached values from %@.", stamp))"
         }
 
         if lower.hasPrefix("last openai dashboard refresh failed:"),
-           let base = self.userFacingMessage(String(raw[..<suffixRange.lowerBound]))
+           let base = self.userFacingMessage(self.failureMessage(
+               rawPrefix: rawPrefix,
+               prefix: "Last OpenAI dashboard refresh failed:"))
         {
-            return "\(base) \(suffix)"
+            return "\(base) \(L("Cached values from %@.", stamp))"
         }
 
         return nil
+    }
+
+    private static func failureMessage(rawPrefix: String, prefix: String) -> String {
+        let droppedPrefix = if rawPrefix.lowercased().hasPrefix(prefix.lowercased()) {
+            String(rawPrefix.dropFirst(prefix.count))
+        } else {
+            rawPrefix
+        }
+        var message = droppedPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        if message.hasSuffix(".") {
+            message.removeLast()
+        }
+        return message
+    }
+
+    private static func cachedStamp(raw: String, suffixRange: Range<String.Index>, marker: String) -> String {
+        let start = raw.index(suffixRange.lowerBound, offsetBy: marker.count)
+        var stamp = String(raw[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if stamp.hasSuffix(".") {
+            stamp.removeLast()
+        }
+        return stamp
     }
 
     private static func isAlreadyUserFacing(lower: String) -> Bool {

@@ -70,7 +70,7 @@ struct UsageMenuCardView: View {
             }
 
             var percentLabel: String {
-                "\(UsageFormatter.percentString(self.percent)) \(self.percentStyle.labelSuffix)"
+                UsageFormatter.percentText(self.percent, suffix: self.percentStyle.labelSuffix)
             }
         }
 
@@ -894,6 +894,10 @@ extension UsageMenuCardView.Model {
 
         if let notes = apiProviderUsageNotes(input: input) {
             return notes + subscriptionNotes
+        }
+
+        if input.provider == .crossmodel, let crossModel = input.snapshot?.crossModelUsage {
+            return Self.crossModelSpendNotes(crossModel) + subscriptionNotes
         }
 
         guard input.provider == .openrouter,

@@ -239,6 +239,7 @@
 "Picker subtitle" = "选择器副标题";
 "Placeholder" = "占位符";
 "Plan" = "套餐";
+"Plan Usage" = "套餐用量";
 "Play full-screen confetti when weekly usage resets." = "当每周用量重置时播放全屏彩纸。";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "轮询 OpenAI/Claude 状态页面和 Google Workspace，以检查";
 "Prevents any Keychain access while enabled." = "启用时阻止任何钥匙串访问。";
@@ -310,7 +311,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "存储在 ~/.codexbar/config.json 中。请粘贴你的 MiniMax API 密钥。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "存储本地 Codex 用量历史（8 周），用于个性化进度预测。";
-"Subscription Utilization" = "订阅使用率";
 "Surprise me" = "给我惊喜";
 "Switcher shows icons" = "切换器显示图标";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "将 CodexBarCLI 作为 codexbar 符号链接到 /usr/local/bin 和 /opt/homebrew/bin。";
@@ -704,6 +704,8 @@
 "reset_tomorrow_format" = "明天 %@";
 "Lasts until reset" = "持续到重置";
 "Updated %@" = "更新于 %@";
+"Updated relative %@" = "%@已更新";
+"Updated absolute %@" = "更新于 %@";
 "Updated %@h ago" = "%@ 小时前更新";
 "Updated %@m ago" = "%@ 分钟前更新";
 "Updated just now" = "刚刚更新";
@@ -830,6 +832,7 @@
 "Cache read" = "缓存读取";
 "Claude Admin API 30 day spend trend" = "Claude Admin API 30 天支出趋势";
 "OpenRouter API key spend trend" = "OpenRouter API 密钥支出趋势";
+"CrossModel API spend trend" = "CrossModel API 支出趋势";
 "z.ai hourly token trend" = "z.ai 每小时 token 趋势";
 "MiniMax 30 day token usage trend" = "MiniMax 30 天 token 用量趋势";
 "Today cash" = "今日现金";
@@ -1100,3 +1103,14 @@
 "byte_unit_megabytes" = "兆字节";
 "byte_unit_gigabyte" = "吉字节";
 "byte_unit_gigabytes" = "吉字节";
+
+/* Settings sidebar redesign */
+"Enable" = "启用";
+"Disable" = "停用";
+"providers_on_count" = "%d 个已开启";
+"section_cost_summary" = "费用摘要";
+"section_command_line" = "命令行";
+"section_privacy" = "隐私";
+"section_diagnostics" = "诊断";
+"section_updates" = "更新";
+"section_links" = "链接";

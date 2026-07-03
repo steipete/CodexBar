@@ -4,6 +4,18 @@ enum ProviderCookieSourceUI {
     static let keychainDisabledPrefixKey =
         "Keychain access is disabled in Advanced, so browser cookie import is unavailable."
 
+    @MainActor
+    static func cachedTrailingText(provider: UsageProvider) -> String? {
+        guard let entry = CookieHeaderCache.loadForDisplay(provider: provider) else { return nil }
+        return self.cachedTrailingText(entry: entry)
+    }
+
+    @MainActor
+    static func cachedTrailingText(entry: CookieHeaderCache.Entry) -> String {
+        let when = entry.storedAt.relativeDescription()
+        return L("Cached: %1$@ • %2$@", entry.sourceLabel, when)
+    }
+
     static func options(allowsOff: Bool, keychainDisabled: Bool) -> [ProviderSettingsPickerOption] {
         var options: [ProviderSettingsPickerOption] = []
         if !keychainDisabled {
