@@ -1005,7 +1005,9 @@ public struct AntigravityStatusProbe: Sendable {
         return first
     }
 
-    private static func detectProcessInfos(
+    /// Internal (not private): called by AntigravityCLIHTTPSFetchStrategy
+    /// .liveWarmAgyDependencies to discover an already-running `agy` for reuse.
+    static func detectProcessInfos(
         timeout: TimeInterval,
         scope: ProcessScope = .ideAndCLI) async throws -> [ProcessInfoResult]
     {

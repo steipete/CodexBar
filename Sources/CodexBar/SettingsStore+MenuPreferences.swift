@@ -93,7 +93,7 @@ extension SettingsStore {
     }
 
     func menuBarMetricSupportsPrimaryAndSecondary(for provider: UsageProvider) -> Bool {
-        provider == .codex
+        provider == .codex || provider == .claude
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider) -> Bool {
@@ -143,7 +143,7 @@ extension SettingsStore {
 
     static func isBalanceOnlyProvider(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .deepseek, .mistral, .kimik2, .moonshot, .poe:
+        case .deepseek, .mistral, .kimik2, .moonshot, .poe, .crossmodel:
             true
         default:
             false

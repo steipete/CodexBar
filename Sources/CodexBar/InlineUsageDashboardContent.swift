@@ -177,6 +177,11 @@ extension UsageMenuCardView.Model {
         {
             return Self.openRouterInlineDashboard(usage)
         }
+        if input.provider == .crossmodel,
+           let usage = input.snapshot?.crossModelUsage
+        {
+            return Self.crossModelInlineDashboard(usage)
+        }
         if input.provider == .zai,
            let modelUsage = input.snapshot?.zaiUsage?.modelUsage
         {
@@ -424,6 +429,42 @@ extension UsageMenuCardView.Model {
             detailLines: details)
     }
 
+    private static func crossModelInlineDashboard(_ usage: CrossModelUsageSnapshot) -> InlineUsageDashboardModel? {
+        let periodValues: [(String, String, Double?)] = [
+            ("day", L("Today"), usage.daily?.cost),
+            ("week", L("Week"), usage.weekly?.cost),
+            ("month", L("Month"), usage.monthly?.cost),
+        ]
+        let points = periodValues.compactMap { id, label, value -> InlineUsageDashboardModel.Point? in
+            guard let value else { return nil }
+            return InlineUsageDashboardModel.Point(
+                id: id,
+                label: label,
+                value: value,
+                accessibilityValue: "\(label): \(usage.currencyString(value))")
+        }
+        return InlineUsageDashboardModel(
+            accessibilityLabel: L("CrossModel API spend trend"),
+            valueStyle: Self.costValueStyle(currencyCode: usage.currency),
+            kpis: [
+                .init(title: L("Balance"), value: usage.balanceDisplay, emphasis: true),
+                .init(
+                    title: L("Today"),
+                    value: usage.daily.map { usage.currencyString($0.cost) } ?? "—",
+                    emphasis: false),
+                .init(
+                    title: L("Week"),
+                    value: usage.weekly.map { usage.currencyString($0.cost) } ?? "—",
+                    emphasis: false),
+                .init(
+                    title: L("Month"),
+                    value: usage.monthly.map { usage.currencyString($0.cost) } ?? "—",
+                    emphasis: false),
+            ],
+            points: points,
+            detailLines: [])
+    }
+
     private static func openRouterInlineDashboard(_ usage: OpenRouterUsageSnapshot) -> InlineUsageDashboardModel? {
         let periodValues: [(String, String, Double?)] = [
             ("day", L("Today"), usage.keyUsageDaily),
@@ -432,11 +473,12 @@ extension UsageMenuCardView.Model {
         ]
         let points = periodValues.compactMap { id, label, value -> InlineUsageDashboardModel.Point? in
             guard let value else { return nil }
+            let formattedValue = Self.openRouterCurrencyString(value)
             return InlineUsageDashboardModel.Point(
                 id: id,
                 label: label,
                 value: value,
-                accessibilityValue: "\(label): \(Self.openRouterCurrencyString(value))")
+                accessibilityValue: String(format: L("%@: %@"), label, formattedValue))
         }
         guard !points.isEmpty else { return nil }
         var details: [String] = []
@@ -446,7 +488,10 @@ extension UsageMenuCardView.Model {
         switch usage.keyQuotaStatus {
         case .available:
             if let remaining = usage.keyRemaining {
-                details.append("\(L("Key remaining")): \(Self.openRouterCurrencyString(remaining))")
+                details.append(String(
+                    format: L("%@: %@"),
+                    L("Key remaining"),
+                    Self.openRouterCurrencyString(remaining)))
             }
         case .noLimitConfigured:
             details.append(L("No limit set for the API key"))
@@ -692,9 +737,11 @@ struct InlineUsageDashboardContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             self.kpis
-            MiniUsageBars(model: self.model)
-                .frame(height: 58)
-                .accessibilityLabel(self.model.accessibilityLabel)
+            if !self.model.points.isEmpty {
+                MiniUsageBars(model: self.model)
+                    .frame(height: 58)
+                    .accessibilityLabel(self.model.accessibilityLabel)
+            }
             self.detailLines
         }
         .frame(maxWidth: .infinity, alignment: .leading)

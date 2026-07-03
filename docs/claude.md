@@ -65,6 +65,7 @@ Admin API key setup:
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
   - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
+- On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Endpoint:
   - `GET https://api.anthropic.com/api/oauth/usage`
@@ -128,6 +129,9 @@ Admin API key setup:
   - Extracts percent left/used and reset text near those headers.
   - Parses `Account:` and `Org:` lines when present.
   - Surfaces CLI errors (e.g. token expired) directly.
+  - Some Education and organization-managed subscriptions return only a subscription notice, with no numeric
+    session or weekly quota fields. CodexBar reports those limits as unavailable, keeps local cost/token history
+    visible, and never derives quota percentages from spend or token totals.
 
 ## Cost usage (local log scan)
 - Source roots:

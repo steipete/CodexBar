@@ -176,6 +176,101 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     }
 
     @Test
+    func `rotated refresh token preserves history owner through cache restart`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            let fileURL = tempDir.appendingPathComponent("credentials.json")
+            let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+            defer { KeychainCacheStore.clear(key: cacheKey) }
+
+            try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                    try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
+                        ClaudeOAuthCredentialsStore.invalidateCache()
+                        let expiredData = self.makeCredentialsData(
+                            accessToken: "access-before-rotation",
+                            expiresAt: Date(timeIntervalSinceNow: -3600),
+                            refreshToken: "refresh-before-rotation")
+                        let originalCredentials = try ClaudeOAuthCredentials.parse(data: expiredData)
+                        let originalHistoryOwner = try #require(originalCredentials.historyOwnerIdentifier)
+                        KeychainCacheStore.store(
+                            key: cacheKey,
+                            entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                data: expiredData,
+                                storedAt: Date(),
+                                owner: .codexbar))
+
+                        let refreshedRecord = try await ClaudeOAuthCredentialsStore
+                            .withIsolatedMemoryCacheForTesting {
+                                try await self.withClaudeOAuthTokenRefreshStub(handler: { request in
+                                    let response = try HTTPURLResponse(
+                                        url: #require(request.url),
+                                        statusCode: 200,
+                                        httpVersion: "HTTP/1.1",
+                                        headerFields: ["Content-Type": "application/json"])!
+                                    let json = """
+                                    {
+                                      "access_token": "access-after-rotation",
+                                      "refresh_token": "refresh-after-rotation",
+                                      "expires_in": 3600,
+                                      "token_type": "Bearer"
+                                    }
+                                    """
+                                    return (response, Data(json.utf8))
+                                }, operation: {
+                                    try await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(true) {
+                                        try await ClaudeOAuthCredentialsStore.loadRecordWithAutoRefresh(
+                                            environment: [:],
+                                            allowKeychainPrompt: false,
+                                            respectKeychainPromptCooldown: true)
+                                    }
+                                })
+                            }
+
+                        let rotatedCredentialOwner = try #require(
+                            refreshedRecord.credentials.historyOwnerIdentifier)
+                        #expect(rotatedCredentialOwner != originalHistoryOwner)
+                        #expect(refreshedRecord.historyOwnerIdentifier == originalHistoryOwner)
+
+                        switch KeychainCacheStore.load(
+                            key: cacheKey,
+                            as: ClaudeOAuthCredentialsStore.CacheEntry.self)
+                        {
+                        case let .found(entry):
+                            #expect(entry.owner == .codexbar)
+                            #expect(entry.historyOwnerIdentifier == originalHistoryOwner)
+                        default:
+                            Issue.record("Expected refreshed cache entry with preserved history lineage")
+                        }
+
+                        let restartedRecord = try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                            try ClaudeOAuthCredentialsStore.loadRecord(
+                                environment: [:],
+                                allowKeychainPrompt: false,
+                                respectKeychainPromptCooldown: true,
+                                allowClaudeKeychainRepairWithoutPrompt: false)
+                        }
+                        #expect(restartedRecord.credentials.accessToken == "access-after-rotation")
+                        #expect(restartedRecord.credentials.refreshToken == "refresh-after-rotation")
+                        #expect(restartedRecord.source == .cacheKeychain)
+                        #expect(restartedRecord.historyOwnerIdentifier == originalHistoryOwner)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     func `load record treats codexbar cache as claude CLI owned when credentials file exists`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {
@@ -401,6 +496,90 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         #expect(record.source == .cacheKeychain)
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    func `expired claude CLI owner blocks background mcp O auth but lets user action delegate`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let mcpOAuthOnly = Data("""
+        {
+          "mcpOAuth": {
+            "plugin:slack:slack": { "accessToken": "" }
+          }
+        }
+        """.utf8)
+
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("credentials.json")
+
+            await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                    .securityCLIExperimental,
+                    operation: {
+                        await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                            await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
+                                .data(mcpOAuthOnly))
+                            {
+                                ClaudeOAuthCredentialsStore.invalidateCache()
+                                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                                defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                                let expiredData = self.makeCredentialsData(
+                                    accessToken: "expired-claude-cli-owner",
+                                    expiresAt: Date(timeIntervalSinceNow: -3600),
+                                    refreshToken: "refresh-token")
+                                KeychainCacheStore.store(
+                                    key: cacheKey,
+                                    entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                        data: expiredData,
+                                        storedAt: Date(),
+                                        owner: .claudeCLI))
+
+                                do {
+                                    _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                        environment: [:],
+                                        allowKeychainPrompt: false,
+                                        respectKeychainPromptCooldown: true)
+                                    Issue.record("Expected mcpOAuth-only keychain error")
+                                } catch let error as ClaudeOAuthCredentialsError {
+                                    guard case .mcpOAuthOnlyKeychain = error else {
+                                        Issue.record("Expected .mcpOAuthOnlyKeychain, got \(error)")
+                                        return
+                                    }
+                                } catch {
+                                    Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                }
+
+                                do {
+                                    _ = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                        try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                            environment: [:],
+                                            allowKeychainPrompt: false,
+                                            respectKeychainPromptCooldown: true)
+                                    }
+                                    Issue.record("Expected delegated refresh on explicit user action")
+                                } catch let error as ClaudeOAuthCredentialsError {
+                                    guard case .refreshDelegatedToClaudeCLI = error else {
+                                        Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
+                                        return
+                                    }
+                                } catch {
+                                    Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                }
+                            }
+                        }
+                    })
             }
         }
     }

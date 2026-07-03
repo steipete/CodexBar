@@ -48,6 +48,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case crof
     case venice
     case commandcode
+    case qoder
     case stepfun
     case bedrock
     case grok
@@ -57,6 +58,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case deepgram
     case poe
     case chutes
+    case crossmodel
 }
 
 // swiftformat:enable sortDeclarations
@@ -105,6 +107,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case crof
     case venice
     case commandcode
+    case qoder
     case stepfun
     case bedrock
     case grok
@@ -114,6 +117,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case deepgram
     case poe
     case chutes
+    case crossmodel
     case combined
 }
 
@@ -256,6 +260,16 @@ public enum ProviderBrowserCookieDefaults {
 
     /// Copilot budget imports should stay Chrome-only by default to avoid prompting unrelated browsers.
     public static var copilotCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
+
+    /// Qoder sessions are documented through Chrome cookie import. Keep automatic import narrow
+    /// so enabling this provider does not probe unrelated browser keychains.
+    public static var qoderCookieImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
         [.chrome]
         #else

@@ -79,8 +79,8 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricSupportsPrimaryAndSecondary(for: .codex))
 
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
-        #expect(settings.menuBarMetricPreference(for: .claude) == .automatic)
-        #expect(!settings.menuBarMetricSupportsPrimaryAndSecondary(for: .claude))
+        #expect(settings.menuBarMetricPreference(for: .claude) == .primaryAndSecondary)
+        #expect(settings.menuBarMetricSupportsPrimaryAndSecondary(for: .claude))
 
         settings.setMenuBarMetricPreference(.monthlyPlan, for: .codex)
         #expect(settings.menuBarMetricPreference(for: .codex) == .automatic)
@@ -154,7 +154,7 @@ struct SettingsStoreAdditionalTests {
     func `menu bar metric preference restricts text only balance providers to automatic`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-text-only-metric")
 
-        for provider in [UsageProvider.deepseek, .kimik2, .poe] {
+        for provider in [UsageProvider.deepseek, .kimik2, .poe, .crossmodel] {
             settings.setMenuBarMetricPreference(.primary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
 

@@ -1,5 +1,80 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
+
+/// Colored rounded-square symbol used for app panes in the settings sidebar,
+/// mirroring the System Settings sidebar style.
+struct SettingsIconChip: View {
+    static let side: CGFloat = 20
+
+    let systemImage: String
+    let color: Color
+
+    var body: some View {
+        Image(systemName: self.systemImage)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: Self.side, height: Self.side)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [self.color.opacity(0.85), self.color],
+                        startPoint: .top,
+                        endPoint: .bottom)))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Two-line label for grouped-form rows that genuinely need a supporting sentence.
+struct SettingsRowLabel: View {
+    let title: String
+    let subtitle: String?
+
+    init(_ title: String, subtitle: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(self.title)
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+@MainActor
+struct OpenMenuShortcutRecorder: NSViewRepresentable {
+    static let preferredWidth: CGFloat = 170
+
+    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
+        KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+    }
+
+    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
+        nsView.shortcutName = .openMenu
+    }
+
+    func sizeThatFits(
+        _: ProposedViewSize,
+        nsView: KeyboardShortcuts.RecorderCocoa,
+        context: Context)
+        -> CGSize?
+    {
+        Self.fittedSize(intrinsicHeight: nsView.intrinsicContentSize.height)
+    }
+
+    static func fittedSize(intrinsicHeight: CGFloat) -> CGSize {
+        CGSize(width: self.preferredWidth, height: intrinsicHeight)
+    }
+}
+
+// MARK: - Legacy building blocks (Debug pane)
 
 @MainActor
 struct PreferenceToggleRow: View {
@@ -61,31 +136,6 @@ struct SettingsSection<Content: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-}
-
-@MainActor
-struct AboutLinkRow: View {
-    let icon: String
-    let title: String
-    let url: String
-    @State private var hovering = false
-
-    var body: some View {
-        Button {
-            if let url = URL(string: self.url) { NSWorkspace.shared.open(url) }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: self.icon)
-                Text(self.title)
-                    .underline(self.hovering, color: .accentColor)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-            .foregroundColor(.accentColor)
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .onHover { self.hovering = $0 }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

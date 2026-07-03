@@ -54,9 +54,33 @@ private enum KeychainPromptMessage {
         "so it can fetch usage. Click OK to continue."
 }
 
+struct KeychainPromptAlertModel: Equatable {
+    let title: String
+    let message: String
+    let primaryButtonTitle: String
+    let learnMoreButtonTitle: String
+    let documentationURL: String
+}
+
+@MainActor
+private final class KeychainPromptLearnMoreTarget: NSObject {
+    private let documentationURL: String
+
+    init(documentationURL: String) {
+        self.documentationURL = documentationURL
+    }
+
+    @objc func openDocumentation() {
+        guard let url = URL(string: self.documentationURL) else { return }
+        NSWorkspace.shared.open(url)
+    }
+}
+
 enum KeychainPromptCoordinator {
     private static let promptLock = NSLock()
     private static let log = CodexBarLog.logger(LogCategories.keychainPrompt)
+    private static let documentationURL =
+        "https://github.com/steipete/CodexBar/blob/main/docs/keychain-prompts.md"
 
     static func install() {
         KeychainPromptHandler.handler = { context in
@@ -96,79 +120,103 @@ enum KeychainPromptCoordinator {
     }
 
     private static func presentKeychainPrompt(_ context: KeychainPromptContext) {
-        let (title, message) = self.keychainCopy(for: context)
+        let model = self.alertModel(for: context)
         self.log.info("Keychain prompt requested", metadata: ["kind": "\(context.kind)"])
-        self.presentAlert(title: title, message: message)
+        self.presentAlert(model)
     }
 
     private static func presentBrowserCookiePrompt(_ context: BrowserCookieKeychainPromptContext) {
-        let title = L("Keychain Access Required")
-        let message = L(
-            KeychainPromptMessage.browserCookie,
-            context.label)
+        let model = self.browserCookieAlertModel(label: context.label)
         self.log.info("Browser cookie keychain prompt requested", metadata: ["label": context.label])
-        self.presentAlert(title: title, message: message)
+        self.presentAlert(model)
     }
 
-    private static func keychainCopy(for context: KeychainPromptContext) -> (title: String, message: String) {
-        let title = L("Keychain Access Required")
-        switch context.kind {
+    static func alertModel(for context: KeychainPromptContext) -> KeychainPromptAlertModel {
+        let purpose = switch context.kind {
         case .claudeOAuth:
-            return (title, L(KeychainPromptMessage.claudeOAuth))
+            L(KeychainPromptMessage.claudeOAuth)
         case .codexCookie:
-            return (title, L(KeychainPromptMessage.codexCookie))
+            L(KeychainPromptMessage.codexCookie)
         case .claudeCookie:
-            return (title, L(KeychainPromptMessage.claudeCookie))
+            L(KeychainPromptMessage.claudeCookie)
         case .cursorCookie:
-            return (title, L(KeychainPromptMessage.cursorCookie))
+            L(KeychainPromptMessage.cursorCookie)
         case .opencodeCookie:
-            return (title, L(KeychainPromptMessage.openCodeCookie))
+            L(KeychainPromptMessage.openCodeCookie)
         case .factoryCookie:
-            return (title, L(KeychainPromptMessage.factoryCookie))
+            L(KeychainPromptMessage.factoryCookie)
         case .zaiToken:
-            return (title, L(KeychainPromptMessage.zaiToken))
+            L(KeychainPromptMessage.zaiToken)
         case .syntheticToken:
-            return (title, L(KeychainPromptMessage.syntheticToken))
+            L(KeychainPromptMessage.syntheticToken)
         case .copilotToken:
-            return (title, L(KeychainPromptMessage.copilotToken))
+            L(KeychainPromptMessage.copilotToken)
         case .kimiToken:
-            return (title, L(KeychainPromptMessage.kimiToken))
+            L(KeychainPromptMessage.kimiToken)
         case .kimiK2Token:
-            return (title, L(KeychainPromptMessage.kimiK2Token))
+            L(KeychainPromptMessage.kimiK2Token)
         case .minimaxCookie:
-            return (title, L(KeychainPromptMessage.minimaxCookie))
+            L(KeychainPromptMessage.minimaxCookie)
         case .minimaxToken:
-            return (title, L(KeychainPromptMessage.minimaxToken))
+            L(KeychainPromptMessage.minimaxToken)
         case .augmentCookie:
-            return (title, L(KeychainPromptMessage.augmentCookie))
+            L(KeychainPromptMessage.augmentCookie)
         case .ampCookie:
-            return (title, L(KeychainPromptMessage.ampCookie))
+            L(KeychainPromptMessage.ampCookie)
         }
+        return self.alertModel(purpose: purpose)
     }
 
-    private static func presentAlert(title: String, message: String) {
+    static func browserCookieAlertModel(label: String) -> KeychainPromptAlertModel {
+        self.alertModel(purpose: L(KeychainPromptMessage.browserCookie, label))
+    }
+
+    private static func alertModel(purpose: String) -> KeychainPromptAlertModel {
+        KeychainPromptAlertModel(
+            title: L("Keychain Access Required"),
+            message: "\(purpose)\n\n\(L("keychain_prompt_privacy_note"))",
+            primaryButtonTitle: L("OK"),
+            learnMoreButtonTitle: L("keychain_prompt_learn_more"),
+            documentationURL: self.documentationURL)
+    }
+
+    private static func presentAlert(_ model: KeychainPromptAlertModel) {
         self.promptLock.lock()
         defer { self.promptLock.unlock() }
 
         if Thread.isMainThread {
             MainActor.assumeIsolated {
-                self.showAlert(title: title, message: message)
+                self.showAlert(model)
             }
             return
         }
         DispatchQueue.main.sync {
             MainActor.assumeIsolated {
-                self.showAlert(title: title, message: message)
+                self.showAlert(model)
             }
         }
     }
 
     @MainActor
-    private static func showAlert(title: String, message: String) {
+    private static func showAlert(_ model: KeychainPromptAlertModel) {
         let alert = NSAlert()
-        alert.messageText = L(title)
-        alert.informativeText = L(message)
-        alert.addButton(withTitle: L("OK"))
-        _ = alert.runModal()
+        alert.messageText = model.title
+        alert.informativeText = model.message
+        alert.addButton(withTitle: model.primaryButtonTitle)
+
+        let learnMoreTarget = KeychainPromptLearnMoreTarget(documentationURL: model.documentationURL)
+        let learnMoreButton = NSButton(
+            title: model.learnMoreButtonTitle,
+            target: learnMoreTarget,
+            action: #selector(KeychainPromptLearnMoreTarget.openDocumentation))
+        learnMoreButton.isBordered = false
+        learnMoreButton.contentTintColor = .linkColor
+        learnMoreButton.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        learnMoreButton.sizeToFit()
+        alert.accessoryView = learnMoreButton
+
+        withExtendedLifetime(learnMoreTarget) {
+            _ = alert.runModal()
+        }
     }
 }
