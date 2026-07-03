@@ -166,6 +166,190 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         }
     }
 
+    /// Seams for discovering and reusing an already-running ``agy`` CLI language
+    /// server, so a fresh spawn (and its multi-second ``GetUserStatus`` warm-up)
+    /// can be skipped when a warm server is already present.
+    struct WarmAgyDependencies {
+        let processInfos: @Sendable (TimeInterval) async throws -> [AntigravityStatusProbe.ProcessInfoResult]
+        let listeningPorts: @Sendable (Int, TimeInterval) async throws -> [Int]
+        let fetchSnapshot: @Sendable ([Int], TimeInterval) async throws -> AntigravityStatusSnapshot
+        let processOwnerUserID: @Sendable (Int) -> UInt32?
+        let currentUserID: @Sendable () -> UInt32
+        /// The pid of an ``agy`` that CodexBar itself spawned and manages through
+        /// ``AntigravityCLISession`` (if any). Such a process must NOT be reused
+        /// through the warm path: doing so bypasses `beginProbe`/`finishProbe`, so
+        /// the idle timer is never cancelled/extended and `stopIfIdle` could tear
+        /// the managed session down mid-poll. Externally owned `agy` (an IDE, a
+        /// long-lived `agy`, or another CodexBar host) has no such accounting.
+        let ownedPID: @Sendable () async -> Int?
+        let now: @Sendable () -> Date
+
+        init(
+            processInfos: @escaping @Sendable (TimeInterval) async throws
+                -> [AntigravityStatusProbe.ProcessInfoResult],
+            listeningPorts: @escaping @Sendable (Int, TimeInterval) async throws -> [Int],
+            fetchSnapshot: @escaping @Sendable ([Int], TimeInterval) async throws -> AntigravityStatusSnapshot,
+            processOwnerUserID: @escaping @Sendable (Int) -> UInt32? = { _ in 0 },
+            currentUserID: @escaping @Sendable () -> UInt32 = { 0 },
+            ownedPID: @escaping @Sendable () async -> Int? = { nil },
+            now: @escaping @Sendable () -> Date = Date.init)
+        {
+            self.processInfos = processInfos
+            self.listeningPorts = listeningPorts
+            self.fetchSnapshot = fetchSnapshot
+            self.processOwnerUserID = processOwnerUserID
+            self.currentUserID = currentUserID
+            self.ownedPID = ownedPID
+            self.now = now
+        }
+    }
+
+    /// Discover an already-running, authenticated ``agy`` CLI language server and
+    /// reuse its listening ports instead of spawning a fresh process.
+    ///
+    /// One-shot CLI invocations otherwise spawn a brand-new ``agy`` on every
+    /// call; a fresh server binds its port quickly but ``GetUserStatus`` returns
+    /// transient initialization failures for a few seconds, so the readiness
+    /// deadline is occasionally missed. When a warm CLI server is already up, we
+    /// can talk to it immediately — it needs no CSRF token (``cliHTTPS``).
+    ///
+    /// Returns the snapshot from the first warm server that answers with
+    /// parseable usage for the requested account, or `nil` when none is found or
+    /// none answers — in which case the caller falls back to the existing spawn
+    /// path unchanged.
+    static func tryWarmAgyFetch(
+        timeout: TimeInterval,
+        expectedBinaryPath: String? = nil,
+        expectedAccountEmail: String? = nil,
+        dependencies: WarmAgyDependencies) async throws -> AntigravityStatusSnapshot?
+    {
+        try Task.checkCancellation()
+        let deadline = dependencies.now().addingTimeInterval(timeout)
+        guard let discoveryTimeout = Self.remainingWarmProbeTime(deadline: deadline, now: dependencies.now) else {
+            return nil
+        }
+        let processInfos: [AntigravityStatusProbe.ProcessInfoResult]
+        do {
+            processInfos = try await dependencies.processInfos(discoveryTimeout)
+        } catch let error as CancellationError {
+            throw error
+        } catch {
+            return nil
+        }
+        try Task.checkCancellation()
+        let ownedPID = await dependencies.ownedPID()
+        try Task.checkCancellation()
+        let currentUserID = dependencies.currentUserID()
+        // Only the CLI's language server needs no CSRF token; the IDE/app servers
+        // require one and must not be reused through this token-less fast path.
+        // Also exclude any `agy` CodexBar itself spawned and manages: reusing it
+        // here would bypass session lifecycle accounting (see `ownedPID`).
+        let cliProcesses = processInfos.filter { info in
+            info.pid != ownedPID &&
+                dependencies.processOwnerUserID(info.pid) == currentUserID &&
+                AntigravityStatusProbe.antigravityProcessKind(info.commandLine) == .cli
+        }
+        guard !cliProcesses.isEmpty else { return nil }
+
+        for info in cliProcesses {
+            if let expectedBinaryPath {
+                guard Self.commandLine(info.commandLine, matchesBinaryPath: expectedBinaryPath)
+                else {
+                    continue
+                }
+            }
+            guard let portTimeout = Self.remainingWarmProbeTime(deadline: deadline, now: dependencies.now) else {
+                return nil
+            }
+            let ports: [Int]
+            do {
+                ports = try await dependencies.listeningPorts(info.pid, portTimeout)
+            } catch let error as CancellationError {
+                throw error
+            } catch {
+                continue
+            }
+            try Task.checkCancellation()
+            guard !ports.isEmpty else { continue }
+            guard let fetchTimeout = Self.remainingWarmProbeTime(deadline: deadline, now: dependencies.now) else {
+                return nil
+            }
+            let snapshot: AntigravityStatusSnapshot
+            do {
+                snapshot = try await dependencies.fetchSnapshot(ports, fetchTimeout)
+            } catch let error as CancellationError {
+                throw error
+            } catch {
+                continue
+            }
+            try Task.checkCancellation()
+            guard (try? snapshot.toUsageSnapshot()) != nil,
+                  AntigravitySelectedAccountGuard.matches(
+                      snapshotAccountEmail: snapshot.accountEmail,
+                      expectedAccountEmail: expectedAccountEmail)
+            else {
+                continue
+            }
+            Self.log.debug("Antigravity CLI HTTPS reusing warm agy", metadata: [
+                "pid": "\(info.pid)",
+                "ports": ports.map(String.init).joined(separator: ","),
+            ])
+            return snapshot
+        }
+        try Task.checkCancellation()
+        return nil
+    }
+
+    private static func remainingWarmProbeTime(
+        deadline: Date,
+        now: @Sendable () -> Date) -> TimeInterval?
+    {
+        let remaining = deadline.timeIntervalSince(now())
+        return remaining > 0 ? remaining : nil
+    }
+
+    private static func commandLine(_ commandLine: String, matchesBinaryPath binaryPath: String) -> Bool {
+        let candidates = [
+            URL(fileURLWithPath: binaryPath).standardizedFileURL.path,
+            URL(fileURLWithPath: binaryPath).resolvingSymlinksInPath().standardizedFileURL.path,
+        ]
+        return candidates.contains { candidate in
+            commandLine == candidate || commandLine.hasPrefix("\(candidate) ")
+        }
+    }
+
+    /// Production wiring for ``tryWarmAgyFetch``: list processes via `ps`, find
+    /// listening ports via `lsof`, and probe the token-less CLI HTTPS endpoint.
+    static func liveWarmAgyDependencies() -> WarmAgyDependencies {
+        WarmAgyDependencies(
+            processInfos: { timeout in
+                // A missing-CSRF/notRunning throw means no reusable server; the
+                // caller maps any throw to "no warm agy" and spawns instead.
+                try await AntigravityStatusProbe.detectProcessInfos(
+                    timeout: timeout,
+                    scope: .ideAndCLI)
+            },
+            listeningPorts: { pid, timeout in
+                try await AntigravityStatusProbe.listeningPorts(pid: pid, timeout: timeout)
+            },
+            fetchSnapshot: { ports, timeout in
+                let deadline = Date().addingTimeInterval(timeout)
+                return try await AntigravityStatusProbe(timeout: timeout)
+                    .fetchFromPorts(ports, deadline: deadline)
+            },
+            processOwnerUserID: { pid in
+                AntigravityProcessIdentityProvider().ownerUserID(for: pid_t(pid))
+            },
+            currentUserID: {
+                AntigravityProcessIdentityProvider.currentUserID
+            },
+            ownedPID: {
+                // The pid of the `agy` CodexBar manages through the shared
+                // session, so the warm scan never reuses our own process.
+                await AntigravityCLISession.shared.pid.map(Int.init)
+            })
+    }
+
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         BinaryLocator.resolveAntigravityBinary(env: context.env) != nil
     }
@@ -174,15 +358,88 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         guard let binary = BinaryLocator.resolveAntigravityBinary(env: context.env) else {
             throw AntigravityStatusProbeError.notRunning
         }
+        let expectedAccountEmail: String? = if context.sourceMode == .auto,
+                                               context.selectedTokenAccountID != nil
+        {
+            AntigravitySelectedAccountGuard.selectedAccountEmail(context: context)
+        } else {
+            nil
+        }
         let result = try await self.fetchUsingWarmSession(
             binary: binary,
             idleWindow: context.persistentCLISessionIdleWindow,
-            resetAfterFetch: Self.shouldResetSessionAfterFetch(context))
+            resetAfterFetch: Self.shouldResetSessionAfterFetch(context),
+            expectedAccountEmail: expectedAccountEmail)
         try AntigravitySelectedAccountGuard.validate(result.usage, context: context)
         return result
     }
 
     private func fetchUsingWarmSession(
+        binary: String,
+        idleWindow: TimeInterval?,
+        resetAfterFetch: Bool,
+        expectedAccountEmail: String?) async throws -> ProviderFetchResult
+    {
+        try await self.fetchUsingWarmSession(
+            binary: binary,
+            idleWindow: idleWindow,
+            resetAfterFetch: resetAfterFetch,
+            expectedAccountEmail: expectedAccountEmail,
+            warmDependencies: Self.liveWarmAgyDependencies(),
+            spawnFetch: { binary, idleWindow, resetAfterFetch in
+                try await self.fetchBySpawning(
+                    binary: binary,
+                    idleWindow: idleWindow,
+                    resetAfterFetch: resetAfterFetch)
+            })
+    }
+
+    /// Testable core of the CLI fetch: try the warm-reuse fast path first, then
+    /// fall back to spawning. The `spawnFetch` seam lets tests assert the spawn
+    /// path is skipped when a warm server is reused.
+    func fetchUsingWarmSession(
+        binary: String,
+        idleWindow: TimeInterval?,
+        resetAfterFetch: Bool,
+        expectedAccountEmail: String? = nil,
+        warmDependencies: WarmAgyDependencies,
+        spawnFetch: @Sendable (String, TimeInterval?, Bool) async throws -> ProviderFetchResult)
+        async throws -> ProviderFetchResult
+    {
+        // Fast path: reuse an already-running, authenticated `agy` CLI server if
+        // one is present, avoiding a fresh spawn and its multi-second warm-up.
+        // When none is found (or none answers), fall through to the spawn path.
+        //
+        // The warm path deliberately does NOT touch `AntigravityCLISession`
+        // (`beginProbe`/`finishProbe`): a discovered `agy` is owned by another
+        // process (an IDE, a long-lived `agy`, or another CodexBar host), so
+        // CodexBar must not manage its lifecycle, idle timeout, or
+        // `resetAfterFetch` teardown. Those apply only to processes CodexBar
+        // itself spawns on the fallback path below.
+        // Long-lived hosts already keep a managed session warm. Restrict external
+        // process reuse to one-shot CLI calls so app/server lifecycle accounting
+        // stays entirely inside AntigravityCLISession.
+        if resetAfterFetch, let warmSnapshot = try await Self.tryWarmAgyFetch(
+            timeout: 2.0,
+            expectedBinaryPath: binary,
+            expectedAccountEmail: expectedAccountEmail,
+            dependencies: warmDependencies)
+        {
+            // `tryWarmAgyFetch` only returns a snapshot whose `toUsageSnapshot()`
+            // already succeeded, so this conversion must not silently fail.
+            let warmUsage = try warmSnapshot.toUsageSnapshot()
+            return self.makeResult(
+                usage: warmUsage,
+                sourceLabel: Self.sourceLabel)
+        }
+
+        try Task.checkCancellation()
+        return try await spawnFetch(binary, idleWindow, resetAfterFetch)
+    }
+
+    /// Spawn (or reuse CodexBar's own warm) `agy` session and wait for the CLI
+    /// HTTPS endpoint to report ready. This is the original behavior, unchanged.
+    private func fetchBySpawning(
         binary: String,
         idleWindow: TimeInterval?,
         resetAfterFetch: Bool) async throws -> ProviderFetchResult
@@ -381,6 +638,12 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
 /// and let the pipeline fall through to OAuth. Explicit ``cli``/``oauth`` source
 /// modes stay authoritative and are never second-guessed here.
 enum AntigravitySelectedAccountGuard {
+    static func matches(snapshotAccountEmail: String?, expectedAccountEmail: String?) -> Bool {
+        guard let expected = self.normalizedEmail(expectedAccountEmail) else { return true }
+        guard let found = self.normalizedEmail(snapshotAccountEmail) else { return false }
+        return found.caseInsensitiveCompare(expected) == .orderedSame
+    }
+
     static func validate(_ usage: UsageSnapshot, context: ProviderFetchContext) throws {
         guard context.sourceMode == .auto, context.selectedTokenAccountID != nil else { return }
         let expected = self.selectedAccountEmail(context: context)

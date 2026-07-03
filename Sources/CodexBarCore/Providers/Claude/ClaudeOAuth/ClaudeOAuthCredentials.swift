@@ -411,7 +411,7 @@ public enum ClaudeOAuthCredentialsStore {
                     guard fallbackDecision.allowed else { return nil }
                 }
 
-                if ClaudeOAuthCredentialsStore.shouldShowClaudeKeychainPreAlert() {
+                if ClaudeOAuthCredentialsStore.shouldNotifyClaudeKeychainPreAlert() {
                     KeychainPromptHandler.notify(
                         KeychainPromptContext(
                             kind: .claudeOAuth,
@@ -1174,6 +1174,16 @@ public enum ClaudeOAuthCredentialsStore {
 
         switch record.owner {
         case .claudeCLI:
+            if ProviderInteractionContext.current != .userInitiated,
+               ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+                   interaction: ProviderInteractionContext.current,
+                   environment: environment)
+            {
+                self.log.warning(
+                    "Claude OAuth credentials expired; Claude keychain has MCP OAuth state only",
+                    metadata: expiryMetadata)
+                throw ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain
+            }
             self.log.info(
                 "Claude OAuth credentials expired; delegating refresh to Claude CLI",
                 metadata: expiryMetadata)
@@ -1625,11 +1635,16 @@ public enum ClaudeOAuthCredentialsStore {
         return "\(modifiedAt):\(fingerprint.size)"
     }
 
-    private static func loadFromClaudeKeychainNonInteractive() throws -> Data? {
+    private static func loadFromClaudeKeychainNonInteractive(
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
+        throws -> Data?
+    {
         #if os(macOS)
-        let fallbackPromptMode = ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode()
+        let fallbackPromptMode = ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode(
+            readStrategy: readStrategy)
         if let data = self.loadFromClaudeKeychainViaSecurityCLIIfEnabled(
-            interaction: ProviderInteractionContext.current)
+            interaction: ProviderInteractionContext.current,
+            readStrategy: readStrategy)
         {
             return data
         }
@@ -1659,6 +1674,38 @@ public enum ClaudeOAuthCredentialsStore {
             promptMode: fallbackPromptMode)
         if let legacyData, !legacyData.isEmpty { return legacyData }
         return nil
+        #else
+        return nil
+        #endif
+    }
+
+    static func readRawClaudeKeychainPayloadViaSecurityFrameworkWithoutPrompt() -> Data? {
+        #if os(macOS)
+        guard self.keychainAccessAllowed else { return nil }
+        #if DEBUG
+        if let store = self.taskClaudeKeychainOverrideStore { return store.data }
+        if let override = self.taskClaudeKeychainDataOverride ?? self.claudeKeychainDataOverride { return override }
+        #endif
+
+        // This probe must work under the default `onlyOnUserAction` policy, but must never show Keychain UI.
+        // The candidate and data queries both use KeychainNoUIQuery; `.always` only bypasses the prompt-policy gate.
+        switch self.claudeKeychainCandidatesProbeWithoutPrompt(
+            promptMode: .always,
+            enforcePromptPolicy: false)
+        {
+        case .unavailable:
+            return nil
+        case let .value(candidates):
+            if let newest = candidates.first {
+                return try? self.loadClaudeKeychainData(
+                    candidate: newest,
+                    allowKeychainPrompt: false,
+                    promptMode: .always)
+            }
+        }
+        return try? self.loadClaudeKeychainLegacyData(
+            allowKeychainPrompt: false,
+            promptMode: .always)
         #else
         return nil
         #endif
@@ -2265,6 +2312,14 @@ extension ClaudeOAuthCredentialsStore {
         case .allowed, .notFound:
             false
         }
+    }
+
+    private static func shouldNotifyClaudeKeychainPreAlert() -> Bool {
+        let mode = ClaudeOAuthKeychainPromptPreference.current()
+        guard self.shouldAllowClaudeCodeKeychainAccess(mode: mode) else { return false }
+        // Attribute-only preflight can report success even when reading the secret will prompt. Explicit user
+        // actions are rare and intentional, so always explain the read before Security.framework can show UI.
+        return ProviderInteractionContext.current == .userInitiated || self.shouldShowClaudeKeychainPreAlert()
     }
 
     /// Refresh the access token using a refresh token.

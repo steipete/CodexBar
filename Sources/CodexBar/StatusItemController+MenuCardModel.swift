@@ -105,6 +105,7 @@ extension StatusItemController {
             lastError: errorOverride
                 ?? codexProjection?.userFacingErrors.usage
                 ?? self.store.userFacingError(for: target),
+            limitsAvailability: self.store.knownLimitsAvailability(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),

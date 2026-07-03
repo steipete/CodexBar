@@ -125,6 +125,77 @@ struct OpenCodeGoUsageParserTests {
     }
 
     @Test
+    func `parses rolling only usage from seroval response`() throws {
+        let text =
+            "$R[16]($R[30],$R[41]={rollingUsage:$R[42]={status:\"ok\",resetInSec:5944,usagePercent:17}});"
+        let now = Date(timeIntervalSince1970: 0)
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.rollingUsagePercent == 17)
+        #expect(snapshot.rollingResetInSec == 5944)
+        #expect(snapshot.hasWeeklyUsage == false)
+        #expect(usage.primary?.usedPercent == 17)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary == nil)
+    }
+
+    @Test
+    func `parses rolling only usage from JSON response`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let payload: [String: Any] = [
+            "usage": [
+                "rollingUsage": [
+                    "usagePercent": 25,
+                    "resetInSec": 600,
+                ],
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let text = String(data: data, encoding: .utf8) ?? ""
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.rollingUsagePercent == 25)
+        #expect(snapshot.rollingResetInSec == 600)
+        #expect(snapshot.hasWeeklyUsage == false)
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary == nil)
+    }
+
+    @Test
+    func `recovers weekly usage from nested JSON window`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let payload: [String: Any] = [
+            "usage": [
+                "rollingUsage": [
+                    "usagePercent": 25,
+                    "resetInSec": 600,
+                ],
+                "weeklyUsage": [
+                    "window": [
+                        "usagePercent": 75,
+                        "resetInSec": 7200,
+                    ],
+                ],
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let text = String(data: data, encoding: .utf8) ?? ""
+
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.hasWeeklyUsage == true)
+        #expect(snapshot.weeklyUsagePercent == 75)
+        #expect(snapshot.weeklyResetInSec == 7200)
+        #expect(usage.secondary?.usedPercent == 75)
+    }
+
+    @Test
     func `parses subscription from JSON with reset at and ratio percentages`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let rollingResetAt = now.addingTimeInterval(3600)
@@ -261,7 +332,7 @@ struct OpenCodeGoUsageParserTests {
     }
 
     @Test
-    func `candidate fallback does not fabricate weekly from non weekly windows`() throws {
+    func `candidate fallback preserves missing weekly window`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let payload: [String: Any] = [
             "windows": [
@@ -280,9 +351,15 @@ struct OpenCodeGoUsageParserTests {
         let data = try JSONSerialization.data(withJSONObject: payload)
         let text = String(data: data, encoding: .utf8) ?? ""
 
-        #expect(throws: OpenCodeGoUsageError.self) {
-            _ = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
-        }
+        let snapshot = try OpenCodeGoUsageFetcher.parseSubscription(text: text, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.rollingUsagePercent == 15)
+        #expect(snapshot.hasWeeklyUsage == false)
+        #expect(snapshot.hasMonthlyUsage == true)
+        #expect(snapshot.monthlyUsagePercent == 30)
+        #expect(usage.secondary == nil)
+        #expect(usage.tertiary?.usedPercent == 30)
     }
 
     @Test

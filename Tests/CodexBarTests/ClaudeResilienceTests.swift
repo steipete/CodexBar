@@ -5,6 +5,174 @@ import Testing
 
 struct ClaudeResilienceTests {
     @Test
+    func `cancelled Claude refresh never publishes an error`() async throws {
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                let store = try await MainActor.run {
+                    let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-cancellation")
+                    settings.refreshFrequency = .manual
+                    settings.statusChecksEnabled = false
+                    settings.claudeUsageDataSource = .cli
+                    settings.claudeOAuthKeychainPromptMode = .never
+
+                    let metadata = ProviderRegistry.shared.metadata
+                    for provider in UsageProvider.allCases {
+                        try settings.setProviderEnabled(
+                            provider: provider,
+                            metadata: #require(metadata[provider]),
+                            enabled: provider == .claude)
+                    }
+
+                    let store = UsageStore(
+                        fetcher: UsageFetcher(environment: [:]),
+                        browserDetection: BrowserDetection(cacheTTL: 0),
+                        settings: settings,
+                        startupBehavior: .testing,
+                        environmentBase: [:])
+                    let baseSpec = try #require(store.providerSpecs[.claude])
+                    let descriptor = ProviderDescriptor(
+                        id: .claude,
+                        metadata: baseSpec.descriptor.metadata,
+                        branding: baseSpec.descriptor.branding,
+                        tokenCost: baseSpec.descriptor.tokenCost,
+                        fetchPlan: ProviderFetchPlan(
+                            sourceModes: [.cli],
+                            pipeline: ProviderFetchPipeline { _ in [CancellationFetchStrategy()] }),
+                        cli: baseSpec.descriptor.cli)
+                    store.providerSpecs[.claude] = ProviderSpec(
+                        style: baseSpec.style,
+                        isEnabled: baseSpec.isEnabled,
+                        descriptor: descriptor,
+                        makeFetchContext: baseSpec.makeFetchContext)
+                    return store
+                }
+
+                await store.refreshProvider(.claude)
+                let result = await MainActor.run {
+                    (
+                        hasSnapshot: store.snapshot(for: .claude) != nil,
+                        error: store.error(for: .claude))
+                }
+
+                #expect(!result.hasSnapshot)
+                #expect(result.error == nil)
+            }
+        }
+    }
+
+    @Test
+    func `superseded credential change clears prior Claude state after cancellation`() async throws {
+        try await KeychainCacheStore.withServiceOverrideForTesting("com.steipete.codexbar.cache.tests.\(UUID())") {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                let tempDir = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                let fileURL = tempDir.appendingPathComponent("credentials.json")
+                try Data("{}".utf8).write(to: fileURL)
+
+                try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                    #expect(ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged())
+                    let cancellations = CredentialSwapCancellationSequence(credentialsFileURL: fileURL)
+
+                    let store = try await MainActor.run {
+                        let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-cancelled-auth-change")
+                        settings.refreshFrequency = .manual
+                        settings.statusChecksEnabled = false
+                        settings.claudeUsageDataSource = .cli
+                        settings.claudeOAuthKeychainPromptMode = .never
+
+                        let metadata = ProviderRegistry.shared.metadata
+                        for provider in UsageProvider.allCases {
+                            try settings.setProviderEnabled(
+                                provider: provider,
+                                metadata: #require(metadata[provider]),
+                                enabled: provider == .claude)
+                        }
+
+                        let store = UsageStore(
+                            fetcher: UsageFetcher(environment: [:]),
+                            browserDetection: BrowserDetection(cacheTTL: 0),
+                            settings: settings,
+                            startupBehavior: .testing,
+                            environmentBase: [:])
+                        store._setSnapshotForTesting(
+                            UsageSnapshot(
+                                primary: RateWindow(
+                                    usedPercent: 12,
+                                    windowMinutes: 300,
+                                    resetsAt: nil,
+                                    resetDescription: nil),
+                                secondary: nil,
+                                updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                                identity: ProviderIdentitySnapshot(
+                                    providerID: .claude,
+                                    accountEmail: "old@example.com",
+                                    accountOrganization: nil,
+                                    loginMethod: "Pro")),
+                            provider: .claude)
+                        store._setTokenSnapshotForTesting(
+                            CostUsageTokenSnapshot(
+                                sessionTokens: 4200,
+                                sessionCostUSD: 1.25,
+                                last30DaysTokens: 42000,
+                                last30DaysCostUSD: 12.50,
+                                daily: [],
+                                updatedAt: Date(timeIntervalSince1970: 1_800_000_001)),
+                            provider: .claude)
+
+                        let baseSpec = try #require(store.providerSpecs[.claude])
+                        let descriptor = ProviderDescriptor(
+                            id: .claude,
+                            metadata: baseSpec.descriptor.metadata,
+                            branding: baseSpec.descriptor.branding,
+                            tokenCost: baseSpec.descriptor.tokenCost,
+                            fetchPlan: ProviderFetchPlan(
+                                sourceModes: [.cli],
+                                pipeline: ProviderFetchPipeline { _ in
+                                    [CancellationAfterCredentialSwapFetchStrategy(cancellations: cancellations)]
+                                }),
+                            cli: baseSpec.descriptor.cli)
+                        store.providerSpecs[.claude] = ProviderSpec(
+                            style: baseSpec.style,
+                            isEnabled: baseSpec.isEnabled,
+                            descriptor: descriptor,
+                            makeFetchContext: baseSpec.makeFetchContext)
+                        return store
+                    }
+
+                    let olderRefresh = Task {
+                        await store.refreshProvider(.claude)
+                    }
+                    await cancellations.waitUntilStarted(count: 1)
+                    let newerRefresh = Task {
+                        await store.refreshProvider(.claude)
+                    }
+                    await newerRefresh.value
+                    await olderRefresh.value
+                    let result = await MainActor.run {
+                        (
+                            hasSnapshot: store.snapshot(for: .claude) != nil,
+                            hasTokenSnapshot: store.tokenSnapshot(for: .claude) != nil,
+                            error: store.error(for: .claude))
+                    }
+
+                    #expect(!result.hasSnapshot)
+                    #expect(!result.hasTokenSnapshot)
+                    #expect(result.error == nil)
+                }
+            }
+        }
+    }
+
+    @Test
     func `suppresses single flake when prior data exists`() {
         var gate = ConsecutiveFailureGate()
         let firstFailure = gate.shouldSurfaceError(onFailureWithPriorData: true)
@@ -1032,6 +1200,80 @@ private struct TimeoutFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+}
+
+private struct CancellationFetchStrategy: ProviderFetchStrategy {
+    let id = "test.cancellation"
+    let kind: ProviderFetchKind = .cli
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw CancellationError()
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct CancellationAfterCredentialSwapFetchStrategy: ProviderFetchStrategy {
+    let id = "test.cancelled-credential-swap"
+    let kind: ProviderFetchKind = .cli
+    let cancellations: CredentialSwapCancellationSequence
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        try await self.cancellations.fetch()
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private actor CredentialSwapCancellationSequence {
+    private struct StartWaiter {
+        let count: Int
+        let continuation: CheckedContinuation<Void, Never>
+    }
+
+    private let credentialsFileURL: URL
+    private var starts = 0
+    private var startWaiters: [StartWaiter] = []
+
+    init(credentialsFileURL: URL) {
+        self.credentialsFileURL = credentialsFileURL
+    }
+
+    func fetch() async throws -> ProviderFetchResult {
+        self.starts += 1
+        let call = self.starts
+        self.resumeReadyStartWaiters()
+        if call == 1 {
+            try Data("{\"updated\":true}".utf8).write(to: self.credentialsFileURL)
+            try await Task.sleep(for: .seconds(60))
+        }
+        throw CancellationError()
+    }
+
+    func waitUntilStarted(count: Int) async {
+        guard self.starts < count else { return }
+        await withCheckedContinuation { continuation in
+            self.startWaiters.append(StartWaiter(count: count, continuation: continuation))
+        }
+    }
+
+    private func resumeReadyStartWaiters() {
+        let ready = self.startWaiters.filter { $0.count <= self.starts }
+        self.startWaiters.removeAll { $0.count <= self.starts }
+        ready.forEach { $0.continuation.resume() }
     }
 }
 

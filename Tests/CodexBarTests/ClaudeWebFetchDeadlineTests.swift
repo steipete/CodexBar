@@ -46,13 +46,14 @@ struct ClaudeWebFetchDeadlineTests {
     @Test
     func `stalled app auto browser probe does not delay CLI success`() async throws {
         let planningProbe = ClaudeWebPlanningAvailabilityProbe()
+        let cliPath = try Self.makeLoggedInClaudeCLI()
         let context = Self.makeContext(
             runtime: .app,
             sourceMode: .auto,
             webTimeout: 60,
             cookieSource: .auto,
             env: [
-                "CLAUDE_CLI_PATH": "/usr/bin/true",
+                "CLAUDE_CLI_PATH": cliPath,
                 ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
             ])
         let availabilityOverride: @Sendable (ProviderFetchContext, BrowserDetection) -> Bool = { _, _ in
@@ -276,6 +277,18 @@ struct ClaudeWebFetchDeadlineTests {
                 await probe.waitUntilReleased()
                 return self.makeClaudeUsage()
             })
+    }
+
+    private static func makeLoggedInClaudeCLI() throws -> String {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-auth-status-\(UUID().uuidString)")
+        let script = """
+        #!/bin/sh
+        printf '%s\\n' '{"loggedIn":true}'
+        """
+        try Data(script.utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
     }
 
     private static func makeContext(

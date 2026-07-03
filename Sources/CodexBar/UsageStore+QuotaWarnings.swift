@@ -21,8 +21,8 @@ extension UsageStore {
             primaryWindow = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 5 * 60)
             secondaryWindow = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 7 * 24 * 60)
         } else {
-            primaryWindow = provider == .mimo ? nil : snapshot.primary
-            secondaryWindow = provider == .mimo ? nil : snapshot.secondary
+            primaryWindow = provider == .mimo || provider == .qoder ? nil : snapshot.primary
+            secondaryWindow = provider == .mimo || provider == .qoder ? nil : snapshot.secondary
         }
         self.handleQuotaWarningTransition(
             provider: provider,

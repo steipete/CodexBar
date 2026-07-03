@@ -12,6 +12,8 @@ read_when:
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
+- Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
+  session or weekly quota data.
 - If no snapshot is available, widgets fall back to preview/empty data.
 
 ## Extension

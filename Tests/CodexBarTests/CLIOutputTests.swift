@@ -149,4 +149,75 @@ struct CLIOutputTests {
         #expect(text.contains("Plan: Standard"))
         #expect(!text.contains("Window: 100%"))
     }
+
+    @Test
+    func `text renderer includes crossmodel balance and usage`() {
+        let snapshot = CrossModelUsageSnapshot(
+            currency: "USD",
+            balance: 8.059489,
+            uncollected: 0,
+            daily: Self.crossModelWindow(cost: 0.005746, totalTokens: 12467, requestCount: 9),
+            weekly: Self.crossModelWindow(cost: 0.665033, totalTokens: 1_925_790, requestCount: 529),
+            monthly: Self.crossModelWindow(cost: 5.368746, totalTokens: 35_412_471, requestCount: 3166),
+            updatedAt: Date(timeIntervalSince1970: 0))
+            .toUsageSnapshot()
+
+        let text = CLIRenderer.renderText(
+            provider: .crossmodel,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "CrossModel (api)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(text.contains("Balance: $8.06"))
+        #expect(text.contains("Today: $0.01 · 12K tokens"))
+        #expect(text.contains("Week: $0.67 · 529 requests"))
+        #expect(text.contains("Month: $5.37 · 3.2K requests"))
+        #expect(text.contains("Plan: Api Key"))
+    }
+
+    @Test
+    func `text renderer preserves crossmodel non USD currency`() {
+        let snapshot = CrossModelUsageSnapshot(
+            currency: "EUR",
+            balance: 8.059489,
+            uncollected: 0,
+            daily: Self.crossModelWindow(cost: 0.005746, totalTokens: 12467, requestCount: 9),
+            weekly: Self.crossModelWindow(cost: 0.665033, totalTokens: 1_925_790, requestCount: 529),
+            monthly: nil,
+            updatedAt: Date(timeIntervalSince1970: 0))
+            .toUsageSnapshot()
+
+        let text = CLIRenderer.renderText(
+            provider: .crossmodel,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "CrossModel (api)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(text.contains("Balance: €8.06"))
+        #expect(text.contains("Today: €0.01 · 12K tokens"))
+        #expect(text.contains("Week: €0.67 · 529 requests"))
+        #expect(!text.contains("$"))
+    }
+
+    private static func crossModelWindow(
+        cost: Double,
+        totalTokens: Int,
+        requestCount: Int) -> CrossModelUsageWindow
+    {
+        CrossModelUsageWindow(
+            cost: cost,
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: totalTokens,
+            requestCount: requestCount,
+            successCount: requestCount)
+    }
 }

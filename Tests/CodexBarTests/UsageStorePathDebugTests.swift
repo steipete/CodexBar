@@ -52,4 +52,27 @@ struct UsageStorePathDebugTests {
 
         #expect(debugLog == "DEEPSEEK_API_KEY=present source=settings-token-account")
     }
+
+    @Test
+    func `crossmodel debug log includes config backed api key`() async throws {
+        let suite = "UsageStorePathDebugTests-crossmodel-debug-config-key"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.crossModelAPIToken = "cm-config-test"
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+
+        let debugLog = await store.debugLog(for: UsageProvider.crossmodel)
+
+        #expect(debugLog == "CROSSMODEL_API_KEY=present source=settings-config")
+    }
 }
