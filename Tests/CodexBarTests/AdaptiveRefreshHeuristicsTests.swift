@@ -149,11 +149,18 @@ struct AdaptiveRefreshHeuristicsTests {
     /// place, and `clearDisabledProviderRefreshState` wipes snapshots of disabled providers. So
     /// codex stays enabled but its fetch is stubbed to return a canned snapshot whose primary
     /// window resets 10 minutes out — inside a 30-minute normal-refresh window, outside nothing.
+    /// The live-system account is pinned and the snapshot carries the same email, so the
+    /// account-scoped apply guard resolves identically whether or not the machine running the
+    /// tests has a real `~/.codex` login (CI runners do not).
     private static func makeStoreWithStubbedCodex(suite: String, frequency: RefreshFrequency) -> UsageStore {
         let store = Self.makeStore(suite: suite, frequency: frequency)
         let metadata = ProviderRegistry.shared.metadata[.codex]!
-        store.settings._test_liveSystemCodexAccount = nil
-        store.settings._test_codexReconciliationEnvironment = nil
+        store.settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: Self.stubbedCodexEmail,
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date(),
+            identity: .unresolved)
+        store.settings.codexActiveSource = .liveSystem
         store.settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
         store.providerSpecs[.codex] = CodexAccountScopedRefreshTests.makeCodexProviderSpec(
             baseSpec: store.providerSpecs[.codex]!)
@@ -162,6 +169,8 @@ struct AdaptiveRefreshHeuristicsTests {
         }
         return store
     }
+
+    private nonisolated static let stubbedCodexEmail = "adaptive-heuristics@example.com"
 
     /// Keeps `refresh()` cheap and deterministic: no provider fetch can replace the snapshot
     /// injected by the reset-boundary tests or slow the pipeline tests down.
@@ -182,6 +191,11 @@ struct AdaptiveRefreshHeuristicsTests {
                 resetDescription: nil),
             secondary: nil,
             tertiary: nil,
-            updatedAt: updatedAt)
+            updatedAt: updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: self.stubbedCodexEmail,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
     }
 }
