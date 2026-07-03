@@ -499,6 +499,73 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             }
         }
     }
+
+    @Test
+    func `load with auto refresh expired claude CLI owner throws mcp O auth only keychain`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let mcpOAuthOnly = Data("""
+        {
+          "mcpOAuth": {
+            "plugin:slack:slack": { "accessToken": "" }
+          }
+        }
+        """.utf8)
+
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
+
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("credentials.json")
+
+            await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                    .securityCLIExperimental,
+                    operation: {
+                        await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                            await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
+                                .data(mcpOAuthOnly))
+                            {
+                                ClaudeOAuthCredentialsStore.invalidateCache()
+                                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                                defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                                let expiredData = self.makeCredentialsData(
+                                    accessToken: "expired-claude-cli-owner",
+                                    expiresAt: Date(timeIntervalSinceNow: -3600),
+                                    refreshToken: "refresh-token")
+                                KeychainCacheStore.store(
+                                    key: cacheKey,
+                                    entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                        data: expiredData,
+                                        storedAt: Date(),
+                                        owner: .claudeCLI))
+
+                                do {
+                                    _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                        environment: [:],
+                                        allowKeychainPrompt: false,
+                                        respectKeychainPromptCooldown: true)
+                                    Issue.record("Expected mcpOAuth-only keychain error")
+                                } catch let error as ClaudeOAuthCredentialsError {
+                                    guard case .mcpOAuthOnlyKeychain = error else {
+                                        Issue.record("Expected .mcpOAuthOnlyKeychain, got \(error)")
+                                        return
+                                    }
+                                } catch {
+                                    Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                }
+                            }
+                        }
+                    })
+            }
+        }
+    }
 }
 
 private final class ClaudeOAuthTokenRefreshStubURLProtocol: URLProtocol {

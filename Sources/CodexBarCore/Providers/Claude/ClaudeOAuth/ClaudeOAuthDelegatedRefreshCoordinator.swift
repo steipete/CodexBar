@@ -378,12 +378,10 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         readStrategy: ClaudeOAuthKeychainReadStrategy,
         keychainAccessDisabled: Bool) -> String?
     {
-        guard !keychainAccessDisabled else { return nil }
-        guard readStrategy == .securityCLIExperimental else { return nil }
-        guard let payload = ClaudeOAuthCredentialsStore.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
+        guard ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
             interaction: .background,
-            readStrategy: readStrategy),
-            ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: payload)
+            readStrategy: readStrategy,
+            keychainAccessDisabled: keychainAccessDisabled)
         else {
             return nil
         }

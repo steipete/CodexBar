@@ -83,6 +83,22 @@ extension ClaudeOAuthCredentialsStore {
         return sanitized
     }
 
+    static func isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+        interaction: ProviderInteraction,
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current(),
+        keychainAccessDisabled: Bool = KeychainAccessGate.isDisabled) -> Bool
+    {
+        guard !keychainAccessDisabled else { return false }
+        guard readStrategy == .securityCLIExperimental else { return false }
+        guard let payload = self.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
+            interaction: interaction,
+            readStrategy: readStrategy)
+        else {
+            return false
+        }
+        return ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: payload)
+    }
+
     static func readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
         interaction: ProviderInteraction,
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
