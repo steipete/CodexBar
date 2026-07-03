@@ -24,8 +24,8 @@ Contributing issues on `main`:
 
 - Updated: background delegated-refresh suppression with experimental reader
 - Added: MCP-only parse/shape detection
-- Added: coordinator test—no delegated touch for MCP-only keychain
-- Added: store test—expired CLI owner fails fast before delegation
+- Added: coordinator test—background MCP-only guard plus explicit Refresh recovery
+- Added: store test—expired CLI owner fails closed in background and delegates on explicit Refresh
 
 ## Verification
 
@@ -39,8 +39,9 @@ Contributing issues on `main`:
 ```bash
 make check
 swift test --filter ClaudeOAuthTests
-swift test --filter 'ClaudeUsageTests.oauth delegated'
-swift test --filter 'ClaudeOAuthDelegatedRefreshCoordinatorTests.experimental strategy skips'
+swift test --filter ClaudeUsageTests
+swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
+swift test --filter 'expired claude CLI owner blocks background'
 ./Scripts/verify_1844_live.sh
 ```
 

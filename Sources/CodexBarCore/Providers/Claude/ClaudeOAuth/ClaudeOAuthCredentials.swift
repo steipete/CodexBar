@@ -1174,8 +1174,9 @@ public enum ClaudeOAuthCredentialsStore {
 
         switch record.owner {
         case .claudeCLI:
-            if ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
-                interaction: ProviderInteractionContext.current)
+            if ProviderInteractionContext.current != .userInitiated,
+               ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+                   interaction: ProviderInteractionContext.current)
             {
                 self.log.warning(
                     "Claude OAuth credentials expired; Claude keychain has MCP OAuth state only",

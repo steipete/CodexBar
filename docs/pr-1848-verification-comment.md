@@ -7,16 +7,21 @@ Contributor verification for the Phase 1 guard in this PR. Full write-up: [`docs
 ### Integration tests
 
 ```bash
-swift test --filter 'mcp O auth|delegated retry experimental|load with auto refresh expired claude CLI owner throws mcp'
+swift test --filter ClaudeOAuthTests
+swift test --filter ClaudeUsageTests
+swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
+swift test --filter 'expired claude CLI owner blocks background'
 ```
 
-**Result:** 5/5 passed on macOS release-linked binaries.
+**Result:** all selected suites and the targeted storage-owner regression passed on macOS release-linked binaries.
 
 | Behavior | Result |
 |----------|--------|
 | Background `onlyOnUserAction` suppresses delegated refresh (`securityCLIExperimental`) | Pass |
-| Coordinator skips `claude /status` when keychain is MCP-only | Pass |
-| Expired Claude CLI owner fails fast with `mcpOAuthOnlyKeychain` | Pass |
+| Coordinator skips background `claude /status` when keychain is MCP-only | Pass |
+| Explicit user Refresh bypasses the MCP-only guard and delegated-refresh cooldown | Pass |
+| Explicit user Refresh retries after an in-flight background failure | Pass |
+| Expired Claude CLI owner fails fast with `mcpOAuthOnlyKeychain` in background | Pass |
 
 Representative logs:
 

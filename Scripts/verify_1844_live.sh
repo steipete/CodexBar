@@ -22,8 +22,12 @@ fi
 log() { printf '[verify-1844] %s\n' "$*"; }
 
 log "Phase 1: macOS integration tests"
-swift test --filter 'mcp O auth|delegated retry experimental|load with auto refresh expired claude CLI owner throws mcp' \
-  2>&1 | tee "$ARTIFACT/integration-tests.log"
+{
+  swift test --filter ClaudeOAuthTests
+  swift test --filter ClaudeUsageTests
+  swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
+  swift test --filter 'expired claude CLI owner blocks background'
+} 2>&1 | tee "$ARTIFACT/integration-tests.log"
 log "Phase 1 passed"
 
 KEYCHAIN_SERVICE="Claude Code-credentials"

@@ -501,7 +501,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     }
 
     @Test
-    func `load with auto refresh expired claude CLI owner throws mcp O auth only keychain`() async throws {
+    func `expired claude CLI owner blocks background mcp O auth but lets user action delegate`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         let mcpOAuthOnly = Data("""
         {
@@ -555,6 +555,23 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                                 } catch let error as ClaudeOAuthCredentialsError {
                                     guard case .mcpOAuthOnlyKeychain = error else {
                                         Issue.record("Expected .mcpOAuthOnlyKeychain, got \(error)")
+                                        return
+                                    }
+                                } catch {
+                                    Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                }
+
+                                do {
+                                    _ = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                        try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                            environment: [:],
+                                            allowKeychainPrompt: false,
+                                            respectKeychainPromptCooldown: true)
+                                    }
+                                    Issue.record("Expected delegated refresh on explicit user action")
+                                } catch let error as ClaudeOAuthCredentialsError {
+                                    guard case .refreshDelegatedToClaudeCLI = error else {
+                                        Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
                                         return
                                     }
                                 } catch {

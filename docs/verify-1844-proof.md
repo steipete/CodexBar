@@ -22,16 +22,21 @@ Command:
 ```bash
 ./Scripts/verify_1844_live.sh
 # Phase 1 only (default when Keychain fixture install is unavailable):
-swift test --filter 'mcp O auth|delegated retry experimental|load with auto refresh expired claude CLI owner throws mcp'
+swift test --filter ClaudeOAuthTests
+swift test --filter ClaudeUsageTests
+swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
+swift test --filter 'expired claude CLI owner blocks background'
 ```
 
-Result: **5/5 tests passed** on macOS release-linked binaries.
+Result: **all selected suites and the targeted storage-owner regression passed** on macOS release-linked binaries.
 
 | Check | Result |
 |-------|--------|
 | Background `onlyOnUserAction` suppresses delegated refresh with `securityCLIExperimental` reader | Pass |
-| Delegated refresh coordinator skips CLI touch when keychain payload is MCP-only | Pass |
-| Expired Claude CLI-owned credentials fail fast with `mcpOAuthOnlyKeychain` | Pass |
+| Delegated refresh coordinator skips background CLI touch when keychain payload is MCP-only | Pass |
+| Explicit user Refresh bypasses the MCP-only guard and delegated-refresh cooldown | Pass |
+| Explicit user Refresh retries after an in-flight background failure | Pass |
+| Expired Claude CLI-owned credentials fail fast with `mcpOAuthOnlyKeychain` in background | Pass |
 | Parser rejects MCP-only keychain shape | Pass |
 
 Representative log lines:
