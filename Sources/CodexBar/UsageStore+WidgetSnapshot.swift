@@ -146,6 +146,11 @@ extension UsageStore {
             {
                 return dyn
             }
+            if provider == .doubao,
+               let dyn = DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
+            {
+                return dyn
+            }
             return metadata?.sessionLabel ?? "Session"
         }()
 

@@ -896,6 +896,10 @@ extension UsageMenuCardView.Model {
             return notes + subscriptionNotes
         }
 
+        if input.provider == .crossmodel, let crossModel = input.snapshot?.crossModelUsage {
+            return Self.crossModelSpendNotes(crossModel) + subscriptionNotes
+        }
+
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
@@ -1301,6 +1305,7 @@ extension UsageMenuCardView.Model {
             }
             if let pace = input.weeklyPace {
                 let paceDetail = Self.weeklyPaceDetail(
+                    provider: input.provider,
                     window: primary,
                     now: input.now,
                     pace: pace,
@@ -1369,6 +1374,7 @@ extension UsageMenuCardView.Model {
         zaiTimeDetail: String?) -> Metric
     {
         var paceDetail = Self.weeklyPaceDetail(
+            provider: input.provider,
             window: weekly,
             now: input.now,
             pace: input.weeklyPace,
@@ -1491,6 +1497,7 @@ extension UsageMenuCardView.Model {
                 title = L(input.metadata.weeklyLabel)
                 id = "secondary"
                 paceDetail = Self.weeklyPaceDetail(
+                    provider: input.provider,
                     window: window,
                     now: input.now,
                     pace: Self.standardWeeklyPace(input: input, window: window),

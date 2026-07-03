@@ -228,6 +228,8 @@ extension UsageMenuCardView.Model {
             "Requests"
         } else if input.provider == .grok {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
+        } else if input.provider == .doubao {
+            DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }
@@ -371,13 +373,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func weeklyPaceDetail(
+        provider: UsageProvider,
         window: RateWindow,
         now: Date,
         pace: UsagePace?,
         showUsed: Bool) -> PaceDetail?
     {
         guard let pace else { return nil }
-        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: provider, pace: pace, now: now)
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
@@ -424,6 +427,7 @@ extension UsageMenuCardView.Model {
             workDays: input.workDaysPerWeek)
         guard let resolved = Self.displayableWeeklyPace(resolved) else { return nil }
         return Self.weeklyPaceDetail(
+            provider: input.provider,
             window: window,
             now: input.now,
             pace: resolved,
@@ -589,6 +593,7 @@ extension UsageMenuCardView.Model {
                 defaultWindowMinutes: 10080,
                 workDays: input.workDaysPerWeek))
             return Self.weeklyPaceDetail(
+                provider: provider,
                 window: window,
                 now: input.now,
                 pace: pace,
@@ -648,6 +653,20 @@ extension UsageMenuCardView.Model {
         }
 
         return nil
+    }
+
+    static func crossModelSpendNotes(_ usage: CrossModelUsageSnapshot) -> [String] {
+        let candidates: [(String, Double?)] = [
+            (L("Today"), usage.daily?.cost),
+            (L("This week"), usage.weekly?.cost),
+            (L("This month"), usage.monthly?.cost),
+        ]
+        let rendered = candidates.compactMap { candidate -> String? in
+            guard let value = candidate.1 else { return nil }
+            return "\(candidate.0): \(usage.currencyString(value))"
+        }
+        guard !rendered.isEmpty else { return [] }
+        return [rendered.joined(separator: " · ")]
     }
 
     static func openRouterQuotaDetail(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {

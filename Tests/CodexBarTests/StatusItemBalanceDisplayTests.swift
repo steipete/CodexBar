@@ -44,6 +44,32 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
+    func `menu bar display text uses crossmodel balance currency`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-crossmodel-eur-balance",
+            provider: .crossmodel)
+        settings.setMenuBarMetricPreference(.automatic, for: .crossmodel)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = CrossModelUsageSnapshot(
+            currency: "EUR",
+            balance: 8.059489,
+            uncollected: 0,
+            daily: nil,
+            weekly: nil,
+            monthly: nil,
+            updatedAt: Date())
+            .toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .crossmodel)
+        store._setErrorForTesting(nil, provider: .crossmodel)
+
+        let displayText = controller.menuBarDisplayText(for: .crossmodel, snapshot: snapshot)
+
+        #expect(displayText == "€8.06")
+    }
+
+    @Test
     func `menu bar display text uses zen balance when open code has no subscription`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-opencodego-zen-only",

@@ -198,9 +198,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     }
 
     private static func currentClaudeOAuthDelegatedRefreshPolicy() -> ClaudeOAuthKeychainPromptPolicy {
+        // Delegated refresh must honor the stored prompt mode for every keychain read strategy.
+        // securityCLIExperimental is not "prompt policy N/A" for CLI touch repair.
         ClaudeOAuthKeychainPromptPolicy(
-            mode: ClaudeOAuthKeychainPromptPreference.current(),
-            isApplicable: ClaudeOAuthKeychainPromptPreference.isApplicable(),
+            mode: ClaudeOAuthKeychainPromptPreference.storedMode(),
+            isApplicable: true,
             interaction: ProviderInteractionContext.current)
     }
 
@@ -208,7 +210,6 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         policy: ClaudeOAuthKeychainPromptPolicy,
         allowBackgroundDelegatedRefresh: Bool) throws
     {
-        guard policy.isApplicable else { return }
         if policy.mode == .never {
             throw ClaudeUsageError.oauthFailed("Delegated refresh is disabled by 'never' keychain policy.")
         }
@@ -1396,6 +1397,8 @@ extension ClaudeUsageFetcher {
             "decodeFailed"
         case .missingOAuth:
             "missingOAuth"
+        case .mcpOAuthOnlyKeychain:
+            "mcpOAuthOnlyKeychain"
         case .missingAccessToken:
             "missingAccessToken"
         case .notFound:

@@ -22,6 +22,7 @@ public enum LogCategories {
     public static let cookieHeaderStore = "cookie-header-store"
     public static let copilotTokenStore = "copilot-token-store"
     public static let creditsPurchase = "creditsPurchase"
+    public static let crossModelUsage = "crossmodel-usage"
     public static let cursorLogin = "cursor-login"
     public static let deepSeekSettings = "deepseek-settings"
     public static let deepSeekUsage = "deepseek-usage"

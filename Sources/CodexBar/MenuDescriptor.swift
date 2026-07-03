@@ -187,7 +187,7 @@ struct MenuDescriptor {
                 if provider == .abacus,
                    let pace = store.weeklyPace(provider: provider, window: primary)
                 {
-                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
+                    let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
                 if let paceSummary = UsagePaceText.sessionSummary(provider: provider, window: primary) {
@@ -220,7 +220,7 @@ struct MenuDescriptor {
                     entries.append(.text(detail, .secondary))
                 }
                 if let pace = store.weeklyPace(provider: provider, window: weekly) {
-                    let paceSummary = UsagePaceText.weeklySummary(pace: pace)
+                    let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
                     entries.append(.text(paceSummary, .secondary))
                 }
             }
@@ -513,6 +513,10 @@ struct MenuDescriptor {
             for detail in kiloLogin.details {
                 entries.append(.text("\(L("Activity")): \(detail)", .secondary))
             }
+        } else if provider == .crossmodel {
+            if let loginMethodText, !loginMethodText.isEmpty {
+                entries.append(.text("\(L("Auth")): \(loginMethodText)", .secondary))
+            }
         } else if let loginMethodText, !loginMethodText.isEmpty {
             if provider == .openrouter || provider == .mimo || provider == .poe,
                loginMethodText.localizedCaseInsensitiveContains("balance:")
@@ -713,9 +717,13 @@ struct MenuDescriptor {
         if provider == .factory, snapshot.tertiary != nil {
             return ("5-hour", L("Weekly"), L("Monthly"), true)
         }
-        let primaryLabel = provider == .grok
-            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
-            : metadata.sessionLabel
+        let primaryLabel = if provider == .grok {
+            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+        } else if provider == .doubao {
+            DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+        } else {
+            metadata.sessionLabel
+        }
         return (
             L(primaryLabel),
             L(metadata.weeklyLabel),
