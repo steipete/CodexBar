@@ -783,6 +783,14 @@
 "Top method" = "Metode teratas";
 "30d cash" = "Kas 30 hari";
 "30d billing history from MiniMax web session" = "Riwayat tagihan 30 hari dari sesi web MiniMax";
+"MiniMax web session expired" = "Sesi web MiniMax kedaluwarsa";
+"MiniMax web session account does not match" = "Sesi web MiniMax tidak cocok dengan akun API";
+"No MiniMax browser session found" = "Tidak ada sesi browser MiniMax ditemukan";
+"MiniMax web data endpoints are unavailable" = "Endpoint data web MiniMax tidak tersedia";
+"MiniMax web session unavailable" = "Sesi web MiniMax tidak tersedia";
+"Re-import MiniMax session from browser" = "Impor ulang sesi MiniMax dari browser";
+"Open MiniMax login page" = "Buka halaman login MiniMax";
+"MiniMax web session: %@" = "Sesi web MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "Tagihan AWS Cost Explorer dapat tertunda.";
 "Rate limit: %d / %@" = "Batas rate: %d / %@";
 "Key remaining" = "Sisa kunci";

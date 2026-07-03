@@ -779,6 +779,14 @@
 "Top method" = "En çok kullanılan yöntem";
 "30d cash" = "30 günlük nakit";
 "30d billing history from MiniMax web session" = "MiniMax web oturumundan 30 günlük faturalandırma geçmişi";
+"MiniMax web session expired" = "MiniMax web oturumu süresi doldu";
+"MiniMax web session account does not match" = "MiniMax web oturumu API hesabıyla eşleşmiyor";
+"No MiniMax browser session found" = "MiniMax tarayıcı oturumu bulunamadı";
+"MiniMax web data endpoints are unavailable" = "MiniMax web veri uç noktaları kullanılamıyor";
+"MiniMax web session unavailable" = "MiniMax web oturumu kullanılamıyor";
+"Re-import MiniMax session from browser" = "MiniMax oturumunu tarayıcıdan yeniden içe aktar";
+"Open MiniMax login page" = "MiniMax giriş sayfasını aç";
+"MiniMax web session: %@" = "MiniMax web oturumu: %@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer faturalandırması gecikmeli olabilir.";
 "Rate limit: %d / %@" = "Hız limiti: %d / %@";
 "Key remaining" = "Anahtar kalan";

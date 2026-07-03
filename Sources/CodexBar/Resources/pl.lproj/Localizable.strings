@@ -783,6 +783,14 @@
 "Top method" = "Najlepsza metoda";
 "30d cash" = "Gotówka 30 dni";
 "30d billing history from MiniMax web session" = "30-dniowa historia rozliczeń z sesji webowej MiniMax";
+"MiniMax web session expired" = "Sesja webowa MiniMax wygasła";
+"MiniMax web session account does not match" = "Sesja webowa MiniMax nie pasuje do konta API";
+"No MiniMax browser session found" = "Nie znaleziono sesji przeglądarki MiniMax";
+"MiniMax web data endpoints are unavailable" = "Punkty końcowe danych webowych MiniMax są niedostępne";
+"MiniMax web session unavailable" = "Sesja webowa MiniMax jest niedostępna";
+"Re-import MiniMax session from browser" = "Ponownie zaimportuj sesję MiniMax z przeglądarki";
+"Open MiniMax login page" = "Otwórz stronę logowania MiniMax";
+"MiniMax web session: %@" = "Sesja webowa MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "Dane rozliczeń AWS Cost Explorer mogą być opóźnione.";
 "Rate limit: %d / %@" = "Limit żądań: %d / %@";
 "Key remaining" = "Pozostało klucza";

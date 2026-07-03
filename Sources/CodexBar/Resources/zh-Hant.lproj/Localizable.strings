@@ -791,6 +791,14 @@
 "Top method" = "主要方法";
 "30d cash" = "近 30 天費用";
 "30d billing history from MiniMax web session" = "來自 MiniMax 網頁工作階段的 30 天帳單記錄";
+"MiniMax web session expired" = "MiniMax 網頁工作階段已過期";
+"MiniMax web session account does not match" = "MiniMax 網頁工作階段與 API 帳號不相符";
+"No MiniMax browser session found" = "找不到 MiniMax 瀏覽器工作階段";
+"MiniMax web data endpoints are unavailable" = "MiniMax 網頁資料端點無法使用";
+"MiniMax web session unavailable" = "MiniMax 網頁工作階段無法使用";
+"Re-import MiniMax session from browser" = "從瀏覽器重新匯入 MiniMax 工作階段";
+"Open MiniMax login page" = "開啟 MiniMax 登入頁面";
+"MiniMax web session: %@" = "MiniMax 網頁工作階段：%@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer 帳單資料可能延遲。";
 "Rate limit: %d / %@" = "速率限制：%d / %@";
 "Key remaining" = "金鑰剩餘額度";
