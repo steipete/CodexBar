@@ -44,7 +44,9 @@ extension StatusItemController {
         let descriptor: MenuDescriptor
         let menuWidth: CGFloat
 
-        var isOverviewSelected: Bool { self.switcherSelection == .overview }
+        var isOverviewSelected: Bool {
+            self.switcherSelection == .overview
+        }
 
         var menuUpdateContext: MenuUpdateContext {
             MenuUpdateContext(
