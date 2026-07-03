@@ -69,13 +69,6 @@ struct SettingsStoreCoverageTests {
         #expect(settings.historicalTrackingEnabled == false)
         settings.historicalTrackingEnabled = true
         #expect(settings.historicalTrackingEnabled == true)
-        #expect(settings.historicalPaceMinimumWeeks == 3)
-        settings.historicalPaceMinimumWeeks = 1
-        #expect(settings.historicalPaceMinimumWeeks == 2)
-        settings.historicalPaceMinimumWeeks = 9
-        #expect(settings.historicalPaceMinimumWeeks == 8)
-        settings.historicalPaceMinimumWeeks = 2
-        #expect(settings.historicalPaceMinimumWeeks == 2)
 
         settings.resetTimesShowAbsolute = true
         #expect(settings.resetTimeDisplayStyle == .absolute)

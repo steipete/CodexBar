@@ -555,9 +555,6 @@
 "no_writable_bin_dirs" = "Tidak ada direktori bin yang dapat ditulis.";
 "show_debug_settings_title" = "Tampilkan Pengaturan Debug";
 "show_debug_settings_subtitle" = "Tampilkan alat pemecahan masalah di tab Debug.";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Kejutkan saya";
 "surprise_me_subtitle" = "Centang jika Anda suka agen bersenang-senang di atas sana.";
 "session_limit_confetti_title" = "Konfeti batas sesi";
@@ -737,7 +734,7 @@
 "Resets now" = "Reset sekarang";
 "reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "ruang 1,5×";
 "Updated %@" = "Diperbarui %@";
 "Updated relative %@" = "Diperbarui %@";
 "Updated absolute %@" = "Diperbarui %@";

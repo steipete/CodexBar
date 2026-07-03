@@ -550,9 +550,6 @@
 "no_writable_bin_dirs" = "Geen beschrijfbare mapmap gevonden.";
 "show_debug_settings_title" = "Toon foutopsporingsinstellingen";
 "show_debug_settings_subtitle" = "Geef hulpprogramma's voor probleemoplossing weer op het tabblad Foutopsporing.";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Verras mij";
 "surprise_me_subtitle" = "Controleer of je het leuk vindt dat je agenten daar plezier hebben.";
 "session_limit_confetti_title" = "Confetti bij sessielimiet";
@@ -732,7 +729,7 @@
 "Resets now" = "Wordt nu gereset";
 "reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Gaat mee tot reset";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "1,5× speelruimte";
 "Updated %@" = "Bijgewerkt %@";
 "Updated relative %@" = "Bijgewerkt %@";
 "Updated absolute %@" = "Bijgewerkt %@";

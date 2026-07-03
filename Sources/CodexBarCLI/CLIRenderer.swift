@@ -555,12 +555,17 @@ enum CLIRenderer {
         return pace
     }
 
-    private static func paceSummary(for pace: UsagePace, kind: PaceKind, now: Date) -> String {
+    private static func paceSummary(
+        provider: UsageProvider,
+        for pace: UsagePace,
+        kind: PaceKind,
+        now: Date) -> String
+    {
         let expected = Int(pace.expectedUsedPercent.rounded())
         var parts: [String] = []
         parts.append(Self.paceLeftLabel(for: pace))
         parts.append("Expected \(expected)% used")
-        if let rightLabel = Self.paceRightLabel(for: pace, kind: kind, now: now) {
+        if let rightLabel = Self.paceRightLabel(provider: provider, for: pace, kind: kind, now: now) {
             parts.append(rightLabel)
         }
         return parts.joined(separator: " | ")
@@ -581,7 +586,7 @@ enum CLIRenderer {
             weeklyWorkDays: weeklyWorkDays,
             now: now) else { return nil }
         let label = self.label("Pace", useColor: useColor)
-        return "\(label): \(self.paceSummary(for: pace, kind: kind, now: now))"
+        return "\(label): \(self.paceSummary(provider: provider, for: pace, kind: kind, now: now))"
     }
 
     private static func pacePayload(
@@ -604,7 +609,7 @@ enum CLIRenderer {
             willLastToReset: pace.willLastToReset,
             etaSeconds: pace.etaSeconds.map { $0.rounded() },
             runOutProbability: pace.runOutProbability,
-            summary: self.paceSummary(for: pace, kind: kind, now: now))
+            summary: self.paceSummary(provider: provider, for: pace, kind: kind, now: now))
     }
 
     private static func stageString(_ stage: UsagePace.Stage) -> String {
@@ -631,8 +636,13 @@ enum CLIRenderer {
         }
     }
 
-    private static func paceRightLabel(for pace: UsagePace, kind: PaceKind, now: Date) -> String? {
-        if pace.willLastToReset { return self.combinedLastsLabel(for: pace) }
+    private static func paceRightLabel(
+        provider: UsageProvider,
+        for pace: UsagePace,
+        kind: PaceKind,
+        now: Date) -> String?
+    {
+        if pace.willLastToReset { return self.combinedLastsLabel(for: pace, provider: provider) }
         guard let etaSeconds = pace.etaSeconds else { return nil }
         let etaText = Self.paceDurationText(seconds: etaSeconds, now: now)
         switch kind {
@@ -643,7 +653,8 @@ enum CLIRenderer {
         }
     }
 
-    private static func combinedLastsLabel(for pace: UsagePace) -> String {
+    private static func combinedLastsLabel(for pace: UsagePace, provider: UsageProvider) -> String {
+        guard provider == .codex else { return "Lasts until reset" }
         guard let speedLabel = speedHintLabel(for: pace) else {
             return "Lasts until reset"
         }
@@ -655,7 +666,7 @@ enum CLIRenderer {
               let multiplier = pace.speedMultiplierToReset,
               multiplier >= 1.5
         else { return nil }
-        return "Try 1.5x!"
+        return "1.5× headroom"
     }
 
     private static func paceDurationText(seconds: TimeInterval, now: Date) -> String {

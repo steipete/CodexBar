@@ -30,7 +30,6 @@ extension SettingsStore {
         _ = self.menuBarDisplayMode
         _ = self.kiroMenuBarDisplayMode
         _ = self.historicalTrackingEnabled
-        _ = self.historicalPaceMinimumWeeks
         _ = self.multiAccountMenuLayout
         _ = self.menuBarMetricPreferencesRaw
         _ = self.copilotIconSecondaryWindowIDRaw

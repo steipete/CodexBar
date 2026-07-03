@@ -14,18 +14,18 @@ enum UsagePaceText {
         case weekly
     }
 
-    static func weeklySummary(pace: UsagePace, now: Date = .init()) -> String {
-        let detail = self.weeklyDetail(pace: pace, now: now)
+    static func weeklySummary(provider: UsageProvider, pace: UsagePace, now: Date = .init()) -> String {
+        let detail = self.weeklyDetail(provider: provider, pace: pace, now: now)
         if let rightLabel = detail.rightLabel {
             return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
         }
         return L("Pace: %@", detail.leftLabel)
     }
 
-    static func weeklyDetail(pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
+    static func weeklyDetail(provider: UsageProvider, pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
         WeeklyDetail(
             leftLabel: self.detailLeftLabel(for: pace),
-            rightLabel: self.detailRightLabel(for: pace, context: .weekly, now: now),
+            rightLabel: self.detailRightLabel(for: pace, provider: provider, context: .weekly, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
@@ -45,10 +45,15 @@ enum UsagePaceText {
         }
     }
 
-    private static func detailRightLabel(for pace: UsagePace, context: DetailContext, now: Date) -> String? {
+    private static func detailRightLabel(
+        for pace: UsagePace,
+        provider: UsageProvider,
+        context: DetailContext,
+        now: Date) -> String?
+    {
         let etaLabel: String?
         if pace.willLastToReset {
-            etaLabel = self.combinedLastsLabel(for: pace)
+            etaLabel = self.combinedLastsLabel(for: pace, provider: provider)
         } else if let etaSeconds = pace.etaSeconds {
             let etaText = Self.durationText(seconds: etaSeconds, now: now)
             if context == .session {
@@ -72,7 +77,8 @@ enum UsagePaceText {
         return riskLabel
     }
 
-    private static func combinedLastsLabel(for pace: UsagePace) -> String {
+    private static func combinedLastsLabel(for pace: UsagePace, provider: UsageProvider) -> String {
+        guard provider == .codex else { return L("Lasts until reset") }
         guard let speedLabel = self.speedHintLabel(for: pace) else {
             return L("Lasts until reset")
         }
@@ -84,7 +90,7 @@ enum UsagePaceText {
               let multiplier = pace.speedMultiplierToReset,
               multiplier >= 1.5
         else { return nil }
-        return L("Try 1.5x!")
+        return L("1.5× headroom")
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
@@ -114,7 +120,7 @@ enum UsagePaceText {
         guard let pace = sessionPace(provider: provider, window: window, now: now) else { return nil }
         return WeeklyDetail(
             leftLabel: Self.detailLeftLabel(for: pace),
-            rightLabel: Self.detailRightLabel(for: pace, context: .session, now: now),
+            rightLabel: Self.detailRightLabel(for: pace, provider: provider, context: .session, now: now),
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }

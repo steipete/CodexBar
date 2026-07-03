@@ -550,9 +550,6 @@
 "no_writable_bin_dirs" = "Не знайдено записуваних каталогів кошика.";
 "show_debug_settings_title" = "Показати налаштування налагодження";
 "show_debug_settings_subtitle" = "Розкрийте інструменти усунення несправностей на вкладці Debug.";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Здивуйте мене";
 "surprise_me_subtitle" = "Перевірте, чи подобається вам, що ваші агенти розважаються там.";
 "session_limit_confetti_title" = "Конфеті для ліміту сесії";
@@ -732,7 +729,7 @@
 "Resets now" = "Скидає зараз";
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "запас 1,5×";
 "Updated %@" = "Оновлено %@";
 "Updated relative %@" = "Оновлено %@";
 "Updated absolute %@" = "Оновлено %@";

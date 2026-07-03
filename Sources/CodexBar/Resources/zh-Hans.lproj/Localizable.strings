@@ -535,9 +535,6 @@
 "no_writable_bin_dirs" = "未找到可写的 bin 目录。";
 "show_debug_settings_title" = "显示调试设置";
 "show_debug_settings_subtitle" = "在“调试”标签中显示故障排除工具。";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "给我惊喜";
 "surprise_me_subtitle" = "看看你是否喜欢你的智能体在上面找点乐子。";
 "session_limit_confetti_title" = "会话限制彩带";
@@ -706,7 +703,7 @@
 "Resets now" = "立即重置";
 "reset_tomorrow_format" = "明天 %@";
 "Lasts until reset" = "持续到重置";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "1.5 倍余量";
 "Updated %@" = "更新于 %@";
 "Updated relative %@" = "%@已更新";
 "Updated absolute %@" = "更新于 %@";

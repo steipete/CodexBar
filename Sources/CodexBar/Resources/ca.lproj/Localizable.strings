@@ -539,9 +539,6 @@
 "no_writable_bin_dirs" = "No s'han trobat directoris bin amb permís d'escriptura.";
 "show_debug_settings_title" = "Mostreu la configuració de depuració";
 "show_debug_settings_subtitle" = "Mostreu eines de diagnòstic a la pestanya Depuració.";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Sorprèn-me";
 "surprise_me_subtitle" = "Activeu-ho si us agrada que els vostres agents es diverteixin allà dalt.";
 "session_limit_confetti_title" = "Confeti del límit de sessió";
@@ -1038,7 +1035,7 @@
 "Last 30 days: %@" = "Últims 30 dies: %@";
 "Last 30 days: %@ · %@ tokens" = "Últims 30 dies: %@ · %@ tokens";
 "Lasts until reset" = "Dura fins al reinici";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "marge d’1,5×";
 "Login with Google" = "Inicieu sessió amb Google";
 "login_success_notification_body" = "Podeu tornar a l'app; l'autenticació ha finalitzat.";
 "login_success_notification_title" = "Inici de sessió de %@ correcte";

@@ -19,8 +19,7 @@ extension UsageStore {
                let historical = CodexHistoricalPaceEvaluator.evaluate(
                    window: window,
                    now: now,
-                   dataset: self.codexHistoricalDataset,
-                   minimumCompleteWeeks: self.settings.historicalPaceMinimumWeeks)
+                   dataset: self.codexHistoricalDataset)
             {
                 resolved = historical
             } else {

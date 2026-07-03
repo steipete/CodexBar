@@ -547,9 +547,6 @@
 "no_writable_bin_dirs" = "書き込み可能な bin ディレクトリが見つかりません。";
 "show_debug_settings_title" = "デバッグ設定を表示";
 "show_debug_settings_subtitle" = "デバッグタブにトラブルシューティングツールを表示します。";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "サプライズ";
 "surprise_me_subtitle" = "エージェントたちがメニューバーで少し遊ぶのが好きか試してみてください。";
 "session_limit_confetti_title" = "セッション上限の紙吹雪";
@@ -729,7 +726,7 @@
 "Resets now" = "まもなくリセット";
 "reset_tomorrow_format" = "明日 %@";
 "Lasts until reset" = "リセットまで持続";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "1.5倍の余裕";
 "Updated %@" = "%@ に更新";
 "Updated relative %@" = "%@ に更新";
 "Updated absolute %@" = "%@ に更新";

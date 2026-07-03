@@ -550,9 +550,6 @@
 "no_writable_bin_dirs" = "Aucun répertoire bin inscriptible trouvé.";
 "show_debug_settings_title" = "Afficher les paramètres de débogage";
 "show_debug_settings_subtitle" = "Exposez les outils de dépannage dans l’onglet Débogage.";
-"historical_pace_weeks_title" = "Historical pace weeks";
-"historical_pace_weeks_subtitle" = "Minimum complete Codex weeks before historical pace replaces linear pace.";
-"historical_pace_weeks_value" = "%d weeks";
 "surprise_me_title" = "Surprenez-moi";
 "surprise_me_subtitle" = "Vérifiez si vous aimez que vos agents s'amusent là-haut.";
 "session_limit_confetti_title" = "Confettis de limite de session";
@@ -732,7 +729,7 @@
 "Resets now" = "Réinitialise maintenant";
 "reset_tomorrow_format" = "demain, %@";
 "Lasts until reset" = "Dure jusqu'à la réinitialisation";
-"Try 1.5x!" = "Try 1.5x!";
+"1.5× headroom" = "marge de 1,5×";
 "Updated %@" = "%@ mis à jour";
 "Updated relative %@" = "%@ mis à jour";
 "Updated absolute %@" = "%@ mis à jour";
