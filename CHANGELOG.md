@@ -4,6 +4,7 @@
 
 ### Changed
 - Website: redesign codexbar.app around faster download, provider discovery, feature, CLI, and widget paths with responsive dark/light and localized layouts. Thanks @vyctorbrzezowski!
+- Architecture: accept a bounded opt-in adaptive refresh design with a deterministic 2–30-minute cadence and no behavioral telemetry. Thanks @hhh2210!
 
 ## 0.38.0 — 2026-07-03
 

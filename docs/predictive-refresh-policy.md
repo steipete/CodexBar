@@ -8,22 +8,19 @@ read_when:
 
 # Adaptive refresh decision record
 
-- **Status:** Proposed; product approval required
+- **Status:** Accepted design; not implemented
 - **Decision owner:** Maintainer
 - **Runtime impact:** None until separately implemented
 
-## Decision requested
+## Decision
 
-Should CodexBar offer an opt-in `Adaptive` refresh frequency that adjusts the existing provider-batch timer between
-2 and 30 minutes using a small deterministic policy?
-
-Recommendation: **approve the bounded deterministic experiment described here**. Do not implement the broader
+CodexBar may offer an opt-in `Adaptive` refresh frequency that adjusts the existing provider-batch timer between 2 and
+30 minutes using the deterministic policy below. Do not implement the broader
 per-account prediction, persistent interaction history, learned ranking, or menu prewarming proposed in the original
 RFC.
 
-This remains a product decision because it adds a feature and changes background provider-call volume. `VISION.md`
-requires sign-off for new features, architecture changes, maintenance complexity, and behavior affecting privacy or
-provider auth.
+This approval covers the bounded design only. Runtime implementation, tests, localization, and packaged proof remain a
+separate change.
 
 ## Options considered
 
@@ -43,8 +40,9 @@ Current `main` has two independent refresh paths:
 
 1. `UsageStore.startTimer()` reads `SettingsStore.refreshFrequency.seconds`, sleeps for the fixed interval, then calls
    `UsageStore.refresh()`. A refresh is one concurrent batch over `enabledProvidersForBackgroundWork()`.
-2. `StatusItemController.scheduleOpenMenuRefresh(for:)` retries only rendered providers with missing data or a surfaced
-   error. It uses the background interaction context, coalesces in-flight provider work, and keeps prompt-capable OpenAI
+2. `StatusItemController.scheduleOpenMenuRefresh(for:)` retries rendered providers with missing/stale data. When the
+   default-off **Refresh when the menu opens** setting is enabled, it refreshes every enabled provider instead. Both
+   modes use the background interaction context, coalesce in-flight provider work, and keep prompt-capable OpenAI
    dashboard work deferred until menu tracking ends.
 
 Relevant implementation seams:
@@ -56,10 +54,10 @@ Relevant implementation seams:
 - `Sources/CodexBar/StatusItemController+MenuInteractionRefresh.swift`: deferred non-interactive refresh safety.
 - `Tests/CodexBarTests/StatusMenuInstantOpenTests.swift`: fresh, missing, in-flight, and close-during-refresh contracts.
 
-The adaptive experiment must change only the first path. It must not alter the menu-open behavior or absorb the
-separate refresh-on-open proposal in [PR #1733](https://github.com/steipete/CodexBar/pull/1733).
+The adaptive experiment must change only the first path. It must not alter the menu-open setting, its default, provider
+selection, interaction context, or promise that menu-open refresh does not reset the periodic refresh clock.
 
-## Proposed product contract
+## Accepted product contract
 
 - Add `Adaptive` as a mutually exclusive `RefreshFrequency` choice.
 - Keep `5 minutes` as the default for new and existing users.
@@ -67,7 +65,9 @@ separate refresh-on-open proposal in [PR #1733](https://github.com/steipete/Code
 - Preserve `Manual` and every existing fixed interval exactly.
 - Schedule the same enabled-provider batch as fixed refresh; do not select accounts, workspaces, or data lanes.
 - Keep manual refresh immediate and user-initiated.
-- Keep menu-open refresh missing/error-only and background/non-interactive.
+- When refresh-all-on-open is disabled, keep menu-open refresh missing/error-only and background/non-interactive.
+- Preserve the opt-in refresh-all-on-open path exactly. Recording a menu-open timestamp for adaptive scheduling must
+  not itself fetch, cancel the periodic timer, or count a menu-originated refresh as an adaptive timer tick.
 - Never make an automatic provider, account, workspace, or credential-source selection.
 - Never bypass provider-specific auth, prompt, coalescing, or failure gates.
 
@@ -209,6 +209,8 @@ or menu prewarming as part of these steps.
 
 - opening a fresh menu still does not schedule a menu-originated refresh;
 - missing/error rows still refresh only rendered providers;
+- enabling refresh-all-on-open still refreshes every enabled provider without resetting the periodic timer;
+- adaptive and menu-open work arriving together still coalesce per provider instead of duplicating requests;
 - closing a menu still controls deferred prompt-capable dashboard work;
 - in-flight provider work still coalesces;
 - manual refresh remains user-initiated.
@@ -232,7 +234,7 @@ valid because the experiment does not migrate them or change their raw values.
 Approval of this document does not approve:
 
 - making adaptive refresh the default;
-- merging [PR #1733](https://github.com/steipete/CodexBar/pull/1733) or refreshing fresh data on every menu open;
+- changing the refresh-all-on-open default or its existing provider/auth behavior;
 - per-provider, per-account, per-workspace, or per-source scheduling;
 - persistent interaction or outcome history;
 - `NSBackgroundActivityScheduler` adoption;
