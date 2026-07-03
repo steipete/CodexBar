@@ -1163,3 +1163,14 @@
 "Overage credits at zero" = "歸零時顯示超額額度";
 "Overage cost at zero" = "歸零時顯示超額費用";
 "Overage credits + cost at zero" = "歸零時顯示超額額度 + 費用";
+
+/* Settings sidebar redesign */
+"Enable" = "啟用";
+"Disable" = "停用";
+"providers_on_count" = "%d 個已開啟";
+"section_cost_summary" = "費用摘要";
+"section_command_line" = "命令列";
+"section_privacy" = "隱私權";
+"section_diagnostics" = "診斷";
+"section_updates" = "更新";
+"section_links" = "連結";

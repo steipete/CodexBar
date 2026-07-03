@@ -1103,3 +1103,14 @@
 "byte_unit_megabytes" = "兆字节";
 "byte_unit_gigabyte" = "吉字节";
 "byte_unit_gigabytes" = "吉字节";
+
+/* Settings sidebar redesign */
+"Enable" = "启用";
+"Disable" = "停用";
+"providers_on_count" = "%d 个已开启";
+"section_cost_summary" = "费用摘要";
+"section_command_line" = "命令行";
+"section_privacy" = "隐私";
+"section_diagnostics" = "诊断";
+"section_updates" = "更新";
+"section_links" = "链接";

@@ -99,12 +99,12 @@ struct CodexBarApp: App {
                     await self.appDelegate.runProviderLoginFlow(provider)
                 })
         }
-        .defaultSize(width: PreferencesTab.general.preferredWidth, height: PreferencesTab.general.preferredHeight)
+        .defaultSize(width: SettingsPane.windowWidth, height: SettingsPane.windowHeight)
         .windowResizability(.contentSize)
     }
 
-    private func openSettings(tab: PreferencesTab) {
-        self.preferencesSelection.tab = tab
+    private func openSettings(pane: SettingsPane) {
+        self.preferencesSelection.pane = pane
         NSApp.activate(ignoringOtherApps: true)
         _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
     }

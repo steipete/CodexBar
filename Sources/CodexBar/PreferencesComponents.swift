@@ -1,119 +1,80 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
 
-enum PreferenceControlLayout {
-    static let width: CGFloat = 210
-}
+/// Colored rounded-square symbol used for app panes in the settings sidebar,
+/// mirroring the System Settings sidebar style.
+struct SettingsIconChip: View {
+    static let side: CGFloat = 20
 
-@MainActor
-struct SettingsCard<Content: View>: View {
-    let title: String
     let systemImage: String
-    let caption: String?
-    private let content: Content
-
-    init(
-        title: String,
-        systemImage: String,
-        caption: String? = nil,
-        @ViewBuilder content: () -> Content)
-    {
-        self.title = title
-        self.systemImage = systemImage
-        self.caption = caption
-        self.content = content()
-    }
+    let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: self.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.tint)
-                    .frame(width: 18)
-
-                Text(self.title)
-                    .font(.headline)
-            }
-
-            if let caption, !caption.isEmpty {
-                Text(caption)
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(spacing: 0) {
-                self.content
-            }
-            .padding(.horizontal, 14)
-            .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
-            }
-        }
+        Image(systemName: self.systemImage)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: Self.side, height: Self.side)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [self.color.opacity(0.85), self.color],
+                        startPoint: .top,
+                        endPoint: .bottom)))
+            .accessibilityHidden(true)
     }
 }
 
-@MainActor
-struct SettingsCardDivider: View {
-    var body: some View {
-        Divider()
-            .padding(.leading, 2)
-    }
-}
-
-private struct SettingsCardRowModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .padding(.vertical, 10)
-    }
-}
-
-extension View {
-    func settingsCardRow() -> some View {
-        self.modifier(SettingsCardRowModifier())
-    }
-}
-
-@MainActor
-struct PreferenceControlRow<Control: View>: View {
+/// Two-line label for grouped-form rows that genuinely need a supporting sentence.
+struct SettingsRowLabel: View {
     let title: String
     let subtitle: String?
-    private let control: Control
 
-    init(
-        title: String,
-        subtitle: String? = nil,
-        @ViewBuilder control: () -> Control)
-    {
+    init(_ title: String, subtitle: String? = nil) {
         self.title = title
         self.subtitle = subtitle
-        self.control = control()
     }
 
     var body: some View {
-        HStack(alignment: self.subtitle == nil ? .center : .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(self.title)
-                    .font(.body)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            Text(self.title)
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 16)
-            self.control
-                .frame(width: PreferenceControlLayout.width, alignment: .trailing)
         }
     }
 }
+
+@MainActor
+struct OpenMenuShortcutRecorder: NSViewRepresentable {
+    static let preferredWidth: CGFloat = 170
+
+    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
+        KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+    }
+
+    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
+        nsView.shortcutName = .openMenu
+    }
+
+    func sizeThatFits(
+        _: ProposedViewSize,
+        nsView: KeyboardShortcuts.RecorderCocoa,
+        context: Context)
+        -> CGSize?
+    {
+        Self.fittedSize(intrinsicHeight: nsView.intrinsicContentSize.height)
+    }
+
+    static func fittedSize(intrinsicHeight: CGFloat) -> CGSize {
+        CGSize(width: self.preferredWidth, height: intrinsicHeight)
+    }
+}
+
+// MARK: - Legacy building blocks (Debug pane)
 
 @MainActor
 struct PreferenceToggleRow: View {
@@ -136,38 +97,6 @@ struct PreferenceToggleRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-}
-
-@MainActor
-struct PreferenceSwitchRow: View {
-    let title: String
-    let subtitle: String?
-    @Binding var binding: Bool
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(self.title)
-                    .font(.body)
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Spacer(minLength: 16)
-
-            Toggle(self.title, isOn: self.$binding)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .accessibilityLabel(self.title)
-        }
-        .settingsCardRow()
     }
 }
 
@@ -207,31 +136,6 @@ struct SettingsSection<Content: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-}
-
-@MainActor
-struct AboutLinkRow: View {
-    let icon: String
-    let title: String
-    let url: String
-    @State private var hovering = false
-
-    var body: some View {
-        Button {
-            if let url = URL(string: self.url) { NSWorkspace.shared.open(url) }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: self.icon)
-                Text(self.title)
-                    .underline(self.hovering, color: .accentColor)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-            .foregroundColor(.accentColor)
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .onHover { self.hovering = $0 }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

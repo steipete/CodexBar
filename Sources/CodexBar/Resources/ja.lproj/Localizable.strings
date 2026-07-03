@@ -1127,3 +1127,14 @@
 "byte_unit_gigabyte" = "ギガバイト";
 "byte_unit_gigabytes" = "ギガバイト";
 "CrossModel API spend trend" = "CrossModel API の支出推移";
+
+/* Settings sidebar redesign */
+"Enable" = "有効にする";
+"Disable" = "無効にする";
+"providers_on_count" = "%d 件オン";
+"section_cost_summary" = "コスト概要";
+"section_command_line" = "コマンドライン";
+"section_privacy" = "プライバシー";
+"section_diagnostics" = "診断";
+"section_updates" = "アップデート";
+"section_links" = "リンク";

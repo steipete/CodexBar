@@ -1134,3 +1134,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "Andamento di spesa dell'API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Attiva";
+"Disable" = "Disattiva";
+"providers_on_count" = "%d attivi";
+"section_cost_summary" = "Riepilogo costi";
+"section_command_line" = "Riga di comando";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostica";
+"section_updates" = "Aggiornamenti";
+"section_links" = "Link";

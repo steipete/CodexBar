@@ -1126,3 +1126,14 @@
 "byte_unit_gigabyte" = "гігабайт";
 "byte_unit_gigabytes" = "гігабайти";
 "CrossModel API spend trend" = "Тенденція витрат CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "Увімкнути";
+"Disable" = "Вимкнути";
+"providers_on_count" = "%d увімкнено";
+"section_cost_summary" = "Зведення витрат";
+"section_command_line" = "Командний рядок";
+"section_privacy" = "Конфіденційність";
+"section_diagnostics" = "Діагностика";
+"section_updates" = "Оновлення";
+"section_links" = "Посилання";

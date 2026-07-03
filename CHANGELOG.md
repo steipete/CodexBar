@@ -11,7 +11,7 @@
 - Quota warnings: add an optional centered on-screen text alert that stays click-through and does not steal focus. Thanks @SAASEmpiree!
 
 ### Changed
-- Settings: simplify General around everyday choices, move background and cost controls to Advanced, and replace flat checkbox lists with grouped switch cards.
+- Settings: complete redesign as a System Settings-style window — a sidebar lists app panes plus every provider (search, drag reorder, status dots, enable via context menu), panes use native grouped forms, the window keeps one size instead of resizing per tab, and the last selected pane is remembered across launches.
 
 ### Fixed
 - Settings: align General-pane controls, show compact installed terminal app icons, and enlarge the window to fit more options.

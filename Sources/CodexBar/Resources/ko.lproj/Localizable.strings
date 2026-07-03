@@ -1097,3 +1097,14 @@
 "byte_unit_gigabyte" = "기가바이트";
 "byte_unit_gigabytes" = "기가바이트";
 "CrossModel API spend trend" = "CrossModel API 지출 추이";
+
+/* Settings sidebar redesign */
+"Enable" = "활성화";
+"Disable" = "비활성화";
+"providers_on_count" = "%d개 켜짐";
+"section_cost_summary" = "비용 요약";
+"section_command_line" = "명령줄";
+"section_privacy" = "개인정보 보호";
+"section_diagnostics" = "진단";
+"section_updates" = "업데이트";
+"section_links" = "링크";

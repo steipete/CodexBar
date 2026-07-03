@@ -1132,3 +1132,14 @@
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
 "CrossModel API spend trend" = "CrossModel API harcama eğilimi";
+
+/* Settings sidebar redesign */
+"Enable" = "Etkinleştir";
+"Disable" = "Devre dışı bırak";
+"providers_on_count" = "%d açık";
+"section_cost_summary" = "Maliyet özeti";
+"section_command_line" = "Komut satırı";
+"section_privacy" = "Gizlilik";
+"section_diagnostics" = "Tanılama";
+"section_updates" = "Güncellemeler";
+"section_links" = "Bağlantılar";

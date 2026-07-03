@@ -440,11 +440,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func showSettingsGeneral() {
-        self.openSettings(tab: .general)
+        // Restore the last selected pane; only About navigates explicitly.
+        self.openSettings(pane: nil)
     }
 
     @objc func showSettingsAbout() {
-        self.openSettings(tab: .about)
+        self.openSettings(pane: .about)
     }
 
     func openMenuFromShortcut() {
@@ -495,14 +496,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         return CGPoint(x: screenFrame.midX, y: screenFrame.midY)
     }
 
-    private func openSettings(tab: PreferencesTab) {
+    private func openSettings(pane: SettingsPane?) {
         DispatchQueue.main.async {
-            self.preferencesSelection.tab = tab
+            if let pane {
+                self.preferencesSelection.pane = pane
+            }
             NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(
-                name: .codexbarOpenSettings,
-                object: nil,
-                userInfo: ["tab": tab.rawValue])
+            NotificationCenter.default.post(name: .codexbarOpenSettings, object: nil)
         }
     }
 

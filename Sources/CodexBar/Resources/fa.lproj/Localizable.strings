@@ -1135,3 +1135,14 @@
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
 "CrossModel API spend trend" = "روند هزینه‌ی CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "فعال‌سازی";
+"Disable" = "غیرفعال‌سازی";
+"providers_on_count" = "%d فعال";
+"section_cost_summary" = "خلاصه هزینه";
+"section_command_line" = "خط فرمان";
+"section_privacy" = "حریم خصوصی";
+"section_diagnostics" = "عیب‌یابی";
+"section_updates" = "به‌روزرسانی‌ها";
+"section_links" = "پیوندها";

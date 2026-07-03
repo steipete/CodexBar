@@ -1135,3 +1135,14 @@
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
 "CrossModel API spend trend" = "แนวโน้มค่าใช้จ่ายของ CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "เปิดใช้งาน";
+"Disable" = "ปิดใช้งาน";
+"providers_on_count" = "เปิดอยู่ %d";
+"section_cost_summary" = "สรุปค่าใช้จ่าย";
+"section_command_line" = "บรรทัดคำสั่ง";
+"section_privacy" = "ความเป็นส่วนตัว";
+"section_diagnostics" = "การวินิจฉัย";
+"section_updates" = "อัปเดต";
+"section_links" = "ลิงก์";

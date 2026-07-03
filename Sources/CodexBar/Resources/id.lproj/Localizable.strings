@@ -1134,3 +1134,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "Tren pengeluaran API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Aktifkan";
+"Disable" = "Nonaktifkan";
+"providers_on_count" = "%d aktif";
+"section_cost_summary" = "Ringkasan biaya";
+"section_command_line" = "Baris perintah";
+"section_privacy" = "Privasi";
+"section_diagnostics" = "Diagnostik";
+"section_updates" = "Pembaruan";
+"section_links" = "Tautan";

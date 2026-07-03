@@ -63,235 +63,93 @@ struct GeneralPane: View {
     @Bindable var settings: SettingsStore
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 18) {
-                SettingsCard(title: L("section_system"), systemImage: "gearshape") {
-                    PreferenceControlRow(
-                        title: L("language_title"),
-                        subtitle: L("language_subtitle"))
-                    {
-                        Picker(L("language_title"), selection: self.$settings.appLanguage) {
-                            ForEach(AppLanguage.allCases) { option in
-                                Text(option.label).tag(option.rawValue)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
+        Form {
+            Section {
+                Picker(selection: self.$settings.appLanguage) {
+                    ForEach(AppLanguage.allCases) { option in
+                        Text(option.label).tag(option.rawValue)
                     }
-                    .settingsCardRow()
-
-                    SettingsCardDivider()
-
-                    PreferenceControlRow(
-                        title: L("terminal_app_title"),
-                        subtitle: L("terminal_app_subtitle"))
-                    {
-                        Picker(L("terminal_app_title"), selection: self.$settings.terminalApp) {
-                            ForEach(TerminalApp.pickerOptions(selected: self.settings.terminalApp)) { option in
-                                HStack(spacing: 6) {
-                                    if let icon = option.pickerIcon {
-                                        Image(nsImage: icon)
-                                    }
-                                    Text(option.label)
-                                }
-                                .tag(option)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                    }
-                    .settingsCardRow()
-
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("start_at_login_title"),
-                        subtitle: L("start_at_login_subtitle"),
-                        binding: self.$settings.launchAtLogin)
+                } label: {
+                    SettingsRowLabel(L("language_title"), subtitle: L("language_subtitle"))
                 }
 
-                SettingsCard(title: L("section_automation"), systemImage: "arrow.triangle.2.circlepath") {
-                    PreferenceControlRow(
-                        title: L("refresh_cadence_title"),
-                        subtitle: self.settings.refreshFrequency == .manual
-                            ? L("manual_refresh_hint")
-                            : L("refresh_cadence_subtitle"))
-                    {
-                        Picker(L("Refresh cadence"), selection: self.$settings.refreshFrequency) {
-                            ForEach(RefreshFrequency.allCases) { option in
-                                Text(option.label).tag(option)
+                Picker(selection: self.$settings.terminalApp) {
+                    ForEach(TerminalApp.pickerOptions(selected: self.settings.terminalApp)) { option in
+                        HStack(spacing: 6) {
+                            if let icon = option.pickerIcon {
+                                Image(nsImage: icon)
                             }
+                            Text(option.label)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
+                        .tag(option)
                     }
-                    .settingsCardRow()
+                } label: {
+                    SettingsRowLabel(L("terminal_app_title"), subtitle: L("terminal_app_subtitle"))
                 }
 
-                SettingsCard(title: L("section_notifications"), systemImage: "bell.badge") {
-                    PreferenceSwitchRow(
-                        title: L("session_quota_notifications_title"),
-                        subtitle: L("session_quota_notifications_subtitle"),
-                        binding: self.$settings.sessionQuotaNotificationsEnabled)
+                Toggle(L("start_at_login_title"), isOn: self.$settings.launchAtLogin)
+            } header: {
+                Text(L("section_system"))
+            }
 
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("quota_warning_notifications_title"),
-                        subtitle: L("quota_warning_notifications_subtitle"),
-                        binding: self.$settings.quotaWarningNotificationsEnabled)
-                    if self.settings.quotaWarningNotificationsEnabled {
-                        SettingsCardDivider()
-                        GlobalQuotaWarningSettingsView(settings: self.settings)
-                            .padding(.vertical, 10)
+            Section {
+                Picker(L("refresh_cadence_title"), selection: self.$settings.refreshFrequency) {
+                    ForEach(RefreshFrequency.allCases) { option in
+                        Text(option.label).tag(option)
                     }
                 }
 
+                Toggle(L("refresh_on_open_title"), isOn: self.$settings.refreshAllProvidersOnMenuOpen)
+
+                Toggle(isOn: self.$settings.statusChecksEnabled) {
+                    SettingsRowLabel(
+                        L("check_provider_status_title"),
+                        subtitle: L("check_provider_status_subtitle"))
+                }
+            } header: {
+                Text(L("section_automation"))
+            } footer: {
+                if self.settings.refreshFrequency == .manual {
+                    Text(L("manual_refresh_hint"))
+                }
+            }
+
+            Section {
+                Toggle(isOn: self.$settings.sessionQuotaNotificationsEnabled) {
+                    SettingsRowLabel(
+                        L("session_quota_notifications_title"),
+                        subtitle: L("session_quota_notifications_subtitle"))
+                }
+
+                Toggle(isOn: self.$settings.quotaWarningNotificationsEnabled) {
+                    SettingsRowLabel(
+                        L("quota_warning_notifications_title"),
+                        subtitle: L("quota_warning_notifications_subtitle"))
+                }
+
+                if self.settings.quotaWarningNotificationsEnabled {
+                    GlobalQuotaWarningSettingsView(settings: self.settings)
+                }
+            } header: {
+                Text(L("section_notifications"))
+            }
+
+            Section {
+                LabeledContent(L("open_menu_shortcut_title")) {
+                    OpenMenuShortcutRecorder()
+                }
+            } header: {
+                Text(L("section_keyboard_shortcut"))
+            }
+
+            Section {
                 HStack {
                     Spacer()
                     Button(L("quit_app")) { NSApp.terminate(nil) }
-                        .buttonStyle(.bordered)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
         }
-    }
-}
-
-@MainActor
-struct CostSummarySettingsGroup: View {
-    @Bindable var settings: SettingsStore
-    @Bindable var store: UsageStore
-
-    var body: some View {
-        PreferenceSwitchRow(
-            title: L("show_cost_summary"),
-            subtitle: L("show_cost_summary_subtitle"),
-            binding: self.$settings.costUsageEnabled)
-
-        if self.settings.costUsageEnabled {
-            SettingsCardDivider()
-
-            PreferenceControlRow(
-                title: L("cost_summary_style_title"),
-                subtitle: self.settings.costSummaryDisplayStyle.helpText)
-            {
-                Picker(
-                    L("cost_summary_style_title"),
-                    selection: self.$settings.costSummaryDisplayStyle)
-                {
-                    ForEach(CostSummaryDisplayStyle.allCases) { style in
-                        Text(style.label).tag(style)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-            }
-            .settingsCardRow()
-
-            SettingsCardDivider()
-
-            CostHistoryDaysEditor(settings: self.settings)
-                .settingsCardRow()
-
-            SettingsCardDivider()
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(L("cost_auto_refresh_info"))
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-
-                self.costStatusLine(provider: .claude)
-                self.costStatusLine(provider: .codex)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .settingsCardRow()
-        }
-    }
-
-    private func costStatusLine(provider: UsageProvider) -> some View {
-        let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-
-        guard provider == .claude || provider == .codex else {
-            return Text(String(format: L("cost_status_unsupported"), name))
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        }
-
-        if self.store.isTokenRefreshInFlight(for: provider) {
-            let elapsed: String = {
-                guard let startedAt = self.store.tokenLastAttemptAt(for: provider) else { return "" }
-                let seconds = max(0, Date().timeIntervalSince(startedAt))
-                let formatter = DateComponentsFormatter()
-                formatter.allowedUnits = seconds < 60 ? [.second] : [.minute, .second]
-                formatter.unitsStyle = .abbreviated
-                return formatter.string(from: seconds).map { " (\($0))" } ?? ""
-            }()
-            return Text(String(format: L("cost_status_fetching"), name, elapsed))
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        }
-        if let snapshot = self.store.tokenSnapshot(for: provider) {
-            let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
-            let cost = snapshot.last30DaysCostUSD
-                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
-            let window = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d")
-            return Text(String(format: L("cost_status_snapshot"), name, updated, window, cost))
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        }
-        if let error = self.store.tokenError(for: provider), !error.isEmpty {
-            let truncated = UsageFormatter.truncatedSingleLine(error, max: 120)
-            return Text(String(format: L("cost_status_error"), name, truncated))
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        }
-        if let lastAttempt = self.store.tokenLastAttemptAt(for: provider) {
-            let rel = RelativeDateTimeFormatter()
-            rel.locale = Locale(identifier: "en_US")
-            rel.unitsStyle = .abbreviated
-            let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
-            return Text(String(format: L("cost_status_last_attempt"), name, when))
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-        }
-        return Text(String(format: L("cost_status_no_data"), name))
-            .font(.footnote)
-            .foregroundStyle(.tertiary)
-    }
-}
-
-@MainActor
-struct CostHistoryDaysEditor: View {
-    @Bindable var settings: SettingsStore
-
-    static func title(days: Int) -> String {
-        String(format: L("cost_history_days_title"), days)
-    }
-
-    var body: some View {
-        let title = Self.title(days: self.settings.costUsageHistoryDays)
-
-        PreferenceControlRow(title: title) {
-            HStack(spacing: 8) {
-                TextField(
-                    title,
-                    value: self.$settings.costUsageHistoryDays,
-                    format: .number)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .font(.body)
-                    .monospacedDigit()
-                    .frame(width: 72)
-
-                Stepper(value: self.$settings.costUsageHistoryDays, in: 1...365, step: 1) {
-                    EmptyView()
-                }
-                .labelsHidden()
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-        }
+        .formStyle(.grouped)
+        .toggleStyle(.switch)
     }
 }

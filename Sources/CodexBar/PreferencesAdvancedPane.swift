@@ -1,5 +1,4 @@
 import CodexBarCore
-import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
@@ -10,151 +9,62 @@ struct AdvancedPane: View {
     @State private var cliStatus: String?
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 18) {
-                SettingsCard(title: L("section_automation"), systemImage: "bolt.horizontal.circle") {
-                    PreferenceSwitchRow(
-                        title: L("refresh_on_open_title"),
-                        subtitle: L("refresh_on_open_subtitle"),
-                        binding: self.$settings.refreshAllProvidersOnMenuOpen)
-
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("check_provider_status_title"),
-                        subtitle: L("check_provider_status_subtitle"),
-                        binding: self.$settings.statusChecksEnabled)
-                }
-
-                SettingsCard(title: L("section_usage"), systemImage: "chart.bar.xaxis") {
-                    CostSummarySettingsGroup(settings: self.settings, store: self.store)
-                }
-
-                SettingsCard(title: L("section_keyboard_shortcut"), systemImage: "command") {
-                    PreferenceControlRow(
-                        title: L("open_menu_shortcut_title"),
-                        subtitle: L("open_menu_shortcut_subtitle"))
-                    {
-                        OpenMenuShortcutRecorder()
-                    }
-                    .settingsCardRow()
-                }
-
-                SettingsCard(title: L("install_cli"), systemImage: "terminal") {
-                    HStack(alignment: .center, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L("install_cli_subtitle"))
-                                .font(.footnote)
-                                .foregroundStyle(.tertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            if let status = self.cliStatus {
-                                Text(status)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
+        Form {
+            Section {
+                LabeledContent {
+                    Button {
+                        Task { await self.installCLI() }
+                    } label: {
+                        if self.isInstallingCLI {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(L("install_cli"))
                         }
-
-                        Spacer(minLength: 16)
-
-                        Button {
-                            Task { await self.installCLI() }
-                        } label: {
-                            if self.isInstallingCLI {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Text(L("install_cli"))
-                            }
-                        }
-                        .disabled(self.isInstallingCLI)
                     }
-                    .settingsCardRow()
+                    .disabled(self.isInstallingCLI)
+                } label: {
+                    SettingsRowLabel(L("install_cli"), subtitle: L("install_cli_subtitle"))
                 }
-
-                SettingsCard(title: L("section_system"), systemImage: "gearshape.2") {
-                    PreferenceSwitchRow(
-                        title: L("show_debug_settings_title"),
-                        subtitle: L("show_debug_settings_subtitle"),
-                        binding: self.$settings.debugMenuEnabled)
-
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("hide_personal_info_title"),
-                        subtitle: L("hide_personal_info_subtitle"),
-                        binding: self.$settings.hidePersonalInfo)
-
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("show_provider_storage_usage_title"),
-                        subtitle: L("show_provider_storage_usage_subtitle"),
-                        binding: self.$settings.providerStorageFootprintsEnabled)
-                }
-
-                SettingsCard(title: L("section_loading_animations"), systemImage: "sparkles") {
-                    PreferenceSwitchRow(
-                        title: L("surprise_me_title"),
-                        subtitle: L("surprise_me_subtitle"),
-                        binding: self.$settings.randomBlinkEnabled)
-
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("session_limit_confetti_title"),
-                        subtitle: L("session_limit_confetti_subtitle"),
-                        binding: self.$settings.confettiOnSessionLimitResetsEnabled)
-
-                    SettingsCardDivider()
-
-                    PreferenceSwitchRow(
-                        title: L("weekly_limit_confetti_title"),
-                        subtitle: L("weekly_limit_confetti_subtitle"),
-                        binding: self.$settings.confettiOnWeeklyLimitResetsEnabled)
-                }
-
-                SettingsCard(
-                    title: L("section_keychain_access"),
-                    systemImage: "key",
-                    caption: L("keychain_access_caption"))
-                {
-                    PreferenceSwitchRow(
-                        title: L("disable_keychain_access_title"),
-                        subtitle: L("disable_keychain_access_subtitle"),
-                        binding: self.$settings.debugDisableKeychainAccess)
+            } header: {
+                Text(L("section_command_line"))
+            } footer: {
+                if let status = self.cliStatus {
+                    Text(status)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+
+            Section {
+                Toggle(isOn: self.$settings.hidePersonalInfo) {
+                    SettingsRowLabel(L("hide_personal_info_title"), subtitle: L("hide_personal_info_subtitle"))
+                }
+
+                Toggle(isOn: self.$settings.debugDisableKeychainAccess) {
+                    SettingsRowLabel(
+                        L("disable_keychain_access_title"),
+                        subtitle: L("disable_keychain_access_subtitle"))
+                }
+            } header: {
+                Text(L("section_privacy"))
+            } footer: {
+                Text(L("keychain_access_caption"))
+            }
+
+            Section {
+                Toggle(isOn: self.$settings.providerStorageFootprintsEnabled) {
+                    SettingsRowLabel(
+                        L("show_provider_storage_usage_title"),
+                        subtitle: L("show_provider_storage_usage_subtitle"))
+                }
+
+                Toggle(isOn: self.$settings.debugMenuEnabled) {
+                    SettingsRowLabel(L("show_debug_settings_title"), subtitle: L("show_debug_settings_subtitle"))
+                }
+            } header: {
+                Text(L("section_diagnostics"))
+            }
         }
-    }
-}
-
-@MainActor
-struct OpenMenuShortcutRecorder: NSViewRepresentable {
-    static let preferredWidth: CGFloat = 170
-
-    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
-        KeyboardShortcuts.RecorderCocoa(for: .openMenu)
-    }
-
-    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
-        nsView.shortcutName = .openMenu
-    }
-
-    func sizeThatFits(
-        _: ProposedViewSize,
-        nsView: KeyboardShortcuts.RecorderCocoa,
-        context: Context)
-        -> CGSize?
-    {
-        Self.fittedSize(intrinsicHeight: nsView.intrinsicContentSize.height)
-    }
-
-    static func fittedSize(intrinsicHeight: CGFloat) -> CGSize {
-        CGSize(width: self.preferredWidth, height: intrinsicHeight)
+        .formStyle(.grouped)
+        .toggleStyle(.switch)
     }
 }
 

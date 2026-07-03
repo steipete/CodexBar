@@ -1130,3 +1130,14 @@
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
 "CrossModel API spend trend" = "Tendència de despesa de l'API de CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Activa";
+"Disable" = "Desactiva";
+"providers_on_count" = "%d actius";
+"section_cost_summary" = "Resum de costos";
+"section_command_line" = "Línia d'ordres";
+"section_privacy" = "Privadesa";
+"section_diagnostics" = "Diagnòstics";
+"section_updates" = "Actualitzacions";
+"section_links" = "Enllaços";

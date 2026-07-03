@@ -1127,3 +1127,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "Xu hướng chi tiêu API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Bật";
+"Disable" = "Tắt";
+"providers_on_count" = "%d đang bật";
+"section_cost_summary" = "Tóm tắt chi phí";
+"section_command_line" = "Dòng lệnh";
+"section_privacy" = "Quyền riêng tư";
+"section_diagnostics" = "Chẩn đoán";
+"section_updates" = "Cập nhật";
+"section_links" = "Liên kết";

@@ -1135,3 +1135,14 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
+
+/* Settings sidebar redesign */
+"Enable" = "Enable";
+"Disable" = "Disable";
+"providers_on_count" = "%d on";
+"section_cost_summary" = "Cost summary";
+"section_command_line" = "Command line";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostics";
+"section_updates" = "Updates";
+"section_links" = "Links";
