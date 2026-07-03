@@ -21,10 +21,10 @@ fi
 
 log() { printf '[verify-1844] %s\n' "$*"; }
 
-log "=== Phase 1: macOS integration tests (real binaries) ==="
+log "Phase 1: macOS integration tests"
 swift test --filter 'mcp O auth|delegated retry experimental|load with auto refresh expired claude CLI owner throws mcp' \
   2>&1 | tee "$ARTIFACT/integration-tests.log"
-log "Phase 1 PASS"
+log "Phase 1 passed"
 
 KEYCHAIN_SERVICE="Claude Code-credentials"
 KEYCHAIN_ACCOUNT="codexbar-verify-1844"
@@ -47,8 +47,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log "=== Phase 2: optional Keychain fixture E2E ==="
-log "If macOS prompts for Keychain access, click Allow (needed once to install test fixture)."
+log "Phase 2: optional Keychain fixture E2E"
+log "Approve the macOS Keychain prompt if shown (required once to install the test fixture)."
 
 security delete-generic-password -s "$KEYCHAIN_SERVICE" -a "$KEYCHAIN_ACCOUNT" >/dev/null 2>&1 || true
 if ! security add-generic-password \
@@ -57,8 +57,8 @@ if ! security add-generic-password \
   -w "$MCP_PAYLOAD" \
   -T "$CLI" \
   -U 2>"$ARTIFACT/keychain-install.err"; then
-  log "Phase 2 SKIPPED: Keychain fixture install failed (see $ARTIFACT/keychain-install.err)"
-  log "Phase 1 integration proof is still valid for merge review."
+  log "Phase 2 skipped: could not install Keychain fixture (see $ARTIFACT/keychain-install.err)"
+  log "Phase 1 integration results remain valid for review."
   exit 0
 fi
 
@@ -69,7 +69,7 @@ printf '%s\n' '{"version":1,"providers":[{"id":"claude","enabled":true}]}' >"$CO
 
 PROC_LOG="$ARTIFACT/e2e-proc.log"
 : >"$PROC_LOG"
-log "Running background Claude OAuth CLI probe..."
+log "Running background Claude OAuth CLI probe"
 (
   CODEXBAR_CONFIG="$CONFIG" CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW=1 \
     "$CLI" usage --provider claude --source oauth --format json --json-output --log-level debug \
@@ -100,18 +100,18 @@ wait "$PID" || true
 } | tee "$ARTIFACT/E2E-REPORT.md"
 
 if rg -q '/usr/bin/open|firefox' "$PROC_LOG" 2>/dev/null; then
-  log "FAIL: browser/open detected"
+  log "Phase 2 failed: browser or open helper launched"
   exit 1
 fi
 if rg -q 'delegated refresh touch' "$ARTIFACT/e2e-stderr.jsonl" 2>/dev/null; then
-  log "FAIL: delegated CLI touch ran"
+  log "Phase 2 failed: delegated CLI touch ran"
   exit 1
 fi
 if ! rg -qi 'mcp oauth|MCP OAuth state only|only prompt on user action' \
   "$ARTIFACT/e2e-stderr.jsonl" "$ARTIFACT/e2e-stdout.json" 2>/dev/null; then
-  log "FAIL: missing fail-closed messaging"
+  log "Phase 2 failed: expected fail-closed OAuth messaging not found"
   exit 1
 fi
 
-log "Phase 2 PASS: E2E background probe failed closed without open/delegated touch"
+log "Phase 2 passed: background probe failed closed without open or delegated CLI touch"
 log "Report: $ARTIFACT/E2E-REPORT.md"

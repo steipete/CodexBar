@@ -1,0 +1,47 @@
+## Summary
+
+Partial fix for #1844: when Claude Code stores only MCP OAuth state in `Claude Code-credentials` (no `claudeAiOauth`), CodexBar no longer runs background delegated `claude /status` refresh—which can launch the default browser via `/usr/bin/open`.
+
+**Scope:** Phase 1 guard only. Does not discover Claude Code 2.1.x's primary OAuth storage location.
+
+## Problem
+
+On Claude Code 2.1.x, the `Claude Code-credentials` keychain item may contain only `mcpOAuth`. CodexBar then fails to parse Claude OAuth credentials, treats the session as expired, and may periodically attempt delegated CLI refresh. That path can open the user's default browser from the background.
+
+Contributing issues on `main`:
+
+1. Delegated refresh used `ClaudeOAuthKeychainPromptPreference.current()`, which becomes `.always` when the experimental security CLI reader is active—so `onlyOnUserAction` did not suppress background repair.
+2. Delegated refresh could still invoke `claude /status` even when the keychain shape could not succeed.
+
+## Changes
+
+1. **Honor stored keychain prompt mode for delegated refresh** across all keychain read strategies (including `securityCLIExperimental`). Background refresh with `onlyOnUserAction` fails closed with existing user-action guidance instead of calling `claude /status`.
+2. **Detect MCP-only keychain payloads** via `ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain`, skip delegated CLI touch, and fail fast during expired Claude CLI credential load.
+3. **Split security CLI read paths**: `readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled` vs parsed credential load.
+4. **Verification helper**: `Scripts/verify_1844_live.sh` and `docs/verify-1844-proof.md`.
+
+## Tests
+
+- Updated: background delegated-refresh suppression with experimental reader
+- Added: MCP-only parse/shape detection
+- Added: coordinator test—no delegated touch for MCP-only keychain
+- Added: store test—expired CLI owner fails fast before delegation
+
+## Verification
+
+- [x] Focused macOS integration tests (2026-07-03) — details in `docs/verify-1844-proof.md` and PR comment
+- [x] `make check` on contributor machine
+- [ ] Optional: Keychain fixture E2E via `./Scripts/verify_1844_live.sh` (one Keychain Allow)
+- [ ] Optional: Menu Refresh screenshot on a host with the reporter's keychain shape
+
+### Commands
+
+```bash
+make check
+swift test --filter ClaudeOAuthTests
+swift test --filter 'ClaudeUsageTests.oauth delegated'
+swift test --filter 'ClaudeOAuthDelegatedRefreshCoordinatorTests.experimental strategy skips'
+./Scripts/verify_1844_live.sh
+```
+
+Fixes #1844 (partial)
