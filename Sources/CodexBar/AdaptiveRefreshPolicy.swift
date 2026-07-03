@@ -28,6 +28,12 @@ struct AdaptiveRefreshPolicy: Sendable {
     private static let warmThreshold: TimeInterval = 60 * 60
     private static let idleThreshold: TimeInterval = 4 * 60 * 60
 
+    /// Representative cadence for consumers that need a single interval but cannot reach live
+    /// signals (`ProviderRegistry` builds provider specs before a `UsageStore` exists). Matches
+    /// `warmDelay`: the steady-state cadence while the user is active, which is when
+    /// interval-derived heuristics such as the persistent-CLI-session idle window matter most.
+    static let nominalIntervalForHeuristics: TimeInterval = 5 * 60
+
     private static let recentInteractionDelay: Duration = .seconds(2 * 60)
     private static let warmDelay: Duration = .seconds(5 * 60)
     private static let idleDelay: Duration = .seconds(15 * 60)

@@ -694,7 +694,7 @@ final class UsageStore {
         }
 
         self.scheduleResetBoundaryRefreshIfNeeded(
-            normalRefreshInterval: self.settings.refreshFrequency.seconds)
+            normalRefreshInterval: self.normalRefreshIntervalForHeuristics())
 
         if allowsStartupConnectivityRetry {
             self.completeStartupConnectivityRetryPass(currentAttempt: startupConnectivityRetryAttempt ?? 0)

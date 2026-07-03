@@ -43,8 +43,11 @@ read_when:
 - Each adaptive tick recomputes the delay after the previous refresh completes, sleeps, then calls the same
   `UsageStore.refresh()` used by fixed-interval mode, so the existing `isRefreshing` coalescing guard still
   applies — only one provider-batch refresh runs at a time regardless of cadence mode.
-- Selected delay and reason are logged (e.g. `adaptive refresh: reason=warm delay=300s`) through the existing
-  local logger; never provider identity, account, email, workspace, path, credentials, or response data.
+- Selected delay and reason are logged (e.g. `reason=warm delay=300s` in the `adaptive-refresh` category) through
+  the existing local logger; never provider identity, account, email, workspace, path, credentials, or response data.
+- Interval-derived heuristics (reset-boundary refresh, OpenAI web staleness, persistent-CLI-session idle windows)
+  read `UsageStore.normalRefreshIntervalForHeuristics()`, which resolves adaptive mode to the current decision's
+  delay — they stay active in adaptive mode rather than degrading to manual, whose interval is nil.
 
 ## Optional future
 - Auto-seed a log if none exists via `codex exec --skip-git-repo-check --json "ping"` (currently not executed).

@@ -31,8 +31,9 @@ extension UsageStore {
 
     func logAdaptiveRefreshDecision(_ decision: AdaptiveRefreshPolicy.Decision) {
         // Reason and delay only; never provider/account/email/path/credential/response data.
+        // No "adaptive refresh: " prefix — the adaptiveRefresh log category already identifies the source.
         self.adaptiveRefreshLogger.debug(
-            "adaptive refresh: reason=\(decision.reason.rawValue) delay=\(decision.delay.components.seconds)s")
+            "reason=\(decision.reason.rawValue) delay=\(decision.delay.components.seconds)s")
     }
 
     /// Computes this tick's adaptive sleep duration (and logs the decision) while briefly holding a
@@ -47,5 +48,27 @@ extension UsageStore {
             thermalState: ProcessInfo.processInfo.thermalState)
         store.logAdaptiveRefreshDecision(decision)
         return store.effectiveTimerSleepDuration(decision.delay)
+    }
+
+    /// The refresh interval scheduling *heuristics* (reset-boundary refresh, OpenAI web staleness,
+    /// persistent-CLI-session idle windows) should use as "how often does a normal refresh happen".
+    /// This is deliberately distinct from `RefreshFrequency.seconds`, which is nil for both `.manual`
+    /// (no timer at all — heuristics correctly get nil here too) and `.adaptive` (no *fixed*
+    /// interval, but ticks are still happening on a real, computable cadence). For `.adaptive`, this
+    /// resolves to what `AdaptiveRefreshPolicy` would decide right now from live signals, so those
+    /// heuristics stay active and roughly proportionate instead of silently behaving like manual.
+    func normalRefreshIntervalForHeuristics() -> TimeInterval? {
+        switch self.settings.refreshFrequency {
+        case .manual:
+            nil
+        case .adaptive:
+            TimeInterval(Self.adaptiveRefreshDecision(
+                now: Date(),
+                lastMenuOpenAt: self.lastMenuOpenAt,
+                lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                thermalState: ProcessInfo.processInfo.thermalState).delay.components.seconds)
+        default:
+            self.settings.refreshFrequency.seconds
+        }
     }
 }
