@@ -308,6 +308,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Crear un enlace simbólico de CodexBarCLI en /usr/local/bin y /opt/homebrew/bin como codexbar.";
 "System" = "Sistema";
 "Temporarily shows the loading animation after the next refresh." = "Muestra temporalmente la animación de carga tras la próxima actualización.";
+"terminal_app_subtitle" = "Terminal usado por la acción Abrir Terminal";
+"terminal_app_title" = "Terminal predeterminado";
 "Tertiary (\\(label))" = "Terciario (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Terciario (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "La cuenta de Codex predeterminada en este Mac.";
