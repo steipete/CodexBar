@@ -27,7 +27,7 @@ public enum PoeProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .poe,
                 iconResourceName: "ProviderIcon-poe",
-                color: ProviderColor(red: 0.15, green: 0.68, blue: 0.38)),
+                color: ProviderColor(red: 93 / 255, green: 92 / 255, blue: 222 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Poe usage history is unavailable." }),
