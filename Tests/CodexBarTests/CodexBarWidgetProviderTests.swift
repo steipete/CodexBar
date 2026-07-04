@@ -642,3 +642,27 @@ struct CodexBarWidgetProviderTests {
         return WidgetSnapshot(entries: [entry], generatedAt: entry.updatedAt)
     }
 }
+
+extension CodexBarWidgetProviderTests {
+    @Test
+    func `usage history chart mode requires every point to expose cost`() {
+        let costPoints = [
+            WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-01", totalTokens: 100, costUSD: 1.2),
+            WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-02", totalTokens: 200, costUSD: 2.4),
+        ]
+        let tokenPoints = [
+            WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-01", totalTokens: 100, costUSD: nil),
+            WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-02", totalTokens: 200, costUSD: nil),
+        ]
+        let mixedPoints = [
+            WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-01", totalTokens: 100, costUSD: 1.2),
+            WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-02", totalTokens: 200, costUSD: nil),
+        ]
+        let emptyPoints: [WidgetSnapshot.DailyUsagePoint] = []
+
+        #expect(UsageHistoryChartMode.isCostMode(costPoints) == true)
+        #expect(UsageHistoryChartMode.isCostMode(tokenPoints) == false)
+        #expect(UsageHistoryChartMode.isCostMode(mixedPoints) == false)
+        #expect(UsageHistoryChartMode.isCostMode(emptyPoints) == false)
+    }
+}

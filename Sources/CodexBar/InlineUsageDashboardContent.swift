@@ -30,6 +30,9 @@ struct InlineUsageDashboardModel: Equatable {
     /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
     /// neutral palette derived from `valueStyle`.
     var barColor: Color?
+    /// ISO 4217 currency code for cost dashboards. When non-nil, `MiniUsageBars` shows a max-cost scale label.
+    /// Nil for token/points dashboards.
+    var currencyCode: String?
 }
 
 extension UsageMenuCardView.Model {
@@ -366,7 +369,7 @@ extension UsageMenuCardView.Model {
             details.append(L("cost_estimate_hint"))
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
-        return InlineUsageDashboardModel(
+        var model = InlineUsageDashboardModel(
             accessibilityLabel: "\(providerName) \(periodLabel) cost trend",
             valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
             kpis: [
@@ -386,6 +389,8 @@ extension UsageMenuCardView.Model {
             ] + Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest),
             points: points,
             detailLines: details)
+        model.currencyCode = snapshot.currencyCode
+        return model
     }
 
     private static func costHistoryTrailingKPIs(
@@ -429,7 +434,7 @@ extension UsageMenuCardView.Model {
         if let topModel = usage.topModels.first {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel.name))")
         }
-        return InlineUsageDashboardModel(
+        var model = InlineUsageDashboardModel(
             accessibilityLabel: L("Claude Admin API 30 day spend trend"),
             valueStyle: .currencyUSD,
             kpis: [
@@ -446,6 +451,8 @@ extension UsageMenuCardView.Model {
             ],
             points: points,
             detailLines: details)
+        model.currencyCode = "USD"
+        return model
     }
 
     private static func crossModelInlineDashboard(_ usage: CrossModelUsageSnapshot) -> InlineUsageDashboardModel? {
@@ -462,7 +469,7 @@ extension UsageMenuCardView.Model {
                 value: value,
                 accessibilityValue: "\(label): \(usage.currencyString(value))")
         }
-        return InlineUsageDashboardModel(
+        var model = InlineUsageDashboardModel(
             accessibilityLabel: L("CrossModel API spend trend"),
             valueStyle: Self.costValueStyle(currencyCode: usage.currency),
             kpis: [
@@ -482,6 +489,8 @@ extension UsageMenuCardView.Model {
             ],
             points: points,
             detailLines: [])
+        model.currencyCode = usage.currency
+        return model
     }
 
     private static func openRouterInlineDashboard(_ usage: OpenRouterUsageSnapshot) -> InlineUsageDashboardModel? {
@@ -517,7 +526,7 @@ extension UsageMenuCardView.Model {
         case .unavailable:
             details.append(L("API key limit unavailable right now"))
         }
-        return InlineUsageDashboardModel(
+        var model = InlineUsageDashboardModel(
             accessibilityLabel: L("OpenRouter API key spend trend"),
             valueStyle: .currencyUSD,
             kpis: [
@@ -537,6 +546,8 @@ extension UsageMenuCardView.Model {
             ],
             points: points,
             detailLines: details)
+        model.currencyCode = "USD"
+        return model
     }
 
     private static func zaiInlineDashboard(modelUsage: ZaiModelUsageData, now: Date) -> InlineUsageDashboardModel? {
@@ -836,6 +847,28 @@ struct InlineUsageDashboardContent: View {
                     .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.22))
                     .frame(height: 1)
             }
+            .overlay(alignment: .topTrailing) {
+                if let currencyCode = self.model.currencyCode {
+                    let maxCost = self.model.points.map(\.value).max() ?? 0
+                    if maxCost > 0 {
+                        Text(Self.compactCostString(maxCost, currencyCode: currencyCode))
+                            .font(.caption2)
+                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            .lineLimit(1)
+                            .allowsTightening(true)
+                    }
+                }
+            }
+        }
+
+        private static func compactCostString(_ value: Double, currencyCode: String) -> String {
+            if value != 0, abs(value) < 1 {
+                return UsageFormatter.currencyString(value, currencyCode: currencyCode)
+            }
+            return value.formatted(
+                .currency(code: currencyCode)
+                    .precision(.fractionLength(0))
+                    .locale(Locale(identifier: "en_US")))
         }
 
         private func height(for point: InlineUsageDashboardModel.Point, maxValue: Double) -> CGFloat {

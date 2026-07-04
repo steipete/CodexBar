@@ -427,7 +427,10 @@ private struct SwitcherLargeUsageView: View {
                             currencyCode: token.currencyCode))
                 }
             }
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
     }
@@ -535,7 +538,10 @@ private struct LargeUsageView: View {
                             currencyCode: token.currencyCode))
                 }
             }
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
         .padding(12)
@@ -692,7 +698,10 @@ private struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: self.isLarge ? 90 : 60)
             if let token = entry.tokenUsage {
                 ValueLine(
@@ -777,10 +786,12 @@ private struct ValueLine: View {
 private struct UsageHistoryChart: View {
     let points: [WidgetSnapshot.DailyUsagePoint]
     let color: Color
+    let currencyCode: String?
 
     var body: some View {
+        let isCostMode = UsageHistoryChartMode.isCostMode(self.points)
         let values = self.points.map { point -> Double in
-            if let cost = point.costUSD { return cost }
+            if isCostMode { return point.costUSD ?? 0 }
             return Double(point.totalTokens ?? 0)
         }
         let maxValue = values.max() ?? 0
@@ -795,6 +806,24 @@ private struct UsageHistoryChart: View {
                     .animation(.easeOut(duration: 0.2), value: height)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if isCostMode,
+               let currencyCode = self.currencyCode,
+               maxValue > 0
+            {
+                Text(WidgetFormat.currency(maxValue, code: currencyCode))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            }
+        }
+    }
+}
+
+enum UsageHistoryChartMode {
+    static func isCostMode(_ points: [WidgetSnapshot.DailyUsagePoint]) -> Bool {
+        !points.isEmpty && points.allSatisfy { $0.costUSD != nil }
     }
 }
 
