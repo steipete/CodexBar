@@ -3,6 +3,16 @@ import SwiftUI
 /// Static progress fill with no implicit animations, used inside the menu card.
 struct UsageProgressBar: View {
     private static let paceStripeCount = 3
+    private static let stripePunchOpacity = 0.9
+
+    private nonisolated static var warningMarkerPunchWidth: CGFloat {
+        5
+    }
+
+    private nonisolated static var warningMarkerStripeWidth: CGFloat {
+        1
+    }
+
     private static func paceStripeWidth(for scale: CGFloat) -> CGFloat {
         2
     }
@@ -79,16 +89,23 @@ struct UsageProgressBar: View {
             }
 
             if !markerPercents.isEmpty {
-                let markerColor = Self.warningMarkerColor(isHighlighted: self.isHighlighted)
+                let markerStripeColor = Self.warningMarkerColor(isHighlighted: self.isHighlighted)
                 for markerPercent in markerPercents {
                     let x = size.width * markerPercent / 100
                     let markerRect = Self.warningMarkerRect(x: x, size: size, scale: scale)
-                    let markerPath = Path { p in
-                        p.addRoundedRect(
-                            in: markerRect,
-                            cornerSize: CGSize(width: markerRect.width / 2, height: markerRect.width / 2))
+                    let markerStripeRect = Self.warningMarkerStripeRect(markerRect, scale: scale)
+                    let markerPunchPath = Path { p in
+                        p.addRect(Self.extendedMarkerRect(markerRect, size: size))
                     }
-                    context.fill(markerPath, with: .color(markerColor))
+                    let markerStripePath = Path { p in
+                        p.addRect(Self.extendedMarkerRect(markerStripeRect, size: size))
+                    }
+
+                    // Match the pace stripe treatment: punch through the bar, then draw a slimmer neutral stripe.
+                    context.blendMode = .destinationOut
+                    context.fill(markerPunchPath, with: .color(.white.opacity(Self.stripePunchOpacity)))
+                    context.blendMode = .normal
+                    context.fill(markerStripePath, with: .color(markerStripeColor))
                 }
             }
 
@@ -111,7 +128,7 @@ struct UsageProgressBar: View {
 
                 // Punch out of the accumulated track+fill pixels.
                 context.blendMode = .destinationOut
-                context.fill(stripes.punched.applying(shift), with: .color(.white.opacity(0.9)))
+                context.fill(stripes.punched.applying(shift), with: .color(.white.opacity(Self.stripePunchOpacity)))
                 context.blendMode = .normal
 
                 context.fill(stripes.center.applying(shift), with: .color(stripeColor))
@@ -181,21 +198,39 @@ struct UsageProgressBar: View {
 
     nonisolated static func warningMarkerRect(x: CGFloat, size: CGSize, scale rawScale: CGFloat) -> CGRect {
         let scale = max(rawScale, 1)
-        let width = max(1 / scale, 1)
-        let height = min(size.height, max(1 / scale, size.height * 0.55))
+        let width = Self.warningMarkerPunchWidth
         let align: (CGFloat) -> CGFloat = { value in
             (value * scale).rounded() / scale
         }
 
         return CGRect(
             x: align(x - width / 2),
-            y: align((size.height - height) / 2),
+            y: 0,
             width: width,
-            height: align(height))
+            height: align(size.height))
+    }
+
+    nonisolated static func warningMarkerStripeRect(_ markerRect: CGRect, scale rawScale: CGFloat) -> CGRect {
+        let scale = max(rawScale, 1)
+        let width = min(markerRect.width, max(1 / scale, Self.warningMarkerStripeWidth))
+        let align: (CGFloat) -> CGFloat = { value in
+            (value * scale).rounded() / scale
+        }
+
+        return CGRect(
+            x: align(markerRect.midX - width / 2),
+            y: markerRect.minY,
+            width: width,
+            height: markerRect.height)
+    }
+
+    private nonisolated static func extendedMarkerRect(_ rect: CGRect, size: CGSize) -> CGRect {
+        let extend = size.height * 2
+        return rect.insetBy(dx: 0, dy: -extend)
     }
 
     nonisolated static func warningMarkerColor(isHighlighted: Bool) -> Color {
-        isHighlighted ? .white.opacity(0.72) : .primary.opacity(0.32)
+        isHighlighted ? .white.opacity(0.96) : .white.opacity(0.88)
     }
 
     private nonisolated static func displayPercent(_ percent: Double) -> Int {
