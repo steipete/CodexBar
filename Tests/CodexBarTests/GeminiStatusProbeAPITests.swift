@@ -455,6 +455,30 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
+    func `fnm helper successful output returns first line promptly`() throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        let helper = env.homeURL.appendingPathComponent("fnm-success")
+        try """
+        #!/bin/sh
+        sleep 0.05
+        printf '%s\n' '/tmp/gemini-package'
+        printf '%s\n' 'ignored trailing output'
+        """.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        let start = Date()
+        let result = GeminiStatusProbe.runProcess(
+            executable: helper.path,
+            arguments: [],
+            environment: [:],
+            timeout: 2)
+
+        #expect(result == "/tmp/gemini-package")
+        #expect(Date().timeIntervalSince(start) < 1)
+    }
+
+    @Test
     func `refreshes expired token with homebrew bundle layout`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
