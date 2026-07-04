@@ -42,11 +42,11 @@ extension StatusItemController {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = true
         item.representedObject = "codexResetCredits"
+        item.submenu = Self.makeCodexResetCreditsSubmenu(presentation)
         let subtitle = [presentation.text, presentation.detailText]
             .compactMap(\.self)
             .joined(separator: " · ")
-        self.applySubtitle(subtitle, to: item, title: title)
-        item.submenu = Self.makeCodexResetCreditsSubmenu(presentation)
+        self.applySubmenuSubtitle(subtitle, to: item, title: title)
         menu.addItem(item)
     }
 

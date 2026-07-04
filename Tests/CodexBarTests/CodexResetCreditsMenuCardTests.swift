@@ -1,9 +1,26 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
 
 struct CodexResetCreditsMenuCardTests {
+    @Test @MainActor
+    func `legacy reset credit subtitle preserves standard submenu routing`() {
+        let item = NSMenuItem(title: "Limit Reset Credits", action: nil, keyEquivalent: "")
+        item.submenu = NSMenu(title: "Limit Reset Credits")
+
+        StatusItemController.applyLegacySubmenuSubtitle(
+            "3 available · Next expires in 1d",
+            to: item,
+            title: "Limit Reset Credits")
+
+        #expect(item.view == nil)
+        #expect(item.title == "Limit Reset Credits — 3 available · Next expires in 1d")
+        #expect(item.toolTip == item.title)
+        #expect(item.submenu != nil)
+    }
+
     @Test
     func `presentation shows only available inventory in stable expiry order`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
