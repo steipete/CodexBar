@@ -498,7 +498,8 @@ public struct GeminiStatusProbe: Sendable {
 
         // For fnm-managed installs, ask fnm where the package lives
         if Self.isLikelyFnmManagedPath(geminiPath) || Self.isLikelyFnmManagedPath(resolvedGeminiPath),
-           let fnmPath = TTYCommandRunner.which("fnm"),
+           let fnmPath = Self.resolveExecutableOnEnvironmentPath(named: "fnm", environment: env)
+           ?? TTYCommandRunner.which("fnm"),
            let packageRoot = Self.resolveGeminiPackageRootViaFnm(fnmPath: fnmPath, environment: env),
            let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
         {
@@ -519,6 +520,22 @@ public struct GeminiStatusProbe: Sendable {
         let normalized = path.replacingOccurrences(of: "\\", with: "/")
         return normalized.contains("/fnm_multishells/")
             || (normalized.contains("/node-versions/") && normalized.contains("/fnm/"))
+    }
+
+    private static func resolveExecutableOnEnvironmentPath(
+        named executable: String,
+        environment: [String: String]) -> String?
+    {
+        guard let path = environment["PATH"] else { return nil }
+        for directory in path.split(separator: ":") where !directory.isEmpty {
+            let candidate = URL(fileURLWithPath: String(directory), isDirectory: true)
+                .appendingPathComponent(executable)
+                .path
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     private static func resolveGeminiPackageRootViaFnm(
@@ -1118,9 +1135,15 @@ extension GeminiStatusProbe {
             try process.run()
         } catch {
             stdoutCapture.stop()
+            stdout.fileHandleForWriting.closeFile()
             stderrCapture.stop()
+            stderr.fileHandleForWriting.closeFile()
             return nil
         }
+        // Process has duplicated these descriptors. Closing the parent's copies lets readers observe EOF as
+        // soon as the helper exits instead of spending the full drain grace period on every successful call.
+        stdout.fileHandleForWriting.closeFile()
+        stderr.fileHandleForWriting.closeFile()
         stdoutCapture.start()
         stderrCapture.start()
         let pid = process.processIdentifier
@@ -1139,7 +1162,7 @@ extension GeminiStatusProbe {
             return nil
         }
 
-        let data = stdoutCapture.finishSynchronously(timeout: 1)
+        let data = stdoutCapture.finishFirstLineSynchronously(timeout: 1)
         stderrCapture.stop()
         let output = ProcessPipeCapture.decodeUTF8(data)
             .trimmingCharacters(in: .whitespacesAndNewlines)
