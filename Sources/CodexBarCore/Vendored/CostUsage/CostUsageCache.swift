@@ -3,6 +3,7 @@ import Foundation
 enum CostUsageCacheIO {
     private static let compatibleCodexProducerKeys: Set<String> = [
         "codex:cu:p3c27f997569eb3c5",
+        "codex:cu:pc54070a94f6419ea",
     ]
 
     private static func artifactVersion(for provider: UsageProvider) -> Int {
@@ -110,6 +111,7 @@ struct CostUsageCache: Codable {
     var scanUntilKey: String?
     var codexPricingKey: String?
     var codexPriorityMetadataKey: String?
+    var codexProjectMetadataVersion: Int?
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
 
@@ -136,6 +138,8 @@ struct CostUsageFileUsage: Codable {
     var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
+    var projectPath: String?
+    var canonicalProjectPath: String?
     var codexCostNanos: [String: [String: Int64]]?
     var codexPrioritySurchargeNanos: [String: [String: Int64]]?
     var codexStandardCostNanos: [String: [String: Int64]]?

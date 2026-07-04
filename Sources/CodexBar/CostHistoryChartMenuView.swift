@@ -47,6 +47,7 @@ struct CostHistoryChartMenuView: View {
     private let currencyCode: String
     private let historyDays: Int
     private let windowLabel: String?
+    private let projects: [CostUsageProjectBreakdown]
     private let width: CGFloat
     private let onHeightChange: ((CGFloat) -> Void)?
     @State private var selectedDateKey: String?
@@ -58,6 +59,7 @@ struct CostHistoryChartMenuView: View {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         windowLabel: String? = nil,
+        projects: [CostUsageProjectBreakdown] = [],
         onHeightChange: ((CGFloat) -> Void)? = nil,
         width: CGFloat)
     {
@@ -67,6 +69,7 @@ struct CostHistoryChartMenuView: View {
         self.currencyCode = currencyCode
         self.historyDays = max(1, min(365, historyDays))
         self.windowLabel = windowLabel
+        self.projects = projects
         self.onHeightChange = onHeightChange
         self.width = width
     }
@@ -224,6 +227,41 @@ struct CostHistoryChartMenuView: View {
                     .truncationMode(.head)
                     .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
             }
+
+            if !self.projects.isEmpty {
+                VStack(alignment: .leading, spacing: Self.projectRowSpacing) {
+                    Text("Projects")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                    ForEach(Array(self.projects.prefix(Self.maxVisibleProjectRows)), id: \.projectRowID) { project in
+                        let visibleSources = Self.visibleProjectSources(project)
+                        VStack(alignment: .leading, spacing: Self.projectSourceSpacing) {
+                            self.projectParentRow(project)
+                            if !visibleSources.isEmpty {
+                                ForEach(
+                                    Array(visibleSources.prefix(Self.maxVisibleProjectSourceRows)),
+                                    id: \.sourceRowID)
+                                { source in
+                                    self.projectSourceRow(source)
+                                }
+                                let hiddenSourceCount = visibleSources.count - Self.maxVisibleProjectSourceRows
+                                if hiddenSourceCount > 0 {
+                                    Text("+ \(hiddenSourceCount) more")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                        .lineLimit(1)
+                                        .padding(.leading, Self.projectSourceIndent)
+                                        .frame(height: Self.projectMoreRowHeight, alignment: .leading)
+                                }
+                            }
+                        }
+                        .frame(height: Self.projectEntryHeight(project), alignment: .topLeading)
+                    }
+                }
+                .frame(height: Self.projectBlockHeight(projects: self.projects), alignment: .topLeading)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, Self.verticalPadding)
@@ -252,13 +290,25 @@ struct CostHistoryChartMenuView: View {
     private static let chartHeight: CGFloat = 114
     private static let axisLabelAreaHeight: CGFloat = 16
     private static let outerSpacing: CGFloat = 10
+    private static let projectRowHeight: CGFloat = 31
+    private static let projectRowSpacing: CGFloat = 5
+    private static let maxVisibleProjectRows = 5
+    private static let projectSourceRowHeight: CGFloat = 29
+    private static let projectSourceSpacing: CGFloat = 3
+    private static let projectSourceIndent: CGFloat = 10
+    private static let projectMoreRowHeight: CGFloat = 16
+    private static let maxVisibleProjectSourceRows = 2
     static let verticalPadding: CGFloat = 10
 
     /// Deterministic total height of the rendered card for a given selection. NSMenu's modal
     /// tracking run loop never delivers SwiftUI `onPreferenceChange`, so the live height can't be
     /// measured via a GeometryReader while the menu is open. Every component height is fixed, so
     /// we compute the total directly and resize from the hover handler instead.
-    private static func totalCardHeight(rows: [DetailRow], hasTotal: Bool) -> CGFloat {
+    private static func totalCardHeight(
+        rows: [DetailRow],
+        hasTotal: Bool,
+        projects: [CostUsageProjectBreakdown] = []) -> CGFloat
+    {
         var height = self.verticalPadding * 2
         height += self.chartHeight
         height += self.axisLabelAreaHeight
@@ -268,7 +318,24 @@ struct CostHistoryChartMenuView: View {
             height += self.outerSpacing
             height += self.detailPrimaryLineHeight
         }
+        if !projects.isEmpty {
+            height += self.outerSpacing
+            height += self.projectBlockHeight(projects: projects)
+        }
         return height
+    }
+
+    private static func totalCardHeight(rows: [DetailRow], hasTotal: Bool, projectCount: Int) -> CGFloat {
+        let projects = (0..<projectCount).map { index in
+            CostUsageProjectBreakdown(
+                name: "Project \(index)",
+                path: "/tmp/project-\(index)",
+                totalTokens: nil,
+                totalCostUSD: nil,
+                daily: [],
+                modelBreakdowns: nil)
+        }
+        return self.totalCardHeight(rows: rows, hasTotal: hasTotal, projects: projects)
     }
 
     static func windowLabel(days: Int) -> String {
@@ -403,6 +470,33 @@ struct CostHistoryChartMenuView: View {
         return rowHeights + spacing
     }
 
+    private static func projectBlockHeight(projects: [CostUsageProjectBreakdown]) -> CGFloat {
+        let visibleProjects = Array(projects.prefix(self.maxVisibleProjectRows))
+        guard !visibleProjects.isEmpty else { return 0 }
+        return self.detailPrimaryLineHeight
+            + self.projectRowSpacing
+            + visibleProjects.reduce(CGFloat(0)) { $0 + self.projectEntryHeight($1) }
+            + CGFloat(max(visibleProjects.count - 1, 0)) * self.projectRowSpacing
+    }
+
+    private static func projectEntryHeight(_ project: CostUsageProjectBreakdown) -> CGFloat {
+        let sources = self.visibleProjectSources(project)
+        guard !sources.isEmpty else { return self.projectRowHeight }
+        let visibleSources = min(sources.count, self.maxVisibleProjectSourceRows)
+        let moreRows = sources.count > self.maxVisibleProjectSourceRows ? 1 : 0
+        return self.projectRowHeight
+            + CGFloat(visibleSources) * (self.projectSourceRowHeight + self.projectSourceSpacing)
+            + CGFloat(moreRows) * (self.projectMoreRowHeight + self.projectSourceSpacing)
+    }
+
+    static func visibleProjectSources(
+        _ project: CostUsageProjectBreakdown) -> [CostUsageProjectSourceBreakdown]
+    {
+        guard project.sources.count == 1 else { return project.sources }
+        guard let source = project.sources.first, source.path != project.path else { return [] }
+        return [source]
+    }
+
     private static func defaultSelectedDateKey(model: Model) -> String? {
         model.dateKeys.last?.key
     }
@@ -469,7 +563,77 @@ struct CostHistoryChartMenuView: View {
     private func notifyHeightChange(selectedDateKey: String?, model: Model) {
         guard let onHeightChange = self.onHeightChange else { return }
         let rows = selectedDateKey.map { self.breakdownRows(key: $0, model: model) } ?? []
-        onHeightChange(Self.totalCardHeight(rows: rows, hasTotal: self.totalCostUSD != nil))
+        onHeightChange(Self.totalCardHeight(
+            rows: rows,
+            hasTotal: self.totalCostUSD != nil,
+            projects: self.projects))
+    }
+
+    private func projectSummary(_ project: CostUsageProjectBreakdown) -> String {
+        let cost = project.totalCostUSD
+            .map { self.costString($0) } ?? "—"
+        guard let totalTokens = project.totalTokens else { return cost }
+        return "\(cost) · \(L("%@ tokens", UsageFormatter.tokenCountString(totalTokens)))"
+    }
+
+    private func projectParentRow(_ project: CostUsageProjectBreakdown) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 8) {
+                Text(project.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 8)
+                Text(self.projectSummary(project))
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            if let path = project.path {
+                Text(path)
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .frame(height: Self.projectRowHeight, alignment: .leading)
+    }
+
+    private func projectSourceRow(_ source: CostUsageProjectSourceBreakdown) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                Text(source.name)
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 6)
+                Text(self.projectSourceSummary(source))
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+            if let path = source.path {
+                Text(path)
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .quaternaryLabelColor))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .padding(.leading, Self.projectSourceIndent)
+        .frame(height: Self.projectSourceRowHeight, alignment: .leading)
+    }
+
+    private func projectSourceSummary(_ source: CostUsageProjectSourceBreakdown) -> String {
+        let cost = source.totalCostUSD
+            .map { self.costString($0) } ?? "—"
+        guard let totalTokens = source.totalTokens else { return cost }
+        return "\(cost) · \(L("%@ tokens", UsageFormatter.tokenCountString(totalTokens)))"
     }
 
     private func nearestDateKey(to date: Date, model: Model) -> String? {
@@ -625,7 +789,11 @@ extension CostHistoryChartMenuView {
         return self.detailBlockHeight(rows: rows)
     }
 
-    static func _totalCardHeightForTesting(modeSubtitlePresence: [Bool], hasTotal: Bool) -> CGFloat {
+    static func _totalCardHeightForTesting(
+        modeSubtitlePresence: [Bool],
+        hasTotal: Bool,
+        projectCount: Int = 0) -> CGFloat
+    {
         let rows = modeSubtitlePresence.enumerated().map { index, hasModeSubtitle in
             DetailRow(
                 id: "\(index)",
@@ -634,6 +802,52 @@ extension CostHistoryChartMenuView {
                 modeSubtitle: hasModeSubtitle ? "Mode" : nil,
                 accentColor: .blue)
         }
-        return self.totalCardHeight(rows: rows, hasTotal: hasTotal)
+        return self.totalCardHeight(rows: rows, hasTotal: hasTotal, projectCount: projectCount)
+    }
+
+    static func _totalCardHeightForTesting(
+        modeSubtitlePresence: [Bool],
+        hasTotal: Bool,
+        projectSourceCounts: [Int]) -> CGFloat
+    {
+        let rows = modeSubtitlePresence.enumerated().map { index, hasModeSubtitle in
+            DetailRow(
+                id: "\(index)",
+                title: "Model \(index)",
+                subtitle: "Cost",
+                modeSubtitle: hasModeSubtitle ? "Mode" : nil,
+                accentColor: .blue)
+        }
+        let projects = projectSourceCounts.enumerated().map { index, sourceCount in
+            CostUsageProjectBreakdown(
+                name: "Project \(index)",
+                path: "/tmp/project-\(index)",
+                totalTokens: nil,
+                totalCostUSD: nil,
+                daily: [],
+                modelBreakdowns: nil,
+                sources: (0..<sourceCount).map { sourceIndex in
+                    CostUsageProjectSourceBreakdown(
+                        name: "Source \(sourceIndex)",
+                        path: "/tmp/project-\(index)-source-\(sourceIndex)",
+                        totalTokens: nil,
+                        totalCostUSD: nil,
+                        daily: [],
+                        modelBreakdowns: nil)
+                })
+        }
+        return self.totalCardHeight(rows: rows, hasTotal: hasTotal, projects: projects)
+    }
+}
+
+extension CostUsageProjectBreakdown {
+    fileprivate var projectRowID: String {
+        self.path ?? "unknown:\(self.name)"
+    }
+}
+
+extension CostUsageProjectSourceBreakdown {
+    fileprivate var sourceRowID: String {
+        self.path ?? "unknown:\(self.name)"
     }
 }

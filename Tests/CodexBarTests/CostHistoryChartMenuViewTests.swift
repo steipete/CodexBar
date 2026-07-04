@@ -181,5 +181,46 @@ struct CostHistoryChartMenuViewTests {
             modeSubtitlePresence: [false],
             hasTotal: true)
         #expect(withTotal > withoutTotal)
+
+        let withProjects = CostHistoryChartMenuView._totalCardHeightForTesting(
+            modeSubtitlePresence: [false],
+            hasTotal: true,
+            projectCount: 3)
+        #expect(withProjects > withTotal)
+
+        let withProjectSources = CostHistoryChartMenuView._totalCardHeightForTesting(
+            modeSubtitlePresence: [false],
+            hasTotal: true,
+            projectSourceCounts: [3])
+        #expect(withProjectSources > withProjects)
+    }
+
+    @Test
+    @MainActor
+    func `single differing project source remains visible`() {
+        let matching = Self.project(path: "/tmp/main", sourcePath: "/tmp/main")
+        let differing = Self.project(path: "/tmp/main", sourcePath: "/tmp/worktree")
+
+        #expect(CostHistoryChartMenuView.visibleProjectSources(matching).isEmpty)
+        #expect(CostHistoryChartMenuView.visibleProjectSources(differing).compactMap(\.path) == ["/tmp/worktree"])
+    }
+
+    private static func project(path: String, sourcePath: String) -> CostUsageProjectBreakdown {
+        CostUsageProjectBreakdown(
+            name: "Project",
+            path: path,
+            totalTokens: 10,
+            totalCostUSD: 0.1,
+            daily: [],
+            modelBreakdowns: nil,
+            sources: [
+                CostUsageProjectSourceBreakdown(
+                    name: "Source",
+                    path: sourcePath,
+                    totalTokens: 10,
+                    totalCostUSD: 0.1,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ])
     }
 }
