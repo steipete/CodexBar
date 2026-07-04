@@ -815,7 +815,7 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `reset credits fetch follows app runtime and CLI credits flag`() {
+    func `O auth strategy defers app inventory and CLI follows credits flag`() {
         let appContext = self.makeContext(includeCredits: false, includeOptionalUsage: false)
         let cliNoCreditsContext = self.makeContext(
             runtime: .cli,
@@ -826,7 +826,7 @@ struct CodexOAuthTests {
             includeCredits: true,
             includeOptionalUsage: false)
 
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext))
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext) == false)
         #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliNoCreditsContext) == false)
         #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliCreditsContext))
     }

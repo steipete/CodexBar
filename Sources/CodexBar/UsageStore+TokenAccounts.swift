@@ -572,7 +572,6 @@ extension UsageStore {
         return await Self.attachingCodexResetCreditsIfNeeded(
             to: outcome,
             env: context.env,
-            includeOptionalUsage: context.includeOptionalUsage,
             fetcher: self.codexResetCreditsFetcher())
     }
 
@@ -644,7 +643,6 @@ extension UsageStore {
                     let outcome = await Self.attachingCodexResetCreditsIfNeeded(
                         to: baseOutcome,
                         env: request.context.env,
-                        includeOptionalUsage: request.context.includeOptionalUsage,
                         fetcher: resetCreditsFetcher)
                     return CodexAccountFetchResult(
                         index: request.index,

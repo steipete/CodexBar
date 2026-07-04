@@ -13,7 +13,6 @@ struct CodexResetCreditOutcomeTests {
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: embedded, now: now),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: true,
             fetcher: { env in
                 await recorder.record(env)
                 return Self.resetSnapshot(id: "supplemental", now: now)
@@ -36,12 +35,10 @@ struct CodexResetCreditOutcomeTests {
         let first = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: true,
             fetcher: fetcher)
         let second = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now),
             env: ["CODEX_HOME": "/tmp/account-b"],
-            includeOptionalUsage: true,
             fetcher: fetcher)
 
         #expect(try Self.usage(from: first).codexResetCredits?.credits.first?.id ==
@@ -61,7 +58,6 @@ struct CodexResetCreditOutcomeTests {
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: true,
             fetcher: { env in
                 await recorder.record(env)
                 throw ResetCreditFetchTestError.failed
@@ -78,7 +74,6 @@ struct CodexResetCreditOutcomeTests {
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now, primary: nil, strategyID: "codex.oauth"),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: true,
             fetcher: { env in
                 await recorder.record(env)
                 throw ResetCreditFetchTestError.failed
@@ -100,7 +95,6 @@ struct CodexResetCreditOutcomeTests {
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now, primary: nil, strategyID: "codex.oauth"),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: true,
             fetcher: { env in
                 await recorder.record(env)
                 return resetCredits
@@ -116,7 +110,6 @@ struct CodexResetCreditOutcomeTests {
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: nil, now: now),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: true,
             fetcher: { _ in throw CancellationError() })
 
         guard case let .failure(error) = outcome.result else {
@@ -127,19 +120,18 @@ struct CodexResetCreditOutcomeTests {
     }
 
     @Test
-    func `optional usage gate strips inventory without issuing a GET`() async throws {
+    func `display preference does not strip embedded inventory or issue a duplicate GET`() async throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
         let recorder = ResetCreditFetchRecorder()
         let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
             to: Self.outcome(resetCredits: Self.resetSnapshot(id: "embedded", now: now), now: now),
             env: ["CODEX_HOME": "/tmp/account-a"],
-            includeOptionalUsage: false,
             fetcher: { env in
                 await recorder.record(env)
                 return Self.resetSnapshot(id: "supplemental", now: now)
             })
 
-        #expect(try Self.usage(from: outcome).codexResetCredits == nil)
+        #expect(try Self.usage(from: outcome).codexResetCredits == Self.resetSnapshot(id: "embedded", now: now))
         #expect(await recorder.environments().isEmpty)
     }
 

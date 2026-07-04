@@ -399,6 +399,10 @@ extension CodexOAuthFetchStrategy {
             credentials: credentials,
             fetcher: fetcher)
     }
+
+    static func _shouldFetchResetCreditsForTesting(_ context: ProviderFetchContext) -> Bool {
+        self.shouldFetchResetCredits(context)
+    }
 }
 #endif
 

@@ -188,7 +188,6 @@ extension UsageStore {
                 return await Self.attachingCodexResetCreditsIfNeeded(
                     to: outcome,
                     env: fetchContext.env,
-                    includeOptionalUsage: fetchContext.includeOptionalUsage,
                     fetcher: codexResetCreditsFetcher)
             }
             return await group.next()!

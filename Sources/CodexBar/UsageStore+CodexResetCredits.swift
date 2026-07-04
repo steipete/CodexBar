@@ -28,14 +28,10 @@ extension UsageStore {
     nonisolated static func attachingCodexResetCreditsIfNeeded(
         to outcome: ProviderFetchOutcome,
         env: [String: String],
-        includeOptionalUsage: Bool,
         fetcher: @escaping CodexResetCreditsFetcher) async -> ProviderFetchOutcome
     {
         guard case let .success(result) = outcome.result else { return outcome }
         let requiresResetCreditRescue = Self.requiresResetCreditRescue(result)
-        guard includeOptionalUsage else {
-            return outcome.replacingUsage(result.usage.withCodexResetCredits(nil))
-        }
         if result.usage.codexResetCredits != nil {
             return outcome
         }
