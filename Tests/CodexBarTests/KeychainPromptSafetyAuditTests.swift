@@ -42,6 +42,60 @@ struct KeychainPromptSafetyAuditTests {
     }
 
     @Test
+    func `claude availability tests with keychain enabled use test doubles`() throws {
+        let file = Self.repoRoot().appendingPathComponent(
+            "Tests/CodexBarTests/ClaudeOAuthFetchStrategyAvailabilityTests.swift")
+        let lines = try Self.lines(in: file)
+        let callSites = lines.enumerated().compactMap { lineNumber, line -> PromptCallSite? in
+            guard line.contains("strategy.isAvailable(context)") else { return nil }
+            let oneBasedLineNumber = lineNumber + 1
+            guard Self.hasOpenScope(
+                containing: "KeychainAccessGate.withTaskOverrideForTesting(false)",
+                lines: lines,
+                before: oneBasedLineNumber)
+            else {
+                return nil
+            }
+            return PromptCallSite(file: file, lineNumber: oneBasedLineNumber)
+        }
+
+        #expect(callSites.isEmpty == false)
+        for callSite in callSites {
+            let failureMessage = "\(callSite.file.path):\(callSite.lineNumber) calls strategy.isAvailable(context) "
+                + "with test keychain access enabled and incomplete scoped keychain isolation"
+            #expect(
+                Self.hasOpenAvailabilityKeychainIsolation(lines: lines, before: callSite.lineNumber),
+                "\(failureMessage)")
+        }
+    }
+
+    @Test
+    func `availability audit rejects a Claude-only keychain override`() {
+        let lines: [Substring] = [
+            "KeychainAccessGate.withTaskOverrideForTesting(false) {",
+            "ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {",
+            "strategy.isAvailable(context)",
+            "}",
+            "}",
+        ]
+
+        #expect(Self.hasOpenAvailabilityKeychainIsolation(lines: lines, before: 3) == false)
+    }
+
+    @Test
+    func `availability audit accepts combined cache and Claude keychain doubles`() {
+        let lines: [Substring] = [
+            "KeychainAccessGate.withTaskOverrideForTesting(false) {",
+            "self.withAvailabilityKeychainDoubles {",
+            "strategy.isAvailable(context)",
+            "}",
+            "}",
+        ]
+
+        #expect(Self.hasOpenAvailabilityKeychainIsolation(lines: lines, before: 3))
+    }
+
+    @Test
     func `tests do not call SecItemCopyMatching except no UI query coverage`() throws {
         let offenders = try Self.swiftTestFiles().filter { file in
             let text = try Self.readFile(file)
@@ -96,13 +150,44 @@ struct KeychainPromptSafetyAuditTests {
     private static func hasOpenKeychainTestDouble(lines: [Substring], before oneBasedLineNumber: Int) -> Bool {
         let helperNames = [
             "withClaudeKeychainOverridesForTesting",
+            "withKeychainAccessOverrideForTesting(true)",
             "withSecurityCLIReadOverrideForTesting",
             "KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting",
         ]
+        return helperNames.contains { helperName in
+            self.hasOpenScope(containing: helperName, lines: lines, before: oneBasedLineNumber)
+        }
+    }
+
+    private static func hasOpenAvailabilityKeychainIsolation(
+        lines: [Substring],
+        before oneBasedLineNumber: Int) -> Bool
+    {
+        if self.hasOpenScope(
+            containing: "withAvailabilityKeychainDoubles",
+            lines: lines,
+            before: oneBasedLineNumber)
+        {
+            return true
+        }
+
+        let bypassesCacheKeychain = self.hasOpenScope(
+            containing: "nonInteractiveCredentialRecordOverride",
+            lines: lines,
+            before: oneBasedLineNumber)
+        return bypassesCacheKeychain
+            && self.hasOpenKeychainTestDouble(lines: lines, before: oneBasedLineNumber)
+    }
+
+    private static func hasOpenScope(
+        containing needle: String,
+        lines: [Substring],
+        before oneBasedLineNumber: Int) -> Bool
+    {
         let targetIndex = oneBasedLineNumber - 1
         let lineRange = lines.indices.prefix(through: targetIndex)
         return lineRange.contains { index in
-            helperNames.contains { lines[index].contains($0) }
+            lines[index].contains(needle)
                 && self.hasOpenBraceScope(lines: lines, from: index, through: targetIndex)
         }
     }
@@ -110,7 +195,8 @@ struct KeychainPromptSafetyAuditTests {
     private static func hasOpenBraceScope(lines: [Substring], from startIndex: Int, through endIndex: Int) -> Bool {
         var balance = 0
         var sawOpeningBrace = false
-        for line in lines[startIndex...endIndex] {
+        for index in startIndex...endIndex {
+            let line = lines[index]
             for character in line {
                 switch character {
                 case "{":
@@ -121,6 +207,9 @@ struct KeychainPromptSafetyAuditTests {
                 default:
                     continue
                 }
+            }
+            if index < endIndex, sawOpeningBrace, balance <= 0 {
+                return false
             }
         }
         return sawOpeningBrace && balance > 0
