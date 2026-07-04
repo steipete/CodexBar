@@ -236,6 +236,7 @@
 "Picker subtitle" = "คําบรรยาย Picker";
 "Placeholder" = "ตัวยึดตําแหน่ง";
 "Plan" = "วางแผน";
+"Plan Usage" = "การใช้งานแผน";
 "Play full-screen confetti when weekly usage resets." = "เล่นลูกปาแบบเต็มหน้าจอเมื่อรีเซ็ตการใช้งานรายสัปดาห์";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "โพล OpenAI/Claude หน้าสถานะและพื้นที่ทํางาน Google สําหรับ  ";
 "Prevents any Keychain access while enabled." = "ป้องกันการเข้าถึง Keychain ใดๆ ขณะเปิดใช้งาน";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "เก็บไว้ใน ~/.codexbar/config.json. วางคีย์ MiniMax API ของคุณ";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "เก็บไว้ใน ~/.codexbar/config.json. คุณยังสามารถระบุ KILO_API_KEY or ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "จัดเก็บประวัติการใช้งาน Codex ในพื้นที่ (8 สัปดาห์) เพื่อปรับแต่งการคาดการณ์ Pace ในแบบของคุณ";
-"Subscription Utilization" = "การใช้การสมัครสมาชิก";
 "Surprise me" = "ทําให้ฉันประหลาดใจ";
 "Switcher shows icons" = "ตัวสลับแสดงไอคอน";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI เป็น /usr/local/bin และ /opt/homebrew/bin เป็น codexbar";
@@ -674,6 +674,7 @@
 "refresh_5min" = "5 นาที";
 "refresh_15min" = "15 นาที";
 "refresh_30min" = "30 นาที";
+"refresh_adaptive" = "ปรับอัตโนมัติ";
 
 /* Additional keys */
 "not_found" = "ไม่พบ";
@@ -732,6 +733,7 @@
 "Resets now" = "รีเซ็ตเดี๋ยวนี้";
 "reset_tomorrow_format" = "พรุ่งนี้ %@";
 "Lasts until reset" = "คงอยู่จนกว่าจะรีเซ็ต";
+"1.5× headroom" = "เผื่อ 1.5×";
 "Updated %@" = "อัพเดท %@";
 "Updated relative %@" = "อัพเดท %@";
 "Updated absolute %@" = "อัพเดท %@";
@@ -1135,3 +1137,14 @@
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
 "CrossModel API spend trend" = "แนวโน้มค่าใช้จ่ายของ CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "เปิดใช้งาน";
+"Disable" = "ปิดใช้งาน";
+"providers_on_count" = "เปิดอยู่ %d";
+"section_cost_summary" = "สรุปค่าใช้จ่าย";
+"section_command_line" = "บรรทัดคำสั่ง";
+"section_privacy" = "ความเป็นส่วนตัว";
+"section_diagnostics" = "การวินิจฉัย";
+"section_updates" = "อัปเดต";
+"section_links" = "ลิงก์";

@@ -236,6 +236,7 @@
 "Picker subtitle" = "زیرعنوان پیکر";
 "Placeholder" = "جایگزین جایگزین";
 "Plan" = "طرح";
+"Plan Usage" = "استفاده از طرح";
 "Play full-screen confetti when weekly usage resets." = "وقتی استفاده هفتگی ریست می شود، کنفتی تمام صفحه را پخش کنید.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "نظرسنجی ها OpenAI/Claude صفحات وضعیت و Google Workspace for ";
 "Prevents any Keychain access while enabled." = "در حالت فعال بودن از هرگونه دسترسی Keychain جلوگیری می کند.";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "ذخیره شده در ~/.codexbar/config.json. کلید MiniMax API خود را بچسبانید.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "ذخیره شده در ~/.codexbar/config.json. همچنین می توانید KILO_API_KEY or  ارائه دهید";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "تاریخچه استفاده Codex محلی (۸ هفته) را برای شخصی سازی پیش بینی های سرعت ذخیره می کند.";
-"Subscription Utilization" = "استفاده از اشتراک";
 "Surprise me" = "سورپرایزم کن";
 "Switcher shows icons" = "سوئیچر آیکون ها را نشان می دهد";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI به /usr/local/bin و /opt/homebrew/bin به عنوان codexbar.";
@@ -674,6 +674,7 @@
 "refresh_5min" = "۵ دقیقه";
 "refresh_15min" = "۱۵ دقیقه";
 "refresh_30min" = "۳۰ دقیقه";
+"refresh_adaptive" = "تطبیقی";
 
 /* Additional keys */
 "not_found" = "پیدا نشد";
@@ -732,6 +733,7 @@
 "Resets now" = "اکنون بازنشانی می شود";
 "reset_tomorrow_format" = "فردا، %@";
 "Lasts until reset" = "تا زمان ریست ادامه دارد";
+"1.5× headroom" = "حاشیه ۱٫۵×";
 "Updated %@" = "به روزرسانی %@";
 "Updated relative %@" = "به روزرسانی %@";
 "Updated absolute %@" = "به روزرسانی %@";
@@ -1135,3 +1137,14 @@
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
 "CrossModel API spend trend" = "روند هزینه‌ی CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "فعال‌سازی";
+"Disable" = "غیرفعال‌سازی";
+"providers_on_count" = "%d فعال";
+"section_cost_summary" = "خلاصه هزینه";
+"section_command_line" = "خط فرمان";
+"section_privacy" = "حریم خصوصی";
+"section_diagnostics" = "عیب‌یابی";
+"section_updates" = "به‌روزرسانی‌ها";
+"section_links" = "پیوندها";

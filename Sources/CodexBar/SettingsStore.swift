@@ -10,11 +10,16 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
     case fiveMinutes
     case fifteenMinutes
     case thirtyMinutes
+    /// Newest/most advanced option; kept last so the picker still lists the fixed intervals
+    /// in ascending cadence order before it.
+    case adaptive
 
     var id: String {
         self.rawValue
     }
 
+    /// nil for `.manual` (no timer) and `.adaptive` (delay is computed per tick by
+    /// `AdaptiveRefreshPolicy`, not a fixed interval).
     var seconds: TimeInterval? {
         switch self {
         case .manual: nil
@@ -23,6 +28,7 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
         case .fiveMinutes: 300
         case .fifteenMinutes: 900
         case .thirtyMinutes: 1800
+        case .adaptive: nil
         }
     }
 
@@ -34,6 +40,7 @@ enum RefreshFrequency: String, CaseIterable, Identifiable {
         case .fiveMinutes: L("refresh_5min")
         case .fifteenMinutes: L("refresh_15min")
         case .thirtyMinutes: L("refresh_30min")
+        case .adaptive: L("refresh_adaptive")
         }
     }
 }

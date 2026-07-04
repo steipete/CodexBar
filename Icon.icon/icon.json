@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+    "automatic-gradient" : "extended-srgb:0.00000,0.00000,0.00000,1.00000"
   },
   "groups" : [
     {
@@ -9,7 +9,7 @@
           "image-name" : "codexbar.png",
           "name" : "codexbar",
           "position" : {
-            "scale" : 1.4,
+            "scale" : 1.0,
             "translation-in-points" : [
               0,
               0
@@ -19,11 +19,11 @@
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.2
       },
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+        "enabled" : false,
+        "value" : 0.0
       }
     }
   ],

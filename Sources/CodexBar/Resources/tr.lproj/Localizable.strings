@@ -236,6 +236,7 @@
 "Picker subtitle" = "Seçici alt başlığı";
 "Placeholder" = "Yer tutucu";
 "Plan" = "Plan";
+"Plan Usage" = "Plan Kullanımı";
 "Play full-screen confetti when weekly usage resets." = "Haftalık kullanım sıfırlandığında tam ekran konfeti oynat.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "OpenAI/Claude durum sayfalarını ve Google Workspace'i ";
 "Prevents any Keychain access while enabled." = "Etkinleştirildiğinde tüm Anahtarlık erişimini engeller.";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json dosyasında depolandı. MiniMax API anahtarınızı yapıştırın.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "~/.codexbar/config.json dosyasında depolandı. Ayrıca KILO_API_KEY sağlayabilirsiniz veya ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Hız tahminlerini kişiselleştirmek için yerel Codex kullanım geçmişini (8 hafta) depolar.";
-"Subscription Utilization" = "Abonelik Kullanımı";
 "Surprise me" = "Beni şaşırt";
 "Switcher shows icons" = "Değiştirici simgeleri gösterir";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI'yi codexbar olarak /usr/local/bin ve /opt/homebrew/bin dizinlerine sembolik bağlayın.";
@@ -672,6 +672,7 @@
 "refresh_5min" = "5 dak";
 "refresh_15min" = "15 dak";
 "refresh_30min" = "30 dak";
+"refresh_adaptive" = "Uyarlanabilir";
 
 /* Additional keys */
 "not_found" = "Bulunamadı";
@@ -730,6 +731,7 @@
 "Resets now" = "Şimdi sıfırlanır";
 "reset_tomorrow_format" = "yarın, %@";
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
+"1.5× headroom" = "1,5× pay";
 "Updated %@" = "Güncellendi: %@";
 "Updated relative %@" = "Güncellendi: %@";
 "Updated absolute %@" = "Güncellendi: %@";
@@ -1132,3 +1134,14 @@
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
 "CrossModel API spend trend" = "CrossModel API harcama eğilimi";
+
+/* Settings sidebar redesign */
+"Enable" = "Etkinleştir";
+"Disable" = "Devre dışı bırak";
+"providers_on_count" = "%d açık";
+"section_cost_summary" = "Maliyet özeti";
+"section_command_line" = "Komut satırı";
+"section_privacy" = "Gizlilik";
+"section_diagnostics" = "Tanılama";
+"section_updates" = "Güncellemeler";
+"section_links" = "Bağlantılar";

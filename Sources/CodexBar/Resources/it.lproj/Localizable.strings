@@ -236,6 +236,7 @@
 "Picker subtitle" = "Sottotitolo selettore";
 "Placeholder" = "Segnaposto";
 "Plan" = "Piano";
+"Plan Usage" = "Utilizzo piano";
 "Play full-screen confetti when weekly usage resets." = "Mostra coriandoli a schermo intero quando l'utilizzo settimanale si resetta.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Interroga le pagine di stato di OpenAI/Claude e Google Workspace per ";
 "Prevents any Keychain access while enabled." = "Impedisce qualsiasi accesso al portachiavi quando è attivo.";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Memorizzato in ~/.codexbar/config.json. Incolla la tua chiave API MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire KILO_API_KEY o ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Memorizza la cronologia di utilizzo locale di Codex (8 settimane) per personalizzare le previsioni di andamento.";
-"Subscription Utilization" = "Utilizzo abbonamento";
 "Surprise me" = "Sorprendimi";
 "Switcher shows icons" = "Il selettore mostra icone";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Crea il symlink di CodexBarCLI in /usr/local/bin e /opt/homebrew/bin come codexbar.";
@@ -676,6 +676,7 @@
 "refresh_5min" = "5 min.";
 "refresh_15min" = "15 min.";
 "refresh_30min" = "30 min.";
+"refresh_adaptive" = "Adattivo";
 
 /* Additional keys */
 "not_found" = "Non trovato";
@@ -734,6 +735,7 @@
 "Resets now" = "Si resetta ora";
 "reset_tomorrow_format" = "domani, %@";
 "Lasts until reset" = "Valido fino al reset";
+"1.5× headroom" = "margine 1,5×";
 "Updated %@" = "Aggiornato %@";
 "Updated relative %@" = "Aggiornato %@";
 "Updated absolute %@" = "Aggiornato %@";
@@ -1134,3 +1136,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "Andamento di spesa dell'API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Attiva";
+"Disable" = "Disattiva";
+"providers_on_count" = "%d attivi";
+"section_cost_summary" = "Riepilogo costi";
+"section_command_line" = "Riga di comando";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostica";
+"section_updates" = "Aggiornamenti";
+"section_links" = "Link";

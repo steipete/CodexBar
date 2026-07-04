@@ -236,6 +236,7 @@
 "Picker subtitle" = "Subjudul pemilih";
 "Placeholder" = "Placeholder";
 "Plan" = "Paket";
+"Plan Usage" = "Penggunaan Paket";
 "Play full-screen confetti when weekly usage resets." = "Mainkan confetti layar penuh saat penggunaan mingguan direset.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Memeriksa halaman status OpenAI/Claude dan Google Workspace untuk ";
 "Prevents any Keychain access while enabled." = "Mencegah semua akses Keychain saat diaktifkan.";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Disimpan di ~/.codexbar/config.json. Tempel kunci API MiniMax Anda.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Disimpan di ~/.codexbar/config.json. Anda juga dapat menyediakan KILO_API_KEY atau ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Menyimpan riwayat penggunaan Codex lokal (8 minggu) untuk personalisasi prediksi Pace.";
-"Subscription Utilization" = "Pemanfaatan Langganan";
 "Surprise me" = "Kejutkan saya";
 "Switcher shows icons" = "Pengalih tampilkan ikon";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI ke /usr/local/bin dan /opt/homebrew/bin sebagai codexbar.";
@@ -676,6 +676,7 @@
 "refresh_5min" = "5 mnt";
 "refresh_15min" = "15 mnt";
 "refresh_30min" = "30 mnt";
+"refresh_adaptive" = "Adaptif";
 
 /* Additional keys */
 "not_found" = "Tidak ditemukan";
@@ -734,6 +735,7 @@
 "Resets now" = "Reset sekarang";
 "reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
+"1.5× headroom" = "ruang 1,5×";
 "Updated %@" = "Diperbarui %@";
 "Updated relative %@" = "Diperbarui %@";
 "Updated absolute %@" = "Diperbarui %@";
@@ -1134,3 +1136,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "Tren pengeluaran API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Aktifkan";
+"Disable" = "Nonaktifkan";
+"providers_on_count" = "%d aktif";
+"section_cost_summary" = "Ringkasan biaya";
+"section_command_line" = "Baris perintah";
+"section_privacy" = "Privasi";
+"section_diagnostics" = "Diagnostik";
+"section_updates" = "Pembaruan";
+"section_links" = "Tautan";

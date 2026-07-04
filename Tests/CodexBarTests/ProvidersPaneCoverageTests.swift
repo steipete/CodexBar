@@ -145,21 +145,12 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
-    func `selected provider sidebar palette uses contrasting selected text colors`() {
-        let palette = ProviderSidebarRowPalette(isSelected: true)
-
-        #expect(palette.primary.isEqual(NSColor.alternateSelectedControlTextColor))
-        #expect(palette.secondary.alphaComponent == 0.82)
-        #expect(palette.tertiary.alphaComponent == 0.65)
-    }
-
-    @Test
-    func `unselected provider sidebar palette uses standard label colors`() {
-        let palette = ProviderSidebarRowPalette(isSelected: false)
-
-        #expect(palette.primary.isEqual(NSColor.labelColor))
-        #expect(palette.secondary.isEqual(NSColor.secondaryLabelColor))
-        #expect(palette.tertiary.isEqual(NSColor.tertiaryLabelColor))
+    @MainActor
+    func `settings pane titles cover app panes and providers`() {
+        #expect(SettingsPane.general.title == L("tab_general"))
+        #expect(SettingsPane.about.title == L("tab_about"))
+        #expect(!SettingsPane.provider(.codex).title.isEmpty)
+        #expect(SettingsPane.provider(.codex) != SettingsPane.provider(.claude))
     }
 
     @Test

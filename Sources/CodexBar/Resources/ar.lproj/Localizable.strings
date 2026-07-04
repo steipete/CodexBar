@@ -236,6 +236,7 @@
 "Picker subtitle" = "عنوان فرعي لاختيار";
 "Placeholder" = "العنصر المؤقت";
 "Plan" = "الخطة";
+"Plan Usage" = "استخدام الخطة";
 "Play full-screen confetti when weekly usage resets." = "شغل ورق الورق الورقية بملء الشاشة عند إعادة ضبط الاستخدام الأسبوعي.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "استطلاعات OpenAI/Claude صفحات الحالة ومساحة العمل Google ل  ";
 "Prevents any Keychain access while enabled." = "يمنع أي وصول Keychain أثناء التفعيل.";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "مخزن في ~/.codexbar/config.json. الصق مفتاح MiniMax API الخاص بك.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "مخزنة في ~/.codexbar/config.json. يمكنك أيضا توفير KILO_API_KEY or ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "يخزن تاريخ استخدام Codex محليا (8 أسابيع) لتخصيص توقعات Pac.";
-"Subscription Utilization" = "استخدام الاشتراكات";
 "Surprise me" = "فاجئني";
 "Switcher shows icons" = "المحول يعرض الأيقونات";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI إلى /usr/local/bin و /opt/homebrew/bin ك codexbar.";
@@ -674,6 +674,7 @@
 "refresh_5min" = "5 دقائق";
 "refresh_15min" = "15 دقيقة";
 "refresh_30min" = "30 دقيقة";
+"refresh_adaptive" = "تكيفي";
 
 /* Additional keys */
 "not_found" = "لم يعثر عليه";
@@ -732,6 +733,7 @@
 "Resets now" = "إعادة التعيين الآن";
 "reset_tomorrow_format" = "غدًا، %@";
 "Lasts until reset" = "يستمر حتى إعادة التعيين";
+"1.5× headroom" = "هامش 1.5×";
 "Updated %@" = "تحديث %@";
 "Updated relative %@" = "تحديث %@";
 "Updated absolute %@" = "تحديث %@";
@@ -1135,3 +1137,14 @@
 "byte_unit_gigabyte" = "غيغابايت";
 "byte_unit_gigabytes" = "غيغابايتات";
 "CrossModel API spend trend" = "اتجاه إنفاق CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "تفعيل";
+"Disable" = "تعطيل";
+"providers_on_count" = "%d مفعّل";
+"section_cost_summary" = "ملخص التكلفة";
+"section_command_line" = "سطر الأوامر";
+"section_privacy" = "الخصوصية";
+"section_diagnostics" = "التشخيصات";
+"section_updates" = "التحديثات";
+"section_links" = "روابط";
