@@ -6,7 +6,8 @@ import Foundation
 struct CodexResetCreditExpiryNotifier {
     static let expiryWindow: TimeInterval = 3 * 24 * 60 * 60
     static let notificationPrefix = "codex-reset-credit-expiry"
-    static let summaryFingerprintKey = "codexResetCreditExpirySummaryFingerprint"
+    static let summaryFingerprintsKey = "codexResetCreditExpirySummaryFingerprints"
+    static let maximumRememberedSummaries = 64
 
     var userDefaults: UserDefaults = .standard
     var notificationPoster: (String, String, String) -> Void = { prefix, title, body in
@@ -25,8 +26,14 @@ struct CodexResetCreditExpiryNotifier {
         guard !expiringCredits.isEmpty else { return }
 
         let fingerprint = Self.summaryFingerprint(expiringCredits)
-        guard self.userDefaults.string(forKey: Self.summaryFingerprintKey) != fingerprint else { return }
-        self.userDefaults.set(fingerprint, forKey: Self.summaryFingerprintKey)
+        // Account-scoped refreshes can alternate inventories, so remember more than the latest summary.
+        var notifiedFingerprints = self.userDefaults.stringArray(forKey: Self.summaryFingerprintsKey) ?? []
+        guard !notifiedFingerprints.contains(fingerprint) else { return }
+        notifiedFingerprints.append(fingerprint)
+        if notifiedFingerprints.count > Self.maximumRememberedSummaries {
+            notifiedFingerprints.removeFirst(notifiedFingerprints.count - Self.maximumRememberedSummaries)
+        }
+        self.userDefaults.set(notifiedFingerprints, forKey: Self.summaryFingerprintsKey)
 
         let expiringSnapshot = CodexRateLimitResetCreditsSnapshot(
             credits: expiringCredits,

@@ -33,11 +33,40 @@ struct CodexResetCreditExpiryNotifierTests {
         #expect(posts[0].body == "1. Expires in 1d")
         #expect(!posts[0].prefix.contains(rawID))
         #expect(!posts[0].body.contains(rawID))
-        let fingerprint = try #require(defaults.string(
-            forKey: CodexResetCreditExpiryNotifier.summaryFingerprintKey))
+        let fingerprints = try #require(defaults.stringArray(
+            forKey: CodexResetCreditExpiryNotifier.summaryFingerprintsKey))
+        let fingerprint = try #require(fingerprints.first)
+        #expect(fingerprints.count == 1)
         #expect(fingerprint.count == 64)
         #expect(!fingerprint.contains(rawID))
-        #expect(defaults.stringArray(forKey: CodexResetCreditExpiryNotifier.summaryFingerprintKey) == nil)
+    }
+
+    @Test
+    func `switching account inventories does not repeat either notification`() throws {
+        let suite = "CodexResetCreditExpiryNotifierAccountTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        var postCount = 0
+        let notifier = CodexResetCreditExpiryNotifier(userDefaults: defaults) { _, _, _ in
+            postCount += 1
+        }
+        let firstAccount = CodexRateLimitResetCreditsSnapshot(
+            credits: [Self.credit(id: "first-account-credit", expiresAt: now.addingTimeInterval(86400))],
+            availableCount: 1,
+            updatedAt: now)
+        let secondAccount = CodexRateLimitResetCreditsSnapshot(
+            credits: [Self.credit(id: "second-account-credit", expiresAt: now.addingTimeInterval(172_800))],
+            availableCount: 1,
+            updatedAt: now)
+
+        notifier.postExpiringCreditsIfNeeded(snapshot: firstAccount, resetStyle: .countdown, now: now)
+        notifier.postExpiringCreditsIfNeeded(snapshot: secondAccount, resetStyle: .countdown, now: now)
+        notifier.postExpiringCreditsIfNeeded(snapshot: firstAccount, resetStyle: .countdown, now: now)
+        notifier.postExpiringCreditsIfNeeded(snapshot: secondAccount, resetStyle: .countdown, now: now)
+
+        #expect(postCount == 2)
+        #expect(defaults.stringArray(forKey: CodexResetCreditExpiryNotifier.summaryFingerprintsKey)?.count == 2)
     }
 
     @Test
@@ -60,7 +89,7 @@ struct CodexResetCreditExpiryNotifierTests {
             now: now)
 
         #expect(postCount == 0)
-        #expect(defaults.string(forKey: CodexResetCreditExpiryNotifier.summaryFingerprintKey) == nil)
+        #expect(defaults.stringArray(forKey: CodexResetCreditExpiryNotifier.summaryFingerprintsKey) == nil)
     }
 
     private static func credit(id: String, expiresAt: Date?) -> CodexRateLimitResetCredit {
