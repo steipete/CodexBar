@@ -68,6 +68,9 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        // Records interaction and may bring an adaptive timer forward; never refreshes synchronously.
+        self.store.noteMenuOpened()
+
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }
 

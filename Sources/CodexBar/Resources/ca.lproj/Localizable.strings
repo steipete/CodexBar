@@ -661,6 +661,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptatiu";
 
 /* Additional keys */
 "not_found" = "No trobat";
@@ -1036,6 +1037,7 @@
 "Last 30 days: %@" = "Últims 30 dies: %@";
 "Last 30 days: %@ · %@ tokens" = "Últims 30 dies: %@ · %@ tokens";
 "Lasts until reset" = "Dura fins al reinici";
+"1.5× headroom" = "marge d’1,5×";
 "Login with Google" = "Inicieu sessió amb Google";
 "login_success_notification_body" = "Podeu tornar a l'app; l'autenticació ha finalitzat.";
 "login_success_notification_title" = "Inici de sessió de %@ correcte";

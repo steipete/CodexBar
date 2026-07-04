@@ -6,6 +6,97 @@ import Testing
 @MainActor
 struct SettingsWindowAppearanceTests {
     @Test
+    func `settings always keeps both navigation columns visible`() {
+        #expect(PreferencesView.visibleColumnVisibility(for: .detailOnly) == .doubleColumn)
+        #expect(PreferencesView.visibleColumnVisibility(for: .automatic) == .doubleColumn)
+        #expect(PreferencesView.visibleColumnVisibility(for: .doubleColumn) == .doubleColumn)
+    }
+
+    @Test
+    func `settings window sizing repairs collapsed saved frames`() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 120, y: 160, width: 180, height: 140),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+        let originalMaxY = window.frame.maxY
+
+        SettingsWindowSizing.enforceMinimumSize(window)
+
+        #expect(window.minSize.width == SettingsPane.windowMinWidth)
+        #expect(window.minSize.height >= SettingsPane.windowMinHeight)
+        #expect(window.frame.width >= window.minSize.width)
+        #expect(window.frame.height >= window.minSize.height)
+        #expect(abs(window.frame.maxY - originalMaxY) < 1)
+    }
+
+    @Test
+    func `settings window sizing leaves valid frames alone`() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 120, y: 160, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+        let originalFrame = window.frame
+
+        SettingsWindowSizing.enforceMinimumSize(window)
+
+        #expect(window.frame == originalFrame)
+        #expect(window.minSize.width == SettingsPane.windowMinWidth)
+        #expect(window.minSize.height >= SettingsPane.windowMinHeight)
+    }
+
+    @Test
+    func `settings window sizing restores a collapsed sidebar without private identifiers`() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 120, y: 160, width: 180, height: 140),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+        let splitView = NSSplitView(
+            frame: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight))
+        splitView.isVertical = true
+        let sidebar = NSView(frame: NSRect(x: 0, y: 0, width: 0, height: SettingsPane.windowHeight))
+        let detail = NSView(
+            frame: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight))
+        splitView.addSubview(sidebar)
+        splitView.addSubview(detail)
+        window.contentView = splitView
+
+        SettingsWindowSizing.enforceMinimumSize(window)
+
+        #expect(window.frame.width >= window.minSize.width)
+        #expect(sidebar.frame.width >= SettingsPane.sidebarWidth)
+    }
+
+    @Test
+    func `settings window sizing repairs the outer navigation split`() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 120, y: 160, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+        let outerSplit = NSSplitView(
+            frame: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight))
+        outerSplit.isVertical = true
+        let sidebar = NSView(frame: NSRect(x: 0, y: 0, width: 0, height: SettingsPane.windowHeight))
+        let detail = NSView(
+            frame: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight))
+        let nestedSplit = NSSplitView(frame: NSRect(x: 0, y: 0, width: 300, height: 300))
+        nestedSplit.isVertical = true
+        nestedSplit.addSubview(NSView(frame: .zero))
+        nestedSplit.addSubview(NSView(frame: .zero))
+        detail.addSubview(nestedSplit)
+        outerSplit.addSubview(sidebar)
+        outerSplit.addSubview(detail)
+        window.contentView = outerSplit
+
+        SettingsWindowSizing.enforceMinimumSize(window)
+
+        #expect(sidebar.frame.width >= SettingsPane.sidebarWidth)
+    }
+
+    @Test
     func `bridge pulses exact effective appearance then restores inheritance`() {
         let application = NSApplication.shared
         let effectiveAppearance = application.effectiveAppearance

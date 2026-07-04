@@ -229,6 +229,7 @@ final class UsageStore {
     @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
     @ObservationIgnored let augmentLogger = CodexBarLog.logger(LogCategories.augment)
     @ObservationIgnored let providerLogger = CodexBarLog.logger(LogCategories.providers)
+    @ObservationIgnored let adaptiveRefreshLogger = CodexBarLog.logger(LogCategories.adaptiveRefresh)
     @ObservationIgnored var openAIWebDebugLines: [String] = []
     @ObservationIgnored var failureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
     @ObservationIgnored var tokenFailureGates: [UsageProvider: ConsecutiveFailureGate] = [:]
@@ -239,6 +240,9 @@ final class UsageStore {
     @ObservationIgnored private var providerAvailabilityCache: [UsageProvider: ProviderAvailabilityCacheEntry] = [:]
     @ObservationIgnored var accountInfoCache: [UsageProvider: AccountInfoCacheEntry] = [:]
     @ObservationIgnored private var timerTask: Task<Void, Never>?
+    /// In-memory only; resets on every launch.
+    @ObservationIgnored private(set) var lastMenuOpenAt: Date?
+    @ObservationIgnored var adaptiveRefreshScheduledAt: Date?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceProvider: UsageProvider?
@@ -577,6 +581,27 @@ final class UsageStore {
         await self.runRefresh(forceTokenUsage: forceTokenUsage, startupConnectivityRetryAttempt: nil)
     }
 
+    func noteMenuOpened(at date: Date = Date()) {
+        self.lastMenuOpenAt = date
+        guard self.settings.refreshFrequency == .adaptive else { return }
+
+        let decision = Self.adaptiveRefreshDecision(
+            now: date,
+            lastMenuOpenAt: date,
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            thermalState: ProcessInfo.processInfo.thermalState)
+        let candidate = date.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
+        guard Self.shouldAdvanceAdaptiveTimer(
+            scheduledAt: self.adaptiveRefreshScheduledAt,
+            candidate: candidate)
+        else { return }
+        self.startTimer(preservingResetBoundaryRefresh: true)
+    }
+
+    #if DEBUG
+    @ObservationIgnored private(set) var completedRefreshCountForTesting = 0
+    #endif
+
     func runRefresh(
         forceTokenUsage: Bool = false,
         startupConnectivityRetryAttempt: Int?,
@@ -680,7 +705,7 @@ final class UsageStore {
         }
 
         self.scheduleResetBoundaryRefreshIfNeeded(
-            normalRefreshInterval: self.settings.refreshFrequency.seconds)
+            normalRefreshInterval: self.normalRefreshIntervalForHeuristics())
 
         if allowsStartupConnectivityRetry {
             self.completeStartupConnectivityRetryPass(currentAttempt: startupConnectivityRetryAttempt ?? 0)
@@ -688,6 +713,9 @@ final class UsageStore {
         if refreshPhase == .startup {
             self.scheduleMemoryPressureRelief()
         }
+        #if DEBUG
+        self.completedRefreshCountForTesting += 1
+        #endif
     }
 
     /// For demo/testing: drop the snapshot so the loading animation plays, then restore the last snapshot.
@@ -710,15 +738,56 @@ final class UsageStore {
         self.observeSettingsChanges()
     }
 
-    private func startTimer() {
+    #if DEBUG
+    @ObservationIgnored private(set) var refreshTimerSleepOverrideForTesting: Duration?
+
+    /// Sets this store's timer sleep override and restarts the timer with it applied, so tests can
+    /// observe multiple fixed/adaptive ticks without waiting real minutes. The reason/delay a tick
+    /// computes and logs is unaffected; only how long it sleeps before acting on that decision
+    /// changes. Instance-scoped (not a shared global) so concurrently running tests, each with their
+    /// own `UsageStore`, cannot clobber one another's override.
+    func restartTimerWithSleepOverrideForTesting(_ duration: Duration?) {
+        self.refreshTimerSleepOverrideForTesting = duration
+        self.startTimer()
+    }
+    #endif
+
+    private func startTimer(preservingResetBoundaryRefresh: Bool = false) {
         self.timerTask?.cancel()
-        self.cancelResetBoundaryRefresh()
-        guard let wait = self.settings.refreshFrequency.seconds else { return }
+        self.adaptiveRefreshScheduledAt = nil
+        if !preservingResetBoundaryRefresh {
+            self.cancelResetBoundaryRefresh()
+        }
+
+        let frequency = self.settings.refreshFrequency
+        guard frequency != .manual else { return }
+
+        if frequency == .adaptive {
+            // Background poller so the menu stays responsive; canceled when settings change or store
+            // deallocates. Delay is recomputed before every tick from live power/thermal state and the
+            // in-memory menu-open signal; the policy itself stays pure (Input is built here). `self` is
+            // only strongly held for the brief, synchronous decision computation below, never across
+            // the sleep — a weak reference lets the store deallocate mid-sleep, same as fixed mode.
+            self.timerTask = Task.detached(priority: .utility) { [weak self] in
+                while !Task.isCancelled {
+                    guard let sleepDuration = await Self.nextAdaptiveTimerSleepDuration(for: self) else { return }
+                    try? await Task.sleep(for: sleepDuration)
+                    guard !Task.isCancelled else { return }
+                    await self?.refresh()
+                }
+            }
+            return
+        }
+
+        guard let wait = frequency.seconds else { return }
 
         // Background poller so the menu stays responsive; canceled when settings change or store deallocates.
+        // `self` is only briefly borrowed to read the (DEBUG-only) sleep override, never held across the sleep.
         self.timerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(wait))
+                let sleepDuration = await self?.effectiveTimerSleepDuration(.seconds(wait)) ?? .seconds(wait)
+                try? await Task.sleep(for: sleepDuration)
+                guard !Task.isCancelled else { return }
                 await self?.refresh()
             }
         }

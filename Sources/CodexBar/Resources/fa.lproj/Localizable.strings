@@ -675,6 +675,7 @@
 "refresh_5min" = "۵ دقیقه";
 "refresh_15min" = "۱۵ دقیقه";
 "refresh_30min" = "۳۰ دقیقه";
+"refresh_adaptive" = "تطبیقی";
 
 /* Additional keys */
 "not_found" = "پیدا نشد";
@@ -733,6 +734,7 @@
 "Resets now" = "اکنون بازنشانی می شود";
 "reset_tomorrow_format" = "فردا، %@";
 "Lasts until reset" = "تا زمان ریست ادامه دارد";
+"1.5× headroom" = "حاشیه ۱٫۵×";
 "Updated %@" = "به روزرسانی %@";
 "Updated relative %@" = "به روزرسانی %@";
 "Updated absolute %@" = "به روزرسانی %@";

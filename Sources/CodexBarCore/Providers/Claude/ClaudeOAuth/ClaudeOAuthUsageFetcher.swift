@@ -156,6 +156,10 @@ struct OAuthUsageResponse: Decodable {
     let sevenDayRoutinesSourceKey: String?
     let iguanaNecktie: OAuthUsageWindow?
     let extraUsage: OAuthExtraUsage?
+    /// Newer shape (superseding the flat `seven_day_*` fields above for scoped weekly
+    /// windows): a flat list of limit entries, each optionally naming the model it scopes
+    /// to via `scope.model.display_name` (e.g. "Fable" during a promotional access window).
+    let limits: [OAuthLimitEntry]?
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
@@ -177,6 +181,7 @@ struct OAuthUsageResponse: Decodable {
         self.sevenDayRoutinesSourceKey = routines.sourceKey
         self.iguanaNecktie = Self.decodeWindow(in: container, keys: ["iguana_necktie"])
         self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
+        self.limits = Self.decodeValue(in: container, keys: ["limits"])
     }
 
     private static func decodeWindow(
@@ -239,6 +244,41 @@ struct OAuthUsageWindow: Decodable {
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
+    }
+}
+
+/// A single entry from the `limits` array. `kind`/`group` classify the limit
+/// (e.g. `kind: "weekly_scoped"`, `group: "weekly"`); `scope.model.display_name` names the
+/// model it applies to when the limit is scoped to one, rather than the whole account.
+struct OAuthLimitEntry: Decodable {
+    let kind: String?
+    let group: String?
+    let percent: Double?
+    let resetsAt: String?
+    let scope: OAuthLimitScope?
+    let isActive: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case group
+        case percent
+        case resetsAt = "resets_at"
+        case scope
+        case isActive = "is_active"
+    }
+}
+
+struct OAuthLimitScope: Decodable {
+    let model: OAuthLimitScopeModel?
+}
+
+struct OAuthLimitScopeModel: Decodable {
+    let id: String?
+    let displayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
     }
 }
 

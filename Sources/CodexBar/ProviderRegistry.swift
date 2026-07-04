@@ -84,7 +84,7 @@ struct ProviderRegistry {
                         costUsageHistoryDays: settings.costUsageHistoryDays,
                         persistsCLISessions: true,
                         persistentCLISessionIdleWindow: Self.persistentCLISessionIdleWindow(
-                            refreshInterval: settings.refreshFrequency.seconds))
+                            refreshInterval: Self.nominalRefreshInterval(for: settings.refreshFrequency)))
                 })
             specs[provider] = spec
         }
@@ -94,6 +94,14 @@ struct ProviderRegistry {
 
     static func persistentCLISessionIdleWindow(refreshInterval: TimeInterval?) -> TimeInterval {
         max(180, (refreshInterval ?? 120) + 60)
+    }
+
+    /// `RefreshFrequency.seconds` is nil for `.adaptive`, which would collapse the idle window to
+    /// its floor and churn persistent CLI sessions between adaptive ticks. No `UsageStore` exists
+    /// when specs are built, so `.adaptive` maps to the policy's nominal interval instead of a
+    /// live decision; `.manual` stays nil.
+    static func nominalRefreshInterval(for frequency: RefreshFrequency) -> TimeInterval? {
+        frequency == .adaptive ? AdaptiveRefreshPolicy.nominalIntervalForHeuristics : frequency.seconds
     }
 
     @MainActor

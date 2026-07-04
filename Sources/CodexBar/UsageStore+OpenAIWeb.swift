@@ -65,8 +65,8 @@ extension UsageStore {
         startupConnectivityRetryAttempt == nil ? providerRefreshPhase : .startup
     }
 
-    private func openAIWebRefreshIntervalSeconds() -> TimeInterval {
-        let base = max(self.settings.refreshFrequency.seconds ?? 0, 120)
+    func openAIWebRefreshIntervalSeconds() -> TimeInterval {
+        let base = max(self.normalRefreshIntervalForHeuristics() ?? 0, 120)
         return base * Self.openAIWebRefreshMultiplier
     }
 

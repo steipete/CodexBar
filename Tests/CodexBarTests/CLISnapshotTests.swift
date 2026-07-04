@@ -526,6 +526,7 @@ struct CLISnapshotTests {
 
         #expect(output.contains("Weekly: 77% left"))
         #expect(output.contains("Pace: 6% in reserve | Expected 29% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
     }
 
     @Test
@@ -581,7 +582,7 @@ struct CLISnapshotTests {
 
         #expect(output.contains("Session: 80% left"))
         // 2h remaining of a 5h window => 3h elapsed => 60% expected; even rate easily lasts to reset.
-        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset | 1.5× headroom"))
     }
 
     @Test
@@ -609,7 +610,8 @@ struct CLISnapshotTests {
             now: now)
 
         // windowMinutes is nil, so the 5-hour (300 minute) session default must drive the pace.
-        #expect(output.contains("Pace: 40% in reserve | Expected 60% used"))
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
     }
 
     @Test

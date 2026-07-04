@@ -550,6 +550,7 @@
 "no_writable_bin_dirs" = "找不到可寫的 bin 目錄。";
 "show_debug_settings_title" = "顯示除錯設定";
 "show_debug_settings_subtitle" = "在「除錯」標籤中顯示疑難排解工具。";
+"1.5× headroom" = "1.5 倍餘裕";
 "surprise_me_title" = "給我驚喜";
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "session_limit_confetti_title" = "工作階段限制彩帶";
@@ -658,6 +659,7 @@
 "refresh_5min" = "5 分鐘";
 "refresh_15min" = "15 分鐘";
 "refresh_30min" = "30 分鐘";
+"refresh_adaptive" = "自適應";
 "not_found" = "找不到";
 "CodexBar can't show its menu bar icon" = "CodexBar 無法顯示選單列圖示";
 "Dismiss" = "關閉";
