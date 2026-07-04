@@ -421,7 +421,7 @@ struct GeminiStatusProbeAPITests {
             executable: helper.path,
             arguments: [pidFile.path],
             environment: [:],
-            timeout: 0.5)
+            timeout: 1)
         let elapsed = Date().timeIntervalSince(start)
         let text = try String(contentsOf: pidFile, encoding: .utf8)
         let processID = try #require(pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)))
@@ -429,7 +429,7 @@ struct GeminiStatusProbeAPITests {
 
         #expect(result == nil)
         #expect(kill(processID, 0) == -1)
-        #expect(elapsed < 2, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
+        #expect(elapsed < 3, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
     }
 
     @Test

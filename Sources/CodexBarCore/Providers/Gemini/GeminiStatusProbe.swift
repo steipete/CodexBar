@@ -1126,14 +1126,18 @@ extension GeminiStatusProbe {
         let pid = process.processIdentifier
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
-        // This API is synchronous. Waiting on Process.terminationHandler can starve its callback when
-        // the caller owns the active executor thread, so poll Process directly until the same deadline.
-        let deadline = DispatchTime.now() + max(0, timeout)
-        while process.isRunning, DispatchTime.now() < deadline {
-            Thread.sleep(forTimeInterval: 0.01)
+        // This API is synchronous. Waiting for a termination handler on the caller can starve its
+        // callback, while Process.isRunning may remain stale until Foundation observes the exit.
+        let exitSemaphore = DispatchSemaphore(value: 0)
+        Thread.detachNewThread {
+            process.waitUntilExit()
+            exitSemaphore.signal()
         }
-        if process.isRunning {
+
+        let didExit = exitSemaphore.wait(timeout: .now() + max(0, timeout)) == .success
+        if !didExit {
             SubprocessRunner.terminateProcess(process, processGroup: processGroup)
+            _ = exitSemaphore.wait(timeout: .now() + 1)
             stdoutCapture.stop()
             stderrCapture.stop()
             return nil
