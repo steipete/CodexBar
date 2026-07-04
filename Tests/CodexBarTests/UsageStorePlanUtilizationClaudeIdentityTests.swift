@@ -299,6 +299,79 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
     @MainActor
     @Test
+    func `same dir account switch quarantines stale background credential`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let ownerA = self.oauthOwnerIdentifier("a")
+        let ownerB = self.oauthOwnerIdentifier("b")
+        let keyA = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerA))
+        let keyB = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerB))
+        let hourStart = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // 1) Active account A (~/.claude.json = uuid-A): owner_A sample binds to A and writes to key_A.
+        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
+                claudeOAuthPersistentRefHash: "account-a-ref",
+                claudeOAuthHistoryOwnerIdentifier: ownerA,
+                isClaudeOAuthSample: true,
+                now: hourStart)
+        }
+
+        do {
+            let buckets = try #require(store.planUtilizationHistory[.claude])
+            #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+                .entries.map(\.usedPercent) == [30])
+            #expect(buckets.unscoped.isEmpty)
+        }
+
+        // 2) `/login` switched the active account to B (~/.claude.json = uuid-B), but the gated background
+        //    poll still serves the STALE owner_A credential. This must be quarantined: no new sample lands.
+        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
+                claudeOAuthPersistentRefHash: "account-a-ref",
+                claudeOAuthHistoryOwnerIdentifier: ownerA,
+                isClaudeOAuthSample: true,
+                now: hourStart.addingTimeInterval(2 * 60 * 60))
+        }
+
+        do {
+            let buckets = try #require(store.planUtilizationHistory[.claude])
+            // key_A history is UNCHANGED (the stale sample was dropped, not appended).
+            #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+                .entries.map(\.usedPercent) == [30])
+            // Critically, the quarantined sample did NOT leak into the shared unscoped bucket. This is the
+            // assertion that catches the naive-nil bug (nil accountKey writes to `unscoped`, not nowhere).
+            #expect(buckets.unscoped.isEmpty)
+            #expect(buckets.accounts[keyB] == nil)
+        }
+
+        // 3) A user-initiated refresh yields account B's real credential (owner_B). Recovery: writes to key_B,
+        //    key_A stays untouched.
+        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
+                claudeOAuthPersistentRefHash: "account-b-ref",
+                claudeOAuthHistoryOwnerIdentifier: ownerB,
+                isClaudeOAuthSample: true,
+                now: hourStart.addingTimeInterval(3 * 60 * 60))
+        }
+
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[keyB] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [75])
+        #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [30])
+        #expect(buckets.unscoped.isEmpty)
+    }
+
+    @MainActor
+    @Test
     func `coalesced claude oauth sample without owner cannot switch preferred account`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let scopedOwner = self.oauthOwnerIdentifier("c")

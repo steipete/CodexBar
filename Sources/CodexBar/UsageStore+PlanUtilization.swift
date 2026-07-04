@@ -5,6 +5,7 @@ extension UsageStore {
     private nonisolated static let limitResetThreshold = 1.0
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
     private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
+    private nonisolated static let claudeOAuthAccountUuidMapDefaultsKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
     private nonisolated static let weeklyWindowMinutes = 7 * 24 * 60
     private nonisolated static let planUtilizationUnscopedPreferredKey = "__unscoped__"
     private nonisolated static let claudeOAuthPlanUtilizationAccountKeyPrefix = "__claude_oauth__:"
@@ -159,9 +160,26 @@ extension UsageStore {
         async
     {
         let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
+        var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
+        if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
+            let currentUuid = Self.activeClaudeAccountUuid()
+            var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
+            if let mapped = map[owner], let currentUuid, mapped != currentUuid {
+                // Active Claude account changed (per ~/.claude.json) but a stale credential for a
+                // PREVIOUS account is being served (background cache, keychain gated). Quarantine: do
+                // not attribute B's usage to A's bucket. Recovery happens on the next user-initiated
+                // refresh, when the keychain freshness sync yields the new account's real credential.
+                effectiveOwner = nil
+            } else if map[owner] == nil, let currentUuid {
+                // First sighting of this owner: bind it to the account active right now.
+                // Never OVERWRITE on mismatch (that is the stale case handled above).
+                map[owner] = currentUuid
+                self.persistClaudeOAuthAccountUuidMap(map)
+            }
+        }
         let detectorAccountKey = if provider == .claude, isClaudeOAuthSample {
             Self.claudeOAuthPlanUtilizationAccountKey(
-                historyOwnerIdentifier: claudeOAuthHistoryOwnerIdentifier,
+                historyOwnerIdentifier: effectiveOwner,
                 corroboratingPersistentRefHash: claudeOAuthPersistentRefHash)
         } else {
             self.planUtilizationAccountKey(
@@ -199,7 +217,7 @@ extension UsageStore {
                 snapshot: snapshot,
                 preferredAccount: preferredAccount,
                 claudeOAuthPersistentRefHash: claudeOAuthPersistentRefHash,
-                claudeOAuthHistoryOwnerIdentifier: claudeOAuthHistoryOwnerIdentifier,
+                claudeOAuthHistoryOwnerIdentifier: effectiveOwner,
                 isClaudeOAuthSample: isClaudeOAuthSample,
                 shouldUpdatePreferredAccountKey: shouldUpdatePreferredAccountKey,
                 shouldAdoptUnscopedHistory: shouldAdoptUnscopedHistory,
@@ -884,6 +902,52 @@ extension UsageStore {
         }
     }
 
+    // MARK: - Active Claude account corroboration (~/.claude.json)
+
+    /// The currently-active Claude account UUID, read prompt-free from `~/.claude.json`. This is the only
+    /// always-fresh, never-gated signal of the active account on a background poll: Claude Code's `/login`
+    /// updates the Keychain item in place and leaves `~/.claude/.credentials.json` stale, but immediately
+    /// rewrites `oauthAccount.accountUuid` in this sibling plain file. Returns nil on absence/corruption.
+    nonisolated static func activeClaudeAccountUuid() -> String? {
+        ClaudeActiveAccountProbe.activeClaudeAccountUuid()
+    }
+
+    /// Persisted `historyOwnerIdentifier -> active accountUuid` bindings. Mirrors `loadLimitResetDetectorStates`.
+    nonisolated static func loadClaudeOAuthAccountUuidMap(from userDefaults: UserDefaults) -> [String: String] {
+        guard let data = userDefaults.data(forKey: claudeOAuthAccountUuidMapDefaultsKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to decode Claude OAuth history owner account UUID map",
+                metadata: ["error": String(describing: error)])
+            return [:]
+        }
+    }
+
+    /// Persist the `historyOwnerIdentifier -> active accountUuid` map. Mirrors `persistLimitResetDetectorStates`.
+    func persistClaudeOAuthAccountUuidMap(_ map: [String: String]) {
+        do {
+            let data = try JSONEncoder().encode(map)
+            self.settings.userDefaults.set(data, forKey: Self.claudeOAuthAccountUuidMapDefaultsKey)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to encode Claude OAuth history owner account UUID map",
+                metadata: ["error": String(describing: error)])
+        }
+    }
+
+    #if DEBUG
+    static func withActiveClaudeAccountUuidForTesting<T>(
+        _ uuid: String?,
+        _ body: () async throws -> T) async rethrows -> T
+    {
+        try await ClaudeActiveAccountProbe.$activeClaudeAccountUuidOverrideForTesting.withValue(
+            uuid,
+            operation: body)
+    }
+    #endif
+
     private func resolvePlanUtilizationAccountKey(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
@@ -1413,5 +1477,44 @@ actor PlanUtilizationHistoryPersistenceCoordinator {
         await Task.detached(priority: .utility) {
             store.save(snapshot)
         }.value
+    }
+}
+
+/// Prompt-free reader for the active Claude account UUID recorded in `~/.claude.json`. The `@TaskLocal` test
+/// seam lives here (not on `UsageStore`) because Swift forbids stored properties in extensions and task-local
+/// storage must be nonisolated, whereas `UsageStore` is `@MainActor`.
+private enum ClaudeActiveAccountProbe {
+    #if DEBUG
+    @TaskLocal static var activeClaudeAccountUuidOverrideForTesting: String?
+    #endif
+
+    private struct ClaudeConfigAccount: Decodable {
+        struct OAuthAccount: Decodable {
+            let accountUuid: String?
+        }
+
+        let oauthAccount: OAuthAccount?
+    }
+
+    static func activeClaudeAccountUuid() -> String? {
+        #if DEBUG
+        if let override = self.activeClaudeAccountUuidOverrideForTesting {
+            return override
+        }
+        #endif
+        // `~/.claude.json` is a SIBLING of `.claude/`, not inside it. Home resolution mirrors
+        // `ClaudeOAuthCredentials.defaultCredentialsURL()`. This intentionally does NOT honor
+        // CLAUDE_CONFIG_DIR: the credential store that yields `historyOwnerIdentifier` is purely
+        // home-relative, so the accountUuid corroboration must resolve against the same home or the
+        // two signals would point at different accounts.
+        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode(ClaudeConfigAccount.self, from: data),
+              let uuid = decoded.oauthAccount?.accountUuid?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !uuid.isEmpty
+        else {
+            return nil
+        }
+        return uuid
     }
 }

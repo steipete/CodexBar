@@ -37,6 +37,7 @@
 - Claude CLI: skip the identity probe after terminal usage errors or loading stalls, cutting failed refresh latency and subprocess churn.
 - OpenCode web: search Dia after Chrome for automatic cookie import, with Keychain preflight scoped to the candidate browser (fixes #1822). Thanks @zeajose!
 - Claude: make the "Avoid Keychain prompts" setting use the no-prompt policy instead of the experimental `security` CLI reader. Thanks @gmkbenjamin!
+- Claude: keep per-account plan-utilization history separate after an in-place account switch in the shared `~/.claude` directory, so background polls no longer attribute the new account's usage to the previous account's history (fixes #1886). Thanks @ss251!
 
 ## 0.38.1 — 2026-07-04
 
