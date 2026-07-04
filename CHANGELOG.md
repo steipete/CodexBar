@@ -19,6 +19,7 @@
 - Xiaomi MiMo: require authoritative cadence evidence before showing reserve or deficit projections, avoiding guesses from plan dates or names.
 
 ### Fixed
+- Gemini: stop package-discovery helpers on deadline and return promptly when they exit without output.
 - Monthly quota pace: show reserve, deficit, and run-out estimates for OpenCode Go, Doubao, and Alibaba monthly reset windows using their calendar-cycle length. Thanks @Zihao-Qi and @joeVenner!
 - Localization: translate the Default Terminal setting across every supported app language. Thanks @Zihao-Qi!
 - Settings: recover collapsed sidebars and undersized saved window frames when reopening Settings. Thanks @ProspectOre!
