@@ -260,6 +260,12 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `provider choice supports Mistral`() {
+        #expect(ProviderChoice(provider: .mistral) == .mistral)
+        #expect(ProviderChoice.mistral.provider == .mistral)
+    }
+
+    @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
     }
@@ -305,6 +311,24 @@ struct CodexBarWidgetProviderTests {
         let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.alibabatokenplan], generatedAt: now)
 
         #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.alibabatokenplan])
+    }
+
+    @Test
+    func `supported providers keep Mistral when it is the only enabled provider`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .mistral,
+            updatedAt: now,
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.mistral], generatedAt: now)
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.mistral])
     }
 
     @Test
