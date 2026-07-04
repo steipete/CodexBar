@@ -32,13 +32,24 @@ extension CodexBarCLI {
         let forceRefresh = values.flags.contains("refresh")
         let useColor = Self.shouldUseColor(noColor: values.flags.contains("noColor"), format: format)
         let historyDays = Self.decodeCostHistoryDays(from: values)
+        let groupBy = Self.decodeCostGroupBy(from: values)
+        if groupBy == .project {
+            let unsupportedProjectProviders = providers.filter { $0 != .codex }
+            if !unsupportedProjectProviders.isEmpty, !output.jsonOnly {
+                let names = unsupportedProjectProviders
+                    .map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
+                    .sorted()
+                    .joined(separator: ", ")
+                Self.writeStderr("Skipping project grouping for providers without Codex project data: \(names)\n")
+            }
+        }
 
         let fetcher = CostUsageFetcher()
         var sections: [String] = []
         var payload: [CostPayload] = []
         var exitCode: ExitCode = .success
 
-        for provider in providers {
+        for provider in providers where groupBy != .project || provider == .codex || format == .json {
             do {
                 // Cost usage is local-only; it does not require web/CLI provider fetches.
                 let snapshot = try await fetcher.loadTokenSnapshot(
@@ -48,7 +59,11 @@ extension CodexBarCLI {
                     refreshPricingInBackground: false)
                 switch format {
                 case .text:
-                    sections.append(Self.renderCostText(provider: provider, snapshot: snapshot, useColor: useColor))
+                    sections.append(Self.renderCostText(
+                        provider: provider,
+                        snapshot: snapshot,
+                        groupBy: groupBy,
+                        useColor: useColor))
                 case .json:
                     payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
                 }
@@ -76,13 +91,22 @@ extension CodexBarCLI {
         Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
     }
 
+    enum CostGroupBy: String {
+        case none
+        case project
+    }
+
     static func renderCostText(
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot,
+        groupBy: CostGroupBy = .none,
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let header = Self.costHeaderLine("\(name) Cost (API-rate estimate)", useColor: useColor)
+        if groupBy == .project, provider == .codex {
+            return Self.renderProjectCostText(header: header, snapshot: snapshot)
+        }
 
         let todayCost = snapshot.sessionCostUSD
             .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
@@ -102,6 +126,39 @@ extension CodexBarCLI {
         return [header, todayLine, monthLine, hintLine].joined(separator: "\n")
     }
 
+    private static func renderProjectCostText(header: String, snapshot: CostUsageTokenSnapshot) -> String {
+        let historyLabel = snapshot.historyLabel
+            ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
+        var lines = [header, "Projects (\(historyLabel)):"]
+        guard !snapshot.projects.isEmpty else {
+            lines.append("—")
+            lines.append(UsageFormatter.costEstimateHint(provider: .codex))
+            return lines.joined(separator: "\n")
+        }
+        for project in snapshot.projects {
+            let cost = project.totalCostUSD
+                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let tokens = project.totalTokens.map { UsageFormatter.tokenCountString($0) }
+            let summary = tokens.map { "\(cost) · \($0) tokens" } ?? cost
+            lines.append("\(project.name): \(summary)")
+            if let path = project.path {
+                lines.append("  \(path)")
+            }
+            for source in project.sources {
+                let sourceCost = source.totalCostUSD
+                    .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+                let sourceTokens = source.totalTokens.map { UsageFormatter.tokenCountString($0) }
+                let sourceSummary = sourceTokens.map { "\(sourceCost) · \($0) tokens" } ?? sourceCost
+                lines.append("  - \(source.name): \(sourceSummary)")
+                if let path = source.path {
+                    lines.append("    \(path)")
+                }
+            }
+        }
+        lines.append(UsageFormatter.costEstimateHint(provider: .codex))
+        return lines.joined(separator: "\n")
+    }
+
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {
         guard useColor else { return header }
         return "\u{001B}[1;36m\(header)\u{001B}[0m"
@@ -116,23 +173,27 @@ extension CodexBarCLI {
         snapshot: CostUsageTokenSnapshot?,
         error: Error?) -> CostPayload
     {
-        let daily = snapshot?.daily.map { entry in
-            CostDailyEntryPayload(
-                date: entry.date,
-                inputTokens: entry.inputTokens,
-                outputTokens: entry.outputTokens,
-                cacheReadTokens: entry.cacheReadTokens,
-                cacheCreationTokens: entry.cacheCreationTokens,
-                totalTokens: entry.totalTokens,
-                costUSD: entry.costUSD,
-                modelsUsed: entry.modelsUsed,
-                modelBreakdowns: entry.modelBreakdowns?.map { breakdown in
-                    CostModelBreakdownPayload(
-                        modelName: breakdown.modelName,
-                        costUSD: breakdown.costUSD,
-                        totalTokens: breakdown.totalTokens)
-                })
-        } ?? []
+        let daily = snapshot?.daily.map(Self.costDailyPayload(from:)) ?? []
+        let projects = provider == .codex
+            ? snapshot?.projects.map { project in
+                CostProjectPayload(
+                    name: project.name,
+                    path: project.path,
+                    totalTokens: project.totalTokens,
+                    totalCostUSD: project.totalCostUSD,
+                    daily: project.daily.map(Self.costDailyPayload(from:)),
+                    modelBreakdowns: project.modelBreakdowns?.map(Self.costModelBreakdownPayload(from:)),
+                    sources: project.sources.map { source in
+                        CostProjectSourcePayload(
+                            name: source.name,
+                            path: source.path,
+                            totalTokens: source.totalTokens,
+                            totalCostUSD: source.totalCostUSD,
+                            daily: source.daily.map(Self.costDailyPayload(from:)),
+                            modelBreakdowns: source.modelBreakdowns?.map(Self.costModelBreakdownPayload(from:)))
+                    })
+            } ?? []
+            : []
 
         return CostPayload(
             provider: provider.rawValue,
@@ -145,8 +206,31 @@ extension CodexBarCLI {
             last30DaysTokens: snapshot?.last30DaysTokens,
             last30DaysCostUSD: snapshot?.last30DaysCostUSD,
             daily: daily,
+            projects: projects,
             totals: snapshot.flatMap(Self.costTotals(from:)),
             error: error.map { Self.makeErrorPayload($0) })
+    }
+
+    private static func costDailyPayload(from entry: CostUsageDailyReport.Entry) -> CostDailyEntryPayload {
+        CostDailyEntryPayload(
+            date: entry.date,
+            inputTokens: entry.inputTokens,
+            outputTokens: entry.outputTokens,
+            cacheReadTokens: entry.cacheReadTokens,
+            cacheCreationTokens: entry.cacheCreationTokens,
+            totalTokens: entry.totalTokens,
+            costUSD: entry.costUSD,
+            modelsUsed: entry.modelsUsed,
+            modelBreakdowns: entry.modelBreakdowns?.map(self.costModelBreakdownPayload(from:)))
+    }
+
+    private static func costModelBreakdownPayload(
+        from breakdown: CostUsageDailyReport.ModelBreakdown) -> CostModelBreakdownPayload
+    {
+        CostModelBreakdownPayload(
+            modelName: breakdown.modelName,
+            costUSD: breakdown.costUSD,
+            totalTokens: breakdown.totalTokens)
     }
 
     private static func costTotals(from snapshot: CostUsageTokenSnapshot) -> CostTotalsPayload? {
@@ -218,6 +302,13 @@ extension CodexBarCLI {
         else { return 30 }
         return max(1, min(365, parsed))
     }
+
+    private static func decodeCostGroupBy(from values: ParsedValues) -> CostGroupBy {
+        guard let raw = values.options["groupBy"]?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else { return .none }
+        return CostGroupBy(rawValue: raw.lowercased()) ?? .none
+    }
 }
 
 struct CostOptions: CommanderParsable {
@@ -255,6 +346,9 @@ struct CostOptions: CommanderParsable {
 
     @Option(name: .long("days"), help: "Cost history window in days (1...365)")
     var days: Int?
+
+    @Option(name: .long("group-by"), help: "Group text output by: project")
+    var groupBy: String?
 }
 
 struct CostPayload: Encodable {
@@ -268,6 +362,7 @@ struct CostPayload: Encodable {
     let last30DaysTokens: Int?
     let last30DaysCostUSD: Double?
     let daily: [CostDailyEntryPayload]
+    let projects: [CostProjectPayload]
     let totals: CostTotalsPayload?
     let error: ProviderErrorPayload?
 
@@ -282,6 +377,7 @@ struct CostPayload: Encodable {
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
         daily: [CostDailyEntryPayload],
+        projects: [CostProjectPayload] = [],
         totals: CostTotalsPayload?,
         error: ProviderErrorPayload?)
     {
@@ -295,6 +391,7 @@ struct CostPayload: Encodable {
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.daily = daily
+        self.projects = projects
         self.totals = totals
         self.error = error
     }
@@ -333,6 +430,62 @@ struct CostModelBreakdownPayload: Encodable {
         case modelName
         case costUSD = "cost"
         case totalTokens
+    }
+}
+
+struct CostProjectPayload: Encodable {
+    let name: String
+    let path: String?
+    let totalTokens: Int?
+    let totalCostUSD: Double?
+    let daily: [CostDailyEntryPayload]
+    let modelBreakdowns: [CostModelBreakdownPayload]?
+    let sources: [CostProjectSourcePayload]
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case path
+        case totalTokens
+        case totalCostUSD = "totalCost"
+        case daily
+        case modelBreakdowns
+        case sources
+    }
+
+    init(
+        name: String,
+        path: String?,
+        totalTokens: Int?,
+        totalCostUSD: Double?,
+        daily: [CostDailyEntryPayload],
+        modelBreakdowns: [CostModelBreakdownPayload]?,
+        sources: [CostProjectSourcePayload] = [])
+    {
+        self.name = name
+        self.path = path
+        self.totalTokens = totalTokens
+        self.totalCostUSD = totalCostUSD
+        self.daily = daily
+        self.modelBreakdowns = modelBreakdowns
+        self.sources = sources
+    }
+}
+
+struct CostProjectSourcePayload: Encodable {
+    let name: String
+    let path: String?
+    let totalTokens: Int?
+    let totalCostUSD: Double?
+    let daily: [CostDailyEntryPayload]
+    let modelBreakdowns: [CostModelBreakdownPayload]?
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case path
+        case totalTokens
+        case totalCostUSD = "totalCost"
+        case daily
+        case modelBreakdowns
     }
 }
 

@@ -72,6 +72,46 @@ struct CostUsageFetcherCacheSnapshotTests {
     }
 
     @Test
+    func `cached codex token snapshot omits projects until metadata migration`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "cached.jsonl",
+            tokens: 42)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            scannerOptions: options)
+
+        let current = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            historyDays: 1,
+            scannerOptions: options)
+        #expect(current?.projects.count == 1)
+
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache.codexProjectMetadataVersion = nil
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let legacy = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            historyDays: 1,
+            scannerOptions: options)
+        #expect(legacy?.sessionTokens == 42)
+        #expect(legacy?.projects.isEmpty == true)
+    }
+
+    @Test
     func `cached codex token snapshot refuses mismatched roots fingerprint`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

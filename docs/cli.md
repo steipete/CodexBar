@@ -115,6 +115,7 @@ payloads include the visible account label in `account`.
 - `sessionTokens`, `sessionCostUSD`
 - `last30DaysTokens`, `last30DaysCostUSD`
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
+- Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
 
 ## Example usage
@@ -126,6 +127,7 @@ codexbar --format json --pretty   # machine output
 codexbar --format json --provider both
 codexbar cost                     # local cost usage (default 30-day window + today)
 codexbar cost --days 90           # choose a 1...365 day cost window
+codexbar cost --provider codex --group-by project
 codexbar cost --provider claude --format json --pretty
 codexbar serve --port 8080        # localhost HTTP JSON server
 codexbar serve --request-timeout 0 # disable serve request deadlines

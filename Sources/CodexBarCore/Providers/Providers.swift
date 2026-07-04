@@ -229,6 +229,16 @@ public enum ProviderBrowserCookieDefaults {
         #endif
     }
 
+    /// OpenCode web Auto stays Chrome-only by default, with Dia as the one bounded provider exception
+    /// because Dia has a confirmed reporter need. Other browsers stay on Manual until users can choose them.
+    public static var opencodeCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome, .dia]
+        #else
+        nil
+        #endif
+    }
+
     /// Grok is normally signed in through Chrome; keep this narrow so CLI/live probes do not touch
     /// unrelated browser keychains.
     public static var grokCookieImportOrder: BrowserCookieImportOrder? {
