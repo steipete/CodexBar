@@ -1,5 +1,27 @@
 import Foundation
 
+public struct CostUsageWindowSummary: Sendable, Equatable {
+    public let days: Int
+    public let totalTokens: Int?
+    public let totalCostUSD: Double?
+    public let totalRequests: Int?
+    public let entryCount: Int
+
+    public init(
+        days: Int,
+        totalTokens: Int?,
+        totalCostUSD: Double?,
+        totalRequests: Int?,
+        entryCount: Int)
+    {
+        self.days = days
+        self.totalTokens = totalTokens
+        self.totalCostUSD = totalCostUSD
+        self.totalRequests = totalRequests
+        self.entryCount = entryCount
+    }
+}
+
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
@@ -11,6 +33,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let historyDays: Int
     public let historyLabel: String?
     public let daily: [CostUsageDailyReport.Entry]
+    public let projects: [CostUsageProjectBreakdown]
     public let updatedAt: Date
 
     public init(
@@ -24,6 +47,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         historyDays: Int = 30,
         historyLabel: String? = nil,
         daily: [CostUsageDailyReport.Entry],
+        projects: [CostUsageProjectBreakdown] = [],
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
@@ -38,11 +62,43 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.historyDays = historyDays
         self.historyLabel = historyLabel
         self.daily = daily
+        self.projects = projects
         self.updatedAt = updatedAt
     }
 
     public func currentDayEntry(calendar: Calendar = .current) -> CostUsageDailyReport.Entry? {
         Self.entry(in: self.daily, forLocalDayContaining: self.updatedAt, calendar: calendar)
+    }
+
+    public func summary(forLastDays requestedDays: Int, calendar: Calendar = .current) -> CostUsageWindowSummary {
+        let days = max(1, requestedDays)
+        let today = calendar.startOfDay(for: self.updatedAt)
+        let start = calendar.date(byAdding: .day, value: -(days - 1), to: today) ?? today
+        let startKey = CostUsageLocalDay.key(from: start, calendar: calendar)
+        let endKey = CostUsageLocalDay.key(from: today, calendar: calendar)
+        let entries = self.daily.filter { entry in
+            guard let dayKey = Self.localDayKey(for: entry.date, calendar: calendar) else { return false }
+            return dayKey >= startKey && dayKey <= endKey
+        }
+        let costs = entries.compactMap(\.costUSD)
+        let tokens = entries.compactMap(\.totalTokens)
+        let requests = entries.compactMap(\.requestCount)
+        return CostUsageWindowSummary(
+            days: days,
+            totalTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
+            totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
+            totalRequests: requests.isEmpty ? nil : requests.reduce(0, +),
+            entryCount: entries.count)
+    }
+
+    public func comparisonSummaries(
+        periods: [Int] = [7, 30, 90],
+        calendar: Calendar = .current) -> [CostUsageWindowSummary]
+    {
+        Array(Set(periods.map { max(1, $0) }))
+            .filter { $0 < self.historyDays }
+            .sorted()
+            .map { self.summary(forLastDays: $0, calendar: calendar) }
     }
 
     public static func latestEntry(in entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Entry? {
@@ -74,6 +130,81 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             guard let parsed = CostUsageDateParser.parse(rawDate) else { return false }
             return CostUsageLocalDay.key(from: parsed, calendar: calendar) == dayKey
         }
+    }
+
+    private static func localDayKey(for rawDate: String, calendar: Calendar) -> String? {
+        let trimmed = rawDate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count >= 10 {
+            let prefix = String(trimmed.prefix(10))
+            if prefix.count == 10, prefix[prefix.index(prefix.startIndex, offsetBy: 4)] == "-",
+               prefix[prefix.index(prefix.startIndex, offsetBy: 7)] == "-"
+            {
+                return prefix
+            }
+        }
+        guard let parsed = CostUsageDateParser.parse(trimmed) else { return nil }
+        return CostUsageLocalDay.key(from: parsed, calendar: calendar)
+    }
+}
+
+public struct CostUsageProjectBreakdown: Sendable, Equatable {
+    public static let unknownProjectName = "Unknown project"
+
+    public let name: String
+    public let path: String?
+    public let totalTokens: Int?
+    public let totalCostUSD: Double?
+    public let daily: [CostUsageDailyReport.Entry]
+    public let modelBreakdowns: [CostUsageDailyReport.ModelBreakdown]?
+    public let sources: [CostUsageProjectSourceBreakdown]
+
+    public init(
+        name: String,
+        path: String?,
+        totalTokens: Int?,
+        totalCostUSD: Double?,
+        daily: [CostUsageDailyReport.Entry],
+        modelBreakdowns: [CostUsageDailyReport.ModelBreakdown]?,
+        sources: [CostUsageProjectSourceBreakdown] = [])
+    {
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? Self.unknownProjectName
+            : name
+        let cleanPath = path?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.path = cleanPath?.isEmpty == true ? nil : cleanPath
+        self.totalTokens = totalTokens
+        self.totalCostUSD = totalCostUSD
+        self.daily = daily
+        self.modelBreakdowns = modelBreakdowns
+        self.sources = sources
+    }
+}
+
+public struct CostUsageProjectSourceBreakdown: Sendable, Equatable {
+    public let name: String
+    public let path: String?
+    public let totalTokens: Int?
+    public let totalCostUSD: Double?
+    public let daily: [CostUsageDailyReport.Entry]
+    public let modelBreakdowns: [CostUsageDailyReport.ModelBreakdown]?
+
+    public init(
+        name: String,
+        path: String?,
+        totalTokens: Int?,
+        totalCostUSD: Double?,
+        daily: [CostUsageDailyReport.Entry],
+        modelBreakdowns: [CostUsageDailyReport.ModelBreakdown]?)
+    {
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? CostUsageProjectBreakdown.unknownProjectName
+            : name
+        let cleanPath = path?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.path = cleanPath?.isEmpty == true ? nil : cleanPath
+        self.totalTokens = totalTokens
+        self.totalCostUSD = totalCostUSD
+        self.daily = daily
+        self.modelBreakdowns = modelBreakdowns
     }
 }
 

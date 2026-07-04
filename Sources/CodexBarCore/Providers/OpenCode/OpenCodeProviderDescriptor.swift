@@ -20,7 +20,7 @@ public enum OpenCodeProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.opencodeCookieImportOrder,
                 dashboardURL: "https://opencode.ai",
                 statusPageURL: nil),
             branding: ProviderBranding(

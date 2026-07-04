@@ -431,6 +431,8 @@
 "cost_history_window_title" = "History window";
 "cost_history_window_help" = "Sets how many days of local usage logs appear in the menu.";
 "cost_history_days_title" = "History window: %d days";
+"cost_comparison_periods_title" = "Show shorter comparison periods";
+"cost_comparison_periods_subtitle" = "Add 7, 30, and 90-day totals when they fit inside the selected history window. These totals reuse the same local scan.";
 "cost_auto_refresh_info" = "Auto-refresh: hourly · Timeout: 10m";
 "refresh_cadence_title" = "Refresh cadence";
 "refresh_cadence_subtitle" = "How often CodexBar polls providers in the background.";
@@ -499,7 +501,7 @@
 "menu_bar_metric_subtitle" = "Choose which window drives the menu bar percent.";
 "menu_bar_metric_subtitle_deepseek" = "Shows the DeepSeek balance in the menu bar.";
 "menu_bar_metric_subtitle_moonshot" = "Shows the Moonshot / Kimi API balance in the menu bar.";
-"menu_bar_metric_subtitle_mistral" = "Shows current-month Mistral API spend in the menu bar.";
+"menu_bar_metric_subtitle_mistral" = "Choose Mistral API spend or Monthly Plan usage for the menu bar.";
 "menu_bar_metric_subtitle_kimik2" = "Shows Kimi K2 API-key credits in the menu bar.";
 "automatic" = "Automatic";
 "primary_api_key_limit" = "Primary (API key limit)";
@@ -1131,6 +1133,8 @@
 "1 available" = "1 available";
 "%d available" = "%d available";
 "Next expires %@" = "Next expires %@";
+"Expires %@" = "Expires %@";
+"No expiry" = "No expiry";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "bytes";
 "byte_unit_kilobyte" = "kilobyte";

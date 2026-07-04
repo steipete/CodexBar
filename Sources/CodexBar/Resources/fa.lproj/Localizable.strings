@@ -431,6 +431,8 @@
 "cost_history_window_title" = "پنجره تاریخچه";
 "cost_history_window_help" = "تعیین می‌کند چند روز از گزارش‌های استفاده محلی در منو نشان داده شود.";
 "cost_history_days_title" = "پنجره تاریخچه: %d روز";
+"cost_comparison_periods_title" = "نمایش دوره‌های مقایسه کوتاه‌تر";
+"cost_comparison_periods_subtitle" = "وقتی در پنجره تاریخچه انتخاب‌شده جا می‌گیرند، مجموع‌های ۷، ۳۰ و ۹۰ روزه را اضافه کنید. این مجموع‌ها از همان اسکن محلی استفاده می‌کنند.";
 "cost_auto_refresh_info" = "تازه سازی خودکار: ساعتی · زمان استراحت: 10m";
 "refresh_cadence_title" = "کادانس تازه سازی";
 "refresh_cadence_subtitle" = "چند وقت یکبار CodexBar ارائه دهندگان نظرسنجی در پس زمینه انجام می دهند.";
@@ -1130,6 +1132,8 @@
 "1 available" = "۱ مورد موجود";
 "%d available" = "%d مورد موجود";
 "Next expires %@" = "مورد بعدی در %@ منقضی می‌شود";
+"Expires %@" = "انقضا %@";
+"No expiry" = "بدون انقضا";
 "byte_unit_byte" = "بایت";
 "byte_unit_bytes" = "بایت";
 "byte_unit_kilobyte" = "کیلوبایت";

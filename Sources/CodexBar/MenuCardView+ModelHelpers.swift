@@ -65,14 +65,14 @@ extension UsageMenuCardView.Model {
             !self.usageNotes.isEmpty ||
             self.openAIAPIUsage != nil ||
             self.inlineUsageDashboard != nil ||
-            self.codexResetCreditsText != nil ||
+            self.codexResetCredits != nil ||
             self.placeholder != nil
     }
 
     var usesStackedDetailLayout: Bool {
         !self.metrics.isEmpty ||
             self.creditsText != nil ||
-            self.codexResetCreditsText != nil ||
+            self.codexResetCredits != nil ||
             self.providerCost != nil ||
             self.tokenUsage != nil
     }
@@ -107,8 +107,7 @@ extension UsageMenuCardView.Model {
                   candidateText: candidate.creditsText,
                   candidateRemaining: candidate.creditsRemaining),
               self.creditsHintText == candidate.creditsHintText,
-              self.codexResetCreditsText == candidate.codexResetCreditsText,
-              self.codexResetCreditsDetailText == candidate.codexResetCreditsDetailText,
+              self.codexResetCredits == candidate.codexResetCredits,
               self.placeholder == candidate.placeholder,
               Self.hasCompatibleDashboardLayout(self.inlineUsageDashboard, candidate.inlineUsageDashboard),
               Self.hasCompatibleProviderCostLayout(self.providerCost, candidate.providerCost),
@@ -201,7 +200,8 @@ extension UsageMenuCardView.Model {
             true
         case let (current?, candidate?):
             current.hintLine == candidate.hintLine &&
-                current.errorLine == candidate.errorLine
+                current.errorLine == candidate.errorLine &&
+                current.comparisonLines.count == candidate.comparisonLines.count
         default:
             false
         }

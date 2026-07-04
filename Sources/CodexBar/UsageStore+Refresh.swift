@@ -176,13 +176,19 @@ extension UsageStore {
             : nil
         let fetchContext = self.makeFetchContext(provider: provider, override: nil)
         let descriptor = spec.descriptor
+        let codexResetCreditsFetcher = self.codexResetCreditsFetcher()
         // Keep provider fetch work off MainActor so slow keychain/process reads don't stall menu/UI responsiveness.
         let outcome = await withTaskGroup(
             of: ProviderFetchOutcome.self,
             returning: ProviderFetchOutcome.self)
         { group in
             group.addTask {
-                await descriptor.fetchOutcome(context: fetchContext)
+                let outcome = await descriptor.fetchOutcome(context: fetchContext)
+                guard provider == .codex else { return outcome }
+                return await Self.attachingCodexResetCreditsIfNeeded(
+                    to: outcome,
+                    env: fetchContext.env,
+                    fetcher: codexResetCreditsFetcher)
             }
             return await group.next()!
         }
@@ -256,6 +262,9 @@ extension UsageStore {
                 let backfilled = stabilized.backfillingResetTimes(from: resetBackfillSource)
                 self.handleQuotaWarningTransitions(provider: provider, snapshot: backfilled)
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
+                if provider == .codex {
+                    self.handleCodexResetCreditNotifications(snapshot: backfilled)
+                }
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
                 if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: backfilled, provider: provider) {

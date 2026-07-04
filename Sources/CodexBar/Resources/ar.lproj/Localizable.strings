@@ -431,6 +431,8 @@
 "cost_history_window_title" = "نافذة التاريخ";
 "cost_history_window_help" = "يحدد عدد أيام سجلات الاستخدام المحلية التي تظهر في القائمة.";
 "cost_history_days_title" = "نافذة التاريخ: %d أيام";
+"cost_comparison_periods_title" = "إظهار فترات مقارنة أقصر";
+"cost_comparison_periods_subtitle" = "أضف إجماليات 7 و30 و90 يومًا عندما تقع ضمن نافذة التاريخ المحددة. تعيد هذه الإجماليات استخدام الفحص المحلي نفسه.";
 "cost_auto_refresh_info" = "تحديث تلقائي: كل ساعة · وقت الاستراحة: 10m";
 "refresh_cadence_title" = "وتيرة التحديث";
 "refresh_cadence_subtitle" = "كم مرة CodexBar استطلاعات في الخلفية.";
@@ -1130,6 +1132,8 @@
 "1 available" = "1 متاح";
 "%d available" = "%d متاح";
 "Next expires %@" = "تنتهي صلاحية التالية %@";
+"Expires %@" = "تنتهي الصلاحية %@";
+"No expiry" = "لا انتهاء صلاحية";
 "byte_unit_byte" = "بايت";
 "byte_unit_bytes" = "بايتات";
 "byte_unit_kilobyte" = "كيلوبايت";

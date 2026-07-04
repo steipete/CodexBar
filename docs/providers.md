@@ -59,7 +59,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Sakana AI | Manual Cookie header → billing page parser for 5-hour/weekly quota windows plus a best-effort pay-as-you-go credit balance (`web`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
-| Mistral | Console billing and Vibe subscription usage via browser cookies (`web`). |
+| Mistral | Console billing, credit balance, and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
@@ -352,11 +352,11 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## Mistral
 - Session cookie (`ory_session_*`) from browser auto-import or manual `Cookie:` header.
 - CSRF token (`csrftoken` cookie) sent as `X-CSRFTOKEN` for billing and Vibe usage requests.
-- Domains: `admin.mistral.ai` for API billing and `console.mistral.ai` for optional Vibe subscription usage. Console requests forward only `csrftoken` and `ory_session_*`; all other admin cookies stay origin-bound.
-- Reads monthly usage and pricing from the Mistral billing API.
+- Domains: `admin.mistral.ai` for API billing and credit balance, and `console.mistral.ai` for optional Vibe subscription usage. Console requests forward only `csrftoken` and `ory_session_*`; all other admin cookies stay origin-bound.
+- Reads monthly usage and pricing from the billing usage endpoint, plus credit balance from the billing credits endpoint, using the Mistral web session.
 - Cost is computed client-side from token counts and response pricing.
 - Reads Vibe monthly-plan usage percentage and reset time when the console endpoint is available.
-- The menu bar metric can show either pay-as-you-go API spend or monthly-plan usage.
+- The menu bar metric can show either pay-as-you-go API spend or monthly-plan usage; the provider card shows balance when the credits endpoint is available.
 - Resets at end of calendar month.
 - Status: `https://status.mistral.ai` (link only, no auto-polling).
 

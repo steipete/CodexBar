@@ -245,7 +245,7 @@ struct ProvidersPaneCoverageTests {
             ])
             #expect(picker?.options.first?.title == "Pay-as-you-go")
             #expect(picker?.options.last?.title == "Monthly Plan")
-            #expect(picker?.subtitle == "Shows current-month Mistral API spend in the menu bar.")
+            #expect(picker?.subtitle == "Choose Mistral API spend or Monthly Plan usage for the menu bar.")
         }
     }
 

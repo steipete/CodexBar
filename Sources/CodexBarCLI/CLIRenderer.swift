@@ -345,14 +345,14 @@ enum CLIRenderer {
         lines: inout [String])
     {
         guard provider == .codex, let resetCredits = snapshot.codexResetCredits else { return }
-        let value = if resetCredits.availableCount == 1 {
+        let inventory = resetCredits.availableInventory(at: now)
+        let value = if inventory.count == 1 {
             "1 available"
         } else {
-            "\(resetCredits.availableCount) available"
+            "\(inventory.count) available"
         }
         lines.append(self.labelValueLine("Limit Reset Credits", value: value, useColor: useColor))
-        guard resetCredits.availableCount > 0,
-              let expiresAt = resetCredits.nextExpiringAvailableCredit?.expiresAt
+        guard let expiresAt = inventory.nextExpiringCredit?.expiresAt
         else {
             return
         }

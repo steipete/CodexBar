@@ -35,6 +35,7 @@ extension SettingsStore {
         _ = self.copilotIconSecondaryWindowIDRaw
         _ = self.costUsageEnabled
         _ = self.costUsageHistoryDays
+        _ = self.costComparisonPeriodsEnabled
         _ = self.costSummaryDisplayStyle
         _ = self.appLanguage
         _ = self.hidePersonalInfo

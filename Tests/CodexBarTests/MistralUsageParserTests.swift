@@ -60,6 +60,74 @@ struct MistralUsageParserTests {
     }
 
     @Test
+    func `parses credits response`() throws {
+        let json = """
+        {
+          "wallet_amount": 12.5,
+          "credit_notes_amount": 2.25,
+          "ongoing_usage_balance": 1.5,
+          "currency": "USD",
+          "minimum_credits_purchase": 10,
+          "maximum_credits_purchase": 1000
+        }
+        """
+
+        let credits = try MistralUsageFetcher.parseCredits(data: Data(json.utf8))
+
+        #expect(credits.walletAmount == 12.5)
+        #expect(credits.creditNotesAmount == 2.25)
+        #expect(credits.ongoingUsageBalance == 1.5)
+        #expect(credits.currency == "USD")
+        #expect(credits.availableAmount == 13.25)
+        #expect(credits.formattedAvailableAmount == "$13.25")
+    }
+
+    @Test
+    func `credits available amount floors after ongoing usage`() {
+        let credits = MistralCreditsSnapshot(
+            walletAmount: 1,
+            creditNotesAmount: 0.5,
+            ongoingUsageBalance: 3,
+            currency: "USD")
+
+        #expect(credits.availableAmount == 0)
+        #expect(credits.formattedAvailableAmount == "$0.00")
+    }
+
+    @Test
+    func `fetches credits from dashboard endpoint with existing web session`() async throws {
+        let json = """
+        {
+          "wallet_amount": 3,
+          "credit_notes_amount": 4,
+          "ongoing_usage_balance": 0,
+          "currency": "EUR"
+        }
+        """
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.url?.absoluteString == "https://admin.mistral.ai/api/billing/credits")
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "ory_session_test=abc; csrftoken=csrf")
+            #expect(request.value(forHTTPHeaderField: "X-CSRFTOKEN") == "csrf")
+            #expect(request.value(forHTTPHeaderField: "Referer") == "https://admin.mistral.ai/organization/billing")
+            let requestURL = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: requestURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(json.utf8), response)
+        }
+
+        let credits = try await MistralUsageFetcher.fetchCredits(
+            cookieHeader: "ory_session_test=abc; csrftoken=csrf",
+            csrfToken: "csrf",
+            transport: transport)
+
+        #expect(credits.availableAmount == 7)
+        #expect(credits.formattedAvailableAmount == "€7.00")
+    }
+
+    @Test
     func `daily spend keeps non token Mistral units out of token totals`() throws {
         let json = """
         {
@@ -147,6 +215,33 @@ struct MistralUsageSnapshotConversionTests {
         #expect(usage.identity?.providerID == .mistral)
         #expect(usage.identity?.loginMethod == "API spend: €1.2345 this month")
         #expect(usage.providerCost == nil)
+    }
+
+    @Test
+    func `converts credits into balance data without replacing api spend or primary percent`() {
+        let credits = MistralCreditsSnapshot(
+            walletAmount: 10,
+            creditNotesAmount: 2.5,
+            ongoingUsageBalance: 1,
+            currency: "USD")
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 1.2345,
+            currency: "USD",
+            currencySymbol: "$",
+            totalInputTokens: 10000,
+            totalOutputTokens: 5000,
+            totalCachedTokens: 0,
+            modelCount: 2,
+            credits: credits,
+            startDate: nil,
+            endDate: Date(),
+            updatedAt: Date())
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.identity?.loginMethod == "API spend: $1.2345 this month")
+        #expect(usage.mistralUsage?.credits == credits)
+        #expect(usage.mistralUsage?.credits?.formattedAvailableAmount == "$11.50")
     }
 
     @Test

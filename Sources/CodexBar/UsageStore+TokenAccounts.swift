@@ -567,7 +567,12 @@ extension UsageStore {
             provider: provider,
             override: override,
             codexActiveSourceOverride: codexActiveSourceOverride)
-        return await descriptor.fetchOutcome(context: context)
+        let outcome = await descriptor.fetchOutcome(context: context)
+        guard provider == .codex else { return outcome }
+        return await Self.attachingCodexResetCreditsIfNeeded(
+            to: outcome,
+            env: context.env,
+            fetcher: self.codexResetCreditsFetcher())
     }
 
     private func fetchTokenAccountOutcomes(
@@ -612,6 +617,7 @@ extension UsageStore {
 
     private func fetchCodexVisibleAccountOutcomes(_ accounts: [CodexVisibleAccount]) async
     -> [CodexAccountFetchResult] {
+        let resetCreditsFetcher = self.codexResetCreditsFetcher()
         let requests: [(
             index: Int,
             account: CodexVisibleAccount,
@@ -633,7 +639,11 @@ extension UsageStore {
         { group in
             for request in requests {
                 group.addTask {
-                    let outcome = await request.descriptor.fetchOutcome(context: request.context)
+                    let baseOutcome = await request.descriptor.fetchOutcome(context: request.context)
+                    let outcome = await Self.attachingCodexResetCreditsIfNeeded(
+                        to: baseOutcome,
+                        env: request.context.env,
+                        fetcher: resetCreditsFetcher)
                     return CodexAccountFetchResult(
                         index: request.index,
                         account: request.account,
@@ -1186,6 +1196,7 @@ extension UsageStore {
         switch outcome.result {
         case .success:
             guard let snapshot else { return }
+            self.handleCodexResetCreditNotifications(snapshot: snapshot)
             self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
             self.lastKnownResetSnapshots[.codex] = snapshot
             self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)

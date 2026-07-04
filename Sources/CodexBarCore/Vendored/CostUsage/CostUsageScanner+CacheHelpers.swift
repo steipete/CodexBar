@@ -274,6 +274,8 @@ extension CostUsageScanner {
         lastCodexTurnID: String? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
+        projectPath: String? = nil,
+        canonicalProjectPath: String? = nil,
         codexCostNanos: [String: [String: Int64]]? = nil,
         codexPrioritySurchargeNanos: [String: [String: Int64]]? = nil,
         codexStandardCostNanos: [String: [String: Int64]]? = nil,
@@ -297,6 +299,8 @@ extension CostUsageScanner {
             lastCodexTurnID: lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
+            projectPath: projectPath,
+            canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: codexCostNanos,
             codexPrioritySurchargeNanos: codexPrioritySurchargeNanos,
             codexStandardCostNanos: codexStandardCostNanos,
@@ -663,6 +667,8 @@ extension CostUsageScanner {
             lastCodexTurnID: usage.lastCodexTurnID,
             sessionId: usage.sessionId,
             forkedFromId: usage.forkedFromId,
+            projectPath: usage.projectPath,
+            canonicalProjectPath: usage.canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
                 Self.costMapOutsideScanWindow(usage.codexCostNanos, range: context.range),
                 Self.codexCostNanos(
@@ -942,6 +948,10 @@ extension CostUsageScanner {
             return false
         }
         let sessionId = delta.sessionId ?? cached.sessionId
+        let projectPath = delta.projectPath ?? cached.projectPath
+        let canonicalProjectPath = delta.projectPath.map {
+            context.resources.projectPathResolver.canonicalProjectPath(for: $0)
+        } ?? cached.canonicalProjectPath ?? context.resources.projectPathResolver.canonicalProjectPath(for: projectPath)
         let sessionAlreadyContributed = sessionId.map { state.contributingSessionIds.contains($0) } ?? false
         let cachedRows = cached.codexRows ?? []
         let retainedCachedRows: [CodexUsageRow]
@@ -1004,6 +1014,8 @@ extension CostUsageScanner {
             lastCodexTurnID: delta.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: delta.forkedFromId ?? migratedCached.forkedFromId,
+            projectPath: projectPath,
+            canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: Self.codexMergedCostMap(
                 migratedCached.codexCostNanos,
                 deltaRows: uniqueRows,
@@ -1056,6 +1068,11 @@ extension CostUsageScanner {
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
         let sessionId = parsed.sessionId ?? input.cached?.sessionId
+        let projectPath = parsed.projectPath ?? input.cached?.projectPath
+        let canonicalProjectPath = parsed.projectPath.map {
+            context.resources.projectPathResolver.canonicalProjectPath(for: $0)
+        } ?? input.cached?.canonicalProjectPath ?? context.resources.projectPathResolver
+            .canonicalProjectPath(for: projectPath)
         let uniqueRows = Self.uniqueCodexRows(
             rows: parsed.rows,
             sessionId: sessionId,
@@ -1091,6 +1108,8 @@ extension CostUsageScanner {
             lastCodexTurnID: parsed.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: parsed.forkedFromId,
+            projectPath: projectPath,
+            canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
                 context.dropDeferredCodexRows
                     ? nil

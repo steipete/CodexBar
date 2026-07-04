@@ -39,6 +39,67 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders codex project grouped cost text`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 1200,
+            sessionCostUSD: 1.25,
+            last30DaysTokens: 9000,
+            last30DaysCostUSD: 9.99,
+            historyDays: 30,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "client-a",
+                    path: "/work/client-a",
+                    totalTokens: 7000,
+                    totalCostUSD: 7.5,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "client-a",
+                            path: "/work/client-a",
+                            totalTokens: 5000,
+                            totalCostUSD: 5.25,
+                            daily: [],
+                            modelBreakdowns: nil),
+                        CostUsageProjectSourceBreakdown(
+                            name: "client-a",
+                            path: "/Users/test/.codex/worktrees/abcd/client-a",
+                            totalTokens: 2000,
+                            totalCostUSD: 2.25,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+                CostUsageProjectBreakdown(
+                    name: CostUsageProjectBreakdown.unknownProjectName,
+                    path: nil,
+                    totalTokens: 2000,
+                    totalCostUSD: 2.49,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .codex,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "$ ", with: "$")
+
+        #expect(output.contains("Codex Cost (API-rate estimate)"))
+        #expect(output.contains("Projects (Last 30 days):"))
+        #expect(output.contains("client-a: $7.50 · 7K tokens"))
+        #expect(output.contains("/work/client-a"))
+        #expect(output.contains("  - client-a: $5.25 · 5K tokens"))
+        #expect(output.contains("  - client-a: $2.25 · 2K tokens"))
+        #expect(output.contains("/Users/test/.codex/worktrees/abcd/client-a"))
+        #expect(output.contains("Unknown project: $2.49 · 2K tokens"))
+    }
+
+    @Test
     func `encodes cost payload JSON`() throws {
         let payload = CostPayload(
             provider: "claude",
@@ -93,6 +154,89 @@ struct CLICostTests {
         #expect(json.contains("\"totalCost\""))
         #expect(json.contains("\"totalTokens\":15"))
         #expect(json.contains("1700000000"))
+    }
+
+    @Test
+    func `codex cost payload includes project rollups`() throws {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 10,
+            sessionCostUSD: 0.01,
+            last30DaysTokens: 40,
+            last30DaysCostUSD: 0.04,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-02",
+                    inputTokens: 30,
+                    outputTokens: 10,
+                    totalTokens: 40,
+                    costUSD: 0.04,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 0.04,
+                            totalTokens: 40),
+                    ]),
+            ],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "client-a",
+                    path: "/work/client-a",
+                    totalTokens: 40,
+                    totalCostUSD: 0.04,
+                    daily: [
+                        CostUsageDailyReport.Entry(
+                            date: "2026-04-02",
+                            inputTokens: 30,
+                            outputTokens: 10,
+                            totalTokens: 40,
+                            costUSD: 0.04,
+                            modelsUsed: ["gpt-5.4"],
+                            modelBreakdowns: nil),
+                    ],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 0.04,
+                            totalTokens: 40),
+                    ],
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "client-a",
+                            path: "/work/client-a",
+                            totalTokens: 40,
+                            totalCostUSD: 0.04,
+                            daily: [
+                                CostUsageDailyReport.Entry(
+                                    date: "2026-04-02",
+                                    inputTokens: 30,
+                                    outputTokens: 10,
+                                    totalTokens: 40,
+                                    costUSD: 0.04,
+                                    modelsUsed: ["gpt-5.4"],
+                                    modelBreakdowns: nil),
+                            ],
+                            modelBreakdowns: nil),
+                    ]),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let payload = CodexBarCLI.makeCostPayload(provider: .codex, snapshot: snapshot, error: nil)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let data = try encoder.encode(payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            Issue.record("Failed to decode cost payload JSON")
+            return
+        }
+
+        #expect(json.contains("\"projects\""))
+        #expect(json.contains("\"sources\""))
+        #expect(json.contains("\"name\":\"client-a\""))
+        #expect(json.contains("/work/client-a") || json.contains("\\/work\\/client-a"))
+        #expect(json.contains("\"totalCost\":0.04"))
+        #expect(json.contains("\"daily\""))
+        #expect(json.contains("\"gpt-5.4\""))
     }
 
     @Test
