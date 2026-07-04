@@ -74,6 +74,25 @@ struct SakanaUsageFetcherTests {
     }
 
     @Test
+    func `quick pay as you go response can finish after primary within the shared budget`() async throws {
+        let transport = SakanaScriptedTransport(
+            statusCode: 200,
+            body: Self.billingHTML,
+            overridesByURL: [
+                "https://console.sakana.ai/billing?tab=payAsYouGo": (200, Self.payAsYouGoHTML),
+            ],
+            payAsYouGoDelay: .milliseconds(20))
+
+        let snapshot = try await SakanaUsageFetcher.fetchUsage(
+            cookieHeader: "session=abc",
+            session: transport,
+            now: Date(timeIntervalSince1970: 0))
+
+        #expect(snapshot.fiveHour?.usedPercent == 92)
+        #expect(snapshot.payAsYouGo?.creditBalance == 12.34)
+    }
+
+    @Test
     func `fetch skips the pay as you go request entirely when optional usage is disabled`() async throws {
         let transport = SakanaScriptedTransport(
             statusCode: 200,
@@ -152,7 +171,7 @@ struct SakanaUsageFetcherTests {
 
         #expect(snapshot.fiveHour?.usedPercent == 92)
         #expect(snapshot.payAsYouGo == nil)
-        #expect(startedAt.duration(to: .now) < .milliseconds(300))
+        #expect(startedAt.duration(to: .now) < .milliseconds(500))
         for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
             await Task.yield()
         }
@@ -403,6 +422,7 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
     private let overridesByURL: [String: (statusCode: Int, body: String)]
     private let billingWaitsForPayAsYouGo: Bool
     private let payAsYouGoBlocksUntilCancelled: Bool
+    private let payAsYouGoDelay: Duration?
     private var capturedRequests: [CapturedRequest] = []
     private var payAsYouGoStarted = false
     private var payAsYouGoCompleted = false
@@ -415,7 +435,8 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         headers: [String: String] = [:],
         overridesByURL: [String: (statusCode: Int, body: String)] = [:],
         billingWaitsForPayAsYouGo: Bool = false,
-        payAsYouGoBlocksUntilCancelled: Bool = false)
+        payAsYouGoBlocksUntilCancelled: Bool = false,
+        payAsYouGoDelay: Duration? = nil)
     {
         self.statusCode = statusCode
         self.body = body
@@ -424,6 +445,7 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         self.overridesByURL = overridesByURL
         self.billingWaitsForPayAsYouGo = billingWaitsForPayAsYouGo
         self.payAsYouGoBlocksUntilCancelled = payAsYouGoBlocksUntilCancelled
+        self.payAsYouGoDelay = payAsYouGoDelay
     }
 
     func lastCapturedRequest() -> CapturedRequest? {
@@ -442,6 +464,9 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         let isPayAsYouGo = request.url?.query == "tab=payAsYouGo"
         if isPayAsYouGo {
             self.payAsYouGoStarted = true
+            if let payAsYouGoDelay {
+                try await Task.sleep(for: payAsYouGoDelay)
+            }
             if self.payAsYouGoBlocksUntilCancelled {
                 do {
                     try await Task.sleep(for: .seconds(30))
