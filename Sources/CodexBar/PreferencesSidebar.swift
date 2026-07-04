@@ -25,6 +25,7 @@ struct SettingsSidebarView: View {
                 self.providersSection
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         }
     }
 

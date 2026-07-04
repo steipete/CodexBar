@@ -80,6 +80,7 @@ struct AboutPane: View {
         }
         .formStyle(.grouped)
         .toggleStyle(.switch)
+        .scrollContentBackground(.hidden)
         .onAppear {
             guard !self.didLoadUpdaterState else { return }
             // Align Sparkle's flag with the persisted preference on first load.

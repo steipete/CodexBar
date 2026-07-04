@@ -15,7 +15,8 @@ enum SettingsPane: Hashable {
     static let windowHeight: CGFloat = 640
     static let windowMinWidth: CGFloat = 780
     static let windowMinHeight: CGFloat = 520
-    static let sidebarWidth: CGFloat = 224
+    static let sidebarWidth: CGFloat = 276
+    static let detailMaxWidth: CGFloat = 780
 
     var title: String {
         switch self {
@@ -252,3 +253,5 @@ private struct SettingsSidebarMaterial: NSViewRepresentable {
         view.state = .followsWindowActiveState
     }
 }
+
+

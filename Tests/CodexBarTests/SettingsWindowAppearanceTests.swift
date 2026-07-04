@@ -7,8 +7,9 @@ import Testing
 struct SettingsWindowAppearanceTests {
     @Test
     func `settings sidebar uses a fixed noncollapsible width`() {
-        #expect(SettingsPane.sidebarWidth == 224)
+        #expect(SettingsPane.sidebarWidth == 276)
         #expect(SettingsPane.windowMinWidth > SettingsPane.sidebarWidth)
+        #expect(SettingsPane.detailMaxWidth > SettingsPane.windowMinWidth - SettingsPane.sidebarWidth)
     }
 
     @Test
@@ -99,7 +100,7 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
-    func `bridge updates window title when selected pane changes`() {
+    func `bridge updates window title without pulsing appearance on pane changes`() {
         let resetCapture = ResetCapture()
         let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }
         let window = NSWindow(
@@ -111,10 +112,12 @@ struct SettingsWindowAppearanceTests {
         resetCapture.actions.removeAll()
 
         bridge.refreshWindowAppearance(for: .light, windowTitle: "Display")
+        #expect(resetCapture.actions.count == 1)
+
         bridge.refreshWindowAppearance(for: .light, windowTitle: "General")
 
         #expect(window.title == "General")
-        #expect(resetCapture.actions.count == 2)
+        #expect(resetCapture.actions.count == 1)
     }
 
     @Test
