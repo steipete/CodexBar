@@ -185,6 +185,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let mimoUsage: MiMoUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
     public let crossModelUsage: CrossModelUsageSnapshot?
+    public let clawRouterUsage: ClawRouterUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
     public let claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot?
@@ -215,6 +216,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case mimoUsage
         case openRouterUsage
         case crossModelUsage
+        case clawRouterUsage
         case openAIAPIUsage
         case codexResetCredits
         case claudeAdminAPIUsage
@@ -245,6 +247,7 @@ public struct UsageSnapshot: Codable, Sendable {
         mimoUsage: MiMoUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
         crossModelUsage: CrossModelUsageSnapshot? = nil,
+        clawRouterUsage: ClawRouterUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot? = nil,
@@ -274,6 +277,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mimoUsage = mimoUsage
         self.openRouterUsage = openRouterUsage
         self.crossModelUsage = crossModelUsage
+        self.clawRouterUsage = clawRouterUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
         self.claudeAdminAPIUsage = claudeAdminAPIUsage
@@ -320,6 +324,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mimoUsage = try container.decodeIfPresent(MiMoUsageSnapshot.self, forKey: .mimoUsage)
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
         self.crossModelUsage = try container.decodeIfPresent(CrossModelUsageSnapshot.self, forKey: .crossModelUsage)
+        self.clawRouterUsage = try container.decodeIfPresent(ClawRouterUsageSnapshot.self, forKey: .clawRouterUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
@@ -373,6 +378,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.mimoUsage, forKey: .mimoUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encodeIfPresent(self.crossModelUsage, forKey: .crossModelUsage)
+        try container.encodeIfPresent(self.clawRouterUsage, forKey: .clawRouterUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -552,6 +558,7 @@ public struct UsageSnapshot: Codable, Sendable {
             mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
             crossModelUsage: self.crossModelUsage,
+            clawRouterUsage: self.clawRouterUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,

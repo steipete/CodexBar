@@ -498,7 +498,8 @@ public struct GeminiStatusProbe: Sendable {
 
         // For fnm-managed installs, ask fnm where the package lives
         if Self.isLikelyFnmManagedPath(geminiPath) || Self.isLikelyFnmManagedPath(resolvedGeminiPath),
-           let fnmPath = TTYCommandRunner.which("fnm"),
+           let fnmPath = Self.resolveExecutableOnEnvironmentPath(named: "fnm", environment: env)
+           ?? TTYCommandRunner.which("fnm"),
            let packageRoot = Self.resolveGeminiPackageRootViaFnm(fnmPath: fnmPath, environment: env),
            let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
         {
@@ -519,6 +520,22 @@ public struct GeminiStatusProbe: Sendable {
         let normalized = path.replacingOccurrences(of: "\\", with: "/")
         return normalized.contains("/fnm_multishells/")
             || (normalized.contains("/node-versions/") && normalized.contains("/fnm/"))
+    }
+
+    private static func resolveExecutableOnEnvironmentPath(
+        named executable: String,
+        environment: [String: String]) -> String?
+    {
+        guard let path = environment["PATH"] else { return nil }
+        for directory in path.split(separator: ":") where !directory.isEmpty {
+            let candidate = URL(fileURLWithPath: String(directory), isDirectory: true)
+                .appendingPathComponent(executable)
+                .path
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     private static func resolveGeminiPackageRootViaFnm(
@@ -1088,6 +1105,11 @@ public struct GeminiStatusProbe: Sendable {
 }
 
 extension GeminiStatusProbe {
+    private static let processTimeoutQueue = DispatchQueue(
+        label: "com.steipete.codexbar.gemini-process-timeout",
+        qos: .utility,
+        attributes: .concurrent)
+
     package static func runProcess(
         executable: String,
         arguments: [String],
@@ -1114,33 +1136,45 @@ extension GeminiStatusProbe {
         let stdoutCapture = ProcessPipeCapture(pipe: stdout)
         let stderrCapture = ProcessPipeCapture(pipe: stderr)
 
-        let exitSemaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exitSemaphore.signal()
-        }
-
         do {
             try process.run()
         } catch {
-            process.terminationHandler = nil
             stdoutCapture.stop()
+            stdout.fileHandleForWriting.closeFile()
             stderrCapture.stop()
+            stderr.fileHandleForWriting.closeFile()
             return nil
         }
+        // Process has duplicated these descriptors. Closing the parent's copies lets readers observe EOF as
+        // soon as the helper exits instead of spending the full drain grace period on every successful call.
+        stdout.fileHandleForWriting.closeFile()
+        stderr.fileHandleForWriting.closeFile()
         stdoutCapture.start()
         stderrCapture.start()
         let pid = process.processIdentifier
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
-        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
-        if !didExit {
+        // Wait synchronously for Foundation to reap the helper. A separate timer owns timeout termination,
+        // so neither termination-handler scheduling nor stale Process.isRunning state controls normal exits.
+        let timeoutState = GeminiProcessTimeoutState()
+        let timeoutTimer = DispatchSource.makeTimerSource(queue: Self.processTimeoutQueue)
+        timeoutTimer.schedule(deadline: .now() + max(0, timeout))
+        timeoutTimer.setEventHandler {
+            guard process.isRunning else { return }
+            timeoutState.markTimedOut()
             SubprocessRunner.terminateProcess(process, processGroup: processGroup)
+        }
+        timeoutTimer.resume()
+        process.waitUntilExit()
+        timeoutTimer.cancel()
+
+        if timeoutState.didTimeOut {
             stdoutCapture.stop()
             stderrCapture.stop()
             return nil
         }
 
-        let data = stdoutCapture.finishSynchronously(timeout: 1)
+        let data = stdoutCapture.finishFirstLineSynchronously(timeout: 1)
         stderrCapture.stop()
         let output = ProcessPipeCapture.decodeUTF8(data)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1150,5 +1184,22 @@ extension GeminiStatusProbe {
 
         return output.components(separatedBy: .newlines).first?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private final class GeminiProcessTimeoutState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var timedOut = false
+
+    var didTimeOut: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.timedOut
+    }
+
+    func markTimedOut() {
+        self.lock.lock()
+        self.timedOut = true
+        self.lock.unlock()
     }
 }

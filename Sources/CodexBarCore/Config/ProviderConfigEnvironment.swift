@@ -68,6 +68,8 @@ public enum ProviderConfigEnvironment {
             LLMProxySettingsReader.baseURLEnvironmentKey
         case .litellm:
             LiteLLMSettingsReader.baseURLEnvironmentKey
+        case .clawrouter:
+            ClawRouterSettingsReader.baseURLEnvironmentKey
         default:
             nil
         }
@@ -82,15 +84,15 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]?
     {
-        switch provider {
-        case .openai:
-            self.applyOpenAIOverrides(base: base, config: config)
-        case .bedrock:
-            self.applyBedrockOverrides(base: base, config: config)
+        if self.supportsAPIKeyAndBaseURLOverride(provider) {
+            return self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
+        }
+        if let env = self.applyMultiFieldCredentialOverrides(base: base, provider: provider, config: config) {
+            return env
+        }
+        return switch provider {
         case .deepgram:
             self.applyDeepgramOverrides(base: base, config: config)
-        case .llmproxy, .litellm:
-            self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
         case .azureopenai:
             self.applyAzureOpenAIOverrides(base: base, config: config)
         case .kimi:
@@ -99,6 +101,21 @@ public enum ProviderConfigEnvironment {
             self.applyDoubaoOverrides(base: base, config: config)
         case .sakana:
             self.applySakanaOverrides(base: base, config: config)
+        default:
+            nil
+        }
+    }
+
+    private static func applyMultiFieldCredentialOverrides(
+        base: [String: String],
+        provider: UsageProvider,
+        config: ProviderConfig?) -> [String: String]?
+    {
+        switch provider {
+        case .openai:
+            self.applyOpenAIOverrides(base: base, config: config)
+        case .bedrock:
+            self.applyBedrockOverrides(base: base, config: config)
         default:
             nil
         }
@@ -142,7 +159,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm, .crossmodel:
+        case .chutes, .poe, .litellm, .crossmodel, .clawrouter:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -159,6 +176,8 @@ public enum ProviderConfigEnvironment {
             LiteLLMSettingsReader.apiKeyEnvironmentKey
         case .crossmodel:
             CrossModelSettingsReader.envKey
+        case .clawrouter:
+            ClawRouterSettingsReader.apiKeyEnvironmentKey
         default:
             nil
         }

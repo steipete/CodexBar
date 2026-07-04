@@ -53,6 +53,25 @@ struct OpenCodeUsageParserTests {
         #expect(snapshot.weeklyResetInSec == 7200)
     }
 
+    @Test(arguments: ["1e309", "1e308"])
+    func `ignores reset timestamps outside integer range`(resetAt: String) throws {
+        let text = """
+        {
+          "rollingUsage": { "usagePercent": 17, "resetAt": "\(resetAt)" },
+          "weeklyUsage": { "usagePercent": 75, "resetInSec": 7200 }
+        }
+        """
+
+        let snapshot = try OpenCodeUsageFetcher.parseSubscription(
+            text: text,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        #expect(snapshot.rollingUsagePercent == 17)
+        #expect(snapshot.weeklyUsagePercent == 75)
+        #expect(snapshot.rollingResetInSec == 0)
+        #expect(snapshot.weeklyResetInSec == 7200)
+    }
+
     @Test
     func `parses subscription from candidate windows`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)

@@ -46,6 +46,25 @@ extension UsageMenuCardView.Model {
             return usage.displayLines
         }
 
+        if input.provider == .clawrouter,
+           let usage = input.snapshot?.clawRouterUsage
+        {
+            var notes = [
+                "\(UsageFormatter.tokenCountString(usage.requestCount)) \(L("requests")) · " +
+                    "\(UsageFormatter.tokenCountString(usage.totalTokens)) \(L("tokens"))",
+            ]
+            if usage.errorCount > 0 {
+                notes.append("\(usage.successCount) succeeded · \(usage.errorCount) failed")
+            }
+            if !usage.providers.isEmpty {
+                let mix = usage.providers.prefix(5)
+                    .map { "\($0.provider): \(UsageFormatter.tokenCountString($0.requestCount))" }
+                    .joined(separator: " · ")
+                notes.append("Routed providers: \(mix)")
+            }
+            return notes
+        }
+
         if input.provider == .minimax,
            input.showOptionalCreditsAndExtraUsage,
            let billing = input.snapshot?.minimaxUsage?.billingSummary

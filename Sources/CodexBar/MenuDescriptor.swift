@@ -282,6 +282,18 @@ struct MenuDescriptor {
         if let openRouterUsage = snapshot.openRouterUsage {
             Self.appendOpenRouterUsageSummary(entries: &entries, usage: openRouterUsage)
         }
+        if let clawRouterUsage = snapshot.clawRouterUsage {
+            entries.append(.text(
+                "\(UsageFormatter.tokenCountString(clawRouterUsage.requestCount)) \(L("requests")) · " +
+                    "\(UsageFormatter.tokenCountString(clawRouterUsage.totalTokens)) \(L("tokens"))",
+                .secondary))
+            if !clawRouterUsage.providers.isEmpty {
+                let mix = clawRouterUsage.providers.prefix(5)
+                    .map { "\($0.provider): \(UsageFormatter.tokenCountString($0.requestCount))" }
+                    .joined(separator: " · ")
+                entries.append(.text("Routed providers: \(mix)", .secondary))
+            }
+        }
         if let poeUsage = snapshot.poeUsage, !poeUsage.daily.isEmpty {
             Self.appendPoeUsageSummary(entries: &entries, usage: poeUsage)
         }

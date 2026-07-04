@@ -69,6 +69,7 @@ enum ProviderImplementationRegistry {
         case .poe: PoeProviderImplementation()
         case .chutes: ChutesProviderImplementation()
         case .crossmodel: CrossModelProviderImplementation()
+        case .clawrouter: ClawRouterProviderImplementation()
         }
     }
 

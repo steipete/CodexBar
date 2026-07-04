@@ -255,6 +255,8 @@ extension CodexBarCLI {
             KimiK2SettingsReader.apiKey(environment: environment) != nil
         case .llmproxy:
             LLMProxySettingsReader.apiKey(environment: environment) != nil
+        case .clawrouter:
+            ClawRouterSettingsReader.apiKey(environment: environment) != nil
         case .moonshot:
             MoonshotSettingsReader.apiKey(environment: environment) != nil
         case .ollama:

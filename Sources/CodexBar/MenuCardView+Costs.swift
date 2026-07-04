@@ -296,13 +296,26 @@ extension UsageMenuCardView.Model {
             return nil
         }
 
+        if provider == .clawrouter, cost.limit <= 0 {
+            let spend = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return ProviderCostSection(
+                title: "ClawRouter spend",
+                percentUsed: nil,
+                spendLine: "\(L("This month")): \(spend)",
+                percentLine: nil)
+        }
+
         guard cost.limit > 0 else { return nil }
 
         let used: String
         let limit: String
         let title: String
 
-        if cost.currencyCode == "Quota" {
+        if provider == .clawrouter {
+            title = "Monthly budget"
+            used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+        } else if cost.currencyCode == "Quota" {
             title = L("Quota usage")
             used = String(format: "%.0f", cost.used)
             limit = String(format: "%.0f", cost.limit)
