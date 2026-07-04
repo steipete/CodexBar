@@ -42,12 +42,10 @@ extension UsageStore {
             accountDisplayName: accountDisplayName)
     }
 
-    /// Emit weekly-lane quota warnings for Claude's model-scoped weekly windows (e.g. the
-    /// promotional `claude-weekly-scoped-fable` carve-out) and Daily Routines. These reach the
-    /// menu today but were silent for notifications. The lane is generic over the Claude extra
-    /// window ids, so a future carve-out surfaces automatically, and it reuses the existing weekly
-    /// toggle/thresholds — no new settings surface. Antigravity's summary windows are excluded
-    /// because they are already folded into the primary/weekly lanes above.
+    /// Emit weekly-lane quota warnings for Claude's extra rate windows — model-scoped weekly
+    /// carve-outs (`claude-weekly-scoped-*`, e.g. Fable) and Daily Routines — which surface in the
+    /// menu but were otherwise silent. Antigravity's summary windows are already covered by the
+    /// primary and weekly lanes above, so they are excluded here.
     private func handleClaudeExtraWindowQuotaWarnings(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
@@ -55,9 +53,7 @@ extension UsageStore {
     {
         guard provider == .claude else { return }
         let windows = (snapshot.extraRateWindows ?? []).filter(Self.isClaudeNotifiableExtraWindow)
-        var activeIDs: Set<String> = []
         for named in windows {
-            activeIDs.insert(named.id)
             self.handleQuotaWarningTransition(
                 provider: provider,
                 window: .weekly,
@@ -67,25 +63,23 @@ extension UsageStore {
                 windowID: named.id,
                 windowDisplayLabel: named.title)
         }
-        self.pruneExtraWindowQuotaWarningState(provider: provider, activeIDs: activeIDs)
+        // Only reconcile disappeared windows when this refresh actually delivered extra-window data.
+        // A failed web-extras fetch returns an empty payload; pruning on that transient miss would drop
+        // fired-threshold state and re-post the warning on the next successful fetch.
+        guard !windows.isEmpty else { return }
+        let activeIDs = Set(windows.map(\.id))
+        let staleKeys = self.quotaWarningState.keys.filter { key in
+            guard key.provider == provider, let windowID = key.windowID else { return false }
+            return !activeIDs.contains(windowID)
+        }
+        for key in staleKeys {
+            self.quotaWarningState.removeValue(forKey: key)
+        }
     }
 
     private static func isClaudeNotifiableExtraWindow(_ named: NamedRateWindow) -> Bool {
         guard named.usageKnown else { return false }
         return named.id.hasPrefix("claude-weekly-scoped-") || named.id == "claude-routines"
-    }
-
-    /// Drop fired-threshold state for scoped windows that are no longer present (e.g. the Fable
-    /// promo ended), so a returning window starts from a clean baseline instead of a stale one.
-    private func pruneExtraWindowQuotaWarningState(provider: UsageProvider, activeIDs: Set<String>) {
-        let stale = self.quotaWarningState.keys.filter { key in
-            key.provider == provider
-                && key.windowID != nil
-                && !activeIDs.contains(key.windowID!)
-        }
-        for key in stale {
-            self.quotaWarningState.removeValue(forKey: key)
-        }
     }
 
     private func handleQuotaWarningTransition(
