@@ -1675,6 +1675,36 @@ extension StatusMenuTests {
                 accountOrganization: nil,
                 loginMethod: "Plus Plan"))
     }
+
+    /// The recent-interaction signal that `AdaptiveRefreshPolicy` reads has exactly one production
+    /// entry point: `StatusItemController.menuWillOpen(_:)` calling `store.noteMenuOpened()`. Every
+    /// other adaptive-refresh test drives `UsageStore` directly, so none of them would catch that
+    /// wiring line being deleted — this test drives the real menu-open path instead.
+    @Test
+    func `menuWillOpen records the menu-open signal on the store`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        #expect(store.lastMenuOpenAt == nil)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        #expect(store.lastMenuOpenAt != nil)
+    }
 }
 
 private actor BlockingStatusMenuProviderRefresh {

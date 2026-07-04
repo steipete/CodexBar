@@ -46,7 +46,24 @@ enum ClaudeWebExtraRateWindowParser {
                 sourceKeys[definition.id] = key
             }
         }
+        windows.append(contentsOf: Self.scopedWeeklyLimitWindows(from: json))
         return (windows, sourceKeys)
+    }
+
+    private static func scopedWeeklyLimitWindows(from json: [String: Any]) -> [NamedRateWindow] {
+        guard let limits = json["limits"] as? [[String: Any]] else { return [] }
+        let mappedLimits = limits.map { entry in
+            let scope = entry["scope"] as? [String: Any]
+            let model = scope?["model"] as? [String: Any]
+            return ClaudeScopedWeeklyLimitMapper.Limit(
+                kind: entry["kind"] as? String,
+                group: entry["group"] as? String,
+                percent: Self.percentValue(from: entry["percent"]),
+                resetsAt: (entry["resets_at"] as? String).flatMap(Self.parseISO8601Date),
+                modelID: model?["id"] as? String,
+                modelName: model?["display_name"] as? String)
+        }
+        return ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: mappedLimits)
     }
 
     private static func namedWindow(

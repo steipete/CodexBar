@@ -87,7 +87,18 @@ public struct ClaudeOAuthCredentials: Sendable {
         return normalized
     }
 
+    public static func isMcpOAuthOnlyPayload(data: Data) -> Bool {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return json["claudeAiOauth"] == nil && json["mcpOAuth"] != nil
+    }
+
     public static func parse(data: Data) throws -> ClaudeOAuthCredentials {
+        if ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: data) {
+            throw ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain
+        }
+
         let decoder = JSONDecoder()
         guard let root = try? decoder.decode(Root.self, from: data) else {
             throw ClaudeOAuthCredentialsError.decodeFailed
@@ -215,6 +226,7 @@ public struct ClaudeOAuthCredentialRecord: Sendable {
 public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
     case decodeFailed
     case missingOAuth
+    case mcpOAuthOnlyKeychain
     case missingAccessToken
     case notFound
     case keychainError(Int)
@@ -229,6 +241,11 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
             return "Claude OAuth credentials are invalid."
         case .missingOAuth:
             return "Claude OAuth credentials missing. Run `claude` to authenticate."
+        case .mcpOAuthOnlyKeychain:
+            return "Claude keychain contains MCP OAuth state only (no claudeAiOauth). "
+                + "Claude Code may store subscription OAuth elsewhere now. "
+                + "Open the CodexBar menu and click Refresh to re-authenticate, "
+                + "or switch Claude Usage source to Web/CLI."
         case .missingAccessToken:
             return "Claude OAuth access token missing. Run `claude` to authenticate."
         case .notFound:

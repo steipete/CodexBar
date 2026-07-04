@@ -307,6 +307,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Lien symbolique CodexBarCLI vers /usr/local/bin et /opt/homebrew/bin en tant que codexbar.";
 "System" = "Système";
 "Temporarily shows the loading animation after the next refresh." = "Affiche temporairement l'animation de chargement après la prochaine actualisation.";
+"terminal_app_subtitle" = "Terminal utilisé par l'action Ouvrir le terminal";
+"terminal_app_title" = "Terminal par défaut";
 "Tertiary (\\(label))" = "Tertiaire (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiaire (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Le compte Codex par défaut sur ce Mac.";
@@ -671,6 +673,7 @@
 "refresh_5min" = "5 minutes";
 "refresh_15min" = "15 minutes";
 "refresh_30min" = "30 minutes";
+"refresh_adaptive" = "Adaptatif";
 
 /* Additional keys */
 "not_found" = "Pas trouvé";
@@ -729,6 +732,7 @@
 "Resets now" = "Réinitialise maintenant";
 "reset_tomorrow_format" = "demain, %@";
 "Lasts until reset" = "Dure jusqu'à la réinitialisation";
+"1.5× headroom" = "marge de 1,5×";
 "Updated %@" = "%@ mis à jour";
 "Updated relative %@" = "%@ mis à jour";
 "Updated absolute %@" = "%@ mis à jour";

@@ -156,6 +156,29 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `localized catalogs include default terminal setting copy`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(
+            at: resourcesURL,
+            includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+
+        for catalogURL in catalogs {
+            let stringsURL = catalogURL.appendingPathComponent("Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: stringsURL) as? [String: String])
+            let title = catalog["terminal_app_title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = catalog["terminal_app_subtitle"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            #expect(title?.isEmpty == false, "Missing default terminal title in \(catalogURL.lastPathComponent)")
+            #expect(subtitle?.isEmpty == false, "Missing default terminal subtitle in \(catalogURL.lastPathComponent)")
+        }
+    }
+
+    @Test
     func `ukrainian localization bundle exists and contains key UI labels`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
