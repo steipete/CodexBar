@@ -1153,32 +1153,20 @@ extension ClaudeUsageFetcher {
         return routineWindows + Self.oauthScopedWeeklyLimitWindows(from: usage)
     }
 
-    /// Surfaces any per-model weekly quota carve-out reported in the newer `limits` array —
-    /// e.g. Anthropic's July 2026 promotional "up to 50% of your weekly limit on Fable 5"
-    /// window, exposed as `kind: "weekly_scoped"` with `scope.model.display_name: "Fable"`.
-    ///
-    /// Deliberately generic: it surfaces *any* named scoped weekly limit rather than matching
-    /// on "Fable" specifically, since these entries are promo-driven and Anthropic may reuse
-    /// the same `weekly_scoped` shape for a different model once this promotion ends.
     private static func oauthScopedWeeklyLimitWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
-        guard let limits = usage.limits else { return [] }
-        return limits.compactMap { entry -> NamedRateWindow? in
-            guard entry.group == "weekly", entry.kind == "weekly_scoped" else { return nil }
-            guard let percent = entry.percent else { return nil }
-            let modelName = entry.scope?.model?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let modelName, !modelName.isEmpty else { return nil }
-            let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(entry.resetsAt)
-            let resetDescription = resetDate.map(Self.formatResetDate)
-            let slug = modelName.lowercased().replacingOccurrences(of: " ", with: "-")
-            return NamedRateWindow(
-                id: "claude-weekly-scoped-\(slug)",
-                title: "\(modelName) only",
-                window: RateWindow(
-                    usedPercent: percent,
-                    windowMinutes: Self.weeklyWindowMinutes,
-                    resetsAt: resetDate,
-                    resetDescription: resetDescription))
+        let limits = usage.limits?.map { entry in
+            ClaudeScopedWeeklyLimitMapper.Limit(
+                kind: entry.kind,
+                group: entry.group,
+                percent: entry.percent,
+                resetsAt: ClaudeOAuthUsageFetcher.parseISO8601Date(entry.resetsAt),
+                modelID: entry.scope?.model?.id,
+                modelName: entry.scope?.model?.displayName)
         }
+        // `is_active` is intentionally not a filter: observed enforceable scoped limits report false.
+        return ClaudeScopedWeeklyLimitMapper.extraRateWindows(
+            from: limits,
+            resetDescription: Self.formatResetDate)
     }
 
     // MARK: - Web API path (uses browser cookies)

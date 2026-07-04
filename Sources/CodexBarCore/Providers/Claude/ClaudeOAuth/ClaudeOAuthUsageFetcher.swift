@@ -273,9 +273,11 @@ struct OAuthLimitScope: Decodable {
 }
 
 struct OAuthLimitScopeModel: Decodable {
+    let id: String?
     let displayName: String?
 
     enum CodingKeys: String, CodingKey {
+        case id
         case displayName = "display_name"
     }
 }

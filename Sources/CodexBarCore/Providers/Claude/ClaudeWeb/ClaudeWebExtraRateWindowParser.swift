@@ -50,32 +50,20 @@ enum ClaudeWebExtraRateWindowParser {
         return (windows, sourceKeys)
     }
 
-    /// Surfaces any per-model weekly quota carve-out reported in the newer `limits` array —
-    /// e.g. Anthropic's July 2026 promotional "up to 50% of your weekly limit on Fable 5"
-    /// window, exposed as `kind: "weekly_scoped"` with `scope.model.display_name: "Fable"`.
-    ///
-    /// Deliberately generic: it surfaces *any* named scoped weekly limit rather than matching
-    /// on "Fable" specifically, since these entries are promo-driven and Anthropic may reuse
-    /// the same `weekly_scoped` shape for a different model once this promotion ends.
     private static func scopedWeeklyLimitWindows(from json: [String: Any]) -> [NamedRateWindow] {
         guard let limits = json["limits"] as? [[String: Any]] else { return [] }
-        return limits.compactMap { entry -> NamedRateWindow? in
-            guard entry["group"] as? String == "weekly", entry["kind"] as? String == "weekly_scoped" else {
-                return nil
-            }
-            guard let percent = Self.percentValue(from: entry["percent"]) else { return nil }
+        let mappedLimits = limits.map { entry in
             let scope = entry["scope"] as? [String: Any]
             let model = scope?["model"] as? [String: Any]
-            let modelName = (model?["display_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let modelName, !modelName.isEmpty else { return nil }
-            let resetsAt = (entry["resets_at"] as? String).flatMap(Self.parseISO8601Date)
-            let slug = modelName.lowercased().replacingOccurrences(of: " ", with: "-")
-            return Self.namedWindow(
-                id: "claude-weekly-scoped-\(slug)",
-                title: "\(modelName) only",
-                usedPercent: percent,
-                resetsAt: resetsAt)
+            return ClaudeScopedWeeklyLimitMapper.Limit(
+                kind: entry["kind"] as? String,
+                group: entry["group"] as? String,
+                percent: Self.percentValue(from: entry["percent"]),
+                resetsAt: (entry["resets_at"] as? String).flatMap(Self.parseISO8601Date),
+                modelID: model?["id"] as? String,
+                modelName: model?["display_name"] as? String)
         }
+        return ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: mappedLimits)
     }
 
     private static func namedWindow(
