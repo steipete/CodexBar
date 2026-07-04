@@ -190,6 +190,53 @@ struct ClinePassUsageStatsTests {
     }
 
     @Test
+    func `normalized base path strips version segment and trailing slash`() {
+        // No path / bare host.
+        #expect(ClinePassUsageFetcher.normalizedBasePath("") == "")
+        // Trailing slash only.
+        #expect(ClinePassUsageFetcher.normalizedBasePath("/") == "")
+        // Cline's documented versioned root — the version must be normalized out
+        // so the endpoint suffix does not double it.
+        #expect(ClinePassUsageFetcher.normalizedBasePath("/api/v1") == "")
+        #expect(ClinePassUsageFetcher.normalizedBasePath("/api/v1/") == "")
+        #expect(ClinePassUsageFetcher.normalizedBasePath("/API/V1") == "")
+        // Host-level base path is preserved (e.g. a reverse proxy prefix).
+        #expect(ClinePassUsageFetcher.normalizedBasePath("/gateway") == "/gateway")
+        #expect(ClinePassUsageFetcher.normalizedBasePath("/gateway/api/v1") == "/gateway")
+    }
+
+    @Test
+    func `fetch usage does not double the version segment for a versioned base url`() async throws {
+        // A user following Cline's docs sets the base to the versioned API root.
+        // All reads must still hit a single /api/v1 prefix, not /api/v1/api/v1.
+        let seenPaths = ClinePassPathRecorder()
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            seenPaths.append(url.path)
+            switch url.path {
+            case "/api/v1/users/me":
+                return Self.ok(url, #"{"success":true,"data":{"id":"user-1","email":"dev@example.com"}}"#)
+            case "/api/v1/users/me/plan":
+                return Self.ok(url, #"{"success":true,"data":{"plan":{"displayName":"Cline Pass (Monthly)"}}}"#)
+            case "/api/v1/users/me/plan/usage-limits":
+                return Self.ok(url, #"{"success":true,"data":{"limits":[]}}"#)
+            default:
+                Issue.record("Unexpected (possibly doubled) path: \(url.path)")
+                throw URLError(.badURL)
+            }
+        }
+
+        let usage = try await ClinePassUsageFetcher.fetchUsage(
+            apiKey: "cline-test",
+            environment: ["CLINE_API_BASE_URL": "https://cline.test/api/v1"],
+            transport: transport,
+            now: Self.now)
+
+        #expect(usage.planName == "Cline Pass (Monthly)")
+        #expect(!seenPaths.snapshot().contains { $0.contains("/api/v1/api/v1") })
+    }
+
+    @Test
     func `fetch usage throws invalid credentials on 401`() async throws {
         let transport = ProviderHTTPTransportHandler { request in
             guard let url = request.url else { throw URLError(.badURL) }
@@ -289,5 +336,19 @@ struct ClinePassUsageStatsTests {
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json"])!
         return (Data(body.utf8), response)
+    }
+}
+
+/// Thread-safe recorder for request paths seen by a stub transport.
+private final class ClinePassPathRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var paths: [String] = []
+
+    func append(_ path: String) {
+        self.lock.withLock { self.paths.append(path) }
+    }
+
+    func snapshot() -> [String] {
+        self.lock.withLock { self.paths }
     }
 }
