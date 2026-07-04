@@ -95,6 +95,30 @@ struct MistralUsageParserTests {
     }
 
     @Test
+    func `rejects credit amounts whose sum overflows`() throws {
+        let json = """
+        {
+          "wallet_amount": 1e308,
+          "credit_notes_amount": 1e308,
+          "ongoing_usage_balance": 0,
+          "currency": "USD"
+        }
+        """
+
+        #expect(throws: MistralUsageError.self) {
+            try MistralUsageFetcher.parseCredits(data: Data(json.utf8))
+        }
+
+        let credits = MistralCreditsSnapshot(
+            walletAmount: 1e308,
+            creditNotesAmount: 1e308,
+            ongoingUsageBalance: 0,
+            currency: "USD")
+        #expect(credits.availableAmount == 0)
+        #expect(credits.formattedAvailableAmount == "$0.00")
+    }
+
+    @Test
     func `fetches credits from dashboard endpoint with existing web session`() async throws {
         let json = """
         {
