@@ -410,6 +410,109 @@ struct KimiUsageResponseParsingTests {
     }
 
     @Test
+    func `subscription grace is a total budget for existing usage windows`() async throws {
+        let usageJSON = """
+        {
+          "usages": [
+            {
+              "scope": "FEATURE_CODING",
+              "detail": { "limit": "100", "used": "25", "remaining": "75" },
+              "limits": [
+                {
+                  "window": { "duration": 300, "timeUnit": "TIME_UNIT_MINUTE" },
+                  "detail": { "limit": "20", "used": "5", "remaining": "15" }
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            if url.path.hasSuffix("/GetUsages") {
+                return await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) {
+                        continuation.resume(returning: (Data(usageJSON.utf8), response))
+                    }
+                }
+            }
+
+            return await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    continuation.resume(returning: (Data("{}".utf8), response))
+                }
+            }
+        }
+
+        let startedAt = ContinuousClock.now
+        let snapshot = try await KimiUsageFetcher._fetchUsageForTesting(
+            authToken: "test-token",
+            transport: transport,
+            subscriptionGrace: .milliseconds(20))
+        let elapsed = startedAt.duration(to: .now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.secondary?.usedPercent == 25)
+        #expect(usage.extraRateWindows == nil)
+        #expect(elapsed < .milliseconds(250), "Subscription enrichment outlived its total budget: \(elapsed)")
+
+        // Drain the deliberately cancellation-ignoring test request before the test exits.
+        try await Task.sleep(for: .milliseconds(550))
+    }
+
+    @Test
+    func `subscription stat enriches usage when it finishes within the total budget`() async throws {
+        let usageJSON = """
+        {
+          "usages": [
+            {
+              "scope": "FEATURE_CODING",
+              "detail": { "limit": "100", "used": "25", "remaining": "75" },
+              "limits": []
+            }
+          ]
+        }
+        """
+        let subscriptionJSON = """
+        {
+          "subscriptionBalance": {
+            "feature": "FEATURE_OMNI",
+            "type": "SUBSCRIPTION",
+            "amountUsedRatio": 0.42,
+            "expireTime": "2026-07-23T00:00:00Z"
+          }
+        }
+        """
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            if url.path.hasSuffix("/GetUsages") {
+                return (Data(usageJSON.utf8), response)
+            }
+            return (Data(subscriptionJSON.utf8), response)
+        }
+
+        let snapshot = try await KimiUsageFetcher._fetchUsageForTesting(
+            authToken: "test-token",
+            transport: transport,
+            subscriptionGrace: .seconds(1))
+        let monthly = try #require(snapshot.toUsageSnapshot().extraRateWindows?.first)
+
+        #expect(monthly.id == "kimi-monthly")
+        #expect(monthly.window.usedPercent == 42)
+    }
+
+    @Test
     func `builds default code API usage endpoint`() throws {
         let baseURL = try #require(URL(string: "https://api.kimi.com"))
         let endpoint = KimiUsageFetcher._codeAPIUsageEndpointForTesting(baseURL: baseURL)

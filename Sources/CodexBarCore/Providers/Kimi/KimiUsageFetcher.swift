@@ -6,6 +6,7 @@ import FoundationNetworking
 
 public struct KimiUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.kimiAPI)
+    private static let subscriptionGraceSeconds: TimeInterval = 2
     private static let usageURL =
         URL(string: "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages")!
     private static let subscriptionStatURL =
@@ -54,13 +55,97 @@ public struct KimiUsageFetcher: Sendable {
     }
 
     public static func fetchUsage(authToken: String, now: Date = Date()) async throws -> KimiUsageSnapshot {
+        try await self.fetchUsage(
+            authToken: authToken,
+            now: now,
+            transport: ProviderHTTPClient.shared,
+            subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
+    }
+
+    static func _fetchUsageForTesting(
+        authToken: String,
+        now: Date = Date(),
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> KimiUsageSnapshot
+    {
+        try await self.fetchUsage(
+            authToken: authToken,
+            now: now,
+            transport: transport,
+            subscriptionGrace: subscriptionGrace)
+    }
+
+    private static func fetchUsage(
+        authToken: String,
+        now: Date,
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> KimiUsageSnapshot
+    {
         let sessionInfo = self.decodeSessionInfo(from: authToken)
 
+        let subscriptionTask = Task<KimiSubscriptionStatResponse?, Error> {
+            try await self.fetchSubscriptionStat(
+                authToken: authToken,
+                sessionInfo: sessionInfo,
+                transport: transport)
+        }
+        let subscriptionRace = BoundedTaskJoin(sourceTask: subscriptionTask)
+        let subscriptionOutcomeTask = Task {
+            await subscriptionRace.value(joinGrace: subscriptionGrace)
+        }
+
+        let codingUsage: KimiUsage
+        do {
+            codingUsage = try await withTaskCancellationHandler {
+                try await self.fetchRequiredUsage(
+                    authToken: authToken,
+                    sessionInfo: sessionInfo,
+                    transport: transport)
+            } onCancel: {
+                subscriptionOutcomeTask.cancel()
+            }
+        } catch {
+            subscriptionOutcomeTask.cancel()
+            _ = await subscriptionOutcomeTask.value
+            throw error
+        }
+
+        let subscriptionOutcome = await withTaskCancellationHandler {
+            await subscriptionOutcomeTask.value
+        } onCancel: {
+            subscriptionOutcomeTask.cancel()
+        }
+        try Task.checkCancellation()
+
+        let subscriptionStat: KimiSubscriptionStatResponse?
+        switch subscriptionOutcome {
+        case let .value(response):
+            subscriptionStat = response
+        case .timedOut:
+            Self.log.warning("Kimi subscription stat timed out")
+            subscriptionStat = nil
+        case let .failure(error):
+            Self.log.warning("Kimi subscription stat unavailable: \(error.localizedDescription)")
+            subscriptionStat = nil
+        }
+
+        return KimiUsageSnapshot(
+            weekly: codingUsage.detail,
+            rateLimit: codingUsage.limits?.first?.detail,
+            subscriptionBalance: subscriptionStat?.subscriptionBalance,
+            updatedAt: now)
+    }
+
+    private static func fetchRequiredUsage(
+        authToken: String,
+        sessionInfo: SessionInfo?,
+        transport: any ProviderHTTPTransport) async throws -> KimiUsage
+    {
         var request = self.webRequest(url: self.usageURL, authToken: authToken, sessionInfo: sessionInfo)
         let requestBody = ["scope": ["FEATURE_CODING"]]
         request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
         guard response.statusCode == 200 else {
             let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"
@@ -83,12 +168,7 @@ public struct KimiUsageFetcher: Sendable {
             throw KimiAPIError.parseFailed("FEATURE_CODING scope not found in response")
         }
 
-        let subscriptionStat = try await self.fetchSubscriptionStat(authToken: authToken, sessionInfo: sessionInfo)
-        return KimiUsageSnapshot(
-            weekly: codingUsage.detail,
-            rateLimit: codingUsage.limits?.first?.detail,
-            subscriptionBalance: subscriptionStat?.subscriptionBalance,
-            updatedAt: now)
+        return codingUsage
     }
 
     private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
@@ -118,13 +198,14 @@ public struct KimiUsageFetcher: Sendable {
 
     private static func fetchSubscriptionStat(
         authToken: String,
-        sessionInfo: SessionInfo?) async throws -> KimiSubscriptionStatResponse?
+        sessionInfo: SessionInfo?,
+        transport: any ProviderHTTPTransport) async throws -> KimiSubscriptionStatResponse?
     {
         var request = self.webRequest(url: self.subscriptionStatURL, authToken: authToken, sessionInfo: sessionInfo)
         request.httpBody = Data("{}".utf8)
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             guard response.statusCode == 200 else {
                 Self.log.warning("Kimi subscription stat returned \(response.statusCode)")
                 return nil
