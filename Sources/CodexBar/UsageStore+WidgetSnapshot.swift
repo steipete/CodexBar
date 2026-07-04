@@ -79,7 +79,8 @@ extension UsageStore {
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,
             tokenUsage: tokenUsage,
-            dailyUsage: dailyUsage)
+            dailyUsage: dailyUsage,
+            providerCost: snapshot?.providerCost)
     }
 
     private nonisolated static func widgetTokenUsageSummary(

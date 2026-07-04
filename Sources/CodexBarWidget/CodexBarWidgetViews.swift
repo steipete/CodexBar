@@ -358,6 +358,9 @@ private struct SwitcherSmallUsageView: View {
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
             }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
         }
     }
 }
@@ -386,6 +389,9 @@ private struct SwitcherMediumUsageView: View {
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
     }
@@ -427,6 +433,9 @@ private struct SwitcherLargeUsageView: View {
                             currencyCode: token.currencyCode))
                 }
             }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
             UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
                 .frame(height: 50)
         }
@@ -462,6 +471,9 @@ private struct SmallUsageView: View {
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
             }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
         }
         .padding(12)
     }
@@ -492,6 +504,9 @@ private struct MediumUsageView: View {
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
         .padding(12)
@@ -534,6 +549,9 @@ private struct LargeUsageView: View {
                             tokens: token.last30DaysTokens,
                             currencyCode: token.currencyCode))
                 }
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
             UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
                 .frame(height: 50)
@@ -916,6 +934,25 @@ enum WidgetColors {
             Color(red: 64 / 255, green: 156 / 255, blue: 255 / 255)
         }
     }
+}
+
+struct WidgetBalanceLine: Equatable {
+    let title: String
+    let value: String
+}
+
+enum WidgetBalanceFormatter {
+    static func extraUsageBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
+        guard let cost = entry.providerCost, cost.period == "Extra usage balance" else { return nil }
+        return WidgetBalanceLine(
+            title: "Extra usage",
+            value: "Balance: \(WidgetFormat.currency(cost.used, code: cost.currencyCode))")
+    }
+}
+
+private func extraUsageBalanceLine(for entry: WidgetSnapshot.ProviderEntry) -> ValueLine? {
+    guard let line = WidgetBalanceFormatter.extraUsageBalance(for: entry) else { return nil }
+    return ValueLine(title: line.title, value: line.value)
 }
 
 enum WidgetFormat {

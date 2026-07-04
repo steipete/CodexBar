@@ -266,6 +266,78 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `widget entry carries devin overage balance through providerCost`() {
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .devin,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [],
+            providerCost: ProviderCostSnapshot(
+                used: 48.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)))
+        let encoded = try? JSONEncoder().encode(entry)
+        #expect(encoded != nil)
+        let decoded = encoded.flatMap { try? JSONDecoder().decode(WidgetSnapshot.ProviderEntry.self, from: $0) }
+        #expect(decoded?.providerCost?.period == "Extra usage balance")
+        #expect(decoded?.providerCost?.used == 48.0)
+        #expect(decoded?.providerCost?.limit == 0)
+        #expect(decoded?.provider == .devin)
+    }
+
+    @Test
+    func `widget balance formatter renders devin extra usage balance`() {
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .devin,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [],
+            providerCost: ProviderCostSnapshot(
+                used: 48.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)))
+        let line = WidgetBalanceFormatter.extraUsageBalance(for: entry)
+        #expect(line?.title == "Extra usage")
+        #expect(line?.value.hasPrefix("Balance: ") == true)
+        #expect(line?.value.contains("48") == true)
+    }
+
+    @Test
+    func `widget balance formatter omits non extra usage cost`() {
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .claude,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [],
+            providerCost: ProviderCostSnapshot(
+                used: 12.0,
+                limit: 100.0,
+                currencyCode: "USD",
+                period: "Monthly spend",
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)))
+        #expect(WidgetBalanceFormatter.extraUsageBalance(for: entry) == nil)
+    }
+
+    @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
     }
