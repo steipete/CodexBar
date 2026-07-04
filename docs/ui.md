@@ -56,8 +56,8 @@ window has elapsed.
   reports sizes and cleanup ideas, it does not delete files.
 - Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 3).
 - If no providers are selected for Overview, the Overview tab is hidden.
-- Providers → Claude: “Avoid Keychain prompts” uses the prompt-free Security CLI reader when available.
-- The lower-level “Keychain prompt policy” picker only appears when the Security.framework reader is active.
+- Providers → Claude: “Avoid Keychain prompts” selects the Security.framework reader's `Never prompt` policy.
+- The lower-level “Keychain prompt policy” picker remains visible as the source of truth for Claude OAuth prompts.
 
 ## Widgets (high level)
 - Widgets render shared usage snapshots for the supported widget families and

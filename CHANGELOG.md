@@ -20,6 +20,7 @@
 
 ### Fixed
 - Branding: replace the malformed Poe icon and use Poe's official purple consistently across the app, widget, and website. Thanks @garethpaul!
+- Claude: make the "Avoid Keychain prompts" setting use the no-prompt policy instead of the experimental `security` CLI reader. Thanks @gmkbenjamin!
 - Monthly quota pace: show reserve, deficit, and run-out estimates for OpenCode Go, Doubao, and Alibaba monthly reset windows using their calendar-cycle length. Thanks @Zihao-Qi and @joeVenner!
 - Localization: translate the Default Terminal setting across every supported app language. Thanks @Zihao-Qi!
 - Settings: recover collapsed sidebars and undersized saved window frames when reopening Settings. Thanks @ProspectOre!
