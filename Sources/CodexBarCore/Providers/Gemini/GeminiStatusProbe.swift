@@ -1105,6 +1105,11 @@ public struct GeminiStatusProbe: Sendable {
 }
 
 extension GeminiStatusProbe {
+    private static let processTimeoutQueue = DispatchQueue(
+        label: "com.steipete.codexbar.gemini-process-timeout",
+        qos: .utility,
+        attributes: .concurrent)
+
     package static func runProcess(
         executable: String,
         arguments: [String],
@@ -1149,18 +1154,21 @@ extension GeminiStatusProbe {
         let pid = process.processIdentifier
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
-        // This API is synchronous. Waiting for a termination handler on the caller can starve its
-        // callback, while Process.isRunning may remain stale until Foundation observes the exit.
-        let exitSemaphore = DispatchSemaphore(value: 0)
-        Thread.detachNewThread {
-            process.waitUntilExit()
-            exitSemaphore.signal()
-        }
-
-        let didExit = exitSemaphore.wait(timeout: .now() + max(0, timeout)) == .success
-        if !didExit {
+        // Wait synchronously for Foundation to reap the helper. A separate timer owns timeout termination,
+        // so neither termination-handler scheduling nor stale Process.isRunning state controls normal exits.
+        let timeoutState = GeminiProcessTimeoutState()
+        let timeoutTimer = DispatchSource.makeTimerSource(queue: Self.processTimeoutQueue)
+        timeoutTimer.schedule(deadline: .now() + max(0, timeout))
+        timeoutTimer.setEventHandler {
+            guard process.isRunning else { return }
+            timeoutState.markTimedOut()
             SubprocessRunner.terminateProcess(process, processGroup: processGroup)
-            _ = exitSemaphore.wait(timeout: .now() + 1)
+        }
+        timeoutTimer.resume()
+        process.waitUntilExit()
+        timeoutTimer.cancel()
+
+        if timeoutState.didTimeOut {
             stdoutCapture.stop()
             stderrCapture.stop()
             return nil
@@ -1176,5 +1184,22 @@ extension GeminiStatusProbe {
 
         return output.components(separatedBy: .newlines).first?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+private final class GeminiProcessTimeoutState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var timedOut = false
+
+    var didTimeOut: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.timedOut
+    }
+
+    func markTimedOut() {
+        self.lock.lock()
+        self.timedOut = true
+        self.lock.unlock()
     }
 }

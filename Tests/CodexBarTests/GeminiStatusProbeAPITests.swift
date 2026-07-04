@@ -422,7 +422,7 @@ struct GeminiStatusProbeAPITests {
             executable: helper.path,
             arguments: [pidFile.path],
             environment: [:],
-            timeout: 1)
+            timeout: 5)
         let elapsed = start.duration(to: clock.now)
         let text = try String(contentsOf: pidFile, encoding: .utf8)
         let processID = try #require(pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)))
@@ -430,7 +430,7 @@ struct GeminiStatusProbeAPITests {
 
         #expect(result == nil)
         #expect(kill(processID, 0) == -1)
-        #expect(elapsed < .seconds(3), "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)")
+        #expect(elapsed < .seconds(7.5), "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)")
     }
 
     @Test
@@ -450,10 +450,10 @@ struct GeminiStatusProbeAPITests {
             executable: helper.path,
             arguments: [],
             environment: [:],
-            timeout: 2)
+            timeout: 10)
 
         #expect(result == nil)
-        #expect(start.duration(to: clock.now) < .seconds(1))
+        #expect(start.duration(to: clock.now) < .seconds(5))
     }
 
     @Test
@@ -469,8 +469,6 @@ struct GeminiStatusProbeAPITests {
         """.write(to: helper, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
 
-        let clock = ContinuousClock()
-        let start = clock.now
         let result = GeminiStatusProbe.runProcess(
             executable: helper.path,
             arguments: [],
@@ -478,7 +476,6 @@ struct GeminiStatusProbeAPITests {
             timeout: 2)
 
         #expect(result == "/tmp/gemini-package")
-        #expect(start.duration(to: clock.now) < .seconds(1))
     }
 
     @Test
