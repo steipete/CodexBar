@@ -137,6 +137,29 @@ struct SakanaUsageFetcherTests {
     }
 
     @Test
+    func `slow pay as you go request never delays the primary quota result`() async throws {
+        let transport = SakanaScriptedTransport(
+            statusCode: 200,
+            body: Self.billingHTML,
+            billingWaitsForPayAsYouGo: true,
+            payAsYouGoBlocksUntilCancelled: true)
+        let startedAt = ContinuousClock.now
+
+        let snapshot = try await SakanaUsageFetcher.fetchUsage(
+            cookieHeader: "session=abc",
+            session: transport,
+            now: Date(timeIntervalSince1970: 0))
+
+        #expect(snapshot.fiveHour?.usedPercent == 92)
+        #expect(snapshot.payAsYouGo == nil)
+        #expect(startedAt.duration(to: .now) < .milliseconds(300))
+        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
+            await Task.yield()
+        }
+        #expect(await transport.didCancelPayAsYouGo())
+    }
+
+    @Test
     func `required fetch failure cancels the concurrent pay as you go request`() async throws {
         let transport = SakanaScriptedTransport(
             statusCode: 401,
@@ -382,6 +405,7 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
     private let payAsYouGoBlocksUntilCancelled: Bool
     private var capturedRequests: [CapturedRequest] = []
     private var payAsYouGoStarted = false
+    private var payAsYouGoCompleted = false
     private var payAsYouGoWasCancelled = false
 
     init(
@@ -433,6 +457,14 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
             guard self.payAsYouGoStarted else {
                 throw URLError(.timedOut)
             }
+            if !self.payAsYouGoBlocksUntilCancelled {
+                for _ in 0..<1000 where !self.payAsYouGoCompleted {
+                    await Task.yield()
+                }
+                guard self.payAsYouGoCompleted else {
+                    throw URLError(.timedOut)
+                }
+            }
         }
 
         self.capturedRequests.append(CapturedRequest(
@@ -448,6 +480,9 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
             statusCode: responseStatusCode,
             httpVersion: "HTTP/1.1",
             headerFields: self.headers)!
+        if isPayAsYouGo {
+            self.payAsYouGoCompleted = true
+        }
         return (Data(responseBody.utf8), response)
     }
 }

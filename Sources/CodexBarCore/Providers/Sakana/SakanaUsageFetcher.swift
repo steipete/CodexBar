@@ -117,6 +117,21 @@ public enum SakanaUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
+private final class SakanaPayAsYouGoResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var result: SakanaPayAsYouGoSnapshot?
+
+    func complete(with result: SakanaPayAsYouGoSnapshot?) {
+        self.lock.withLock {
+            self.result = result
+        }
+    }
+
+    func valueIfCompleted() -> SakanaPayAsYouGoSnapshot? {
+        self.lock.withLock { self.result }
+    }
+}
+
 public enum SakanaUsageFetcher {
     private static let billingURL = URL(string: "https://console.sakana.ai/billing")!
     private static let payAsYouGoURL = URL(string: "https://console.sakana.ai/billing?tab=payAsYouGo")!
@@ -147,12 +162,14 @@ public enum SakanaUsageFetcher {
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
         let transport = transportOverride ?? self.defaultTransport
-        let payAsYouGoTask: Task<SakanaPayAsYouGoSnapshot?, Never>? = if includeOptionalUsage {
+        let payAsYouGoResult = includeOptionalUsage ? SakanaPayAsYouGoResult() : nil
+        let payAsYouGoTask: Task<Void, Never>? = if let payAsYouGoResult {
             Task {
-                await self.boundedFetchPayAsYouGo(
+                let result = await self.boundedFetchPayAsYouGo(
                     cookieHeader: cookieHeader,
                     transport: transport,
                     timeout: timeout)
+                payAsYouGoResult.complete(with: result)
             }
         } else {
             nil
@@ -178,8 +195,9 @@ public enum SakanaUsageFetcher {
                     throw SakanaUsageError.parseFailed("Billing page response was empty.")
                 }
                 let snapshot = try self.parseBillingHTML(html, now: now)
-                let payAsYouGo = await payAsYouGoTask?.value
                 try Task.checkCancellation()
+                let payAsYouGo = payAsYouGoResult?.valueIfCompleted()
+                payAsYouGoTask?.cancel()
                 return SakanaUsageSnapshot(
                     planName: snapshot.planName,
                     priceLabel: snapshot.priceLabel,
@@ -196,8 +214,8 @@ public enum SakanaUsageFetcher {
         }
     }
 
-    /// Caps the optional Pay-as-you-go fetch at `payAsYouGoJoinGrace`. It starts beside the required
-    /// subscription request, so a slow optional response cannot add another full request timeout.
+    /// Caps the lifetime of the optional Pay-as-you-go fetch. The primary fetch only consumes an
+    /// already-completed result and cancels this task otherwise, so enrichment never delays quotas.
     private static let payAsYouGoJoinGrace: Duration = .seconds(5)
 
     private static func boundedFetchPayAsYouGo(
