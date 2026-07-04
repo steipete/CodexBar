@@ -14,6 +14,7 @@
 - Repository: reject oversized tracked blobs and generated release/build artifacts during checks. Thanks @joeVenner!
 
 ### Fixed
+- Alibaba: keep the browser Safe Storage keychain read non-interactive and honor the "Disable Keychain access" setting, so cookie import can never trigger a Keychain prompt.
 - Tests: block real Keychain and `security` CLI access by default so test runs cannot display password prompts.
 - Claude: notify on model-scoped weekly and Daily Routines quota thresholds using independent warning state. Thanks @cleanerzkp!
 - Claude CLI: skip the identity probe after terminal usage errors or loading stalls, cutting failed refresh latency and subprocess churn.
