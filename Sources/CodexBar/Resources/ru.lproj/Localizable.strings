@@ -1131,6 +1131,8 @@
 "1 available" = "1 доступен";
 "%d available" = "%d доступен";
 "Next expires %@" = "Следующий срок действия истекает %@";
+"Expires %@" = "Истекает %@";
+"No expiry" = "Без срока действия";
 "byte_unit_byte" = "байт";
 "byte_unit_bytes" = "байты";
 "byte_unit_kilobyte" = "килобайт";
