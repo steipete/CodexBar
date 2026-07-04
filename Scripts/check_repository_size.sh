@@ -31,21 +31,23 @@ while IFS= read -r -d '' entry; do
   blob_ids+=("$object")
 done < <(git ls-files --stage -z)
 
-index=0
-while read -r object type size; do
-  path=${blob_paths[$index]}
-  if [[ "$type" != "blob" ]]; then
-    printf 'ERROR: tracked index entry is not a readable blob: %q (%s)\n' "$path" "$object" >&2
-    failures=$((failures + 1))
+if ((${#blob_ids[@]} > 0)); then
+  index=0
+  while read -r object type size; do
+    path=${blob_paths[$index]}
+    if [[ "$type" != "blob" ]]; then
+      printf 'ERROR: tracked index entry is not a readable blob: %q (%s)\n' "$path" "$object" >&2
+      failures=$((failures + 1))
+      index=$((index + 1))
+      continue
+    fi
+    if ((size > MAX_BYTES)); then
+      printf 'ERROR: tracked file exceeds %d bytes: %q (%d bytes)\n' "$MAX_BYTES" "$path" "$size" >&2
+      failures=$((failures + 1))
+    fi
     index=$((index + 1))
-    continue
-  fi
-  if ((size > MAX_BYTES)); then
-    printf 'ERROR: tracked file exceeds %d bytes: %q (%d bytes)\n' "$MAX_BYTES" "$path" "$size" >&2
-    failures=$((failures + 1))
-  fi
-  index=$((index + 1))
-done < <(printf '%s\n' "${blob_ids[@]}" | git cat-file --batch-check='%(objectname) %(objecttype) %(objectsize)')
+  done < <(printf '%s\n' "${blob_ids[@]}" | git cat-file --batch-check='%(objectname) %(objecttype) %(objectsize)')
+fi
 
 if ((failures > 0)); then
   printf 'Repository size check failed with %d violation(s).\n' "$failures" >&2

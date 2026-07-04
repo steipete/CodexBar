@@ -8,6 +8,9 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 mkdir -p "$TEMP_DIR/Scripts"
 cp "$ROOT_DIR/Scripts/check_repository_size.sh" "$TEMP_DIR/Scripts/"
 git -C "$TEMP_DIR" init --quiet
+empty_output=$("$TEMP_DIR/Scripts/check_repository_size.sh")
+grep -Fq 'repository size OK: 0 tracked files' <<<"$empty_output"
+
 printf 'small source file\n' > "$TEMP_DIR/source.txt"
 git -C "$TEMP_DIR" add source.txt Scripts/check_repository_size.sh
 
