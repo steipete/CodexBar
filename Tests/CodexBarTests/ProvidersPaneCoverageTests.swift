@@ -444,6 +444,16 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `provider detail plan row shows clinepass plan name`() {
+        Self.withEnglishLocalization {
+            let row = ProviderDetailView<EmptyView>.planRow(provider: .clinepass, planText: "Cline Pass (Monthly)")
+
+            #expect(row?.label == "Plan")
+            #expect(row?.value == "Cline Pass (Monthly)")
+        }
+    }
+
+    @Test
     func `provider detail plan row keeps plan label for non open router`() {
         Self.withEnglishLocalization {
             let row = ProviderDetailView<EmptyView>.planRow(provider: .codex, planText: "Pro")

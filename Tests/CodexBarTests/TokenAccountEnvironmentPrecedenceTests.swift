@@ -121,6 +121,43 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
+    func `clinepass token account overrides config API key in app environment builder`() {
+        let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-clinepass-app")
+        settings.clinePassAPIToken = "config-token"
+        settings.addTokenAccount(provider: .clinepass, label: "Work", token: "account-token")
+
+        let env = ProviderRegistry.makeEnvironment(
+            base: ["FOO": "bar"],
+            provider: .clinepass,
+            settings: settings,
+            tokenOverride: nil)
+
+        #expect(env["FOO"] == "bar")
+        #expect(env[ClinePassSettingsReader.envKey] == "account-token")
+        #expect(env[ClinePassSettingsReader.envKey] != "config-token")
+    }
+
+    @Test
+    func `clinepass token account injects environment in CLI environment builder`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Personal",
+            token: "account-token",
+            addedAt: Date().timeIntervalSince1970,
+            lastUsed: nil)
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .clinepass, apiKey: "config-token"),
+        ])
+        let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
+        let tokenContext = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)
+
+        let env = tokenContext.environment(base: [:], provider: .clinepass, account: account)
+
+        #expect(env[ClinePassSettingsReader.envKey] == "account-token")
+        #expect(env[ClinePassSettingsReader.envKey] != "config-token")
+    }
+
+    @Test
     func `token account environment overrides config API key in CLI environment builder`() throws {
         let config = CodexBarConfig(
             providers: [

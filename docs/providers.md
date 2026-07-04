@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 57 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 58 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -54,6 +54,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | CrossModel | API key from config/env → credits + usage API (`api`). |
+| ClinePass | API key from config/env → Cline plan usage-limits API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
@@ -314,6 +315,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Shows balance plus today/this week/this month spend; no quota meter (prepaid wallet, no per-key limit).
 - Override base URL with `CROSSMODEL_API_URL` env var (loopback HTTP allowed for local testing).
 - Details: `docs/crossmodel.md`.
+
+## ClinePass
+- API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `CLINE_API_KEY` env var.
+- Reads account identity (`/api/v1/users/me`), plan name (`/api/v1/users/me/plan`), and server-computed usage windows (`/api/v1/users/me/plan/usage-limits`).
+- Shows 5-hour / weekly / monthly usage percentages with reset countdowns (matching the Cline dashboard), plus plan name and account email.
+- Override base URL with `CLINE_API_BASE_URL` env var (loopback HTTP allowed for local testing).
+- Details: `docs/clinepass.md`.
 
 ## Perplexity
 - Browser session cookie from automatic import, manual header/token, or `PERPLEXITY_SESSION_TOKEN` / `PERPLEXITY_COOKIE`.

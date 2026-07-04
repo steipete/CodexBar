@@ -178,6 +178,26 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `diagnostic usage summary includes ClinePass data`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let usage = ClinePassUsageFetcher.makeSnapshot(
+            planName: "Cline Pass (Monthly)",
+            accountEmail: nil,
+            limits: [
+                (type: "five_hour", percentUsed: 4, resetsAt: nil),
+                (type: "weekly", percentUsed: 6, resetsAt: nil),
+                (type: "monthly", percentUsed: 3, resetsAt: nil),
+            ],
+            now: now).toUsageSnapshot()
+
+        let summary = ProviderDiagnosticUsageSummary(from: usage)
+
+        // Three server-computed windows populate primary/secondary/tertiary.
+        #expect(summary.windows.count == 3)
+        #expect(summary.providerSpecificData == ["clinePassUsage"])
+    }
+
+    @Test
     func `diagnostic usage summary defaults legacy payloads to unknown confidence`() throws {
         let json = """
         {

@@ -66,6 +66,18 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for cline pass`() {
+        let config = ProviderConfig(id: .clinepass, apiKey: "cline-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .clinepass,
+            config: config)
+
+        #expect(env[ClinePassSettingsReader.envKey] == "cline-token")
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .clinepass))
+    }
+
+    @Test
     func `applies API key override for doubao`() {
         let config = ProviderConfig(id: .doubao, apiKey: "db-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

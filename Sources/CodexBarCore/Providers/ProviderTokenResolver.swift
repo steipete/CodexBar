@@ -103,6 +103,10 @@ public enum ProviderTokenResolver {
         self.crossModelResolution(environment: environment)?.token
     }
 
+    public static func clinePassToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.clinePassResolution(environment: environment)?.token
+    }
+
     public static func elevenLabsToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -354,6 +358,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(CrossModelSettingsReader.apiToken(environment: environment))
+    }
+
+    public static func clinePassResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(ClinePassSettingsReader.apiToken(environment: environment))
     }
 
     public static func elevenLabsResolution(

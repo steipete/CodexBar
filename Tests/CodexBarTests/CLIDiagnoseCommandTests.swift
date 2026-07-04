@@ -129,6 +129,19 @@ struct CLIDiagnoseCommandTests {
     }
 
     @Test
+    func `generic diagnose auth summary detects ClinePass environment credentials`() {
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .clinepass,
+            account: nil,
+            config: nil,
+            environment: [ClinePassSettingsReader.envKey: "cline-test"],
+            settings: nil)
+
+        #expect(summary.configured)
+        #expect(summary.modes == ["api"])
+    }
+
+    @Test
     func `generic diagnose auth summary requires complete Bedrock credentials`() {
         let partial = CodexBarCLI._diagnosticAuthSummaryForTesting(
             provider: .bedrock,

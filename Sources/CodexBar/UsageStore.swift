@@ -1086,6 +1086,7 @@ extension UsageStore {
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
         let crossModelDebugContext = self.crossModelAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let clinePassDebugContext = self.clinePassAPIKeyDebugContext(processEnvironment: processEnvironment)
         let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
@@ -1191,6 +1192,8 @@ extension UsageStore {
                     return Self.apiKeyDebugLine(openRouterDebugContext)
                 case .crossmodel:
                     return Self.apiKeyDebugLine(crossModelDebugContext)
+                case .clinepass:
+                    return Self.apiKeyDebugLine(clinePassDebugContext)
                 case .elevenlabs:
                     return Self.apiKeyDebugLine(elevenLabsDebugContext)
                 case .warp:

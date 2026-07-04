@@ -51,6 +51,15 @@ extension UsageStore {
             hasEnvToken: { CrossModelSettingsReader.apiToken(environment: $0) != nil })
     }
 
+    func clinePassAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        self.apiKeyDebugContext(
+            provider: .clinepass,
+            label: "CLINE_API_KEY",
+            processEnvironment: processEnvironment,
+            resolution: ProviderTokenResolver.clinePassResolution,
+            hasEnvToken: { ClinePassSettingsReader.apiToken(environment: $0) != nil })
+    }
+
     func elevenLabsAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
         self.apiKeyDebugContext(
             provider: .elevenlabs,

@@ -180,6 +180,39 @@ struct CLIOutputTests {
     }
 
     @Test
+    func `text renderer includes clinepass windows plan and account`() {
+        let now = Date(timeIntervalSince1970: 1_739_841_600)
+        let snapshot = ClinePassUsageFetcher.makeSnapshot(
+            planName: "Cline Pass (Monthly)",
+            accountEmail: "dev@example.com",
+            limits: [
+                (type: "five_hour", percentUsed: 4, resetsAt: nil),
+                (type: "weekly", percentUsed: 6, resetsAt: nil),
+                (type: "monthly", percentUsed: 3, resetsAt: nil),
+            ],
+            now: now)
+            .toUsageSnapshot()
+
+        let text = CLIRenderer.renderText(
+            provider: .clinepass,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "ClinePass (api)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        // Windows render as percentage lines; plan + account also present.
+        #expect(text.contains("5-hour"))
+        #expect(text.contains("Weekly"))
+        #expect(text.contains("Monthly"))
+        #expect(text.contains("%"))
+        #expect(text.contains("Account: dev@example.com"))
+        #expect(text.contains("Plan: Cline Pass (Monthly)"))
+    }
+
+    @Test
     func `text renderer preserves crossmodel non USD currency`() {
         let snapshot = CrossModelUsageSnapshot(
             currency: "EUR",

@@ -227,6 +227,8 @@ extension CodexBarCLI {
             CrofSettingsReader.apiKey(environment: environment) != nil
         case .crossmodel:
             CrossModelSettingsReader.apiToken(environment: environment) != nil
+        case .clinepass:
+            ClinePassSettingsReader.apiToken(environment: environment) != nil
         case .deepgram:
             DeepgramSettingsReader.apiKey(environment: environment) != nil
         case .deepseek:

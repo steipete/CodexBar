@@ -164,5 +164,12 @@ extension TokenAccountSupportCatalog {
             injection: .cookieHeader,
             requiresManualCookieSource: true,
             cookieName: nil),
+        .clinepass: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple ClinePass API keys to track separate accounts.",
+            placeholder: "Paste Cline API key…",
+            injection: .environment(key: ClinePassSettingsReader.envKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
     ]
 }

@@ -75,4 +75,27 @@ struct UsageStorePathDebugTests {
 
         #expect(debugLog == "CROSSMODEL_API_KEY=present source=settings-config")
     }
+
+    @Test
+    func `clinepass debug log includes config backed api key`() async throws {
+        let suite = "UsageStorePathDebugTests-clinepass-debug-config-key"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore())
+        settings.clinePassAPIToken = "cline-config-test"
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+
+        let debugLog = await store.debugLog(for: UsageProvider.clinepass)
+
+        #expect(debugLog == "CLINE_API_KEY=present source=settings-config")
+    }
 }
