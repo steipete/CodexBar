@@ -815,23 +815,6 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `O auth strategy defers app inventory and CLI follows credits flag`() {
-        let appContext = self.makeContext(includeCredits: false, includeOptionalUsage: false)
-        let cliNoCreditsContext = self.makeContext(
-            runtime: .cli,
-            includeCredits: false,
-            includeOptionalUsage: true)
-        let cliCreditsContext = self.makeContext(
-            runtime: .cli,
-            includeCredits: true,
-            includeOptionalUsage: false)
-
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext) == false)
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliNoCreditsContext) == false)
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliCreditsContext))
-    }
-
-    @Test
     func `non 401 invalid grant refresh failure is treated as revoked`() {
         let data = Data(#"{"error":"invalid_grant"}"#.utf8)
         let error = CodexTokenRefresher._refreshFailureErrorForTesting(statusCode: 400, data: data)

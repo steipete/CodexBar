@@ -58,12 +58,28 @@ struct CodexOAuthResetCreditFetchTests {
         #expect(await recorder.requestCount() == 1)
     }
 
-    private static func context(runtime: ProviderRuntime) -> ProviderFetchContext {
+    @Test
+    func `O auth strategy defers app inventory and CLI follows credits flag`() {
+        let appContext = Self.context(runtime: .app, includeCredits: false, includeOptionalUsage: false)
+        let cliNoCreditsContext = Self.context(runtime: .cli, includeCredits: false, includeOptionalUsage: true)
+        let cliCreditsContext = Self.context(runtime: .cli, includeCredits: true, includeOptionalUsage: false)
+
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext) == false)
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliNoCreditsContext) == false)
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliCreditsContext))
+    }
+
+    private static func context(
+        runtime: ProviderRuntime,
+        includeCredits: Bool = true,
+        includeOptionalUsage: Bool = false) -> ProviderFetchContext
+    {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: runtime,
             sourceMode: .auto,
-            includeCredits: true,
+            includeCredits: includeCredits,
+            includeOptionalUsage: includeOptionalUsage,
             webTimeout: 60,
             webDebugDumpHTML: false,
             verbose: false,
