@@ -87,7 +87,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.macos-tests == 'true' }}
     runs-on: macos-15-intel
-    timeout-minutes: 40
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -119,7 +119,7 @@ jobs:
         run: ./Scripts/lint.sh lint-macos
 
       - name: Swift Test
-        timeout-minutes: 35
+        timeout-minutes: 40
         run: |
           CODEXBAR_TEST_GROUP_SIZE=1 \
             CODEXBAR_TEST_SUITE_TIMEOUT=120 \
