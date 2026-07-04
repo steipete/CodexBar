@@ -18,6 +18,8 @@ Codexbar.app/
 # Release artifacts
 *.ipa
 *.dSYM*
+*.xcarchive/
+*.xcresult/
 *.zip
 *.delta
 *.dmg
