@@ -1233,11 +1233,9 @@ extension StatusItemController {
         webItems: OpenAIWebMenuItems)
     {
         let provider = layoutModel.provider
-        let usageSectionModels = Self.splitMenuUsageSectionModels(model: model, layoutModel: layoutModel)
         let hasCredits = layoutModel.creditsText != nil
         let hasExtraUsage = layoutModel.providerCost != nil
         let hasCost = layoutModel.tokenUsage != nil
-        let hasStorage = self.store.storageFootprintText(for: provider) != nil
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
         let creditsBottomPadding = bottomPadding
@@ -1246,10 +1244,10 @@ extension StatusItemController {
             menu.addItem(.separator())
         }
 
-        if usageSectionModels.layoutModel.hasUsageContent {
+        if layoutModel.hasUsageContent {
             let usageView = UsageMenuCardHeaderAndUsageSectionView(
-                model: usageSectionModels.model,
-                layoutModel: usageSectionModels.layoutModel,
+                model: model,
+                layoutModel: layoutModel,
                 bottomPadding: bottomPadding,
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
@@ -1262,7 +1260,7 @@ extension StatusItemController {
                 id: "menuCardUsage",
                 width: width,
                 heightCacheScope: provider.rawValue,
-                heightCacheFingerprint: usageSectionModels.layoutModel.heightFingerprint(section: "usage"),
+                heightCacheFingerprint: layoutModel.heightFingerprint(section: "usage"),
                 submenu: usageSubmenu,
                 containsInteractiveControls: true))
         } else {
@@ -1278,11 +1276,6 @@ extension StatusItemController {
                 heightCacheFingerprint: layoutModel.heightFingerprint(section: "header"),
                 containsInteractiveControls: true))
         }
-
-        self.addCodexResetCreditsSectionIfNeeded(
-            to: menu,
-            presentation: usageSectionModels.resetCredits,
-            hasFollowingSection: hasStorage || hasCredits || hasExtraUsage || hasCost)
 
         if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),
            hasCredits || hasExtraUsage

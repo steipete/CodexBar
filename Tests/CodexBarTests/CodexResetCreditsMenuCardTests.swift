@@ -1,26 +1,9 @@
-import AppKit
 import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
 
 struct CodexResetCreditsMenuCardTests {
-    @Test @MainActor
-    func `legacy reset credit subtitle preserves standard submenu routing`() {
-        let item = NSMenuItem(title: "Limit Reset Credits", action: nil, keyEquivalent: "")
-        item.submenu = NSMenu(title: "Limit Reset Credits")
-
-        StatusItemController.applyLegacySubmenuSubtitle(
-            "3 available · Next expires in 1d",
-            to: item,
-            title: "Limit Reset Credits")
-
-        #expect(item.view == nil)
-        #expect(item.title == "Limit Reset Credits — 3 available · Next expires in 1d")
-        #expect(item.toolTip == item.title)
-        #expect(item.submenu != nil)
-    }
-
     @Test
     func `presentation shows only available inventory in stable expiry order`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
@@ -48,11 +31,6 @@ struct CodexResetCreditsMenuCardTests {
         ])
         #expect(presentation.helpText == "1. Expires in 1d\n2. Expires in 2d\n3. No expiry")
         #expect(presentation.accessibilityLabel.contains(presentation.helpText))
-        #expect(StatusItemController.codexResetCreditMenuRows(presentation) == [
-            "1. Expires in 1d",
-            "2. Expires in 2d",
-            "3. No expiry",
-        ])
     }
 
     @Test
@@ -103,7 +81,7 @@ struct CodexResetCreditsMenuCardTests {
     }
 
     @Test
-    func `split menu removes the exact native reset presentation from the usage card`() throws {
+    func `hosted usage model keeps reset inventory compatible with live refresh`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
         let model = try Self.model(
             snapshot: Self.snapshot(
@@ -111,17 +89,12 @@ struct CodexResetCreditsMenuCardTests {
                 credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
             now: now)
 
-        let split = StatusItemController.splitMenuUsageSectionModels(
-            model: model,
-            layoutModel: model)
-
-        #expect(split.model.codexResetCredits == nil)
-        #expect(split.layoutModel.codexResetCredits == nil)
-        #expect(split.resetCredits == model.codexResetCredits)
+        #expect(model.codexResetCredits != nil)
+        #expect(model.hasCompatibleTrackedLayout(with: model))
     }
 
     @Test
-    func `empty filtered inventory does not create a native reset section`() throws {
+    func `empty filtered inventory does not create hosted reset rows`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
         let model = try Self.model(
             snapshot: Self.snapshot(
@@ -131,12 +104,7 @@ struct CodexResetCreditsMenuCardTests {
             now: now)
 
         #expect(model.codexResetCredits == nil)
-        let split = StatusItemController.splitMenuUsageSectionModels(
-            model: model,
-            layoutModel: model)
-        #expect(split.model.codexResetCredits == model.codexResetCredits)
-        #expect(split.layoutModel.codexResetCredits == model.codexResetCredits)
-        #expect(split.resetCredits == nil)
+        #expect(model.hasCompatibleTrackedLayout(with: model))
     }
 
     private static func model(

@@ -23,21 +23,6 @@ extension StatusItemController {
         }
     }
 
-    func applySubmenuSubtitle(_ subtitle: String, to item: NSMenuItem, title: String) {
-        if #available(macOS 14.4, *) {
-            item.subtitle = subtitle
-        } else {
-            Self.applyLegacySubmenuSubtitle(subtitle, to: item, title: title)
-        }
-    }
-
-    static func applyLegacySubmenuSubtitle(_ subtitle: String, to item: NSMenuItem, title: String) {
-        // Custom item views do not inherit AppKit's submenu routing or disclosure affordance on macOS 14.0-14.3.
-        item.view = nil
-        item.title = "\(title) — \(subtitle)"
-        item.toolTip = item.title
-    }
-
     func makeMenuSubtitleView(title: String, subtitle: String, isEnabled: Bool) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
