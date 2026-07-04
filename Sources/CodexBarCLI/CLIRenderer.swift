@@ -117,7 +117,11 @@ enum CLIRenderer {
             return
         }
 
-        guard provider != .clawrouter, let cost = snapshot.providerCost else { return }
+        guard
+            provider != .clawrouter,
+            let cost = snapshot.providerCost,
+            !(provider == .devin && cost.period == "Extra usage balance")
+        else { return }
         // Fallback to cost/quota display if no primary rate window.
         let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
         let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
