@@ -182,7 +182,14 @@ public struct ClinePassUsageFetcher: Sendable {
                 do {
                     let result = try await self.fetchUsageLimits(apiKey: apiKey, baseURL: baseURL, transport: transport)
                     return .limits(result)
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch let error as URLError where error.code == .cancelled {
+                    throw CancellationError()
                 } catch {
+                    // A cancelled parent task can surface as a generic error here;
+                    // never mask a cancelled refresh as a successful partial read.
+                    if Task.isCancelled { throw CancellationError() }
                     Self.log.error(
                         "ClinePass /plan/usage-limits unavailable, showing plan + email only: "
                             + error.localizedDescription)

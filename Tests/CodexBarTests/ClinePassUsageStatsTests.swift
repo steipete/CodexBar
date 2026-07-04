@@ -190,6 +190,55 @@ struct ClinePassUsageStatsTests {
     }
 
     @Test
+    func `fetch usage propagates cancellation from the best-effort limits request`() async throws {
+        // The user/plan reads succeed, but the best-effort limits read is
+        // cancelled — cancellation must propagate, not degrade to a partial
+        // (plan + email only) success snapshot.
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            switch url.path {
+            case "/api/v1/users/me":
+                return Self.ok(url, #"{"success":true,"data":{"id":"user-1","email":"dev@example.com"}}"#)
+            case "/api/v1/users/me/plan":
+                return Self.ok(url, #"{"success":true,"data":{"plan":{"displayName":"Cline Pass (Monthly)"}}}"#)
+            default:
+                throw CancellationError()
+            }
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await ClinePassUsageFetcher.fetchUsage(
+                apiKey: "cline-test",
+                environment: ["CLINE_API_BASE_URL": "https://cline.test"],
+                transport: transport,
+                now: Self.now)
+        }
+    }
+
+    @Test
+    func `fetch usage maps url session cancellation from the best-effort limits request`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            switch url.path {
+            case "/api/v1/users/me":
+                return Self.ok(url, #"{"success":true,"data":{"id":"user-1","email":"dev@example.com"}}"#)
+            case "/api/v1/users/me/plan":
+                return Self.ok(url, #"{"success":true,"data":{"plan":{"displayName":"Cline Pass (Monthly)"}}}"#)
+            default:
+                throw URLError(.cancelled)
+            }
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await ClinePassUsageFetcher.fetchUsage(
+                apiKey: "cline-test",
+                environment: ["CLINE_API_BASE_URL": "https://cline.test"],
+                transport: transport,
+                now: Self.now)
+        }
+    }
+
+    @Test
     func `normalized base path strips version segment and trailing slash`() {
         // No path / bare host.
         #expect(ClinePassUsageFetcher.normalizedBasePath("") == "")
