@@ -16,6 +16,7 @@ struct LocalizationLanguageCatalogTests {
         "language_french",
         "language_dutch",
         "language_ukrainian",
+        "language_russian",
         "language_italian",
         "language_vietnamese",
         "language_japanese",
@@ -33,6 +34,12 @@ struct LocalizationLanguageCatalogTests {
     func `app language catalog includes Ukrainian`() {
         #expect(AppLanguage.allCases.contains(.ukrainian))
         #expect(AppLanguage.ukrainian.rawValue == "uk")
+    }
+
+    @Test
+    func `app language catalog includes Russian`() {
+        #expect(AppLanguage.allCases.contains(.russian))
+        #expect(AppLanguage.russian.rawValue == "ru")
     }
 
     @Test
@@ -103,6 +110,12 @@ struct LocalizationLanguageCatalogTests {
                 "tab_general": "ทั่วไป",
                 "quit_app": "ออกจาก CodexBar",
                 "usage_percent_suffix_left": "คงเหลือ",
+            ],
+            "ru": [
+                "language_russian": "Русский",
+                "tab_general": "Общие",
+                "quit_app": "Выйти из CodexBar",
+                "usage_percent_suffix_left": "осталось",
             ],
             "gl": [
                 "language_galician": "Galego",
@@ -335,6 +348,7 @@ struct LocalizationLanguageCatalogTests {
             "language_galician",
             "language_italian",
             "language_persian",
+            "language_russian",
             "language_thai",
             "link_email",
             "link_github",

@@ -49,6 +49,18 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         return self.stopAndSnapshot()
     }
 
+    /// Waits only for the first complete output line. Useful for helpers whose descendants may inherit stdout
+    /// after the helper itself exits, preventing EOF even though the caller already has its complete answer.
+    package func finishFirstLineSynchronously(timeout: TimeInterval) -> Data {
+        let deadline = Date().addingTimeInterval(max(0, timeout))
+        self.condition.lock()
+        while !self.isFinished, !self.isStopping, !self.data.contains(0x0A) {
+            guard self.condition.wait(until: deadline) else { break }
+        }
+        self.condition.unlock()
+        return self.stopAndSnapshot()
+    }
+
     package func stop() {
         _ = self.stopAndSnapshot()
     }
