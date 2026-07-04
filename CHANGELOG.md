@@ -4,6 +4,7 @@
 
 ### Added
 - Kimi: show monthly subscription usage alongside weekly and five-hour limits with a short total budget for the optional membership request. Thanks @zhiyue!
+- Localization: add complete Russian coverage for the app and redesigned website. Thanks @Kirchberg!
 - Localization: add Galician app translations and language selection. Thanks @B1NAR10!
 - Claude: show model-scoped weekly quota windows, including promotional Fable limits, from OAuth and web usage responses. Thanks @konon4!
 - Usage refresh: add an opt-in Adaptive cadence that polls every 2–30 minutes based on recent menu use, Low Power Mode, and thermal state. Thanks @hhh2210!
