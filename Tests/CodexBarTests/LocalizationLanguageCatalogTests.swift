@@ -318,6 +318,7 @@ struct LocalizationLanguageCatalogTests {
             "language_arabic",
             "language_italian",
             "language_persian",
+            "language_russian",
             "language_thai",
             "link_email",
             "link_github",
