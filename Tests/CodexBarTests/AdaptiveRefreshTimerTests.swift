@@ -37,6 +37,45 @@ struct AdaptiveRefreshTimerTests {
     }
 
     @Test
+    func `menu open advances a long idle timer during refresh without postponing an earlier tick`() async throws {
+        let settings = Self.makeSettingsStore(suite: "AdaptiveRefreshTimerTests-advance", frequency: .adaptive)
+        let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
+        store.restartTimerWithSleepOverrideForTesting(.seconds(10))
+        try await Self.waitUntil { store.adaptiveRefreshScheduledAt != nil }
+
+        let longIdleSchedule = try #require(store.adaptiveRefreshScheduledAt)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 50,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(30),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now,
+                identity: nil),
+            provider: .codex)
+        store.scheduleResetBoundaryRefreshIfNeeded(normalRefreshInterval: 30 * 60, now: now)
+        defer { store.cancelResetBoundaryRefresh() }
+        let resetBoundarySchedule = try #require(store.scheduledResetBoundaryRefreshAt)
+
+        store.isRefreshing = true
+        defer { store.isRefreshing = false }
+        store.noteMenuOpened()
+        try await Self.waitUntil {
+            guard let scheduledAt = store.adaptiveRefreshScheduledAt else { return false }
+            return scheduledAt < longIdleSchedule
+        }
+        let interactionSchedule = try #require(store.adaptiveRefreshScheduledAt)
+        #expect(store.isRefreshing)
+        #expect(store.scheduledResetBoundaryRefreshAt == resetBoundarySchedule)
+
+        store.noteMenuOpened(at: Date().addingTimeInterval(30))
+        #expect(store.adaptiveRefreshScheduledAt == interactionSchedule)
+    }
+
+    @Test
     func `noting a menu open records the signal without starting a refresh`() {
         let settings = Self.makeSettingsStore(suite: "AdaptiveRefreshTimerTests-noteMenuOpened", frequency: .manual)
         let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)

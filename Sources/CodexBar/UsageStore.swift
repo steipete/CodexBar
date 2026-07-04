@@ -240,9 +240,9 @@ final class UsageStore {
     @ObservationIgnored private var providerAvailabilityCache: [UsageProvider: ProviderAvailabilityCacheEntry] = [:]
     @ObservationIgnored var accountInfoCache: [UsageProvider: AccountInfoCacheEntry] = [:]
     @ObservationIgnored private var timerTask: Task<Void, Never>?
-    /// In-memory only (never persisted); resets on every launch. Set by `noteMenuOpened(at:)`
-    /// and read by the adaptive refresh timer, never itself triggering a refresh.
+    /// In-memory only; resets on every launch.
     @ObservationIgnored private(set) var lastMenuOpenAt: Date?
+    @ObservationIgnored var adaptiveRefreshScheduledAt: Date?
     @ObservationIgnored private var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored private var tokenRefreshSequenceProvider: UsageProvider?
@@ -581,10 +581,21 @@ final class UsageStore {
         await self.runRefresh(forceTokenUsage: forceTokenUsage, startupConnectivityRetryAttempt: nil)
     }
 
-    /// Records that the status menu opened, for the adaptive refresh timer's "recent interaction"
-    /// signal. Fire-and-forget: never schedules or performs a refresh itself.
     func noteMenuOpened(at date: Date = Date()) {
         self.lastMenuOpenAt = date
+        guard self.settings.refreshFrequency == .adaptive else { return }
+
+        let decision = Self.adaptiveRefreshDecision(
+            now: date,
+            lastMenuOpenAt: date,
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            thermalState: ProcessInfo.processInfo.thermalState)
+        let candidate = date.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
+        guard Self.shouldAdvanceAdaptiveTimer(
+            scheduledAt: self.adaptiveRefreshScheduledAt,
+            candidate: candidate)
+        else { return }
+        self.startTimer(preservingResetBoundaryRefresh: true)
     }
 
     #if DEBUG
@@ -741,9 +752,12 @@ final class UsageStore {
     }
     #endif
 
-    private func startTimer() {
+    private func startTimer(preservingResetBoundaryRefresh: Bool = false) {
         self.timerTask?.cancel()
-        self.cancelResetBoundaryRefresh()
+        self.adaptiveRefreshScheduledAt = nil
+        if !preservingResetBoundaryRefresh {
+            self.cancelResetBoundaryRefresh()
+        }
 
         let frequency = self.settings.refreshFrequency
         guard frequency != .manual else { return }

@@ -38,8 +38,8 @@ read_when:
 - Every decision falls in the 2–30 min range by construction. Deliberately excludes quota, latency, error,
   account, and time-of-day signals.
 - `UsageStore` tracks `lastMenuOpenAt` in memory only (never persisted; resets on launch). `noteMenuOpened(at:)`
-  is called from `StatusItemController.menuWillOpen(_:)` as a fire-and-forget signal — it never itself
-  schedules or performs a refresh.
+  is called from `StatusItemController.menuWillOpen(_:)`. A menu open can bring a pending adaptive tick
+  forward to the recent-interaction cadence, but never postpones an earlier tick or refreshes synchronously.
 - Each adaptive tick recomputes the delay after the previous refresh completes, sleeps, then calls the same
   `UsageStore.refresh()` used by fixed-interval mode, so the existing `isRefreshing` coalescing guard still
   applies — only one provider-batch refresh runs at a time regardless of cadence mode.

@@ -29,6 +29,11 @@ extension UsageStore {
             thermalState: thermalState))
     }
 
+    nonisolated static func shouldAdvanceAdaptiveTimer(scheduledAt: Date?, candidate: Date) -> Bool {
+        guard let scheduledAt else { return true }
+        return candidate < scheduledAt
+    }
+
     func logAdaptiveRefreshDecision(_ decision: AdaptiveRefreshPolicy.Decision) {
         // Reason and delay only; never provider/account/email/path/credential/response data.
         // No "adaptive refresh: " prefix — the adaptiveRefresh log category already identifies the source.
@@ -41,11 +46,13 @@ extension UsageStore {
     /// Kept as a separate call so the strong reference doesn't extend into the caller's `Task.sleep`.
     static func nextAdaptiveTimerSleepDuration(for store: UsageStore?) async -> Duration? {
         guard let store else { return nil }
+        let now = Date()
         let decision = Self.adaptiveRefreshDecision(
-            now: Date(),
+            now: now,
             lastMenuOpenAt: store.lastMenuOpenAt,
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
+        store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
         store.logAdaptiveRefreshDecision(decision)
         return store.effectiveTimerSleepDuration(decision.delay)
     }

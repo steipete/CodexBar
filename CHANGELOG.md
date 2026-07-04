@@ -2,6 +2,9 @@
 
 ## 0.38.1 — Unreleased
 
+### Added
+- Usage refresh: add an opt-in Adaptive cadence that polls every 2–30 minutes based on recent menu use, Low Power Mode, and thermal state. Thanks @hhh2210!
+
 ## 0.38.0 — 2026-07-03
 
 ### Added
