@@ -5,6 +5,40 @@ import Testing
 
 struct CodexResetCreditOutcomeTests {
     @Test
+    func `supplemental inventory skips stale credentials without issuing a request`() async throws {
+        let recorder = ResetCreditRequestRecorder()
+        let result = try await UsageStore._fetchCodexResetCreditsForTesting(
+            credentials: Self.credentials(lastRefresh: .distantPast),
+            request: { accessToken, accountID, environment in
+                await recorder.record(accessToken: accessToken, accountID: accountID, environment: environment)
+                return Self.resetSnapshot(id: "unexpected", now: Date())
+            })
+
+        #expect(result == nil)
+        #expect(await recorder.count() == 0)
+    }
+
+    @Test
+    func `supplemental inventory uses fresh credentials for one read only request`() async throws {
+        let recorder = ResetCreditRequestRecorder()
+        let now = Date()
+        let expected = Self.resetSnapshot(id: "fresh", now: now)
+        let result = try await UsageStore._fetchCodexResetCreditsForTesting(
+            credentials: Self.credentials(lastRefresh: now),
+            env: ["CODEX_HOME": "/tmp/account-a"],
+            request: { accessToken, accountID, environment in
+                await recorder.record(accessToken: accessToken, accountID: accountID, environment: environment)
+                return expected
+            })
+
+        #expect(result == expected)
+        #expect(await recorder.count() == 1)
+        #expect(await recorder.lastAccessToken() == "access")
+        #expect(await recorder.lastAccountID() == "account-123")
+        #expect(await recorder.lastEnvironment()["CODEX_HOME"] == "/tmp/account-a")
+    }
+
+    @Test
     func `embedded OAuth inventory prevents a duplicate supplemental GET`() async throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
         let embedded = Self.resetSnapshot(id: "embedded", now: now)
@@ -177,6 +211,15 @@ struct CodexResetCreditOutcomeTests {
             updatedAt: now)
     }
 
+    private static func credentials(lastRefresh: Date?) -> CodexOAuthCredentials {
+        CodexOAuthCredentials(
+            accessToken: "access",
+            refreshToken: "refresh",
+            idToken: nil,
+            accountId: "account-123",
+            lastRefresh: lastRefresh)
+    }
+
     private static func usage(from outcome: ProviderFetchOutcome) throws -> UsageSnapshot {
         switch outcome.result {
         case let .success(result):
@@ -184,6 +227,30 @@ struct CodexResetCreditOutcomeTests {
         case let .failure(error):
             throw error
         }
+    }
+}
+
+private actor ResetCreditRequestRecorder {
+    private var requests: [(accessToken: String, accountID: String?, environment: [String: String])] = []
+
+    func record(accessToken: String, accountID: String?, environment: [String: String]) {
+        self.requests.append((accessToken, accountID, environment))
+    }
+
+    func count() -> Int {
+        self.requests.count
+    }
+
+    func lastAccessToken() -> String? {
+        self.requests.last?.accessToken
+    }
+
+    func lastAccountID() -> String? {
+        self.requests.last?.accountID
+    }
+
+    func lastEnvironment() -> [String: String] {
+        self.requests.last?.environment ?? [:]
     }
 }
 

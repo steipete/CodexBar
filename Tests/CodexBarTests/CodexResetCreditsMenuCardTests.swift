@@ -24,6 +24,11 @@ struct CodexResetCreditsMenuCardTests {
         #expect(presentation.text == "3 available")
         #expect(presentation.detailText == "Next expires in 1d")
         #expect(presentation.items.map(\.expiryText) == ["Expires in 1d", "Expires in 2d", "No expiry"])
+        #expect(CodexResetCreditsContent.expiryRows(presentation) == [
+            "Expires in 1d",
+            "Expires in 2d",
+            "No expiry",
+        ])
         #expect(presentation.helpText == "1. Expires in 1d\n2. Expires in 2d\n3. No expiry")
         #expect(presentation.accessibilityLabel.contains(presentation.helpText))
         #expect(StatusItemController.codexResetCreditMenuRows(presentation) == [

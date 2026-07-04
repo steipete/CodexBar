@@ -80,6 +80,10 @@ struct CodexResetCreditsContent: View {
     let presentation: CodexResetCreditsPresentation
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
+    nonisolated static func expiryRows(_ presentation: CodexResetCreditsPresentation) -> [String] {
+        presentation.items.map(\.expiryText)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L("Limit Reset Credits"))
@@ -99,6 +103,13 @@ struct CodexResetCreditsContent: View {
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(1)
                 }
+            }
+            ForEach(Array(Self.expiryRows(self.presentation).enumerated()), id: \.offset) { index, expiryText in
+                Text("\(index + 1). \(expiryText)")
+                    .font(.caption)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

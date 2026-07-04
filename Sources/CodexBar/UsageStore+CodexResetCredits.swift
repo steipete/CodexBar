@@ -71,16 +71,38 @@ extension UsageStore {
         env: [String: String]) async throws -> CodexRateLimitResetCreditsSnapshot?
     {
         try Task.checkCancellation()
-        var credentials = try CodexOAuthCredentialsStore.loadOAuthTokens(env: env)
-        if credentials.needsRefresh, !credentials.refreshToken.isEmpty {
-            credentials = try await CodexTokenRefresher.refresh(credentials)
-            try Task.checkCancellation()
-            try CodexOAuthCredentialsStore.save(credentials, env: env)
-        }
-        return try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
-            accessToken: credentials.accessToken,
-            accountId: credentials.accountId,
-            env: env)
+        let credentials = try CodexOAuthCredentialsStore.loadOAuthTokens(env: env)
+        return try await Self.fetchCodexResetCredits(
+            credentials: credentials,
+            env: env,
+            request: { accessToken, accountId, requestEnvironment in
+                try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                    accessToken: accessToken,
+                    accountId: accountId,
+                    env: requestEnvironment)
+            })
+    }
+
+    private nonisolated static func fetchCodexResetCredits(
+        credentials: CodexOAuthCredentials,
+        env: [String: String],
+        request: @escaping @Sendable (String, String?, [String: String]) async throws
+            -> CodexRateLimitResetCreditsSnapshot?) async throws -> CodexRateLimitResetCreditsSnapshot?
+    {
+        try Task.checkCancellation()
+        // Supplemental inventory is strictly read-only. The main OAuth usage strategy owns token refreshes;
+        // CLI/web winners with stale credentials simply skip this best-effort GET.
+        guard !credentials.needsRefresh else { return nil }
+        return try await request(credentials.accessToken, credentials.accountId, env)
+    }
+
+    nonisolated static func _fetchCodexResetCreditsForTesting(
+        credentials: CodexOAuthCredentials,
+        env: [String: String] = [:],
+        request: @escaping @Sendable (String, String?, [String: String]) async throws
+            -> CodexRateLimitResetCreditsSnapshot?) async throws -> CodexRateLimitResetCreditsSnapshot?
+    {
+        try await self.fetchCodexResetCredits(credentials: credentials, env: env, request: request)
     }
 }
 
