@@ -3,6 +3,7 @@
 ## 0.38.1 — Unreleased
 
 ### Added
+- Localization: add Galician app translations and language selection. Thanks @B1NAR10!
 - Claude: show model-scoped weekly quota windows, including promotional Fable limits, from OAuth and web usage responses. Thanks @konon4!
 - Usage refresh: add an opt-in Adaptive cadence that polls every 2–30 minutes based on recent menu use, Low Power Mode, and thermal state. Thanks @hhh2210!
 - Codex: show a conservative 1.5× pace-headroom hint in menus and CLI output when usage is safely ahead of the reset curve. Thanks @astuteprogrammer!

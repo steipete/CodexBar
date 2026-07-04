@@ -1092,6 +1092,7 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "限额重置额度";
 "1 available" = "1 次可用";
 "%d available" = "%d 次可用";

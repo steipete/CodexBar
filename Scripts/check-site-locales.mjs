@@ -13,7 +13,7 @@ for (const match of indexHtml.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+
 }
 const expectedCodes = [
   "en", "zh-CN", "zh-TW", "ja-JP", "es", "pt-BR", "ko", "de", "fr", "ar", "it",
-  "vi", "nl", "tr", "uk", "id", "pl", "fa", "th", "ca", "sv",
+  "vi", "nl", "tr", "uk", "id", "pl", "fa", "th", "gl", "ca", "sv",
 ];
 const catalogCodes = localeCatalog.map((locale) => locale.code);
 const appLanguageSource = fs.readFileSync(
