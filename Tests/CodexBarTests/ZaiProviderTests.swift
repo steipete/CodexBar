@@ -311,6 +311,20 @@ struct ZaiUsageParsingTests {
     }
 
     @Test
+    func `failed response without message reports the API code`() {
+        let json = """
+        { "code": 1001, "success": false }
+        """
+
+        #expect {
+            _ = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+        } throws: { error in
+            guard case let ZaiUsageError.apiError(message) = error else { return false }
+            return message == "Z.ai quota API returned code 1001"
+        }
+    }
+
+    @Test
     func `success without data returns parse failed`() {
         let json = """
         { "code": 200, "msg": "Operation successful", "success": true }
@@ -386,6 +400,57 @@ struct ZaiUsageParsingTests {
         #expect(snapshot.tokenLimit?.usedPercent == 1.0)
         #expect(snapshot.tokenLimit?.windowMinutes == 300)
         #expect(snapshot.timeLimit?.usage == 100)
+    }
+
+    @Test
+    func `parses BigModel CN quota response without message`() throws {
+        let json = """
+        {
+          "code": 200,
+          "data": {
+            "limits": [
+              {
+                "type": "TIME_LIMIT",
+                "unit": 5,
+                "number": 1,
+                "usage": 1000,
+                "currentValue": 147,
+                "remaining": 853,
+                "percentage": 14,
+                "nextResetTime": 1784706344993,
+                "usageDetails": [
+                  { "modelCode": "search-prime", "usage": 84 },
+                  { "modelCode": "web-reader", "usage": 41 },
+                  { "modelCode": "zread", "usage": 8 }
+                ]
+              },
+              {
+                "type": "TOKENS_LIMIT",
+                "unit": 3,
+                "number": 5,
+                "percentage": 8,
+                "nextResetTime": 1783049703178
+              },
+              {
+                "type": "TOKENS_LIMIT",
+                "unit": 6,
+                "number": 1,
+                "percentage": 7,
+                "nextResetTime": 1783496744998
+              }
+            ],
+            "level": "pro"
+          },
+          "success": true
+        }
+        """
+
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 7)
+        #expect(usage.secondary?.usedPercent == 14.7)
+        #expect(usage.tertiary?.usedPercent == 8)
     }
 }
 
