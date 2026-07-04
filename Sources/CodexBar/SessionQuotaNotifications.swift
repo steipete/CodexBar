@@ -14,17 +14,28 @@ struct QuotaWarningEvent: Equatable {
     let threshold: Int
     let currentRemaining: Double
     let accountDisplayName: String?
+    /// Stable id of the extra rate window this warning is for (e.g. `claude-weekly-scoped-fable`),
+    /// used to keep OS notification ids unique across sibling windows. `nil` for the primary
+    /// session/weekly lanes.
+    let windowID: String?
+    /// Human-facing window label to render instead of the generic session/weekly name
+    /// (e.g. "Fable only", "Daily Routines"). `nil` falls back to the localized lane name.
+    let windowDisplayLabel: String?
 
     init(
         window: QuotaWarningWindow,
         threshold: Int,
         currentRemaining: Double,
-        accountDisplayName: String? = nil)
+        accountDisplayName: String? = nil,
+        windowID: String? = nil,
+        windowDisplayLabel: String? = nil)
     {
         self.window = window
         self.threshold = threshold
         self.currentRemaining = currentRemaining
         self.accountDisplayName = accountDisplayName
+        self.windowID = windowID
+        self.windowDisplayLabel = windowDisplayLabel
     }
 }
 
@@ -73,9 +84,10 @@ enum QuotaWarningNotificationLogic {
         window: QuotaWarningWindow,
         threshold: Int,
         currentRemaining: Double,
-        accountDisplayName: String? = nil) -> (title: String, body: String)
+        accountDisplayName: String? = nil,
+        windowDisplayLabel: String? = nil) -> (title: String, body: String)
     {
-        let windowLabel = window.localizedNotificationDisplayName
+        let windowLabel = windowDisplayLabel ?? window.localizedNotificationDisplayName
         let remainingText = Self.percentText(currentRemaining)
         let title = L("quota_warning_notification_title", providerName, windowLabel)
         let body = if let accountDisplayName {
@@ -242,8 +254,10 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
             window: event.window,
             threshold: threshold,
             currentRemaining: event.currentRemaining,
-            accountDisplayName: event.accountDisplayName)
-        let idPrefix = "quota-warning-\(provider.rawValue)-\(event.window.rawValue)-\(threshold)"
+            accountDisplayName: event.accountDisplayName,
+            windowDisplayLabel: event.windowDisplayLabel)
+        let windowSegment = event.windowID.map { "-\($0)" } ?? ""
+        let idPrefix = "quota-warning-\(provider.rawValue)-\(event.window.rawValue)\(windowSegment)-\(threshold)"
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
         if soundEnabled {
             (NSSound(named: "Glass") ?? NSSound(named: "Ping"))?.play()
