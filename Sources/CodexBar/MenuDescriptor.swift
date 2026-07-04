@@ -303,7 +303,7 @@ struct MenuDescriptor {
             entries.append(.text("\(L("Balance")): \(sakanaPayAsYouGo.balanceDetail)", .primary))
             if let periodUsageTotal = sakanaPayAsYouGo.periodUsageTotal {
                 entries.append(.text(
-                    "\(L("Recent usage")): \(UsageFormatter.usdString(periodUsageTotal))",
+                    "\(L("Usage")): \(UsageFormatter.usdString(periodUsageTotal))",
                     .secondary))
             }
         }

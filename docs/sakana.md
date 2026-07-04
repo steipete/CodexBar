@@ -80,11 +80,11 @@ The optional request runs concurrently with the required subscription request an
 It is cancelled when the required request fails or the caller cancels, so it cannot add a second full request
 timeout or outlive the refresh that started it.
 
-- Menu: a `Balance: $X.XX` row (and a `Recent usage: $X.XX` row when the usage total parses) appears alongside the
-  quota windows. These rows are gated on Settings → Advanced → "Show optional credits and extra usage" at **both**
+- Menu: an `Extra usage` card shows `Balance: $X.XX` and, when available, `Usage: $X.XX` alongside the quota windows.
+  The values are gated on Settings → Advanced → "Show optional credits and extra usage" at **both**
   the fetch and the render layer: turning the setting off only rebuilds the menu without an immediate refetch, so a
-  previously-fetched balance would otherwise linger in the cached snapshot until the next refresh — `MenuDescriptor`
-  therefore hides the rows whenever the setting is off, independent of whether the snapshot still holds the field.
+  previously-fetched balance would otherwise linger in the cached snapshot until the next refresh. Both the live
+  menu-card model and the text descriptor hide the values whenever the setting is off, independent of cached data.
 - Not shown in the menu bar text: unlike some other credits-only providers, Sakana already has real 5-hour/weekly
   rate windows, and the "secondary metric" preference that would otherwise select an alternate menu bar display is
   the legitimate way to show the *weekly* window there. Reusing it for the PAYG balance would silently replace the
@@ -123,7 +123,8 @@ There is no `codexbar config set` command for `cookieHeader`; use one of the pat
 - `Sources/CodexBar/Providers/Sakana/`
   - `SakanaProviderImplementation.swift` — settings UI, availability check
   - `SakanaSettingsStore.swift` — `sakanaCookieHeader` settings binding
-- `Sources/CodexBar/MenuDescriptor.swift` — `Balance:` / `Recent usage:` summary rows
+- `Sources/CodexBar/MenuCardView+Costs.swift` — live menu-card balance and usage section
+- `Sources/CodexBar/MenuDescriptor.swift` — text-descriptor balance and usage rows
 - `Tests/CodexBarTests/SakanaUsageFetcherTests.swift` — parser regression tests
 - Dashboard: `https://console.sakana.ai/billing` (subscription tab), `https://console.sakana.ai/billing?tab=payAsYouGo`
   (pay-as-you-go tab)

@@ -18,6 +18,15 @@ extension UsageMenuCardView.Model.ProviderCostSection {
 }
 
 extension UsageMenuCardView.Model {
+    static func sakanaPayAsYouGoSection(_ usage: SakanaPayAsYouGoSnapshot?) -> ProviderCostSection? {
+        guard let usage else { return nil }
+        return ProviderCostSection(
+            title: L("Extra usage"),
+            percentUsed: nil,
+            spendLine: "\(L("Balance")): \(usage.balanceDetail)",
+            percentLine: usage.periodUsageTotal.map { "\(L("Usage")): \(UsageFormatter.usdString($0))" })
+    }
+
     static func isRequiredOpenCodeZenBalance(_ snapshot: UsageSnapshot?) -> Bool {
         snapshot?.primary == nil &&
             snapshot?.secondary == nil &&

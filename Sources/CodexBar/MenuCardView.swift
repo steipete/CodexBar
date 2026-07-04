@@ -820,7 +820,11 @@ extension UsageMenuCardView.Model {
             input.provider == .factory ||
             (input.provider == .opencodego && !isRequiredOpenCodeZenBalance)) &&
             !input.showOptionalCreditsAndExtraUsage
-        let providerCost: ProviderCostSection? = if hidesOptionalProviderCost ||
+        let providerCost: ProviderCostSection? = if input.provider == .sakana {
+            input.showOptionalCreditsAndExtraUsage
+                ? Self.sakanaPayAsYouGoSection(input.snapshot?.sakanaPayAsYouGo)
+                : nil
+        } else if hidesOptionalProviderCost ||
             (input.provider == .openai && openAIAPIUsage != nil)
         {
             nil

@@ -427,6 +427,8 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
     private var payAsYouGoStarted = false
     private var payAsYouGoCompleted = false
     private var payAsYouGoWasCancelled = false
+    private var payAsYouGoStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var payAsYouGoCompletionWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
         statusCode: Int,
@@ -463,7 +465,7 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let isPayAsYouGo = request.url?.query == "tab=payAsYouGo"
         if isPayAsYouGo {
-            self.payAsYouGoStarted = true
+            self.markPayAsYouGoStarted()
             if let payAsYouGoDelay {
                 try await Task.sleep(for: payAsYouGoDelay)
             }
@@ -476,19 +478,9 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
                 }
             }
         } else if self.billingWaitsForPayAsYouGo {
-            for _ in 0..<1000 where !self.payAsYouGoStarted {
-                await Task.yield()
-            }
-            guard self.payAsYouGoStarted else {
-                throw URLError(.timedOut)
-            }
+            await self.waitForPayAsYouGoStart()
             if !self.payAsYouGoBlocksUntilCancelled {
-                for _ in 0..<1000 where !self.payAsYouGoCompleted {
-                    await Task.yield()
-                }
-                guard self.payAsYouGoCompleted else {
-                    throw URLError(.timedOut)
-                }
+                await self.waitForPayAsYouGoCompletion()
             }
         }
 
@@ -506,8 +498,36 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
             httpVersion: "HTTP/1.1",
             headerFields: self.headers)!
         if isPayAsYouGo {
-            self.payAsYouGoCompleted = true
+            self.markPayAsYouGoCompleted()
         }
         return (Data(responseBody.utf8), response)
+    }
+
+    private func waitForPayAsYouGoStart() async {
+        guard !self.payAsYouGoStarted else { return }
+        await withCheckedContinuation { continuation in
+            self.payAsYouGoStartWaiters.append(continuation)
+        }
+    }
+
+    private func waitForPayAsYouGoCompletion() async {
+        guard !self.payAsYouGoCompleted else { return }
+        await withCheckedContinuation { continuation in
+            self.payAsYouGoCompletionWaiters.append(continuation)
+        }
+    }
+
+    private func markPayAsYouGoStarted() {
+        self.payAsYouGoStarted = true
+        let waiters = self.payAsYouGoStartWaiters
+        self.payAsYouGoStartWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    private func markPayAsYouGoCompleted() {
+        self.payAsYouGoCompleted = true
+        let waiters = self.payAsYouGoCompletionWaiters
+        self.payAsYouGoCompletionWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 }
