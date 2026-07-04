@@ -392,11 +392,11 @@ struct GeminiStatusProbeAPITests {
         }
 
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
-        let start = Date()
         let snapshot = try await probe.fetch()
-        let elapsed = Date().timeIntervalSince(start)
         #expect(snapshot.accountPlan == "Paid")
-        #expect(elapsed < 3, "fnm package discovery should not wait for inherited stdout EOF, took \(elapsed)s")
+        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
+        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        #expect(kill(childPID, 0) == 0, "package discovery should return while the stdout-holding child is alive")
 
         let updated = try env.readCredentials()
         #expect(updated["access_token"] as? String == "new-token")
@@ -416,24 +416,25 @@ struct GeminiStatusProbeAPITests {
         """.write(to: helper, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
 
-        let start = Date()
+        let clock = ContinuousClock()
+        let start = clock.now
         let result = GeminiStatusProbe.runProcess(
             executable: helper.path,
             arguments: [pidFile.path],
             environment: [:],
             timeout: 1)
-        let elapsed = Date().timeIntervalSince(start)
+        let elapsed = start.duration(to: clock.now)
         let text = try String(contentsOf: pidFile, encoding: .utf8)
         let processID = try #require(pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)))
         defer { _ = kill(processID, SIGKILL) }
 
         #expect(result == nil)
         #expect(kill(processID, 0) == -1)
-        #expect(elapsed < 3, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
+        #expect(elapsed < .seconds(3), "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)")
     }
 
     @Test
-    func `fnm helper completed no-output failure returns promptly`() throws {
+    func `fnm helper completed no-output failure returns before deadline`() throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         let helper = env.homeURL.appendingPathComponent("fnm-failure")
@@ -443,7 +444,8 @@ struct GeminiStatusProbeAPITests {
         """.write(to: helper, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
 
-        let start = Date()
+        let clock = ContinuousClock()
+        let start = clock.now
         let result = GeminiStatusProbe.runProcess(
             executable: helper.path,
             arguments: [],
@@ -451,11 +453,11 @@ struct GeminiStatusProbeAPITests {
             timeout: 2)
 
         #expect(result == nil)
-        #expect(Date().timeIntervalSince(start) < 1)
+        #expect(start.duration(to: clock.now) < .seconds(1))
     }
 
     @Test
-    func `fnm helper successful output returns first line promptly`() throws {
+    func `fnm helper successful output returns first line`() throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         let helper = env.homeURL.appendingPathComponent("fnm-success")
@@ -467,7 +469,8 @@ struct GeminiStatusProbeAPITests {
         """.write(to: helper, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
 
-        let start = Date()
+        let clock = ContinuousClock()
+        let start = clock.now
         let result = GeminiStatusProbe.runProcess(
             executable: helper.path,
             arguments: [],
@@ -475,7 +478,7 @@ struct GeminiStatusProbeAPITests {
             timeout: 2)
 
         #expect(result == "/tmp/gemini-package")
-        #expect(Date().timeIntervalSince(start) < 1)
+        #expect(start.duration(to: clock.now) < .seconds(1))
     }
 
     @Test
