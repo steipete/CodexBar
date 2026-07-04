@@ -481,12 +481,17 @@ private struct ProviderCodexResetCreditsInlineRow: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            ForEach(Array(self.presentation.items.enumerated()), id: \.offset) { _, item in
-                Text(item.expiryText)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Image(systemName: "clock")
+                    .font(.caption2)
+                Text(self.presentation.expirySummaryText)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityHidden(true)
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)

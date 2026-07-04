@@ -123,10 +123,7 @@ extension CodexResetCreditsPresentation {
     fileprivate var heightFingerprint: String {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("text", self.text),
-            MenuCardHeightFingerprint.field("detail", self.detailText),
-            MenuCardHeightFingerprint.join(self.items.map {
-                MenuCardHeightFingerprint.field("expiry", $0.expiryText)
-            }),
+            MenuCardHeightFingerprint.field("expirySummary", self.expirySummaryText),
         ])
     }
 }

@@ -11,6 +11,7 @@
 - Mistral: show available credit balance from the authenticated billing session while preserving API spend and Monthly Plan usage. Thanks @Zihao-Qi!
 
 ### Changed
+- Codex: compact reset-credit expiry inventory into a single scannable timeline instead of one row per credit.
 - Repository: reject oversized tracked blobs and generated release/build artifacts during checks. Thanks @joeVenner!
 
 ### Fixed
