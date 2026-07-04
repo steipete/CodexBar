@@ -906,7 +906,7 @@ enum WidgetColors {
         case .deepgram:
             Color(red: 10 / 255, green: 18 / 255, blue: 27 / 255)
         case .poe:
-            Color(red: 0.15, green: 0.68, blue: 0.38)
+            Color(red: 93 / 255, green: 92 / 255, blue: 222 / 255) // Poe purple
         case .chutes:
             Color(red: 24 / 255, green: 160 / 255, blue: 88 / 255)
         case .zed:
