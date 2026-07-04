@@ -1114,15 +1114,9 @@ extension GeminiStatusProbe {
         let stdoutCapture = ProcessPipeCapture(pipe: stdout)
         let stderrCapture = ProcessPipeCapture(pipe: stderr)
 
-        let exitSemaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exitSemaphore.signal()
-        }
-
         do {
             try process.run()
         } catch {
-            process.terminationHandler = nil
             stdoutCapture.stop()
             stderrCapture.stop()
             return nil
@@ -1132,8 +1126,13 @@ extension GeminiStatusProbe {
         let pid = process.processIdentifier
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
 
-        let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
-        if !didExit {
+        // This API is synchronous. Waiting on Process.terminationHandler can starve its callback when
+        // the caller owns the active executor thread, so poll Process directly until the same deadline.
+        let deadline = DispatchTime.now() + max(0, timeout)
+        while process.isRunning, DispatchTime.now() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        if process.isRunning {
             SubprocessRunner.terminateProcess(process, processGroup: processGroup)
             stdoutCapture.stop()
             stderrCapture.stop()
