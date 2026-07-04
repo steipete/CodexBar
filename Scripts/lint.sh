@@ -45,6 +45,11 @@ check_ci_path_gate() {
   "${ROOT_DIR}/Scripts/test_ci_path_gate.sh"
 }
 
+check_repository_size() {
+  "${ROOT_DIR}/Scripts/check_repository_size.sh"
+  "${ROOT_DIR}/Scripts/test_repository_size.sh"
+}
+
 check_shell_scripts() {
   local count=0
   local script
@@ -83,6 +88,7 @@ run_portable_checks() {
   check_sparkle_signing_paths
   check_swift_test_sharding
   check_ci_path_gate
+  check_repository_size
   check_shell_scripts
   check_documentation_links
   check_llms_index
