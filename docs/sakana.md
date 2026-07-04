@@ -81,7 +81,10 @@ It is cancelled when the required request fails or the caller cancels, so it can
 timeout or outlive the refresh that started it.
 
 - Menu: a `Balance: $X.XX` row (and a `Recent usage: $X.XX` row when the usage total parses) appears alongside the
-  quota windows.
+  quota windows. These rows are gated on Settings → Advanced → "Show optional credits and extra usage" at **both**
+  the fetch and the render layer: turning the setting off only rebuilds the menu without an immediate refetch, so a
+  previously-fetched balance would otherwise linger in the cached snapshot until the next refresh — `MenuDescriptor`
+  therefore hides the rows whenever the setting is off, independent of whether the snapshot still holds the field.
 - Not shown in the menu bar text: unlike some other credits-only providers, Sakana already has real 5-hour/weekly
   rate windows, and the "secondary metric" preference that would otherwise select an alternate menu bar display is
   the legitimate way to show the *weekly* window there. Reusing it for the PAYG balance would silently replace the

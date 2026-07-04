@@ -238,7 +238,10 @@ struct MenuDescriptor {
                     resetOverride: opusResetOverride)
             }
 
-            Self.appendProviderUsageSummaries(entries: &entries, snapshot: snap)
+            Self.appendProviderUsageSummaries(
+                entries: &entries,
+                snapshot: snap,
+                showOptionalUsage: settings.showOptionalCreditsAndExtraUsage)
             if snap.rateLimitsUnavailable(for: provider) {
                 entries.append(.text(L("Limits not available"), .secondary))
             }
@@ -264,7 +267,8 @@ struct MenuDescriptor {
 
     private static func appendProviderUsageSummaries(
         entries: inout [Entry],
-        snapshot: UsageSnapshot)
+        snapshot: UsageSnapshot,
+        showOptionalUsage: Bool)
     {
         if let cost = snapshot.providerCost {
             if cost.currencyCode == "Quota" {
@@ -291,7 +295,11 @@ struct MenuDescriptor {
         if let mimoUsage = snapshot.mimoUsage {
             entries.append(.text("\(L("Balance")): \(mimoUsage.balanceDetail)", .primary))
         }
-        if let sakanaPayAsYouGo = snapshot.sakanaPayAsYouGo {
+        // Sakana pay-as-you-go is optional data gated by "Show optional credits and extra usage".
+        // Gate the render on the setting too, not just the fetch: toggling the setting off only
+        // rebuilds the menu, it does not immediately refetch, so a previously-populated
+        // sakanaPayAsYouGo would otherwise linger in the cached snapshot until the next refresh.
+        if showOptionalUsage, let sakanaPayAsYouGo = snapshot.sakanaPayAsYouGo {
             entries.append(.text("\(L("Balance")): \(sakanaPayAsYouGo.balanceDetail)", .primary))
             if let periodUsageTotal = sakanaPayAsYouGo.periodUsageTotal {
                 entries.append(.text(
