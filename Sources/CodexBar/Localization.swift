@@ -52,8 +52,7 @@ func codexBarLocalizationSignature() -> String {
 private enum LocalizationBundleCache {
     private static let lock = NSLock()
     private nonisolated(unsafe) static var resourceBundle: Bundle?
-    private nonisolated(unsafe) static var cachedLanguage: String?
-    private nonisolated(unsafe) static var cachedLocalizedBundle: Bundle?
+    private nonisolated(unsafe) static var localizedBundlesByLanguage: [String: Bundle] = [:]
 
     static func defaultResourceBundle(_ compute: () -> Bundle) -> Bundle {
         self.lock.lock()
@@ -71,16 +70,14 @@ private enum LocalizationBundleCache {
 
     static func localizedBundle(forLanguage language: String, _ compute: () -> Bundle) -> Bundle {
         self.lock.lock()
-        if self.cachedLanguage == language, let cachedLocalizedBundle {
-            let hit = cachedLocalizedBundle
+        if let cachedLocalizedBundle = self.localizedBundlesByLanguage[language] {
             self.lock.unlock()
-            return hit
+            return cachedLocalizedBundle
         }
         self.lock.unlock()
         let computed = compute()
         self.lock.lock()
-        self.cachedLanguage = language
-        cachedLocalizedBundle = computed
+        self.localizedBundlesByLanguage[language] = computed
         self.lock.unlock()
         return computed
     }
@@ -88,8 +85,7 @@ private enum LocalizationBundleCache {
     static func reset() {
         self.lock.lock()
         self.resourceBundle = nil
-        self.cachedLanguage = nil
-        self.cachedLocalizedBundle = nil
+        self.localizedBundlesByLanguage = [:]
         self.lock.unlock()
     }
 }
@@ -132,7 +128,11 @@ private func localizedBundle() -> Bundle {
     // Keyed on the resolved language so a language switch (settings change or test override) transparently
     // re-resolves; otherwise the cached bundle is returned without touching the filesystem.
     let language = resolvedAppLanguage()
-    return LocalizationBundleCache.localizedBundle(forLanguage: language) {
+    return localizedBundle(forLanguage: language)
+}
+
+private func localizedBundle(forLanguage language: String) -> Bundle {
+    LocalizationBundleCache.localizedBundle(forLanguage: language) {
         resolveLocalizedBundle(forLanguage: language)
     }
 }
@@ -145,7 +145,11 @@ private func resolveLocalizedBundle(forLanguage language: String) -> Bundle {
         }
     } else {
         // System mode: follow macOS language preferences
-        if let preferred = resourceBundle.preferredLocalizations.first,
+        let localizations = resourceBundle.localizations.filter { $0 != "Base" }
+        let preferred = Bundle.preferredLocalizations(
+            from: localizations,
+            forPreferences: Locale.preferredLanguages).first
+        if let preferred,
            let bundle = lprojBundle(named: preferred, in: resourceBundle)
         {
             return bundle
@@ -181,6 +185,12 @@ func L(_ key: String, _ arguments: CVarArg...) -> String {
     String(format: L(key), arguments: arguments)
 }
 
+func L(_ key: String, language: String) -> String {
+    let resourceBundle = codexBarLocalizationResourceBundle()
+    let bundle = localizedBundle(forLanguage: language)
+    return codexBarLocalizedString(key, bundle: bundle, resourceBundle: resourceBundle)
+}
+
 func codexBarLocalizedLocale() -> Locale {
     let language = resolvedAppLanguage()
     guard !language.isEmpty else { return .current }
@@ -213,13 +223,17 @@ func codexBarLocalizedString(_ key: String, bundle: Bundle, resourceBundle: Bund
     return fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? key : fallback
 }
 
+func resetCodexBarLocalizationCache() {
+    LocalizationBundleCache.reset()
+}
+
 #if DEBUG
 func codexBarLocalizedBundleForTesting() -> Bundle {
     localizedBundle()
 }
 
 func resetCodexBarLocalizationCacheForTesting() {
-    LocalizationBundleCache.reset()
+    resetCodexBarLocalizationCache()
 }
 #endif
 

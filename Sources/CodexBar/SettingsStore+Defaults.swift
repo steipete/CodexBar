@@ -728,7 +728,7 @@ extension SettingsStore {
                 if self.userDefaults !== UserDefaults.standard {
                     UserDefaults.standard.set(stored, forKey: "appLanguage")
                 }
-                UserDefaults.standard.set([stored], forKey: "AppleLanguages")
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
             } else {
                 self.userDefaults.removeObject(forKey: "appLanguage")
                 if self.userDefaults !== UserDefaults.standard {
@@ -736,6 +736,7 @@ extension SettingsStore {
                 }
                 UserDefaults.standard.removeObject(forKey: "AppleLanguages")
             }
+            resetCodexBarLocalizationCache()
         }
     }
 

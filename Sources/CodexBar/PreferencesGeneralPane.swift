@@ -33,31 +33,44 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 
     var label: String {
+        L(self.labelKey, language: self.labelLanguage)
+    }
+
+    private var labelLanguage: String {
         switch self {
-        case .system: L("language_system")
-        case .english: L("language_english")
-        case .chineseSimplified: L("language_chinese_simplified")
-        case .chineseTraditional: L("language_chinese_traditional")
-        case .japanese: L("language_japanese")
-        case .spanish: L("language_spanish")
-        case .portugueseBrazilian: L("language_portuguese_brazilian")
-        case .korean: L("language_korean")
-        case .german: L("language_german")
-        case .french: L("language_french")
-        case .arabic: L("language_arabic")
-        case .italian: L("language_italian")
-        case .vietnamese: L("language_vietnamese")
-        case .dutch: L("language_dutch")
-        case .turkish: L("language_turkish")
-        case .ukrainian: L("language_ukrainian")
-        case .russian: L("language_russian")
-        case .indonesian: L("language_indonesian")
-        case .polish: L("language_polish")
-        case .persian: L("language_persian")
-        case .thai: L("language_thai")
-        case .galician: L("language_galician")
-        case .catalan: L("language_catalan")
-        case .swedish: L("language_swedish")
+        case .system, .english:
+            "en"
+        default:
+            self.rawValue
+        }
+    }
+
+    private var labelKey: String {
+        switch self {
+        case .system: "language_system"
+        case .english: "language_english"
+        case .chineseSimplified: "language_chinese_simplified"
+        case .chineseTraditional: "language_chinese_traditional"
+        case .japanese: "language_japanese"
+        case .spanish: "language_spanish"
+        case .portugueseBrazilian: "language_portuguese_brazilian"
+        case .korean: "language_korean"
+        case .german: "language_german"
+        case .french: "language_french"
+        case .arabic: "language_arabic"
+        case .italian: "language_italian"
+        case .vietnamese: "language_vietnamese"
+        case .dutch: "language_dutch"
+        case .turkish: "language_turkish"
+        case .ukrainian: "language_ukrainian"
+        case .russian: "language_russian"
+        case .indonesian: "language_indonesian"
+        case .polish: "language_polish"
+        case .persian: "language_persian"
+        case .thai: "language_thai"
+        case .galician: "language_galician"
+        case .catalan: "language_catalan"
+        case .swedish: "language_swedish"
         }
     }
 }
@@ -71,7 +84,7 @@ struct GeneralPane: View {
             Section {
                 Picker(selection: self.$settings.appLanguage) {
                     ForEach(AppLanguage.allCases) { option in
-                        Text(option.label).tag(option.rawValue)
+                        Text(verbatim: option.label).tag(option.rawValue)
                     }
                 } label: {
                     SettingsRowLabel(L("language_title"), subtitle: L("language_subtitle"))

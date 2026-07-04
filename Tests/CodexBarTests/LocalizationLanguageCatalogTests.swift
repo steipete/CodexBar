@@ -86,6 +86,48 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `language picker labels use stable native names`() {
+        let expected: [AppLanguage: String] = [
+            .system: "System",
+            .english: "English",
+            .chineseSimplified: "简体中文",
+            .chineseTraditional: "繁體中文",
+            .japanese: "日本語",
+            .spanish: "Español",
+            .portugueseBrazilian: "Português (Brasil)",
+            .korean: "한국어",
+            .german: "Deutsch",
+            .french: "Français",
+            .arabic: "العربية",
+            .italian: "Italiano",
+            .vietnamese: "Tiếng Việt",
+            .dutch: "Nederlands",
+            .turkish: "Türkçe",
+            .ukrainian: "Українська",
+            .russian: "Русский",
+            .indonesian: "Bahasa Indonesia",
+            .polish: "Polski",
+            .persian: "فارسی",
+            .thai: "ไทย",
+            .galician: "Galego",
+            .catalan: "Català",
+            .swedish: "Svenska",
+        ]
+
+        #expect(expected.count == AppLanguage.allCases.count)
+
+        let japaneseLabels = CodexBarLocalizationOverride.$appLanguage.withValue("ja") {
+            Dictionary(uniqueKeysWithValues: AppLanguage.allCases.map { ($0, $0.label) })
+        }
+        let arabicLabels = CodexBarLocalizationOverride.$appLanguage.withValue("ar") {
+            Dictionary(uniqueKeysWithValues: AppLanguage.allCases.map { ($0, $0.label) })
+        }
+
+        #expect(japaneseLabels == expected)
+        #expect(arabicLabels == expected)
+    }
+
+    @Test
     func `new language bundles include representative native labels`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

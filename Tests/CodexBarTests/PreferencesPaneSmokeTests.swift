@@ -114,6 +114,38 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `language preference clears stale app level AppleLanguages override`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        let previousAppleLanguages = UserDefaults.standard.object(forKey: "AppleLanguages")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+            if let previousAppleLanguages {
+                UserDefaults.standard.set(previousAppleLanguages, forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+        }
+
+        let staleOverride = ["zz-StaleLanguageOverride"]
+        UserDefaults.standard.set(staleOverride, forKey: "AppleLanguages")
+
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-system")
+        settings.appLanguage = "ko"
+
+        #expect(UserDefaults.standard.string(forKey: "appLanguage") == "ko")
+        #expect(UserDefaults.standard.object(forKey: "AppleLanguages") as? [String] != staleOverride)
+
+        settings.appLanguage = ""
+
+        #expect(UserDefaults.standard.object(forKey: "appLanguage") == nil)
+        #expect(UserDefaults.standard.object(forKey: "AppleLanguages") as? [String] != staleOverride)
+    }
+
+    @Test
     func `german app language resolves localized labels`() {
         let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-language-de")
         settings.appLanguage = "de"

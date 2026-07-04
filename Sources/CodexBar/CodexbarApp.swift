@@ -109,13 +109,9 @@ struct CodexBarApp: App {
         _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
     }
 
-    private static func applyLanguagePreference(from settings: SettingsStore) {
-        let language = settings.appLanguage
-        if language.isEmpty {
-            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-        } else {
-            UserDefaults.standard.set([language], forKey: "AppleLanguages")
-        }
+    private static func applyLanguagePreference(from _: SettingsStore) {
+        UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        resetCodexBarLocalizationCache()
     }
 }
 
