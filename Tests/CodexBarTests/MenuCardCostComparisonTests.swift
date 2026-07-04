@@ -17,7 +17,7 @@ struct MenuCardCostComparisonTests {
                 Self.entry(day: "2026-06-25", cost: 2, tokens: 200),
                 Self.entry(day: "2026-07-01", cost: 4, tokens: 400),
             ],
-            updatedAt: Date(timeIntervalSince1970: 1_782_864_000))
+            updatedAt: Self.localNoon(year: 2026, month: 7, day: 1))
 
         let section = try #require(UsageMenuCardView.Model.tokenUsageSection(
             provider: .claude,
@@ -105,5 +105,9 @@ struct MenuCardCostComparisonTests {
             costUSD: cost,
             modelsUsed: nil,
             modelBreakdowns: nil)
+    }
+
+    private static func localNoon(year: Int, month: Int, day: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
     }
 }
