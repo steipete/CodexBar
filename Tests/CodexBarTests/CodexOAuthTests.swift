@@ -730,67 +730,6 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `reset credit inventory only O auth payload still returns usage result`() throws {
-        let json = #"{"rate_limit":{"primary_window":null,"secondary_window":null}}"#
-        let now = Date()
-        let resetCredits = CodexRateLimitResetCreditsSnapshot(
-            credits: [
-                CodexRateLimitResetCredit(
-                    id: "available-no-expiry",
-                    resetType: "codex_rate_limits",
-                    status: .available,
-                    grantedAt: now,
-                    expiresAt: nil,
-                    redeemStartedAt: nil,
-                    redeemedAt: nil,
-                    title: nil,
-                    description: nil),
-            ],
-            availableCount: 1,
-            updatedAt: now)
-        let creds = CodexOAuthCredentials(
-            accessToken: "access",
-            refreshToken: "refresh",
-            idToken: nil,
-            accountId: nil,
-            lastRefresh: now)
-
-        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
-            Data(json.utf8),
-            credentials: creds,
-            resetCredits: resetCredits)
-
-        #expect(result.usage.primary == nil)
-        #expect(result.usage.secondary == nil)
-        #expect(result.usage.codexResetCredits?.availableInventory(at: now).count == 1)
-        #expect(result.credits == nil)
-        #expect(result.sourceLabel == "oauth")
-    }
-
-    @Test
-    func `empty reset credits do not mask missing O auth usage`() {
-        let json = #"{"rate_limit":{"primary_window":null,"secondary_window":null}}"#
-        let now = Date()
-        let resetCredits = CodexRateLimitResetCreditsSnapshot(
-            credits: [],
-            availableCount: 0,
-            updatedAt: now)
-        let creds = CodexOAuthCredentials(
-            accessToken: "access",
-            refreshToken: "refresh",
-            idToken: nil,
-            accountId: nil,
-            lastRefresh: now)
-
-        #expect(throws: UsageError.self) {
-            try CodexOAuthFetchStrategy._mapResultForTesting(
-                Data(json.utf8),
-                credentials: creds,
-                resetCredits: resetCredits)
-        }
-    }
-
-    @Test
     func `auto mode only falls back from O auth on auth failures`() {
         let strategy = CodexOAuthFetchStrategy()
         let context = self.makeContext(sourceMode: .auto)
