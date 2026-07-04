@@ -239,6 +239,51 @@ struct ClinePassUsageStatsTests {
     }
 
     @Test
+    func `fetch usage cancelled in-flight surfaces cancellation even when limits fails generically`() async throws {
+        // The realistic case the earlier synchronous tests don't cover: the
+        // parent refresh is cancelled while /plan/usage-limits is still in
+        // flight, and URLSession then reports a GENERIC error (not
+        // CancellationError / URLError.cancelled). The `Task.isCancelled` guard
+        // must still surface this as a cancelled refresh, never a partial
+        // (plan + email) success snapshot.
+        let gate = ClinePassCancelGate()
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            switch url.path {
+            case "/api/v1/users/me":
+                return Self.ok(url, #"{"success":true,"data":{"id":"user-1","email":"dev@example.com"}}"#)
+            case "/api/v1/users/me/plan":
+                return Self.ok(url, #"{"success":true,"data":{"plan":{"displayName":"Cline Pass (Monthly)"}}}"#)
+            default:
+                // Announce the limits request is in flight, then wait for the
+                // parent task to be cancelled and fail with a generic error.
+                await gate.markInFlight()
+                var spins = 0
+                while !Task.isCancelled, spins < 5000 {
+                    try? await Task.sleep(nanoseconds: 1_000_000)
+                    spins += 1
+                }
+                throw URLError(.timedOut)
+            }
+        }
+
+        let task = Task {
+            try await ClinePassUsageFetcher.fetchUsage(
+                apiKey: "cline-test",
+                environment: ["CLINE_API_BASE_URL": "https://cline.test"],
+                transport: transport,
+                now: Self.now)
+        }
+
+        await gate.waitUntilInFlight()
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+    }
+
+    @Test
     func `normalized base path strips version segment and trailing slash`() {
         // No path / bare host.
         #expect(ClinePassUsageFetcher.normalizedBasePath("") == "")
@@ -399,5 +444,32 @@ private final class ClinePassPathRecorder: @unchecked Sendable {
 
     func snapshot() -> [String] {
         self.lock.withLock { self.paths }
+    }
+}
+
+/// Coordinates a test that must cancel a refresh only once the best-effort
+/// request is genuinely in flight, avoiding a race between cancel and dispatch.
+private actor ClinePassCancelGate {
+    private var inFlight = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func markInFlight() {
+        self.inFlight = true
+        let pending = self.waiters
+        self.waiters.removeAll()
+        for waiter in pending {
+            waiter.resume()
+        }
+    }
+
+    func waitUntilInFlight() async {
+        if self.inFlight { return }
+        await withCheckedContinuation { continuation in
+            if self.inFlight {
+                continuation.resume()
+            } else {
+                self.waiters.append(continuation)
+            }
+        }
     }
 }
