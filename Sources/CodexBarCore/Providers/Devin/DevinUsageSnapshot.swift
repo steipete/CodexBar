@@ -41,19 +41,22 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
     public let planName: String?
     public let organization: String?
     public let updatedAt: Date
+    public let overageBalance: Double?
 
     public init(
         daily: DevinQuotaWindow?,
         weekly: DevinQuotaWindow?,
         planName: String?,
         organization: String?,
-        updatedAt: Date)
+        updatedAt: Date,
+        overageBalance: Double? = nil)
     {
         self.daily = daily
         self.weekly = weekly
         self.planName = planName
         self.organization = organization
         self.updatedAt = updatedAt
+        self.overageBalance = overageBalance
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -76,9 +79,18 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             accountEmail: nil,
             accountOrganization: self.organization,
             loginMethod: self.planName)
+        let providerCost: ProviderCostSnapshot? = self.overageBalance.map {
+            ProviderCostSnapshot(
+                used: $0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: self.updatedAt)
+        }
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
+            providerCost: providerCost,
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -103,7 +115,15 @@ public enum DevinUsageParser {
             weekly: weekly,
             planName: self.findPlanName(in: object),
             organization: self.displayOrganization(from: organization),
-            updatedAt: now)
+            updatedAt: now,
+            overageBalance: self.findOverageBalance(in: object))
+    }
+
+    private static func findOverageBalance(in object: Any) -> Double? {
+        guard let dictionary = object as? [String: Any] else { return nil }
+        if let value = self.double(dictionary["overage_balance"]) { return value }
+        if let cents = self.double(dictionary["overage_balance_cents"]) { return cents / 100.0 }
+        return nil
     }
 
     private static func currentQuotaWindows(_ dictionary: [String: Any])

@@ -260,6 +260,12 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `provider choice supports devin`() {
+        #expect(ProviderChoice(provider: .devin) == .devin)
+        #expect(ProviderChoice.devin.provider == .devin)
+    }
+
+    @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
     }

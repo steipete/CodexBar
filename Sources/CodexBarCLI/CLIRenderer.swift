@@ -39,6 +39,11 @@ enum CLIRenderer {
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendDevinOverageBalanceLine(
+            provider: provider,
+            snapshot: snapshot,
+            useColor: context.useColor,
+            lines: &lines)
         self.appendLimitsUnavailableLine(
             provider: provider,
             snapshot: snapshot,
@@ -146,6 +151,20 @@ enum CLIRenderer {
     {
         guard let usage = snapshot.mimoUsage else { return }
         lines.append(self.labelValueLine("Balance", value: usage.balanceDetail, useColor: useColor))
+    }
+
+    private static func appendDevinOverageBalanceLine(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard provider == .devin,
+              let cost = snapshot.providerCost,
+              cost.period == "Extra usage balance"
+        else { return }
+        let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+        lines.append(self.labelValueLine("Extra usage", value: balance, useColor: useColor))
     }
 
     private static func appendCrossModelUsageLines(
