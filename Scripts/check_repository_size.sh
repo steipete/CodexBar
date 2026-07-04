@@ -18,8 +18,8 @@ while IFS= read -r -d '' entry; do
   tracked_files=$((tracked_files + 1))
 
   case "$path" in
-    *.app | *.app/* | *.dSYM | *.dSYM/* | *.xcarchive/* | *.xcresult/* | *.zip | *.delta | *.dmg | *.pkg | \
-      *.tar.gz | *.tgz)
+    *.app | *.app/* | *.dSYM | *.dSYM/* | *.xcarchive/* | *.xcresult/* | *.ipa | *.zip | *.delta | *.dmg | \
+      *.pkg | *.tar.gz | *.tgz)
       printf 'ERROR: generated artifact is tracked: %s\n' "$path" >&2
       failures=$((failures + 1))
       ;;

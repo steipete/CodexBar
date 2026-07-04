@@ -31,7 +31,7 @@ did not remove their blobs from existing history.
 working-tree copies, and rejects:
 
 - tracked files larger than 2 MiB;
-- app bundles, dSYMs, archives, deltas, disk images, and installer packages.
+- app bundles, dSYMs, Xcode results, IPAs, archives, deltas, disk images, and installer packages.
 
 Publish release artifacts through GitHub Releases. Optimize required source images before committing them. If a
 source asset genuinely must exceed the limit, discuss and review the limit change explicitly rather than bypassing
