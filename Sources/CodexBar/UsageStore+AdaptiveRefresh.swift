@@ -91,13 +91,23 @@ extension UsageStore {
     static func nextAdaptiveTimerSleepDuration(for store: UsageStore?) async -> Duration? {
         guard let store else { return nil }
         let now = Date()
+        let lastMenuOpenAt = store.lastMenuOpenAt
+        let lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
+        let thermalState = ProcessInfo.processInfo.thermalState
         let decision = Self.adaptiveRefreshDecision(
             now: now,
-            lastMenuOpenAt: store.lastMenuOpenAt,
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
-            thermalState: ProcessInfo.processInfo.thermalState)
+            lastMenuOpenAt: lastMenuOpenAt,
+            lowPowerModeEnabled: lowPowerModeEnabled,
+            thermalState: thermalState)
         store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
         store.logAdaptiveRefreshDecision(decision)
+        // Fork-only replay-harness trace (never upstreamed); no-op unless explicitly enabled.
+        AdaptiveRefreshTraceRecording.recordDecision(
+            now: now,
+            lastMenuOpenAt: lastMenuOpenAt,
+            lowPowerModeEnabled: lowPowerModeEnabled,
+            thermalState: thermalState,
+            decision: decision)
         return store.effectiveTimerSleepDuration(decision.delay)
     }
 

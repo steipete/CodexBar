@@ -67,6 +67,8 @@ extension StatusItemController {
         // Records interaction and may bring an adaptive timer forward; never refreshes synchronously.
         self.store.noteMenuOpened()
         self.agentSessions.refreshOnMenuOpen()
+        // Fork-only replay-harness trace (never upstreamed); no-op unless explicitly enabled.
+        AdaptiveRefreshTraceRecording.recordMenuOpen()
 
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }

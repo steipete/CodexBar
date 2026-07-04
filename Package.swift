@@ -28,6 +28,9 @@ let package = Package(
         var products: [Product] = [
             .library(name: "CodexBarCore", targets: ["CodexBarCore"]),
             .executable(name: "CodexBarCLI", targets: ["CodexBarCLI"]),
+            // Fork-only (phase 1 of the offline adaptive-refresh replay harness): never upstreamed.
+            .library(name: "AdaptiveReplayKit", targets: ["AdaptiveReplayKit"]),
+            .executable(name: "AdaptiveReplayCLI", targets: ["AdaptiveReplayCLI"]),
         ]
 
         #if os(macOS)
@@ -82,6 +85,23 @@ let package = Package(
                     .enableUpcomingFeature("StrictConcurrency"),
                 ],
                 linkerSettings: sqlite3LinkerSettings),
+            // Fork-only (phase 1 of the offline adaptive-refresh replay harness): pure Foundation,
+            // no CodexBar/CodexBarCore dependency, so it builds anywhere CodexBarCore does.
+            .target(
+                name: "AdaptiveReplayKit",
+                dependencies: [],
+                path: "Sources/AdaptiveReplayKit",
+                exclude: ["README.md"],
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ]),
+            .executableTarget(
+                name: "AdaptiveReplayCLI",
+                dependencies: ["AdaptiveReplayKit"],
+                path: "Sources/AdaptiveReplayCLI",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ]),
             .testTarget(
                 name: "CodexBarLinuxTests",
                 dependencies: [
@@ -112,6 +132,8 @@ let package = Package(
                     .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                     .product(name: "Vortex", package: "Vortex"),
                     "CodexBarCore",
+                    // Fork-only: adaptive-refresh trace recording (never upstreamed).
+                    "AdaptiveReplayKit",
                 ],
                 path: "Sources/CodexBar",
                 resources: [
@@ -140,7 +162,7 @@ let package = Package(
 
         targets.append(.testTarget(
             name: "CodexBarTests",
-            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget"],
+            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget", "AdaptiveReplayKit"],
             path: "Tests",
             resources: [
                 .copy("CodexBarTests/Fixtures"),
