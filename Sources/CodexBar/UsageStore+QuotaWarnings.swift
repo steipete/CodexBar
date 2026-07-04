@@ -52,6 +52,16 @@ extension UsageStore {
         accountDisplayName: String?)
     {
         guard provider == .claude else { return }
+        guard self.settings.quotaWarningEnabled(provider: provider, window: .weekly) else {
+            let extraWindowKeys = self.quotaWarningState.keys.filter {
+                $0.provider == provider && $0.windowID != nil
+            }
+            for key in extraWindowKeys {
+                self.quotaWarningState.removeValue(forKey: key)
+            }
+            return
+        }
+
         let windows = (snapshot.extraRateWindows ?? []).filter(Self.isClaudeNotifiableExtraWindow)
         for named in windows {
             self.handleQuotaWarningTransition(
@@ -63,18 +73,8 @@ extension UsageStore {
                 windowID: named.id,
                 windowDisplayLabel: named.title)
         }
-        // Only reconcile disappeared windows when this refresh actually delivered extra-window data.
-        // A failed web-extras fetch returns an empty payload; pruning on that transient miss would drop
-        // fired-threshold state and re-post the warning on the next successful fetch.
-        guard !windows.isEmpty else { return }
-        let activeIDs = Set(windows.map(\.id))
-        let staleKeys = self.quotaWarningState.keys.filter { key in
-            guard key.provider == provider, let windowID = key.windowID else { return false }
-            return !activeIDs.contains(windowID)
-        }
-        for key in staleKeys {
-            self.quotaWarningState.removeValue(forKey: key)
-        }
+        // Missing extras are not authoritative: browser enrichment failures return the same shape as
+        // a window disappearing. Keep state until recovery or an explicit weekly-lane opt-out.
     }
 
     private static func isClaudeNotifiableExtraWindow(_ named: NamedRateWindow) -> Bool {

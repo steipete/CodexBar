@@ -79,6 +79,11 @@ enum SessionQuotaNotificationLogic {
 }
 
 enum QuotaWarningNotificationLogic {
+    static func notificationIDPrefix(provider: UsageProvider, event: QuotaWarningEvent) -> String {
+        let windowSegment = event.windowID.map { "-\($0)" } ?? ""
+        return "quota-warning-\(provider.rawValue)-\(event.window.rawValue)\(windowSegment)-\(event.threshold)"
+    }
+
     static func notificationCopy(
         providerName: String,
         window: QuotaWarningWindow,
@@ -256,8 +261,7 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
             currentRemaining: event.currentRemaining,
             accountDisplayName: event.accountDisplayName,
             windowDisplayLabel: event.windowDisplayLabel)
-        let windowSegment = event.windowID.map { "-\($0)" } ?? ""
-        let idPrefix = "quota-warning-\(provider.rawValue)-\(event.window.rawValue)\(windowSegment)-\(threshold)"
+        let idPrefix = QuotaWarningNotificationLogic.notificationIDPrefix(provider: provider, event: event)
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
         if soundEnabled {
             (NSSound(named: "Glass") ?? NSSound(named: "Ping"))?.play()

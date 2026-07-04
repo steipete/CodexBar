@@ -150,8 +150,8 @@ struct ClaudeExtraWindowQuotaWarningTests {
     }
 
     @Test
-    func `claude extra-window fired state is pruned when a window disappears but others remain`() {
-        let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-prune")
+    func `disabling weekly warnings clears all claude extra-window state`() {
+        let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-disable")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
         settings.quotaWarningNotificationsEnabled = true
@@ -176,12 +176,12 @@ struct ClaudeExtraWindowQuotaWarningTests {
         #expect(store.quotaWarningState[fableKey] != nil)
         #expect(store.quotaWarningState[routinesKey] != nil)
 
-        // Fable ends while Routines is still present: this refresh carries authoritative extras, so
-        // Fable's now-stale state is dropped and Routines is kept.
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: false)
         store.handleQuotaWarningTransitions(
-            provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: nil, routinesUsed: 55))
+            provider: .claude,
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: nil, updatedAt: Date()))
         #expect(store.quotaWarningState[fableKey] == nil)
-        #expect(store.quotaWarningState[routinesKey] != nil)
+        #expect(store.quotaWarningState[routinesKey] == nil)
     }
 
     @Test

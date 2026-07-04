@@ -62,6 +62,27 @@ struct QuotaWarningNotificationLogicTests {
     }
 
     @Test
+    func `extra-window notification identifiers are independent`() {
+        let fable = QuotaWarningEvent(
+            window: .weekly,
+            threshold: 50,
+            currentRemaining: 45,
+            windowID: "claude-weekly-scoped-fable")
+        let routines = QuotaWarningEvent(
+            window: .weekly,
+            threshold: 50,
+            currentRemaining: 45,
+            windowID: "claude-routines")
+
+        let ids = [fable, routines].map {
+            QuotaWarningNotificationLogic.notificationIDPrefix(provider: .claude, event: $0)
+        }
+        #expect(Set(ids).count == 2)
+        #expect(ids[0].contains("claude-weekly-scoped-fable"))
+        #expect(ids[1].contains("claude-routines"))
+    }
+
+    @Test
     func `quota warning copy follows Traditional Chinese app language`() {
         Self.withAppLanguage("zh-Hant") {
             let copy = QuotaWarningNotificationLogic.notificationCopy(
