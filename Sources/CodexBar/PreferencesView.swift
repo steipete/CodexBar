@@ -82,7 +82,7 @@ struct PreferencesView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(
-                        Color(self.colorScheme == .dark ? Color.white.opacity(0.27) : Color.white.opacity(0.72)),
+                        self.colorScheme == .dark ? Color.white.opacity(0.27) : Color.white.opacity(0.72),
                         lineWidth: 0.85))
             .frame(width: SettingsPane.sidebarWidth)
             .padding(.leading, 12)
@@ -91,6 +91,10 @@ struct PreferencesView: View {
             .padding(.trailing, 4)
 
             self.detailView
+                .frame(
+                    maxWidth: SettingsPane.detailMaxWidth,
+                    maxHeight: .infinity,
+                    alignment: .topLeading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(
