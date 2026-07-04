@@ -47,6 +47,101 @@ struct MistralUsageParserTests {
         #expect(snapshot.totalCost > 0)
     }
 
+    @Test(arguments: ["NaN", "Infinity", "1e308"])
+    func `ignores prices that produce nonfinite costs`(price: String) async throws {
+        let json = """
+        {
+          "completion": {
+            "models": {
+              "mistral-small": {
+                "input": [{
+                  "billing_metric": "tokens",
+                  "billing_group": "input",
+                  "timestamp": "2026-07-04",
+                  "value": 2
+                }]
+              }
+            }
+          },
+          "prices": [{
+            "billing_metric": "tokens",
+            "billing_group": "input",
+            "price": "\(price)"
+          }]
+        }
+        """
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.url?.path == "/api/billing/v2/usage")
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "ory_session_test=abc")
+            let requestURL = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: requestURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(json.utf8), response)
+        }
+
+        let snapshot = try await MistralUsageFetcher.fetchUsage(
+            cookieHeader: "ory_session_test=abc",
+            csrfToken: nil,
+            transport: transport)
+
+        #expect(snapshot.totalCost == 0)
+        #expect(snapshot.totalCost.isFinite)
+        #expect(snapshot.daily.first?.cost == 0)
+        #expect(snapshot.daily.first?.models.first?.cost == 0)
+    }
+
+    @Test
+    func `keeps cost totals finite when individually valid costs overflow their sum`() throws {
+        let json = """
+        {
+          "completion": {
+            "models": {
+              "mistral-small": {
+                "input": [
+                  {
+                    "billing_metric": "tokens",
+                    "billing_group": "input",
+                    "timestamp": "2026-07-04",
+                    "value": 1
+                  },
+                  {
+                    "billing_metric": "tokens",
+                    "billing_group": "input",
+                    "timestamp": "2026-07-04",
+                    "value": 1
+                  }
+                ]
+              },
+              "mistral-large": {
+                "input": [{
+                  "billing_metric": "tokens",
+                  "billing_group": "input",
+                  "timestamp": "2026-07-04",
+                  "value": 1
+                }]
+              }
+            }
+          },
+          "prices": [{
+            "billing_metric": "tokens",
+            "billing_group": "input",
+            "price": "1e308"
+          }]
+        }
+        """
+
+        let snapshot = try MistralUsageFetcher.parseResponse(data: Data(json.utf8), updatedAt: Date())
+
+        #expect(snapshot.totalCost == 1e308)
+        #expect(snapshot.totalCost.isFinite)
+        #expect(snapshot.daily.first?.cost == 1e308)
+        #expect(snapshot.daily.first?.models.count == 2)
+        #expect(snapshot.daily.first?.models.allSatisfy { $0.cost == 1e308 } == true)
+    }
+
     @Test
     func `parses empty response with no usage`() throws {
         let data = try #require(Self.emptyResponseJSON.data(using: .utf8))

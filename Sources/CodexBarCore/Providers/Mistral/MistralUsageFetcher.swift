@@ -220,7 +220,7 @@ public enum MistralUsageFetcher {
                 totalInput += input
                 totalOutput += output
                 totalCached += cached
-                totalCost += cost
+                Self.accumulateFiniteCost(cost, into: &totalCost)
                 Self.addDailyEntries(
                     modelName: modelName,
                     data: modelData,
@@ -235,7 +235,7 @@ public enum MistralUsageFetcher {
             if let models = category?.models {
                 for (modelName, modelData) in models {
                     let (_, _, _, cost) = Self.aggregateModel(modelData, prices: prices)
-                    totalCost += cost
+                    Self.accumulateFiniteCost(cost, into: &totalCost)
                     Self.addDailyEntries(
                         modelName: modelName,
                         data: modelData,
@@ -250,7 +250,7 @@ public enum MistralUsageFetcher {
         if let models = billing.librariesApi?.pages?.models {
             for (modelName, modelData) in models {
                 let (_, _, _, cost) = Self.aggregateModel(modelData, prices: prices)
-                totalCost += cost
+                Self.accumulateFiniteCost(cost, into: &totalCost)
                 Self.addDailyEntries(
                     modelName: modelName,
                     data: modelData,
@@ -262,7 +262,7 @@ public enum MistralUsageFetcher {
         if let models = billing.librariesApi?.tokens?.models {
             for (modelName, modelData) in models {
                 let (_, _, _, cost) = Self.aggregateModel(modelData, prices: prices)
-                totalCost += cost
+                Self.accumulateFiniteCost(cost, into: &totalCost)
                 Self.addDailyEntries(
                     modelName: modelName,
                     data: modelData,
@@ -277,7 +277,7 @@ public enum MistralUsageFetcher {
             if let models {
                 for (modelName, modelData) in models {
                     let (_, _, _, cost) = Self.aggregateModel(modelData, prices: prices)
-                    totalCost += cost
+                    Self.accumulateFiniteCost(cost, into: &totalCost)
                     Self.addDailyEntries(
                         modelName: modelName,
                         data: modelData,
@@ -316,7 +316,8 @@ public enum MistralUsageFetcher {
             guard let metric = price.billingMetric,
                   let group = price.billingGroup,
                   let priceStr = price.price,
-                  let value = Double(priceStr)
+                  let value = Double(priceStr),
+                  value.isFinite
             else { continue }
             let key = "\(metric)::\(group)"
             index[key] = value
@@ -336,28 +337,19 @@ public enum MistralUsageFetcher {
         for entry in data.input ?? [] {
             let tokens = entry.valuePaid ?? entry.value ?? 0
             totalInput += tokens
-            if let metric = entry.billingMetric, let group = entry.billingGroup {
-                let pricePerToken = prices["\(metric)::\(group)"] ?? 0
-                totalCost += Double(tokens) * pricePerToken
-            }
+            Self.accumulateFiniteCost(Self.cost(for: entry, units: tokens, prices: prices), into: &totalCost)
         }
 
         for entry in data.output ?? [] {
             let tokens = entry.valuePaid ?? entry.value ?? 0
             totalOutput += tokens
-            if let metric = entry.billingMetric, let group = entry.billingGroup {
-                let pricePerToken = prices["\(metric)::\(group)"] ?? 0
-                totalCost += Double(tokens) * pricePerToken
-            }
+            Self.accumulateFiniteCost(Self.cost(for: entry, units: tokens, prices: prices), into: &totalCost)
         }
 
         for entry in data.cached ?? [] {
             let tokens = entry.valuePaid ?? entry.value ?? 0
             totalCached += tokens
-            if let metric = entry.billingMetric, let group = entry.billingGroup {
-                let pricePerToken = prices["\(metric)::\(group)"] ?? 0
-                totalCost += Double(tokens) * pricePerToken
-            }
+            Self.accumulateFiniteCost(Self.cost(for: entry, units: tokens, prices: prices), into: &totalCost)
         }
 
         return (totalInput, totalOutput, totalCached, totalCost)
@@ -424,7 +416,15 @@ public enum MistralUsageFetcher {
 
     private static func cost(for entry: MistralUsageEntry, units: Int, prices: [String: Double]) -> Double {
         guard let metric = entry.billingMetric, let group = entry.billingGroup else { return 0 }
-        return Double(units) * (prices["\(metric)::\(group)"] ?? 0)
+        let cost = Double(units) * (prices["\(metric)::\(group)"] ?? 0)
+        return cost.isFinite ? cost : 0
+    }
+
+    fileprivate static func accumulateFiniteCost(_ cost: Double, into total: inout Double) {
+        guard cost.isFinite else { return }
+        let updatedTotal = total + cost
+        guard updatedTotal.isFinite else { return }
+        total = updatedTotal
     }
 
     private static func displayModelName(_ raw: String, entry: MistralUsageEntry) -> String {
@@ -477,9 +477,9 @@ private struct DailyAccumulator {
         cost: Double,
         countsTokens: Bool)
     {
-        self.cost += cost
+        MistralUsageFetcher.accumulateFiniteCost(cost, into: &self.cost)
         var model = self.models[modelName] ?? ModelAccumulator(name: modelName)
-        model.cost += cost
+        MistralUsageFetcher.accumulateFiniteCost(cost, into: &model.cost)
         guard countsTokens else {
             self.models[modelName] = model
             return
