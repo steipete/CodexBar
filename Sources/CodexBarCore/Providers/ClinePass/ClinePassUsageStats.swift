@@ -313,19 +313,37 @@ public struct ClinePassUsageFetcher: Sendable {
         return ISO8601DateFormatter().date(from: raw)
     }
 
-    /// Appends an already-percent-encoded path suffix to `baseURL`, preserving any
-    /// base path prefix and without re-encoding it.
+    /// Appends an already-percent-encoded, `/api/v1`-versioned path suffix to
+    /// `baseURL`, preserving any host-level base path prefix without re-encoding
+    /// it. The `/api/v1` version segment is normalized out of the base first, so
+    /// both `https://api.cline.bot` and Cline's documented versioned root
+    /// `https://api.cline.bot/api/v1` resolve to the same endpoint instead of
+    /// producing a doubled `/api/v1/api/v1/...` path.
     private static func endpoint(baseURL: URL, encodedSuffix: String, endpoint: String) throws -> URL {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw ClinePassUsageError.apiError("Invalid ClinePass base URL for /\(endpoint)")
         }
-        let prefix = components.percentEncodedPath
-        let trimmedPrefix = prefix.hasSuffix("/") ? String(prefix.dropLast()) : prefix
-        components.percentEncodedPath = trimmedPrefix + encodedSuffix
+        components.percentEncodedPath = Self.normalizedBasePath(components.percentEncodedPath) + encodedSuffix
         guard let url = components.url else {
             throw ClinePassUsageError.apiError("Invalid ClinePass URL for /\(endpoint)")
         }
         return url
+    }
+
+    /// Reduces a base URL's path to the host-level prefix that precedes the
+    /// `/api/v1` version segment: strips a trailing slash, then a trailing
+    /// `/api/v1` (case-insensitively). `""` and `"/api/v1"` both become `""`;
+    /// `"/gateway/api/v1"` becomes `"/gateway"`; `"/gateway"` is left as-is.
+    static func normalizedBasePath(_ rawPath: String) -> String {
+        var path = rawPath
+        if path.hasSuffix("/") { path.removeLast() }
+        let versionSuffix = "/api/v1"
+        if path.count >= versionSuffix.count,
+           path.suffix(versionSuffix.count).lowercased() == versionSuffix
+        {
+            path.removeLast(versionSuffix.count)
+        }
+        return path
     }
 
     private static func get(
