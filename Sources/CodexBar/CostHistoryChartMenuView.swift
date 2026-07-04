@@ -100,8 +100,33 @@ struct CostHistoryChartMenuView: View {
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
-                .chartYAxis(.hidden)
-                .chartXAxis(.hidden)
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: Self.yAxisTickValues(maxCostUSD: model.maxCostUSD)) { value in
+                        AxisGridLine().foregroundStyle(Color.clear)
+                        AxisTick().foregroundStyle(Color.clear)
+                        AxisValueLabel(centered: false) {
+                            if let raw = value.as(Double.self) {
+                                Text(Self.yAxisCostString(raw, currencyCode: self.currencyCode))
+                                    .font(.caption2)
+                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                                    .padding(.leading, 4)
+                            }
+                        }
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: model.axisDates) { value in
+                        AxisGridLine().foregroundStyle(Color.clear)
+                        AxisTick().foregroundStyle(Color.clear)
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel(anchor: Self.xAxisLabelAnchor(for: date, axisDates: model.axisDates)) {
+                                Text(date, format: .dateTime.month(.abbreviated).day())
+                                    .font(.caption2)
+                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            }
+                        }
+                    }
+                }
                 .chartLegend(.hidden)
                 .frame(height: Self.chartHeight)
                 .accessibilityLabel(L("Cost history chart"))
@@ -126,28 +151,6 @@ struct CostHistoryChartMenuView: View {
                             .contentShape(Rectangle())
                         }
                     }
-                }
-
-                let axisLabelPlacement = Self.axisLabelPlacement(for: model.axisDates)
-                if axisLabelPlacement != .hidden {
-                    HStack {
-                        if axisLabelPlacement == .centered {
-                            Spacer()
-                        }
-                        Text(model.axisDates[0], format: .dateTime.month(.abbreviated).day())
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                        Spacer()
-                        if axisLabelPlacement == .edges {
-                            Text(
-                                model.axisDates[model.axisDates.count - 1],
-                                format: .dateTime.month(.abbreviated).day())
-                                .font(.caption2)
-                                .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                        }
-                    }
-                    .frame(height: Self.axisLabelAreaHeight)
-                    .padding(.top, -Self.outerSpacing)
                 }
 
                 let detail = self.detailContent(selectedDateKey: selectedDateKey, model: model)
@@ -287,8 +290,7 @@ struct CostHistoryChartMenuView: View {
     private static let compactDetailRowHeight: CGFloat = 36
     private static let expandedDetailRowHeight: CGFloat = 44
     private static let detailSpacing: CGFloat = 6
-    private static let chartHeight: CGFloat = 114
-    private static let axisLabelAreaHeight: CGFloat = 16
+    private static let chartHeight: CGFloat = 130
     private static let outerSpacing: CGFloat = 10
     private static let projectRowHeight: CGFloat = 31
     private static let projectRowSpacing: CGFloat = 5
@@ -311,7 +313,6 @@ struct CostHistoryChartMenuView: View {
     {
         var height = self.verticalPadding * 2
         height += self.chartHeight
-        height += self.axisLabelAreaHeight
         height += self.outerSpacing
         height += self.detailBlockHeight(rows: rows)
         if hasTotal {
@@ -359,6 +360,17 @@ struct CostHistoryChartMenuView: View {
 
     private static func capHeight(maxValue: Double) -> Double {
         maxValue * 0.05
+    }
+
+    /// Y-axis tick values for the cost chart: 0, mid, max when the range is at
+    /// $1 or more; 0 and max for smaller ranges; empty for flat/no data so the
+    /// axis renders no labels.
+    private static func yAxisTickValues(maxCostUSD: Double) -> [Double] {
+        guard maxCostUSD > 0 else { return [] }
+        if maxCostUSD < 1.0 {
+            return [0, maxCostUSD]
+        }
+        return [0, maxCostUSD / 2, maxCostUSD]
     }
 
     private static func makeModel(provider: UsageProvider, daily: [DailyEntry]) -> Model {
@@ -420,6 +432,21 @@ struct CostHistoryChartMenuView: View {
         case 0: .hidden
         case 1: .centered
         default: .edges
+        }
+    }
+
+    private static func xAxisLabelAnchor(for date: Date, axisDates: [Date]) -> UnitPoint {
+        switch self.axisLabelPlacement(for: axisDates) {
+        case .hidden, .centered:
+            .top
+        case .edges:
+            if let first = axisDates.first, Calendar.current.isDate(date, inSameDayAs: first) {
+                .topLeading
+            } else if let last = axisDates.last, Calendar.current.isDate(date, inSameDayAs: last) {
+                .topTrailing
+            } else {
+                .top
+            }
         }
     }
 
@@ -740,7 +767,21 @@ struct CostHistoryChartMenuView: View {
     }
 
     private func costString(_ value: Double) -> String {
-        UsageFormatter.currencyString(value, currencyCode: self.currencyCode)
+        Self.costString(value, currencyCode: self.currencyCode)
+    }
+
+    private static func costString(_ value: Double, currencyCode: String) -> String {
+        UsageFormatter.currencyString(value, currencyCode: currencyCode)
+    }
+
+    private static func yAxisCostString(_ value: Double, currencyCode: String) -> String {
+        if value != 0, abs(value) < 1 {
+            return self.costString(value, currencyCode: currencyCode)
+        }
+        return value.formatted(
+            .currency(code: currencyCode)
+                .precision(.fractionLength(0))
+                .locale(Locale(identifier: "en_US")))
     }
 
     private static func breakdownAccentOpacity(for index: Int) -> Double {
@@ -763,6 +804,14 @@ extension CostHistoryChartMenuView {
         daily: [DailyEntry]) -> AxisLabelPlacement
     {
         self.axisLabelPlacement(for: self.makeModel(provider: provider, daily: daily).axisDates)
+    }
+
+    static func _yAxisTickValuesForTesting(maxCostUSD: Double) -> [Double] {
+        self.yAxisTickValues(maxCostUSD: maxCostUSD)
+    }
+
+    static func _yAxisCostStringForTesting(_ value: Double, currencyCode: String = "USD") -> String {
+        self.yAxisCostString(value, currencyCode: currencyCode)
     }
 
     static func _detailViewportHeightForTesting(modeSubtitlePresence: [Bool]) -> CGFloat {
