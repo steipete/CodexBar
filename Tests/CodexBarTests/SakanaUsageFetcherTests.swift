@@ -36,7 +36,7 @@ struct SakanaUsageFetcherTests {
             session: transport,
             now: Date(timeIntervalSince1970: 0))
         let requests = await transport.capturedRequestsSnapshot()
-        let request = requests.first
+        let request = requests.first { $0.url == "https://console.sakana.ai/billing" }
 
         #expect(snapshot.fiveHour?.usedPercent == 92)
         #expect(request?.url == "https://console.sakana.ai/billing")
@@ -46,13 +46,14 @@ struct SakanaUsageFetcherTests {
     }
 
     @Test
-    func `fetch also requests the pay as you go tab and merges the credit balance`() async throws {
+    func `fetches pay as you go concurrently and merges the credit balance`() async throws {
         let transport = SakanaScriptedTransport(
             statusCode: 200,
             body: Self.billingHTML,
             overridesByURL: [
                 "https://console.sakana.ai/billing?tab=payAsYouGo": (200, Self.payAsYouGoHTML),
-            ])
+            ],
+            billingWaitsForPayAsYouGo: true)
 
         let snapshot = try await SakanaUsageFetcher.fetchUsage(
             cookieHeader: "session=abc",
@@ -65,8 +66,8 @@ struct SakanaUsageFetcherTests {
         #expect(snapshot.payAsYouGo?.periodUsageTotal == 5.67)
         #expect(snapshot.payAsYouGo?.periodLabel == "Jun 02, 2026 - Jul 01, 2026")
         #expect(requests.count == 2)
-        #expect(requests.last?.url == "https://console.sakana.ai/billing?tab=payAsYouGo")
-        #expect(requests.last?.cookie == "session=abc")
+        let payAsYouGoRequest = requests.first { $0.url == "https://console.sakana.ai/billing?tab=payAsYouGo" }
+        #expect(payAsYouGoRequest?.cookie == "session=abc")
 
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.sakanaPayAsYouGo?.balanceDetail == "$12.34")
@@ -136,11 +137,31 @@ struct SakanaUsageFetcherTests {
     }
 
     @Test
+    func `required fetch failure cancels the concurrent pay as you go request`() async throws {
+        let transport = SakanaScriptedTransport(
+            statusCode: 401,
+            body: "expired",
+            billingWaitsForPayAsYouGo: true,
+            payAsYouGoBlocksUntilCancelled: true)
+
+        await #expect(throws: SakanaUsageError.loginRequired) {
+            _ = try await SakanaUsageFetcher.fetchUsage(
+                cookieHeader: "session=expired",
+                session: transport)
+        }
+
+        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
+            await Task.yield()
+        }
+        #expect(await transport.didCancelPayAsYouGo())
+    }
+
+    @Test
     func `fetch rejects cross origin login redirect`() async throws {
         let transport = try SakanaScriptedTransport(
             statusCode: 200,
             body: Self.billingHTML,
-            responseURL: #require(URL(string: "https://auth.sakana.ai/login")))
+            responseURL: #require(URL(string: "https://auth.sakana.ai")?.appending(path: "login")))
 
         await #expect(throws: SakanaUsageError.loginRequired) {
             _ = try await SakanaUsageFetcher.fetchUsage(
@@ -357,20 +378,28 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
     /// subscription-tab and pay-as-you-go-tab requests independently. Falls back to
     /// `(statusCode, body)` for any URL not present here.
     private let overridesByURL: [String: (statusCode: Int, body: String)]
+    private let billingWaitsForPayAsYouGo: Bool
+    private let payAsYouGoBlocksUntilCancelled: Bool
     private var capturedRequests: [CapturedRequest] = []
+    private var payAsYouGoStarted = false
+    private var payAsYouGoWasCancelled = false
 
     init(
         statusCode: Int,
         body: String,
         responseURL: URL? = nil,
         headers: [String: String] = [:],
-        overridesByURL: [String: (statusCode: Int, body: String)] = [:])
+        overridesByURL: [String: (statusCode: Int, body: String)] = [:],
+        billingWaitsForPayAsYouGo: Bool = false,
+        payAsYouGoBlocksUntilCancelled: Bool = false)
     {
         self.statusCode = statusCode
         self.body = body
         self.responseURL = responseURL
         self.headers = headers
         self.overridesByURL = overridesByURL
+        self.billingWaitsForPayAsYouGo = billingWaitsForPayAsYouGo
+        self.payAsYouGoBlocksUntilCancelled = payAsYouGoBlocksUntilCancelled
     }
 
     func lastCapturedRequest() -> CapturedRequest? {
@@ -381,7 +410,31 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         self.capturedRequests
     }
 
-    func data(for request: URLRequest) throws -> (Data, URLResponse) {
+    func didCancelPayAsYouGo() -> Bool {
+        self.payAsYouGoWasCancelled
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let isPayAsYouGo = request.url?.query == "tab=payAsYouGo"
+        if isPayAsYouGo {
+            self.payAsYouGoStarted = true
+            if self.payAsYouGoBlocksUntilCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch {
+                    self.payAsYouGoWasCancelled = true
+                    throw error
+                }
+            }
+        } else if self.billingWaitsForPayAsYouGo {
+            for _ in 0..<1000 where !self.payAsYouGoStarted {
+                await Task.yield()
+            }
+            guard self.payAsYouGoStarted else {
+                throw URLError(.timedOut)
+            }
+        }
+
         self.capturedRequests.append(CapturedRequest(
             url: request.url?.absoluteString,
             method: request.httpMethod,

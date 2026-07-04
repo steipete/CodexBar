@@ -147,42 +147,57 @@ public enum SakanaUsageFetcher {
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
         let transport = transportOverride ?? self.defaultTransport
-        let response = try await transport.response(for: request)
-        if response.statusCode == 401 || response.statusCode == 403 || (300..<400).contains(response.statusCode) {
-            throw SakanaUsageError.loginRequired
-        }
-        guard response.response.url?.scheme?.lowercased() == "https",
-              response.response.url?.host?.lowercased() == self.billingURL.host?.lowercased()
-        else {
-            throw SakanaUsageError.loginRequired
-        }
-        guard response.statusCode == 200 else {
-            throw SakanaUsageError.apiError(response.statusCode)
-        }
-        guard let html = String(data: response.data, encoding: .utf8), !html.isEmpty else {
-            throw SakanaUsageError.parseFailed("Billing page response was empty.")
-        }
-        let snapshot = try self.parseBillingHTML(html, now: now)
-        let payAsYouGo: SakanaPayAsYouGoSnapshot? = if includeOptionalUsage {
-            await self.boundedFetchPayAsYouGo(cookieHeader: cookieHeader, transport: transport, timeout: timeout)
+        let payAsYouGoTask: Task<SakanaPayAsYouGoSnapshot?, Never>? = if includeOptionalUsage {
+            Task {
+                await self.boundedFetchPayAsYouGo(
+                    cookieHeader: cookieHeader,
+                    transport: transport,
+                    timeout: timeout)
+            }
         } else {
             nil
         }
-        try Task.checkCancellation()
-        return SakanaUsageSnapshot(
-            planName: snapshot.planName,
-            priceLabel: snapshot.priceLabel,
-            fiveHour: snapshot.fiveHour,
-            weekly: snapshot.weekly,
-            payAsYouGo: payAsYouGo,
-            updatedAt: snapshot.updatedAt)
+
+        return try await withTaskCancellationHandler {
+            do {
+                let response = try await transport.response(for: request)
+                if response.statusCode == 401 || response.statusCode == 403 ||
+                    (300..<400).contains(response.statusCode)
+                {
+                    throw SakanaUsageError.loginRequired
+                }
+                guard response.response.url?.scheme?.lowercased() == "https",
+                      response.response.url?.host?.lowercased() == self.billingURL.host?.lowercased()
+                else {
+                    throw SakanaUsageError.loginRequired
+                }
+                guard response.statusCode == 200 else {
+                    throw SakanaUsageError.apiError(response.statusCode)
+                }
+                guard let html = String(data: response.data, encoding: .utf8), !html.isEmpty else {
+                    throw SakanaUsageError.parseFailed("Billing page response was empty.")
+                }
+                let snapshot = try self.parseBillingHTML(html, now: now)
+                let payAsYouGo = await payAsYouGoTask?.value
+                try Task.checkCancellation()
+                return SakanaUsageSnapshot(
+                    planName: snapshot.planName,
+                    priceLabel: snapshot.priceLabel,
+                    fiveHour: snapshot.fiveHour,
+                    weekly: snapshot.weekly,
+                    payAsYouGo: payAsYouGo,
+                    updatedAt: snapshot.updatedAt)
+            } catch {
+                payAsYouGoTask?.cancel()
+                throw error
+            }
+        } onCancel: {
+            payAsYouGoTask?.cancel()
+        }
     }
 
-    /// Caps the optional Pay-as-you-go fetch at `payAsYouGoJoinGrace` regardless of the caller's
-    /// (potentially much longer) `timeout`, so a slow console response can only add a small,
-    /// bounded delay on top of the already-parsed subscription quota windows -- never the full
-    /// primary-fetch timeout twice. Races `fetchPayAsYouGo` against the grace period; on timeout
-    /// the in-flight request is cancelled and the optional field is simply omitted.
+    /// Caps the optional Pay-as-you-go fetch at `payAsYouGoJoinGrace`. It starts beside the required
+    /// subscription request, so a slow optional response cannot add another full request timeout.
     private static let payAsYouGoJoinGrace: Duration = .seconds(5)
 
     private static func boundedFetchPayAsYouGo(

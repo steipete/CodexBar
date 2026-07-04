@@ -59,7 +59,7 @@ the subscription quota windows above. `console.sakana.ai/billing` renders this d
 "Pay as you go" tab, but that tab's markup is only present in the HTML response when the request URL includes
 `?tab=payAsYouGo` — the default `/billing` response (used for the subscription quota fetch above) does not include
 it. CodexBar issues a **second, best-effort** GET to `https://console.sakana.ai/billing?tab=payAsYouGo` with the same
-cookie header immediately after the subscription fetch succeeds — skipped entirely (no request made) when
+cookie header alongside the subscription request — skipped entirely (no request made) when
 `context.includeOptionalUsage` is `false`, i.e. Settings → Advanced → "Show optional credits and extra usage" is
 disabled.
 
@@ -76,11 +76,9 @@ refresh and the subscription quota windows are returned exactly as before. An ac
 purchased still returns a `$0.00` balance (the card is always rendered), so absence here almost always means the
 request itself failed rather than "no credit."
 
-The fetch is also **time-bounded independent of the caller's web timeout**: it races against a fixed 5-second grace
-period (`SakanaUsageFetcher.payAsYouGoJoinGrace`), regardless of how long `context.webTimeout` allows the required
-subscription fetch to take. If the console is slow to answer the Pay-as-you-go tab specifically, the in-flight
-request is cancelled and the field is simply omitted — a slow optional request can add at most ~5s on top of the
-subscription fetch, never the full configured timeout a second time.
+The optional request runs concurrently with the required subscription request and has its own five-second bound.
+It is cancelled when the required request fails or the caller cancels, so it cannot add a second full request
+timeout or outlive the refresh that started it.
 
 - Menu: a `Balance: $X.XX` row (and a `Recent usage: $X.XX` row when the usage total parses) appears alongside the
   quota windows.
