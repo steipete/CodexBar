@@ -150,6 +150,41 @@ struct ClaudeExtraWindowQuotaWarningTests {
     }
 
     @Test
+    func `claude extra-window fired state is pruned when a window disappears but others remain`() {
+        let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-prune")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50]
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        store.handleQuotaWarningTransitions(
+            provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: 40, routinesUsed: 40))
+        store.handleQuotaWarningTransitions(
+            provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: 55, routinesUsed: 55))
+        let fableKey = UsageStore.QuotaWarningStateKey(
+            provider: .claude, window: .weekly, windowID: "claude-weekly-scoped-fable")
+        let routinesKey = UsageStore.QuotaWarningStateKey(
+            provider: .claude, window: .weekly, windowID: "claude-routines")
+        #expect(store.quotaWarningState[fableKey] != nil)
+        #expect(store.quotaWarningState[routinesKey] != nil)
+
+        // Fable ends while Routines is still present: this refresh carries authoritative extras, so
+        // Fable's stale state is dropped and Routines is kept.
+        store.handleQuotaWarningTransitions(
+            provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: nil, routinesUsed: 55))
+        #expect(store.quotaWarningState[fableKey] == nil)
+        #expect(store.quotaWarningState[routinesKey] != nil)
+    }
+
+    @Test
     func `disabling weekly warnings clears all claude extra-window state`() {
         let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-disable")
         settings.refreshFrequency = .manual

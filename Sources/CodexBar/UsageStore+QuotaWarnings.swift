@@ -73,8 +73,17 @@ extension UsageStore {
                 windowID: named.id,
                 windowDisplayLabel: named.title)
         }
-        // Missing extras are not authoritative: browser enrichment failures return the same shape as
-        // a window disappearing. Keep state until recovery or an explicit weekly-lane opt-out.
+        // A missing extras payload is not authoritative, but when another notifiable window remains,
+        // reconcile tracked IDs so a later incarnation of a disappeared window can warn again.
+        guard !windows.isEmpty else { return }
+        let activeIDs = Set(windows.map(\.id))
+        let staleKeys = self.quotaWarningState.keys.filter { key in
+            guard key.provider == provider, let windowID = key.windowID else { return false }
+            return !activeIDs.contains(windowID)
+        }
+        for key in staleKeys {
+            self.quotaWarningState.removeValue(forKey: key)
+        }
     }
 
     private static func isClaudeNotifiableExtraWindow(_ named: NamedRateWindow) -> Bool {
