@@ -8,6 +8,7 @@
 - Codex: show a conservative 1.5× pace-headroom hint in menus and CLI output when usage is safely ahead of the reset curve. Thanks @astuteprogrammer!
 
 ### Changed
+- Repository: reject oversized tracked blobs and generated release/build artifacts during checks. Thanks @joeVenner!
 - Branding: replace the app and website icon with a usage-meter prompt mark that matches CodexBar's core UI.
 - Website: redesign codexbar.app around faster download, provider discovery, feature, CLI, and widget paths with responsive dark/light and localized layouts. Thanks @vyctorbrzezowski!
 - Architecture: accept a bounded opt-in adaptive refresh design with a deterministic 2–30-minute cadence and no behavioral telemetry. Thanks @hhh2210!

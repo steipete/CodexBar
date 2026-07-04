@@ -5,11 +5,16 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAX_BYTES=$((2 * 1024 * 1024))
 failures=0
 tracked_files=0
+declare -a blob_paths=()
+declare -a blob_ids=()
 
 cd "$ROOT_DIR"
 
-while IFS= read -r -d '' path; do
-  [[ -f "$path" && ! -L "$path" ]] || continue
+while IFS= read -r -d '' entry; do
+  metadata=${entry%%$'\t'*}
+  path=${entry#*$'\t'}
+  read -r mode object stage <<<"$metadata"
+  [[ "$stage" == "0" ]] || continue
   tracked_files=$((tracked_files + 1))
 
   case "$path" in
@@ -20,12 +25,27 @@ while IFS= read -r -d '' path; do
       ;;
   esac
 
-  size=$(wc -c < "$path" | tr -d '[:space:]')
+  # Submodule entries name commits rather than file blobs.
+  [[ "$mode" == "160000" ]] && continue
+  blob_paths+=("$path")
+  blob_ids+=("$object")
+done < <(git ls-files --stage -z)
+
+index=0
+while read -r object type size; do
+  path=${blob_paths[$index]}
+  if [[ "$type" != "blob" ]]; then
+    printf 'ERROR: tracked index entry is not a readable blob: %q (%s)\n' "$path" "$object" >&2
+    failures=$((failures + 1))
+    index=$((index + 1))
+    continue
+  fi
   if ((size > MAX_BYTES)); then
-    printf 'ERROR: tracked file exceeds %d bytes: %s (%d bytes)\n' "$MAX_BYTES" "$path" "$size" >&2
+    printf 'ERROR: tracked file exceeds %d bytes: %q (%d bytes)\n' "$MAX_BYTES" "$path" "$size" >&2
     failures=$((failures + 1))
   fi
-done < <(git ls-files -z)
+  index=$((index + 1))
+done < <(printf '%s\n' "${blob_ids[@]}" | git cat-file --batch-check='%(objectname) %(objecttype) %(objectsize)')
 
 if ((failures > 0)); then
   printf 'Repository size check failed with %d violation(s).\n' "$failures" >&2
