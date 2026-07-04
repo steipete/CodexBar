@@ -733,6 +733,7 @@
 "Resets now" = "إعادة التعيين الآن";
 "reset_tomorrow_format" = "غدًا، %@";
 "Lasts until reset" = "يستمر حتى إعادة التعيين";
+"1.5× headroom" = "هامش 1.5×";
 "Updated %@" = "تحديث %@";
 "Updated relative %@" = "تحديث %@";
 "Updated absolute %@" = "تحديث %@";

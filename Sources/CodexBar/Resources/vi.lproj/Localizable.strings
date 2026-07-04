@@ -307,6 +307,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI tới /usr/local/bin và /opt/homebrew/bin dưới dạng codexbar.";
 "System" = "Hệ thống";
 "Temporarily shows the loading animation after the next refresh." = "Tạm thời hiển thị hoạt ảnh đang tải sau lần làm mới tiếp theo.";
+"terminal_app_subtitle" = "Terminal dùng cho tác vụ Mở Terminal";
+"terminal_app_title" = "Terminal mặc định";
 "Tertiary (\\(label))" = "Cấp ba (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Cấp ba (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Tài khoản Codex mặc định trên máy Mac này.";
@@ -726,6 +728,7 @@
 "Resets now" = "Đặt lại ngay";
 "reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
+"1.5× headroom" = "dư địa 1,5×";
 "Updated %@" = "Đã cập nhật %@";
 "Updated relative %@" = "Đã cập nhật %@";
 "Updated absolute %@" = "Đã cập nhật %@";

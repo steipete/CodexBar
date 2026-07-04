@@ -733,6 +733,7 @@
 "Resets now" = "รีเซ็ตเดี๋ยวนี้";
 "reset_tomorrow_format" = "พรุ่งนี้ %@";
 "Lasts until reset" = "คงอยู่จนกว่าจะรีเซ็ต";
+"1.5× headroom" = "เผื่อ 1.5×";
 "Updated %@" = "อัพเดท %@";
 "Updated relative %@" = "อัพเดท %@";
 "Updated absolute %@" = "อัพเดท %@";

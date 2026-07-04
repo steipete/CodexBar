@@ -307,6 +307,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
 "System" = "Система";
 "Temporarily shows the loading animation after the next refresh." = "Тимчасово показує анімацію завантаження після наступного оновлення.";
+"terminal_app_subtitle" = "Термінал, який використовується дією «Відкрити термінал»";
+"terminal_app_title" = "Термінал за замовчуванням";
 "Tertiary (\\(label))" = "Вищий (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Вищий (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Обліковий запис Codex за умовчанням на цьому Mac.";
@@ -730,6 +732,7 @@
 "Resets now" = "Скидає зараз";
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
+"1.5× headroom" = "запас 1,5×";
 "Updated %@" = "Оновлено %@";
 "Updated relative %@" = "Оновлено %@";
 "Updated absolute %@" = "Оновлено %@";

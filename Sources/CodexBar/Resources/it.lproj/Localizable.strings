@@ -735,6 +735,7 @@
 "Resets now" = "Si resetta ora";
 "reset_tomorrow_format" = "domani, %@";
 "Lasts until reset" = "Valido fino al reset";
+"1.5× headroom" = "margine 1,5×";
 "Updated %@" = "Aggiornato %@";
 "Updated relative %@" = "Aggiornato %@";
 "Updated absolute %@" = "Aggiornato %@";

@@ -733,6 +733,7 @@
 "Resets now" = "اکنون بازنشانی می شود";
 "reset_tomorrow_format" = "فردا، %@";
 "Lasts until reset" = "تا زمان ریست ادامه دارد";
+"1.5× headroom" = "حاشیه ۱٫۵×";
 "Updated %@" = "به روزرسانی %@";
 "Updated relative %@" = "به روزرسانی %@";
 "Updated absolute %@" = "به روزرسانی %@";

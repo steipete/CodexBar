@@ -730,6 +730,7 @@
 "Resets now" = "Wird jetzt zurückgesetzt";
 "reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Hält bis zum Zurücksetzen an";
+"1.5× headroom" = "1,5× Spielraum";
 "Updated %@" = "Aktualisiert %@";
 "Updated relative %@" = "Aktualisiert %@";
 "Updated absolute %@" = "Aktualisiert %@";

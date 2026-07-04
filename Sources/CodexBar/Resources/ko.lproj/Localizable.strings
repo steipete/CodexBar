@@ -703,6 +703,7 @@
 "Resets now" = "지금 재설정";
 "reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
+"1.5× headroom" = "1.5배 여유";
 "Updated %@" = "%@에 업데이트됨";
 "Updated relative %@" = "%@에 업데이트됨";
 "Updated absolute %@" = "%@에 업데이트됨";
