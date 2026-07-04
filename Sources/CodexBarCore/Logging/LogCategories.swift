@@ -1,6 +1,7 @@
 public enum LogCategories {
     public static let abacusCookie = "abacus-cookie"
     public static let abacusUsage = "abacus-usage"
+    public static let adaptiveRefresh = "adaptive-refresh"
     public static let amp = "amp"
     public static let antigravity = "antigravity"
     public static let app = "app"

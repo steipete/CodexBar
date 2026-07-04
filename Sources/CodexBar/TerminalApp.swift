@@ -1,6 +1,8 @@
 import AppKit
 
 enum TerminalApp: String, CaseIterable, Identifiable {
+    static let pickerIconSize = NSSize(width: 16, height: 16)
+
     case terminal
     case iTerm
 
@@ -35,6 +37,43 @@ enum TerminalApp: String, CaseIterable, Identifiable {
             return nil
         }
         return NSWorkspace.shared.icon(forFile: appURL.path)
+    }
+
+    var pickerIcon: NSImage? {
+        self.appIcon.map(Self.pickerIcon(from:))
+    }
+
+    static func pickerIcon(from icon: NSImage) -> NSImage {
+        let sourceSize = icon.size
+        let targetSize = self.pickerIconSize
+
+        guard sourceSize.width.isFinite, sourceSize.width > 0,
+              sourceSize.height.isFinite, sourceSize.height > 0
+        else {
+            let empty = NSImage(size: targetSize)
+            empty.isTemplate = icon.isTemplate
+            return empty
+        }
+
+        // MenuPickerStyle sizes selected images from their intrinsic NSImage dimensions.
+        let resized = NSImage(size: targetSize, flipped: false) { _ in
+            let scale = min(targetSize.width / sourceSize.width, targetSize.height / sourceSize.height)
+            let scaledSize = NSSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
+            let drawingRect = NSRect(
+                x: (targetSize.width - scaledSize.width) / 2,
+                y: (targetSize.height - scaledSize.height) / 2,
+                width: scaledSize.width,
+                height: scaledSize.height)
+            NSGraphicsContext.current?.imageInterpolation = .high
+            icon.draw(
+                in: drawingRect,
+                from: NSRect(origin: .zero, size: sourceSize),
+                operation: .copy,
+                fraction: 1)
+            return true
+        }
+        resized.isTemplate = icon.isTemplate
+        return resized
     }
 
     static var installed: [Self] {

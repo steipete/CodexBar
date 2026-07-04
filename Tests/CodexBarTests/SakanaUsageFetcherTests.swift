@@ -342,7 +342,7 @@ struct SakanaUsageFetcherTests {
 }
 
 private actor SakanaScriptedTransport: ProviderHTTPTransport {
-    struct CapturedRequest: Sendable {
+    struct CapturedRequest {
         let url: String?
         let method: String?
         let cookie: String?

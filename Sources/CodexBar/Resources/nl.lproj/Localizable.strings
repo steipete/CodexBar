@@ -234,6 +234,7 @@
 "Picker subtitle" = "Ondertitel kiezen";
 "Placeholder" = "Tijdelijke aanduiding";
 "Plan" = "Plan";
+"Plan Usage" = "Plangebruik";
 "Play full-screen confetti when weekly usage resets." = "Speel confetti op volledig scherm af wanneer het wekelijkse gebruik wordt gereset.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Polls OpenAI/Claude-statuspagina's en Google Workspace voor";
 "Prevents any Keychain access while enabled." = "Voorkomt elke sleutelhangertoegang indien ingeschakeld.";
@@ -301,12 +302,13 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Opgeslagen in ~/.codexbar/config.json. Plak uw MiniMax API-sleutel.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Opgeslagen in ~/.codexbar/config.json. U kunt ook KILO_API_KEY of";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Slaat de lokale Codex-gebruiksgeschiedenis op (8 weken) om tempo-voorspellingen te personaliseren.";
-"Subscription Utilization" = "Abonnementsgebruik";
 "Surprise me" = "Verras mij";
 "Switcher shows icons" = "Switcher toont pictogrammen";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI naar /usr/local/bin en /opt/homebrew/bin als codexbar.";
 "System" = "Systeem";
 "Temporarily shows the loading animation after the next refresh." = "Toont tijdelijk de laadanimatie na de volgende vernieuwing.";
+"terminal_app_subtitle" = "Terminal gebruikt door de actie Terminal openen";
+"terminal_app_title" = "Standaardterminal";
 "Tertiary (\\(label))" = "Tertiair (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiair (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Het standaard Codex-account op deze Mac.";
@@ -671,6 +673,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 minuten";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptief";
 
 /* Additional keys */
 "not_found" = "Niet gevonden";
@@ -729,6 +732,7 @@
 "Resets now" = "Wordt nu gereset";
 "reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Gaat mee tot reset";
+"1.5× headroom" = "1,5× speelruimte";
 "Updated %@" = "Bijgewerkt %@";
 "Updated relative %@" = "Bijgewerkt %@";
 "Updated absolute %@" = "Bijgewerkt %@";
@@ -1126,3 +1130,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
 "CrossModel API spend trend" = "CrossModel API-uitgaventrend";
+
+/* Settings sidebar redesign */
+"Enable" = "Inschakelen";
+"Disable" = "Uitschakelen";
+"providers_on_count" = "%d aan";
+"section_cost_summary" = "Kostenoverzicht";
+"section_command_line" = "Opdrachtregel";
+"section_privacy" = "Privacy";
+"section_diagnostics" = "Diagnostiek";
+"section_updates" = "Updates";
+"section_links" = "Links";

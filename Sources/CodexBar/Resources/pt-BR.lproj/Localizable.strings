@@ -234,6 +234,7 @@
 "Picker subtitle" = "Subtítulo do seletor";
 "Placeholder" = "Texto de exemplo";
 "Plan" = "Plano";
+"Plan Usage" = "Uso do plano";
 "Play full-screen confetti when weekly usage resets." = "Mostra confete em tela cheia quando o uso semanal for renovado.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Consulta as páginas de status da OpenAI/Claude e o Google Workspace para ";
 "Prevents any Keychain access while enabled." = "Impede qualquer acesso ao Keychain quando ativado.";
@@ -301,12 +302,13 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Armazenado em ~/.codexbar/config.json. Cole sua chave de API do MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Armazenado em ~/.codexbar/config.json. Você também pode informar KILO_API_KEY ou ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Armazena histórico local de uso do Codex (8 semanas) para personalizar previsões de Ritmo.";
-"Subscription Utilization" = "Uso da assinatura";
 "Surprise me" = "Surpreenda-me";
 "Switcher shows icons" = "Alternador mostra ícones";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Cria symlink de CodexBarCLI em /usr/local/bin e /opt/homebrew/bin como codexbar.";
 "System" = "Sistema";
 "Temporarily shows the loading animation after the next refresh." = "Mostra temporariamente a animação de carregamento após a próxima atualização.";
+"terminal_app_subtitle" = "Terminal usado pela ação Abrir Terminal";
+"terminal_app_title" = "Terminal padrão";
 "Tertiary (\\(label))" = "Terciário (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Terciário (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "A conta Codex padrão deste Mac.";
@@ -668,6 +670,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptativo";
 
 /* Additional keys */
 "not_found" = "Não encontrado";
@@ -726,6 +729,7 @@
 "Resets now" = "Renova agora";
 "reset_tomorrow_format" = "amanhã, %@";
 "Lasts until reset" = "Dura até a renovação";
+"1.5× headroom" = "folga de 1,5×";
 "Updated %@" = "Atualizado %@";
 "Updated relative %@" = "Atualizado %@";
 "Updated absolute %@" = "Atualizado %@";
@@ -1127,3 +1131,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
 "CrossModel API spend trend" = "Tendência de gastos da API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Ativar";
+"Disable" = "Desativar";
+"providers_on_count" = "%d ativos";
+"section_cost_summary" = "Resumo de custos";
+"section_command_line" = "Linha de comando";
+"section_privacy" = "Privacidade";
+"section_diagnostics" = "Diagnósticos";
+"section_updates" = "Atualizações";
+"section_links" = "Links";

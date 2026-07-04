@@ -373,13 +373,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func weeklyPaceDetail(
+        provider: UsageProvider,
         window: RateWindow,
         now: Date,
         pace: UsagePace?,
         showUsed: Bool) -> PaceDetail?
     {
         guard let pace else { return nil }
-        let detail = UsagePaceText.weeklyDetail(pace: pace, now: now)
+        let detail = UsagePaceText.weeklyDetail(provider: provider, pace: pace, now: now)
         let expectedUsed = detail.expectedUsedPercent
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
@@ -410,26 +411,74 @@ extension UsageMenuCardView.Model {
         return pace.expectedUsedPercent >= 3 || pace.etaSeconds == 0 ? pace : nil
     }
 
-    static func cursorBillingCyclePaceDetail(
+    static func resetWindowPaceDetail(
         window: RateWindow,
         input: Input,
         pace: UsagePace? = nil) -> PaceDetail?
     {
-        guard input.provider == .cursor,
-              window.windowMinutes != nil,
+        guard self.supportsResetWindowPace(provider: input.provider, window: window),
               window.remainingPercent > 0
         else { return nil }
+        let paceWindow = Self.resetWindowForPace(provider: input.provider, window: window)
         let resolved = pace ?? UsagePace.weekly(
-            window: window,
+            window: paceWindow,
             now: input.now,
             defaultWindowMinutes: 10080,
             workDays: input.workDaysPerWeek)
         guard let resolved = Self.displayableWeeklyPace(resolved) else { return nil }
         return Self.weeklyPaceDetail(
-            window: window,
+            provider: input.provider,
+            window: paceWindow,
             now: input.now,
             pace: resolved,
             showUsed: input.usageBarsShowUsed)
+    }
+
+    private static let monthlyWindowSentinelMinutes = 30 * 24 * 60
+
+    private static func supportsResetWindowPace(provider: UsageProvider, window: RateWindow) -> Bool {
+        switch provider {
+        case .cursor:
+            window.windowMinutes != nil
+        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+            window.windowMinutes == self.monthlyWindowSentinelMinutes
+        default:
+            false
+        }
+    }
+
+    private static func resetWindowForPace(provider: UsageProvider, window: RateWindow) -> RateWindow {
+        // Provider snapshots use 30 days as a monthly sentinel; use the reset date for the real calendar-cycle length.
+        guard self.usesInferredMonthlyDuration(provider: provider, window: window),
+              let resetsAt = window.resetsAt,
+              let minutes = self.inferredMonthlyWindowMinutes(endingAt: resetsAt)
+        else { return window }
+        return RateWindow(
+            usedPercent: window.usedPercent,
+            windowMinutes: minutes,
+            resetsAt: window.resetsAt,
+            resetDescription: window.resetDescription,
+            nextRegenPercent: window.nextRegenPercent,
+            isSyntheticPlaceholder: window.isSyntheticPlaceholder)
+    }
+
+    private static func usesInferredMonthlyDuration(provider: UsageProvider, window: RateWindow) -> Bool {
+        guard window.windowMinutes == self.monthlyWindowSentinelMinutes else { return false }
+        switch provider {
+        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func inferredMonthlyWindowMinutes(endingAt resetsAt: Date) -> Int? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+        guard let startsAt = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
+        let minutes = resetsAt.timeIntervalSince(startsAt) / 60
+        guard minutes.isFinite, minutes > 0 else { return nil }
+        return Int(minutes.rounded())
     }
 
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
@@ -591,6 +640,7 @@ extension UsageMenuCardView.Model {
                 defaultWindowMinutes: 10080,
                 workDays: input.workDaysPerWeek))
             return Self.weeklyPaceDetail(
+                provider: provider,
                 window: window,
                 now: input.now,
                 pace: pace,

@@ -239,6 +239,7 @@
 "Picker subtitle" = "选择器副标题";
 "Placeholder" = "占位符";
 "Plan" = "套餐";
+"Plan Usage" = "套餐用量";
 "Play full-screen confetti when weekly usage resets." = "当每周用量重置时播放全屏彩纸。";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "轮询 OpenAI/Claude 状态页面和 Google Workspace，以检查";
 "Prevents any Keychain access while enabled." = "启用时阻止任何钥匙串访问。";
@@ -310,12 +311,13 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "存储在 ~/.codexbar/config.json 中。请粘贴你的 MiniMax API 密钥。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "存储本地 Codex 用量历史（8 周），用于个性化进度预测。";
-"Subscription Utilization" = "订阅使用率";
 "Surprise me" = "给我惊喜";
 "Switcher shows icons" = "切换器显示图标";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "将 CodexBarCLI 作为 codexbar 符号链接到 /usr/local/bin 和 /opt/homebrew/bin。";
 "System" = "系统";
 "Temporarily shows the loading animation after the next refresh." = "下次刷新后临时显示加载动画。";
+"terminal_app_subtitle" = "“打开终端”操作使用的终端";
+"terminal_app_title" = "默认终端";
 "Tertiary (\\(label))" = "第三（\\(label)）";
 "Tertiary (\\(tertiaryTitle))" = "第三（\\(tertiaryTitle)）";
 "The default Codex account on this Mac." = "此 Mac 上的默认 Codex 账户。";
@@ -643,6 +645,7 @@
 "refresh_5min" = "5 分钟";
 "refresh_15min" = "15 分钟";
 "refresh_30min" = "30 分钟";
+"refresh_adaptive" = "自适应";
 "not_found" = "未找到";
 "CodexBar can't show its menu bar icon" = "CodexBar 无法显示菜单栏图标";
 "Dismiss" = "关闭";
@@ -703,6 +706,7 @@
 "Resets now" = "立即重置";
 "reset_tomorrow_format" = "明天 %@";
 "Lasts until reset" = "持续到重置";
+"1.5× headroom" = "1.5 倍余量";
 "Updated %@" = "更新于 %@";
 "Updated relative %@" = "%@已更新";
 "Updated absolute %@" = "更新于 %@";
@@ -1103,3 +1107,14 @@
 "byte_unit_megabytes" = "兆字节";
 "byte_unit_gigabyte" = "吉字节";
 "byte_unit_gigabytes" = "吉字节";
+
+/* Settings sidebar redesign */
+"Enable" = "启用";
+"Disable" = "停用";
+"providers_on_count" = "%d 个已开启";
+"section_cost_summary" = "费用摘要";
+"section_command_line" = "命令行";
+"section_privacy" = "隐私";
+"section_diagnostics" = "诊断";
+"section_updates" = "更新";
+"section_links" = "链接";

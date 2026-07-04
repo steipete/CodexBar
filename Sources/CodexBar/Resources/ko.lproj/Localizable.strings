@@ -234,6 +234,7 @@
 "Picker subtitle" = "선택기 부제목";
 "Placeholder" = "플레이스홀더";
 "Plan" = "요금제";
+"Plan Usage" = "요금제 사용량";
 "Play full-screen confetti when weekly usage resets." = "주간 사용량이 재설정되면 전체 화면 색종이를 재생합니다.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "OpenAI/Claude 상태 페이지와 Google Workspace를 폴링하여 ";
 "Prevents any Keychain access while enabled." = "사용 중에는 모든 키체인 접근을 차단합니다.";
@@ -301,7 +302,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json에 저장됩니다. MiniMax API 키를 붙여넣으세요.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "~/.codexbar/config.json에 저장됩니다. KILO_API_KEY를 제공할 수도 있습니다. ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "사용 속도 예측을 개인화하기 위해 로컬 Codex 사용 기록(8주)을 저장합니다.";
-"Subscription Utilization" = "구독 사용률";
 "Surprise me" = "랜덤으로 선택";
 "Switcher shows icons" = "전환기에 아이콘 표시";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI를 codexbar로 /usr/local/bin 및 /opt/homebrew/bin에 심볼릭 링크합니다.";
@@ -648,6 +648,7 @@
 "refresh_5min" = "5분";
 "refresh_15min" = "15분";
 "refresh_30min" = "30분";
+"refresh_adaptive" = "적응형";
 "not_found" = "찾을 수 없음";
 "cost_header_estimated" = "비용(추정)";
 "cost_estimate_hint" = "로컬 로그에서 추정 · 실제 청구액과 다를 수 있음";
@@ -702,6 +703,7 @@
 "Resets now" = "지금 재설정";
 "reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
+"1.5× headroom" = "1.5배 여유";
 "Updated %@" = "%@에 업데이트됨";
 "Updated relative %@" = "%@에 업데이트됨";
 "Updated absolute %@" = "%@에 업데이트됨";
@@ -1097,3 +1099,14 @@
 "byte_unit_gigabyte" = "기가바이트";
 "byte_unit_gigabytes" = "기가바이트";
 "CrossModel API spend trend" = "CrossModel API 지출 추이";
+
+/* Settings sidebar redesign */
+"Enable" = "활성화";
+"Disable" = "비활성화";
+"providers_on_count" = "%d개 켜짐";
+"section_cost_summary" = "비용 요약";
+"section_command_line" = "명령줄";
+"section_privacy" = "개인정보 보호";
+"section_diagnostics" = "진단";
+"section_updates" = "업데이트";
+"section_links" = "링크";

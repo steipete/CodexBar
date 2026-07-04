@@ -234,6 +234,7 @@
 "Picker subtitle" = "Підзаголовок засобу вибору";
 "Placeholder" = "Заповнювач";
 "Plan" = "План";
+"Plan Usage" = "Використання плану";
 "Play full-screen confetti when weekly usage resets." = "Відтворення конфетті на весь екран, коли тижневе використання скидається.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для";
 "Prevents any Keychain access while enabled." = "Запобігає будь-якому доступу Keychain, коли ввімкнено.";
@@ -301,12 +302,13 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Зберігається в ~/.codexbar/config.json. Вставте ключ MiniMax API.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Зберігається в ~/.codexbar/config.json. Ви також можете надати KILO_API_KEY або";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Зберігає локальну історію використання Codex (8 тижнів) для персоналізації прогнозів Pace.";
-"Subscription Utilization" = "Використання підписки";
 "Surprise me" = "Здивуйте мене";
 "Switcher shows icons" = "Перемикач показує значки";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
 "System" = "Система";
 "Temporarily shows the loading animation after the next refresh." = "Тимчасово показує анімацію завантаження після наступного оновлення.";
+"terminal_app_subtitle" = "Термінал, який використовується дією «Відкрити термінал»";
+"terminal_app_title" = "Термінал за замовчуванням";
 "Tertiary (\\(label))" = "Вищий (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Вищий (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Обліковий запис Codex за умовчанням на цьому Mac.";
@@ -671,6 +673,7 @@
 "refresh_5min" = "5 хв";
 "refresh_15min" = "15 хв";
 "refresh_30min" = "30 хв";
+"refresh_adaptive" = "Адаптивний";
 
 /* Additional keys */
 "not_found" = "Не знайдено";
@@ -729,6 +732,7 @@
 "Resets now" = "Скидає зараз";
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
+"1.5× headroom" = "запас 1,5×";
 "Updated %@" = "Оновлено %@";
 "Updated relative %@" = "Оновлено %@";
 "Updated absolute %@" = "Оновлено %@";
@@ -1126,3 +1130,14 @@
 "byte_unit_gigabyte" = "гігабайт";
 "byte_unit_gigabytes" = "гігабайти";
 "CrossModel API spend trend" = "Тенденція витрат CrossModel API";
+
+/* Settings sidebar redesign */
+"Enable" = "Увімкнути";
+"Disable" = "Вимкнути";
+"providers_on_count" = "%d увімкнено";
+"section_cost_summary" = "Зведення витрат";
+"section_command_line" = "Командний рядок";
+"section_privacy" = "Конфіденційність";
+"section_diagnostics" = "Діагностика";
+"section_updates" = "Оновлення";
+"section_links" = "Посилання";

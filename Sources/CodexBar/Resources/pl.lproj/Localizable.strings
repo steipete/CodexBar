@@ -236,6 +236,7 @@
 "Picker subtitle" = "Podtytuł selektora";
 "Placeholder" = "Tekst zastępczy";
 "Plan" = "Plan";
+"Plan Usage" = "Wykorzystanie planu";
 "Play full-screen confetti when weekly usage resets." = "Odtwórz pełnoekranowe konfetti, gdy tygodniowe użycie się resetuje.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Sprawdza strony statusu OpenAI/Claude oraz Google Workspace dla ";
 "Prevents any Keychain access while enabled." = "Blokuje wszelki dostęp do pęku kluczy, gdy opcja jest włączona.";
@@ -304,7 +305,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Przechowywane w ~/.codexbar/config.json. Wklej swój klucz API MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Przechowywane w ~/.codexbar/config.json. Możesz też podać KILO_API_KEY lub ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Przechowuje lokalną historię użycia Codex (8 tygodni), aby personalizować prognozy Tempo.";
-"Subscription Utilization" = "Wykorzystanie subskrypcji";
 "Surprise me" = "Zaskocz mnie";
 "Switcher shows icons" = "Przełącznik pokazuje ikony";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Dowiąż symbolicznie CodexBarCLI do /usr/local/bin i /opt/homebrew/bin jako codexbar.";
@@ -676,6 +676,7 @@
 "refresh_5min" = "Co 5 min";
 "refresh_15min" = "Co 15 min";
 "refresh_30min" = "Co 30 min";
+"refresh_adaptive" = "Adaptacyjny";
 
 /* Additional keys */
 "not_found" = "Nie znaleziono";
@@ -734,6 +735,7 @@
 "Resets now" = "Reset teraz";
 "reset_tomorrow_format" = "jutro, %@";
 "Lasts until reset" = "Wystarcza do resetu";
+"1.5× headroom" = "zapas 1,5×";
 "Updated %@" = "Zaktualizowano %@";
 "Updated relative %@" = "Zaktualizowano %@";
 "Updated absolute %@" = "Zaktualizowano %@";
@@ -1134,3 +1136,14 @@
 "byte_unit_gigabyte" = "gigabajt";
 "byte_unit_gigabytes" = "gigabajty";
 "CrossModel API spend trend" = "Trend wydatków API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Włącz";
+"Disable" = "Wyłącz";
+"providers_on_count" = "%d wł.";
+"section_cost_summary" = "Podsumowanie kosztów";
+"section_command_line" = "Wiersz poleceń";
+"section_privacy" = "Prywatność";
+"section_diagnostics" = "Diagnostyka";
+"section_updates" = "Aktualizacje";
+"section_links" = "Linki";

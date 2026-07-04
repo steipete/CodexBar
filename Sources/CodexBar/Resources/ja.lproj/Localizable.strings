@@ -234,6 +234,7 @@
 "Picker subtitle" = "ピッカーのサブタイトル";
 "Placeholder" = "プレースホルダ";
 "Plan" = "プラン";
+"Plan Usage" = "プラン使用状況";
 "Play full-screen confetti when weekly usage resets." = "週間使用量がリセットされたときに全画面の紙吹雪を表示します。";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "OpenAI/Claude のステータスページと Google Workspace をポーリングして、";
 "Prevents any Keychain access while enabled." = "有効にすると、キーチェーンへのアクセスをすべて防ぎます。";
@@ -301,12 +302,13 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json に保存されます。MiniMax API キーを貼り付けてください。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "~/.codexbar/config.json に保存されます。KILO_API_KEY を指定することもできます。または ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "ローカルの Codex 使用履歴（8 週間分）を保存して、ペース予測をパーソナライズします。";
-"Subscription Utilization" = "サブスクリプション利用率";
 "Surprise me" = "サプライズ";
 "Switcher shows icons" = "切替バーにアイコンを表示";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "System" = "システム";
 "Temporarily shows the loading animation after the next refresh." = "次回の更新後に読み込みアニメーションを一時的に表示します。";
+"terminal_app_subtitle" = "「ターミナルを開く」アクションで使用するターミナル";
+"terminal_app_title" = "デフォルトのターミナル";
 "Tertiary (\\(label))" = "第3（\\(label)）";
 "Tertiary (\\(tertiaryTitle))" = "第3（\\(tertiaryTitle)）";
 "The default Codex account on this Mac." = "この Mac のデフォルトの Codex アカウントです。";
@@ -668,6 +670,7 @@
 "refresh_5min" = "5分";
 "refresh_15min" = "15分";
 "refresh_30min" = "30分";
+"refresh_adaptive" = "アダプティブ";
 
 /* Additional keys */
 "not_found" = "見つかりません";
@@ -726,6 +729,7 @@
 "Resets now" = "まもなくリセット";
 "reset_tomorrow_format" = "明日 %@";
 "Lasts until reset" = "リセットまで持続";
+"1.5× headroom" = "1.5倍の余裕";
 "Updated %@" = "%@ に更新";
 "Updated relative %@" = "%@ に更新";
 "Updated absolute %@" = "%@ に更新";
@@ -1127,3 +1131,14 @@
 "byte_unit_gigabyte" = "ギガバイト";
 "byte_unit_gigabytes" = "ギガバイト";
 "CrossModel API spend trend" = "CrossModel API の支出推移";
+
+/* Settings sidebar redesign */
+"Enable" = "有効にする";
+"Disable" = "無効にする";
+"providers_on_count" = "%d 件オン";
+"section_cost_summary" = "コスト概要";
+"section_command_line" = "コマンドライン";
+"section_privacy" = "プライバシー";
+"section_diagnostics" = "診断";
+"section_updates" = "アップデート";
+"section_links" = "リンク";

@@ -234,6 +234,7 @@
 "Picker subtitle" = "Subtítol del selector";
 "Placeholder" = "Text de marcador";
 "Plan" = "Pla";
+"Plan Usage" = "Ús del pla";
 "Play full-screen confetti when weekly usage resets." = "Mostreu confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a ";
 "Prevents any Keychain access while enabled." = "Impedeix qualsevol accés al Clauer mentre estigui activat.";
@@ -302,7 +303,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Desat a ~/.codexbar/config.json. Enganxeu la vostra clau d'API de MiniMax.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Desat a ~/.codexbar/config.json. També podeu proporcionar KILO_API_KEY o ";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Desa l'historial d'ús local de Codex (8 setmanes) per personalitzar les prediccions de Ritme.";
-"Subscription Utilization" = "Ús de la subscripció";
 "Surprise me" = "Sorprèn-me";
 "Switcher shows icons" = "El selector mostra icones";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Creeu un enllaç simbòlic de CodexBarCLI a /usr/local/bin i /opt/homebrew/bin com a codexbar.";
@@ -660,6 +660,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptatiu";
 
 /* Additional keys */
 "not_found" = "No trobat";
@@ -1035,6 +1036,7 @@
 "Last 30 days: %@" = "Últims 30 dies: %@";
 "Last 30 days: %@ · %@ tokens" = "Últims 30 dies: %@ · %@ tokens";
 "Lasts until reset" = "Dura fins al reinici";
+"1.5× headroom" = "marge d’1,5×";
 "Login with Google" = "Inicieu sessió amb Google";
 "login_success_notification_body" = "Podeu tornar a l'app; l'autenticació ha finalitzat.";
 "login_success_notification_title" = "Inici de sessió de %@ correcte";
@@ -1130,3 +1132,14 @@
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
 "CrossModel API spend trend" = "Tendència de despesa de l'API de CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Activa";
+"Disable" = "Desactiva";
+"providers_on_count" = "%d actius";
+"section_cost_summary" = "Resum de costos";
+"section_command_line" = "Línia d'ordres";
+"section_privacy" = "Privadesa";
+"section_diagnostics" = "Diagnòstics";
+"section_updates" = "Actualitzacions";
+"section_links" = "Enllaços";

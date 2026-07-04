@@ -232,6 +232,7 @@
 "Picker subtitle" = "Picker-Untertitel";
 "Placeholder" = "Platzhalter";
 "Plan" = "Planen";
+"Plan Usage" = "Plannutzung";
 "Play full-screen confetti when weekly usage resets." = "Spielen Sie Konfetti im Vollbildmodus ab, wenn die wöchentliche Nutzung zurückgesetzt wird.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Fragt OpenAI/Claude-Statusseiten und Google Workspace ab";
 "Prevents any Keychain access while enabled." = "Verhindert jeglichen Zugriff auf den Schlüsselbund, solange diese Option aktiviert ist.";
@@ -299,7 +300,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Gespeichert in ~/.codexbar/config.json. Fügen Sie Ihren MiniMax-API-Schlüssel ein.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Gespeichert in ~/.codexbar/config.json. Sie können auch KILO_API_KEY oder angeben";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Speichert den lokalen Codex-Nutzungsverlauf (8 Wochen), um Pace-Vorhersagen zu personalisieren.";
-"Subscription Utilization" = "Abonnementnutzung";
 "Surprise me" = "Überrasche mich";
 "Switcher shows icons" = "Switcher zeigt Symbole an";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Verknüpfen Sie CodexBarCLI mit /usr/local/bin und /opt/homebrew/bin als Codexbar.";
@@ -671,6 +671,7 @@
 "refresh_5min" = "5 Min";
 "refresh_15min" = "15 Min";
 "refresh_30min" = "30 Min";
+"refresh_adaptive" = "Adaptiv";
 
 /* Additional keys */
 "not_found" = "Nicht gefunden";
@@ -729,6 +730,7 @@
 "Resets now" = "Wird jetzt zurückgesetzt";
 "reset_tomorrow_format" = "morgen, %@";
 "Lasts until reset" = "Hält bis zum Zurücksetzen an";
+"1.5× headroom" = "1,5× Spielraum";
 "Updated %@" = "Aktualisiert %@";
 "Updated relative %@" = "Aktualisiert %@";
 "Updated absolute %@" = "Aktualisiert %@";
@@ -1128,3 +1130,14 @@
 "byte_unit_gigabyte" = "Gigabyte";
 "byte_unit_gigabytes" = "Gigabyte";
 "CrossModel API spend trend" = "CrossModel-API-Ausgabentrend";
+
+/* Settings sidebar redesign */
+"Enable" = "Aktivieren";
+"Disable" = "Deaktivieren";
+"providers_on_count" = "%d aktiv";
+"section_cost_summary" = "Kostenübersicht";
+"section_command_line" = "Befehlszeile";
+"section_privacy" = "Datenschutz";
+"section_diagnostics" = "Diagnose";
+"section_updates" = "Updates";
+"section_links" = "Links";

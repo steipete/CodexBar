@@ -234,6 +234,7 @@
 "Picker subtitle" = "Tiêu đề phụ của bộ chọn";
 "Placeholder" = "Trình giữ chỗ";
 "Plan" = "Kế hoạch";
+"Plan Usage" = "Mức sử dụng gói";
 "Play full-screen confetti when weekly usage resets." = "Phát hoa giấy toàn màn hình khi đặt lại Mức sử dụng hàng tuần.";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "Cuộc thăm dò ý kiến ​​OpenAI / Claude trang trạng thái và Google Không gian làm việc dành cho";
 "Prevents any Keychain access while enabled." = "Ngăn chặn mọi quyền truy cập Keychain khi được bật.";
@@ -301,12 +302,13 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Được lưu trữ trong ~/.codexbar/config.json. Dán khóa MiniMax API của bạn.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp lịch sử KILO_API_KEY hoặc";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "Stores Codex cục bộ Mức sử dụng (8 tuần) để cá nhân hóa dự đoán Pace.";
-"Subscription Utilization" = "Gói đăng ký Mức sử dụng";
 "Surprise me" = "Làm tôi ngạc nhiên";
 "Switcher shows icons" = "Trình chuyển đổi hiển thị các biểu tượng";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI tới /usr/local/bin và /opt/homebrew/bin dưới dạng codexbar.";
 "System" = "Hệ thống";
 "Temporarily shows the loading animation after the next refresh." = "Tạm thời hiển thị hoạt ảnh đang tải sau lần làm mới tiếp theo.";
+"terminal_app_subtitle" = "Terminal dùng cho tác vụ Mở Terminal";
+"terminal_app_title" = "Terminal mặc định";
 "Tertiary (\\(label))" = "Cấp ba (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Cấp ba (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Tài khoản Codex mặc định trên máy Mac này.";
@@ -667,6 +669,7 @@
 "refresh_5min" = "5 phút";
 "refresh_15min" = "15 phút";
 "refresh_30min" = "30 phút";
+"refresh_adaptive" = "Thích ứng";
 
 /* Additional keys */
 "not_found" = "Không tìm thấy";
@@ -725,6 +728,7 @@
 "Resets now" = "Đặt lại ngay";
 "reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
+"1.5× headroom" = "dư địa 1,5×";
 "Updated %@" = "Đã cập nhật %@";
 "Updated relative %@" = "Đã cập nhật %@";
 "Updated absolute %@" = "Đã cập nhật %@";
@@ -1127,3 +1131,14 @@
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
 "CrossModel API spend trend" = "Xu hướng chi tiêu API CrossModel";
+
+/* Settings sidebar redesign */
+"Enable" = "Bật";
+"Disable" = "Tắt";
+"providers_on_count" = "%d đang bật";
+"section_cost_summary" = "Tóm tắt chi phí";
+"section_command_line" = "Dòng lệnh";
+"section_privacy" = "Quyền riêng tư";
+"section_diagnostics" = "Chẩn đoán";
+"section_updates" = "Cập nhật";
+"section_links" = "Liên kết";

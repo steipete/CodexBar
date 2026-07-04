@@ -1166,7 +1166,7 @@ extension UsageMenuCardView.Model {
             let opusResetText: String? = input.provider == .perplexity
                 ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
-            let tertiaryPaceDetail = Self.cursorBillingCyclePaceDetail(window: opus, input: input)
+            let tertiaryPaceDetail = Self.resetWindowPaceDetail(window: opus, input: input)
             metrics.append(Metric(
                 id: "tertiary",
                 title: labels.tertiary,
@@ -1305,6 +1305,7 @@ extension UsageMenuCardView.Model {
             }
             if let pace = input.weeklyPace {
                 let paceDetail = Self.weeklyPaceDetail(
+                    provider: input.provider,
                     window: primary,
                     now: input.now,
                     pace: pace,
@@ -1316,8 +1317,7 @@ extension UsageMenuCardView.Model {
                     primaryPaceOnTop = paceDetail.paceOnTop
                 }
             }
-        }
-        if let paceDetail = Self.cursorBillingCyclePaceDetail(window: primary, input: input) {
+        } else if let paceDetail = Self.resetWindowPaceDetail(window: primary, input: input) {
             primaryDetailLeft = paceDetail.leftLabel
             primaryDetailRight = paceDetail.rightLabel
             primaryPacePercent = paceDetail.pacePercent
@@ -1373,6 +1373,7 @@ extension UsageMenuCardView.Model {
         zaiTimeDetail: String?) -> Metric
     {
         var paceDetail = Self.weeklyPaceDetail(
+            provider: input.provider,
             window: weekly,
             now: input.now,
             pace: input.weeklyPace,
@@ -1432,7 +1433,7 @@ extension UsageMenuCardView.Model {
         {
             paceDetail = PaceDetail(leftLabel: detail, rightLabel: nil, pacePercent: nil, paceOnTop: true)
         }
-        if let cursorPaceDetail = Self.cursorBillingCyclePaceDetail(
+        if let cursorPaceDetail = Self.resetWindowPaceDetail(
             window: weekly,
             input: input,
             pace: input.weeklyPace)
@@ -1495,6 +1496,7 @@ extension UsageMenuCardView.Model {
                 title = L(input.metadata.weeklyLabel)
                 id = "secondary"
                 paceDetail = Self.weeklyPaceDetail(
+                    provider: input.provider,
                     window: window,
                     now: input.now,
                     pace: Self.standardWeeklyPace(input: input, window: window),

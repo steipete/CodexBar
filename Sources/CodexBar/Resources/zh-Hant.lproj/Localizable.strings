@@ -241,6 +241,7 @@
 "Picker subtitle" = "選擇器副標題";
 "Placeholder" = "預留位置";
 "Plan" = "方案";
+"Plan Usage" = "方案用量";
 "Play full-screen confetti when weekly usage resets." = "每週使用量重置時播放全螢幕慶祝動畫。";
 "Polls OpenAI/Claude status pages and Google Workspace for " = "輪詢 OpenAI/Claude 狀態頁面和 Google Workspace，以檢查";
 "Prevents any Keychain access while enabled." = "啟用時封鎖任何鑰匙圈存取。";
@@ -313,7 +314,6 @@
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "儲存在 ~/.codexbar/config.json 中。請貼上你的 MiniMax API 金鑰。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or " = "儲存在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或";
 "Stores local Codex usage history (8 weeks) to personalize Pace predictions." = "儲存本機 Codex 使用量歷史（8 週），用於個人化進度預測。";
-"Subscription Utilization" = "訂閱使用率";
 "Surprise me" = "給我驚喜";
 "Switcher shows icons" = "切換器顯示圖示";
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "將 CodexBarCLI 作為 codexbar 符號連結到 /usr/local/bin 和 /opt/homebrew/bin。";
@@ -549,6 +549,7 @@
 "no_writable_bin_dirs" = "找不到可寫的 bin 目錄。";
 "show_debug_settings_title" = "顯示除錯設定";
 "show_debug_settings_subtitle" = "在「除錯」標籤中顯示疑難排解工具。";
+"1.5× headroom" = "1.5 倍餘裕";
 "surprise_me_title" = "給我驚喜";
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "session_limit_confetti_title" = "工作階段限制彩帶";
@@ -657,6 +658,7 @@
 "refresh_5min" = "5 分鐘";
 "refresh_15min" = "15 分鐘";
 "refresh_30min" = "30 分鐘";
+"refresh_adaptive" = "自適應";
 "not_found" = "找不到";
 "CodexBar can't show its menu bar icon" = "CodexBar 無法顯示選單列圖示";
 "Dismiss" = "關閉";
@@ -1163,3 +1165,14 @@
 "Overage credits at zero" = "歸零時顯示超額額度";
 "Overage cost at zero" = "歸零時顯示超額費用";
 "Overage credits + cost at zero" = "歸零時顯示超額額度 + 費用";
+
+/* Settings sidebar redesign */
+"Enable" = "啟用";
+"Disable" = "停用";
+"providers_on_count" = "%d 個已開啟";
+"section_cost_summary" = "費用摘要";
+"section_command_line" = "命令列";
+"section_privacy" = "隱私權";
+"section_diagnostics" = "診斷";
+"section_updates" = "更新";
+"section_links" = "連結";
