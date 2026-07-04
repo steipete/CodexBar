@@ -27,7 +27,8 @@ did not remove their blobs from existing history.
 
 ## Prevention
 
-`Scripts/check_repository_size.sh` runs under `make check`. It rejects:
+`Scripts/check_repository_size.sh` runs under `make check`. It inspects the exact blobs in Git's index, not mutable
+working-tree copies, and rejects:
 
 - tracked files larger than 2 MiB;
 - app bundles, dSYMs, Xcode results, IPAs, archives, deltas, disk images, and installer packages.

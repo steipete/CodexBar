@@ -423,8 +423,8 @@ extension SettingsStore {
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnReset = Self.loadConfettiOnResetDefaults(userDefaults: userDefaults)
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
+        let claudeOAuthKeychainReadStrategyRaw = Self.loadClaudeOAuthKeychainReadStrategyRaw(userDefaults: userDefaults)
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
-        let claudeOAuthKeychainReadStrategyRaw = userDefaults.string(forKey: "claudeOAuthKeychainReadStrategy")
         let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
@@ -533,6 +533,21 @@ extension SettingsStore {
             userDefaults.set(migratedStyle, forKey: "costSummaryDisplayStyle")
         }
         return migratedStyle
+    }
+
+    private static func loadClaudeOAuthKeychainReadStrategyRaw(userDefaults: UserDefaults) -> String? {
+        let key = "claudeOAuthKeychainReadStrategy"
+        guard let raw = userDefaults.string(forKey: key) else { return nil }
+        guard let strategy = ClaudeOAuthKeychainReadStrategy(rawValue: raw) else { return raw }
+        guard strategy == .securityCLIExperimental else { return raw }
+
+        let migrated = ClaudeOAuthKeychainReadStrategy.securityFramework.rawValue
+        userDefaults.set(migrated, forKey: key)
+        let promptModeKey = "claudeOAuthKeychainPromptMode"
+        if userDefaults.string(forKey: promptModeKey) == nil {
+            userDefaults.set(ClaudeOAuthKeychainPromptMode.never.rawValue, forKey: promptModeKey)
+        }
+        return migrated
     }
 
     private static func loadConfettiOnResetDefaults(userDefaults: UserDefaults) -> (session: Bool, weekly: Bool) {

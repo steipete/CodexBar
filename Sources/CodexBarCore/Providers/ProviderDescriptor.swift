@@ -109,6 +109,7 @@ public enum ProviderDescriptorRegistry {
         .poe: PoeProviderDescriptor.descriptor,
         .chutes: ChutesProviderDescriptor.descriptor,
         .crossmodel: CrossModelProviderDescriptor.descriptor,
+        .clawrouter: ClawRouterProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 56 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 57 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -71,6 +71,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via Chrome session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
 | GroqCloud | API key → Prometheus metrics API for request/token/cache-hit rates (`api`). |
 | LLM Proxy | API key + base URL → `/v1/quota-stats` aggregate proxy usage (`api`). |
+| ClawRouter | API key + optional base URL → `/v1/usage` monthly budget, spend, and routed-provider usage (`api`). |
 | LiteLLM | API key + base URL → `/key/info`, then `/user/info` or `/team/info` budget usage (`api`). |
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
@@ -430,6 +431,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Reads `/v1/quota-stats` for aggregate proxy usage with lowest remaining quota, requests, tokens, and approximate cost.
 - Status: none yet.
 - Details: `docs/llm-proxy.md`.
+
+## ClawRouter
+- API key from the resolved CodexBar config (`providers[].apiKey`) or `CLAWROUTER_API_KEY`.
+- Defaults to `https://clawrouter.openclaw.ai`; optional config `enterpriseHost` or `CLAWROUTER_BASE_URL` selects another HTTPS deployment.
+- Reads `/v1/usage` for the key policy's monthly budget, spend, request/token totals, and per-provider breakdown.
+- Provider rows are data-driven, so any routed provider returned by ClawRouter is displayed without provider-specific CodexBar code.
+- Details: `docs/clawrouter.md`.
 
 ## AWS Bedrock
 - AWS credentials from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN`.

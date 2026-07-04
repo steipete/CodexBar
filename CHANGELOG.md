@@ -4,13 +4,16 @@
 
 ### Added
 - Sakana AI: show best-effort pay-as-you-go credit balance and recent usage without delaying subscription quota refreshes. Thanks @ss251!
+- Kimi: show monthly subscription usage alongside weekly and five-hour limits with a short total budget for the optional membership request. Thanks @zhiyue!
 - Localization: add complete Russian coverage for the app and redesigned website. Thanks @Kirchberg!
 - Localization: add Galician app translations and language selection. Thanks @B1NAR10!
+- ClawRouter: add API-key tracking for monthly budget, spend, requests, tokens, and routed-provider usage.
 - Claude: show model-scoped weekly quota windows, including promotional Fable limits, from OAuth and web usage responses. Thanks @konon4!
 - Usage refresh: add an opt-in Adaptive cadence that polls every 2–30 minutes based on recent menu use, Low Power Mode, and thermal state. Thanks @hhh2210!
 - Codex: show a conservative 1.5× pace-headroom hint in menus and CLI output when usage is safely ahead of the reset curve. Thanks @astuteprogrammer!
 
 ### Changed
+- Repository: reject oversized tracked blobs and generated release/build artifacts during checks. Thanks @joeVenner!
 - Branding: replace the app and website icon with a usage-meter prompt mark that matches CodexBar's core UI.
 - Website: redesign codexbar.app around faster download, provider discovery, feature, CLI, and widget paths with responsive dark/light and localized layouts. Thanks @vyctorbrzezowski!
 - Architecture: accept a bounded opt-in adaptive refresh design with a deterministic 2–30-minute cadence and no behavioral telemetry. Thanks @hhh2210!
@@ -23,6 +26,7 @@
 ### Fixed
 - Gemini: resolve fnm from the active PATH, stop package-discovery helpers on deadline, and return after the first output line even when descendants keep stdout open.
 - Branding: replace the malformed Poe icon and use Poe's official purple consistently across the app, widget, and website. Thanks @garethpaul!
+- Claude: make the "Avoid Keychain prompts" setting use the no-prompt policy instead of the experimental `security` CLI reader. Thanks @gmkbenjamin!
 - Monthly quota pace: show reserve, deficit, and run-out estimates for OpenCode Go, Doubao, and Alibaba monthly reset windows using their calendar-cycle length. Thanks @Zihao-Qi and @joeVenner!
 - Localization: translate the Default Terminal setting across every supported app language. Thanks @Zihao-Qi!
 - Settings: recover collapsed sidebars and undersized saved window frames when reopening Settings. Thanks @ProspectOre!

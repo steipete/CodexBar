@@ -121,6 +121,12 @@ public enum ProviderTokenResolver {
         self.liteLLMResolution(environment: environment)?.token
     }
 
+    public static func clawRouterToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.clawRouterResolution(environment: environment)?.token
+    }
+
     public static func perplexitySessionToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -372,6 +378,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(LiteLLMSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func clawRouterResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(ClawRouterSettingsReader.apiKey(environment: environment))
     }
 
     public enum DeepgramCredentialKind: Sendable {

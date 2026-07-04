@@ -36,6 +36,7 @@ enum CLIRenderer {
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendLimitsUnavailableLine(
@@ -111,7 +112,7 @@ enum CLIRenderer {
             return
         }
 
-        guard let cost = snapshot.providerCost else { return }
+        guard provider != .clawrouter, let cost = snapshot.providerCost else { return }
         // Fallback to cost/quota display if no primary rate window.
         let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
         let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
@@ -178,6 +179,41 @@ enum CLIRenderer {
                 window: monthly,
                 metric: .requests,
                 useColor: useColor))
+        }
+    }
+
+    private static func appendClawRouterUsageLines(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.clawRouterUsage else { return }
+
+        let spend = usage.budgetSpentUSD ?? usage.actualCostUSD
+        let spendValue = UsageFormatter.currencyString(spend, currencyCode: "USD")
+        if let limit = usage.budgetLimitUSD, limit > 0 {
+            let limitValue = UsageFormatter.currencyString(limit, currencyCode: "USD")
+            lines.append(self.labelValueLine("Spend", value: "\(spendValue) / \(limitValue)", useColor: useColor))
+        } else {
+            lines.append(self.labelValueLine("Spend", value: spendValue, useColor: useColor))
+        }
+
+        let requests = UsageFormatter.tokenCountString(usage.requestCount)
+        let tokens = UsageFormatter.tokenCountString(usage.totalTokens)
+        lines.append(self.labelValueLine("Usage", value: "\(requests) requests · \(tokens) tokens", useColor: useColor))
+
+        if usage.errorCount > 0 {
+            lines.append(self.labelValueLine(
+                "Results",
+                value: "\(usage.successCount) succeeded · \(usage.errorCount) failed",
+                useColor: useColor))
+        }
+
+        if !usage.providers.isEmpty {
+            let providerMix = usage.providers.prefix(5)
+                .map { "\($0.provider): \(UsageFormatter.tokenCountString($0.requestCount))" }
+                .joined(separator: " · ")
+            lines.append(self.labelValueLine("Routed providers", value: providerMix, useColor: useColor))
         }
     }
 
