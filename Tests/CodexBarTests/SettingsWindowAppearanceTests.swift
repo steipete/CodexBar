@@ -6,10 +6,9 @@ import Testing
 @MainActor
 struct SettingsWindowAppearanceTests {
     @Test
-    func `settings always keeps both navigation columns visible`() {
-        #expect(PreferencesView.visibleColumnVisibility(for: .detailOnly) == .doubleColumn)
-        #expect(PreferencesView.visibleColumnVisibility(for: .automatic) == .doubleColumn)
-        #expect(PreferencesView.visibleColumnVisibility(for: .doubleColumn) == .doubleColumn)
+    func `settings sidebar uses a fixed noncollapsible width`() {
+        #expect(SettingsPane.sidebarWidth == 224)
+        #expect(SettingsPane.windowMinWidth > SettingsPane.sidebarWidth)
     }
 
     @Test
@@ -47,7 +46,7 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
-    func `settings window sizing restores a collapsed sidebar without private identifiers`() {
+    func `settings window sizing does not mutate content split views`() {
         let window = NSWindow(
             contentRect: NSRect(x: 120, y: 160, width: 180, height: 140),
             styleMask: [.titled],
@@ -66,34 +65,7 @@ struct SettingsWindowAppearanceTests {
         SettingsWindowSizing.enforceMinimumSize(window)
 
         #expect(window.frame.width >= window.minSize.width)
-        #expect(sidebar.frame.width >= SettingsPane.sidebarWidth)
-    }
-
-    @Test
-    func `settings window sizing repairs the outer navigation split`() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 120, y: 160, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight),
-            styleMask: [.titled],
-            backing: .buffered,
-            defer: false)
-        let outerSplit = NSSplitView(
-            frame: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight))
-        outerSplit.isVertical = true
-        let sidebar = NSView(frame: NSRect(x: 0, y: 0, width: 0, height: SettingsPane.windowHeight))
-        let detail = NSView(
-            frame: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight))
-        let nestedSplit = NSSplitView(frame: NSRect(x: 0, y: 0, width: 300, height: 300))
-        nestedSplit.isVertical = true
-        nestedSplit.addSubview(NSView(frame: .zero))
-        nestedSplit.addSubview(NSView(frame: .zero))
-        detail.addSubview(nestedSplit)
-        outerSplit.addSubview(sidebar)
-        outerSplit.addSubview(detail)
-        window.contentView = outerSplit
-
-        SettingsWindowSizing.enforceMinimumSize(window)
-
-        #expect(sidebar.frame.width >= SettingsPane.sidebarWidth)
+        #expect(sidebar.frame.width == 0)
     }
 
     @Test
@@ -124,6 +96,25 @@ struct SettingsWindowAppearanceTests {
 
         #expect(window.appearance == nil)
         #expect(window.viewsNeedDisplay)
+    }
+
+    @Test
+    func `bridge updates window title when selected pane changes`() {
+        let resetCapture = ResetCapture()
+        let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+        window.contentView = bridge
+        resetCapture.actions.removeAll()
+
+        bridge.refreshWindowAppearance(for: .light, windowTitle: "Display")
+        bridge.refreshWindowAppearance(for: .light, windowTitle: "General")
+
+        #expect(window.title == "General")
+        #expect(resetCapture.actions.count == 2)
     }
 
     @Test
