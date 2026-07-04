@@ -184,7 +184,10 @@ extension UsageMenuCardView.Model {
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
-            return self.costHistoryInlineDashboard(provider: input.provider, snapshot: tokenSnapshot)
+            return self.costHistoryInlineDashboard(
+                provider: input.provider,
+                snapshot: tokenSnapshot,
+                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled)
         }
         if input.provider == .claude,
            let usage = input.snapshot?.claudeAdminAPIUsage
@@ -231,7 +234,10 @@ extension UsageMenuCardView.Model {
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty
         {
-            return Self.costHistoryInlineDashboard(provider: input.provider, snapshot: tokenSnapshot)
+            return Self.costHistoryInlineDashboard(
+                provider: input.provider,
+                snapshot: tokenSnapshot,
+                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled)
         }
         return nil
     }
@@ -319,7 +325,8 @@ extension UsageMenuCardView.Model {
 
     private static func costHistoryInlineDashboard(
         provider: UsageProvider,
-        snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
+        snapshot: CostUsageTokenSnapshot,
+        comparisonPeriodsEnabled: Bool) -> InlineUsageDashboardModel
     {
         let historyDays = max(1, min(365, snapshot.historyDays))
         let historyTitle = snapshot.historyLabel
@@ -354,6 +361,11 @@ extension UsageMenuCardView.Model {
         let usesLatestPrimary = provider == .bedrock || provider == .mistral
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         var details: [String] = []
+        if comparisonPeriodsEnabled {
+            details.append(contentsOf: snapshot.comparisonSummaries().map {
+                Self.costWindowLine(summary: $0, currencyCode: snapshot.currencyCode)
+            })
+        }
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }

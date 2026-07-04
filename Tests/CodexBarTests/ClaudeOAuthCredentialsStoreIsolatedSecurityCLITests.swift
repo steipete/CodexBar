@@ -6,6 +6,28 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests {
     @Test
+    func `safety blocks security CLI access to the login keychain`() {
+        let blockedEnvironment = [KeychainTestSafety.suppressAccessEnvironmentKey: "1"]
+        #expect(ClaudeOAuthCredentialsStore.securityCLIReadArguments(
+            account: nil,
+            environment: blockedEnvironment) == nil)
+
+        let explicitOptIn = [
+            KeychainTestSafety.suppressAccessEnvironmentKey: "1",
+            KeychainTestSafety.allowAccessEnvironmentKey: "1",
+        ]
+        let expectedArguments = [
+            "find-generic-password",
+            "-s",
+            "Claude Code-credentials",
+            "-w",
+        ]
+        #expect(ClaudeOAuthCredentialsStore.securityCLIReadArguments(
+            account: nil,
+            environment: explicitOptIn) == expectedArguments)
+    }
+
+    @Test
     func `isolated security CLI keychain requires global keychain disable`() {
         let keychainPath = "/tmp/codexbar-fixtures/verify.keychain-db"
         let isolatedEnvironment = [

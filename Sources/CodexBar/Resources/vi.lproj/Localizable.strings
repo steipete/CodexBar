@@ -427,6 +427,8 @@
 "cost_history_window_help" = "Đặt số ngày nhật ký sử dụng cục bộ xuất hiện trong menu.";
 "cost_history_days_title" = "Cửa sổ lịch sử: %d ngày";
 "cost_auto_refresh_info" = "Tự động làm mới: hàng giờ · Thời gian chờ: 10 phút";
+"cost_comparison_periods_title" = "Hiển thị các khoảng so sánh ngắn hơn";
+"cost_comparison_periods_subtitle" = "Thêm tổng 7, 30 và 90 ngày khi nằm trong cửa sổ lịch sử đã chọn. Các tổng này dùng lại cùng một lần quét cục bộ.";
 "refresh_cadence_title" = "Nhịp làm mới";
 "refresh_cadence_subtitle" = "Tần suất CodexBar thăm dò ý kiến ​​các nhà cung cấp trong nền.";
 "manual_refresh_hint" = "Tính năng tự động làm mới bị tắt; sử dụng lệnh Làm mới của menu.";

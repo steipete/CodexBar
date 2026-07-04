@@ -67,7 +67,7 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
                 account: self.account))
         }
 
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
             // Cache the nil result
             Self.cacheLock.lock()
@@ -123,7 +123,7 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let updateStatus = KeychainSecurity.update(query as CFDictionary, attributes as CFDictionary)
         if updateStatus == errSecSuccess {
             // Update cache
             Self.cacheLock.lock()
@@ -141,7 +141,7 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
         for (key, value) in attributes {
             addQuery[key] = value
         }
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        let addStatus = KeychainSecurity.add(addQuery as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
             Self.log.error("Keychain add failed: \(addStatus)")
             throw ZaiTokenStoreError.keychainStatus(addStatus)
@@ -161,7 +161,7 @@ struct KeychainZaiTokenStore: ZaiTokenStoring {
             kSecAttrService as String: self.service,
             kSecAttrAccount as String: self.account,
         ]
-        let status = SecItemDelete(query as CFDictionary)
+        let status = KeychainSecurity.delete(query as CFDictionary)
         if status == errSecSuccess || status == errSecItemNotFound {
             // Invalidate cache
             Self.cacheLock.lock()

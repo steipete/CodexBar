@@ -426,6 +426,8 @@
 "cost_history_window_help" = "메뉴에 표시할 로컬 사용량 로그 일수를 설정합니다.";
 "cost_history_days_title" = "기록 범위: %d일";
 "cost_auto_refresh_info" = "자동 새로 고침: 매시간 · 시간 초과: 10분";
+"cost_comparison_periods_title" = "더 짧은 비교 기간 표시";
+"cost_comparison_periods_subtitle" = "선택한 기록 범위에 포함되는 경우 7일, 30일, 90일 합계를 추가합니다. 이 합계에는 동일한 로컬 스캔을 재사용합니다.";
 "refresh_cadence_title" = "새로 고침 주기";
 "refresh_cadence_subtitle" = "CodexBar가 백그라운드에서 공급자를 폴링하는 빈도입니다.";
 "manual_refresh_hint" = "자동 새로 고침이 꺼져 있습니다. 메뉴의 새로 고침 명령을 사용하세요.";

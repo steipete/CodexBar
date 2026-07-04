@@ -1449,6 +1449,29 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `cost comparison periods default off and persist`() throws {
+        let suite = "SettingsStoreTests-cost-comparison-periods"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(!storeA.costComparisonPeriodsEnabled)
+        storeA.costComparisonPeriodsEnabled = true
+
+        let storeB = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(storeB.costComparisonPeriodsEnabled)
+    }
+
+    @Test
     func `cost summary display style defaults to both and persists`() throws {
         let suite = "SettingsStoreTests-cost-summary-display-style"
         let defaultsA = try #require(UserDefaults(suiteName: suite))

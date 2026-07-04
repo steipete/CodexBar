@@ -432,6 +432,8 @@
 "cost_history_window_help" = "Define cuántos días de registros de uso locales aparecen en el menú.";
 "cost_history_days_title" = "Ventana de historial: %d días";
 "cost_auto_refresh_info" = "Actualización automática: cada hora · Tiempo de espera: 10 m";
+"cost_comparison_periods_title" = "Mostrar períodos de comparación más cortos";
+"cost_comparison_periods_subtitle" = "Añade totales de 7, 30 y 90 días cuando quepan en el intervalo de historial seleccionado. Estos totales reutilizan el mismo análisis local.";
 "refresh_cadence_title" = "Frecuencia de actualización";
 "refresh_cadence_subtitle" = "Con qué frecuencia CodexBar consulta a los proveedores en segundo plano.";
 "manual_refresh_hint" = "La actualización automática está desactivada; usa el comando Actualizar del menú.";

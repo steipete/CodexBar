@@ -241,6 +241,12 @@ struct CostSummarySettingsSection: View {
                 }
 
                 CostHistoryDaysEditor(settings: self.settings)
+
+                Toggle(isOn: self.$settings.costComparisonPeriodsEnabled) {
+                    SettingsRowLabel(
+                        L("cost_comparison_periods_title"),
+                        subtitle: L("cost_comparison_periods_subtitle"))
+                }
             }
         } header: {
             Text(L("section_cost_summary"))

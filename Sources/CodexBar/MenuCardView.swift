@@ -83,9 +83,26 @@ struct UsageMenuCardView: View {
         struct TokenUsageSection {
             let sessionLine: String
             let monthLine: String
+            let comparisonLines: [String]
             let hintLine: String?
             let errorLine: String?
             let errorCopyText: String?
+
+            init(
+                sessionLine: String,
+                monthLine: String,
+                comparisonLines: [String] = [],
+                hintLine: String?,
+                errorLine: String?,
+                errorCopyText: String?)
+            {
+                self.sessionLine = sessionLine
+                self.monthLine = monthLine
+                self.comparisonLines = comparisonLines
+                self.hintLine = hintLine
+                self.errorLine = errorLine
+                self.errorCopyText = errorCopyText
+            }
         }
 
         struct ProviderCostSection {
@@ -199,6 +216,11 @@ struct UsageMenuCardView: View {
                             Text(tokenUsage.monthLine)
                                 .font(.footnote)
                                 .lineLimit(1)
+                            ForEach(tokenUsage.comparisonLines, id: \.self) { line in
+                                Text(line)
+                                    .font(.footnote)
+                                    .lineLimit(1)
+                            }
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)
@@ -717,6 +739,11 @@ struct UsageMenuCardCostSectionView: View {
                             Text(tokenUsage.monthLine)
                                 .font(.caption)
                                 .lineLimit(1)
+                            ForEach(tokenUsage.comparisonLines, id: \.self) { line in
+                                Text(line)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)
@@ -832,6 +859,7 @@ extension UsageMenuCardView.Model {
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
             enabled: input.tokenCostMenuSectionEnabled,
+            comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError)
         let subtitle = Self.subtitle(

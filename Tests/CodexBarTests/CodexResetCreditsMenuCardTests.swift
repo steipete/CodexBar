@@ -22,13 +22,8 @@ struct CodexResetCreditsMenuCardTests {
         let presentation = try #require(model.codexResetCredits)
 
         #expect(presentation.text == "3 available")
-        #expect(presentation.detailText == "Next expires in 1d")
         #expect(presentation.items.map(\.expiryText) == ["Expires in 1d", "Expires in 2d", "No expiry"])
-        #expect(CodexResetCreditsContent.expiryRows(presentation) == [
-            "Expires in 1d",
-            "Expires in 2d",
-            "No expiry",
-        ])
+        #expect(presentation.expirySummaryText == "1d · 2d · No expiry")
         #expect(presentation.helpText == "1. Expires in 1d\n2. Expires in 2d\n3. No expiry")
         #expect(presentation.accessibilityLabel.contains(presentation.helpText))
     }
@@ -44,8 +39,8 @@ struct CodexResetCreditsMenuCardTests {
         let presentation = try #require(model.codexResetCredits)
 
         #expect(presentation.text == "1 available")
-        #expect(presentation.detailText == "No expiry")
         #expect(presentation.items.map(\.expiryText) == ["No expiry"])
+        #expect(presentation.expirySummaryText == "No expiry")
         #expect(model.hasUsageContent)
     }
 
@@ -62,8 +57,8 @@ struct CodexResetCreditsMenuCardTests {
         let presentation = try #require(model.codexResetCredits)
         let formatted = UsageFormatter.resetDescription(from: expiresAt, now: now)
 
-        #expect(presentation.detailText == "Next expires \(formatted)")
         #expect(presentation.items.map(\.expiryText) == ["Expires \(formatted)"])
+        #expect(presentation.expirySummaryText == formatted)
     }
 
     @Test
@@ -77,7 +72,20 @@ struct CodexResetCreditsMenuCardTests {
             now: now)
 
         #expect(model.codexResetCredits?.text == "1 available")
-        #expect(model.codexResetCredits?.detailText == "Next expires in 1d")
+        #expect(model.codexResetCredits?.expirySummaryText == "1d")
+    }
+
+    @Test
+    func `compact expiry summary caps visible dates`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let credits = (1...6).map { day in
+            Self.credit(id: "day-\(day)", status: .available, now: now, expiresIn: Double(day * 86400))
+        }
+        let model = try Self.model(snapshot: Self.snapshot(now: now, credits: credits), now: now)
+
+        let presentation = try #require(model.codexResetCredits)
+        #expect(presentation.expirySummaryText == "1d · 2d · 3d · 4d · +2")
+        #expect(presentation.helpText.split(separator: "\n").count == 6)
     }
 
     @Test

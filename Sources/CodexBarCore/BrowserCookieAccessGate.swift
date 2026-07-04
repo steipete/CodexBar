@@ -33,7 +33,7 @@ public enum BrowserCookieAccessGate {
         processName: String = ProcessInfo.processInfo.processName,
         environment: [String: String] = ProcessInfo.processInfo.environment) -> BrowserCookieStoreAccessDecision
     {
-        guard self.isRunningUnderTests(processName: processName, environment: environment),
+        guard KeychainTestSafety.isRunningUnderTests(processName: processName, environment: environment),
               environment[self.allowTestCookieAccessEnvironmentKey] != "1"
         else {
             return .allowed
@@ -126,16 +126,6 @@ public enum BrowserCookieAccessGate {
     }
 
     private static let safeStorageLabels: [(service: String, account: String)] = Browser.safeStorageLabels
-
-    private static func isRunningUnderTests(
-        processName: String,
-        environment: [String: String]) -> Bool
-    {
-        processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || environment["XCTestConfigurationFilePath"] != nil
-            || environment["SWIFT_TESTING"] != nil
-    }
 
     private static func normalizedPath(_ url: URL) -> String {
         url.standardizedFileURL.resolvingSymlinksInPath().path
