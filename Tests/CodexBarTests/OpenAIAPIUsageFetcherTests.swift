@@ -111,6 +111,38 @@ struct OpenAIAPIUsageFetcherTests {
         #expect(snapshot.topModels.first?.totalTokens == 1800)
     }
 
+    @Test(arguments: ["NaN", "Infinity", "-Infinity", "1e309", "-1e309"])
+    func `rejects nonfinite cost strings`(value: String) {
+        let costs = """
+        {
+          "data": [{
+            "start_time": 1700000000,
+            "end_time": 1700086400,
+            "results": [{ "amount": { "value": "\(value)", "currency": "usd" } }]
+          }],
+          "has_more": false,
+          "next_page": null
+        }
+        """
+        let completions = #"{"data":[],"has_more":false,"next_page":null}"#
+
+        do {
+            _ = try OpenAIAPIUsageFetcher._parseSnapshotForTesting(
+                costs: Data(costs.utf8),
+                completions: Data(completions.utf8),
+                now: Date(timeIntervalSince1970: 1_700_179_200))
+            Issue.record("Expected a costs parse failure.")
+        } catch let error as OpenAIAPIUsageError {
+            guard case let .parseFailed(endpoint, _) = error else {
+                Issue.record("Expected a costs parse failure, got \(error).")
+                return
+            }
+            #expect(endpoint == "costs")
+        } catch {
+            Issue.record("Expected OpenAIAPIUsageError, got \(error).")
+        }
+    }
+
     @Test
     func `admin usage fetch pages long history within endpoint bucket limit`() async throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)

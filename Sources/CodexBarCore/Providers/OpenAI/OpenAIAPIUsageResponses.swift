@@ -114,7 +114,7 @@ extension KeyedDecodingContainer {
             return nil
         }
 
-        if let value = try? self.decode(Double.self, forKey: key) {
+        if let value = try? self.decode(Double.self, forKey: key), value.isFinite {
             return value
         }
 
@@ -123,7 +123,7 @@ extension KeyedDecodingContainer {
             guard !trimmed.isEmpty else {
                 return nil
             }
-            if let value = Double(trimmed) {
+            if let value = Double(trimmed), value.isFinite {
                 return value
             }
         }
