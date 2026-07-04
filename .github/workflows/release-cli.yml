@@ -64,7 +64,7 @@ jobs:
             swift-sdk-arch: aarch64
             file-arch-pattern: aarch64
           - name: macos-arm64
-            runs-on: macos-26
+            runs-on: macos-15
             platform: macos
             asset-platform: macos
             asset-arch: arm64
@@ -75,7 +75,7 @@ jobs:
             swift-sdk-arch: ""
             file-arch-pattern: ""
           - name: macos-x86_64
-            runs-on: macos-26-intel
+            runs-on: macos-15-intel
             platform: macos
             asset-platform: macos
             asset-arch: x86_64
@@ -98,17 +98,19 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Select Xcode 26.6 (if present) or fallback to default
+      - name: Select Xcode 26.3 or 26.2
         if: matrix.platform == 'macos'
         run: |
           set -euo pipefail
-          for candidate in /Applications/Xcode_26.6.app /Applications/Xcode_26.5.app /Applications/Xcode.app; do
+          # Both versions are part of the official macOS 15 runner image.
+          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
             if [[ -d "$candidate" ]]; then
               sudo xcode-select -s "${candidate}/Contents/Developer"
               echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
               break
             fi
           done
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
           /usr/bin/xcodebuild -version
 
       - name: Runner info
