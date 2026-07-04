@@ -7,7 +7,7 @@ import Testing
 struct SettingsWindowAppearanceTests {
     @Test
     func `settings sidebar uses a fixed noncollapsible width`() {
-        #expect(SettingsPane.sidebarWidth == 276)
+        #expect(SettingsPane.sidebarWidth == 260)
         #expect(SettingsPane.windowMinWidth > SettingsPane.sidebarWidth)
         #expect(SettingsPane.detailMaxWidth > SettingsPane.windowMinWidth - SettingsPane.sidebarWidth)
     }

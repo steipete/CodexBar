@@ -11,11 +11,11 @@ enum SettingsPane: Hashable {
     case debug
     case provider(UsageProvider)
 
-    static let windowWidth: CGFloat = 920
-    static let windowHeight: CGFloat = 640
-    static let windowMinWidth: CGFloat = 780
-    static let windowMinHeight: CGFloat = 520
-    static let sidebarWidth: CGFloat = 276
+    static let windowWidth: CGFloat = 880
+    static let windowHeight: CGFloat = 620
+    static let windowMinWidth: CGFloat = 800
+    static let windowMinHeight: CGFloat = 540
+    static let sidebarWidth: CGFloat = 260
     static let detailMaxWidth: CGFloat = 780
 
     var title: String {
@@ -68,13 +68,27 @@ struct PreferencesView: View {
         HStack(spacing: 0) {
             ZStack {
                 SettingsSidebarMaterial()
+                    .blur(radius: 20)
+                self.sidebarWashColor
+
                 SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
+            .shadow(color: Color.black.opacity(0.22), radius: 20, x: 0, y: 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.22), lineWidth: 0.75))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        Color(self.colorScheme == .dark ? Color.white.opacity(0.27) : Color.white.opacity(0.72)),
+                        lineWidth: 0.85))
             .frame(width: SettingsPane.sidebarWidth)
-            .frame(maxHeight: .infinity)
-            .clipped()
-
-            Divider()
+            .padding(.leading, 12)
+            .padding(.top, 0)
+            .padding(.bottom, 12)
+            .padding(.trailing, 4)
 
             self.detailView
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -122,6 +136,12 @@ struct PreferencesView: View {
                 runProviderLoginFlow: self.runProviderLoginFlow)
                 .id(provider)
         }
+    }
+
+    private var sidebarWashColor: Color {
+        self.colorScheme == .dark
+            ? Color.black.opacity(0.60)
+            : Color.white.opacity(0.60)
     }
 
     private func ensureValidSelection() {
@@ -214,24 +234,76 @@ final class SettingsWindowAppearanceView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didUpdateNotification, object: nil)
+        if let window {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.windowDidUpdate(_:)),
+                name: NSWindow.didUpdateNotification,
+                object: window)
+        }
+        self.configureWindowStyle()
         self.refreshWindowAppearance()
     }
 
+    @objc private func windowDidUpdate(_ notification: Notification) {
+        self.configureWindowStyle()
+    }
+
     func refreshWindowAppearance(for colorScheme: ColorScheme, windowTitle: String? = nil) {
-        guard self.colorScheme != colorScheme || self.windowTitle != windowTitle else { return }
+        let colorSchemeChanged = self.colorScheme != colorScheme
+        let windowTitleChanged = self.windowTitle != windowTitle
+        guard colorSchemeChanged || windowTitleChanged else { return }
         self.colorScheme = colorScheme
         self.windowTitle = windowTitle
-        self.refreshWindowAppearance()
+
+        guard let window else { return }
+        self.configureWindowStyle()
+        if windowTitleChanged, let windowTitle {
+            window.title = windowTitle
+        }
+        if colorSchemeChanged {
+            SettingsWindowAppearance.refresh(window, scheduleReset: self.scheduleReset)
+        }
     }
 
     private func refreshWindowAppearance() {
         guard let window else { return }
+        self.configureWindowStyle()
         if let windowTitle {
             window.title = windowTitle
         }
         SettingsWindowAppearance.refresh(window, scheduleReset: self.scheduleReset)
+    }
+
+    override func layout() {
+        super.layout()
+        self.configureWindowStyle()
+    }
+
+    private func configureWindowStyle() {
+        guard let window else { return }
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
+        }
+        if window.titleVisibility != .visible {
+            window.titleVisibility = .visible
+        }
+        if window.titlebarSeparatorStyle != .none {
+            window.titlebarSeparatorStyle = .none
+        }
+        if window.toolbar != nil {
+            window.toolbar = nil
+        }
+        if window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.remove(.fullSizeContentView)
+        }
     }
 }
 
@@ -253,5 +325,3 @@ private struct SettingsSidebarMaterial: NSViewRepresentable {
         view.state = .followsWindowActiveState
     }
 }
-
-

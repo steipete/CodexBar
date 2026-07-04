@@ -16,9 +16,9 @@ struct SettingsSidebarView: View {
                 SettingsSidebarSearchField(searchText: self.$searchText)
                 SettingsSidebarSortToggle(isOn: self.sortAlphabeticallyBinding)
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 8)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
 
             List(selection: self.selectionBinding) {
                 self.appPanesSection
@@ -27,6 +27,7 @@ struct SettingsSidebarView: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
         }
+        .padding(.horizontal, 8)
     }
 
     private var appPanesSection: some View {
