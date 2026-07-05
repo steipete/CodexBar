@@ -105,7 +105,6 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
     @Test
     func `file backed owner records history when keychain comparison is unavailable`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
-        store.settings.claudeOAuthKeychainPromptMode = .never
         let owner = String(repeating: "e", count: 64)
         let key = try #require(
             UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: owner))

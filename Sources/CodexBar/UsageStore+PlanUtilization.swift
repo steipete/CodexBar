@@ -1029,11 +1029,10 @@ extension UsageStore {
         }
 
         if evidence.keychainCredentialUnavailable,
-           !evidence.keychainCredentialMismatch,
-           self.settings.claudeOAuthKeychainPromptMode == .never
+           !evidence.keychainCredentialMismatch
         {
-            // With no authoritative binding, `never` mode can safely use the secret-derived file owner.
-            // Existing bindings are checked above so a stale file cannot cross an observed account switch.
+            // With no authoritative binding, the secret-derived file owner is the only safe bootstrap scope.
+            // Existing bindings are checked above, so normal background gating cannot bypass a detected switch.
             return evidence.owner
         }
         if evidence.keychainCredentialAbsent {
