@@ -5,6 +5,14 @@ public enum ResetTimeDisplayStyle: String, Codable, Sendable {
     case absolute
 }
 
+/// How the Codex reset-credit row renders its inventory of expiring credits.
+public enum CreditExpiryDisplayStyle: String, Codable, Sendable, CaseIterable {
+    /// Compact "· "-separated list of the soonest expiries (current default).
+    case list
+    /// Horizontal timeline with one dot per credit.
+    case runway
+}
+
 public enum UsageFormatter {
     private final class BundleToken {}
 

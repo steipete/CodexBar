@@ -108,6 +108,7 @@ extension StatusItemController {
             limitsAvailability: self.store.knownLimitsAvailability(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+            creditExpiryDisplayStyle: self.settings.creditExpiryDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
             tokenCostInlineDashboardEnabled: self.settings.costSummaryShowsInlineDashboard(for: target),
             tokenCostMenuSectionEnabled: !UsageStore.tokenCostRequiresProviderSnapshot(target) &&

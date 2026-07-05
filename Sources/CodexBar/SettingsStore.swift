@@ -391,11 +391,7 @@ extension SettingsStore {
         let statusChecksEnabled = userDefaults.object(forKey: "statusChecksEnabled") as? Bool ?? true
         let sessionQuotaNotificationsEnabled = Self.loadSessionQuotaNotificationsDefault(userDefaults: userDefaults)
         let quotaWarnings = Self.loadQuotaWarningDefaults(userDefaults: userDefaults)
-        let quotaWarningMarkersVisibleDefault = userDefaults.object(forKey: "quotaWarningMarkersVisible") as? Bool
-        let quotaWarningMarkersVisible = quotaWarningMarkersVisibleDefault ?? true
-        if Self.isRunningTests, quotaWarningMarkersVisibleDefault == nil {
-            userDefaults.set(true, forKey: "quotaWarningMarkersVisible")
-        }
+        let quotaWarningMarkersVisible = Self.loadQuotaWarningMarkersVisible(userDefaults: userDefaults)
         let weeklyProgressWorkDays = userDefaults.object(forKey: "weeklyProgressWorkDays") as? Int
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
@@ -410,6 +406,8 @@ extension SettingsStore {
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
+        let creditExpiryDisplayStyleRaw = userDefaults.string(forKey: "creditExpiryDisplayStyle")
+            ?? CreditExpiryDisplayStyle.list.rawValue
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
         let copilotBudgetExtrasEnabled = userDefaults.object(forKey: "copilotBudgetExtrasEnabled") as? Bool ?? false
         let copilotIconSecondaryWindowIDRaw = Self.loadCopilotIconSecondaryWindowIDRaw(userDefaults: userDefaults)
@@ -491,6 +489,7 @@ extension SettingsStore {
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
+            creditExpiryDisplayStyleRaw: creditExpiryDisplayStyleRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             copilotBudgetExtrasEnabled: copilotBudgetExtrasEnabled,
             copilotIconSecondaryWindowIDRaw: copilotIconSecondaryWindowIDRaw,
@@ -591,6 +590,14 @@ extension SettingsStore {
         userDefaults.set(migrated, forKey: "menuBarMetricPreferences")
         userDefaults.set(true, forKey: migrationKey)
         return migrated
+    }
+
+    private static func loadQuotaWarningMarkersVisible(userDefaults: UserDefaults) -> Bool {
+        let stored = userDefaults.object(forKey: "quotaWarningMarkersVisible") as? Bool
+        if Self.isRunningTests, stored == nil {
+            userDefaults.set(true, forKey: "quotaWarningMarkersVisible")
+        }
+        return stored ?? true
     }
 
     private static func loadMultiAccountMenuLayoutRaw(userDefaults: UserDefaults) -> String {

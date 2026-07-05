@@ -19,6 +19,7 @@ extension UsageMenuCardView.Model {
         let limitsAvailability: UsageLimitsAvailability?
         let usageBarsShowUsed: Bool
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
+        let creditExpiryDisplayStyle: CreditExpiryDisplayStyle
         let tokenCostUsageEnabled: Bool
         let tokenCostInlineDashboardEnabled: Bool
         let tokenCostMenuSectionEnabled: Bool
@@ -51,6 +52,7 @@ extension UsageMenuCardView.Model {
             limitsAvailability: UsageLimitsAvailability? = nil,
             usageBarsShowUsed: Bool,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
+            creditExpiryDisplayStyle: CreditExpiryDisplayStyle = .list,
             tokenCostUsageEnabled: Bool,
             tokenCostInlineDashboardEnabled: Bool? = nil,
             tokenCostMenuSectionEnabled: Bool? = nil,
@@ -82,6 +84,7 @@ extension UsageMenuCardView.Model {
             self.limitsAvailability = limitsAvailability
             self.usageBarsShowUsed = usageBarsShowUsed
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
+            self.creditExpiryDisplayStyle = creditExpiryDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
             self.tokenCostInlineDashboardEnabled = tokenCostInlineDashboardEnabled ?? tokenCostUsageEnabled
             self.tokenCostMenuSectionEnabled = tokenCostMenuSectionEnabled ?? tokenCostUsageEnabled

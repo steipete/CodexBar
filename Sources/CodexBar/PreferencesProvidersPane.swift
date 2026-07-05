@@ -681,6 +681,7 @@ struct ProvidersPane: View {
             limitsAvailability: self.store.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+            creditExpiryDisplayStyle: self.settings.creditExpiryDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             tokenCostInlineDashboardEnabled: self.settings.costSummaryShowsInlineDashboard(for: provider),
             // Display style only controls the main menu. Provider details always expose

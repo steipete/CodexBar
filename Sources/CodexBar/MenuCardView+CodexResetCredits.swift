@@ -9,12 +9,34 @@ struct CodexResetCreditPresentationItem: Equatable {
 struct CodexResetCreditsPresentation: Equatable {
     let text: String
     let items: [CodexResetCreditPresentationItem]
+    let expiryStyle: CreditExpiryDisplayStyle
+    let markers: [CodexResetCreditRunwayMarker]
+    let horizonLabel: String?
+
+    init(
+        text: String,
+        items: [CodexResetCreditPresentationItem],
+        expiryStyle: CreditExpiryDisplayStyle = .list,
+        markers: [CodexResetCreditRunwayMarker] = [],
+        horizonLabel: String? = nil)
+    {
+        self.text = text
+        self.items = items
+        self.expiryStyle = expiryStyle
+        self.markers = markers
+        self.horizonLabel = horizonLabel
+    }
 
     var expirySummaryText: String {
         let visibleItems = self.items.prefix(4).map(\.compactExpiryText)
         let hiddenCount = self.items.count - visibleItems.count
         let suffix = hiddenCount > 0 ? ["+\(hiddenCount)"] : []
         return (visibleItems + suffix).joined(separator: " · ")
+    }
+
+    /// The runway only renders when the user opted in and there is at least one dated credit to place.
+    var showsRunway: Bool {
+        self.expiryStyle == .runway && !self.markers.isEmpty && self.horizonLabel != nil
     }
 
     var helpText: String {
@@ -32,6 +54,7 @@ struct CodexResetCreditsPresentation: Equatable {
     static func make(
         snapshot: CodexRateLimitResetCreditsSnapshot,
         resetStyle: ResetTimeDisplayStyle,
+        expiryStyle: CreditExpiryDisplayStyle = .list,
         now: Date) -> CodexResetCreditsPresentation?
     {
         let inventory = snapshot.availableInventory(at: now)
@@ -39,9 +62,18 @@ struct CodexResetCreditsPresentation: Equatable {
         let items = inventory.credits.map { credit in
             Self.presentationItem(for: credit, resetStyle: resetStyle, now: now)
         }
+        let markers = expiryStyle == .runway
+            ? Self.runwayMarkers(credits: inventory.credits, resetStyle: resetStyle, now: now)
+            : []
+        let horizonLabel = expiryStyle == .runway
+            ? Self.runwayHorizonLabel(credits: inventory.credits, now: now)
+            : nil
         return CodexResetCreditsPresentation(
             text: Self.availableText(count: inventory.count),
-            items: items)
+            items: items,
+            expiryStyle: expiryStyle,
+            markers: markers,
+            horizonLabel: horizonLabel)
     }
 
     private static func availableText(count: Int) -> String {
@@ -57,12 +89,20 @@ struct CodexResetCreditsPresentation: Equatable {
             return CodexResetCreditPresentationItem(expiryText: L("No expiry"), compactExpiryText: L("No expiry"))
         }
         let formattedTime = Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now)
-        let compactExpiryText = resetStyle == .countdown && formattedTime.hasPrefix("in ")
-            ? String(formattedTime.dropFirst(3))
-            : formattedTime
         return CodexResetCreditPresentationItem(
             expiryText: String(format: L("Expires %@"), formattedTime),
-            compactExpiryText: compactExpiryText)
+            compactExpiryText: Self.compactExpiryText(for: expiresAt, resetStyle: resetStyle, now: now))
+    }
+
+    static func compactExpiryText(
+        for expiresAt: Date,
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date) -> String
+    {
+        let formattedTime = Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now)
+        return resetStyle == .countdown && formattedTime.hasPrefix("in ")
+            ? String(formattedTime.dropFirst(3))
+            : formattedTime
     }
 
     private static func formattedTime(
@@ -90,24 +130,32 @@ struct CodexResetCreditsContent: View {
                 .font(.body)
                 .fontWeight(.medium)
                 .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            if self.presentation.showsRunway, let horizonLabel = self.presentation.horizonLabel {
                 Text(self.presentation.text)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                     .lineLimit(1)
-                    .layoutPriority(1)
-                Spacer(minLength: 8)
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.caption2)
-                    Text(self.presentation.expirySummaryText)
-                        .font(.caption)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                CodexResetCreditRunway(markers: self.presentation.markers, horizonLabel: horizonLabel)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(self.presentation.text)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .layoutPriority(1)
+                    Spacer(minLength: 8)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                        Text(self.presentation.expirySummaryText)
+                            .font(.caption)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .accessibilityHidden(true)
                 }
-                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,6 +175,7 @@ extension UsageMenuCardView.Model {
         return CodexResetCreditsPresentation.make(
             snapshot: resetCredits,
             resetStyle: input.resetTimeDisplayStyle,
+            expiryStyle: input.creditExpiryDisplayStyle,
             now: input.now)
     }
 }

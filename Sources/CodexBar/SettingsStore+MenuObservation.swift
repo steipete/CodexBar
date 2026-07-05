@@ -31,6 +31,7 @@ extension SettingsStore {
         _ = self.kiroMenuBarDisplayMode
         _ = self.historicalTrackingEnabled
         _ = self.multiAccountMenuLayout
+        _ = self.creditExpiryDisplayStyle
         _ = self.menuBarMetricPreferencesRaw
         _ = self.copilotIconSecondaryWindowIDRaw
         _ = self.costUsageEnabled

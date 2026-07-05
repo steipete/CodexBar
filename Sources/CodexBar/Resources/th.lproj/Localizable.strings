@@ -1154,3 +1154,7 @@
 "section_diagnostics" = "การวินิจฉัย";
 "section_updates" = "อัปเดต";
 "section_links" = "ลิงก์";
+
+"credit_expiry_style_title" = "รูปแบบวันหมดอายุเครดิต";
+"credit_expiry_style_list" = "รายการ";
+"credit_expiry_style_runway" = "ไทม์ไลน์";

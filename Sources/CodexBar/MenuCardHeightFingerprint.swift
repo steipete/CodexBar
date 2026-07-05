@@ -121,7 +121,15 @@ extension UsageMenuCardView.Model.TokenUsageSection {
 
 extension CodexResetCreditsPresentation {
     fileprivate var heightFingerprint: String {
-        MenuCardHeightFingerprint.join([
+        // The runway is a fixed-height component (track + axis) distinct from the single-line list,
+        // so the style choice is the only height-relevant contributor once runway is active.
+        if self.showsRunway {
+            return MenuCardHeightFingerprint.join([
+                MenuCardHeightFingerprint.field("text", self.text),
+                MenuCardHeightFingerprint.field("expiry", "runway"),
+            ])
+        }
+        return MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("text", self.text),
             MenuCardHeightFingerprint.field("expirySummary", self.expirySummaryText),
         ])

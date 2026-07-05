@@ -69,6 +69,11 @@ struct DisplayPane: View {
 
                 Toggle(L("show_reset_time_as_clock_title"), isOn: self.$settings.resetTimesShowAbsolute)
 
+                Picker(L("credit_expiry_style_title"), selection: self.$settings.creditExpiryDisplayStyle) {
+                    Text(L("credit_expiry_style_list")).tag(CreditExpiryDisplayStyle.list)
+                    Text(L("credit_expiry_style_runway")).tag(CreditExpiryDisplayStyle.runway)
+                }
+
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
 
                 Toggle(isOn: self.$settings.showOptionalCreditsAndExtraUsage) {

@@ -1154,3 +1154,7 @@
 "section_diagnostics" = "التشخيصات";
 "section_updates" = "التحديثات";
 "section_links" = "روابط";
+
+"credit_expiry_style_title" = "نمط انتهاء الرصيد";
+"credit_expiry_style_list" = "قائمة";
+"credit_expiry_style_runway" = "الجدول الزمني";

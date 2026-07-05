@@ -293,6 +293,14 @@ extension SettingsStore {
         }
     }
 
+    var creditExpiryDisplayStyle: CreditExpiryDisplayStyle {
+        get { CreditExpiryDisplayStyle(rawValue: self.defaultsState.creditExpiryDisplayStyleRaw) ?? .list }
+        set {
+            self.defaultsState.creditExpiryDisplayStyleRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "creditExpiryDisplayStyle")
+        }
+    }
+
     var showAllTokenAccountsInMenu: Bool {
         get { self.multiAccountMenuLayout == .stacked }
         set { self.multiAccountMenuLayout = newValue ? .stacked : .segmented }

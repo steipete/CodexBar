@@ -1154,3 +1154,7 @@
 "section_diagnostics" = "عیب‌یابی";
 "section_updates" = "به‌روزرسانی‌ها";
 "section_links" = "پیوندها";
+
+"credit_expiry_style_title" = "سبک نمایش انقضای اعتبار";
+"credit_expiry_style_list" = "فهرست";
+"credit_expiry_style_runway" = "خط زمانی";

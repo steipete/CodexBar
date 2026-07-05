@@ -1154,3 +1154,7 @@
 "section_diagnostics" = "Diagnostics";
 "section_updates" = "Updates";
 "section_links" = "Links";
+
+"credit_expiry_style_title" = "Credit expiry style";
+"credit_expiry_style_list" = "List";
+"credit_expiry_style_runway" = "Timeline";
