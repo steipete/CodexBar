@@ -253,7 +253,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
                     accountOrganization: nil,
                     loginMethod: nil)
                 let balanceWindow = RateWindow(
-                    usedPercent: 100,
+                    usedPercent: 0,
                     windowMinutes: nil,
                     resetsAt: nil,
                     resetDescription: balanceDetail)
@@ -506,8 +506,8 @@ public struct DeepSeekUsageFetcher: Sendable {
         var priorCostData: Data?
         if self.needsPriorMonthData(now: now, calendar: calendar) {
             let prior = self.priorUsagePeriod(month: period.month, year: period.year, calendar: calendar)
-            priorAmountData = try await self.fetchAmount(session: session, month: prior.month, year: prior.year)
-            priorCostData = try await self.fetchCost(session: session, month: prior.month, year: prior.year)
+            priorAmountData = try? await self.fetchAmount(session: session, month: prior.month, year: prior.year)
+            priorCostData = try? await self.fetchCost(session: session, month: prior.month, year: prior.year)
         }
 
         return try DeepSeekUsageCostParser.parse(

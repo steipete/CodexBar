@@ -28,29 +28,30 @@ struct DeepSeekLiveChromeProbeTests {
             return
         }
 
-        let configURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codexbar/config.json")
-        let data = try Data(contentsOf: configURL)
-        guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              var providers = root["providers"] as? [[String: Any]]
-        else {
-            Issue.record("Could not parse config.json")
-            return
-        }
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-deepseek-probe-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
 
-        guard let index = providers.firstIndex(where: { ($0["id"] as? String) == "deepseek" }) else {
-            Issue.record("DeepSeek provider missing from config")
-            return
-        }
+        let configURL = tempDir.appendingPathComponent("config.json")
+        let root: [String: Any] = [
+            "providers": [[
+                "id": "deepseek",
+                "enabled": true,
+                "cookieSource": "manual",
+            ]],
+        ]
+        try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+            .write(to: configURL, options: .atomic)
 
-        var deepseek = providers[index]
-        deepseek["cookieSource"] = "manual"
+        var updatedRoot = root
+        var providers = try #require(updatedRoot["providers"] as? [[String: Any]])
+        var deepseek = try #require(providers.first)
         deepseek["cookieHeader"] = payload
-        providers[index] = deepseek
-        root["providers"] = providers
-
-        let out = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-        try out.write(to: configURL, options: .atomic)
+        providers[0] = deepseek
+        updatedRoot["providers"] = providers
+        try JSONSerialization.data(withJSONObject: updatedRoot, options: [.prettyPrinted, .sortedKeys])
+            .write(to: configURL, options: .atomic)
 
         let parsed = try #require(DeepSeekCookieHeader.session(from: payload))
         let account = try await DeepSeekUsageFetcher.fetchWebAccount(session: parsed)
@@ -58,7 +59,9 @@ struct DeepSeekLiveChromeProbeTests {
             Issue.record("Imported session did not authenticate platform APIs")
             return
         }
-        print("IMPORT_OK source=\(imported.sourceLabel) chars=\(payload.count) has_summary=\(account.summary != nil)")
+        print(
+            "IMPORT_OK source=\(imported.sourceLabel) chars=\(payload.count) "
+                + "has_summary=\(account.summary != nil) config=\(configURL.path)")
     }
 }
 #endif

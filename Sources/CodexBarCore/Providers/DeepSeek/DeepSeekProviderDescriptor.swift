@@ -103,12 +103,12 @@ extension DeepSeekAPITokenFetchStrategy {
         guard let webEmail = webIdentity?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
               !webEmail.isEmpty
         else {
-            return true
+            return false
         }
         guard let apiEmail = apiSnapshot.identity?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
               !apiEmail.isEmpty
         else {
-            return true
+            return false
         }
         return apiEmail.caseInsensitiveCompare(webEmail) == .orderedSame
     }
@@ -189,10 +189,14 @@ struct DeepSeekWebOnlyFetchStrategy: ProviderFetchStrategy {
             return true
         }
         #if os(macOS)
-        if DeepSeekWebEnrichmentResolver.allowsBrowserCookieImport(context: context),
-           DeepSeekCookieImporter.hasSession(browserDetection: context.browserDetection)
-        {
-            return true
+        if DeepSeekWebEnrichmentResolver.allowsBrowserCookieImport(context: context) {
+            do {
+                return try !DeepSeekCookieImporter.importSessions(
+                    browserDetection: context.browserDetection).isEmpty
+            } catch {
+                // Surface browser permission/setup failures during fetch instead of hiding them.
+                return true
+            }
         }
         #endif
         return false

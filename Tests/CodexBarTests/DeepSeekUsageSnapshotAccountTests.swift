@@ -54,7 +54,7 @@ struct DeepSeekUsageSnapshotAccountTests {
             balanceAlertEnabled: true,
             balanceAlertBound: 1)
         let usage = self.snapshot(apiTotal: 0.5, account: account, identity: identity).toUsageSnapshot()
-        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.primary?.usedPercent == 0)
         #expect((usage.primary?.resetDescription ?? "").contains("below alert"))
         #expect(usage.identity?.accountEmail == "a@b.com")
     }

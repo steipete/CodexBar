@@ -254,3 +254,80 @@ struct DeepSeekWebEnrichmentResolverTests {
     }
     #endif
 }
+
+struct DeepSeekWebBalanceIsolationTests {
+    @Test
+    func `web balance replacement requires matching emails`() {
+        let apiSnapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "USD",
+            totalBalance: 50,
+            grantedBalance: 10,
+            toppedUpBalance: 40,
+            identity: DeepSeekAccountIdentity(
+                email: "api@example.com",
+                maskedMobile: nil,
+                currency: "USD",
+                balanceAlertEnabled: false,
+                balanceAlertBound: nil),
+            updatedAt: Date())
+        let webIdentity = DeepSeekAccountIdentity(
+            email: "browser@example.com",
+            maskedMobile: nil,
+            currency: "USD",
+            balanceAlertEnabled: false,
+            balanceAlertBound: nil)
+
+        #expect(!DeepSeekAPITokenFetchStrategy.shouldApplyWebBalance(
+            apiSnapshot: apiSnapshot,
+            webIdentity: webIdentity))
+    }
+
+    @Test
+    func `web balance replacement keeps api wallet without api identity`() {
+        let apiSnapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "USD",
+            totalBalance: 50,
+            grantedBalance: 10,
+            toppedUpBalance: 40,
+            updatedAt: Date())
+        let webIdentity = DeepSeekAccountIdentity(
+            email: "browser@example.com",
+            maskedMobile: nil,
+            currency: "USD",
+            balanceAlertEnabled: false,
+            balanceAlertBound: nil)
+
+        #expect(!DeepSeekAPITokenFetchStrategy.shouldApplyWebBalance(
+            apiSnapshot: apiSnapshot,
+            webIdentity: webIdentity))
+    }
+
+    @Test
+    func `web balance replacement allows matching emails`() {
+        let apiSnapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "USD",
+            totalBalance: 50,
+            grantedBalance: 10,
+            toppedUpBalance: 40,
+            identity: DeepSeekAccountIdentity(
+                email: "user@example.com",
+                maskedMobile: nil,
+                currency: "USD",
+                balanceAlertEnabled: false,
+                balanceAlertBound: nil),
+            updatedAt: Date())
+        let webIdentity = DeepSeekAccountIdentity(
+            email: "USER@example.com",
+            maskedMobile: nil,
+            currency: "USD",
+            balanceAlertEnabled: false,
+            balanceAlertBound: nil)
+
+        #expect(DeepSeekAPITokenFetchStrategy.shouldApplyWebBalance(
+            apiSnapshot: apiSnapshot,
+            webIdentity: webIdentity))
+    }
+}
