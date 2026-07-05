@@ -284,11 +284,10 @@ public struct KimiK2UsageFetcher: Sendable {
     }
 
     private static func dateFromNumeric(_ value: Double) -> Date? {
-        guard value > 0 else { return nil }
-        if value > 1_000_000_000_000 {
-            return Date(timeIntervalSince1970: value / 1000)
-        }
-        return Date(timeIntervalSince1970: value)
+        guard value.isFinite, value > 0 else { return nil }
+        let seconds = value > 1_000_000_000_000 ? value / 1000 : value
+        guard seconds.isFinite, seconds <= Date.distantFuture.timeIntervalSince1970 else { return nil }
+        return Date(timeIntervalSince1970: seconds)
     }
 
     private static func doubleValueFromHeaders(headers: [AnyHashable: Any], key: String) -> Double? {

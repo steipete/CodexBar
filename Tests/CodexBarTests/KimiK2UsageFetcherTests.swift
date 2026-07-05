@@ -100,6 +100,21 @@ struct KimiK2UsageFetcherTests {
         #expect(abs(summary.updatedAt.timeIntervalSince1970 - expected.timeIntervalSince1970) < 0.5)
     }
 
+    @Test(arguments: ["1e309", "1e308"])
+    func `ignores invalid numeric timestamps`(timestamp: String) throws {
+        let json = """
+        {
+          "timestamp": "\(timestamp)",
+          "credits_remaining": 10,
+          "total_credits_consumed": 5
+        }
+        """
+
+        let summary = try KimiK2UsageFetcher._parseSummaryForTesting(Data(json.utf8))
+
+        #expect(abs(summary.updatedAt.timeIntervalSinceNow) < 1)
+    }
+
     @Test
     func `invalid root returns parse error`() {
         let json = """
