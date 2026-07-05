@@ -39,6 +39,9 @@ extension UsageMenuCardView.Model {
                 warningMarkerPercents: service.isUnlimited
                     ? []
                     : Self.miniMaxWarningMarkerPercents(service: service, input: input),
+                workdayMarkerPercents: service.isUnlimited
+                    ? []
+                    : Self.miniMaxWorkdayMarkerPercents(service: service, input: input),
                 cardStyle: false)
         }
     }
@@ -50,13 +53,17 @@ extension UsageMenuCardView.Model {
                 thresholds: input.quotaWarningThresholds[.session],
                 showUsed: true)
         case .weekly:
-            markerPercents(
+            warningMarkerPercents(
                 thresholds: input.quotaWarningThresholds[.weekly],
-                showUsed: true,
-                workDays: input.workDaysPerWeek,
-                windowMinutes: self.miniMaxWindowMinutes(for: service.windowType),
-                includeWorkdayMarkers: true)
+                showUsed: true)
         }
+    }
+
+    private static func miniMaxWorkdayMarkerPercents(service: MiniMaxServiceUsage, input: Input) -> [Double] {
+        guard self.miniMaxQuotaWarningWindow(for: service) == .weekly else { return [] }
+        return workDayMarkerPercents(
+            workDays: input.workDaysPerWeek,
+            windowMinutes: self.miniMaxWindowMinutes(for: service.windowType))
     }
 
     private static func miniMaxQuotaWarningWindow(for service: MiniMaxServiceUsage) -> QuotaWarningWindow {

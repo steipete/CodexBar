@@ -127,14 +127,15 @@ struct MenuCardModelCodexProjectionTests {
             now: now))
 
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
-        #expect(weekly.warningMarkerPercents == [20.0, 40.0, 60.0, 80.0])
+        #expect(weekly.warningMarkerPercents.isEmpty)
+        #expect(weekly.workdayMarkerPercents == [20.0, 40.0, 60.0, 80.0])
 
         let session = try #require(model.metrics.first { $0.id == "primary" })
         #expect(session.warningMarkerPercents.isEmpty)
     }
 
     @Test
-    func `codex weekly lane workday markers merge with quota warning markers`() throws {
+    func `codex weekly lane keeps workday and quota warning markers separate`() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let metadata = try #require(ProviderDefaults.metadata[.codex])
         let identity = ProviderIdentitySnapshot(
@@ -193,7 +194,8 @@ struct MenuCardModelCodexProjectionTests {
             now: now))
 
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
-        #expect(weekly.warningMarkerPercents == [20.0, 40.0, 50.0, 60.0, 80.0])
+        #expect(weekly.warningMarkerPercents == [50.0])
+        #expect(weekly.workdayMarkerPercents == [20.0, 40.0, 60.0, 80.0])
     }
 
     @Test
@@ -256,7 +258,8 @@ struct MenuCardModelCodexProjectionTests {
             now: now))
 
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
-        #expect(weekly.warningMarkerPercents == [20.0, 40.0, 60.0, 80.0])
+        #expect(weekly.warningMarkerPercents.isEmpty)
+        #expect(weekly.workdayMarkerPercents == [20.0, 40.0, 60.0, 80.0])
     }
 
     @Test

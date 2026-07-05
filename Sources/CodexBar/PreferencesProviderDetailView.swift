@@ -425,7 +425,8 @@ private struct ProviderMetricInlineRow: View {
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
-                    warningMarkerPercents: self.metric.warningMarkerPercents)
+                    warningMarkerPercents: self.metric.warningMarkerPercents,
+                    workdayMarkerPercents: self.metric.workdayMarkerPercents)
                     .frame(maxWidth: .infinity)
 
                 let hasLeftDetail = self.metric.detailLeftText?.isEmpty == false

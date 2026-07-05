@@ -151,9 +151,11 @@ struct MiniMaxMenuCardModelPlanTests {
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             quotaWarningThresholds: [.session: [50, 20], .weekly: [50, 20]],
+            workDaysPerWeek: 5,
             now: now))
 
         #expect(model.metrics.map(\.warningMarkerPercents) == [[50, 80], [50, 80]])
+        #expect(model.metrics.map(\.workdayMarkerPercents) == [[], [20, 40, 60, 80]])
     }
 
     @Test

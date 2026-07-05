@@ -59,6 +59,45 @@ struct MenuCardQuotaWarningMarkerTests {
     }
 
     @Test
+    func `workday boundary is a subtle lower tick`() {
+        let rect = UsageProgressBar.workdayMarkerRect(
+            x: 50,
+            size: CGSize(width: 100, height: 6),
+            scale: 2)
+
+        #expect(rect.width == 0.5)
+        #expect(rect.height == 3)
+        #expect(rect.minY == 3)
+        #expect(abs(rect.midX - 50) <= 0.5)
+    }
+
+    @Test
+    func `quota warning wins when marker kinds overlap`() {
+        let markers = UsageProgressBar.resolvedMarkers(
+            warningPercents: [50, 80],
+            workdayPercents: [20, 50, 60])
+
+        #expect(markers == [
+            .init(percent: 20, kind: .workdayBoundary),
+            .init(percent: 50, kind: .quotaWarning),
+            .init(percent: 60, kind: .workdayBoundary),
+            .init(percent: 80, kind: .quotaWarning),
+        ])
+    }
+
+    @Test
+    func `marker resolver removes edges duplicates and invalid values`() {
+        let markers = UsageProgressBar.resolvedMarkers(
+            warningPercents: [-10, 0, 50, 50, 100, 120],
+            workdayPercents: [Double.nan, 25, 25])
+
+        #expect(markers == [
+            .init(percent: 25, kind: .workdayBoundary),
+            .init(percent: 50, kind: .quotaWarning),
+        ])
+    }
+
+    @Test
     func `omits quota warning markers for disabled windows`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.codex])
