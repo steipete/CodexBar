@@ -4,6 +4,12 @@ import Testing
 @testable import CodexBar
 
 struct DeepSeekUsageSummaryChartMenuViewTests {
+    private static func sampleUpdatedAt(day: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar.date(from: DateComponents(year: 2026, month: 5, day: day, hour: 12)) ?? Date()
+    }
+
     private static func sampleUsage(includeCost: Bool) -> DeepSeekUsageSummary {
         DeepSeekUsageSummary(
             todayTokens: 100,
@@ -22,7 +28,38 @@ struct DeepSeekUsageSummaryChartMenuViewTests {
                     requestCount: day)
             },
             currency: "USD",
-            updatedAt: Date())
+            updatedAt: self.sampleUpdatedAt(day: 10))
+    }
+
+    private static func mixedCostUsage() -> DeepSeekUsageSummary {
+        DeepSeekUsageSummary(
+            todayTokens: 100,
+            currentMonthTokens: 300,
+            todayCost: 1.0,
+            currentMonthCost: 3.0,
+            requestCount: 1,
+            currentMonthRequestCount: 3,
+            topModel: "deepseek-chat",
+            categoryBreakdown: [],
+            daily: [
+                DeepSeekDailyUsage(date: "2026-05-01", totalTokens: 100, cost: 1.0, requestCount: 1),
+                DeepSeekDailyUsage(date: "2026-05-02", totalTokens: 200, cost: nil, requestCount: 1),
+                DeepSeekDailyUsage(date: "2026-05-03", totalTokens: 300, cost: 2.0, requestCount: 1),
+            ],
+            currency: "USD",
+            updatedAt: self.sampleUpdatedAt(day: 3))
+    }
+
+    @Test
+    @MainActor
+    func `chart model keeps cost axis when some days lack cost`() {
+        let usage = Self.mixedCostUsage()
+        let summary = DeepSeekUsageSummaryChartMenuView._makeModelSummaryForTesting(
+            usage: usage,
+            windowDays: 7)
+
+        #expect(summary.prefersCostTrend)
+        #expect(summary.pointCount == 3)
     }
 
     @Test

@@ -173,17 +173,24 @@ enum DeepSeekCookieHeader {
     }
 
     static func isAuthFailurePayload(_ data: Data) -> Bool {
-        guard
-            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let code = object["code"] as? Int
-        else {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return false
         }
-        if code == 40002 || code == 40003 {
+        if Self.isAuthFailureCode(object["code"]) {
+            return true
+        }
+        if let dataObject = object["data"] as? [String: Any],
+           Self.isAuthFailureCode(dataObject["biz_code"])
+        {
             return true
         }
         let message = (object["msg"] as? String ?? "").lowercased()
         return message.contains("authorization failed") || message.contains("missing token")
+    }
+
+    private static func isAuthFailureCode(_ value: Any?) -> Bool {
+        guard let code = value as? Int else { return false }
+        return code == 40002 || code == 40003
     }
 
     private static func matchesRequestURL(cookie: HTTPCookie, url: URL) -> Bool {

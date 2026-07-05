@@ -625,6 +625,28 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .deepseek {
+            if settings?.deepseek?.cookieSource == .manual {
+                return false
+            }
+            if settings?.deepseek?.cookieSource == .off {
+                return sourceMode == .web
+            }
+            if let header = settings?.deepseek?.manualCookieHeader?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !header.isEmpty
+            {
+                return false
+            }
+            if environment.map({ ProviderTokenResolver.deepseekCookie(environment: $0) != nil }) == true {
+                return false
+            }
+            if sourceMode == .auto,
+               environment.map({ ProviderTokenResolver.deepseekToken(environment: $0) != nil }) == true
+            {
+                return false
+            }
+        }
         if provider == .ollama,
            sourceMode == .auto
         {

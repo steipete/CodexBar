@@ -98,6 +98,36 @@ struct DeepSeekPlatformSessionTests {
     }
 
     @Test
+    func `auth failure payload detection recognizes nested biz codes`() {
+        let payload = Data("""
+        {"code":0,"msg":"","data":{"biz_code":40003,"biz_msg":"Authorization Failed"}}
+        """.utf8)
+        #expect(DeepSeekCookieHeader.isAuthFailurePayload(payload))
+    }
+
+    @Test
+    func `cache stores bearer and cookie payload without stripping authorization`() throws {
+        CookieHeaderCache.clear(provider: .deepseek)
+        defer { CookieHeaderCache.clear(provider: .deepseek) }
+
+        let session = try #require(DeepSeekCookieHeader.session(from: """
+        Authorization: Bearer eyJ.test.token
+        Cookie: ds_session_id=abc123
+        """))
+        let candidate = DeepSeekWebEnrichmentResolver.Candidate(
+            session: session,
+            sourceLabel: "Chrome",
+            shouldCache: true,
+            isCached: false)
+        DeepSeekWebEnrichmentResolver.cacheValidated(candidate)
+
+        let cached = try #require(CookieHeaderCache.load(provider: .deepseek))
+        let restored = try #require(DeepSeekCookieHeader.session(from: cached.cookieHeader))
+        #expect(restored.authorizationHeader == "Bearer eyJ.test.token")
+        #expect(restored.cookieHeader?.contains("ds_session_id=abc123") == true)
+    }
+
+    @Test
     func `usage parser maps auth failure code to invalid credentials`() throws {
         let amount = Data("""
         {"code":40003,"msg":"Authorization Failed","data":null}

@@ -50,7 +50,18 @@ struct DeepSeekUsageSummaryDisplayTests {
                     ]),
             ],
             currency: "CNY",
-            updatedAt: Date())
+            updatedAt: self.updatedAt(forDay: "2026-05-25"))
+    }
+
+    private static func updatedAt(forDay dayKey: String) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let parts = dayKey.split(separator: "-")
+        return calendar.date(from: DateComponents(
+            year: Int(parts[0]),
+            month: Int(parts[1]),
+            day: Int(parts[2]),
+            hour: 12)) ?? Date()
     }
 
     @Test
@@ -83,6 +94,28 @@ struct DeepSeekUsageSummaryDisplayTests {
         let model = Self.sampleUsage().daily[0].models[0]
         #expect(model.cacheHitPercent == 75)
         #expect(Self.sampleUsage().daily[0].cacheHitPercent == 75)
+    }
+
+    @Test
+    func `rolling window excludes sparse rows outside calendar range`() {
+        let usage = DeepSeekUsageSummary(
+            todayTokens: 0,
+            currentMonthTokens: 0,
+            todayCost: nil,
+            currentMonthCost: nil,
+            requestCount: 0,
+            currentMonthRequestCount: 0,
+            topModel: nil,
+            categoryBreakdown: [],
+            daily: [
+                DeepSeekDailyUsage(date: "2026-05-01", totalTokens: 900, cost: 9.0, requestCount: 9),
+                DeepSeekDailyUsage(date: "2026-05-02", totalTokens: 100, cost: 1.0, requestCount: 1),
+            ],
+            currency: "USD",
+            updatedAt: Self.updatedAt(forDay: "2026-05-10"))
+        #expect(usage.last7DaysTokens == 100)
+        #expect(usage.last7DaysCost == 1.0)
+        #expect(usage.trendDays(last: 7).map(\.date) == ["2026-05-02"])
     }
 
     @Test

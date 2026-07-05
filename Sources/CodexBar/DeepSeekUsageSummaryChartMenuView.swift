@@ -107,10 +107,10 @@ struct DeepSeekUsageSummaryChartMenuView: View {
             } else {
                 Chart {
                     ForEach(model.points) { point in
-                        if model.prefersCostTrend, let cost = point.cost {
+                        if model.prefersCostTrend {
                             BarMark(
                                 x: .value(L("Day"), point.date, unit: .day),
-                                y: .value(L("Cost"), max(0, cost)))
+                                y: .value(L("Cost"), max(0, point.cost ?? 0)))
                                 .foregroundStyle(model.barColor)
                         } else {
                             BarMark(

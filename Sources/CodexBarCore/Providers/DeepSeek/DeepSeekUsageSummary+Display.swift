@@ -15,19 +15,19 @@ extension DeepSeekUsageSummary {
     }
 
     public var last7DaysTokens: Int {
-        self.daily.suffix(7).reduce(0) { $0 + $1.totalTokens }
+        self.daysWithinRollingWindow(dayCount: 7).reduce(0) { $0 + $1.totalTokens }
     }
 
     public var last30DaysTokens: Int {
-        self.daily.suffix(30).reduce(0) { $0 + $1.totalTokens }
+        self.daysWithinRollingWindow(dayCount: 30).reduce(0) { $0 + $1.totalTokens }
     }
 
     public var last7DaysCost: Double? {
-        self.summedCost(self.daily.suffix(7))
+        self.summedCost(self.daysWithinRollingWindow(dayCount: 7))
     }
 
     public var last30DaysCost: Double? {
-        self.summedCost(self.daily.suffix(30))
+        self.summedCost(self.daysWithinRollingWindow(dayCount: 30))
     }
 
     public var cacheHitPercent: Double? {
@@ -37,7 +37,7 @@ extension DeepSeekUsageSummary {
     }
 
     public func trendDays(last count: Int) -> [DeepSeekDailyUsage] {
-        Array(self.daily.suffix(max(1, count)))
+        self.daysWithinRollingWindow(dayCount: max(1, count))
     }
 
     public func toCostUsageTokenSnapshot(historyDays: Int = 30) -> CostUsageTokenSnapshot {
@@ -89,6 +89,35 @@ extension DeepSeekUsageSummary {
         guard input > 0 else { return nil }
         return Double(hitTokens) / Double(input) * 100
     }
+
+    func daysWithinRollingWindow(dayCount: Int) -> [DeepSeekDailyUsage] {
+        let calendar = Self.displayCalendar
+        let endDay = calendar.startOfDay(for: self.updatedAt)
+        guard let windowStart = calendar.date(byAdding: .day, value: -(max(1, dayCount) - 1), to: endDay) else {
+            return []
+        }
+        return self.daily.filter { day in
+            guard let date = Self.dayKeyFormatter.date(from: day.date) else { return false }
+            let dayStart = calendar.startOfDay(for: date)
+            return dayStart >= windowStart && dayStart <= endDay
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    private static var displayCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
+    }
+
+    private static let dayKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Self.displayCalendar
+        formatter.timeZone = Self.displayCalendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     private func summedCost(_ days: some Sequence<DeepSeekDailyUsage>) -> Double? {
         var total: Double?

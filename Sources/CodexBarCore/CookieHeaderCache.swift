@@ -428,7 +428,40 @@ public enum CookieHeaderCache {
             self.clear(provider: provider, scope: scope)
             return
         }
-        let entry = Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel)
+        self.storeNormalizedEntry(
+            Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel),
+            provider: provider,
+            scope: scope,
+            sourceLabel: sourceLabel)
+    }
+
+    /// Stores credential text verbatim after whitespace trimming.
+    /// Unlike `store`, this preserves multi-line Authorization + Cookie payloads.
+    public static func storeCredentialPayload(
+        provider: UsageProvider,
+        scope: Scope? = nil,
+        payload: String,
+        sourceLabel: String,
+        now: Date = Date())
+    {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            self.clear(provider: provider, scope: scope)
+            return
+        }
+        self.storeNormalizedEntry(
+            Entry(cookieHeader: trimmed, storedAt: now, sourceLabel: sourceLabel),
+            provider: provider,
+            scope: scope,
+            sourceLabel: sourceLabel)
+    }
+
+    private static func storeNormalizedEntry(
+        _ entry: Entry,
+        provider: UsageProvider,
+        scope: Scope?,
+        sourceLabel: String)
+    {
         do {
             try self.withLegacyMutationLock {
                 _ = self.store(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)

@@ -97,9 +97,9 @@ enum DeepSeekWebEnrichmentResolver {
         guard candidate.shouldCache else { return }
         let payload = candidate.session.storagePayload
         guard !payload.isEmpty else { return }
-        CookieHeaderCache.store(
+        CookieHeaderCache.storeCredentialPayload(
             provider: .deepseek,
-            cookieHeader: payload,
+            payload: payload,
             sourceLabel: candidate.sourceLabel)
     }
 
