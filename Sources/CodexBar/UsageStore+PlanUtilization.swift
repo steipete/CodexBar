@@ -26,6 +26,7 @@ extension UsageStore {
         let owner: String
         let persistentRefHash: String?
         let keychainCredentialMismatch: Bool
+        let keychainCredentialAbsent: Bool
         let keychainCredentialUnavailable: Bool
         let activeAccountObservation: ClaudeOAuthActiveAccountObservation
         let observedAt: Date
@@ -175,6 +176,7 @@ extension UsageStore {
         claudeOAuthPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
         claudeOAuthKeychainCredentialMismatch: Bool = false,
+        claudeOAuthKeychainCredentialAbsent: Bool = false,
         claudeOAuthKeychainCredentialUnavailable: Bool = false,
         claudeOAuthActiveAccountObservation: ClaudeOAuthActiveAccountObservation = .stable(identity: nil),
         isClaudeOAuthSample: Bool = false,
@@ -190,6 +192,7 @@ extension UsageStore {
                 owner: owner,
                 persistentRefHash: claudeOAuthPersistentRefHash,
                 keychainCredentialMismatch: claudeOAuthKeychainCredentialMismatch,
+                keychainCredentialAbsent: claudeOAuthKeychainCredentialAbsent,
                 keychainCredentialUnavailable: claudeOAuthKeychainCredentialUnavailable,
                 activeAccountObservation: claudeOAuthActiveAccountObservation,
                 observedAt: now))
@@ -990,6 +993,7 @@ extension UsageStore {
     private func resolvedClaudeOAuthHistoryOwner(evidence: ClaudeOAuthHistoryEvidence) -> String? {
         let requiresClaudeCodeCorroboration = evidence.persistentRefHash != nil
             || evidence.keychainCredentialMismatch
+            || evidence.keychainCredentialAbsent
             || evidence.keychainCredentialUnavailable
         guard requiresClaudeCodeCorroboration else {
             // Explicit/environment credentials do not belong to Claude Code's active-account lifecycle.
@@ -1030,6 +1034,11 @@ extension UsageStore {
         {
             // With no authoritative binding, `never` mode can safely use the secret-derived file owner.
             // Existing bindings are checked above so a stale file cannot cross an observed account switch.
+            return evidence.owner
+        }
+        if evidence.keychainCredentialAbsent {
+            // A proven-empty Keychain leaves the file credential as the only owner. Existing bindings were
+            // checked above, so an unbound owner is safe without inventing account continuity.
             return evidence.owner
         }
 

@@ -309,6 +309,8 @@ extension UsageStore {
                     : nil,
                 claudeOAuthKeychainCredentialMismatch: isClaudeOAuthSample
                     && result.claudeOAuthKeychainCredentialMismatch,
+                claudeOAuthKeychainCredentialAbsent: isClaudeOAuthSample
+                    && result.claudeOAuthKeychainCredentialAbsent,
                 claudeOAuthKeychainCredentialUnavailable: isClaudeOAuthSample
                     && (result.claudeOAuthKeychainCredentialUnavailable
                         || (result.claudeOAuthKeychainPersistentRefHash != nil

@@ -129,9 +129,8 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
 
     @MainActor
     @Test
-    func `never prompt mode still quarantines an owner bound to another account`() async {
+    func `absent keychain still quarantines an owner bound to another account`() async {
         let store = UsageStorePlanUtilizationTests.makeStore()
-        store.settings.claudeOAuthKeychainPromptMode = .never
         let owner = String(repeating: "f", count: 64)
         store.persistClaudeOAuthAccountUuidMap([
             owner: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A"),
@@ -141,12 +140,34 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
             provider: .claude,
             snapshot: self.snapshot(usedPercent: 90),
             claudeOAuthHistoryOwnerIdentifier: owner,
-            claudeOAuthKeychainCredentialUnavailable: true,
+            claudeOAuthKeychainCredentialAbsent: true,
             claudeOAuthActiveAccountObservation: .stable(
                 identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
             isClaudeOAuthSample: true)
 
         #expect(store.planUtilizationHistory[.claude] == nil)
+    }
+
+    @MainActor
+    @Test
+    func `absent keychain records an unbound file owner`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let owner = String(repeating: "b", count: 64)
+        let key = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: owner))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 80),
+            claudeOAuthHistoryOwnerIdentifier: owner,
+            claudeOAuthKeychainCredentialAbsent: true,
+            claudeOAuthActiveAccountObservation: .stable(
+                identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-current")),
+            isClaudeOAuthSample: true)
+
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[key] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [80])
     }
 
     @MainActor

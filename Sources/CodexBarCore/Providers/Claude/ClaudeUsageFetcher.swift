@@ -29,6 +29,8 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let oauthHistoryOwnerIdentifier: String?
     /// True when a prompt-free comparison proved this credential differs from Claude Code's Keychain entry.
     public let oauthKeychainCredentialMismatch: Bool
+    /// True when a prompt-free probe proved Claude Code has no Keychain credential.
+    public let oauthKeychainCredentialAbsent: Bool
     /// True when a Claude CLI credential won routing but the prompt-free Keychain comparison was unavailable.
     public let oauthKeychainCredentialUnavailable: Bool
 
@@ -47,6 +49,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         oauthKeychainPersistentRefHash: String? = nil,
         oauthHistoryOwnerIdentifier: String? = nil,
         oauthKeychainCredentialMismatch: Bool = false,
+        oauthKeychainCredentialAbsent: Bool = false,
         oauthKeychainCredentialUnavailable: Bool = false)
     {
         self.primary = primary
@@ -63,6 +66,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.oauthKeychainPersistentRefHash = oauthKeychainPersistentRefHash
         self.oauthHistoryOwnerIdentifier = oauthHistoryOwnerIdentifier
         self.oauthKeychainCredentialMismatch = oauthKeychainCredentialMismatch
+        self.oauthKeychainCredentialAbsent = oauthKeychainCredentialAbsent
         self.oauthKeychainCredentialUnavailable = oauthKeychainCredentialUnavailable
     }
 }
@@ -328,6 +332,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
                     oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier,
                     oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
+                    oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
                     oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
             } catch let error as CancellationError {
                 throw error
@@ -474,6 +479,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
                     oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier,
                     oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
+                    oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
                     oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
             } catch {
                 ClaudeUsageFetcher.log.debug(
@@ -1002,6 +1008,7 @@ extension ClaudeUsageFetcher {
         oauthKeychainPersistentRefHash: String? = nil,
         oauthHistoryOwnerIdentifier: String? = nil,
         oauthKeychainCredentialMismatch: Bool = false,
+        oauthKeychainCredentialAbsent: Bool = false,
         oauthKeychainCredentialUnavailable: Bool = false) throws -> ClaudeUsageSnapshot
     {
         let oauthHistoryOwnerIdentifier = ClaudeOAuthCredentials.normalizedHistoryOwnerIdentifier(
@@ -1051,6 +1058,7 @@ extension ClaudeUsageFetcher {
                     oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
                     oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
                     oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
+                    oauthKeychainCredentialAbsent: oauthKeychainCredentialAbsent,
                     oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
             }
             throw ClaudeUsageError.parseFailed("missing session data")
@@ -1076,6 +1084,7 @@ extension ClaudeUsageFetcher {
             oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
             oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
             oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
+            oauthKeychainCredentialAbsent: oauthKeychainCredentialAbsent,
             oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
     }
 
@@ -1385,6 +1394,7 @@ extension ClaudeUsageFetcher {
                     oauthKeychainPersistentRefHash: snapshot.oauthKeychainPersistentRefHash,
                     oauthHistoryOwnerIdentifier: snapshot.oauthHistoryOwnerIdentifier,
                     oauthKeychainCredentialMismatch: snapshot.oauthKeychainCredentialMismatch,
+                    oauthKeychainCredentialAbsent: snapshot.oauthKeychainCredentialAbsent,
                     oauthKeychainCredentialUnavailable: snapshot.oauthKeychainCredentialUnavailable)
             }
         } catch {

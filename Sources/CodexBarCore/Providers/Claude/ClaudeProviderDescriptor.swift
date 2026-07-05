@@ -383,6 +383,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             claudeOAuthKeychainPersistentRefHash: usage.oauthKeychainPersistentRefHash,
             claudeOAuthHistoryOwnerIdentifier: usage.oauthHistoryOwnerIdentifier,
             claudeOAuthKeychainCredentialMismatch: usage.oauthKeychainCredentialMismatch,
+            claudeOAuthKeychainCredentialAbsent: usage.oauthKeychainCredentialAbsent,
             claudeOAuthKeychainCredentialUnavailable: usage.oauthKeychainCredentialUnavailable)
     }
 
