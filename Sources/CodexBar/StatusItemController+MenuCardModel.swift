@@ -102,9 +102,12 @@ extension StatusItemController {
             tokenError: tokenError,
             account: fallbackAccount,
             isRefreshing: self.store.shouldShowRefreshingMenuCardIndicator(for: target),
+            // Provider-level errors can belong to a different account, so
+            // override cards never inherit them (same rule as the snapshot,
+            // token-cost, and source-label fallbacks above).
             lastError: errorOverride
                 ?? codexProjection?.userFacingErrors.usage
-                ?? self.store.userFacingError(for: target),
+                ?? (surface == .liveCard ? self.store.userFacingError(for: target) : nil),
             limitsAvailability: self.store.knownLimitsAvailability(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
