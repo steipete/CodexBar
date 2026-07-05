@@ -6,6 +6,58 @@ import Testing
 @MainActor
 struct UsageStoreWidgetSnapshotTests {
     @Test
+    func `widget snapshot includes Kimi monthly quota`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-kimi-monthly"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "kimi-monthly",
+                    title: "Monthly",
+                    window: RateWindow(
+                        usedPercent: 75,
+                        windowMinutes: nil,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .kimi,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        store._setSnapshotForTesting(snapshot, provider: .kimi)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "kimi-monthly-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .kimi })
+        #expect(entry.usageRows?.map(\.id) == ["primary", "secondary", "kimi-monthly"])
+        #expect(entry.usageRows?.map(\.title) == ["Weekly", "Rate Limit", "Monthly"])
+        #expect(entry.usageRows?.compactMap(\.percentLeft) == [75, 50, 25])
+    }
+
+    @Test
     func `widget snapshot includes antigravity grouped usage rows`() async throws {
         let suite = "UsageStoreWidgetSnapshotTests-antigravity-grouped"
         let defaults = try #require(UserDefaults(suiteName: suite))
