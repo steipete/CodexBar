@@ -159,6 +159,15 @@ extension UsageStore {
             await MainActor.run { self.kiloScopeSnapshots = [] }
         }
 
+        if provider == .claude, self.shouldFetchClaudeSwapAccounts() {
+            await self.refreshClaudeSwapAccounts(generation: generation)
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+            // The ambient Claude refresh continues below; multi-element
+            // claudeSwapAccountSnapshots trigger stacked rendering.
+        } else if provider == .claude {
+            await MainActor.run { self.clearClaudeSwapAccountState() }
+        }
+
         let tokenAccounts = self.tokenAccounts(for: provider)
         if self.shouldFetchAllTokenAccounts(provider: provider, accounts: tokenAccounts) {
             await self.refreshTokenAccounts(
@@ -359,6 +368,9 @@ extension UsageStore {
             }
             if provider == .kilo {
                 self.kiloScopeSnapshots = []
+            }
+            if provider == .claude {
+                self.clearClaudeSwapAccountState()
             }
             self.tokenSnapshots.removeValue(forKey: provider)
             self.tokenErrors[provider] = nil
