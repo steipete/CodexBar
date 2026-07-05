@@ -4,7 +4,7 @@ import Testing
 
 struct CostUsageScannerClaudeDesktopTests {
     @Test
-    func `claude daily report includes desktop local agent projects`() throws {
+    func `claude daily report includes nested desktop local agent projects`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -105,5 +105,57 @@ struct CostUsageScannerClaudeDesktopTests {
         #expect(report.data[0].cacheReadTokens == 20)
         #expect(report.data[0].outputTokens == 48)
         #expect(report.data[0].totalTokens == 235)
+    }
+
+    @Test
+    func `current desktop shared claude projects root remains discovered`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 5)
+        let sessionID = "desktop-cli-session"
+        let assistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "model": "claude-test-model",
+                "usage": [
+                    "input_tokens": 11,
+                    "cache_read_input_tokens": 13,
+                    "output_tokens": 4,
+                ],
+            ],
+        ]
+        // Current Desktop's cliSessionId points to the matching JSONL in this shared root.
+        let sharedProjectsRoot = try env.writeClaudeDesktopSharedProjectFile(
+            relativePath: "desktop-project/\(sessionID).jsonl",
+            contents: env.jsonl([assistant]))
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let discovered = CostUsageScanner.defaultClaudeProjectsRoots(
+            options: CostUsageScanner.Options(cacheRoot: env.cacheRoot),
+            environment: [:],
+            homeDirectory: env.root)
+        #expect(discovered.contains(sharedProjectsRoot.standardizedFileURL))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: nil,
+            claudeProjectsRoots: discovered,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 11)
+        #expect(report.data[0].cacheReadTokens == 13)
+        #expect(report.data[0].outputTokens == 4)
+        #expect(report.data[0].totalTokens == 28)
     }
 }

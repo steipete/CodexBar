@@ -391,6 +391,20 @@ struct SettingsStoreCoverageTests {
             env: ["CLAUDE_CONFIG_DIR": claudeRoot.path],
             fileManager: fileManager))
 
+        let metadataOnlyHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-metadata-\(UUID().uuidString)",
+            isDirectory: true)
+        let metadataFile = metadataOnlyHome
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id/org-id/local_session.json", isDirectory: false)
+        try fileManager.createDirectory(at: metadataFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"cliSessionId":"desktop-cli-session"}"#.utf8).write(to: metadataFile)
+
+        #expect(!SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: metadataOnlyHome))
+
         let desktopHome = fileManager.temporaryDirectory.appendingPathComponent(
             "claude-desktop-\(UUID().uuidString)",
             isDirectory: true)

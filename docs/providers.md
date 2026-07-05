@@ -106,7 +106,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
 - CLI Auto: Web API (`web`) → CLI PTY (`claude`).
 - Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects`,
-  `~/.claude/projects`, and Claude Desktop Code/Cowork session JSONL files for the configured history window.
+  `~/.claude/projects` (including current Claude Desktop Code/Cowork CLI sessions), and nested Claude Desktop
+  local-agent JSONL files for the configured history window.
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.
 

@@ -13,7 +13,7 @@
 - Settings: keep the sidebar fixed and visible while resizing, prevent collapse or over-expansion, and cap detail content width for readability. Thanks @Zihao-Qi!
 
 ### Fixed
-- Claude cost history: include local-agent logs from both legacy and current Claude Desktop session stores. Thanks @Zihao-Qi!
+- Claude cost history: include nested Claude Desktop local-agent logs while preserving current Code/Cowork coverage through the shared `~/.claude/projects` store. Thanks @Zihao-Qi!
 - Claude: give multiple claude-swap accounts precedence over token-account cards and segmented switching so adapter rows remain visible. Thanks @optimiz-r!
 - Menus: scope manual refresh state to the provider being refreshed, allowing independent provider refreshes without greying unrelated rows. Thanks @hhh2210!
 - Claude history: quarantine same-directory account-switch samples until credential ownership is stable, preventing plan-utilization history from crossing accounts. Thanks @ss251!

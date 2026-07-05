@@ -977,6 +977,16 @@ struct CostUsageTestEnvironment {
         return url
     }
 
+    func writeClaudeDesktopSharedProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
     func writeNestedClaudeDesktopLocalAgentProjectFile(relativePath: String, contents: String) throws -> URL {
         let projectsRoot = self.root
             .appendingPathComponent("Library", isDirectory: true)

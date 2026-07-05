@@ -32,6 +32,8 @@ public enum ClaudeDesktopProjectsLocator {
         var queue = sessionRoots.map { (url: $0, depth: 0) }
         var visited = Set(sessionRoots.map(\.standardizedFileURL.path))
         var nextIndex = 0
+        // Current Desktop entries under claude-code-sessions are metadata whose cliSessionId maps to the
+        // shared ~/.claude/projects logs. Seed that root anyway so embedded project stores are found when present.
         // Covers observed Desktop layouts through account/workspace, session, agent, and local_agent
         // without descending into arbitrary checked-out workspaces.
         let maxDepth = 4
