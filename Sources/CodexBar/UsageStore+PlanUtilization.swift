@@ -999,6 +999,11 @@ extension UsageStore {
             // An account/credential change while capturing the UUID cannot safely identify this sample.
             return nil
         }
+        if evidence.keychainCredentialUnavailable, !evidence.keychainCredentialMismatch {
+            // `never` Keychain mode intentionally uses the file credential without corroboration. Its
+            // secret-derived owner remains isolated; only continuity across credential rotation is unavailable.
+            return evidence.owner
+        }
 
         var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
         if let mapped = map[evidence.owner] {

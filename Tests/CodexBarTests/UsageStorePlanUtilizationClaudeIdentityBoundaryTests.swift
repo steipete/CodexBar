@@ -103,13 +103,16 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
 
     @MainActor
     @Test
-    func `unavailable keychain comparison cannot arm first Claude CLI owner`() async {
+    func `file backed owner records history when keychain comparison is unavailable`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
+        let owner = String(repeating: "e", count: 64)
+        let key = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: owner))
 
         await store.recordPlanUtilizationHistorySample(
             provider: .claude,
             snapshot: self.snapshot(usedPercent: 90),
-            claudeOAuthHistoryOwnerIdentifier: String(repeating: "u", count: 64),
+            claudeOAuthHistoryOwnerIdentifier: owner,
             claudeOAuthKeychainCredentialUnavailable: true,
             claudeOAuthActiveAccountObservation: .stable(
                 identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-current")),
@@ -118,7 +121,9 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
         #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults).isEmpty)
         #expect(UsageStore.loadClaudeOAuthAccountBindingCandidateMap(
             from: store.settings.userDefaults).isEmpty)
-        #expect(store.planUtilizationHistory[.claude] == nil)
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[key] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [90])
     }
 
     @MainActor
