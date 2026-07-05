@@ -68,7 +68,9 @@ extension UsageStore {
             creditsRemaining = nil
             codeReviewRemaining = nil
         }
-        let providerCost = if provider == .devin, self.settings.showOptionalCreditsAndExtraUsage {
+        let providerCost: ProviderCostSnapshot? = if provider == .devin,
+                                                     self.settings.showOptionalCreditsAndExtraUsage
+        {
             snapshot?.providerCost
         } else {
             nil
