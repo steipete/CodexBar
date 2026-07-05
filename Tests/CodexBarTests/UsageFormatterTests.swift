@@ -214,10 +214,10 @@ struct UsageFormatterTests {
     }
 
     @Test
-    func `reset countdown days hours and minutes`() {
+    func `reset countdown caps days with hours at two units`() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let reset = now.addingTimeInterval((26 * 3600) + (1 * 60))
-        #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 1d 2h 1m")
+        #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 1d 2h")
     }
 
     @Test
@@ -239,6 +239,13 @@ struct UsageFormatterTests {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let reset = now.addingTimeInterval(2 * 24 * 3600)
         #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 2d")
+    }
+
+    @Test
+    func `reset countdown rounds the last minute into a day`() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval((24 * 3600) - 59)
+        #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 1d")
     }
 
     @Test

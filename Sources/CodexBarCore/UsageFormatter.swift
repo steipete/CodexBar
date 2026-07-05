@@ -111,7 +111,6 @@ public enum UsageFormatter {
         let minutes = totalMinutes % 60
 
         if days > 0 {
-            if hours > 0, minutes > 0 { return "in \(days)d \(hours)h \(minutes)m" }
             if hours > 0 { return "in \(days)d \(hours)h" }
             if minutes > 0 { return "in \(days)d \(minutes)m" }
             return "in \(days)d"
