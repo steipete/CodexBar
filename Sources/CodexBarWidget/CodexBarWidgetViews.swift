@@ -164,7 +164,7 @@ private struct CompactMetricView: View {
     let metric: CompactMetric
 
     var body: some View {
-        let display = self.display
+        let display = CompactMetricFormatter.display(for: self.entry, metric: self.metric)
         VStack(alignment: .leading, spacing: 8) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             VStack(alignment: .leading, spacing: 2) {
@@ -183,26 +183,40 @@ private struct CompactMetricView: View {
         }
         .padding(12)
     }
+}
 
-    private var display: (value: String, label: String, detail: String?) {
-        switch self.metric {
+struct CompactMetricDisplay: Equatable {
+    let value: String
+    let label: String
+    let detail: String?
+}
+
+enum CompactMetricFormatter {
+    static func display(for entry: WidgetSnapshot.ProviderEntry, metric: CompactMetric) -> CompactMetricDisplay {
+        switch metric {
         case .credits:
-            let value = self.entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
-            return (value, "Credits left", nil)
+            if let cost = WidgetBalanceFormatter.extraUsageCost(for: entry) {
+                return CompactMetricDisplay(
+                    value: WidgetFormat.currency(cost.used, code: cost.currencyCode),
+                    label: "Extra usage balance",
+                    detail: nil)
+            }
+            let value = entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
+            return CompactMetricDisplay(value: value, label: "Credits left", detail: nil)
         case .todayCost:
-            let value = self.entry.tokenUsage.map { token in
+            let value = entry.tokenUsage.map { token in
                 token.sessionCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
-            let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            let label = self.entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
-            return (value, label, detail)
+            let detail = entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
+            let label = entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
+            return CompactMetricDisplay(value: value, label: label, detail: detail)
         case .last30DaysCost:
-            let value = self.entry.tokenUsage.map { token in
+            let value = entry.tokenUsage.map { token in
                 token.last30DaysCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
-            let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            let label = self.entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
-            return (value, label, detail)
+            let detail = entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
+            let label = entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
+            return CompactMetricDisplay(value: value, label: label, detail: detail)
         }
     }
 }
@@ -942,11 +956,16 @@ struct WidgetBalanceLine: Equatable {
 }
 
 enum WidgetBalanceFormatter {
-    static func extraUsageBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
+    static func extraUsageCost(for entry: WidgetSnapshot.ProviderEntry) -> ProviderCostSnapshot? {
         guard entry.provider == .devin,
               let cost = entry.providerCost,
               cost.period == "Extra usage balance"
         else { return nil }
+        return cost
+    }
+
+    static func extraUsageBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
+        guard let cost = self.extraUsageCost(for: entry) else { return nil }
         return WidgetBalanceLine(
             title: "Extra usage",
             value: "Balance: \(WidgetFormat.currency(cost.used, code: cost.currencyCode))")

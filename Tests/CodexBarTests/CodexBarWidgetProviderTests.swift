@@ -317,6 +317,32 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `compact credits render Devin extra usage balance`() {
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .devin,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [],
+            providerCost: ProviderCostSnapshot(
+                used: 48.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)))
+
+        let display = CompactMetricFormatter.display(for: entry, metric: .credits)
+
+        #expect(display.value.contains("48"))
+        #expect(display.label == "Extra usage balance")
+        #expect(display.detail == nil)
+    }
+
+    @Test
     func `widget balance formatter does not leak another provider balance`() {
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .factory,
