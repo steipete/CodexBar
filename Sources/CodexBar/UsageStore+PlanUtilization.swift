@@ -999,7 +999,10 @@ extension UsageStore {
             // An account/credential change while capturing the UUID cannot safely identify this sample.
             return nil
         }
-        if evidence.keychainCredentialUnavailable, !evidence.keychainCredentialMismatch {
+        if evidence.keychainCredentialUnavailable,
+           !evidence.keychainCredentialMismatch,
+           self.settings.claudeOAuthKeychainPromptMode == .never
+        {
             // `never` Keychain mode intentionally uses the file credential without corroboration. Its
             // secret-derived owner remains isolated; only continuity across credential rotation is unavailable.
             return evidence.owner

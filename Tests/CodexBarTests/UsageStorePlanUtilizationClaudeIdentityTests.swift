@@ -311,9 +311,9 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         }
 
         // 2) `/login` switched the active account to B (~/.claude.json = uuid-B), but the gated BACKGROUND
-        //    poll still serves the STALE owner_A credential. The existing owner_A -> uuid-A binding (created
-        //    in step 1) is authoritative and detects the mismatch, so this must be quarantined even though it
-        //    is a background poll: no new sample lands.
+        //    poll still serves the STALE owner_A credential. Prompt-free Keychain comparison is unavailable,
+        //    but the existing owner_A -> uuid-A binding detects the mismatch, so this must be quarantined:
+        //    no new sample lands.
         await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
             await ProviderInteractionContext.$current.withValue(.background) {
                 await store.recordPlanUtilizationHistorySample(
@@ -321,7 +321,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
                     claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
-                    claudeOAuthKeychainCredentialMismatch: true,
+                    claudeOAuthKeychainCredentialUnavailable: true,
                     claudeOAuthActiveAccountObservation: .stable(
                         identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
                     isClaudeOAuthSample: true,
