@@ -8,19 +8,21 @@ import Darwin
 #endif
 
 extension CostUsageScanner {
-    static func codexRowsByDayModel(
-        cache: CostUsageCache,
-        range: CostUsageDayRange) -> [String: [String: [CodexUsageRow]]]
-    {
-        var rowsByDayModel: [String: [String: [CodexUsageRow]]] = [:]
-        for usage in cache.files.values {
-            for row in usage.codexRows ?? [] {
-                guard CostUsageDayRange.isInRange(dayKey: row.day, since: range.sinceKey, until: range.untilKey)
-                else { continue }
-                rowsByDayModel[row.day, default: [:]][row.model, default: []].append(row)
-            }
+    private final class CodexModelsDevCatalogResolver {
+        private var catalog: ModelsDevCatalog?
+        private let cacheRoot: URL?
+
+        init(catalog: ModelsDevCatalog?, cacheRoot: URL?) {
+            self.catalog = catalog
+            self.cacheRoot = cacheRoot
         }
-        return rowsByDayModel
+
+        func load(_ loader: (URL?) -> ModelsDevCatalog?) -> ModelsDevCatalog {
+            if let catalog { return catalog }
+            let loaded = loader(self.cacheRoot) ?? ModelsDevCatalog(providers: [:])
+            self.catalog = loaded
+            return loaded
+        }
     }
 
     static func codexRowsByDayModel(
@@ -76,6 +78,12 @@ extension CostUsageScanner {
         range: CostUsageDayRange) -> [String: [String: Int]]
     {
         self.codexIntByDayModel(cache: cache, range: range) { $0.codexPriorityTokens }
+    }
+
+    static func codexReportDayKeys(cache: CostUsageCache, range: CostUsageDayRange) -> [String] {
+        cache.days.keys.sorted().filter {
+            CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
+        }
     }
 
     static func codexNanosByDayModel(
@@ -276,6 +284,7 @@ extension CostUsageScanner {
         forkedFromId: String? = nil,
         projectPath: String? = nil,
         canonicalProjectPath: String? = nil,
+        codexCostCacheComplete: Bool? = true,
         codexCostNanos: [String: [String: Int64]]? = nil,
         codexPrioritySurchargeNanos: [String: [String: Int64]]? = nil,
         codexStandardCostNanos: [String: [String: Int64]]? = nil,
@@ -301,6 +310,7 @@ extension CostUsageScanner {
             forkedFromId: forkedFromId,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
+            codexCostCacheComplete: codexCostCacheComplete,
             codexCostNanos: codexCostNanos,
             codexPrioritySurchargeNanos: codexPrioritySurchargeNanos,
             codexStandardCostNanos: codexStandardCostNanos,
@@ -314,14 +324,17 @@ extension CostUsageScanner {
 
     static func needsCodexCostCache(_ usage: CostUsageFileUsage) -> Bool {
         !(usage.codexRows?.isEmpty ?? true)
-            && (usage.codexCostNanos == nil || self.needsCodexModeSplitCache(usage))
+            && (usage.codexCostCacheComplete != true || self.needsCodexModeSplitCache(usage))
     }
 
     static func needsCodexCostCache(_ usage: CostUsageFileUsage, range: CostUsageDayRange) -> Bool {
+        guard usage.codexCostCacheComplete != true || self.needsCodexModeSplitCache(usage) else {
+            return false
+        }
         guard let rows = usage.codexRows, !rows.isEmpty else { return false }
         return rows.contains {
             CostUsageDayRange.isInRange(dayKey: $0.day, since: range.sinceKey, until: range.untilKey)
-        } && (usage.codexCostNanos == nil || Self.needsCodexModeSplitCache(usage))
+        }
     }
 
     static func needsCodexModeSplitCache(_ usage: CostUsageFileUsage) -> Bool {
@@ -330,21 +343,36 @@ extension CostUsageScanner {
         let hasStandardTokens = !(usage.codexStandardTokens?.isEmpty ?? true)
         let hasPriorityTokens = !(usage.codexPriorityTokens?.isEmpty ?? true)
 
-        guard hasStandardCost || hasPriorityCost else { return true }
+        // Token maps are also the completion marker for models with no known pricing.
         guard hasStandardTokens || hasPriorityTokens else { return true }
-        return hasStandardCost != hasStandardTokens || hasPriorityCost != hasPriorityTokens
+        return (hasStandardCost && !hasStandardTokens) || (hasPriorityCost && !hasPriorityTokens)
     }
 
     static func codexFileUsageWithCostCache(
         _ usage: CostUsageFileUsage,
         context: CodexFileScanContext) -> CostUsageFileUsage
     {
+        self.codexFileUsageWithCostCache(
+            usage,
+            range: context.range,
+            priorityTurns: context.resources.priorityTurns,
+            modelsDevCatalog: context.resources.modelsDevCatalog,
+            modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
+    }
+
+    static func codexFileUsageWithCostCache(
+        _ usage: CostUsageFileUsage,
+        range: CostUsageDayRange,
+        priorityTurns: [String: CodexPriorityTurnMetadata],
+        modelsDevCatalog: ModelsDevCatalog?,
+        modelsDevCacheRoot: URL?) -> CostUsageFileUsage
+    {
         guard let rows = usage.codexRows, !rows.isEmpty else { return usage }
         var migratedRows: [CodexUsageRow] = []
         for row in rows where CostUsageDayRange.isInRange(
             dayKey: row.day,
-            since: context.range.scanSinceKey,
-            until: context.range.scanUntilKey)
+            since: range.scanSinceKey,
+            until: range.scanUntilKey)
         {
             migratedRows.append(row)
         }
@@ -352,26 +380,26 @@ extension CostUsageScanner {
 
         let splitMaps = Self.codexModeSplitMaps(
             rows: migratedRows,
-            range: context.range,
-            priorityTurns: context.resources.priorityTurns,
-            modelsDevCatalog: context.resources.modelsDevCatalog,
-            modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
+            range: range,
+            priorityTurns: priorityTurns,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
         var updated = usage
         updated.codexCostNanos = Self.mergeMissingCostMaps(
             usage.codexCostNanos,
             Self.codexCostNanos(
                 rows: migratedRows,
-                range: context.range,
-                modelsDevCatalog: context.resources.modelsDevCatalog,
-                modelsDevCacheRoot: context.resources.modelsDevCacheRoot))
+                range: range,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot))
         updated.codexPrioritySurchargeNanos = Self.mergeMissingCostMaps(
             usage.codexPrioritySurchargeNanos,
             Self.codexPrioritySurchargeNanos(
                 rows: migratedRows,
-                range: context.range,
-                priorityTurns: context.resources.priorityTurns,
-                modelsDevCatalog: context.resources.modelsDevCatalog,
-                modelsDevCacheRoot: context.resources.modelsDevCacheRoot))
+                range: range,
+                priorityTurns: priorityTurns,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot))
         updated.codexStandardCostNanos = Self.mergeMissingCostMaps(
             usage.codexStandardCostNanos,
             splitMaps.standardCostNanos)
@@ -384,6 +412,7 @@ extension CostUsageScanner {
         updated.codexPriorityTokens = Self.mergeMissingIntMaps(
             usage.codexPriorityTokens,
             splitMaps.priorityTokens)
+        updated.codexCostCacheComplete = true
         updated.codexTurnIDs = Self.mergeCodexTurnIDs(usage.codexTurnIDs, rows: migratedRows)
         updated.codexRows = rows
         return updated
@@ -1263,33 +1292,39 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
-        priorityTurns: [String: CodexPriorityTurnMetadata] = [:]) -> CostUsageDailyReport
+        priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
+        modelsDevCatalogLoader: (URL?) -> ModelsDevCatalog? = {
+            CostUsagePricing.modelsDevCatalog(cacheRoot: $0)
+        }) -> CostUsageDailyReport
     {
+        let catalogResolver = CodexModelsDevCatalogResolver(
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        var reportCache = cache
+        for (path, usage) in cache.files where self.needsCodexCostCache(usage, range: range) {
+            reportCache.files[path] = self.codexFileUsageWithCostCache(
+                usage,
+                range: range,
+                priorityTurns: priorityTurns,
+                modelsDevCatalog: catalogResolver.load(modelsDevCatalogLoader),
+                modelsDevCacheRoot: modelsDevCacheRoot)
+        }
         var entries: [CostUsageDailyReport.Entry] = []
-        var totalInput = 0
-        var totalCacheRead = 0
-        var totalOutput = 0
-        var totalTokens = 0
-        var totalCost: Double = 0
-        var costSeen = false
+        var (totalInput, totalCacheRead, totalOutput, totalTokens) = (0, 0, 0, 0)
+        var (totalCost, costSeen) = (0.0, false)
 
-        let dayKeys = cache.days.keys.sorted().filter {
-            CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
-        }
-        let costNanosByDayModel = self.codexCostNanosByDayModel(cache: cache, range: range)
-        let prioritySurchargeNanosByDayModel = self.codexPrioritySurchargeNanosByDayModel(cache: cache, range: range)
-        let standardCostNanosByDayModel = self.codexStandardCostNanosByDayModel(cache: cache, range: range)
-        let priorityCostNanosByDayModel = self.codexPriorityCostNanosByDayModel(cache: cache, range: range)
-        let standardTokensByDayModel = self.codexStandardTokensByDayModel(cache: cache, range: range)
-        let priorityTokensByDayModel = self.codexPriorityTokensByDayModel(cache: cache, range: range)
-
-        let hasCodexRows = cache.files.values.contains {
-            !($0.codexRows?.isEmpty ?? true)
-        }
-        let rowsByDayModel = hasCodexRows ? self.codexRowsByDayModel(cache: cache, range: range) : [:]
+        let dayKeys = self.codexReportDayKeys(cache: reportCache, range: range)
+        let costNanosByDayModel = self.codexCostNanosByDayModel(cache: reportCache, range: range)
+        let prioritySurchargeNanosByDayModel = self.codexPrioritySurchargeNanosByDayModel(
+            cache: reportCache,
+            range: range)
+        let standardCostNanosByDayModel = self.codexStandardCostNanosByDayModel(cache: reportCache, range: range)
+        let priorityCostNanosByDayModel = self.codexPriorityCostNanosByDayModel(cache: reportCache, range: range)
+        let standardTokensByDayModel = self.codexStandardTokensByDayModel(cache: reportCache, range: range)
+        let priorityTokensByDayModel = self.codexPriorityTokensByDayModel(cache: reportCache, range: range)
 
         for day in dayKeys {
-            guard let models = cache.days[day] else { continue }
+            guard let models = reportCache.days[day] else { continue }
             let modelNames = models.keys.sorted()
 
             var dayInput = 0
@@ -1310,20 +1345,17 @@ extension CostUsageScanner {
                 dayCacheRead += cached
                 dayOutput += output
 
-                let rows = rowsByDayModel[day]?[model]
-                let rowCostBreakdown = rows.map {
-                    self.codexRowCostBreakdown(
-                        rows: $0,
-                        priorityTurns: priorityTurns,
-                        modelsDevCatalog: modelsDevCatalog,
-                        modelsDevCacheRoot: modelsDevCacheRoot)
-                }
                 let cachedBaseCost = costNanosByDayModel[day]?[model].map { Double($0) / Self.costScale }
-                let rowTotalCost = cachedBaseCost == nil ? rowCostBreakdown?.totalCostUSD : nil
-                let standardCost = standardCostNanosByDayModel[day]?[model].map { Double($0) / Self.costScale }
-                    ?? (rowCostBreakdown?.hasModeSplit == true ? rowCostBreakdown?.optionalStandardCostUSD : nil)
-                let priorityCost = priorityCostNanosByDayModel[day]?[model].map { Double($0) / Self.costScale }
-                    ?? (rowCostBreakdown?.hasModeSplit == true ? rowCostBreakdown?.optionalPriorityCostUSD : nil)
+                let cachedStandardCost = standardCostNanosByDayModel[day]?[model].map {
+                    Double($0) / Self.costScale
+                }
+                let cachedPriorityCost = priorityCostNanosByDayModel[day]?[model].map {
+                    Double($0) / Self.costScale
+                }
+                let cachedStandardTokens = standardTokensByDayModel[day]?[model]
+                let cachedPriorityTokens = priorityTokensByDayModel[day]?[model]
+                let standardCost = cachedStandardCost
+                let priorityCost = cachedPriorityCost
                 let splitTotalCost: Double? = if standardCost != nil || priorityCost != nil {
                     (standardCost ?? 0) + (priorityCost ?? 0)
                 } else {
@@ -1331,36 +1363,20 @@ extension CostUsageScanner {
                 }
                 var cost = splitTotalCost
                     ?? cachedBaseCost
-                    ?? rowTotalCost
                     ?? CostUsagePricing.codexCostUSD(
                         model: model,
                         inputTokens: input,
                         cachedInputTokens: cached,
                         outputTokens: output,
-                        modelsDevCatalog: modelsDevCatalog,
+                        modelsDevCatalog: catalogResolver.load(modelsDevCatalogLoader),
                         modelsDevCacheRoot: modelsDevCacheRoot)
                 if splitTotalCost == nil,
                    let surchargeNanos = prioritySurchargeNanosByDayModel[day]?[model],
                    cachedBaseCost != nil
                 {
                     cost = (cost ?? 0) + (Double(surchargeNanos) / Self.costScale)
-                } else if splitTotalCost == nil,
-                          rowTotalCost == nil,
-                          !priorityTurns.isEmpty,
-                          let rows,
-                          let surcharge = self.codexPrioritySurchargeUSD(
-                              rows: rows,
-                              priorityTurns: priorityTurns,
-                              modelsDevCatalog: modelsDevCatalog,
-                              modelsDevCacheRoot: modelsDevCacheRoot)
-                {
-                    cost = (cost ?? 0) + surcharge
                 }
-                let standardModeTokens = standardTokensByDayModel[day]?[model]
-                    ?? (rowCostBreakdown?.hasModeSplit == true ? rowCostBreakdown?.optionalStandardTokens : nil)
-                let priorityModeTokens = priorityTokensByDayModel[day]?[model]
-                    ?? (rowCostBreakdown?.hasModeSplit == true ? rowCostBreakdown?.optionalPriorityTokens : nil)
-                let hasModeSplit = priorityCost != nil || priorityModeTokens != nil
+                let hasModeSplit = priorityCost != nil || cachedPriorityTokens != nil
                 breakdown.append(
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,
@@ -1368,8 +1384,8 @@ extension CostUsageScanner {
                         totalTokens: totalTokens,
                         standardCostUSD: hasModeSplit ? standardCost : nil,
                         priorityCostUSD: hasModeSplit ? priorityCost : nil,
-                        standardTokens: hasModeSplit ? standardModeTokens : nil,
-                        priorityTokens: hasModeSplit ? priorityModeTokens : nil))
+                        standardTokens: hasModeSplit ? cachedStandardTokens : nil,
+                        priorityTokens: hasModeSplit ? cachedPriorityTokens : nil))
                 if let cost {
                     dayCost += cost
                     dayCostSeen = true

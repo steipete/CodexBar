@@ -94,6 +94,163 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
+    func `cached daily report resolves and uses the pricing catalog once`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let model = "perf-custom-model"
+        _ = try Self.writeSyntheticCodexCorpus(
+            env: env,
+            day: day,
+            files: 3,
+            turnsPerFile: 4,
+            model: model)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let catalogJSON = """
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "\(model)": {
+                "id": "\(model)",
+                "cost": { "input": 10, "output": 50, "cache_read": 1 }
+              }
+            }
+          }
+        }
+        """
+        let catalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(catalogJSON.utf8))
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cachedUsage = try #require(cache.files.values.first { !($0.codexRows?.isEmpty ?? true) })
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+        #expect(!CostUsageScanner.needsCodexCostCache(cachedUsage, range: range))
+        var catalogLoadCount = 0
+        let report = CostUsageScanner.buildCodexReportFromCache(
+            cache: cache,
+            range: range,
+            modelsDevCacheRoot: env.cacheRoot,
+            modelsDevCatalogLoader: { _ in
+                catalogLoadCount += 1
+                return catalog
+            })
+
+        #expect(report.summary?.totalCostUSD != nil)
+        #expect(catalogLoadCount == 1)
+    }
+
+    @Test
+    func `cached daily report uses complete aggregates without loading pricing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        _ = try Self.writeSyntheticCodexCorpus(env: env, day: day, files: 3, turnsPerFile: 4)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        let scanned = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var catalogLoadCount = 0
+        let cached = CostUsageScanner.buildCodexReportFromCache(
+            cache: cache,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            modelsDevCacheRoot: env.cacheRoot,
+            modelsDevCatalogLoader: { _ in
+                catalogLoadCount += 1
+                return ModelsDevCatalog(providers: [:])
+            })
+
+        #expect(cached.data.map(\.totalTokens) == scanned.data.map(\.totalTokens))
+        #expect(cached.summary?.totalTokens == scanned.summary?.totalTokens)
+        #expect(abs((cached.summary?.totalCostUSD ?? 0) - (scanned.summary?.totalCostUSD ?? 0)) < 0.000000001)
+        #expect(catalogLoadCount == 0)
+    }
+
+    @Test
+    func `legacy missing aggregate cost backfills rows before threshold pricing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        _ = try Self.writeSyntheticCodexCorpus(
+            env: env,
+            day: day,
+            files: 2,
+            turnsPerFile: 1,
+            model: "openai/gpt-5.5",
+            inputTokensPerTurn: 200_000)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        let scanned = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        var legacy = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        for path in legacy.files.keys {
+            legacy.files[path]?.codexCostCacheComplete = nil
+            legacy.files[path]?.codexCostNanos = nil
+            legacy.files[path]?.codexStandardCostNanos = nil
+            legacy.files[path]?.codexPriorityCostNanos = nil
+        }
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+        #expect(legacy.files.values.allSatisfy { CostUsageScanner.needsCodexCostCache($0, range: range) })
+
+        let backfilled = CostUsageScanner.buildCodexReportFromCache(cache: legacy, range: range)
+
+        #expect(abs((backfilled.summary?.totalCostUSD ?? 0) - (scanned.summary?.totalCostUSD ?? 0)) < 0.000000001)
+
+        var mixed = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let mixedPaths = mixed.files.keys.sorted()
+        let legacyPath = try #require(mixedPaths.first)
+        let rowlessPath = try #require(mixedPaths.last)
+        #expect(legacyPath != rowlessPath)
+        mixed.files[legacyPath]?.codexCostCacheComplete = nil
+        mixed.files[legacyPath]?.codexCostNanos = nil
+        mixed.files[legacyPath]?.codexStandardCostNanos = nil
+        mixed.files[legacyPath]?.codexPriorityCostNanos = nil
+        mixed.files[rowlessPath]?.codexRows = nil
+
+        let mixedBackfilled = CostUsageScanner.buildCodexReportFromCache(cache: mixed, range: range)
+        #expect(abs((mixedBackfilled.summary?.totalCostUSD ?? 0) - (scanned.summary?.totalCostUSD ?? 0)) < 0.000000001)
+
+        let aggregateCost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 400_000,
+            cachedInputTokens: 0,
+            outputTokens: 20)
+        #expect(abs((backfilled.summary?.totalCostUSD ?? 0) - (aggregateCost ?? 0)) > 0.1)
+    }
+
+    @Test
     func `project rollups resolve the pricing catalog once per build`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -132,9 +289,10 @@ struct CostUsagePerformanceGateTests {
         env: CostUsageTestEnvironment,
         day: Date,
         files: Int,
-        turnsPerFile: Int) throws -> [URL]
+        turnsPerFile: Int,
+        model: String = "openai/gpt-5.2-codex",
+        inputTokensPerTurn: Int = 100) throws -> [URL]
     {
-        let model = "openai/gpt-5.2-codex"
         let baseISO = env.isoString(for: day)
         var fileURLs: [URL] = []
         for fileIndex in 0..<files {
@@ -145,9 +303,10 @@ struct CostUsagePerformanceGateTests {
             lines.append(
                 #"{"type":"turn_context","timestamp":"\#(baseISO)","payload":{"model":"\#(model)"}}"#)
             for turn in 1...turnsPerFile {
+                let inputTokens = turn * inputTokensPerTurn
                 lines.append(
                     #"{"type":"event_msg","timestamp":"\#(baseISO)","payload":{"type":"token_count","info":"#
-                        + #"{"total_token_usage":{"input_tokens":\#(turn * 100),"cached_input_tokens":\#(turn * 20),"#
+                        + #"{"total_token_usage":{"input_tokens":\#(inputTokens),"cached_input_tokens":\#(turn * 20),"#
                         + #""output_tokens":\#(turn * 10)},"model":"\#(model)"}}}"#)
             }
             let fileURL = try env.writeCodexSessionFile(

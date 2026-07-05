@@ -140,6 +140,7 @@ struct CostUsageFileUsage: Codable {
     var forkedFromId: String?
     var projectPath: String?
     var canonicalProjectPath: String?
+    var codexCostCacheComplete: Bool?
     var codexCostNanos: [String: [String: Int64]]?
     var codexPrioritySurchargeNanos: [String: [String: Int64]]?
     var codexStandardCostNanos: [String: [String: Int64]]?
