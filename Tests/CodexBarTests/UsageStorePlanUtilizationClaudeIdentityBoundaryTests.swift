@@ -129,6 +129,28 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
 
     @MainActor
     @Test
+    func `never prompt mode still quarantines an owner bound to another account`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        store.settings.claudeOAuthKeychainPromptMode = .never
+        let owner = String(repeating: "f", count: 64)
+        store.persistClaudeOAuthAccountUuidMap([
+            owner: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A"),
+        ])
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 90),
+            claudeOAuthHistoryOwnerIdentifier: owner,
+            claudeOAuthKeychainCredentialUnavailable: true,
+            claudeOAuthActiveAccountObservation: .stable(
+                identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
+            isClaudeOAuthSample: true)
+
+        #expect(store.planUtilizationHistory[.claude] == nil)
+    }
+
+    @MainActor
+    @Test
     func `account change during identity capture cannot bind or write history`() async {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let snapshot = UsageSnapshot(

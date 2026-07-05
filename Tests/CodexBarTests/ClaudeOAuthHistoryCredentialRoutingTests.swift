@@ -67,6 +67,12 @@ struct ClaudeOAuthHistoryCredentialRoutingTests {
             #expect(unavailable.isUnavailable)
             #expect(!unavailable.isMismatch)
         }
+
+        let absentStore = ClaudeOAuthCredentialsStore.ClaudeKeychainOverrideStore()
+        ClaudeOAuthCredentialsStore.withMutableClaudeKeychainOverrideStoreForTesting(absentStore) {
+            #expect(ClaudeOAuthCredentialsStore
+                .claudeKeychainCredentialMatchWithoutPrompt(for: matchingCLIRecord) == .absent)
+        }
     }
 
     @Test

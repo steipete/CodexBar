@@ -999,15 +999,6 @@ extension UsageStore {
             // An account/credential change while capturing the UUID cannot safely identify this sample.
             return nil
         }
-        if evidence.keychainCredentialUnavailable,
-           !evidence.keychainCredentialMismatch,
-           self.settings.claudeOAuthKeychainPromptMode == .never
-        {
-            // `never` Keychain mode intentionally uses the file credential without corroboration. Its
-            // secret-derived owner remains isolated; only continuity across credential rotation is unavailable.
-            return evidence.owner
-        }
-
         var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
         if let mapped = map[evidence.owner] {
             guard let currentAccountIdentity else {
@@ -1030,6 +1021,15 @@ extension UsageStore {
             // Two stable exact-Keychain observations repair a binding poisoned by a non-atomic login.
             map[evidence.owner] = currentAccountIdentity
             self.persistClaudeOAuthAccountUuidMap(map)
+            return evidence.owner
+        }
+
+        if evidence.keychainCredentialUnavailable,
+           !evidence.keychainCredentialMismatch,
+           self.settings.claudeOAuthKeychainPromptMode == .never
+        {
+            // With no authoritative binding, `never` mode can safely use the secret-derived file owner.
+            // Existing bindings are checked above so a stale file cannot cross an observed account switch.
             return evidence.owner
         }
 

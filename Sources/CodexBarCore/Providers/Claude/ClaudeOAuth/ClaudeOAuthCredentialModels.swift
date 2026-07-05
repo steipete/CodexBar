@@ -188,6 +188,7 @@ public enum ClaudeOAuthCredentialSource: String, Sendable {
 
 enum ClaudeKeychainCredentialMatch: Equatable, Sendable {
     case notApplicable
+    case absent
     case unavailable
     case mismatch
     case matched(persistentRefHash: String)
