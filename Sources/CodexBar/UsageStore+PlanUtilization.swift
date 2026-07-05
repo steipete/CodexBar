@@ -537,7 +537,7 @@ extension UsageStore {
         }
     }
 
-    private func planUtilizationSeriesSamples(
+    func planUtilizationSeriesSamples(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         capturedAt: Date) -> [PlanUtilizationSeriesSample]
