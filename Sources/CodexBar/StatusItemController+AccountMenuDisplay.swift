@@ -28,6 +28,10 @@ extension StatusItemController {
 
     func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
+        // Active claude-swap accounts replace Claude token-account presentation
+        // (stacked cards and the segmented switcher) so the opt-in adapter's rows
+        // are never hidden behind, or mixed with, token-account UI.
+        if provider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 { return nil }
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }
         let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0

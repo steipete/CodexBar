@@ -607,6 +607,25 @@ extension StatusItemController {
             return false
         }
 
+        // The opt-in claude-swap adapter takes explicit precedence over Claude
+        // token-account cards: enabling it declares claude-swap as the account
+        // source, and its rows would otherwise be silently hidden whenever
+        // multiple token accounts render stacked.
+        if context.currentProvider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 {
+            let cards = self.store.claudeSwapAccountSnapshots.compactMap { account in
+                self.menuCardModel(
+                    for: .claude,
+                    snapshotOverride: account.snapshot,
+                    errorOverride: ClaudeSwapAccountProjection.displayError(
+                        accountError: account.error,
+                        adapterError: self.store.claudeSwapLastError),
+                    forceOverrideCard: account.snapshot == nil,
+                    accountOverride: AccountInfo(email: account.displayLabel, plan: nil))
+            }
+            self.addStackedMenuCards(cards, to: menu, context: context)
+            return false
+        }
+
         if let tokenAccountDisplay = context.tokenAccountDisplay, tokenAccountDisplay.showAll {
             let accountSnapshots = tokenAccountDisplay.snapshots
             let cards = accountSnapshots.isEmpty
@@ -628,21 +647,6 @@ extension StatusItemController {
                     snapshotOverride: scope.snapshot,
                     errorOverride: scope.errorMessage,
                     forceOverrideCard: scope.snapshot == nil)
-            }
-            self.addStackedMenuCards(cards, to: menu, context: context)
-            return false
-        }
-
-        if context.currentProvider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 {
-            let cards = self.store.claudeSwapAccountSnapshots.compactMap { account in
-                self.menuCardModel(
-                    for: .claude,
-                    snapshotOverride: account.snapshot,
-                    errorOverride: ClaudeSwapAccountProjection.displayError(
-                        accountError: account.error,
-                        adapterError: self.store.claudeSwapLastError),
-                    forceOverrideCard: account.snapshot == nil,
-                    accountOverride: AccountInfo(email: account.displayLabel, plan: nil))
             }
             self.addStackedMenuCards(cards, to: menu, context: context)
             return false
