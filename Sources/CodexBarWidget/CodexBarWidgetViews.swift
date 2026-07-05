@@ -943,7 +943,10 @@ struct WidgetBalanceLine: Equatable {
 
 enum WidgetBalanceFormatter {
     static func extraUsageBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
-        guard let cost = entry.providerCost, cost.period == "Extra usage balance" else { return nil }
+        guard entry.provider == .devin,
+              let cost = entry.providerCost,
+              cost.period == "Extra usage balance"
+        else { return nil }
         return WidgetBalanceLine(
             title: "Extra usage",
             value: "Balance: \(WidgetFormat.currency(cost.used, code: cost.currencyCode))")

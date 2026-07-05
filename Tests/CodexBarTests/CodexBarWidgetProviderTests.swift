@@ -317,9 +317,9 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
-    func `widget balance formatter omits non extra usage cost`() {
+    func `widget balance formatter does not leak another provider balance`() {
         let entry = WidgetSnapshot.ProviderEntry(
-            provider: .claude,
+            provider: .factory,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             primary: nil,
             secondary: nil,
@@ -332,7 +332,7 @@ struct CodexBarWidgetProviderTests {
                 used: 12.0,
                 limit: 100.0,
                 currencyCode: "USD",
-                period: "Monthly spend",
+                period: "Extra usage balance",
                 updatedAt: Date(timeIntervalSince1970: 1_700_000_000)))
         #expect(WidgetBalanceFormatter.extraUsageBalance(for: entry) == nil)
     }
