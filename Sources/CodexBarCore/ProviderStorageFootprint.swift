@@ -332,7 +332,6 @@ public enum ProviderStoragePathCatalog {
         case .cursor:
             [
                 homePath("Library/Application Support/Cursor"),
-                homePath(".config/Cursor"),
                 homePath("Library/Application Support/Caches/cursor-updater"),
                 homePath(".cursor"),
                 homePath("Library/Caches/Cursor"),

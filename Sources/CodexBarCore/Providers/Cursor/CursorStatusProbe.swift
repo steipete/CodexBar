@@ -5,6 +5,8 @@ import FoundationNetworking
 import SweetCookieKit
 #if canImport(SQLite3)
 import SQLite3
+#elseif canImport(CSQLite3)
+import CSQLite3
 #endif
 
 #if os(macOS) || os(Linux)
@@ -15,6 +17,7 @@ private let cursorCookieImportOrder: BrowserCookieImportOrder =
 #endif
 
 #if os(macOS)
+
 // MARK: - Cursor Cookie Importer
 
 /// Imports Cursor session cookies from browser cookies.
@@ -432,8 +435,12 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         #elseif os(Linux)
         let configHome = environment[CodexBarConfigStore.xdgConfigHomeEnvironmentKey]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let base: String = if let configHome, !configHome.isEmpty {
-            (configHome as NSString).expandingTildeInPath
+        let expandedConfigHome = configHome.map { ($0 as NSString).expandingTildeInPath }
+        let base: String = if let expandedConfigHome,
+                              !expandedConfigHome.isEmpty,
+                              (expandedConfigHome as NSString).isAbsolutePath
+        {
+            expandedConfigHome
         } else {
             "\(home)/.config"
         }
@@ -735,7 +742,8 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
             #if os(macOS)
             "Not logged in to Cursor. Please log in via the CodexBar menu."
             #else
-            "Not logged in to Cursor. Sign in to the Cursor app on this machine or paste a session cookie in CodexBar settings."
+            "Not logged in to Cursor. Sign in to the Cursor app on this machine or paste a Cookie header copied "
+                + "from cursor.com into ~/.config/codexbar/config.json (legacy: ~/.codexbar/config.json)."
             #endif
         case let .networkError(msg):
             "Cursor API error: \(msg)"
@@ -747,7 +755,8 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
                 + "Please log in to cursor.com in \(cursorCookieImportOrder.loginHint). "
                 + "You can also sign in to Cursor from the CodexBar menu (Add / switch account)."
             #else
-            "No Cursor session found. Sign in to the Cursor app on this machine, paste a Cookie header from cursor.com in settings, or log in to cursor.com in your browser."
+            "No Cursor session found. Sign in to the Cursor app on this machine or paste a Cookie header copied "
+                + "from cursor.com into ~/.config/codexbar/config.json (legacy: ~/.codexbar/config.json)."
             #endif
         }
     }

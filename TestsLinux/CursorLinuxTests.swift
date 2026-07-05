@@ -1,12 +1,12 @@
-import CodexBarCore
+#if os(Linux)
 import Foundation
 import Testing
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
-@Suite
 struct CursorLinuxTests {
     @Test
-    func resolveDefaultDBPathHonorsXDGConfigHome() {
+    func `Cursor database path honors absolute XDG config home`() {
         let path = CursorAppAuthStore.resolveDefaultDBPath(
             home: "/home/test",
             environment: ["XDG_CONFIG_HOME": "/custom/config"])
@@ -14,7 +14,7 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func resolveDefaultDBPathFallsBackToDotConfig() {
+    func `Cursor database path falls back to dot config`() {
         let path = CursorAppAuthStore.resolveDefaultDBPath(
             home: "/home/test",
             environment: [:])
@@ -22,7 +22,15 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func cursorAutoSourceDoesNotRequireMacOSWebSupport() {
+    func `Cursor database path rejects relative XDG config home`() {
+        let path = CursorAppAuthStore.resolveDefaultDBPath(
+            home: "/home/test",
+            environment: ["XDG_CONFIG_HOME": "relative/config"])
+        #expect(path == "/home/test/.config/Cursor/User/globalStorage/state.vscdb")
+    }
+
+    @Test
+    func `Cursor automatic source does not require macOS web support`() {
         #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .cursor,
@@ -31,7 +39,7 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func cursorManualCookieDoesNotRequireMacOSWebSupport() {
+    func `Cursor manual cookie does not require macOS web support`() {
         #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .cursor,
@@ -42,11 +50,12 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func cursorOffStillRequiresMacOSWebSupport() {
+    func `disabled Cursor web source still requires macOS web support`() {
         #expect(CodexBarCLI.sourceModeRequiresWebSupport(
-            .auto,
+            .web,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(
                 cursor: .init(cookieSource: .off, manualCookieHeader: nil))))
     }
 }
+#endif

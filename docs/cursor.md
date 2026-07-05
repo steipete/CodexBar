@@ -59,11 +59,11 @@ Manual option:
 ## Linux CLI
 - `codexbar usage --provider cursor` reads the signed-in Cursor app's access token from the Linux global state DB and reuses the same `cursor.com` usage endpoints as macOS.
 - Automatic browser cookie import and the in-app WebKit login flow remain macOS-only.
-- Manual cookie headers from `~/.codexbar/config.json` work on Linux.
+- Manual cookie headers from `~/.config/codexbar/config.json` (or legacy `~/.codexbar/config.json`) work on Linux.
 
 ## Local storage footprint
-When **Settings → Advanced → Track provider local storage** is enabled, CodexBar measures:
-- `~/Library/Application Support/Cursor` (macOS) or `~/.config/Cursor` (Linux)
+When **Settings → Advanced → Track provider local storage** is enabled on macOS, CodexBar measures:
+- `~/Library/Application Support/Cursor`
 - `~/Library/Application Support/Caches/cursor-updater`
 - `~/.cursor`
 - `~/Library/Caches/Cursor`
