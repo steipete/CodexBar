@@ -145,10 +145,10 @@ struct MiniMaxUsageSummaryTests {
     }
 
     @Test
-    func `daily only summary anchors year from reference date near new year`() {
+    func `daily only summary anchors year from reference date near new year`() throws {
         var calendar = Calendar.current
         calendar.timeZone = TimeZone.current
-        let reference = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 12))!
+        let reference = try #require(calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 12)))
         let key = MiniMaxUsageSummary.dateKey(fromUpdateTime: "12-31 18:00", referenceDate: reference)
         #expect(key == "2025-12-31")
     }
