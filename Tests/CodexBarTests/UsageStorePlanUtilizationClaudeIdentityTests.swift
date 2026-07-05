@@ -318,6 +318,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
                     claudeOAuthPersistentRefHash: "account-a-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true,
                     now: hourStart)
             }
@@ -341,6 +342,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
                     claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(2 * 60 * 60))
             }
@@ -366,6 +368,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
                     claudeOAuthPersistentRefHash: "account-b-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(3 * 60 * 60))
             }
@@ -401,6 +404,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
                     claudeOAuthPersistentRefHash: "account-a-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true,
                     now: hourStart)
             }
@@ -422,6 +426,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
                     claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(2 * 60 * 60))
             }
@@ -445,6 +450,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
                     claudeOAuthPersistentRefHash: "account-b-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(3 * 60 * 60))
             }
@@ -472,6 +478,7 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
                     claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: staleOwner,
+                    isClaudeCLIKeychainSample: true,
                     isClaudeOAuthSample: true)
             }
         }

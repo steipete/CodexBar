@@ -27,6 +27,8 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let oauthKeychainPersistentRefHash: String?
     /// One-way, high-entropy ownership evidence derived from the exact credential used for this OAuth fetch.
     public let oauthHistoryOwnerIdentifier: String?
+    /// True when OAuth routing used a credential owned by Claude Code's Keychain entry.
+    public let oauthUsesClaudeCLIKeychain: Bool
 
     public init(
         primary: RateWindow,
@@ -41,7 +43,8 @@ public struct ClaudeUsageSnapshot: Sendable {
         loginMethod: String?,
         rawText: String?,
         oauthKeychainPersistentRefHash: String? = nil,
-        oauthHistoryOwnerIdentifier: String? = nil)
+        oauthHistoryOwnerIdentifier: String? = nil,
+        oauthUsesClaudeCLIKeychain: Bool = false)
     {
         self.primary = primary
         self.primaryWindowKind = primaryWindowKind
@@ -56,6 +59,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.rawText = rawText
         self.oauthKeychainPersistentRefHash = oauthKeychainPersistentRefHash
         self.oauthHistoryOwnerIdentifier = oauthHistoryOwnerIdentifier
+        self.oauthUsesClaudeCLIKeychain = oauthUsesClaudeCLIKeychain
     }
 }
 
@@ -317,7 +321,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     credentials: credentials,
                     oauthKeychainPersistentRefHash: ClaudeOAuthCredentialsStore
                         .matchingClaudeKeychainPersistentRefHashWithoutPrompt(for: credentialRecord),
-                    oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier)
+                    oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier,
+                    oauthUsesClaudeCLIKeychain: credentialRecord.owner == .claudeCLI)
             } catch let error as CancellationError {
                 throw error
             } catch let error as ClaudeUsageError {
@@ -460,7 +465,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     credentials: refreshedCredentials,
                     oauthKeychainPersistentRefHash: ClaudeOAuthCredentialsStore
                         .matchingClaudeKeychainPersistentRefHashWithoutPrompt(for: refreshedRecord),
-                    oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier)
+                    oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier,
+                    oauthUsesClaudeCLIKeychain: refreshedRecord.owner == .claudeCLI)
             } catch {
                 ClaudeUsageFetcher.log.debug(
                     "Claude OAuth post-delegation retry failed",
@@ -986,7 +992,8 @@ extension ClaudeUsageFetcher {
         _ usage: OAuthUsageResponse,
         credentials: ClaudeOAuthCredentials,
         oauthKeychainPersistentRefHash: String? = nil,
-        oauthHistoryOwnerIdentifier: String? = nil) throws -> ClaudeUsageSnapshot
+        oauthHistoryOwnerIdentifier: String? = nil,
+        oauthUsesClaudeCLIKeychain: Bool = false) throws -> ClaudeUsageSnapshot
     {
         let oauthHistoryOwnerIdentifier = ClaudeOAuthCredentials.normalizedHistoryOwnerIdentifier(
             oauthHistoryOwnerIdentifier) ?? credentials.historyOwnerIdentifier
@@ -1033,7 +1040,8 @@ extension ClaudeUsageFetcher {
                     loginMethod: loginMethod,
                     rawText: nil,
                     oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
-                    oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier)
+                    oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
+                    oauthUsesClaudeCLIKeychain: oauthUsesClaudeCLIKeychain)
             }
             throw ClaudeUsageError.parseFailed("missing session data")
         }
@@ -1056,7 +1064,8 @@ extension ClaudeUsageFetcher {
             loginMethod: loginMethod,
             rawText: nil,
             oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
-            oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier)
+            oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
+            oauthUsesClaudeCLIKeychain: oauthUsesClaudeCLIKeychain)
     }
 
     private static func oauthExtraUsageCost(
@@ -1363,7 +1372,8 @@ extension ClaudeUsageFetcher {
                     loginMethod: snapshot.loginMethod,
                     rawText: snapshot.rawText,
                     oauthKeychainPersistentRefHash: snapshot.oauthKeychainPersistentRefHash,
-                    oauthHistoryOwnerIdentifier: snapshot.oauthHistoryOwnerIdentifier)
+                    oauthHistoryOwnerIdentifier: snapshot.oauthHistoryOwnerIdentifier,
+                    oauthUsesClaudeCLIKeychain: snapshot.oauthUsesClaudeCLIKeychain)
             }
         } catch {
             Self.log.debug("Claude web extras fetch failed: \(error.localizedDescription)")

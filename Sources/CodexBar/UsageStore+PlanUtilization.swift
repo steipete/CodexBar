@@ -153,6 +153,7 @@ extension UsageStore {
         account: ProviderTokenAccount? = nil,
         claudeOAuthPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
+        isClaudeCLIKeychainSample: Bool = false,
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
         shouldAdoptUnscopedHistory: Bool = true,
@@ -161,7 +162,11 @@ extension UsageStore {
     {
         let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
         var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
-        if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
+        if provider == .claude,
+           isClaudeOAuthSample,
+           isClaudeCLIKeychainSample,
+           let owner = claudeOAuthHistoryOwnerIdentifier
+        {
             let currentAccountIdentity = Self.activeClaudeAccountIdentity()
             var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
             if let mapped = map[owner], let currentAccountIdentity, mapped != currentAccountIdentity {

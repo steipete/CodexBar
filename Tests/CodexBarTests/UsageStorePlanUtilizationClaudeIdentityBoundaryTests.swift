@@ -33,6 +33,36 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
             .entries.map(\.usedPercent) == [35])
     }
 
+    @MainActor
+    @Test
+    func `explicit oauth credential ignores Claude Code account identity`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let owner = String(repeating: "d", count: 64)
+        let key = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: owner))
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 45,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+
+        await UsageStore.withActiveClaudeAccountUuidForTesting("claude-code-account") {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: snapshot,
+                claudeOAuthHistoryOwnerIdentifier: owner,
+                isClaudeOAuthSample: true)
+        }
+
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[key] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [45])
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults).isEmpty)
+    }
+
     @Test
     func `claude oauth history scope requires full auth fingerprint stability`() {
         let stablePersistentRefHash = UsageStore._stableClaudeKeychainPersistentRefHashForTesting(
