@@ -370,6 +370,12 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `provider choice supports Kimi`() {
+        #expect(ProviderChoice(provider: .kimi) == .kimi)
+        #expect(ProviderChoice.kimi.provider == .kimi)
+    }
+
+    @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
     }
@@ -433,6 +439,24 @@ struct CodexBarWidgetProviderTests {
         let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.mistral], generatedAt: now)
 
         #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.mistral])
+    }
+
+    @Test
+    func `supported providers keep Kimi when it is the only enabled provider`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .kimi,
+            updatedAt: now,
+            primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.kimi], generatedAt: now)
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.kimi])
     }
 
     @Test

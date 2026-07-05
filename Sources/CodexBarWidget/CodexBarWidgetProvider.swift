@@ -18,6 +18,7 @@ enum ProviderChoice: String, AppEnum {
     case opencode
     case opencodego
     case mistral
+    case kimi
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -36,6 +37,7 @@ enum ProviderChoice: String, AppEnum {
         .opencode: DisplayRepresentation(title: "OpenCode"),
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
         .mistral: DisplayRepresentation(title: "Mistral"),
+        .kimi: DisplayRepresentation(title: "Kimi"),
     ]
 
     var provider: UsageProvider {
@@ -54,6 +56,7 @@ enum ProviderChoice: String, AppEnum {
         case .opencode: .opencode
         case .opencodego: .opencodego
         case .mistral: .mistral
+        case .kimi: .kimi
         }
     }
 
@@ -82,7 +85,7 @@ enum ProviderChoice: String, AppEnum {
         case .kiro: return nil // Kiro not yet supported in widgets
         case .augment: return nil // Augment not yet supported in widgets
         case .jetbrains: return nil // JetBrains not yet supported in widgets
-        case .kimi: return nil // Kimi not yet supported in widgets
+        case .kimi: self = .kimi
         case .kimik2: return nil // Kimi K2 not yet supported in widgets
         case .moonshot: return nil // Moonshot not yet supported in widgets
         case .amp: return nil // Amp not yet supported in widgets
