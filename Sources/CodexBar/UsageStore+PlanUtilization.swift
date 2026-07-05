@@ -43,16 +43,7 @@ extension UsageStore {
         case .codex, .claude:
             true
         case .minimax:
-            if self.planUtilizationHistory[provider]?.isEmpty == false {
-                true
-            } else if let snapshot = self.snapshots[provider] {
-                !self.planUtilizationSeriesSamples(
-                    provider: provider,
-                    snapshot: snapshot,
-                    capturedAt: snapshot.updatedAt).isEmpty
-            } else {
-                false
-            }
+            self.supportsMiniMaxPlanUtilizationHistory()
         default:
             if self.planUtilizationHistory[provider]?.isEmpty == false {
                 true
@@ -275,15 +266,11 @@ extension UsageStore {
     private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
         switch provider {
         case .codex, .claude:
-            return true
+            true
         case .minimax:
-            guard let snapshot = self.snapshots[provider] else { return false }
-            return !self.planUtilizationSeriesSamples(
-                provider: provider,
-                snapshot: snapshot,
-                capturedAt: snapshot.updatedAt).isEmpty
+            self.shouldRecordMiniMaxPlanUtilizationHistory()
         default:
-            return self.settings.historicalTrackingEnabled
+            self.settings.historicalTrackingEnabled
         }
     }
 
@@ -630,59 +617,6 @@ extension UsageStore {
             }
             return lhs.name.rawValue < rhs.name.rawValue
         }
-    }
-
-    private func appendMiniMaxPlanUtilizationSamples(
-        snapshot: UsageSnapshot,
-        appendWindow: (_ window: RateWindow?, _ name: PlanUtilizationSeriesName?) -> Void)
-    {
-        let services = snapshot.minimaxUsage?.services?
-            .filter(\.isPrimaryTextQuotaLane) ?? []
-        if services.isEmpty {
-            appendWindow(snapshot.primary, .session)
-            appendWindow(snapshot.secondary, .weekly)
-            return
-        }
-
-        if let weeklyService = services.first(where: {
-            $0.windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "weekly"
-        }) {
-            appendWindow(self.rateWindow(for: weeklyService), .weekly)
-        }
-
-        let sessionService = services
-            .filter {
-                let normalized = $0.windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                return normalized != "weekly" && normalized != "today" && normalized != "今日"
-            }
-            .min {
-                self.windowMinutes(for: $0) < self.windowMinutes(for: $1)
-            }
-        if let sessionService {
-            appendWindow(self.rateWindow(for: sessionService), .session)
-        }
-    }
-
-    private func rateWindow(for service: MiniMaxServiceUsage) -> RateWindow {
-        RateWindow(
-            usedPercent: max(0, min(100, service.percent)),
-            windowMinutes: self.windowMinutes(for: service),
-            resetsAt: service.resetsAt,
-            resetDescription: service.resetDescription)
-    }
-
-    private func windowMinutes(for service: MiniMaxServiceUsage) -> Int {
-        let windowType = service.windowType.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if windowType == "today" || windowType == "今日" {
-            return 24 * 60
-        }
-        if windowType == "weekly" {
-            return 7 * 24 * 60
-        }
-        if let parsed = MiniMaxServiceUsage.parseWindowType(service.windowType).windowMinutes {
-            return parsed
-        }
-        return 300
     }
 
     private nonisolated static func planUtilizationHourBucket(for date: Date) -> Int64 {
