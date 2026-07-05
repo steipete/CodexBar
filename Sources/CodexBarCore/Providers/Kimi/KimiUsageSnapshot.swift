@@ -70,20 +70,20 @@ extension KimiUsageSnapshot {
         var rateLimitWindow: RateWindow?
         if let rateLimit = self.rateLimit {
             let rateLimitValue = Int(rateLimit.limit) ?? 0
-            let rateRemaining = Int(rateLimit.remaining ?? "")
-            let rateUsed = Int(rateLimit.used ?? "") ?? {
-                guard let remaining = rateRemaining else { return 0 }
-                return max(0, rateLimitValue - remaining)
-            }()
-            let ratePercent = rateLimitValue > 0
-                ? Self.clampedPercent(Double(rateUsed) / Double(rateLimitValue) * 100)
-                : 0
+            if rateLimitValue > 0 {
+                let rateRemaining = Int(rateLimit.remaining ?? "")
+                let rateUsed = Int(rateLimit.used ?? "") ?? {
+                    guard let remaining = rateRemaining else { return 0 }
+                    return max(0, rateLimitValue - remaining)
+                }()
+                let ratePercent = Self.clampedPercent(Double(rateUsed) / Double(rateLimitValue) * 100)
 
-            rateLimitWindow = RateWindow(
-                usedPercent: ratePercent,
-                windowMinutes: 300, // 300 minutes = 5 hours
-                resetsAt: Self.parseDate(rateLimit.resetTime),
-                resetDescription: "Rate: \(rateUsed)/\(rateLimitValue) per 5 hours")
+                rateLimitWindow = RateWindow(
+                    usedPercent: ratePercent,
+                    windowMinutes: 300, // 300 minutes = 5 hours
+                    resetsAt: Self.parseDate(rateLimit.resetTime),
+                    resetDescription: "Rate: \(rateUsed)/\(rateLimitValue) per 5 hours")
+            }
         }
 
         let monthlyWindow = self.subscriptionBalance.flatMap { balance -> NamedRateWindow? in
@@ -107,8 +107,8 @@ extension KimiUsageSnapshot {
             loginMethod: nil)
 
         return UsageSnapshot(
-            primary: weeklyWindow,
-            secondary: rateLimitWindow,
+            primary: rateLimitWindow,
+            secondary: weeklyWindow,
             tertiary: nil,
             extraRateWindows: monthlyWindow.map { [$0] },
             providerCost: nil,

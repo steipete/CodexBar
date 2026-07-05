@@ -102,6 +102,47 @@ struct OverviewMenuCardVisibilityTests {
 
 struct ProviderInlineDashboardModelTests {
     @Test
+    func `kimi model orders rate limit before weekly quota`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.kimi])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 9.5,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: "Rate: 19/200 per 5 hours"),
+            secondary: RateWindow(
+                usedPercent: 18.3,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+                resetDescription: "375/2048 requests"),
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kimi,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.map(\.id) == ["primary", "secondary"])
+        #expect(model.metrics.map(\.title) == ["Rate Limit", "Weekly"])
+    }
+
+    @Test
     func `openrouter period usage gets inline dashboard`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.openrouter])

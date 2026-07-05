@@ -222,8 +222,8 @@ struct UsageStoreCoverageTests {
             provider: .codex)
         store._setSnapshotForTesting(
             UsageSnapshot(
-                primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-                secondary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
                 updatedAt: now),
             provider: .kimi)
 

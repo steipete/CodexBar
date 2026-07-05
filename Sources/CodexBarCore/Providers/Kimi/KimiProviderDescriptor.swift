@@ -9,8 +9,8 @@ public enum KimiProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .kimi,
                 displayName: "Kimi",
-                sessionLabel: "Weekly",
-                weeklyLabel: "Rate Limit",
+                sessionLabel: "Rate Limit",
+                weeklyLabel: "Weekly",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
