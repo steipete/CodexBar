@@ -109,13 +109,13 @@ struct DeepSeekUsageSummaryDisplayTests {
             categoryBreakdown: [],
             daily: [
                 DeepSeekDailyUsage(date: "2026-05-01", totalTokens: 900, cost: 9.0, requestCount: 9),
-                DeepSeekDailyUsage(date: "2026-05-02", totalTokens: 100, cost: 1.0, requestCount: 1),
+                DeepSeekDailyUsage(date: "2026-05-09", totalTokens: 100, cost: 1.0, requestCount: 1),
             ],
             currency: "USD",
             updatedAt: Self.updatedAt(forDay: "2026-05-10"))
         #expect(usage.last7DaysTokens == 100)
         #expect(usage.last7DaysCost == 1.0)
-        #expect(usage.trendDays(last: 7).map(\.date) == ["2026-05-02"])
+        #expect(usage.trendDays(last: 7).map(\.date) == ["2026-05-09"])
     }
 
     @Test
