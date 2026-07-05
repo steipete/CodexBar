@@ -119,7 +119,8 @@ extension ProviderFetchOutcome {
                 strategyKind: result.strategyKind,
                 claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
                 claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
-                claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch)),
+                claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
+                claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable)),
             attempts: self.attempts)
     }
 

@@ -309,6 +309,10 @@ extension UsageStore {
                     : nil,
                 claudeOAuthKeychainCredentialMismatch: isClaudeOAuthSample
                     && result.claudeOAuthKeychainCredentialMismatch,
+                claudeOAuthKeychainCredentialUnavailable: isClaudeOAuthSample
+                    && (result.claudeOAuthKeychainCredentialUnavailable
+                        || (result.claudeOAuthKeychainPersistentRefHash != nil
+                            && claudeOAuthPersistentRefHash == nil)),
                 claudeOAuthActiveAccountObservation: context.claudeOAuthActiveAccountObservation,
                 isClaudeOAuthSample: isClaudeOAuthSample)
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }

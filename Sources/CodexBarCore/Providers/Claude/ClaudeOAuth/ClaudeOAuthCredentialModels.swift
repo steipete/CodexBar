@@ -200,6 +200,10 @@ enum ClaudeKeychainCredentialMatch: Equatable, Sendable {
     var isMismatch: Bool {
         self == .mismatch
     }
+
+    var isUnavailable: Bool {
+        self == .unavailable
+    }
 }
 
 public struct ClaudeOAuthCredentialRecord: Sendable {

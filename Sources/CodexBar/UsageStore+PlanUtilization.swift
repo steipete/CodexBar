@@ -6,6 +6,8 @@ extension UsageStore {
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
     private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
     private nonisolated static let claudeOAuthAccountUuidMapDefaultsKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
+    private nonisolated static let claudeOAuthAccountCandidateMapDefaultsKey =
+        "ClaudeOAuthHistoryOwnerAccountCandidateMapV1"
     private nonisolated static let weeklyWindowMinutes = 7 * 24 * 60
     private nonisolated static let planUtilizationUnscopedPreferredKey = "__unscoped__"
     private nonisolated static let claudeOAuthPlanUtilizationAccountKeyPrefix = "__claude_oauth__:"
@@ -13,6 +15,20 @@ extension UsageStore {
     enum ClaudeOAuthActiveAccountObservation: Equatable, Sendable {
         case stable(identity: String?)
         case changed
+    }
+
+    struct ClaudeOAuthAccountBindingCandidate: Codable, Equatable {
+        let identity: String
+        let observedAt: Date
+    }
+
+    private struct ClaudeOAuthHistoryEvidence {
+        let owner: String
+        let persistentRefHash: String?
+        let keychainCredentialMismatch: Bool
+        let keychainCredentialUnavailable: Bool
+        let activeAccountObservation: ClaudeOAuthActiveAccountObservation
+        let observedAt: Date
     }
 
     struct LimitResetDetectorState: Codable, Equatable {
@@ -159,6 +175,7 @@ extension UsageStore {
         claudeOAuthPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
         claudeOAuthKeychainCredentialMismatch: Bool = false,
+        claudeOAuthKeychainCredentialUnavailable: Bool = false,
         claudeOAuthActiveAccountObservation: ClaudeOAuthActiveAccountObservation = .stable(identity: nil),
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
@@ -169,39 +186,13 @@ extension UsageStore {
         let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
         var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
         if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
-            var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
-            let currentAccountIdentity: String? = switch claudeOAuthActiveAccountObservation {
-            case let .stable(identity): identity
-            case .changed: nil
-            }
-            if claudeOAuthActiveAccountObservation == .changed {
-                // An account/credential change while capturing the UUID cannot safely identify this sample.
-                // Never let it arm or reuse a durable binding.
-                effectiveOwner = nil
-            } else if let mapped = map[owner] {
-                if let currentAccountIdentity, mapped != currentAccountIdentity {
-                    // Active Claude account changed (per ~/.claude.json) but a stale credential for a
-                    // PREVIOUS account is being served. An existing binding is authoritative on every poll.
-                    effectiveOwner = nil
-                } else if currentAccountIdentity == nil, claudeOAuthKeychainCredentialMismatch {
-                    // A rotated access token can differ while retaining the same owner. Preserve it only when
-                    // the active account identity still corroborates the established binding.
-                    effectiveOwner = nil
-                }
-            } else if let currentAccountIdentity {
-                if claudeOAuthPersistentRefHash != nil {
-                    // First sighting of this owner: bind it only when the exact credential used for the fetch
-                    // matches the current Claude Keychain item. Interaction context is insufficient evidence:
-                    // even a user-initiated freshness sync can be unavailable, cancelled, or denied and fall
-                    // back to a stale cached credential. Never overwrite on mismatch.
-                    map[owner] = currentAccountIdentity
-                    self.persistClaudeOAuthAccountUuidMap(map)
-                } else if claudeOAuthKeychainCredentialMismatch {
-                    effectiveOwner = nil
-                }
-            } else if claudeOAuthKeychainCredentialMismatch {
-                effectiveOwner = nil
-            }
+            effectiveOwner = self.resolvedClaudeOAuthHistoryOwner(evidence: ClaudeOAuthHistoryEvidence(
+                owner: owner,
+                persistentRefHash: claudeOAuthPersistentRefHash,
+                keychainCredentialMismatch: claudeOAuthKeychainCredentialMismatch,
+                keychainCredentialUnavailable: claudeOAuthKeychainCredentialUnavailable,
+                activeAccountObservation: claudeOAuthActiveAccountObservation,
+                observedAt: now))
         }
         let detectorAccountKey = if provider == .claude, isClaudeOAuthSample {
             Self.claudeOAuthPlanUtilizationAccountKey(
@@ -959,6 +950,114 @@ extension UsageStore {
         } catch {
             CodexBarLog.logger(LogCategories.confetti).error(
                 "Failed to encode Claude OAuth history owner account UUID map",
+                metadata: ["error": String(describing: error)])
+        }
+    }
+
+    nonisolated static func loadClaudeOAuthAccountBindingCandidateMap(
+        from userDefaults: UserDefaults) -> [String: ClaudeOAuthAccountBindingCandidate]
+    {
+        guard let data = userDefaults.data(forKey: claudeOAuthAccountCandidateMapDefaultsKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: ClaudeOAuthAccountBindingCandidate].self, from: data)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to decode Claude OAuth account binding candidates",
+                metadata: ["error": String(describing: error)])
+            return [:]
+        }
+    }
+
+    private func confirmClaudeOAuthAccountBindingCandidate(
+        owner: String,
+        identity: String,
+        observedAt: Date) -> Bool
+    {
+        var candidates = Self.loadClaudeOAuthAccountBindingCandidateMap(from: self.settings.userDefaults)
+        if let candidate = candidates[owner],
+           candidate.identity == identity,
+           candidate.observedAt < observedAt
+        {
+            candidates.removeValue(forKey: owner)
+            self.persistClaudeOAuthAccountBindingCandidateMap(candidates)
+            return true
+        }
+        candidates[owner] = ClaudeOAuthAccountBindingCandidate(identity: identity, observedAt: observedAt)
+        self.persistClaudeOAuthAccountBindingCandidateMap(candidates)
+        return false
+    }
+
+    private func resolvedClaudeOAuthHistoryOwner(evidence: ClaudeOAuthHistoryEvidence) -> String? {
+        let requiresClaudeCodeCorroboration = evidence.persistentRefHash != nil
+            || evidence.keychainCredentialMismatch
+            || evidence.keychainCredentialUnavailable
+        guard requiresClaudeCodeCorroboration else {
+            // Explicit/environment credentials do not belong to Claude Code's active-account lifecycle.
+            return evidence.owner
+        }
+        guard case let .stable(currentAccountIdentity) = evidence.activeAccountObservation else {
+            // An account/credential change while capturing the UUID cannot safely identify this sample.
+            return nil
+        }
+
+        var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
+        if let mapped = map[evidence.owner] {
+            guard let currentAccountIdentity else {
+                return evidence.keychainCredentialMismatch || evidence.keychainCredentialUnavailable
+                    ? nil
+                    : evidence.owner
+            }
+            guard mapped != currentAccountIdentity else {
+                self.clearClaudeOAuthAccountBindingCandidate(owner: evidence.owner)
+                return evidence.owner
+            }
+            guard evidence.persistentRefHash != nil,
+                  self.confirmClaudeOAuthAccountBindingCandidate(
+                      owner: evidence.owner,
+                      identity: currentAccountIdentity,
+                      observedAt: evidence.observedAt)
+            else {
+                return nil
+            }
+            // Two stable exact-Keychain observations repair a binding poisoned by a non-atomic login.
+            map[evidence.owner] = currentAccountIdentity
+            self.persistClaudeOAuthAccountUuidMap(map)
+            return evidence.owner
+        }
+
+        guard let currentAccountIdentity else {
+            return evidence.keychainCredentialMismatch || evidence.keychainCredentialUnavailable
+                ? nil
+                : evidence.owner
+        }
+        guard evidence.persistentRefHash != nil else { return nil }
+        // Two stable exact-Keychain observations are required before a first binding becomes authoritative.
+        if self.confirmClaudeOAuthAccountBindingCandidate(
+            owner: evidence.owner,
+            identity: currentAccountIdentity,
+            observedAt: evidence.observedAt)
+        {
+            map[evidence.owner] = currentAccountIdentity
+            self.persistClaudeOAuthAccountUuidMap(map)
+        }
+        return evidence.owner
+    }
+
+    private func clearClaudeOAuthAccountBindingCandidate(owner: String) {
+        var candidates = Self.loadClaudeOAuthAccountBindingCandidateMap(from: self.settings.userDefaults)
+        guard candidates.removeValue(forKey: owner) != nil else { return }
+        self.persistClaudeOAuthAccountBindingCandidateMap(candidates)
+    }
+
+    private func persistClaudeOAuthAccountBindingCandidateMap(
+        _ candidates: [String: ClaudeOAuthAccountBindingCandidate])
+    {
+        do {
+            let data = try JSONEncoder().encode(candidates)
+            self.settings.userDefaults.set(data, forKey: Self.claudeOAuthAccountCandidateMapDefaultsKey)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to encode Claude OAuth account binding candidates",
                 metadata: ["error": String(describing: error)])
         }
     }

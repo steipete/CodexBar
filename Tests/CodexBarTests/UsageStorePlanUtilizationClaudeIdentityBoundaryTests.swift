@@ -6,6 +6,37 @@ import Testing
 struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
     @MainActor
     @Test
+    func `claude history without identity falls back to last resolved account`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "alice@example.com",
+                accountOrganization: nil,
+                loginMethod: "max"))
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: snapshot,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let identitylessSnapshot = UsageSnapshot(
+            primary: snapshot.primary,
+            secondary: snapshot.secondary,
+            updatedAt: snapshot.updatedAt)
+        store._setSnapshotForTesting(identitylessSnapshot, provider: .claude)
+
+        let history = store.planUtilizationHistory(for: .claude)
+        #expect(findSeries(history, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 10)
+        #expect(findSeries(history, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 20)
+    }
+
+    @MainActor
+    @Test
     func `established account accepts same owner after access token rotation`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let owner = String(repeating: "a", count: 64)
@@ -20,6 +51,14 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
             claudeOAuthActiveAccountObservation: .stable(identity: accountIdentity),
             isClaudeOAuthSample: true,
             now: start)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 30),
+            claudeOAuthPersistentRefHash: "account-a-ref",
+            claudeOAuthHistoryOwnerIdentifier: owner,
+            claudeOAuthActiveAccountObservation: .stable(identity: accountIdentity),
+            isClaudeOAuthSample: true,
+            now: start.addingTimeInterval(30 * 60))
         await store.recordPlanUtilizationHistorySample(
             provider: .claude,
             snapshot: self.snapshot(usedPercent: 50),
@@ -59,6 +98,26 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
             isClaudeOAuthSample: true)
 
         #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults).isEmpty)
+        #expect(store.planUtilizationHistory[.claude] == nil)
+    }
+
+    @MainActor
+    @Test
+    func `unavailable keychain comparison cannot arm first Claude CLI owner`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 90),
+            claudeOAuthHistoryOwnerIdentifier: String(repeating: "u", count: 64),
+            claudeOAuthKeychainCredentialUnavailable: true,
+            claudeOAuthActiveAccountObservation: .stable(
+                identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-current")),
+            isClaudeOAuthSample: true)
+
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults).isEmpty)
+        #expect(UsageStore.loadClaudeOAuthAccountBindingCandidateMap(
+            from: store.settings.userDefaults).isEmpty)
         #expect(store.planUtilizationHistory[.claude] == nil)
     }
 
@@ -138,8 +197,7 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
                 provider: .claude,
                 snapshot: snapshot,
                 claudeOAuthHistoryOwnerIdentifier: owner,
-                claudeOAuthActiveAccountObservation: .stable(
-                    identity: UsageStore._activeClaudeAccountIdentityForTesting("claude-code-account")),
+                claudeOAuthActiveAccountObservation: .changed,
                 isClaudeOAuthSample: true)
         }
 

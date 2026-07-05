@@ -61,8 +61,11 @@ struct ClaudeOAuthHistoryCredentialRoutingTests {
             data: nil,
             fingerprint: fingerprint)
         {
-            #expect(ClaudeOAuthCredentialsStore
-                .claudeKeychainCredentialMatchWithoutPrompt(for: matchingCLIRecord) == .unavailable)
+            let unavailable = ClaudeOAuthCredentialsStore
+                .claudeKeychainCredentialMatchWithoutPrompt(for: matchingCLIRecord)
+            #expect(unavailable == .unavailable)
+            #expect(unavailable.isUnavailable)
+            #expect(!unavailable.isMismatch)
         }
     }
 

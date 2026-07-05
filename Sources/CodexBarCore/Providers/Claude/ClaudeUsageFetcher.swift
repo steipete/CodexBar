@@ -29,6 +29,8 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let oauthHistoryOwnerIdentifier: String?
     /// True when a prompt-free comparison proved this credential differs from Claude Code's Keychain entry.
     public let oauthKeychainCredentialMismatch: Bool
+    /// True when a Claude CLI credential won routing but the prompt-free Keychain comparison was unavailable.
+    public let oauthKeychainCredentialUnavailable: Bool
 
     public init(
         primary: RateWindow,
@@ -44,7 +46,8 @@ public struct ClaudeUsageSnapshot: Sendable {
         rawText: String?,
         oauthKeychainPersistentRefHash: String? = nil,
         oauthHistoryOwnerIdentifier: String? = nil,
-        oauthKeychainCredentialMismatch: Bool = false)
+        oauthKeychainCredentialMismatch: Bool = false,
+        oauthKeychainCredentialUnavailable: Bool = false)
     {
         self.primary = primary
         self.primaryWindowKind = primaryWindowKind
@@ -60,6 +63,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.oauthKeychainPersistentRefHash = oauthKeychainPersistentRefHash
         self.oauthHistoryOwnerIdentifier = oauthHistoryOwnerIdentifier
         self.oauthKeychainCredentialMismatch = oauthKeychainCredentialMismatch
+        self.oauthKeychainCredentialUnavailable = oauthKeychainCredentialUnavailable
     }
 }
 
@@ -323,7 +327,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     credentials: credentials,
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
                     oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier,
-                    oauthKeychainCredentialMismatch: keychainMatch.isMismatch)
+                    oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
+                    oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
             } catch let error as CancellationError {
                 throw error
             } catch let error as ClaudeUsageError {
@@ -468,7 +473,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     credentials: refreshedCredentials,
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
                     oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier,
-                    oauthKeychainCredentialMismatch: keychainMatch.isMismatch)
+                    oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
+                    oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
             } catch {
                 ClaudeUsageFetcher.log.debug(
                     "Claude OAuth post-delegation retry failed",
@@ -995,7 +1001,8 @@ extension ClaudeUsageFetcher {
         credentials: ClaudeOAuthCredentials,
         oauthKeychainPersistentRefHash: String? = nil,
         oauthHistoryOwnerIdentifier: String? = nil,
-        oauthKeychainCredentialMismatch: Bool = false) throws -> ClaudeUsageSnapshot
+        oauthKeychainCredentialMismatch: Bool = false,
+        oauthKeychainCredentialUnavailable: Bool = false) throws -> ClaudeUsageSnapshot
     {
         let oauthHistoryOwnerIdentifier = ClaudeOAuthCredentials.normalizedHistoryOwnerIdentifier(
             oauthHistoryOwnerIdentifier) ?? credentials.historyOwnerIdentifier
@@ -1043,7 +1050,8 @@ extension ClaudeUsageFetcher {
                     rawText: nil,
                     oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
                     oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
-                    oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch)
+                    oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
+                    oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
             }
             throw ClaudeUsageError.parseFailed("missing session data")
         }
@@ -1067,7 +1075,8 @@ extension ClaudeUsageFetcher {
             rawText: nil,
             oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
             oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
-            oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch)
+            oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
+            oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
     }
 
     private static func oauthExtraUsageCost(
@@ -1375,7 +1384,8 @@ extension ClaudeUsageFetcher {
                     rawText: snapshot.rawText,
                     oauthKeychainPersistentRefHash: snapshot.oauthKeychainPersistentRefHash,
                     oauthHistoryOwnerIdentifier: snapshot.oauthHistoryOwnerIdentifier,
-                    oauthKeychainCredentialMismatch: snapshot.oauthKeychainCredentialMismatch)
+                    oauthKeychainCredentialMismatch: snapshot.oauthKeychainCredentialMismatch,
+                    oauthKeychainCredentialUnavailable: snapshot.oauthKeychainCredentialUnavailable)
             }
         } catch {
             Self.log.debug("Claude web extras fetch failed: \(error.localizedDescription)")
