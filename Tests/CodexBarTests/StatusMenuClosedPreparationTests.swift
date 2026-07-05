@@ -185,7 +185,7 @@ extension StatusMenuTests {
             controller._test_manualRefreshOperation = nil
         }
         controller.refreshNow()
-        let task = try #require(controller.manualRefreshTask)
+        let task = try #require(controller.manualRefreshTasks[.global])
 
         controller.invalidateMenus()
         for _ in 0..<40 {

@@ -42,8 +42,7 @@ struct StatusMenuMergedOverviewRefreshTests {
         }
 
         #expect(requestCount == 0)
-        #expect(controller.manualRefreshTask == nil)
-        #expect(controller.manualRefreshProvider == nil)
+        #expect(controller.manualRefreshTasks.isEmpty)
     }
 
     private func makeSettings() -> SettingsStore {

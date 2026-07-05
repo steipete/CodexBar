@@ -140,7 +140,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
     /// a manual refresh of another. `.global` covers the all-providers refresh (⌘R / merged overview).
-    /// Test-only accessors `manualRefreshTask` / `manualRefreshProvider` live in `+Actions`.
     var manualRefreshTasks: [ManualRefreshScope: Task<Void, Never>] = [:]
 
     var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]

@@ -349,7 +349,7 @@ struct StatusMenuSwitcherRefreshTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
         defer {
-            controller.manualRefreshTask?.cancel()
+            controller.manualRefreshTasks.values.forEach { $0.cancel() }
             controller.releaseStatusItemsForTesting()
         }
 
@@ -401,7 +401,7 @@ struct StatusMenuSwitcherRefreshTests {
         #expect(inFlight.metrics.first?.percentLabel == "79% left")
 
         gate.resume()
-        await controller.manualRefreshTask?.value
+        await controller.manualRefreshTasks[.global]?.value
         #expect(!controller.menuCardRefreshMonitor.isManualRefreshInFlight)
         let completed = controller.menuCardRefreshMonitor.model(for: .codex, fallback: emptyFallback)
         #expect(completed.metrics.isEmpty)
@@ -435,7 +435,7 @@ struct StatusMenuSwitcherRefreshTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
         defer {
-            controller.manualRefreshTask?.cancel()
+            controller.manualRefreshTasks.values.forEach { $0.cancel() }
             controller.releaseStatusItemsForTesting()
         }
 
@@ -450,7 +450,7 @@ struct StatusMenuSwitcherRefreshTests {
         let initialRefreshItem = try #require(menu.items.first { $0.title == "Refresh" })
 
         controller.refreshNow()
-        let refreshTask = try #require(controller.manualRefreshTask)
+        let refreshTask = try #require(controller.manualRefreshTasks[.global])
         #expect(!initialRefreshItem.isEnabled)
 
         var rebuildCount = 0
@@ -463,7 +463,7 @@ struct StatusMenuSwitcherRefreshTests {
 
         gate.resume()
         await refreshTask.value
-        #expect(controller.manualRefreshTask == nil)
+        #expect(controller.manualRefreshTasks[.global] == nil)
 
         let alternateSwitcher = try #require(menu.items.first?.view as? ProviderSwitcherView)
         #expect(alternateSwitcher._test_simulateRuntimeClick(buttonTag: selectedButton.tag))
@@ -497,7 +497,7 @@ struct StatusMenuSwitcherRefreshTests {
             preferencesSelection: PreferencesSelection(),
             statusBar: .system)
         defer {
-            controller.manualRefreshTask?.cancel()
+            controller.manualRefreshTasks.values.forEach { $0.cancel() }
             controller.releaseStatusItemsForTesting()
         }
 
@@ -507,13 +507,13 @@ struct StatusMenuSwitcherRefreshTests {
             controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)]?[.provider(.codex)])
         let refreshItem = try #require(cache.items.first { $0.title == "Refresh" })
 
-        controller.manualRefreshTask = Task {}
+        controller.manualRefreshTasks[.global] = Task {}
         controller.updatePersistentRefreshItemsEnabled()
         #expect(!refreshItem.isEnabled)
 
         menu.removeAllItems()
         #expect(refreshItem.menu == nil)
-        controller.manualRefreshTask = nil
+        controller.manualRefreshTasks[.global] = nil
         controller.updatePersistentRefreshItemsEnabled()
         #expect(!refreshItem.isEnabled)
 
