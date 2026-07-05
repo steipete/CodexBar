@@ -99,6 +99,34 @@ struct DevinUsageFetcherTests {
         #expect(snapshot.toUsageSnapshot().providerCost == nil)
     }
 
+    @Test(arguments: ["-1", "Infinity", "NaN"])
+    func `omits invalid overage balances`(_ balance: String) throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+            "overage_balance": balance,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == nil)
+        #expect(snapshot.toUsageSnapshot().providerCost == nil)
+    }
+
+    @Test(arguments: ["-1", "Infinity", "NaN"])
+    func `omits invalid overage balance cents`(_ balance: String) throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+            "overage_balance_cents": balance,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == nil)
+        #expect(snapshot.toUsageSnapshot().providerCost == nil)
+    }
+
     @Test
     func `keeps weekly quota when current plan hides daily quota`() throws {
         let response: [String: Any] = [

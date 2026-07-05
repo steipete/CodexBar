@@ -121,9 +121,14 @@ public enum DevinUsageParser {
 
     private static func findOverageBalance(in object: Any) -> Double? {
         guard let dictionary = object as? [String: Any] else { return nil }
-        if let value = self.double(dictionary["overage_balance"]) { return value }
-        if let cents = self.double(dictionary["overage_balance_cents"]) { return cents / 100.0 }
+        if let value = self.nonnegativeFiniteDouble(dictionary["overage_balance"]) { return value }
+        if let cents = self.nonnegativeFiniteDouble(dictionary["overage_balance_cents"]) { return cents / 100.0 }
         return nil
+    }
+
+    private static func nonnegativeFiniteDouble(_ value: Any?) -> Double? {
+        guard let value = self.double(value), value.isFinite, value >= 0 else { return nil }
+        return value
     }
 
     private static func currentQuotaWindows(_ dictionary: [String: Any])
