@@ -27,6 +27,12 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let oauthKeychainPersistentRefHash: String?
     /// One-way, high-entropy ownership evidence derived from the exact credential used for this OAuth fetch.
     public let oauthHistoryOwnerIdentifier: String?
+    /// True when a prompt-free comparison proved this credential differs from Claude Code's Keychain entry.
+    public let oauthKeychainCredentialMismatch: Bool
+    /// True when a prompt-free probe proved Claude Code has no Keychain credential.
+    public let oauthKeychainCredentialAbsent: Bool
+    /// True when a Claude CLI credential won routing but the prompt-free Keychain comparison was unavailable.
+    public let oauthKeychainCredentialUnavailable: Bool
 
     public init(
         primary: RateWindow,
@@ -41,7 +47,10 @@ public struct ClaudeUsageSnapshot: Sendable {
         loginMethod: String?,
         rawText: String?,
         oauthKeychainPersistentRefHash: String? = nil,
-        oauthHistoryOwnerIdentifier: String? = nil)
+        oauthHistoryOwnerIdentifier: String? = nil,
+        oauthKeychainCredentialMismatch: Bool = false,
+        oauthKeychainCredentialAbsent: Bool = false,
+        oauthKeychainCredentialUnavailable: Bool = false)
     {
         self.primary = primary
         self.primaryWindowKind = primaryWindowKind
@@ -56,6 +65,9 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.rawText = rawText
         self.oauthKeychainPersistentRefHash = oauthKeychainPersistentRefHash
         self.oauthHistoryOwnerIdentifier = oauthHistoryOwnerIdentifier
+        self.oauthKeychainCredentialMismatch = oauthKeychainCredentialMismatch
+        self.oauthKeychainCredentialAbsent = oauthKeychainCredentialAbsent
+        self.oauthKeychainCredentialUnavailable = oauthKeychainCredentialUnavailable
     }
 }
 
@@ -198,9 +210,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     }
 
     private static func currentClaudeOAuthDelegatedRefreshPolicy() -> ClaudeOAuthKeychainPromptPolicy {
+        // Delegated refresh must honor the stored prompt mode for every keychain read strategy.
+        // securityCLIExperimental is not "prompt policy N/A" for CLI touch repair.
         ClaudeOAuthKeychainPromptPolicy(
-            mode: ClaudeOAuthKeychainPromptPreference.current(),
-            isApplicable: ClaudeOAuthKeychainPromptPreference.isApplicable(),
+            mode: ClaudeOAuthKeychainPromptPreference.storedMode(),
+            isApplicable: true,
             interaction: ProviderInteractionContext.current)
     }
 
@@ -208,7 +222,6 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         policy: ClaudeOAuthKeychainPromptPolicy,
         allowBackgroundDelegatedRefresh: Bool) throws
     {
-        guard policy.isApplicable else { return }
         if policy.mode == .never {
             throw ClaudeUsageError.oauthFailed("Delegated refresh is disabled by 'never' keychain policy.")
         }
@@ -311,12 +324,16 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let usage = try await ClaudeUsageFetcher.fetchOAuthUsage(
                     accessToken: credentials.accessToken,
                     detectClaudeVersion: self.fetcher.allowsOAuthClaudeVersionDetection)
+                let keychainMatch = ClaudeOAuthCredentialsStore
+                    .claudeKeychainCredentialMatchWithoutPrompt(for: credentialRecord)
                 return try ClaudeUsageFetcher.mapOAuthUsage(
                     usage,
                     credentials: credentials,
-                    oauthKeychainPersistentRefHash: ClaudeOAuthCredentialsStore
-                        .matchingClaudeKeychainPersistentRefHashWithoutPrompt(for: credentialRecord),
-                    oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier)
+                    oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
+                    oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier,
+                    oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
+                    oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
+                    oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
             } catch let error as CancellationError {
                 throw error
             } catch let error as ClaudeUsageError {
@@ -454,12 +471,16 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let usage = try await ClaudeUsageFetcher.fetchOAuthUsage(
                     accessToken: refreshedCredentials.accessToken,
                     detectClaudeVersion: self.fetcher.allowsOAuthClaudeVersionDetection)
+                let keychainMatch = ClaudeOAuthCredentialsStore
+                    .claudeKeychainCredentialMatchWithoutPrompt(for: refreshedRecord)
                 return try ClaudeUsageFetcher.mapOAuthUsage(
                     usage,
                     credentials: refreshedCredentials,
-                    oauthKeychainPersistentRefHash: ClaudeOAuthCredentialsStore
-                        .matchingClaudeKeychainPersistentRefHashWithoutPrompt(for: refreshedRecord),
-                    oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier)
+                    oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
+                    oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier,
+                    oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
+                    oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
+                    oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
             } catch {
                 ClaudeUsageFetcher.log.debug(
                     "Claude OAuth post-delegation retry failed",
@@ -985,7 +1006,10 @@ extension ClaudeUsageFetcher {
         _ usage: OAuthUsageResponse,
         credentials: ClaudeOAuthCredentials,
         oauthKeychainPersistentRefHash: String? = nil,
-        oauthHistoryOwnerIdentifier: String? = nil) throws -> ClaudeUsageSnapshot
+        oauthHistoryOwnerIdentifier: String? = nil,
+        oauthKeychainCredentialMismatch: Bool = false,
+        oauthKeychainCredentialAbsent: Bool = false,
+        oauthKeychainCredentialUnavailable: Bool = false) throws -> ClaudeUsageSnapshot
     {
         let oauthHistoryOwnerIdentifier = ClaudeOAuthCredentials.normalizedHistoryOwnerIdentifier(
             oauthHistoryOwnerIdentifier) ?? credentials.historyOwnerIdentifier
@@ -1032,7 +1056,10 @@ extension ClaudeUsageFetcher {
                     loginMethod: loginMethod,
                     rawText: nil,
                     oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
-                    oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier)
+                    oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
+                    oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
+                    oauthKeychainCredentialAbsent: oauthKeychainCredentialAbsent,
+                    oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
             }
             throw ClaudeUsageError.parseFailed("missing session data")
         }
@@ -1055,7 +1082,10 @@ extension ClaudeUsageFetcher {
             loginMethod: loginMethod,
             rawText: nil,
             oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
-            oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier)
+            oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
+            oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
+            oauthKeychainCredentialAbsent: oauthKeychainCredentialAbsent,
+            oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
     }
 
     private static func oauthExtraUsageCost(
@@ -1126,7 +1156,7 @@ extension ClaudeUsageFetcher {
         if let routinesKey = usage.sevenDayRoutinesSourceKey {
             Self.log.debug("Claude OAuth extra usage key matched: routines=\(routinesKey)")
         }
-        return definitions.compactMap { definition in
+        let routineWindows: [NamedRateWindow] = definitions.compactMap { definition in
             let utilization: Double
             let resetDate: Date?
             if let window = definition.window, let parsedUtilization = window.utilization {
@@ -1149,6 +1179,23 @@ extension ClaudeUsageFetcher {
                     resetsAt: resetDate,
                     resetDescription: resetDescription))
         }
+        return routineWindows + Self.oauthScopedWeeklyLimitWindows(from: usage)
+    }
+
+    private static func oauthScopedWeeklyLimitWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
+        let limits = usage.limits?.map { entry in
+            ClaudeScopedWeeklyLimitMapper.Limit(
+                kind: entry.kind,
+                group: entry.group,
+                percent: entry.percent,
+                resetsAt: ClaudeOAuthUsageFetcher.parseISO8601Date(entry.resetsAt),
+                modelID: entry.scope?.model?.id,
+                modelName: entry.scope?.model?.displayName)
+        }
+        // `is_active` is intentionally not a filter: observed enforceable scoped limits report false.
+        return ClaudeScopedWeeklyLimitMapper.extraRateWindows(
+            from: limits,
+            resetDescription: Self.formatResetDate)
     }
 
     // MARK: - Web API path (uses browser cookies)
@@ -1345,7 +1392,10 @@ extension ClaudeUsageFetcher {
                     loginMethod: snapshot.loginMethod,
                     rawText: snapshot.rawText,
                     oauthKeychainPersistentRefHash: snapshot.oauthKeychainPersistentRefHash,
-                    oauthHistoryOwnerIdentifier: snapshot.oauthHistoryOwnerIdentifier)
+                    oauthHistoryOwnerIdentifier: snapshot.oauthHistoryOwnerIdentifier,
+                    oauthKeychainCredentialMismatch: snapshot.oauthKeychainCredentialMismatch,
+                    oauthKeychainCredentialAbsent: snapshot.oauthKeychainCredentialAbsent,
+                    oauthKeychainCredentialUnavailable: snapshot.oauthKeychainCredentialUnavailable)
             }
         } catch {
             Self.log.debug("Claude web extras fetch failed: \(error.localizedDescription)")
@@ -1396,6 +1446,8 @@ extension ClaudeUsageFetcher {
             "decodeFailed"
         case .missingOAuth:
             "missingOAuth"
+        case .mcpOAuthOnlyKeychain:
+            "mcpOAuthOnlyKeychain"
         case .missingAccessToken:
             "missingAccessToken"
         case .notFound:

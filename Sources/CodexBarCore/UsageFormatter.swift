@@ -112,6 +112,7 @@ public enum UsageFormatter {
 
         if days > 0 {
             if hours > 0 { return "in \(days)d \(hours)h" }
+            if minutes > 0 { return "in \(days)d \(minutes)m" }
             return "in \(days)d"
         }
         if hours > 0 {
@@ -265,6 +266,16 @@ public enum UsageFormatter {
     public static func optionalPercentString(_ percent: Double?, fractionDigits: Int = 2) -> String {
         guard let percent else { return "—" }
         return String(format: "%.\(fractionDigits)f%%", percent)
+    }
+
+    public static func compactCurrencyString(_ value: Double, currencyCode: String) -> String {
+        if value != 0, abs(value) < 1 {
+            return self.currencyString(value, currencyCode: currencyCode)
+        }
+        return value.formatted(
+            .currency(code: currencyCode)
+                .precision(.fractionLength(0))
+                .locale(Locale(identifier: "en_US")))
     }
 
     public static func tokenCountString(_ value: Int) -> String {

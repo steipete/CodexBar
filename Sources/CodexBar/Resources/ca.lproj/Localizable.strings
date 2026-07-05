@@ -408,6 +408,7 @@
 "language_german" = "Deutsch";
 "language_french" = "Francès";
 "language_ukrainian" = "Ucraïnès";
+"language_russian" = "Русский";
 "language_japanese" = "Japonès";
 "language_korean" = "Coreà";
 "language_italian" = "Italiano";
@@ -427,6 +428,8 @@
 "cost_history_window_help" = "Defineix quants dies de registres d'ús locals apareixen al menú.";
 "cost_history_days_title" = "Finestra d'historial: %d dies";
 "cost_auto_refresh_info" = "Actualització automàtica: cada hora · Temps d'espera: 10 min";
+"cost_comparison_periods_title" = "Mostra períodes de comparació més curts";
+"cost_comparison_periods_subtitle" = "Afegeix totals de 7, 30 i 90 dies quan càpiguen dins l'interval d'historial seleccionat. Aquests totals reutilitzen la mateixa exploració local.";
 "refresh_cadence_title" = "Freqüència d'actualització";
 "refresh_cadence_subtitle" = "Amb quina freqüència el CodexBar consulta els proveïdors en segon pla.";
 "manual_refresh_hint" = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
@@ -661,6 +664,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptatiu";
 
 /* Additional keys */
 "not_found" = "No trobat";
@@ -968,10 +972,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Crèdits de restabliment del límit";
 "1 available" = "1 disponible";
 "%d available" = "%d disponibles";
 "Next expires %@" = "El següent caduca %@";
+"Expires %@" = "Caduca %@";
+"No expiry" = "Sense caducitat";
 "Other (%d items)" = "Altres (%d elements)";
 "Expand" = "Amplia";
 "Collapse" = "Redueix";
@@ -1037,6 +1044,7 @@
 "Last 30 days: %@" = "Últims 30 dies: %@";
 "Last 30 days: %@ · %@ tokens" = "Últims 30 dies: %@ · %@ tokens";
 "Lasts until reset" = "Dura fins al reinici";
+"1.5× headroom" = "marge d’1,5×";
 "Login with Google" = "Inicieu sessió amb Google";
 "login_success_notification_body" = "Podeu tornar a l'app; l'autenticació ha finalitzat.";
 "login_success_notification_title" = "Inici de sessió de %@ correcte";

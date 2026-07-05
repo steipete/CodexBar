@@ -407,6 +407,7 @@
 "language_swedish" = "스웨덴어";
 "language_french" = "프랑스어";
 "language_ukrainian" = "우크라이나어";
+"language_russian" = "Русский";
 "language_japanese" = "일본어";
 "language_korean" = "한국어";
 "language_italian" = "Italiano";
@@ -426,6 +427,8 @@
 "cost_history_window_help" = "메뉴에 표시할 로컬 사용량 로그 일수를 설정합니다.";
 "cost_history_days_title" = "기록 범위: %d일";
 "cost_auto_refresh_info" = "자동 새로 고침: 매시간 · 시간 초과: 10분";
+"cost_comparison_periods_title" = "더 짧은 비교 기간 표시";
+"cost_comparison_periods_subtitle" = "선택한 기록 범위에 포함되는 경우 7일, 30일, 90일 합계를 추가합니다. 이 합계에는 동일한 로컬 스캔을 재사용합니다.";
 "refresh_cadence_title" = "새로 고침 주기";
 "refresh_cadence_subtitle" = "CodexBar가 백그라운드에서 공급자를 폴링하는 빈도입니다.";
 "manual_refresh_hint" = "자동 새로 고침이 꺼져 있습니다. 메뉴의 새로 고침 명령을 사용하세요.";
@@ -649,6 +652,7 @@
 "refresh_5min" = "5분";
 "refresh_15min" = "15분";
 "refresh_30min" = "30분";
+"refresh_adaptive" = "적응형";
 "not_found" = "찾을 수 없음";
 "cost_header_estimated" = "비용(추정)";
 "cost_estimate_hint" = "로컬 로그에서 추정 · 실제 청구액과 다를 수 있음";
@@ -703,6 +707,7 @@
 "Resets now" = "지금 재설정";
 "reset_tomorrow_format" = "내일 %@";
 "Lasts until reset" = "재설정까지 유지";
+"1.5× headroom" = "1.5배 여유";
 "Updated %@" = "%@에 업데이트됨";
 "Updated relative %@" = "%@에 업데이트됨";
 "Updated absolute %@" = "%@에 업데이트됨";
@@ -1083,10 +1088,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "한도 재설정 크레딧";
 "1 available" = "1회 사용 가능";
 "%d available" = "%d회 사용 가능";
 "Next expires %@" = "다음 만료: %@";
+"Expires %@" = "%@에 만료";
+"No expiry" = "만료 없음";
 "Other (%d items)" = "기타(%d개 항목)";
 "Expand" = "펼치기";
 "Collapse" = "접기";

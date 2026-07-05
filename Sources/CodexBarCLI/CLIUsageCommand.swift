@@ -606,6 +606,14 @@ extension CodexBarCLI {
         {
             return false
         }
+        #if os(Linux)
+        if provider == .cursor,
+           settings?.cursor?.cookieSource != .off
+        {
+            // Linux uses Cursor app auth and manual cookies; browser import remains macOS-only.
+            return false
+        }
+        #endif
         if provider == .sakana,
            sourceMode == .auto || sourceMode == .web,
            environment.map({ SakanaSettingsReader.cookieHeader(environment: $0) != nil }) == true

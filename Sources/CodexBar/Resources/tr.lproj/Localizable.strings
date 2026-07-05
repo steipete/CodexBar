@@ -431,6 +431,7 @@
 "language_german" = "Deutsch";
 "language_french" = "Français";
 "language_ukrainian" = "Українська";
+"language_russian" = "Русский";
 "language_vietnamese" = "Tiếng Việt";
 "language_japanese" = "日本語";
 "language_korean" = "한국어";
@@ -452,6 +453,8 @@
 "cost_history_window_title" = "Geçmiş penceresi";
 "cost_history_window_help" = "Menüde kaç günlük yerel kullanım günlüğünün gösterileceğini belirler.";
 "cost_history_days_title" = "Geçmiş penceresi: %d gün";
+"cost_comparison_periods_title" = "Daha kısa karşılaştırma dönemlerini göster";
+"cost_comparison_periods_subtitle" = "Seçilen geçmiş aralığına sığdığında 7, 30 ve 90 günlük toplamları ekler. Bu toplamlar aynı yerel taramayı yeniden kullanır.";
 "cost_auto_refresh_info" = "Otomatik yenileme: saatlik · Zaman aşımı: 10 dk";
 "refresh_cadence_title" = "Yenileme sıklığı";
 "refresh_cadence_subtitle" = "CodexBar'ın arka planda sağlayıcıları ne sıklıkla sorgulayacağı.";
@@ -694,6 +697,7 @@
 "refresh_5min" = "5 dak";
 "refresh_15min" = "15 dak";
 "refresh_30min" = "30 dak";
+"refresh_adaptive" = "Uyarlanabilir";
 
 /* Additional keys */
 "not_found" = "Bulunamadı";
@@ -752,6 +756,7 @@
 "Resets now" = "Şimdi sıfırlanır";
 "reset_tomorrow_format" = "yarın, %@";
 "Lasts until reset" = "Sıfırlamaya kadar sürer";
+"1.5× headroom" = "1,5× pay";
 "Updated %@" = "Güncellendi: %@";
 "Updated relative %@" = "Güncellendi: %@";
 "Updated absolute %@" = "Güncellendi: %@";
@@ -1150,10 +1155,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Limit Sıfırlama Kredileri";
 "1 available" = "1 kullanılabilir";
 "%d available" = "%d kullanılabilir";
 "Next expires %@" = "Sonraki sona erme %@";
+"Expires %@" = "%@ sona eriyor";
+"No expiry" = "Son kullanma yok";
 "byte_unit_byte" = "bayt";
 "byte_unit_bytes" = "bayt";
 "byte_unit_kilobyte" = "kilobayt";

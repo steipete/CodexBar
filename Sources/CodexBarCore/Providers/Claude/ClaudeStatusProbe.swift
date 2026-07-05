@@ -107,6 +107,9 @@ public struct ClaudeStatusProbe: Sendable {
                 Self.log.debug("Claude CLI /usage looked like startup output; retrying once")
                 usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: max(timeout, 14))
             }
+            // `/status` only enriches a valid usage snapshot with identity. Terminal usage errors and loading stalls
+            // cannot be repaired by it, so fail now instead of paying for another interactive CLI round trip.
+            try Self.validateUsageBeforeStatusProbe(usage)
             let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
             let snap = try Self.parse(text: usage, statusText: status)
 
@@ -329,6 +332,18 @@ public struct ClaudeStatusProbe: Sendable {
             || normalized.contains("loadingusage")
             || normalized.contains("failedtoloadusagedata")
             || self.usageCaptureHasSubscriptionNotice(normalized)
+    }
+
+    private static func validateUsageBeforeStatusProbe(_ text: String) throws {
+        let clean = TextParsing.stripANSICodes(text)
+        if let usageError = self.extractUsageError(text: clean) {
+            throw ClaudeStatusProbeError.parseFailed(usageError)
+        }
+
+        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
+        if self.isUsageStillLoading(text: latestUsagePanel ?? clean) {
+            throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
+        }
     }
 
     private static func extractPercent(labelSubstrings: [String], context: LabelSearchContext) -> Int? {

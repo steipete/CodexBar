@@ -7,9 +7,13 @@ import { localeCatalog, localeMessages } from "../docs/site-locales.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "docs/index.html"), "utf8");
+assert(!indexHtml.includes("cdn.tailwindcss.com"), "site must not load Tailwind from a runtime CDN");
+for (const match of indexHtml.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+)(?:\?[^"']*)?"/g)) {
+  assert(fs.existsSync(path.join(repoRoot, "docs", match[1])), `missing local stylesheet ${match[1]}`);
+}
 const expectedCodes = [
   "en", "zh-CN", "zh-TW", "ja-JP", "es", "pt-BR", "ko", "de", "fr", "ar", "it",
-  "vi", "nl", "tr", "uk", "id", "pl", "fa", "th", "ca", "sv",
+  "vi", "nl", "tr", "uk", "ru", "id", "pl", "fa", "th", "gl", "ca", "sv",
 ];
 const catalogCodes = localeCatalog.map((locale) => locale.code);
 const appLanguageSource = fs.readFileSync(
@@ -48,20 +52,22 @@ for (const key of referencedKeys) {
   assert(englishKeys.includes(key), `index.html references unknown locale key ${key}`);
 }
 
-const optionMatches = [...indexHtml.matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)];
-assertEqual(optionMatches.map((match) => match[1]), catalogCodes, "language selector locales");
-assertEqual(optionMatches.map((match) => match[2]), localeCatalog.map((locale) => locale.name), "language selector labels");
+const siteJs = fs.readFileSync(path.join(repoRoot, 'docs/site.js'), 'utf8');
+const hasLanguagePicker = indexHtml.includes('id="language-picker-list"')
+  && (indexHtml.includes('localeCatalog') || siteJs.includes('localeCatalog'));
+assert(hasLanguagePicker, 'site must include the language picker backed by localeCatalog');
 
 for (const code of catalogCodes) {
   assert(indexHtml.includes(`href="https://codexbar.app/?lang=${code}"`), `missing hreflang URL for ${code}`);
 }
 
-const providerCards = [...indexHtml.matchAll(/<a class="provider([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)];
-for (const [, classes, body] of providerCards) {
-  if (!classes.split(/\s+/).includes("add")) {
-    assert(body.includes('class="chip-logo'), "provider cards must use logo assets instead of text placeholders");
-    for (const match of body.matchAll(/(?:src|data-dark-src)="\.\/([^"]+)"/g)) {
-      assert(fs.existsSync(path.join(repoRoot, "docs", match[1])), `missing provider logo asset ${match[1]}`);
+const providerCards = [...indexHtml.matchAll(/<li class="provider-card"([^>]*)>([\s\S]*?)<\/li>/g)];
+for (const [, attrs, body] of providerCards) {
+  if (!attrs.includes('hidden')) {
+    assert(body.includes('class="provider-card-link"'), 'provider cards must link to provider documentation');
+    assert(body.includes('class="provider-logo'), 'provider cards must use logo assets');
+    for (const match of body.matchAll(/src="\.\/([^"]+)"/g)) {
+      assert(fs.existsSync(path.join(repoRoot, 'docs', match[1])), `missing provider logo asset ${match[1]}`);
     }
   }
 }

@@ -433,6 +433,7 @@
 "language_swedish" = "السويديا";
 "language_french" = "الفرنسية";
 "language_ukrainian" = "Українська";
+"language_russian" = "Русский";
 "language_japanese" = "ياباني";
 "language_korean" = "الكورية";
 "language_turkish" = "تركجه";
@@ -452,6 +453,8 @@
 "cost_history_window_title" = "نافذة التاريخ";
 "cost_history_window_help" = "يحدد عدد أيام سجلات الاستخدام المحلية التي تظهر في القائمة.";
 "cost_history_days_title" = "نافذة التاريخ: %d أيام";
+"cost_comparison_periods_title" = "إظهار فترات مقارنة أقصر";
+"cost_comparison_periods_subtitle" = "أضف إجماليات 7 و30 و90 يومًا عندما تقع ضمن نافذة التاريخ المحددة. تعيد هذه الإجماليات استخدام الفحص المحلي نفسه.";
 "cost_auto_refresh_info" = "تحديث تلقائي: كل ساعة · وقت الاستراحة: 10m";
 "refresh_cadence_title" = "وتيرة التحديث";
 "refresh_cadence_subtitle" = "كم مرة CodexBar استطلاعات في الخلفية.";
@@ -696,6 +699,7 @@
 "refresh_5min" = "5 دقائق";
 "refresh_15min" = "15 دقيقة";
 "refresh_30min" = "30 دقيقة";
+"refresh_adaptive" = "تكيفي";
 
 /* Additional keys */
 "not_found" = "لم يعثر عليه";
@@ -754,6 +758,7 @@
 "Resets now" = "إعادة التعيين الآن";
 "reset_tomorrow_format" = "غدًا، %@";
 "Lasts until reset" = "يستمر حتى إعادة التعيين";
+"1.5× headroom" = "هامش 1.5×";
 "Updated %@" = "تحديث %@";
 "Updated relative %@" = "تحديث %@";
 "Updated absolute %@" = "تحديث %@";
@@ -1153,10 +1158,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "أرصدة إعادة تعيين الحد";
 "1 available" = "1 متاح";
 "%d available" = "%d متاح";
 "Next expires %@" = "تنتهي صلاحية التالية %@";
+"Expires %@" = "تنتهي الصلاحية %@";
+"No expiry" = "لا انتهاء صلاحية";
 "byte_unit_byte" = "بايت";
 "byte_unit_bytes" = "بايتات";
 "byte_unit_kilobyte" = "كيلوبايت";

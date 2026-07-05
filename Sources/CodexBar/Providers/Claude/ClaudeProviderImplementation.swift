@@ -25,6 +25,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeOAuthKeychainPromptMode
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
+        _ = settings.claudeSwapEnabled
+        _ = settings.claudeSwapExecutablePath
     }
 
     @MainActor
@@ -44,6 +46,10 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         if settings.claudeCookieSource != .manual {
             settings.claudeCookieSource = .manual
         }
+    }
+
+    func makeRuntime() -> (any ProviderRuntime)? {
+        ClaudeProviderRuntime()
     }
 
     @MainActor
@@ -67,7 +73,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         let subtitle = if context.settings.debugDisableKeychainAccess {
             "Inactive while \"Disable Keychain access\" is enabled in Advanced."
         } else {
-            "Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts."
+            "Never allow Claude OAuth credential reads to show macOS Keychain prompts."
         }
 
         let promptFreeBinding = Binding(
@@ -76,6 +82,10 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 guard !context.settings.debugDisableKeychainAccess else { return }
                 context.settings.claudeOAuthPromptFreeCredentialsEnabled = enabled
             })
+
+        let claudeSwapBinding = Binding(
+            get: { context.settings.claudeSwapEnabled },
+            set: { context.settings.claudeSwapEnabled = $0 })
 
         return [
             ProviderSettingsToggleDescriptor(
@@ -90,7 +100,40 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-swap-accounts",
+                title: "Read accounts from claude-swap",
+                subtitle: "Shows usage for every claude-swap account by running `cswap --list --json`. " +
+                    "Read-only: CodexBar never reads claude-swap or Claude Code credentials.",
+                binding: claudeSwapBinding,
+                statusText: { Self.claudeSwapStatusText(store: context.store, settings: context.settings) },
+                actions: [],
+                isVisible: nil,
+                isEnabled: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
         ]
+    }
+
+    @MainActor
+    private static func claudeSwapStatusText(store: UsageStore, settings: SettingsStore) -> String? {
+        guard settings.claudeSwapEnabled else { return nil }
+        if settings.claudeSwapExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Set the cswap executable path below."
+        }
+        var parts: [String] = []
+        if let version = store.claudeSwapDetectedVersion {
+            parts.append("claude-swap \(version)")
+        }
+        if let error = store.claudeSwapLastError {
+            parts.append(error)
+        } else if let refreshedAt = store.claudeSwapLastRefreshAt {
+            let accounts = store.claudeSwapAccountSnapshots.count
+            let accountsText = accounts == 1 ? "1 account" : "\(accounts) accounts"
+            parts.append("\(accountsText), updated \(refreshedAt.relativeDescription())")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " — ")
     }
 
     @MainActor
@@ -141,8 +184,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             if context.settings.debugDisableKeychainAccess {
                 return "Global Keychain access is disabled in Advanced, so this setting is currently inactive."
             }
-            return "Controls Claude OAuth Keychain prompts when the standard reader is active. Choosing " +
-                "\"Never prompt\" can make OAuth unavailable; use Web/CLI when needed."
+            return "Choosing \"Never prompt\" can make OAuth unavailable; use Web/CLI when needed."
         }
 
         return [
@@ -162,11 +204,11 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "claude-keychain-prompt-policy",
                 title: "Keychain prompt policy",
-                subtitle: "Applies only to the Security.framework OAuth keychain reader.",
+                subtitle: "Controls when Claude OAuth may ask macOS for Keychain access.",
                 dynamicSubtitle: keychainPromptPolicySubtitle,
                 binding: keychainPromptPolicyBinding,
                 options: keychainPromptPolicyOptions,
-                isVisible: { context.settings.claudeOAuthKeychainReadStrategy == .securityFramework },
+                isVisible: nil,
                 isEnabled: { !context.settings.debugDisableKeychainAccess },
                 onChange: nil),
             ProviderSettingsPickerDescriptor(
@@ -196,6 +238,16 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 binding: context.stringBinding(\.claudeAdminAPIKey),
                 actions: [],
                 isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "claude-swap-executable-path",
+                title: "claude-swap executable",
+                subtitle: "Path to the cswap executable (github.com/realiti4/claude-swap).",
+                kind: .plain,
+                placeholder: "~/.local/bin/cswap",
+                binding: context.stringBinding(\.claudeSwapExecutablePath),
+                actions: [],
+                isVisible: { context.settings.claudeSwapEnabled },
                 onActivate: nil),
         ]
     }

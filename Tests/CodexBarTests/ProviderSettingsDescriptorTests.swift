@@ -114,16 +114,17 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude prompt policy picker hidden when experimental reader selected`() throws {
+    func `claude prompt policy picker remains visible for prompt free toggle`() throws {
         let fixture = try self.makeSettingsFixture(
-            suite: "ProviderSettingsDescriptorTests-claude-prompt-hidden-experimental")
+            suite: "ProviderSettingsDescriptorTests-claude-prompt-visible-prompt-free")
         fixture.settings.debugDisableKeychainAccess = false
-        fixture.settings.claudeOAuthKeychainReadStrategy = .securityCLIExperimental
+        fixture.settings.claudeOAuthPromptFreeCredentialsEnabled = true
         let context = fixture.settingsContext(provider: .claude)
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
-        #expect(keychainPicker.isVisible?() == false)
+        #expect(keychainPicker.isVisible?() ?? true)
+        #expect(keychainPicker.binding.wrappedValue == ClaudeOAuthKeychainPromptMode.never.rawValue)
     }
 
     @Test

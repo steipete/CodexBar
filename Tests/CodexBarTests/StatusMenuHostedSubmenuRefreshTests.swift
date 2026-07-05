@@ -7,6 +7,30 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuHostedSubmenuRefreshTests {
     @Test
+    func `claude swap completion changes open menu readiness`() {
+        let settings = Self.makeSettings()
+        settings.setProviderEnabled(
+            provider: .claude,
+            metadata: ProviderDescriptorRegistry.descriptor(for: .claude).metadata,
+            enabled: true)
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let before = controller.menuAdjunctReadinessSignature()
+        store.claudeSwapRevision &+= 1
+
+        #expect(controller.menuAdjunctReadinessSignature() != before)
+    }
+
+    @Test
     func `status components change open menu readiness`() {
         let settings = Self.makeSettings()
         settings.statusChecksEnabled = true
@@ -33,6 +57,29 @@ struct StatusMenuHostedSubmenuRefreshTests {
                 indicator: .none,
                 status: "operational"),
         ]
+
+        #expect(controller.menuAdjunctReadinessSignature() != before)
+    }
+
+    @Test
+    func `project source changes open menu readiness`() {
+        let settings = Self.makeSettings()
+        settings.costUsageEnabled = true
+        Self.enableOnly(settings, provider: .codex)
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(projectSourcePath: "/tmp/main"), provider: .codex)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let before = controller.menuAdjunctReadinessSignature()
+        store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(projectSourcePath: "/tmp/worktree"), provider: .codex)
 
         #expect(controller.menuAdjunctReadinessSignature() != before)
     }
@@ -608,8 +655,31 @@ struct StatusMenuHostedSubmenuRefreshTests {
         store._setSnapshotForTesting(snapshot, provider: .zai)
     }
 
-    private static func makeTokenSnapshot(dailyCost: Double = 1.23) -> CostUsageTokenSnapshot {
-        CostUsageTokenSnapshot(
+    private static func makeTokenSnapshot(
+        dailyCost: Double = 1.23,
+        projectSourcePath: String? = nil) -> CostUsageTokenSnapshot
+    {
+        let projects = projectSourcePath.map { sourcePath in
+            [
+                CostUsageProjectBreakdown(
+                    name: "Project",
+                    path: "/tmp/main",
+                    totalTokens: 123,
+                    totalCostUSD: dailyCost,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "Source",
+                            path: sourcePath,
+                            totalTokens: 123,
+                            totalCostUSD: dailyCost,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+            ]
+        } ?? []
+        return CostUsageTokenSnapshot(
             sessionTokens: 123,
             sessionCostUSD: 0.12,
             last30DaysTokens: 123,
@@ -624,6 +694,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
                     modelsUsed: nil,
                     modelBreakdowns: nil),
             ],
+            projects: projects,
             updatedAt: Date())
     }
 }

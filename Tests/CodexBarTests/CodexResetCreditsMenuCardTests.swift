@@ -5,143 +5,124 @@ import Testing
 
 struct CodexResetCreditsMenuCardTests {
     @Test
-    func `reset credits render when optional usage is enabled`() throws {
-        let metadata = try #require(ProviderDefaults.metadata[.codex])
+    func `presentation shows only available inventory in stable expiry order`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
-        let usage = UsageSnapshot(
-            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
-                credits: [
-                    CodexRateLimitResetCredit(
-                        id: "reset-1",
-                        resetType: "codex_rate_limits",
-                        status: .available,
-                        grantedAt: now,
-                        expiresAt: now.addingTimeInterval(86400),
-                        redeemStartedAt: nil,
-                        redeemedAt: nil,
-                        title: "One free rate limit reset",
-                        description: nil),
-                ],
-                availableCount: 1,
-                updatedAt: now),
-            updatedAt: now,
-            identity: ProviderIdentitySnapshot(
-                providerID: .codex,
-                accountEmail: "user@example.com",
-                accountOrganization: nil,
-                loginMethod: "pro"))
+        let snapshot = Self.snapshot(
+            now: now,
+            credits: [
+                Self.credit(id: "no-expiry", status: .available, now: now, expiresIn: nil),
+                Self.credit(id: "late", status: .available, now: now, expiresIn: 172_800),
+                Self.credit(id: "redeemed", status: .redeemed, now: now, expiresIn: 43200),
+                Self.credit(id: "expired", status: .available, now: now, expiresIn: -1),
+                Self.credit(id: "early", status: .available, now: now, expiresIn: 86400),
+            ],
+            availableCount: 99)
 
-        let model = UsageMenuCardView.Model.make(Self.input(
-            metadata: metadata,
-            snapshot: usage,
-            showOptionalUsage: true,
-            now: now))
+        let model = try Self.model(snapshot: snapshot, now: now)
+        let presentation = try #require(model.codexResetCredits)
 
-        #expect(model.codexResetCreditsText == "1 available")
-        #expect(model.codexResetCreditsDetailText == "Next expires in 1d")
+        #expect(presentation.text == "3 available")
+        #expect(presentation.items.map(\.expiryText) == ["Expires in 1d", "Expires in 2d", "No expiry"])
+        #expect(presentation.expirySummaryText == "1d · 2d · No expiry")
+        #expect(presentation.helpText == "1. Expires in 1d\n2. Expires in 2d\n3. No expiry")
+        #expect(presentation.accessibilityLabel.contains(presentation.helpText))
     }
 
     @Test
-    func `reset credits plural count uses trimmed copy`() throws {
-        let metadata = try #require(ProviderDefaults.metadata[.codex])
+    func `no-expiry reset remains visible without a next-expiry date`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
-        let usage = UsageSnapshot(
-            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
-                credits: [
-                    CodexRateLimitResetCredit(
-                        id: "reset-1",
-                        resetType: "codex_rate_limits",
-                        status: .available,
-                        grantedAt: now,
-                        expiresAt: now.addingTimeInterval(86400),
-                        redeemStartedAt: nil,
-                        redeemedAt: nil,
-                        title: "One free rate limit reset",
-                        description: nil),
-                    CodexRateLimitResetCredit(
-                        id: "reset-2",
-                        resetType: "codex_rate_limits",
-                        status: .available,
-                        grantedAt: now,
-                        expiresAt: now.addingTimeInterval(172_800),
-                        redeemStartedAt: nil,
-                        redeemedAt: nil,
-                        title: "One free rate limit reset",
-                        description: nil),
-                ],
-                availableCount: 2,
-                updatedAt: now),
-            updatedAt: now,
-            identity: ProviderIdentitySnapshot(
-                providerID: .codex,
-                accountEmail: "user@example.com",
-                accountOrganization: nil,
-                loginMethod: "pro"))
+        let model = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                credits: [Self.credit(id: "no-expiry", status: .available, now: now, expiresIn: nil)]),
+            now: now)
+        let presentation = try #require(model.codexResetCredits)
 
-        let model = UsageMenuCardView.Model.make(Self.input(
-            metadata: metadata,
-            snapshot: usage,
-            showOptionalUsage: true,
-            now: now))
-
-        #expect(model.codexResetCreditsText == "2 available")
+        #expect(presentation.text == "1 available")
+        #expect(presentation.items.map(\.expiryText) == ["No expiry"])
+        #expect(presentation.expirySummaryText == "No expiry")
+        #expect(model.hasUsageContent)
     }
 
     @Test
-    func `reset credits render when optional usage is disabled`() throws {
-        let metadata = try #require(ProviderDefaults.metadata[.codex])
+    func `inventory respects absolute reset-time style`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
-        let usage = UsageSnapshot(
-            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
-                credits: [
-                    CodexRateLimitResetCredit(
-                        id: "reset-1",
-                        resetType: "codex_rate_limits",
-                        status: .available,
-                        grantedAt: now,
-                        expiresAt: now.addingTimeInterval(86400),
-                        redeemStartedAt: nil,
-                        redeemedAt: nil,
-                        title: "One free rate limit reset",
-                        description: nil),
-                    CodexRateLimitResetCredit(
-                        id: "reset-2",
-                        resetType: "codex_rate_limits",
-                        status: .available,
-                        grantedAt: now,
-                        expiresAt: now.addingTimeInterval(172_800),
-                        redeemStartedAt: nil,
-                        redeemedAt: nil,
-                        title: "One free rate limit reset",
-                        description: nil),
-                ],
-                availableCount: 2,
-                updatedAt: now),
-            updatedAt: now)
+        let expiresAt = now.addingTimeInterval(86400)
+        let model = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
+            resetStyle: .absolute,
+            now: now)
+        let presentation = try #require(model.codexResetCredits)
+        let formatted = UsageFormatter.resetDescription(from: expiresAt, now: now)
 
-        let model = UsageMenuCardView.Model.make(Self.input(
-            metadata: metadata,
-            snapshot: usage,
+        #expect(presentation.items.map(\.expiryText) == ["Expires \(formatted)"])
+        #expect(presentation.expirySummaryText == formatted)
+    }
+
+    @Test
+    func `optional usage preference does not hide reset inventory`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let model = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
             showOptionalUsage: false,
-            now: now))
+            now: now)
 
-        #expect(model.codexResetCreditsText == "2 available")
-        #expect(model.codexResetCreditsDetailText == "Next expires in 1d")
+        #expect(model.codexResetCredits?.text == "1 available")
+        #expect(model.codexResetCredits?.expirySummaryText == "1d")
     }
 
-    private static func input(
-        metadata: ProviderMetadata,
+    @Test
+    func `compact expiry summary caps visible dates`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let credits = (1...6).map { day in
+            Self.credit(id: "day-\(day)", status: .available, now: now, expiresIn: Double(day * 86400))
+        }
+        let model = try Self.model(snapshot: Self.snapshot(now: now, credits: credits), now: now)
+
+        let presentation = try #require(model.codexResetCredits)
+        #expect(presentation.expirySummaryText == "1d · 2d · 3d · 4d · +2")
+        #expect(presentation.helpText.split(separator: "\n").count == 6)
+    }
+
+    @Test
+    func `hosted usage model keeps reset inventory compatible with live refresh`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let model = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
+            now: now)
+
+        #expect(model.codexResetCredits != nil)
+        #expect(model.hasCompatibleTrackedLayout(with: model))
+    }
+
+    @Test
+    func `empty filtered inventory does not create hosted reset rows`() throws {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let model = try Self.model(
+            snapshot: Self.snapshot(
+                now: now,
+                credits: [Self.credit(id: "expired", status: .available, now: now, expiresIn: -1)],
+                availableCount: 1),
+            now: now)
+
+        #expect(model.codexResetCredits == nil)
+        #expect(model.hasCompatibleTrackedLayout(with: model))
+    }
+
+    private static func model(
         snapshot: UsageSnapshot,
-        showOptionalUsage: Bool,
-        now: Date) -> UsageMenuCardView.Model.Input
+        showOptionalUsage: Bool = true,
+        resetStyle: ResetTimeDisplayStyle = .countdown,
+        now: Date) throws -> UsageMenuCardView.Model
     {
-        UsageMenuCardView.Model.Input(
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        return UsageMenuCardView.Model.make(UsageMenuCardView.Model.Input(
             provider: .codex,
             metadata: metadata,
             snapshot: snapshot,
@@ -155,10 +136,43 @@ struct CodexResetCreditsMenuCardTests {
             isRefreshing: false,
             lastError: nil,
             usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
+            resetTimeDisplayStyle: resetStyle,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: showOptionalUsage,
             hidePersonalInfo: false,
-            now: now)
+            now: now))
+    }
+
+    private static func snapshot(
+        now: Date,
+        credits: [CodexRateLimitResetCredit],
+        availableCount: Int? = nil) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
+                credits: credits,
+                availableCount: availableCount ?? credits.count,
+                updatedAt: now),
+            updatedAt: now)
+    }
+
+    private static func credit(
+        id: String,
+        status: CodexRateLimitResetCreditStatus,
+        now: Date,
+        expiresIn: TimeInterval?) -> CodexRateLimitResetCredit
+    {
+        CodexRateLimitResetCredit(
+            id: id,
+            resetType: "codex_rate_limits",
+            status: status,
+            grantedAt: now.addingTimeInterval(-3600),
+            expiresAt: expiresIn.map(now.addingTimeInterval),
+            redeemStartedAt: nil,
+            redeemedAt: nil,
+            title: nil,
+            description: nil)
     }
 }

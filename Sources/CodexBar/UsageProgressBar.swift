@@ -2,7 +2,27 @@ import SwiftUI
 
 /// Static progress fill with no implicit animations, used inside the menu card.
 struct UsageProgressBar: View {
+    enum MarkerKind: Equatable {
+        case quotaWarning
+        case workdayBoundary
+    }
+
+    struct Marker: Equatable {
+        let percent: Double
+        let kind: MarkerKind
+    }
+
     private static let paceStripeCount = 3
+    private static let stripePunchOpacity = 0.9
+
+    private nonisolated static var warningMarkerPunchWidth: CGFloat {
+        5
+    }
+
+    private nonisolated static var warningMarkerStripeWidth: CGFloat {
+        1
+    }
+
     private static func paceStripeWidth(for scale: CGFloat) -> CGFloat {
         2
     }
@@ -18,6 +38,7 @@ struct UsageProgressBar: View {
     let pacePercent: Double?
     let paceOnTop: Bool
     let warningMarkerPercents: [Double]
+    let workdayMarkerPercents: [Double]
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.displayScale) private var displayScale
 
@@ -27,7 +48,8 @@ struct UsageProgressBar: View {
         accessibilityLabel: String,
         pacePercent: Double? = nil,
         paceOnTop: Bool = true,
-        warningMarkerPercents: [Double] = [])
+        warningMarkerPercents: [Double] = [],
+        workdayMarkerPercents: [Double] = [])
     {
         self.percent = percent
         self.tint = tint
@@ -35,6 +57,7 @@ struct UsageProgressBar: View {
         self.pacePercent = pacePercent
         self.paceOnTop = paceOnTop
         self.warningMarkerPercents = warningMarkerPercents
+        self.workdayMarkerPercents = workdayMarkerPercents
     }
 
     private var clamped: Double {
@@ -55,9 +78,9 @@ struct UsageProgressBar: View {
             let stripeInset = 1 / scale
             let tipOffset = paceWidth - tipWidth + (Self.paceStripeSpan(for: scale) / 2) + stripeInset
             let showTip = self.pacePercent != nil && tipWidth > 0.5
-            let markerPercents = self.warningMarkerPercents
-                .map(Self.clampedPercent)
-                .filter { $0 > 0 && $0 < 100 }
+            let markers = Self.resolvedMarkers(
+                warningPercents: self.warningMarkerPercents,
+                workdayPercents: self.workdayMarkerPercents)
 
             let cornerRadius = size.height / 2
             let cornerSize = CGSize(width: cornerRadius, height: cornerRadius)
@@ -78,17 +101,31 @@ struct UsageProgressBar: View {
                     with: .color(MenuHighlightStyle.progressTint(self.isHighlighted, fallback: self.tint)))
             }
 
-            if !markerPercents.isEmpty {
-                let markerColor = Self.warningMarkerColor(isHighlighted: self.isHighlighted)
-                for markerPercent in markerPercents {
-                    let x = size.width * markerPercent / 100
+            for marker in markers {
+                let x = size.width * marker.percent / 100
+                switch marker.kind {
+                case .quotaWarning:
                     let markerRect = Self.warningMarkerRect(x: x, size: size, scale: scale)
-                    let markerPath = Path { p in
-                        p.addRoundedRect(
-                            in: markerRect,
-                            cornerSize: CGSize(width: markerRect.width / 2, height: markerRect.width / 2))
+                    let markerStripeRect = Self.warningMarkerStripeRect(markerRect, scale: scale)
+                    let markerPunchPath = Path { p in
+                        p.addRect(Self.extendedMarkerRect(markerRect, size: size))
                     }
-                    context.fill(markerPath, with: .color(markerColor))
+                    let markerStripePath = Path { p in
+                        p.addRect(Self.extendedMarkerRect(markerStripeRect, size: size))
+                    }
+
+                    // Match the pace stripe treatment: punch through the bar, then draw a slimmer neutral stripe.
+                    context.blendMode = .destinationOut
+                    context.fill(markerPunchPath, with: .color(.white.opacity(Self.stripePunchOpacity)))
+                    context.blendMode = .normal
+                    context.fill(
+                        markerStripePath,
+                        with: .color(Self.warningMarkerColor(isHighlighted: self.isHighlighted)))
+                case .workdayBoundary:
+                    let markerRect = Self.workdayMarkerRect(x: x, size: size, scale: scale)
+                    context.fill(
+                        Path(markerRect),
+                        with: .color(Self.workdayMarkerColor(isHighlighted: self.isHighlighted)))
                 }
             }
 
@@ -111,7 +148,7 @@ struct UsageProgressBar: View {
 
                 // Punch out of the accumulated track+fill pixels.
                 context.blendMode = .destinationOut
-                context.fill(stripes.punched.applying(shift), with: .color(.white.opacity(0.9)))
+                context.fill(stripes.punched.applying(shift), with: .color(.white.opacity(Self.stripePunchOpacity)))
                 context.blendMode = .normal
 
                 context.fill(stripes.center.applying(shift), with: .color(stripeColor))
@@ -119,7 +156,51 @@ struct UsageProgressBar: View {
         }
         .frame(height: 6)
         .accessibilityLabel(self.accessibilityLabel)
-        .accessibilityValue(L("%d percent", Self.displayPercent(self.clamped)))
+        .accessibilityValue(self.markerAccessibilityValue)
+    }
+
+    private var markerAccessibilityValue: String {
+        var parts = [L("%d percent", Self.displayPercent(self.clamped))]
+        let markers = Self.resolvedMarkers(
+            warningPercents: self.warningMarkerPercents,
+            workdayPercents: self.workdayMarkerPercents)
+        let warnings = markers.filter { $0.kind == .quotaWarning }.map(Self.markerPercentText)
+        let workdays = markers.filter { $0.kind == .workdayBoundary }.map(Self.markerPercentText)
+        if !warnings.isEmpty {
+            parts.append("\(L("quota_warnings_title")): \(warnings.joined(separator: ", "))")
+        }
+        if !workdays.isEmpty {
+            parts.append("\(L("weekly_progress_work_days_title")): \(workdays.joined(separator: ", "))")
+        }
+        return parts.joined(separator: ". ")
+    }
+
+    nonisolated static func resolvedMarkers(
+        warningPercents: [Double],
+        workdayPercents: [Double]) -> [Marker]
+    {
+        let warnings = Self.normalizedMarkerPercents(warningPercents)
+        let workdays = Self.normalizedMarkerPercents(workdayPercents)
+            .filter { workday in !warnings.contains { abs($0 - workday) < 0.001 } }
+        return (
+            warnings.map { Marker(percent: $0, kind: .quotaWarning) } +
+                workdays.map { Marker(percent: $0, kind: .workdayBoundary) })
+            .sorted { lhs, rhs in lhs.percent < rhs.percent }
+    }
+
+    private nonisolated static func normalizedMarkerPercents(_ values: [Double]) -> [Double] {
+        values
+            .map(self.clampedPercent)
+            .filter { $0 > 0 && $0 < 100 }
+            .reduce(into: [Double]()) { result, value in
+                if !result.contains(where: { abs($0 - value) < 0.001 }) {
+                    result.append(value)
+                }
+            }
+    }
+
+    private nonisolated static func markerPercentText(_ marker: Marker) -> String {
+        "\(Int(marker.percent.rounded()))%"
     }
 
     /// Aligns edge rendering with the rounded percent label: sub-0.5% is empty and 99.5%+ is full.
@@ -181,21 +262,57 @@ struct UsageProgressBar: View {
 
     nonisolated static func warningMarkerRect(x: CGFloat, size: CGSize, scale rawScale: CGFloat) -> CGRect {
         let scale = max(rawScale, 1)
-        let width = max(1 / scale, 1)
-        let height = min(size.height, max(1 / scale, size.height * 0.55))
+        let width = Self.warningMarkerPunchWidth
         let align: (CGFloat) -> CGFloat = { value in
             (value * scale).rounded() / scale
         }
 
         return CGRect(
             x: align(x - width / 2),
-            y: align((size.height - height) / 2),
+            y: 0,
+            width: width,
+            height: align(size.height))
+    }
+
+    nonisolated static func warningMarkerStripeRect(_ markerRect: CGRect, scale rawScale: CGFloat) -> CGRect {
+        let scale = max(rawScale, 1)
+        let width = min(markerRect.width, max(1 / scale, Self.warningMarkerStripeWidth))
+        let align: (CGFloat) -> CGFloat = { value in
+            (value * scale).rounded() / scale
+        }
+
+        return CGRect(
+            x: align(markerRect.midX - width / 2),
+            y: markerRect.minY,
+            width: width,
+            height: markerRect.height)
+    }
+
+    nonisolated static func workdayMarkerRect(x: CGFloat, size: CGSize, scale rawScale: CGFloat) -> CGRect {
+        let scale = max(rawScale, 1)
+        let width = 1 / scale
+        let height = max(1 / scale, size.height * 0.5)
+        let align: (CGFloat) -> CGFloat = { value in
+            (value * scale).rounded() / scale
+        }
+        return CGRect(
+            x: align(x - width / 2),
+            y: align(size.height - height),
             width: width,
             height: align(height))
     }
 
+    private nonisolated static func extendedMarkerRect(_ rect: CGRect, size: CGSize) -> CGRect {
+        let extend = size.height * 2
+        return rect.insetBy(dx: 0, dy: -extend)
+    }
+
     nonisolated static func warningMarkerColor(isHighlighted: Bool) -> Color {
-        isHighlighted ? .white.opacity(0.72) : .primary.opacity(0.32)
+        isHighlighted ? .white.opacity(0.96) : .primary.opacity(0.68)
+    }
+
+    nonisolated static func workdayMarkerColor(isHighlighted: Bool) -> Color {
+        isHighlighted ? .white.opacity(0.55) : .primary.opacity(0.30)
     }
 
     private nonisolated static func displayPercent(_ percent: Double) -> Int {

@@ -308,6 +308,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlink CodexBarCLI tới /usr/local/bin và /opt/homebrew/bin dưới dạng codexbar.";
 "System" = "Hệ thống";
 "Temporarily shows the loading animation after the next refresh." = "Tạm thời hiển thị hoạt ảnh đang tải sau lần làm mới tiếp theo.";
+"terminal_app_subtitle" = "Terminal dùng cho tác vụ Mở Terminal";
+"terminal_app_title" = "Terminal mặc định";
 "Tertiary (\\(label))" = "Cấp ba (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Cấp ba (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Tài khoản Codex mặc định trên máy Mac này.";
@@ -407,6 +409,7 @@
 "language_french" = "Tiếng Pháp";
 "language_dutch" = "Tiếng Hà Lan";
 "language_ukrainian" = "Tiếng Ukraina";
+"language_russian" = "Русский";
 "language_japanese" = "Tiếng Nhật";
 "language_korean" = "Tiếng Hàn";
 "language_italian" = "Italiano";
@@ -425,6 +428,8 @@
 "cost_history_window_help" = "Đặt số ngày nhật ký sử dụng cục bộ xuất hiện trong menu.";
 "cost_history_days_title" = "Cửa sổ lịch sử: %d ngày";
 "cost_auto_refresh_info" = "Tự động làm mới: hàng giờ · Thời gian chờ: 10 phút";
+"cost_comparison_periods_title" = "Hiển thị các khoảng so sánh ngắn hơn";
+"cost_comparison_periods_subtitle" = "Thêm tổng 7, 30 và 90 ngày khi nằm trong cửa sổ lịch sử đã chọn. Các tổng này dùng lại cùng một lần quét cục bộ.";
 "refresh_cadence_title" = "Nhịp làm mới";
 "refresh_cadence_subtitle" = "Tần suất CodexBar thăm dò ý kiến ​​các nhà cung cấp trong nền.";
 "manual_refresh_hint" = "Tính năng tự động làm mới bị tắt; sử dụng lệnh Làm mới của menu.";
@@ -668,6 +673,7 @@
 "refresh_5min" = "5 phút";
 "refresh_15min" = "15 phút";
 "refresh_30min" = "30 phút";
+"refresh_adaptive" = "Thích ứng";
 
 /* Additional keys */
 "not_found" = "Không tìm thấy";
@@ -726,6 +732,7 @@
 "Resets now" = "Đặt lại ngay";
 "reset_tomorrow_format" = "ngày mai, %@";
 "Lasts until reset" = "Kéo dài cho đến Đặt lại";
+"1.5× headroom" = "dư địa 1,5×";
 "Updated %@" = "Đã cập nhật %@";
 "Updated relative %@" = "Đã cập nhật %@";
 "Updated absolute %@" = "Đã cập nhật %@";
@@ -1113,10 +1120,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Lượt đặt lại giới hạn";
 "1 available" = "1 lượt";
 "%d available" = "%d lượt";
 "Next expires %@" = "Lượt tiếp theo hết hạn %@";
+"Expires %@" = "Hết hạn %@";
+"No expiry" = "Không hết hạn";
 "Other (%d items)" = "Khác (%d mục)";
 "Expand" = "Mở rộng";
 "Collapse" = "Thu gọn";

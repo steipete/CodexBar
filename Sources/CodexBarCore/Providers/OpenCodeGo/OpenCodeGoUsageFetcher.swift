@@ -788,8 +788,10 @@ extension OpenCodeGoUsageFetcher {
 
         if resetInSec == nil {
             for key in self.resetAtKeys {
-                if let resetAt = self.dateValue(from: dict[key]) {
-                    resetInSec = max(0, Int(resetAt.timeIntervalSince(now)))
+                if let resetAt = self.dateValue(from: dict[key]),
+                   let interval = self.resetInterval(from: resetAt, now: now)
+                {
+                    resetInSec = interval
                     break
                 }
             }
@@ -956,7 +958,7 @@ extension OpenCodeGoUsageFetcher {
     }
 
     private static func doubleValue(from value: Any?) -> Double? {
-        switch value {
+        let number: Double? = switch value {
         case let number as Double:
             number
         case let number as NSNumber:
@@ -966,6 +968,8 @@ extension OpenCodeGoUsageFetcher {
         default:
             nil
         }
+        guard let number, number.isFinite else { return nil }
+        return number
     }
 
     private static func intValue(from value: Any?) -> Int? {
@@ -1011,5 +1015,13 @@ extension OpenCodeGoUsageFetcher {
             }
         }
         return nil
+    }
+
+    private static func resetInterval(from resetAt: Date, now: Date) -> Int? {
+        let interval = resetAt.timeIntervalSince(now)
+        guard interval.isFinite else { return nil }
+        if interval <= 0 { return 0 }
+        guard interval < Double(Int.max) else { return nil }
+        return Int(interval)
     }
 }

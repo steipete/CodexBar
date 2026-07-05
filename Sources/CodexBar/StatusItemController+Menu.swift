@@ -67,6 +67,9 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        // Records interaction and may bring an adaptive timer forward; never refreshes synchronously.
+        self.store.noteMenuOpened()
+
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }
 
@@ -628,6 +631,21 @@ extension StatusItemController {
                     snapshotOverride: scope.snapshot,
                     errorOverride: scope.errorMessage,
                     forceOverrideCard: scope.snapshot == nil)
+            }
+            self.addStackedMenuCards(cards, to: menu, context: context)
+            return false
+        }
+
+        if context.currentProvider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 {
+            let cards = self.store.claudeSwapAccountSnapshots.compactMap { account in
+                self.menuCardModel(
+                    for: .claude,
+                    snapshotOverride: account.snapshot,
+                    errorOverride: ClaudeSwapAccountProjection.displayError(
+                        accountError: account.error,
+                        adapterError: self.store.claudeSwapLastError),
+                    forceOverrideCard: account.snapshot == nil,
+                    accountOverride: AccountInfo(email: account.displayLabel, plan: nil))
             }
             self.addStackedMenuCards(cards, to: menu, context: context)
             return false
@@ -1234,25 +1252,22 @@ extension StatusItemController {
         webItems: OpenAIWebMenuItems)
     {
         let provider = layoutModel.provider
-        let hasUsageBlock = layoutModel.hasUsageContent
         let hasCredits = layoutModel.creditsText != nil
         let hasExtraUsage = layoutModel.providerCost != nil
         let hasCost = layoutModel.tokenUsage != nil
-        let hasStorage = self.store.storageFootprintText(for: provider) != nil
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
-        let usageBottomPadding = bottomPadding
         let creditsBottomPadding = bottomPadding
         func addSectionSeparator() {
             guard menu.items.last?.isSeparatorItem != true else { return }
             menu.addItem(.separator())
         }
 
-        if hasUsageBlock {
+        if layoutModel.hasUsageContent {
             let usageView = UsageMenuCardHeaderAndUsageSectionView(
                 model: model,
                 layoutModel: layoutModel,
-                bottomPadding: usageBottomPadding,
+                bottomPadding: bottomPadding,
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
                 provider: provider,
@@ -1279,10 +1294,6 @@ extension StatusItemController {
                 heightCacheScope: provider.rawValue,
                 heightCacheFingerprint: layoutModel.heightFingerprint(section: "header"),
                 containsInteractiveControls: true))
-        }
-
-        if hasStorage || hasCredits || hasExtraUsage || hasCost {
-            addSectionSeparator()
         }
 
         if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),

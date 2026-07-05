@@ -33,7 +33,7 @@ public enum BrowserCookieAccessGate {
         processName: String = ProcessInfo.processInfo.processName,
         environment: [String: String] = ProcessInfo.processInfo.environment) -> BrowserCookieStoreAccessDecision
     {
-        guard self.isRunningUnderTests(processName: processName, environment: environment),
+        guard KeychainTestSafety.isRunningUnderTests(processName: processName, environment: environment),
               environment[self.allowTestCookieAccessEnvironmentKey] != "1"
         else {
             return .allowed
@@ -71,7 +71,7 @@ public enum BrowserCookieAccessGate {
         }
         guard shouldCheckKeychain else { return false }
 
-        let requiresInteraction = self.chromiumKeychainRequiresInteraction()
+        let requiresInteraction = self.chromiumKeychainRequiresInteraction(for: browser)
         return self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if requiresInteraction {
@@ -118,8 +118,9 @@ public enum BrowserCookieAccessGate {
         }
     }
 
-    private static func chromiumKeychainRequiresInteraction() -> Bool {
-        for label in self.safeStorageLabels {
+    private static func chromiumKeychainRequiresInteraction(for browser: Browser) -> Bool {
+        let labels = browser.safeStorageLabels.isEmpty ? self.safeStorageLabels : browser.safeStorageLabels
+        for label in labels {
             switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
             case .allowed:
                 return false
@@ -133,16 +134,6 @@ public enum BrowserCookieAccessGate {
     }
 
     private static let safeStorageLabels: [(service: String, account: String)] = Browser.safeStorageLabels
-
-    private static func isRunningUnderTests(
-        processName: String,
-        environment: [String: String]) -> Bool
-    {
-        processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || environment["XCTestConfigurationFilePath"] != nil
-            || environment["SWIFT_TESTING"] != nil
-    }
 
     private static func normalizedPath(_ url: URL) -> String {
         url.standardizedFileURL.resolvingSymlinksInPath().path

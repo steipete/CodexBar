@@ -165,6 +165,43 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
+    func `y-axis tick values are empty for flat or no data`() {
+        #expect(CostHistoryChartMenuView._yAxisTickValuesForTesting(maxCostUSD: 0).isEmpty)
+        #expect(CostHistoryChartMenuView._yAxisTickValuesForTesting(maxCostUSD: -1).isEmpty)
+    }
+
+    @Test
+    @MainActor
+    func `y-axis tick values use two ticks for small ranges`() {
+        let ticks = CostHistoryChartMenuView._yAxisTickValuesForTesting(maxCostUSD: 0.50)
+        #expect(ticks == [0, 0.50])
+    }
+
+    @Test
+    @MainActor
+    func `y-axis tick values use three ticks for ranges at or above one dollar`() {
+        let ticks = CostHistoryChartMenuView._yAxisTickValuesForTesting(maxCostUSD: 12.0)
+        #expect(ticks == [0, 6.0, 12.0])
+
+        let large = CostHistoryChartMenuView._yAxisTickValuesForTesting(maxCostUSD: 1000.0)
+        #expect(large == [0, 500.0, 1000.0])
+    }
+
+    @Test(arguments: [
+        (0.0, "$0"),
+        (12.56, "$13"),
+        (0.50, "$0.50"),
+    ])
+    @MainActor
+    func `y-axis cost labels preserve cents only for nonzero sub-dollar values`(
+        value: Double,
+        expected: String)
+    {
+        #expect(CostHistoryChartMenuView._yAxisCostStringForTesting(value) == expected)
+    }
+
+    @Test
+    @MainActor
     func `cost history total card height grows with rows and the total line`() {
         let oneRow = CostHistoryChartMenuView._totalCardHeightForTesting(
             modeSubtitlePresence: [false],
@@ -181,5 +218,46 @@ struct CostHistoryChartMenuViewTests {
             modeSubtitlePresence: [false],
             hasTotal: true)
         #expect(withTotal > withoutTotal)
+
+        let withProjects = CostHistoryChartMenuView._totalCardHeightForTesting(
+            modeSubtitlePresence: [false],
+            hasTotal: true,
+            projectCount: 3)
+        #expect(withProjects > withTotal)
+
+        let withProjectSources = CostHistoryChartMenuView._totalCardHeightForTesting(
+            modeSubtitlePresence: [false],
+            hasTotal: true,
+            projectSourceCounts: [3])
+        #expect(withProjectSources > withProjects)
+    }
+
+    @Test
+    @MainActor
+    func `single differing project source remains visible`() {
+        let matching = Self.project(path: "/tmp/main", sourcePath: "/tmp/main")
+        let differing = Self.project(path: "/tmp/main", sourcePath: "/tmp/worktree")
+
+        #expect(CostHistoryChartMenuView.visibleProjectSources(matching).isEmpty)
+        #expect(CostHistoryChartMenuView.visibleProjectSources(differing).compactMap(\.path) == ["/tmp/worktree"])
+    }
+
+    private static func project(path: String, sourcePath: String) -> CostUsageProjectBreakdown {
+        CostUsageProjectBreakdown(
+            name: "Project",
+            path: path,
+            totalTokens: 10,
+            totalCostUSD: 0.1,
+            daily: [],
+            modelBreakdowns: nil,
+            sources: [
+                CostUsageProjectSourceBreakdown(
+                    name: "Source",
+                    path: sourcePath,
+                    totalTokens: 10,
+                    totalCostUSD: 0.1,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ])
     }
 }

@@ -164,7 +164,7 @@ private struct CompactMetricView: View {
     let metric: CompactMetric
 
     var body: some View {
-        let display = self.display
+        let display = CompactMetricFormatter.display(for: self.entry, metric: self.metric)
         VStack(alignment: .leading, spacing: 8) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             VStack(alignment: .leading, spacing: 2) {
@@ -183,26 +183,40 @@ private struct CompactMetricView: View {
         }
         .padding(12)
     }
+}
 
-    private var display: (value: String, label: String, detail: String?) {
-        switch self.metric {
+struct CompactMetricDisplay: Equatable {
+    let value: String
+    let label: String
+    let detail: String?
+}
+
+enum CompactMetricFormatter {
+    static func display(for entry: WidgetSnapshot.ProviderEntry, metric: CompactMetric) -> CompactMetricDisplay {
+        switch metric {
         case .credits:
-            let value = self.entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
-            return (value, "Credits left", nil)
+            if let cost = WidgetBalanceFormatter.extraUsageCost(for: entry) {
+                return CompactMetricDisplay(
+                    value: WidgetFormat.currency(cost.used, code: cost.currencyCode),
+                    label: "Extra usage balance",
+                    detail: nil)
+            }
+            let value = entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
+            return CompactMetricDisplay(value: value, label: "Credits left", detail: nil)
         case .todayCost:
-            let value = self.entry.tokenUsage.map { token in
+            let value = entry.tokenUsage.map { token in
                 token.sessionCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
-            let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            let label = self.entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
-            return (value, label, detail)
+            let detail = entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
+            let label = entry.tokenUsage.map { "\($0.sessionLabel) cost" } ?? "Today cost"
+            return CompactMetricDisplay(value: value, label: label, detail: detail)
         case .last30DaysCost:
-            let value = self.entry.tokenUsage.map { token in
+            let value = entry.tokenUsage.map { token in
                 token.last30DaysCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
             } ?? "—"
-            let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            let label = self.entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
-            return (value, label, detail)
+            let detail = entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
+            let label = entry.tokenUsage.map { "\($0.last30DaysLabel) cost" } ?? "30d cost"
+            return CompactMetricDisplay(value: value, label: label, detail: detail)
         }
     }
 }
@@ -300,6 +314,7 @@ private struct ProviderSwitchChip: View {
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
         case .crossmodel: "CrossModel"
+        case .clawrouter: "ClawRouter"
         case .elevenlabs: "ElevenLabs"
         case .warp: "Warp"
         case .windsurf: "Windsurf"
@@ -357,6 +372,9 @@ private struct SwitcherSmallUsageView: View {
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
             }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
         }
     }
 }
@@ -385,6 +403,9 @@ private struct SwitcherMediumUsageView: View {
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
     }
@@ -426,7 +447,13 @@ private struct SwitcherLargeUsageView: View {
                             currencyCode: token.currencyCode))
                 }
             }
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
     }
@@ -461,6 +488,9 @@ private struct SmallUsageView: View {
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
             }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
         }
         .padding(12)
     }
@@ -491,6 +521,9 @@ private struct MediumUsageView: View {
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
+            }
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
             }
         }
         .padding(12)
@@ -534,7 +567,13 @@ private struct LargeUsageView: View {
                             currencyCode: token.currencyCode))
                 }
             }
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            if let balance = extraUsageBalanceLine(for: entry) {
+                balance
+            }
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: 50)
         }
         .padding(12)
@@ -691,7 +730,10 @@ private struct HistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
-            UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
+            UsageHistoryChart(
+                points: self.entry.dailyUsage,
+                color: WidgetColors.color(for: self.entry.provider),
+                currencyCode: self.entry.tokenUsage?.currencyCode)
                 .frame(height: self.isLarge ? 90 : 60)
             if let token = entry.tokenUsage {
                 ValueLine(
@@ -776,24 +818,47 @@ private struct ValueLine: View {
 private struct UsageHistoryChart: View {
     let points: [WidgetSnapshot.DailyUsagePoint]
     let color: Color
+    let currencyCode: String?
 
     var body: some View {
+        let isCostMode = UsageHistoryChartMode.isCostMode(self.points)
         let values = self.points.map { point -> Double in
-            if let cost = point.costUSD { return cost }
+            if isCostMode { return point.costUSD ?? 0 }
             return Double(point.totalTokens ?? 0)
         }
-        let maxValue = values.max() ?? 0
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(values.indices, id: \.self) { index in
-                let value = values[index]
-                let height = maxValue > 0 ? CGFloat(value / maxValue) : 0
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(self.color.opacity(0.85))
-                    .frame(maxWidth: .infinity)
-                    .scaleEffect(x: 1, y: height, anchor: .bottom)
-                    .animation(.easeOut(duration: 0.2), value: height)
+        let scale = UsageChartScale(values: values)
+        VStack(alignment: .trailing, spacing: 2) {
+            if isCostMode,
+               let currencyCode = self.currencyCode,
+               scale.maximum > 0
+            {
+                Text(UsageFormatter.compactCurrencyString(scale.maximum, currencyCode: currencyCode))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            }
+            GeometryReader { geometry in
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(values.indices, id: \.self) { index in
+                        let fraction = scale.fraction(for: values[index])
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(self.color.opacity(0.85))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(fraction > 0 ? 2 : 0, CGFloat(fraction) * geometry.size.height))
+                            .animation(.easeOut(duration: 0.2), value: fraction)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
+    }
+}
+
+enum UsageHistoryChartMode {
+    static func isCostMode(_ points: [WidgetSnapshot.DailyUsagePoint]) -> Bool {
+        !points.isEmpty && points.allSatisfy { $0.costUSD != nil }
     }
 }
 
@@ -861,6 +926,8 @@ enum WidgetColors {
             Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
         case .crossmodel:
             Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255) // CrossModel purple
+        case .clawrouter:
+            Color(red: 89 / 255, green: 110 / 255, blue: 246 / 255)
         case .elevenlabs:
             Color(red: 235 / 255, green: 235 / 255, blue: 230 / 255)
         case .warp:
@@ -906,13 +973,40 @@ enum WidgetColors {
         case .deepgram:
             Color(red: 10 / 255, green: 18 / 255, blue: 27 / 255)
         case .poe:
-            Color(red: 0.15, green: 0.68, blue: 0.38)
+            Color(red: 93 / 255, green: 92 / 255, blue: 222 / 255) // Poe purple
         case .chutes:
             Color(red: 24 / 255, green: 160 / 255, blue: 88 / 255)
         case .zed:
             Color(red: 64 / 255, green: 156 / 255, blue: 255 / 255)
         }
     }
+}
+
+struct WidgetBalanceLine: Equatable {
+    let title: String
+    let value: String
+}
+
+enum WidgetBalanceFormatter {
+    static func extraUsageCost(for entry: WidgetSnapshot.ProviderEntry) -> ProviderCostSnapshot? {
+        guard entry.provider == .devin,
+              let cost = entry.providerCost,
+              cost.period == "Extra usage balance"
+        else { return nil }
+        return cost
+    }
+
+    static func extraUsageBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
+        guard let cost = self.extraUsageCost(for: entry) else { return nil }
+        return WidgetBalanceLine(
+            title: "Extra usage",
+            value: "Balance: \(WidgetFormat.currency(cost.used, code: cost.currencyCode))")
+    }
+}
+
+private func extraUsageBalanceLine(for entry: WidgetSnapshot.ProviderEntry) -> ValueLine? {
+    guard let line = WidgetBalanceFormatter.extraUsageBalance(for: entry) else { return nil }
+    return ValueLine(title: line.title, value: line.value)
 }
 
 enum WidgetFormat {

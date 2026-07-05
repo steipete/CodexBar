@@ -308,6 +308,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Символьне посилання CodexBarCLI на /usr/local/bin і /opt/homebrew/bin як codexbar.";
 "System" = "Система";
 "Temporarily shows the loading animation after the next refresh." = "Тимчасово показує анімацію завантаження після наступного оновлення.";
+"terminal_app_subtitle" = "Термінал, який використовується дією «Відкрити термінал»";
+"terminal_app_title" = "Термінал за замовчуванням";
 "Tertiary (\\(label))" = "Вищий (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Вищий (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Обліковий запис Codex за умовчанням на цьому Mac.";
@@ -407,6 +409,7 @@
 "language_french" = "Français";
 "language_dutch" = "Нідерландська";
 "language_ukrainian" = "Українська";
+"language_russian" = "Русский";
 "language_japanese" = "Японська";
 "language_korean" = "Корейська";
 "language_italian" = "Italiano";
@@ -429,6 +432,8 @@
 "cost_history_window_help" = "Визначає, скільки днів локальних журналів використання показувати в меню.";
 "cost_history_days_title" = "Вікно історії: %d днів";
 "cost_auto_refresh_info" = "Автоматичне оновлення: щогодини · Час очікування: 10 хв";
+"cost_comparison_periods_title" = "Показувати коротші періоди порівняння";
+"cost_comparison_periods_subtitle" = "Додає підсумки за 7, 30 і 90 днів, якщо вони входять у вибране вікно історії. Для цих підсумків використовується те саме локальне сканування.";
 "refresh_cadence_title" = "Оновити каденцію";
 "refresh_cadence_subtitle" = "Як часто CodexBar опитує постачальників у фоновому режимі.";
 "manual_refresh_hint" = "Автооновлення вимкнено; скористайтеся командою меню «Оновити».";
@@ -672,6 +677,7 @@
 "refresh_5min" = "5 хв";
 "refresh_15min" = "15 хв";
 "refresh_30min" = "30 хв";
+"refresh_adaptive" = "Адаптивний";
 
 /* Additional keys */
 "not_found" = "Не знайдено";
@@ -730,6 +736,7 @@
 "Resets now" = "Скидає зараз";
 "reset_tomorrow_format" = "завтра, %@";
 "Lasts until reset" = "Триває до скидання";
+"1.5× headroom" = "запас 1,5×";
 "Updated %@" = "Оновлено %@";
 "Updated relative %@" = "Оновлено %@";
 "Updated absolute %@" = "Оновлено %@";
@@ -1112,10 +1119,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Кредити скидання ліміту";
 "1 available" = "1 доступне";
 "%d available" = "%d доступно";
 "Next expires %@" = "Наступне спливає %@";
+"Expires %@" = "Спливає %@";
+"No expiry" = "Без терміну дії";
 "Other (%d items)" = "Інше (%d елементів)";
 "Expand" = "Розгорнути";
 "Collapse" = "Згорнути";

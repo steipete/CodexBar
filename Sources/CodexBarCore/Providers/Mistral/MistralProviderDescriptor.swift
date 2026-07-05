@@ -9,7 +9,7 @@ public enum MistralProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .mistral,
                 displayName: "Mistral",
-                sessionLabel: "Monthly",
+                sessionLabel: "Balance",
                 weeklyLabel: "",
                 opusLabel: nil,
                 supportsOpus: false,
@@ -78,26 +78,60 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    private static func fetchUsageWithVibe(
+    static func fetchUsageWithVibe(
         cookieHeader: String,
         csrfToken: String?,
-        timeout: TimeInterval) async throws -> UsageSnapshot
+        timeout: TimeInterval,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> UsageSnapshot
     {
         let deadline = Date().addingTimeInterval(timeout)
         let snapshot = try await MistralUsageFetcher.fetchUsage(
             cookieHeader: cookieHeader,
             csrfToken: csrfToken,
-            timeout: timeout)
-        let remaining = deadline.timeIntervalSinceNow
+            timeout: timeout,
+            transport: transport)
+        var remaining = deadline.timeIntervalSinceNow
         let vibeResult: MistralUsageFetcher.MistralVibeUsageResult? = if let csrfToken, remaining > 0 {
             try await Self.fetchOptionalVibeUsage(
                 csrfToken: csrfToken,
                 cookieHeader: cookieHeader,
-                timeout: min(remaining, 4))
+                timeout: min(remaining, 4),
+                transport: transport)
         } else {
             nil
         }
-        return Self.attachVibeWindow(to: snapshot.toUsageSnapshot(), vibeResult: vibeResult)
+        remaining = deadline.timeIntervalSinceNow
+        let credits: MistralCreditsSnapshot? = if remaining > 0 {
+            try await Self.fetchOptionalCredits(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: min(remaining, 4),
+                transport: transport)
+        } else {
+            nil
+        }
+        return Self.attachVibeWindow(to: snapshot.with(credits: credits).toUsageSnapshot(), vibeResult: vibeResult)
+    }
+
+    static func fetchOptionalCredits(
+        cookieHeader: String,
+        csrfToken: String?,
+        timeout: TimeInterval,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        -> MistralCreditsSnapshot?
+    {
+        do {
+            return try await MistralUsageFetcher.fetchCredits(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: timeout,
+                transport: transport)
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            return nil
+        }
     }
 
     static func fetchOptionalVibeUsage(

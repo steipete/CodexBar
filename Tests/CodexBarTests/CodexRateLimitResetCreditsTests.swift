@@ -120,12 +120,132 @@ struct CodexRateLimitResetCreditsTests {
         }
         """
 
-        let snapshot = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(Data(json.utf8))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-07-01T00:00:00Z"))
+        let snapshot = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(
+            Data(json.utf8),
+            now: now)
 
         #expect(snapshot.availableCount == 2)
         #expect(snapshot.credits.count == 4)
         #expect(snapshot.credits[0].resetType == "codex_rate_limits")
         #expect(snapshot.credits[3].status == .unknown("future_status"))
-        #expect(snapshot.nextExpiringAvailableCredit?.id == "RateLimitResetCredit_earlier")
+        #expect(snapshot.nextExpiringAvailableCredit?.id == CodexRateLimitResetCredit.stableID(
+            forProviderID: "RateLimitResetCredit_earlier"))
+        #expect(snapshot.credits.allSatisfy { !$0.id.contains("RateLimitResetCredit_") })
+
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            codexResetCredits: snapshot,
+            updatedAt: now)
+        let encoded = try JSONEncoder().encode(usage)
+        let encodedText = try #require(String(data: encoded, encoding: .utf8))
+        #expect(!encodedText.contains("RateLimitResetCredit_earlier"))
+        #expect(!String(reflecting: usage).contains("RateLimitResetCredit_earlier"))
+
+        let roundTripped = try JSONDecoder().decode(UsageSnapshot.self, from: encoded)
+        #expect(roundTripped.codexResetCredits?.credits.map(\.id) == snapshot.credits.map(\.id))
+    }
+
+    @Test
+    func `available inventory keeps no-expiry credits and sorts deterministically`() {
+        let now = Date(timeIntervalSince1970: 1_788_134_400)
+        let tiedExpiry = now.addingTimeInterval(3600)
+        let snapshot = CodexRateLimitResetCreditsSnapshot(
+            credits: [
+                Self.credit(id: "nil-b", status: .available, expiresAt: nil),
+                Self.credit(id: "expired", status: .available, expiresAt: now),
+                Self.credit(id: "finite-b", status: .available, expiresAt: tiedExpiry),
+                Self.credit(id: "redeemed", status: .redeemed, expiresAt: now.addingTimeInterval(7200)),
+                Self.credit(id: "nil-a", status: .available, expiresAt: nil),
+                Self.credit(id: "finite-a", status: .available, expiresAt: tiedExpiry),
+            ],
+            availableCount: 99,
+            updatedAt: now)
+
+        let inventory = snapshot.availableInventory(at: now)
+
+        #expect(inventory.count == 4)
+        let expectedFiniteIDs = ["finite-a", "finite-b"]
+            .map(CodexRateLimitResetCredit.stableID(forProviderID:))
+            .sorted()
+        let expectedNoExpiryIDs = ["nil-a", "nil-b"]
+            .map(CodexRateLimitResetCredit.stableID(forProviderID:))
+            .sorted()
+        #expect(inventory.credits.map(\.id) == expectedFiniteIDs + expectedNoExpiryIDs)
+        #expect(inventory.nextExpiringCredit?.id == expectedFiniteIDs.first)
+    }
+
+    @Test
+    func `provider IDs always hash even when shaped like persisted stable IDs`() throws {
+        let canonicalLookingRawID = "codex-reset-credit-v1-" + String(repeating: "a", count: 64)
+        let json = """
+        {
+          "credits": [{
+            "id": "\(canonicalLookingRawID)",
+            "reset_type": "codex_rate_limits",
+            "status": "available",
+            "granted_at": "2026-06-18T00:39:53Z",
+            "expires_at": null
+          }],
+          "available_count": 1
+        }
+        """
+        let now = Date(timeIntervalSince1970: 1_788_134_400)
+
+        let decoded = try CodexOAuthUsageFetcher._decodeRateLimitResetCreditsForTesting(
+            Data(json.utf8),
+            now: now)
+        let decodedID = try #require(decoded.credits.first?.id)
+        let expectedID = CodexRateLimitResetCredit.stableID(forProviderID: canonicalLookingRawID)
+
+        #expect(decodedID == expectedID)
+        #expect(decodedID != canonicalLookingRawID)
+
+        let publicModel = Self.credit(id: canonicalLookingRawID, status: .available, expiresAt: nil)
+        #expect(publicModel.id == expectedID)
+        #expect(publicModel.id != canonicalLookingRawID)
+
+        let encoded = try JSONEncoder().encode(publicModel)
+        let roundTripped = try JSONDecoder().decode(CodexRateLimitResetCredit.self, from: encoded)
+        #expect(roundTripped.id == expectedID)
+
+        let ordinaryFirst = Self.credit(id: "ordinary-provider-id", status: .available, expiresAt: nil)
+        let ordinarySecond = Self.credit(id: "ordinary-provider-id", status: .available, expiresAt: nil)
+        #expect(ordinaryFirst.id == ordinarySecond.id)
+        #expect(ordinaryFirst.id != "ordinary-provider-id")
+    }
+
+    @Test
+    func `reset credit GET preserves transport cancellation`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.httpMethod == "GET")
+            throw URLError(.cancelled)
+        }
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                accessToken: "test-token",
+                accountId: "account-123",
+                env: ["CODEX_HOME": "/tmp/codexbar-reset-credit-cancellation-test"],
+                session: transport)
+        }
+    }
+
+    private static func credit(
+        id: String,
+        status: CodexRateLimitResetCreditStatus,
+        expiresAt: Date?) -> CodexRateLimitResetCredit
+    {
+        CodexRateLimitResetCredit(
+            id: id,
+            resetType: "codex_rate_limits",
+            status: status,
+            grantedAt: Date(timeIntervalSince1970: 1_788_000_000),
+            expiresAt: expiresAt,
+            redeemStartedAt: nil,
+            redeemedAt: nil,
+            title: nil,
+            description: nil)
     }
 }

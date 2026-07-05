@@ -84,6 +84,32 @@ struct CodexOAuthTests {
     }
 
     @Test
+    func `reset-credit token load ignores an API key beside O auth tokens`() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-reset-credit-oauth-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let json = """
+        {
+          "OPENAI_API_KEY": "sk-test",
+          "tokens": {
+            "access_token": "oauth-access-token",
+            "refresh_token": "oauth-refresh-token",
+            "account_id": "account-123"
+          },
+          "last_refresh": "2026-07-01T12:00:00Z"
+        }
+        """
+        try Data(json.utf8).write(to: home.appendingPathComponent("auth.json"))
+
+        let credentials = try CodexOAuthCredentialsStore.loadOAuthTokens(env: ["CODEX_HOME": home.path])
+
+        #expect(credentials.accessToken == "oauth-access-token")
+        #expect(credentials.refreshToken == "oauth-refresh-token")
+        #expect(credentials.accountId == "account-123")
+    }
+
+    @Test
     func `decodes credits balance string`() throws {
         let json = """
         {
@@ -704,56 +730,6 @@ struct CodexOAuthTests {
     }
 
     @Test
-    func `reset credits only O auth payload still returns usage result`() throws {
-        let json = #"{"rate_limit":{"primary_window":null,"secondary_window":null}}"#
-        let now = Date()
-        let resetCredits = CodexRateLimitResetCreditsSnapshot(
-            credits: [],
-            availableCount: 2,
-            updatedAt: now)
-        let creds = CodexOAuthCredentials(
-            accessToken: "access",
-            refreshToken: "refresh",
-            idToken: nil,
-            accountId: nil,
-            lastRefresh: now)
-
-        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
-            Data(json.utf8),
-            credentials: creds,
-            resetCredits: resetCredits)
-
-        #expect(result.usage.primary == nil)
-        #expect(result.usage.secondary == nil)
-        #expect(result.usage.codexResetCredits?.availableCount == 2)
-        #expect(result.credits == nil)
-        #expect(result.sourceLabel == "oauth")
-    }
-
-    @Test
-    func `empty reset credits do not mask missing O auth usage`() {
-        let json = #"{"rate_limit":{"primary_window":null,"secondary_window":null}}"#
-        let now = Date()
-        let resetCredits = CodexRateLimitResetCreditsSnapshot(
-            credits: [],
-            availableCount: 0,
-            updatedAt: now)
-        let creds = CodexOAuthCredentials(
-            accessToken: "access",
-            refreshToken: "refresh",
-            idToken: nil,
-            accountId: nil,
-            lastRefresh: now)
-
-        #expect(throws: UsageError.self) {
-            try CodexOAuthFetchStrategy._mapResultForTesting(
-                Data(json.utf8),
-                credentials: creds,
-                resetCredits: resetCredits)
-        }
-    }
-
-    @Test
     func `auto mode only falls back from O auth on auth failures`() {
         let strategy = CodexOAuthFetchStrategy()
         let context = self.makeContext(sourceMode: .auto)
@@ -775,23 +751,6 @@ struct CodexOAuthTests {
         #expect(!strategy.shouldFallback(
             on: CodexTokenRefresher.RefreshError.networkError(URLError(.timedOut)),
             context: context))
-    }
-
-    @Test
-    func `reset credits fetch follows app runtime and CLI credits flag`() {
-        let appContext = self.makeContext(includeCredits: false, includeOptionalUsage: false)
-        let cliNoCreditsContext = self.makeContext(
-            runtime: .cli,
-            includeCredits: false,
-            includeOptionalUsage: true)
-        let cliCreditsContext = self.makeContext(
-            runtime: .cli,
-            includeCredits: true,
-            includeOptionalUsage: false)
-
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext))
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliNoCreditsContext) == false)
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliCreditsContext))
     }
 
     @Test

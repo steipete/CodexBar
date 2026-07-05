@@ -178,30 +178,22 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             accessToken: credentials.accessToken,
             accountId: credentials.accountId,
             env: context.env)
-        let resetCredits: CodexRateLimitResetCreditsSnapshot? = if Self.shouldFetchResetCredits(context) {
-            try? await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
-                accessToken: credentials.accessToken,
-                accountId: credentials.accountId,
-                env: context.env)
-        } else {
-            nil
-        }
+        let resetCredits = try await Self.fetchResetCreditsIfRequested(
+            context: context,
+            credentials: credentials)
         let updatedAt = Date()
         let oauthResult = try Self.makeResult(
             usageResponse: usage,
             resetCredits: resetCredits,
             credentials: credentials,
-            updatedAt: updatedAt)
+            updatedAt: updatedAt,
+            allowEmptyUsageForResetCreditEnrichment: Self.defersResetCreditFetchToApp(context))
         return try await Self.replacingWithCLIMonthlyLimitIfAvailable(oauthResult, context: context)
     }
 
     private static func shouldFetchResetCredits(_ context: ProviderFetchContext) -> Bool {
-        switch context.runtime {
-        case .app:
-            true
-        case .cli:
-            context.includeCredits
-        }
+        guard case .cli = context.runtime else { return false }
+        return context.includeCredits
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -253,7 +245,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         usageResponse: CodexUsageResponse,
         resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         credentials: CodexOAuthCredentials,
-        updatedAt: Date) throws -> ProviderFetchResult
+        updatedAt: Date,
+        allowEmptyUsageForResetCreditEnrichment: Bool = false) throws -> ProviderFetchResult
     {
         let credits = Self.mapCredits(response: usageResponse, updatedAt: updatedAt)
         let reconciled = CodexReconciledState.fromOAuth(
@@ -274,7 +267,10 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                 sourceLabel: "oauth")
         }
 
-        guard credits != nil || (resetCredits?.availableCount ?? 0) > 0 else {
+        guard credits != nil
+            || (resetCredits?.availableInventory(at: updatedAt).count ?? 0) > 0
+            || allowEmptyUsageForResetCreditEnrichment
+        else {
             throw UsageError.noRateLimitsFound
         }
 
@@ -328,6 +324,43 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             strategyKind: oauthResult.strategyKind)
     }
 
+    private static func fetchResetCreditsIfRequested(
+        context: ProviderFetchContext,
+        credentials: CodexOAuthCredentials) async throws -> CodexRateLimitResetCreditsSnapshot?
+    {
+        try await self.fetchResetCreditsIfRequested(
+            context: context,
+            credentials: credentials,
+            fetcher: { credentials in
+                try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                    accessToken: credentials.accessToken,
+                    accountId: credentials.accountId,
+                    env: context.env)
+            })
+    }
+
+    private static func defersResetCreditFetchToApp(_ context: ProviderFetchContext) -> Bool {
+        if case .app = context.runtime { return true }
+        return false
+    }
+
+    private static func fetchResetCreditsIfRequested(
+        context: ProviderFetchContext,
+        credentials: CodexOAuthCredentials,
+        fetcher: @escaping @Sendable (CodexOAuthCredentials) async throws
+            -> CodexRateLimitResetCreditsSnapshot) async throws -> CodexRateLimitResetCreditsSnapshot?
+    {
+        guard self.shouldFetchResetCredits(context) else { return nil }
+        // The app enriches the winning outcome once in UsageStore. One-shot CLI callers do not
+        // pass through that app layer, so only their explicit credits flag reaches this request.
+        do {
+            return try await fetcher(credentials)
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            return nil
+        }
+    }
+
     private static func identitiesAreCompatible(
         oauth: ProviderIdentitySnapshot?,
         cli: ProviderIdentitySnapshot?) -> Bool
@@ -349,9 +382,29 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         guard let credits = result.credits else { return false }
         return credits.remaining == 0
             && credits.codexCreditLimit == nil
-            && (result.usage.codexResetCredits?.availableCount ?? 0) == 0
+            && (result.usage.codexResetCredits?.availableInventory(at: result.usage.updatedAt).count ?? 0) == 0
     }
 }
+
+#if DEBUG
+extension CodexOAuthFetchStrategy {
+    static func _fetchResetCreditsForTesting(
+        context: ProviderFetchContext,
+        credentials: CodexOAuthCredentials,
+        fetcher: @escaping @Sendable (CodexOAuthCredentials) async throws
+            -> CodexRateLimitResetCreditsSnapshot) async throws -> CodexRateLimitResetCreditsSnapshot?
+    {
+        try await self.fetchResetCreditsIfRequested(
+            context: context,
+            credentials: credentials,
+            fetcher: fetcher)
+    }
+
+    static func _shouldFetchResetCreditsForTesting(_ context: ProviderFetchContext) -> Bool {
+        self.shouldFetchResetCredits(context)
+    }
+}
+#endif
 
 #if DEBUG
 extension CodexOAuthFetchStrategy {
@@ -364,7 +417,8 @@ extension CodexOAuthFetchStrategy {
         _ data: Data,
         credentials: CodexOAuthCredentials,
         resetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
-        sourceMode: ProviderSourceMode = .oauth) throws -> ProviderFetchResult
+        sourceMode: ProviderSourceMode = .oauth,
+        allowEmptyUsageForResetCreditEnrichment: Bool = false) throws -> ProviderFetchResult
     {
         let usageResponse = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
         _ = sourceMode
@@ -372,7 +426,8 @@ extension CodexOAuthFetchStrategy {
             usageResponse: usageResponse,
             resetCredits: resetCredits,
             credentials: credentials,
-            updatedAt: Date())
+            updatedAt: Date(),
+            allowEmptyUsageForResetCreditEnrichment: allowEmptyUsageForResetCreditEnrichment)
     }
 
     static func _replaceWithCLIMonthlyLimitForTesting(
@@ -388,10 +443,6 @@ extension CodexOAuthFetchStrategy {
 
     static func _shouldTryCLIForMonthlyLimitForTesting(_ result: ProviderFetchResult) -> Bool {
         self.shouldTryCLIForMonthlyLimit(result)
-    }
-
-    static func _shouldFetchResetCreditsForTesting(_ context: ProviderFetchContext) -> Bool {
-        self.shouldFetchResetCredits(context)
     }
 }
 

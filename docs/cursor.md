@@ -31,8 +31,11 @@ Cursor is primarily web-backed. Usage is fetched via browser cookies or a stored
 
 4) **Cursor.app local auth** (last fallback)
    - Reads Cursor.app's VS Code-style global state DB for the local app bearer token.
-   - File: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`.
+   - File:
+     - macOS: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+     - Linux: `$XDG_CONFIG_HOME/Cursor/User/globalStorage/state.vscdb` (default `~/.config/Cursor/...`)
    - Used only after cookie/session sources fail so existing account-selection precedence stays stable.
+   - On Linux, this is the primary automatic source because browser import and the WebKit login flow are macOS-only.
    - Derives Cursor's first-party web-session cookie, then uses the same usage and account endpoints as browser sessions.
    - Account identity comes from that authenticated session; cached app profile fields are not mixed across accounts.
 
@@ -53,8 +56,13 @@ Manual option:
 - Chrome/Chromium forks: `~/Library/Application Support/Google/Chrome/*/Cookies`
 - Firefox: `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
 
+## Linux CLI
+- `codexbar usage --provider cursor` reads the signed-in Cursor app's access token from the Linux global state DB and reuses the same `cursor.com` usage endpoints as macOS.
+- Automatic browser cookie import and the in-app WebKit login flow remain macOS-only.
+- Manual cookie headers from `~/.config/codexbar/config.json` (or legacy `~/.codexbar/config.json`) work on Linux.
+
 ## Local storage footprint
-When **Settings → Advanced → Track provider local storage** is enabled, CodexBar measures:
+When **Settings → Advanced → Track provider local storage** is enabled on macOS, CodexBar measures:
 - `~/Library/Application Support/Cursor`
 - `~/Library/Application Support/Caches/cursor-updater`
 - `~/.cursor`

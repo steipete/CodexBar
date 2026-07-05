@@ -65,6 +65,7 @@ struct AdvancedPane: View {
         }
         .formStyle(.grouped)
         .toggleStyle(.switch)
+        .scrollContentBackground(.hidden)
     }
 }
 

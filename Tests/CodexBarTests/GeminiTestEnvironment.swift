@@ -315,7 +315,7 @@ struct GeminiTestEnvironment {
             import sys
 
             child = subprocess.Popen(
-                [sys.executable, "-c", "import time; time.sleep(5)"],
+                [sys.executable, "-c", "import time; time.sleep(30)"],
                 stdin=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,

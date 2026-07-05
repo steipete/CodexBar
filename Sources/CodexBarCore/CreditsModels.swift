@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#else
+import Crypto
+#endif
 
 public struct CreditEvent: Identifiable, Equatable, Codable, Sendable {
     public var id: UUID
@@ -101,19 +106,53 @@ public struct CodexRateLimitResetCreditsSnapshot: Equatable, Codable, Sendable {
     }
 
     public var nextExpiringAvailableCredit: CodexRateLimitResetCredit? {
-        self.credits
+        self.availableInventory(at: self.updatedAt).nextExpiringCredit
+    }
+
+    public func availableInventory(at date: Date) -> CodexRateLimitResetCreditInventory {
+        CodexRateLimitResetCreditInventory(credits: self.credits, at: date)
+    }
+
+    public func availableCredits(at date: Date) -> [CodexRateLimitResetCredit] {
+        self.availableInventory(at: date).credits
+    }
+}
+
+public struct CodexRateLimitResetCreditInventory: Equatable, Sendable {
+    public let credits: [CodexRateLimitResetCredit]
+
+    public var count: Int {
+        self.credits.count
+    }
+
+    public var nextExpiringCredit: CodexRateLimitResetCredit? {
+        self.credits.first { $0.expiresAt != nil }
+    }
+
+    public init(credits: [CodexRateLimitResetCredit], at date: Date) {
+        self.credits = credits
             .filter { credit in
-                credit.status == .available && (credit.expiresAt ?? .distantPast) > self.updatedAt
+                credit.status == .available && (credit.expiresAt.map { $0 > date } ?? true)
             }
-            .min { lhs, rhs in
-                guard let lhsExpiresAt = lhs.expiresAt else { return false }
-                guard let rhsExpiresAt = rhs.expiresAt else { return true }
-                return lhsExpiresAt < rhsExpiresAt
+            .sorted { lhs, rhs in
+                switch (lhs.expiresAt, rhs.expiresAt) {
+                case let (lhsDate?, rhsDate?):
+                    if lhsDate != rhsDate { return lhsDate < rhsDate }
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                case (nil, nil):
+                    break
+                }
+                return lhs.id < rhs.id
             }
     }
 }
 
 public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifiable {
+    private static let stableIDPrefix = "codex-reset-credit-v1-"
+
     public let id: String
     public let resetType: String
     public let status: CodexRateLimitResetCreditStatus
@@ -147,7 +186,7 @@ public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifia
         title: String?,
         description: String?)
     {
-        self.id = id
+        self.id = Self.stableID(forProviderID: id)
         self.resetType = resetType
         self.status = status
         self.grantedAt = grantedAt
@@ -156,6 +195,82 @@ public struct CodexRateLimitResetCredit: Equatable, Codable, Sendable, Identifia
         self.redeemedAt = redeemedAt
         self.title = title
         self.description = description
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedID = try container.decode(String.self, forKey: .id)
+        let resetType = try container.decode(String.self, forKey: .resetType)
+        let status = try container.decode(CodexRateLimitResetCreditStatus.self, forKey: .status)
+        let grantedAt = try container.decode(Date.self, forKey: .grantedAt)
+        let expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+        let redeemStartedAt = try container.decodeIfPresent(Date.self, forKey: .redeemStartedAt)
+        let redeemedAt = try container.decodeIfPresent(Date.self, forKey: .redeemedAt)
+        let title = try container.decodeIfPresent(String.self, forKey: .title)
+        let description = try container.decodeIfPresent(String.self, forKey: .description)
+
+        if Self.isCanonicalStableID(decodedID) {
+            self.init(
+                persistedStableID: decodedID,
+                resetType: resetType,
+                status: status,
+                grantedAt: grantedAt,
+                expiresAt: expiresAt,
+                redeemStartedAt: redeemStartedAt,
+                redeemedAt: redeemedAt,
+                title: title,
+                description: description)
+        } else {
+            self.init(
+                id: decodedID,
+                resetType: resetType,
+                status: status,
+                grantedAt: grantedAt,
+                expiresAt: expiresAt,
+                redeemStartedAt: redeemStartedAt,
+                redeemedAt: redeemedAt,
+                title: title,
+                description: description)
+        }
+    }
+
+    static func stableID(forProviderID providerID: String) -> String {
+        let domainSeparatedValue = "com.steipete.CodexBar.reset-credit-id.v1\0\(providerID)"
+        let digest = SHA256.hash(data: Data(domainSeparatedValue.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return Self.stableIDPrefix + digest
+    }
+
+    private init(
+        persistedStableID: String,
+        resetType: String,
+        status: CodexRateLimitResetCreditStatus,
+        grantedAt: Date,
+        expiresAt: Date?,
+        redeemStartedAt: Date?,
+        redeemedAt: Date?,
+        title: String?,
+        description: String?)
+    {
+        precondition(Self.isCanonicalStableID(persistedStableID))
+        self.id = persistedStableID
+        self.resetType = resetType
+        self.status = status
+        self.grantedAt = grantedAt
+        self.expiresAt = expiresAt
+        self.redeemStartedAt = redeemStartedAt
+        self.redeemedAt = redeemedAt
+        self.title = title
+        self.description = description
+    }
+
+    private static func isCanonicalStableID(_ id: String) -> Bool {
+        guard id.hasPrefix(self.stableIDPrefix) else { return false }
+        let digest = id.dropFirst(Self.stableIDPrefix.count)
+        return digest.utf8.count == 64 && digest.utf8.allSatisfy { byte in
+            (48...57).contains(byte) || (97...102).contains(byte)
+        }
     }
 }
 

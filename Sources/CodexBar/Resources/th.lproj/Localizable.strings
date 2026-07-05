@@ -433,6 +433,7 @@
 "language_swedish" = "สเวนสกา";
 "language_french" = "ฝรั่งเศส";
 "language_ukrainian" = "Українська";
+"language_russian" = "Русский";
 "language_japanese" = "ภาษาญี่ปุ่น";
 "language_korean" = "เกาหลี";
 "language_turkish" = "Türkçe";
@@ -452,6 +453,8 @@
 "cost_history_window_title" = "กรอบเวลาประวัติ";
 "cost_history_window_help" = "กำหนดจำนวนวันของบันทึกการใช้งานในเครื่องที่จะแสดงในเมนู";
 "cost_history_days_title" = "กรอบเวลาประวัติ: %d วัน";
+"cost_comparison_periods_title" = "แสดงช่วงเปรียบเทียบที่สั้นกว่า";
+"cost_comparison_periods_subtitle" = "เพิ่มยอดรวม 7, 30 และ 90 วันเมื่ออยู่ภายในกรอบเวลาประวัติที่เลือก โดยใช้การสแกนในเครื่องเดียวกัน";
 "cost_auto_refresh_info" = "รีเฟรชอัตโนมัติ: รายชั่วโมง · หมดเวลา: 10m";
 "refresh_cadence_title" = "จังหวะการรีเฟรช";
 "refresh_cadence_subtitle" = "ความถี่ในการ CodexBar ผู้ให้บริการโพลในเบื้องหลัง";
@@ -696,6 +699,7 @@
 "refresh_5min" = "5 นาที";
 "refresh_15min" = "15 นาที";
 "refresh_30min" = "30 นาที";
+"refresh_adaptive" = "ปรับอัตโนมัติ";
 
 /* Additional keys */
 "not_found" = "ไม่พบ";
@@ -754,6 +758,7 @@
 "Resets now" = "รีเซ็ตเดี๋ยวนี้";
 "reset_tomorrow_format" = "พรุ่งนี้ %@";
 "Lasts until reset" = "คงอยู่จนกว่าจะรีเซ็ต";
+"1.5× headroom" = "เผื่อ 1.5×";
 "Updated %@" = "อัพเดท %@";
 "Updated relative %@" = "อัพเดท %@";
 "Updated absolute %@" = "อัพเดท %@";
@@ -1153,10 +1158,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "เครดิตรีเซ็ตขีดจำกัด";
 "1 available" = "1 รายการ";
 "%d available" = "%d รายการ";
 "Next expires %@" = "รายการถัดไปหมดอายุ %@";
+"Expires %@" = "หมดอายุ %@";
+"No expiry" = "ไม่มีวันหมดอายุ";
 "byte_unit_byte" = "ไบต์";
 "byte_unit_bytes" = "ไบต์";
 "byte_unit_kilobyte" = "กิโลไบต์";

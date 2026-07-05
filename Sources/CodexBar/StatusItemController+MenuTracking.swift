@@ -347,6 +347,15 @@ extension StatusItemController {
                     parts.append(self.providerIdentitySignature(scopeSnapshot.snapshot?.identity(for: target)))
                 }
             }
+
+            if target == .claude {
+                parts.append(Self.menuIdentityField(self.store.claudeSwapLastError ?? ""))
+                for accountSnapshot in self.store.claudeSwapAccountSnapshots {
+                    parts.append(Self.menuIdentityField(accountSnapshot.id.opaqueID))
+                    parts.append(accountSnapshot.isActive ? "active" : "inactive")
+                    parts.append(self.providerIdentitySignature(accountSnapshot.snapshot?.identity(for: target)))
+                }
+            }
         }
         return parts.joined(separator: "|")
     }

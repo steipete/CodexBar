@@ -16,6 +16,7 @@ struct LocalizationLanguageCatalogTests {
         "language_french",
         "language_dutch",
         "language_ukrainian",
+        "language_russian",
         "language_italian",
         "language_vietnamese",
         "language_japanese",
@@ -26,12 +27,19 @@ struct LocalizationLanguageCatalogTests {
         "language_arabic",
         "language_persian",
         "language_thai",
+        "language_galician",
     ]
 
     @Test
     func `app language catalog includes Ukrainian`() {
         #expect(AppLanguage.allCases.contains(.ukrainian))
         #expect(AppLanguage.ukrainian.rawValue == "uk")
+    }
+
+    @Test
+    func `app language catalog includes Russian`() {
+        #expect(AppLanguage.allCases.contains(.russian))
+        #expect(AppLanguage.russian.rawValue == "ru")
     }
 
     @Test
@@ -72,6 +80,93 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `app language catalog includes Galician`() {
+        #expect(AppLanguage.allCases.contains(.galician))
+        #expect(AppLanguage.galician.rawValue == "gl")
+    }
+
+    @Test
+    func `language picker labels use stable native names`() {
+        let expected: [AppLanguage: String] = [
+            .system: "System",
+            .english: "English",
+            .chineseSimplified: "简体中文",
+            .chineseTraditional: "繁體中文",
+            .japanese: "日本語",
+            .spanish: "Español",
+            .portugueseBrazilian: "Português (Brasil)",
+            .korean: "한국어",
+            .german: "Deutsch",
+            .french: "Français",
+            .arabic: "العربية",
+            .italian: "Italiano",
+            .vietnamese: "Tiếng Việt",
+            .dutch: "Nederlands",
+            .turkish: "Türkçe",
+            .ukrainian: "Українська",
+            .russian: "Русский",
+            .indonesian: "Bahasa Indonesia",
+            .polish: "Polski",
+            .persian: "فارسی",
+            .thai: "ไทย",
+            .galician: "Galego",
+            .catalan: "Català",
+            .swedish: "Svenska",
+        ]
+
+        #expect(expected.count == AppLanguage.allCases.count)
+
+        let japaneseLabels = CodexBarLocalizationOverride.$appLanguage.withValue("ja") {
+            Dictionary(uniqueKeysWithValues: AppLanguage.allCases.map { ($0, $0.label) })
+        }
+        let arabicLabels = CodexBarLocalizationOverride.$appLanguage.withValue("ar") {
+            Dictionary(uniqueKeysWithValues: AppLanguage.allCases.map { ($0, $0.label) })
+        }
+
+        #expect(japaneseLabels == expected)
+        #expect(arabicLabels == expected)
+    }
+
+    @Test
+    func `system language preserves an external Apple Languages override`() {
+        Self.withTemporaryDefaults(for: #function) { defaults, _ in
+            defaults.set(["de"], forKey: "AppleLanguages")
+
+            AppLanguagePreferenceMigration.clearLegacyOverrideIfOwned(
+                storedAppLanguage: "",
+                defaults: defaults)
+
+            #expect(defaults.stringArray(forKey: "AppleLanguages") == ["de"])
+        }
+    }
+
+    @Test
+    func `matching legacy language override is cleared`() {
+        Self.withTemporaryDefaults(for: #function) { defaults, suiteName in
+            defaults.set(["ja"], forKey: "AppleLanguages")
+
+            AppLanguagePreferenceMigration.clearLegacyOverrideIfOwned(
+                storedAppLanguage: "ja",
+                defaults: defaults)
+
+            #expect(defaults.persistentDomain(forName: suiteName)?["AppleLanguages"] == nil)
+        }
+    }
+
+    @Test
+    func `unrelated external language override is preserved`() {
+        Self.withTemporaryDefaults(for: #function) { defaults, _ in
+            defaults.set(["de"], forKey: "AppleLanguages")
+
+            AppLanguagePreferenceMigration.clearLegacyOverrideIfOwned(
+                storedAppLanguage: "ja",
+                defaults: defaults)
+
+            #expect(defaults.stringArray(forKey: "AppleLanguages") == ["de"])
+        }
+    }
+
+    @Test
     func `new language bundles include representative native labels`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -97,6 +192,19 @@ struct LocalizationLanguageCatalogTests {
                 "quit_app": "ออกจาก CodexBar",
                 "usage_percent_suffix_left": "คงเหลือ",
             ],
+            "ru": [
+                "language_russian": "Русский",
+                "tab_general": "Общие",
+                "quit_app": "Выйти из CodexBar",
+                "usage_percent_suffix_left": "осталось",
+            ],
+            "gl": [
+                "language_galician": "Galego",
+                "tab_general": "Xeral",
+                "quit_app": "Saír de CodexBar",
+                "terminal_app_title": "Terminal predeterminado",
+                "terminal_app_subtitle": "Terminal usado pola acción Abrir terminal",
+            ],
         ]
 
         for (locale, expectedValues) in expectations {
@@ -106,6 +214,21 @@ struct LocalizationLanguageCatalogTests {
                 #expect(catalog[key] == expectedValue, "\(locale).\(key)")
             }
         }
+    }
+
+    @Test
+    func `galician localization matches the English catalog`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let englishURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
+        let galicianURL = resourcesURL.appendingPathComponent("gl.lproj/Localizable.strings")
+        let english = try #require(NSDictionary(contentsOf: englishURL) as? [String: String])
+        let galician = try #require(NSDictionary(contentsOf: galicianURL) as? [String: String])
+
+        #expect(Set(galician.keys) == Set(english.keys))
     }
 
     @Test
@@ -152,6 +275,29 @@ struct LocalizationLanguageCatalogTests {
 
             #expect(title?.isEmpty == false, "Missing workday title in \(catalogURL.lastPathComponent)")
             #expect(subtitle?.isEmpty == false, "Missing workday subtitle in \(catalogURL.lastPathComponent)")
+        }
+    }
+
+    @Test
+    func `localized catalogs include default terminal setting copy`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(
+            at: resourcesURL,
+            includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+
+        for catalogURL in catalogs {
+            let stringsURL = catalogURL.appendingPathComponent("Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: stringsURL) as? [String: String])
+            let title = catalog["terminal_app_title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let subtitle = catalog["terminal_app_subtitle"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            #expect(title?.isEmpty == false, "Missing default terminal title in \(catalogURL.lastPathComponent)")
+            #expect(subtitle?.isEmpty == false, "Missing default terminal subtitle in \(catalogURL.lastPathComponent)")
         }
     }
 
@@ -280,8 +426,10 @@ struct LocalizationLanguageCatalogTests {
             "byte_unit_kilobyte",
             "byte_unit_megabyte",
             "language_arabic",
+            "language_galician",
             "language_italian",
             "language_persian",
+            "language_russian",
             "language_thai",
             "link_email",
             "link_github",
@@ -404,5 +552,16 @@ struct LocalizationLanguageCatalogTests {
 
         #expect(rendered.contains("7일간"))
         #expect(rendered.contains("3개 서비스"))
+    }
+
+    private static func withTemporaryDefaults(
+        for testName: String,
+        _ body: (UserDefaults, String) -> Void)
+    {
+        let suiteName = "LocalizationLanguageCatalogTests.\(testName).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        body(defaults, suiteName)
     }
 }

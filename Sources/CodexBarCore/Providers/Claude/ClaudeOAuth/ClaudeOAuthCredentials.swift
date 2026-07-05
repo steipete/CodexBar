@@ -1174,6 +1174,16 @@ public enum ClaudeOAuthCredentialsStore {
 
         switch record.owner {
         case .claudeCLI:
+            if ProviderInteractionContext.current != .userInitiated,
+               ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+                   interaction: ProviderInteractionContext.current,
+                   environment: environment)
+            {
+                self.log.warning(
+                    "Claude OAuth credentials expired; Claude keychain has MCP OAuth state only",
+                    metadata: expiryMetadata)
+                throw ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain
+            }
             self.log.info(
                 "Claude OAuth credentials expired; delegating refresh to Claude CLI",
                 metadata: expiryMetadata)
@@ -1341,10 +1351,26 @@ public enum ClaudeOAuthCredentialsStore {
     public static func matchingClaudeKeychainPersistentRefHashWithoutPrompt(
         for record: ClaudeOAuthCredentialRecord) -> String?
     {
-        guard record.owner == .claudeCLI else { return nil }
-        return self.matchingClaudeKeychainPersistentRefHash(
-            for: record,
-            evidence: self.newestClaudeKeychainCredentialEvidenceWithoutPrompt())
+        self.claudeKeychainCredentialMatchWithoutPrompt(for: record).persistentRefHash
+    }
+
+    static func claudeKeychainCredentialMatchWithoutPrompt(
+        for record: ClaudeOAuthCredentialRecord) -> ClaudeKeychainCredentialMatch
+    {
+        guard record.owner == .claudeCLI else { return .notApplicable }
+        let evidence: ClaudeKeychainCredentialEvidence
+        switch self.newestClaudeKeychainCredentialEvidenceWithoutPrompt() {
+        case .unavailable:
+            return .unavailable
+        case .value(nil):
+            return .absent
+        case let .value(value?):
+            evidence = value
+        }
+        guard evidence.credentials.accessToken == record.credentials.accessToken else {
+            return .mismatch
+        }
+        return .matched(persistentRefHash: evidence.persistentRefHash)
     }
 
     private static func matchingClaudeKeychainPersistentRefHash(
@@ -1360,24 +1386,25 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     private static func newestClaudeKeychainCredentialEvidenceWithoutPrompt()
-        -> ClaudeKeychainCredentialEvidence?
+        -> ClaudeKeychainProbe<ClaudeKeychainCredentialEvidence?>
     {
         #if DEBUG
         if let store = self.taskClaudeKeychainOverrideStore {
+            guard store.data != nil || store.fingerprint != nil else { return .value(nil) }
             return self.makeClaudeKeychainCredentialEvidence(
                 data: store.data,
-                persistentRefHash: store.fingerprint?.persistentRefHash)
+                persistentRefHash: store.fingerprint?.persistentRefHash).map { .value($0) } ?? .unavailable
         }
         let overrideData = self.taskClaudeKeychainDataOverride ?? self.claudeKeychainDataOverride
         let overrideFingerprint = self.taskClaudeKeychainFingerprintOverride ?? self.claudeKeychainFingerprintOverride
         if overrideData != nil || overrideFingerprint != nil {
             return self.makeClaudeKeychainCredentialEvidence(
                 data: overrideData,
-                persistentRefHash: overrideFingerprint?.persistentRefHash)
+                persistentRefHash: overrideFingerprint?.persistentRefHash).map { .value($0) } ?? .unavailable
         }
         if self.taskSecurityCLIReadOverride != nil || self.securityCLIReadOverride != nil {
             // A security(1) result cannot be bound to a persistent reference without an exact candidate read.
-            return nil
+            return .unavailable
         }
         #endif
 
@@ -1386,33 +1413,35 @@ public enum ClaudeOAuthCredentialsStore {
         let newest: ClaudeKeychainCandidate?
         switch self.claudeKeychainCandidatesProbeWithoutPrompt(promptMode: promptMode) {
         case .unavailable:
-            return nil
+            return .unavailable
         case let .value(candidates):
             if let first = candidates.first {
                 newest = first
             } else {
                 switch self.claudeKeychainLegacyCandidateProbeWithoutPrompt(promptMode: promptMode) {
                 case .unavailable:
-                    return nil
+                    return .unavailable
                 case let .value(candidate):
                     newest = candidate
                 }
             }
         }
-        guard let newest,
-              let persistentRefHash = self.sha256Prefix(newest.persistentRef),
+        guard let newest else { return .value(nil) }
+        guard let persistentRefHash = self.sha256Prefix(newest.persistentRef),
               let data = try? self.loadClaudeKeychainData(
                   candidate: newest,
                   allowKeychainPrompt: false,
                   promptMode: promptMode)
         else {
-            return nil
+            return .unavailable
         }
-        return self.makeClaudeKeychainCredentialEvidence(
+        guard let evidence = self.makeClaudeKeychainCredentialEvidence(
             data: data,
             persistentRefHash: persistentRefHash)
+        else { return .unavailable }
+        return .value(evidence)
         #else
-        return nil
+        return .unavailable
         #endif
     }
 
@@ -1625,11 +1654,16 @@ public enum ClaudeOAuthCredentialsStore {
         return "\(modifiedAt):\(fingerprint.size)"
     }
 
-    private static func loadFromClaudeKeychainNonInteractive() throws -> Data? {
+    private static func loadFromClaudeKeychainNonInteractive(
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
+        throws -> Data?
+    {
         #if os(macOS)
-        let fallbackPromptMode = ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode()
+        let fallbackPromptMode = ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode(
+            readStrategy: readStrategy)
         if let data = self.loadFromClaudeKeychainViaSecurityCLIIfEnabled(
-            interaction: ProviderInteractionContext.current)
+            interaction: ProviderInteractionContext.current,
+            readStrategy: readStrategy)
         {
             return data
         }
@@ -1659,6 +1693,38 @@ public enum ClaudeOAuthCredentialsStore {
             promptMode: fallbackPromptMode)
         if let legacyData, !legacyData.isEmpty { return legacyData }
         return nil
+        #else
+        return nil
+        #endif
+    }
+
+    static func readRawClaudeKeychainPayloadViaSecurityFrameworkWithoutPrompt() -> Data? {
+        #if os(macOS)
+        guard self.keychainAccessAllowed else { return nil }
+        #if DEBUG
+        if let store = self.taskClaudeKeychainOverrideStore { return store.data }
+        if let override = self.taskClaudeKeychainDataOverride ?? self.claudeKeychainDataOverride { return override }
+        #endif
+
+        // This probe must work under the default `onlyOnUserAction` policy, but must never show Keychain UI.
+        // The candidate and data queries both use KeychainNoUIQuery; `.always` only bypasses the prompt-policy gate.
+        switch self.claudeKeychainCandidatesProbeWithoutPrompt(
+            promptMode: .always,
+            enforcePromptPolicy: false)
+        {
+        case .unavailable:
+            return nil
+        case let .value(candidates):
+            if let newest = candidates.first {
+                return try? self.loadClaudeKeychainData(
+                    candidate: newest,
+                    allowKeychainPrompt: false,
+                    promptMode: .always)
+            }
+        }
+        return try? self.loadClaudeKeychainLegacyData(
+            allowKeychainPrompt: false,
+            promptMode: .always)
         #else
         return nil
         #endif
@@ -1914,7 +1980,7 @@ public enum ClaudeOAuthCredentialsStore {
 
         var result: AnyObject?
         let startedAtNs = DispatchTime.now().uptimeNanoseconds
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         let durationMs = Double(DispatchTime.now().uptimeNanoseconds - startedAtNs) / 1_000_000.0
         self.log.debug(
             "Claude keychain data read result",
@@ -1976,7 +2042,7 @@ public enum ClaudeOAuthCredentialsStore {
 
         var result: AnyObject?
         let startedAtNs = DispatchTime.now().uptimeNanoseconds
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         let durationMs = Double(DispatchTime.now().uptimeNanoseconds - startedAtNs) / 1_000_000.0
         self.log.debug(
             "Claude keychain legacy data read result",
@@ -2253,6 +2319,15 @@ extension ClaudeOAuthCredentialsStore {
     }
 
     private static func shouldShowClaudeKeychainPreAlert() -> Bool {
+        #if DEBUG
+        // Synthetic Claude Keychain fixtures must not fall through to the real preflight. Tests that explicitly
+        // override the preflight still exercise its prompt-policy branches.
+        if self.hasTaskKeychainTestingOverride,
+           !KeychainAccessPreflight.hasCheckGenericPasswordOverrideForTesting
+        {
+            return false
+        }
+        #endif
         let mode = ClaudeOAuthKeychainPromptPreference.current()
         guard self.shouldAllowClaudeCodeKeychainAccess(mode: mode) else { return false }
         return switch KeychainAccessPreflight.checkGenericPassword(service: self.claudeKeychainService, account: nil) {

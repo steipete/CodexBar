@@ -437,6 +437,7 @@
 "language_german" = "Deutsch";
 "language_french" = "法語";
 "language_ukrainian" = "烏克蘭語";
+"language_russian" = "Русский";
 "language_japanese" = "日語";
 "language_korean" = "韓語";
 "language_italian" = "Italiano";
@@ -456,6 +457,8 @@
 "cost_history_window_help" = "設定選單中顯示多少天的本機使用記錄。";
 "cost_history_days_title" = "歷史時段：%d 天";
 "cost_auto_refresh_info" = "自動重新整理：每小時 · 逾時：10 分鐘";
+"cost_comparison_periods_title" = "顯示較短的比較期間";
+"cost_comparison_periods_subtitle" = "當 7 天、30 天和 90 天落在所選歷史時段內時，加入相應總計。這些總計會重複使用同一次本機掃描。";
 "refresh_cadence_title" = "重新整理頻率";
 "refresh_cadence_subtitle" = "CodexBar 在背景輪詢提供者的頻率。";
 "manual_refresh_hint" = "自動重新整理已關閉；請使用選單中的「重新整理」指令。";
@@ -570,6 +573,7 @@
 "no_writable_bin_dirs" = "找不到可寫的 bin 目錄。";
 "show_debug_settings_title" = "顯示除錯設定";
 "show_debug_settings_subtitle" = "在「除錯」標籤中顯示疑難排解工具。";
+"1.5× headroom" = "1.5 倍餘裕";
 "surprise_me_title" = "給我驚喜";
 "surprise_me_subtitle" = "讓選單列上的 Agent 多一點變化。";
 "session_limit_confetti_title" = "工作階段限制彩帶";
@@ -678,6 +682,7 @@
 "refresh_5min" = "5 分鐘";
 "refresh_15min" = "15 分鐘";
 "refresh_30min" = "30 分鐘";
+"refresh_adaptive" = "自適應";
 "not_found" = "找不到";
 "CodexBar can't show its menu bar icon" = "CodexBar 無法顯示選單列圖示";
 "Dismiss" = "關閉";
@@ -1015,10 +1020,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "限額重設額度";
 "1 available" = "1 次可用";
 "%d available" = "%d 次可用";
 "Next expires %@" = "下一個將於 %@ 到期";
+"Expires %@" = "%@ 到期";
+"No expiry" = "永不過期";
 "Other (%d items)" = "其他（%d 個項目）";
 "Expand" = "展開";
 "Collapse" = "收合";

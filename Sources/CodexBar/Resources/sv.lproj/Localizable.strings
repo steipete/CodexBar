@@ -309,6 +309,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
 "System" = "System";
 "Temporarily shows the loading animation after the next refresh." = "Visar tillfälligt laddningsanimationen efter nästa uppdatering.";
+"terminal_app_subtitle" = "Terminal som används av åtgärden Öppna Terminal";
+"terminal_app_title" = "Standardterminal";
 "Tertiary (\\(label))" = "Tertiär (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiär (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Standardkontot för Codex på den här Macen.";
@@ -408,6 +410,7 @@
 "language_swedish" = "Svenska";
 "language_french" = "Franska";
 "language_ukrainian" = "Ukrainska";
+"language_russian" = "Русский";
 "language_japanese" = "Japanska";
 "language_korean" = "Koreanska";
 "language_turkish" = "Türkçe";
@@ -429,6 +432,8 @@
 "cost_history_window_help" = "Anger hur många dagar med lokala användningsloggar som visas i menyn.";
 "cost_history_days_title" = "Historikfönster: %d dagar";
 "cost_auto_refresh_info" = "Automatisk uppdatering: varje timme · Timeout: 10 min";
+"cost_comparison_periods_title" = "Visa kortare jämförelseperioder";
+"cost_comparison_periods_subtitle" = "Lägger till summor för 7, 30 och 90 dagar när de ryms i det valda historikfönstret. Summorna återanvänder samma lokala genomsökning.";
 "refresh_cadence_title" = "Uppdateringsintervall";
 "refresh_cadence_subtitle" = "Hur ofta CodexBar kontrollerar leverantörer i bakgrunden.";
 "manual_refresh_hint" = "Automatisk uppdatering är avstängd. Använd Uppdatera i menyn.";
@@ -671,6 +676,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptiv";
 
 /* Additional keys */
 "not_found" = "Hittades inte";
@@ -729,6 +735,7 @@
 "Resets now" = "Återställs nu";
 "reset_tomorrow_format" = "imorgon %@";
 "Lasts until reset" = "Räcker till återställning";
+"1.5× headroom" = "1,5× marginal";
 "Updated %@" = "Uppdaterad %@";
 "Updated relative %@" = "Uppdaterad %@";
 "Updated absolute %@" = "Uppdaterad %@";
@@ -1111,10 +1118,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Krediter för gränsåterställning";
 "1 available" = "1 tillgänglig";
 "%d available" = "%d tillgängliga";
 "Next expires %@" = "Nästa upphör %@";
+"Expires %@" = "Upphör %@";
+"No expiry" = "Inget utgångsdatum";
 "Other (%d items)" = "Övrigt (%d objekt)";
 "Expand" = "Expandera";
 "Collapse" = "Fäll ihop";

@@ -309,6 +309,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Crear un enlace simbólico de CodexBarCLI en /usr/local/bin y /opt/homebrew/bin como codexbar.";
 "System" = "Sistema";
 "Temporarily shows the loading animation after the next refresh." = "Muestra temporalmente la animación de carga tras la próxima actualización.";
+"terminal_app_subtitle" = "Terminal usado por la acción Abrir Terminal";
+"terminal_app_title" = "Terminal predeterminado";
 "Tertiary (\\(label))" = "Terciario (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Terciario (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "La cuenta de Codex predeterminada en este Mac.";
@@ -411,6 +413,7 @@
 "language_german" = "Deutsch";
 "language_french" = "Francés";
 "language_ukrainian" = "Ucraniano";
+"language_russian" = "Русский";
 "language_japanese" = "Japonés";
 "language_korean" = "Coreano";
 "language_italian" = "Italiano";
@@ -430,6 +433,8 @@
 "cost_history_window_help" = "Define cuántos días de registros de uso locales aparecen en el menú.";
 "cost_history_days_title" = "Ventana de historial: %d días";
 "cost_auto_refresh_info" = "Actualización automática: cada hora · Tiempo de espera: 10 m";
+"cost_comparison_periods_title" = "Mostrar períodos de comparación más cortos";
+"cost_comparison_periods_subtitle" = "Añade totales de 7, 30 y 90 días cuando quepan en el intervalo de historial seleccionado. Estos totales reutilizan el mismo análisis local.";
 "refresh_cadence_title" = "Frecuencia de actualización";
 "refresh_cadence_subtitle" = "Con qué frecuencia CodexBar consulta a los proveedores en segundo plano.";
 "manual_refresh_hint" = "La actualización automática está desactivada; usa el comando Actualizar del menú.";
@@ -543,6 +548,7 @@
 "no_writable_bin_dirs" = "No se encontraron directorios bin con permiso de escritura.";
 "show_debug_settings_title" = "Mostrar ajustes de depuración";
 "show_debug_settings_subtitle" = "Muestra herramientas de diagnóstico en la pestaña Depuración.";
+"1.5× headroom" = "margen de 1,5×";
 "surprise_me_title" = "Sorpréndeme";
 "surprise_me_subtitle" = "Actívalo si te gusta que tus agentes se diviertan ahí arriba.";
 "session_limit_confetti_title" = "Confeti del límite de sesión";
@@ -664,6 +670,7 @@
 "refresh_5min" = "5 min";
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
+"refresh_adaptive" = "Adaptativo";
 
 /* Additional keys */
 "not_found" = "No encontrado";
@@ -972,10 +979,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Créditos para restablecer límites";
 "1 available" = "1 disponible";
 "%d available" = "%d disponibles";
 "Next expires %@" = "El siguiente caduca %@";
+"Expires %@" = "Caduca %@";
+"No expiry" = "Sin caducidad";
 "Other (%d items)" = "Otros (%d elementos)";
 "Expand" = "Expandir";
 "Collapse" = "Contraer";

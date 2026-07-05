@@ -308,6 +308,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "CodexBarCLI を codexbar として /usr/local/bin と /opt/homebrew/bin にシンボリックリンクします。";
 "System" = "システム";
 "Temporarily shows the loading animation after the next refresh." = "次回の更新後に読み込みアニメーションを一時的に表示します。";
+"terminal_app_subtitle" = "「ターミナルを開く」アクションで使用するターミナル";
+"terminal_app_title" = "デフォルトのターミナル";
 "Tertiary (\\(label))" = "第3（\\(label)）";
 "Tertiary (\\(tertiaryTitle))" = "第3（\\(tertiaryTitle)）";
 "The default Codex account on this Mac." = "この Mac のデフォルトの Codex アカウントです。";
@@ -407,6 +409,7 @@
 "language_french" = "フランス語";
 "language_german" = "ドイツ語";
 "language_ukrainian" = "ウクライナ語";
+"language_russian" = "Русский";
 "language_japanese" = "日本語";
 "language_korean" = "韓国語";
 "language_italian" = "イタリア語";
@@ -426,6 +429,8 @@
 "cost_history_window_help" = "メニューに表示するローカル使用ログの日数を設定します。";
 "cost_history_days_title" = "履歴期間: %d 日";
 "cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
+"cost_comparison_periods_title" = "短い比較期間を表示";
+"cost_comparison_periods_subtitle" = "選択した履歴期間に収まる場合、7日、30日、90日の合計を追加します。これらの合計には同じローカルスキャンを再利用します。";
 "refresh_cadence_title" = "更新間隔";
 "refresh_cadence_subtitle" = "CodexBar がバックグラウンドでプロバイダをポーリングする頻度です。";
 "manual_refresh_hint" = "自動更新はオフです。メニューの「更新」コマンドを使用してください。";
@@ -669,6 +674,7 @@
 "refresh_5min" = "5分";
 "refresh_15min" = "15分";
 "refresh_30min" = "30分";
+"refresh_adaptive" = "アダプティブ";
 
 /* Additional keys */
 "not_found" = "見つかりません";
@@ -727,6 +733,7 @@
 "Resets now" = "まもなくリセット";
 "reset_tomorrow_format" = "明日 %@";
 "Lasts until reset" = "リセットまで持続";
+"1.5× headroom" = "1.5倍の余裕";
 "Updated %@" = "%@ に更新";
 "Updated relative %@" = "%@ に更新";
 "Updated absolute %@" = "%@ に更新";
@@ -1113,10 +1120,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "上限リセットクレジット";
 "1 available" = "1件利用可能";
 "%d available" = "%d件利用可能";
 "Next expires %@" = "次回の有効期限：%@";
+"Expires %@" = "%@ に期限切れ";
+"No expiry" = "有効期限なし";
 "Other (%d items)" = "その他（%d項目）";
 "Expand" = "展開";
 "Collapse" = "折りたたむ";

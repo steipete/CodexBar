@@ -156,6 +156,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
     public let totalCachedTokens: Int
     public let modelCount: Int
     public let daily: [MistralDailyUsageBucket]
+    public let credits: MistralCreditsSnapshot?
     public let startDate: Date?
     public let endDate: Date?
     public let updatedAt: Date
@@ -169,6 +170,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         totalCachedTokens: Int,
         modelCount: Int,
         daily: [MistralDailyUsageBucket] = [],
+        credits: MistralCreditsSnapshot? = nil,
         startDate: Date?,
         endDate: Date?,
         updatedAt: Date)
@@ -181,9 +183,26 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         self.totalCachedTokens = totalCachedTokens
         self.modelCount = modelCount
         self.daily = daily.sorted { $0.day < $1.day }
+        self.credits = credits
         self.startDate = startDate
         self.endDate = endDate
         self.updatedAt = updatedAt
+    }
+
+    public func with(credits: MistralCreditsSnapshot?) -> MistralUsageSnapshot {
+        MistralUsageSnapshot(
+            totalCost: self.totalCost,
+            currency: self.currency,
+            currencySymbol: self.currencySymbol,
+            totalInputTokens: self.totalInputTokens,
+            totalOutputTokens: self.totalOutputTokens,
+            totalCachedTokens: self.totalCachedTokens,
+            modelCount: self.modelCount,
+            daily: self.daily,
+            credits: credits,
+            startDate: self.startDate,
+            endDate: self.endDate,
+            updatedAt: self.updatedAt)
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -246,5 +265,33 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             historyLabel: "This month",
             daily: entries,
             updatedAt: self.updatedAt)
+    }
+}
+
+public struct MistralCreditsSnapshot: Codable, Equatable, Sendable {
+    public let walletAmount: Double
+    public let creditNotesAmount: Double
+    public let ongoingUsageBalance: Double
+    public let currency: String
+
+    public init(
+        walletAmount: Double,
+        creditNotesAmount: Double,
+        ongoingUsageBalance: Double,
+        currency: String)
+    {
+        self.walletAmount = walletAmount
+        self.creditNotesAmount = creditNotesAmount
+        self.ongoingUsageBalance = ongoingUsageBalance
+        self.currency = currency
+    }
+
+    public var availableAmount: Double {
+        let amount = self.walletAmount + self.creditNotesAmount - self.ongoingUsageBalance
+        return amount.isFinite ? max(0, amount) : 0
+    }
+
+    public var formattedAvailableAmount: String {
+        UsageFormatter.currencyString(self.availableAmount, currencyCode: self.currency)
     }
 }

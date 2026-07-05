@@ -183,6 +183,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
     }
 }
 
@@ -333,8 +334,9 @@ struct ProviderMetricsInlineView: View {
         let hasCredits = self.model.creditsText != nil
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
+        let hasResetCredits = self.model.codexResetCredits != nil
 
-        if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage {
+        if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage, !hasResetCredits {
             Text(self.placeholderText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -360,6 +362,10 @@ struct ProviderMetricsInlineView: View {
 
             if let credits = self.model.creditsText {
                 ProviderDetailInfoRow(label: L("Credits"), value: credits)
+            }
+
+            if let resetCredits = self.model.codexResetCredits {
+                ProviderCodexResetCreditsInlineRow(presentation: resetCredits)
             }
 
             if let providerCost = self.model.providerCost {
@@ -419,7 +425,8 @@ private struct ProviderMetricInlineRow: View {
                     accessibilityLabel: self.metric.percentStyle.accessibilityLabel,
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
-                    warningMarkerPercents: self.metric.warningMarkerPercents)
+                    warningMarkerPercents: self.metric.warningMarkerPercents,
+                    workdayMarkerPercents: self.metric.workdayMarkerPercents)
                     .frame(maxWidth: .infinity)
 
                 let hasLeftDetail = self.metric.detailLeftText?.isEmpty == false
@@ -460,6 +467,37 @@ private struct ProviderMetricInlineRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct ProviderCodexResetCreditsInlineRow: View {
+    let presentation: CodexResetCreditsPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(L("Limit Reset Credits"))
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                Text(self.presentation.text)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Image(systemName: "clock")
+                    .font(.caption2)
+                Text(self.presentation.expirySummaryText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityHidden(true)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(self.presentation.accessibilityLabel)
     }
 }
 

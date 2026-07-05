@@ -381,7 +381,10 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             strategyID: self.id,
             strategyKind: self.kind,
             claudeOAuthKeychainPersistentRefHash: usage.oauthKeychainPersistentRefHash,
-            claudeOAuthHistoryOwnerIdentifier: usage.oauthHistoryOwnerIdentifier)
+            claudeOAuthHistoryOwnerIdentifier: usage.oauthHistoryOwnerIdentifier,
+            claudeOAuthKeychainCredentialMismatch: usage.oauthKeychainCredentialMismatch,
+            claudeOAuthKeychainCredentialAbsent: usage.oauthKeychainCredentialAbsent,
+            claudeOAuthKeychainCredentialUnavailable: usage.oauthKeychainCredentialUnavailable)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {

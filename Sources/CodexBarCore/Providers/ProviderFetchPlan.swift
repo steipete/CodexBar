@@ -107,6 +107,12 @@ public struct ProviderFetchResult: Sendable {
     /// A one-way discriminator derived from the winning Claude OAuth credential.
     /// Raw access and refresh tokens never enter the fetch result or persisted history.
     public let claudeOAuthHistoryOwnerIdentifier: String?
+    /// Whether a prompt-free comparison proved the winning credential differs from Claude Code's Keychain entry.
+    public let claudeOAuthKeychainCredentialMismatch: Bool
+    /// Whether a prompt-free probe proved Claude Code has no Keychain credential.
+    public let claudeOAuthKeychainCredentialAbsent: Bool
+    /// Whether the winning Claude CLI credential could not be compared with Keychain without prompting.
+    public let claudeOAuthKeychainCredentialUnavailable: Bool
 
     public init(
         usage: UsageSnapshot,
@@ -116,7 +122,10 @@ public struct ProviderFetchResult: Sendable {
         strategyID: String,
         strategyKind: ProviderFetchKind,
         claudeOAuthKeychainPersistentRefHash: String? = nil,
-        claudeOAuthHistoryOwnerIdentifier: String? = nil)
+        claudeOAuthHistoryOwnerIdentifier: String? = nil,
+        claudeOAuthKeychainCredentialMismatch: Bool = false,
+        claudeOAuthKeychainCredentialAbsent: Bool = false,
+        claudeOAuthKeychainCredentialUnavailable: Bool = false)
     {
         self.usage = usage
         self.credits = credits
@@ -126,6 +135,9 @@ public struct ProviderFetchResult: Sendable {
         self.strategyKind = strategyKind
         self.claudeOAuthKeychainPersistentRefHash = claudeOAuthKeychainPersistentRefHash
         self.claudeOAuthHistoryOwnerIdentifier = claudeOAuthHistoryOwnerIdentifier
+        self.claudeOAuthKeychainCredentialMismatch = claudeOAuthKeychainCredentialMismatch
+        self.claudeOAuthKeychainCredentialAbsent = claudeOAuthKeychainCredentialAbsent
+        self.claudeOAuthKeychainCredentialUnavailable = claudeOAuthKeychainCredentialUnavailable
     }
 }
 

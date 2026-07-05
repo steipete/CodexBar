@@ -4,6 +4,12 @@ import SwiftUI
 
 @MainActor
 struct UsageBreakdownChartMenuView: View {
+    enum PresentationState: Equatable {
+        case empty
+        case totalsOnly
+        case chart
+    }
+
     private struct Point: Identifiable {
         let id: String
         let date: Date
@@ -19,23 +25,49 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private let breakdown: [OpenAIDashboardDailyBreakdown]
+    private let now: Date
+    private let calendar: Calendar
     private let width: CGFloat
     @State private var selectedDayKey: String?
 
-    init(breakdown: [OpenAIDashboardDailyBreakdown], width: CGFloat) {
+    init(
+        breakdown: [OpenAIDashboardDailyBreakdown],
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        width: CGFloat)
+    {
         self.breakdown = breakdown
+        self.now = now
+        self.calendar = calendar
         self.width = width
     }
 
     var body: some View {
-        let model = Self.makeModel(from: self.breakdown)
+        let summary = OpenAIDashboardDailyBreakdown.recentUsageSummary(
+            from: self.breakdown,
+            now: self.now,
+            calendar: self.calendar)
+        let model = Self.makeModel(from: summary.daily)
+        let presentationState = Self.presentationState(
+            hasSummary: !summary.daily.isEmpty,
+            hasChartPoints: !model.points.isEmpty)
         VStack(alignment: .leading, spacing: 10) {
-            if model.points.isEmpty {
+            if presentationState != .empty {
+                HStack(alignment: .firstTextBaseline) {
+                    self.summaryMetric(title: L("Today"), credits: summary.todayCredits)
+                    Spacer(minLength: 12)
+                    self.summaryMetric(
+                        title: String(format: L("Last %d days"), summary.historyDays),
+                        credits: summary.totalCredits)
+                }
+            }
+
+            if presentationState == .empty {
                 Text(L("No usage breakdown data."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(L("No usage breakdown data available."))
-            } else {
+            } else if presentationState == .chart {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
@@ -55,12 +87,16 @@ struct UsageBreakdownChartMenuView: View {
                 .chartForegroundStyleScale(domain: model.services, range: model.serviceColors)
                 .chartYAxis(.hidden)
                 .chartXAxis {
-                    AxisMarks(values: model.axisDates) { _ in
+                    AxisMarks(values: model.axisDates) { value in
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                        if let date = value.as(Date.self) {
+                            AxisValueLabel(anchor: Self.xAxisLabelAnchor(for: date, axisDates: model.axisDates)) {
+                                Text(date, format: .dateTime.month(.abbreviated).day())
+                                    .font(.caption2)
+                                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            }
+                        }
                     }
                 }
                 .chartLegend(.hidden)
@@ -133,6 +169,12 @@ struct UsageBreakdownChartMenuView: View {
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .leading)
     }
 
+    static func presentationState(hasSummary: Bool, hasChartPoints: Bool) -> PresentationState {
+        if hasChartPoints { return .chart }
+        if hasSummary { return .totalsOnly }
+        return .empty
+    }
+
     private struct Model {
         let points: [Point]
         let breakdownByDayKey: [String: OpenAIDashboardDailyBreakdown]
@@ -153,6 +195,25 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
+
+    private func summaryMetric(title: String, credits: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(Self.creditsString(credits))
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private static func creditsString(_ credits: Double?) -> String {
+        guard let credits, credits.isFinite else { return "—" }
+        let value = credits.formatted(.number.precision(.fractionLength(0...2)))
+        return "\(value) \(L("credits"))"
+    }
 
     private static func makeModel(from breakdown: [OpenAIDashboardDailyBreakdown]) -> Model {
         let sorted = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: breakdown)
@@ -260,6 +321,16 @@ struct UsageBreakdownChartMenuView: View {
             return [firstDate]
         }
         return [firstDate, lastDate]
+    }
+
+    private static func xAxisLabelAnchor(for date: Date, axisDates: [Date]) -> UnitPoint {
+        if let first = axisDates.first, Calendar.current.isDate(date, inSameDayAs: first) {
+            return .topLeading
+        }
+        if let last = axisDates.last, Calendar.current.isDate(date, inSameDayAs: last) {
+            return .topTrailing
+        }
+        return .top
     }
 
     private static func dateFromDayKey(_ key: String) -> Date? {

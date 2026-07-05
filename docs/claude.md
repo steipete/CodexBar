@@ -65,6 +65,7 @@ Admin API key setup:
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
   - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
+- On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Endpoint:
   - `GET https://api.anthropic.com/api/oauth/usage`
@@ -110,6 +111,26 @@ Admin API key setup:
   - Daily Routines extra window when returned by the usage API.
   - Extra usage spend/limit (if enabled).
   - Account email + inferred plan.
+
+## claude-swap accounts (opt-in, read-only)
+
+Phase 1 of the accepted multi-account design in
+[claude-multi-account-and-status-items.md](claude-multi-account-and-status-items.md).
+
+- Setup: Preferences → Providers → Claude → "Read accounts from claude-swap", then set the path to the
+  [`cswap`](https://github.com/realiti4/claude-swap) executable (for example `~/.local/bin/cswap`).
+- Behavior: on each Claude refresh, CodexBar runs `cswap --list --json` independently of the ambient Claude fetch (no
+  shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
+  active state, usage status, email (display only), and the 5-hour/7-day windows.
+- Display: when claude-swap reports more than one account, the Claude menu shows one stacked card per
+  account (active account first) alongside nothing else changing; with zero or one account the menu is
+  unchanged. Account identity is `claude-swap:<slot>`.
+- Isolation: CodexBar never reads claude-swap or Claude Code credential storage for this feature; the
+  subprocess handles its own credential access. Adapter failures keep the last successful accounts as
+  stale data, surface the error in provider settings, and never affect the ambient Claude usage card.
+- Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
+  `unavailable`) render as per-account notes instead of usage bars.
+- Account switching is intentionally out of scope; use `cswap` directly to switch accounts.
 
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).

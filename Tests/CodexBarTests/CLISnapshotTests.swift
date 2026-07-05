@@ -94,7 +94,8 @@ struct CLISnapshotTests {
 
     @Test
     func `renders Codex limit reset credits`() {
-        let expiresAt = Date().addingTimeInterval(7200)
+        let now = Date()
+        let expiresAt = now.addingTimeInterval(7200)
         let resetCredits = CodexRateLimitResetCreditsSnapshot(
             credits: [
                 CodexRateLimitResetCredit(
@@ -107,8 +108,18 @@ struct CLISnapshotTests {
                     redeemedAt: nil,
                     title: nil,
                     description: nil),
+                CodexRateLimitResetCredit(
+                    id: "expired-credit",
+                    resetType: "codex_rate_limits",
+                    status: .available,
+                    grantedAt: Date(timeIntervalSince1970: 0),
+                    expiresAt: now,
+                    redeemStartedAt: nil,
+                    redeemedAt: nil,
+                    title: nil,
+                    description: nil),
             ],
-            availableCount: 1,
+            availableCount: 99,
             updatedAt: Date(timeIntervalSince1970: 0))
         let snapshot = UsageSnapshot(
             primary: .init(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -526,6 +537,7 @@ struct CLISnapshotTests {
 
         #expect(output.contains("Weekly: 77% left"))
         #expect(output.contains("Pace: 6% in reserve | Expected 29% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
     }
 
     @Test
@@ -581,7 +593,7 @@ struct CLISnapshotTests {
 
         #expect(output.contains("Session: 80% left"))
         // 2h remaining of a 5h window => 3h elapsed => 60% expected; even rate easily lasts to reset.
-        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset | 1.5× headroom"))
     }
 
     @Test
@@ -609,7 +621,8 @@ struct CLISnapshotTests {
             now: now)
 
         // windowMinutes is nil, so the 5-hour (300 minute) session default must drive the pace.
-        #expect(output.contains("Pace: 40% in reserve | Expected 60% used"))
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
     }
 
     @Test
@@ -1089,5 +1102,32 @@ struct CLISnapshotTests {
         #expect(output.contains("5-hour:"))
         #expect(output.contains("Tokens:"))
         #expect(output.contains("MCP:"))
+    }
+
+    @Test
+    func `devin overage balance without primary window omits generic cost line`() {
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: Date(timeIntervalSince1970: 0)),
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CLIRenderer.renderText(
+            provider: .devin,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Devin (devin)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+        #expect(output.contains("Extra usage: $48.00"))
+        #expect(!output.contains("Cost:"))
+        #expect(!output.contains(" / 0.0"))
     }
 }

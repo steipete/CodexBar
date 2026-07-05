@@ -184,7 +184,9 @@ public struct UsageSnapshot: Codable, Sendable {
     public let deepseekUsage: DeepSeekUsageSummary?
     public let mimoUsage: MiMoUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
+    public let sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot?
     public let crossModelUsage: CrossModelUsageSnapshot?
+    public let clawRouterUsage: ClawRouterUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
     public let claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot?
@@ -214,7 +216,9 @@ public struct UsageSnapshot: Codable, Sendable {
         case ampUsage
         case mimoUsage
         case openRouterUsage
+        case sakanaPayAsYouGo
         case crossModelUsage
+        case clawRouterUsage
         case openAIAPIUsage
         case codexResetCredits
         case claudeAdminAPIUsage
@@ -244,7 +248,9 @@ public struct UsageSnapshot: Codable, Sendable {
         deepseekUsage: DeepSeekUsageSummary? = nil,
         mimoUsage: MiMoUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
+        sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot? = nil,
         crossModelUsage: CrossModelUsageSnapshot? = nil,
+        clawRouterUsage: ClawRouterUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot? = nil,
@@ -273,7 +279,9 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepseekUsage = deepseekUsage
         self.mimoUsage = mimoUsage
         self.openRouterUsage = openRouterUsage
+        self.sakanaPayAsYouGo = sakanaPayAsYouGo
         self.crossModelUsage = crossModelUsage
+        self.clawRouterUsage = clawRouterUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
         self.claudeAdminAPIUsage = claudeAdminAPIUsage
@@ -319,7 +327,11 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepseekUsage = nil // Not persisted, fetched fresh each time
         self.mimoUsage = try container.decodeIfPresent(MiMoUsageSnapshot.self, forKey: .mimoUsage)
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
+        self.sakanaPayAsYouGo = try container.decodeIfPresent(
+            SakanaPayAsYouGoSnapshot.self,
+            forKey: .sakanaPayAsYouGo)
         self.crossModelUsage = try container.decodeIfPresent(CrossModelUsageSnapshot.self, forKey: .crossModelUsage)
+        self.clawRouterUsage = try container.decodeIfPresent(ClawRouterUsageSnapshot.self, forKey: .clawRouterUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
@@ -372,7 +384,9 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.ampUsage, forKey: .ampUsage)
         try container.encodeIfPresent(self.mimoUsage, forKey: .mimoUsage)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
+        try container.encodeIfPresent(self.sakanaPayAsYouGo, forKey: .sakanaPayAsYouGo)
         try container.encodeIfPresent(self.crossModelUsage, forKey: .crossModelUsage)
+        try container.encodeIfPresent(self.clawRouterUsage, forKey: .clawRouterUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -551,7 +565,9 @@ public struct UsageSnapshot: Codable, Sendable {
             deepseekUsage: self.deepseekUsage,
             mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
+            sakanaPayAsYouGo: self.sakanaPayAsYouGo,
             crossModelUsage: self.crossModelUsage,
+            clawRouterUsage: self.clawRouterUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,

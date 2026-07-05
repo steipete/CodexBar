@@ -696,7 +696,15 @@ struct AntigravityCLISessionTests {
             handle.closePTY()
         }
 
-        for _ in 0..<200 where !FileManager.default.fileExists(atPath: outputURL.path) {
+        for _ in 0..<200 {
+            if FileManager.default.fileExists(atPath: outputURL.path),
+               let output = try? String(contentsOf: outputURL, encoding: .utf8)
+            {
+                let lines = output
+                    .split(separator: "\n")
+                    .map(String.init)
+                if lines.count >= 2, output.hasSuffix("\n") { break }
+            }
             Thread.sleep(forTimeInterval: 0.01)
         }
         let lines = try String(contentsOf: outputURL, encoding: .utf8)

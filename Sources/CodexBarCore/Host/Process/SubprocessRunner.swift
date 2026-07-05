@@ -155,6 +155,7 @@ public enum SubprocessRunner {
         timeout: TimeInterval,
         standardInput: Any? = nil,
         currentDirectoryURL: URL? = nil,
+        acceptsNonZeroExit: Bool = false,
         label: String) async throws -> SubprocessResult
     {
         guard FileManager.default.isExecutableFile(atPath: binary) else {
@@ -249,7 +250,7 @@ public enum SubprocessRunner {
             let stdout = await ProcessPipeCapture.decodeUTF8(stdoutData)
             let stderr = await ProcessPipeCapture.decodeUTF8(stderrData)
 
-            if exitCode != 0 {
+            if exitCode != 0, !acceptsNonZeroExit {
                 let duration = Date().timeIntervalSince(start)
                 self.log.warning(
                     "Subprocess failed",

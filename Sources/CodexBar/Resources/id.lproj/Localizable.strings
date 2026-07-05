@@ -433,6 +433,7 @@
 "language_swedish" = "Svenska";
 "language_french" = "Français";
 "language_ukrainian" = "Українська";
+"language_russian" = "Русский";
 "language_japanese" = "日本語";
 "language_korean" = "한국어";
 "language_turkish" = "Türkçe";
@@ -454,6 +455,8 @@
 "cost_history_window_title" = "Jendela riwayat";
 "cost_history_window_help" = "Menentukan berapa hari log penggunaan lokal yang ditampilkan di menu.";
 "cost_history_days_title" = "Jendela riwayat: %d hari";
+"cost_comparison_periods_title" = "Tampilkan periode perbandingan yang lebih singkat";
+"cost_comparison_periods_subtitle" = "Tambahkan total 7, 30, dan 90 hari jika termasuk dalam rentang riwayat yang dipilih. Total ini menggunakan kembali pemindaian lokal yang sama.";
 "cost_auto_refresh_info" = "Penyegaran otomatis: per jam · Batas waktu: 10m";
 "refresh_cadence_title" = "Frekuensi penyegaran";
 "refresh_cadence_subtitle" = "Seberapa sering CodexBar memeriksa penyedia di latar belakang.";
@@ -698,6 +701,7 @@
 "refresh_5min" = "5 mnt";
 "refresh_15min" = "15 mnt";
 "refresh_30min" = "30 mnt";
+"refresh_adaptive" = "Adaptif";
 
 /* Additional keys */
 "not_found" = "Tidak ditemukan";
@@ -756,6 +760,7 @@
 "Resets now" = "Reset sekarang";
 "reset_tomorrow_format" = "besok, %@";
 "Lasts until reset" = "Bertahan hingga reset";
+"1.5× headroom" = "ruang 1,5×";
 "Updated %@" = "Diperbarui %@";
 "Updated relative %@" = "Diperbarui %@";
 "Updated absolute %@" = "Diperbarui %@";
@@ -1152,10 +1157,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Kredit pengaturan ulang batas";
 "1 available" = "1 tersedia";
 "%d available" = "%d tersedia";
 "Next expires %@" = "Berikutnya kedaluwarsa %@";
+"Expires %@" = "Kedaluwarsa %@";
+"No expiry" = "Tidak ada kedaluwarsa";
 "byte_unit_byte" = "byte";
 "byte_unit_bytes" = "byte";
 "byte_unit_kilobyte" = "kilobyte";

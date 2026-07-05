@@ -433,6 +433,7 @@
 "language_french" = "Francuski";
 "language_dutch" = "Niderlandzki";
 "language_ukrainian" = "Ukraiński";
+"language_russian" = "Русский";
 "language_vietnamese" = "Wietnamski";
 "language_italian" = "Włoski";
 "language_indonesian" = "Indonezyjski";
@@ -454,6 +455,8 @@
 "cost_history_window_title" = "Zakres historii";
 "cost_history_window_help" = "Ustawia, ile dni lokalnych dzienników użycia pokazać w menu.";
 "cost_history_days_title" = "Zakres historii: %d dni";
+"cost_comparison_periods_title" = "Pokaż krótsze okresy porównawcze";
+"cost_comparison_periods_subtitle" = "Dodaj sumy z 7, 30 i 90 dni, gdy mieszczą się w wybranym zakresie historii. Sumy te wykorzystują to samo skanowanie lokalne.";
 "cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
 "refresh_cadence_title" = "Częstotliwość odświeżania";
 "refresh_cadence_subtitle" = "Jak często CodexBar odpyta dostawców w tle.";
@@ -698,6 +701,7 @@
 "refresh_5min" = "Co 5 min";
 "refresh_15min" = "Co 15 min";
 "refresh_30min" = "Co 30 min";
+"refresh_adaptive" = "Adaptacyjny";
 
 /* Additional keys */
 "not_found" = "Nie znaleziono";
@@ -756,6 +760,7 @@
 "Resets now" = "Reset teraz";
 "reset_tomorrow_format" = "jutro, %@";
 "Lasts until reset" = "Wystarcza do resetu";
+"1.5× headroom" = "zapas 1,5×";
 "Updated %@" = "Zaktualizowano %@";
 "Updated relative %@" = "Zaktualizowano %@";
 "Updated absolute %@" = "Zaktualizowano %@";
@@ -1152,10 +1157,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Kredyty resetowania limitu";
 "1 available" = "1 dostępny";
 "%d available" = "%d dostępne";
 "Next expires %@" = "Następny wygasa %@";
+"Expires %@" = "Wygasa %@";
+"No expiry" = "Brak terminu ważności";
 "byte_unit_byte" = "bajt";
 "byte_unit_bytes" = "bajty";
 "byte_unit_kilobyte" = "kilobajt";

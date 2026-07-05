@@ -59,6 +59,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case poe
     case chutes
     case crossmodel
+    case clawrouter
 }
 
 // swiftformat:enable sortDeclarations
@@ -118,6 +119,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case poe
     case chutes
     case crossmodel
+    case clawrouter
     case combined
 }
 
@@ -222,6 +224,16 @@ public enum ProviderBrowserCookieDefaults {
         #if os(macOS)
         let preferredPrefix: [Browser] = [.safari, .chrome, .firefox]
         return preferredPrefix + Browser.defaultImportOrder.filter { !preferredPrefix.contains($0) }
+        #else
+        nil
+        #endif
+    }
+
+    /// OpenCode web Auto stays Chrome-only by default, with Dia as the one bounded provider exception
+    /// because Dia has a confirmed reporter need. Other browsers stay on Manual until users can choose them.
+    public static var opencodeCookieImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome, .dia]
         #else
         nil
         #endif

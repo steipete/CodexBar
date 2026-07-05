@@ -13,16 +13,88 @@ struct MenuCardQuotaWarningMarkerTests {
     }
 
     @Test
-    func `quota warning marker geometry is inset and hairline`() {
+    func `quota warning marker geometry matches pace stripe edges`() {
         let rect = UsageProgressBar.warningMarkerRect(
             x: 50,
             size: CGSize(width: 100, height: 6),
             scale: 2)
+        let stripe = UsageProgressBar.warningMarkerStripeRect(
+            rect,
+            scale: 2)
 
-        #expect(rect.width == 1)
-        #expect(rect.height < 6)
-        #expect(rect.minY > 0)
+        #expect(rect.width == 5)
+        #expect(rect.height == 6)
+        #expect(rect.minY == 0)
+        #expect(rect.maxY == 6)
         #expect(abs(rect.midX - 50) <= 0.5)
+        #expect(stripe.width == 1)
+        #expect(stripe.height == rect.height)
+        #expect(abs(stripe.midX - rect.midX) <= 0.001)
+        #expect(stripe.minX > rect.minX)
+        #expect(stripe.maxX < rect.maxX)
+    }
+
+    @Test
+    func `quota warning marker geometry stays centered across display scales`() {
+        let scales: [CGFloat] = [1, 2, 3]
+
+        for scale in scales {
+            let rect = UsageProgressBar.warningMarkerRect(
+                x: 33,
+                size: CGSize(width: 100, height: 6),
+                scale: scale)
+            let stripe = UsageProgressBar.warningMarkerStripeRect(
+                rect,
+                scale: scale)
+
+            #expect(rect.minY == 0)
+            #expect(rect.height == 6)
+            #expect(rect.width == 5)
+            #expect(stripe.width == 1)
+            #expect(stripe.height == rect.height)
+            #expect(abs(stripe.midX - rect.midX) <= 1 / scale)
+            #expect(stripe.minX > rect.minX)
+            #expect(stripe.maxX < rect.maxX)
+        }
+    }
+
+    @Test
+    func `workday boundary is a subtle lower tick`() {
+        let rect = UsageProgressBar.workdayMarkerRect(
+            x: 50,
+            size: CGSize(width: 100, height: 6),
+            scale: 2)
+
+        #expect(rect.width == 0.5)
+        #expect(rect.height == 3)
+        #expect(rect.minY == 3)
+        #expect(abs(rect.midX - 50) <= 0.5)
+    }
+
+    @Test
+    func `quota warning wins when marker kinds overlap`() {
+        let markers = UsageProgressBar.resolvedMarkers(
+            warningPercents: [50, 80],
+            workdayPercents: [20, 50, 60])
+
+        #expect(markers == [
+            .init(percent: 20, kind: .workdayBoundary),
+            .init(percent: 50, kind: .quotaWarning),
+            .init(percent: 60, kind: .workdayBoundary),
+            .init(percent: 80, kind: .quotaWarning),
+        ])
+    }
+
+    @Test
+    func `marker resolver removes edges duplicates and invalid values`() {
+        let markers = UsageProgressBar.resolvedMarkers(
+            warningPercents: [-10, 0, 50, 50, 100, 120],
+            workdayPercents: [Double.nan, 25, 25])
+
+        #expect(markers == [
+            .init(percent: 25, kind: .workdayBoundary),
+            .init(percent: 50, kind: .quotaWarning),
+        ])
     }
 
     @Test

@@ -180,6 +180,7 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         if snapshot.minimaxUsage != nil { providerSpecificData.append("minimaxUsage") }
         if snapshot.deepseekUsage != nil { providerSpecificData.append("deepseekUsage") }
         if snapshot.openRouterUsage != nil { providerSpecificData.append("openRouterUsage") }
+        if snapshot.sakanaPayAsYouGo != nil { providerSpecificData.append("sakanaPayAsYouGo") }
         if snapshot.openAIAPIUsage != nil { providerSpecificData.append("openAIAPIUsage") }
         if snapshot.claudeAdminAPIUsage != nil { providerSpecificData.append("claudeAdminAPIUsage") }
         if snapshot.mistralUsage != nil { providerSpecificData.append("mistralUsage") }

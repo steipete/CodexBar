@@ -3,6 +3,86 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.39.0</title>
+            <pubDate>Sat, 04 Jul 2026 13:01:10 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>97</sparkle:version>
+            <sparkle:shortVersionString>0.39.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.39.0</h2>
+<h3>Added</h3>
+<ul>
+<li>Codex: show every available reset-credit expiry in menus and provider settings, including non-expiring credits, and summarize credits nearing expiry. Thanks @brahimhamichan!</li>
+<li>Cost history: optionally show shorter 7, 30, and 90-day comparisons from the selected local history window (#1500). Thanks @jtl06!</li>
+<li>Codex cost history: group local usage and costs by project and worktree in menus and CLI output. Thanks @clemenspeters!</li>
+<li>Sakana AI: show best-effort pay-as-you-go credit balance and recent usage without delaying subscription quota refreshes. Thanks @ss251!</li>
+<li>Kimi: show monthly subscription usage alongside weekly and five-hour limits with a short total budget for the optional membership request. Thanks @zhiyue!</li>
+<li>Mistral: show available credit balance from the authenticated billing session while preserving API spend and Monthly Plan usage. Thanks @Zihao-Qi!</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Codex: compact reset-credit expiry inventory into a single scannable timeline instead of one row per credit.</li>
+<li>Repository: reject oversized tracked blobs and generated release/build artifacts during checks. Thanks @joeVenner!</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Alibaba: keep the browser Safe Storage keychain read non-interactive and honor the &quot;Disable Keychain access&quot; setting, so cookie import can never trigger a Keychain prompt.</li>
+<li>Tests: block real Keychain and <code>security</code> CLI access by default so test runs cannot display password prompts.</li>
+<li>Mistral: discard non-finite and overflowing billing costs so malformed price data cannot poison spend totals or charts. Thanks @joeVenner!</li>
+<li>Claude: notify on model-scoped weekly and Daily Routines quota thresholds using independent warning state. Thanks @cleanerzkp!</li>
+<li>Claude CLI: skip the identity probe after terminal usage errors or loading stalls, cutting failed refresh latency and subprocess churn.</li>
+<li>OpenCode web: search Dia after Chrome for automatic cookie import, with Keychain preflight scoped to the candidate browser (fixes #1822). Thanks @zeajose!</li>
+<li>Claude: make the &quot;Avoid Keychain prompts&quot; setting use the no-prompt policy instead of the experimental <code>security</code> CLI reader. Thanks @gmkbenjamin!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.39.0/CodexBar-macos-universal-0.39.0.zip" length="44368510" type="application/octet-stream" sparkle:edSignature="F+SciYs2emoO/eSut/ed5/zp9By0SGzpxGV6l94wSkSa5I3oNM1M34/7EKPY7ncvzlvFFGM8tvCXI0j6K/LhAg=="/>
+        </item>
+        <item>
+            <title>0.38.1</title>
+            <pubDate>Sat, 04 Jul 2026 10:21:12 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>95</sparkle:version>
+            <sparkle:shortVersionString>0.38.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.38.1</h2>
+<h3>Added</h3>
+<ul>
+<li>Localization: add complete Russian coverage for the app and redesigned website. Thanks @Kirchberg!</li>
+<li>Localization: add Galician app translations and language selection. Thanks @B1NAR10!</li>
+<li>ClawRouter: add API-key tracking for monthly budget, spend, requests, tokens, and routed-provider usage.</li>
+<li>Claude: show model-scoped weekly quota windows, including promotional Fable limits, from OAuth and web usage responses. Thanks @konon4!</li>
+<li>Usage refresh: add an opt-in Adaptive cadence that polls every 2–30 minutes based on recent menu use, Low Power Mode, and thermal state. Thanks @hhh2210!</li>
+<li>Codex: show a conservative 1.5× pace-headroom hint in menus and CLI output when usage is safely ahead of the reset curve. Thanks @astuteprogrammer!</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Branding: replace the app and website icon with a usage-meter prompt mark that matches CodexBar&#x27;s core UI.</li>
+<li>Website: redesign codexbar.app around faster download, provider discovery, feature, CLI, and widget paths with responsive dark/light and localized layouts. Thanks @vyctorbrzezowski!</li>
+<li>Architecture: accept a bounded opt-in adaptive refresh design with a deterministic 2–30-minute cadence and no behavioral telemetry. Thanks @hhh2210!</li>
+<li>Architecture: define the security and identity boundaries required before custom HTTP JSON providers can be implemented safely.</li>
+<li>Claude: accept a display-only multi-account design based on read-only <code>claude-swap --list --json</code>, without account switching or credential storage.</li>
+<li>Notifications: accept a default-off predictive pace warning design that alerts once per risk episode and re-arms only after authoritative recovery.</li>
+<li>OpenCode Go: accept bounded automatic multi-workspace fan-out while preserving the configured workspace as an exact single-workspace override.</li>
+<li>Xiaomi MiMo: require authoritative cadence evidence before showing reserve or deficit projections, avoiding guesses from plan dates or names.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Gemini: resolve fnm from the active PATH, stop package-discovery helpers on deadline, and return after the first output line even when descendants keep stdout open.</li>
+<li>Branding: replace the malformed Poe icon and use Poe&#x27;s official purple consistently across the app, widget, and website. Thanks @garethpaul!</li>
+<li>Monthly quota pace: show reserve, deficit, and run-out estimates for OpenCode Go, Doubao, and Alibaba monthly reset windows using their calendar-cycle length. Thanks @Zihao-Qi and @joeVenner!</li>
+<li>Localization: translate the Default Terminal setting across every supported app language. Thanks @Zihao-Qi!</li>
+<li>Settings: recover collapsed sidebars and undersized saved window frames when reopening Settings. Thanks @ProspectOre!</li>
+<li>z.ai: parse successful BigModel CN quota responses that omit the optional message field, while preserving useful API-code errors. Thanks @joeVenner!</li>
+<li>Claude: block background delegated CLI OAuth refresh when the keychain holds MCP-only state (<code>mcpOAuth</code> without <code>claudeAiOauth</code>) while preserving explicit Refresh recovery (#1844). Thanks @Yuxin-Qiao!</li>
+<li>OpenAI API: reject non-finite cost values before they can corrupt usage totals or JSON output. Thanks @joeVenner!</li>
+<li>OpenCode: ignore non-finite and out-of-range reset timestamps instead of crashing usage parsing, while preserving valid quota windows. Thanks @joeVenner!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.38.1/CodexBar-macos-universal-0.38.1.zip" length="43661518" type="application/octet-stream" sparkle:edSignature="/IpwJg5otxWthVeVZ0cJsCtc9i9hH+OpMTuo9m9pJbYNpkIw4fEpd0reB3wbfl4BlO1U93EK8+ao+xJVO1I5Ag=="/>
+        </item>
+        <item>
             <title>0.38.0</title>
             <pubDate>Fri, 03 Jul 2026 04:18:13 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -77,52 +157,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.38.0/CodexBar-macos-universal-0.38.0.zip" length="43631156" type="application/octet-stream" sparkle:edSignature="BW8/yi36v89T8F1ypAOwZtmuBkjM0CCGXufAXNsgVVxZDQ0QJFPYFr3a8YyPfnbahyFASR+gEUCrJYVmQrrxAA=="/>
-        </item>
-        <item>
-            <title>0.37.2</title>
-            <pubDate>Mon, 22 Jun 2026 10:42:03 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>92</sparkle:version>
-            <sparkle:shortVersionString>0.37.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.37.2</h2>
-<h3>Added</h3>
-<ul>
-<li>Diagnostics: write redacted provider reports to a file with platform and app-version context. Thanks @Yuxin-Qiao!</li>
-<li>CLI server: report the startup build version from <code>/health</code> so clients can detect stale helper processes after updates. Thanks @enieuwy!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Claude: pause background CLI usage probes briefly after rate limiting while keeping manual refresh available. Thanks @kiranmagic7!</li>
-<li>Codex OAuth: publish refreshed <code>auth.json</code> credentials with private file permissions already applied. Thanks @Hinotoi-agent!</li>
-<li>Provider endpoints: reject unsafe Deepgram, z.ai, and Xiaomi MiMo overrides before attaching credentials. Thanks @Hinotoi-agent!</li>
-<li>Azure OpenAI: reject unsafe endpoint overrides before attaching API keys while keeping invalid configurations visible with an actionable error. Thanks @Hinotoi-agent!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.37.2/CodexBar-macos-universal-0.37.2.zip" length="41869351" type="application/octet-stream" sparkle:edSignature="R3cjc1hHRfLmvefG7/vueDXPPMGEWztAcu8MWU56wzFTisA18y4XvZV2qokxM/F47qiJUr3TseAgDevafnbPBQ=="/>
-        </item>
-        <item>
-            <title>0.37.1</title>
-            <pubDate>Mon, 22 Jun 2026 00:16:24 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>91</sparkle:version>
-            <sparkle:shortVersionString>0.37.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.37.1</h2>
-<h3>Fixed</h3>
-<ul>
-<li>MiniMax: recover detailed token-plan windows from the remains API when the coding-plan page only exposes coarse usage. Thanks @Yuxin-Qiao!</li>
-<li>Cost history: remove the redundant tooltip from submenu-backed Cost rows. Thanks @Zihao-Qi!</li>
-<li>Menu refresh: keep the menu open and show in-place progress when Refresh is clicked. Thanks @elijahfriedman!</li>
-<li>Menu: align provider usage-card spacing with the Overview layout. Thanks @Zihao-Qi!</li>
-<li>Memory pressure: avoid actor-isolation crashes when system callbacks arrive on a utility queue. Thanks @Zihao-Qi!</li>
-<li>Menu: remove extra separators and spacing around Storage, Cost, and Subscription Utilization rows. Thanks @elijahfriedman!</li>
-<li>Antigravity: show limits as unavailable when OAuth identifies the account but quota endpoints deny access. Thanks @Yuxin-Qiao!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.37.1/CodexBar-macos-universal-0.37.1.zip" length="41812121" type="application/octet-stream" sparkle:edSignature="cqlgE5GH+COZUsrNAeman3SDRxrzog4zVELTwlf7JDdZAUHkZbT6nerREbCVK9J1D1sLg1YUgcT0QdvCIhKZAA=="/>
         </item>
         <item>
             <title>0.14.0</title>

@@ -170,4 +170,102 @@ struct InlineCostHistoryDashboardLabelTests {
         #expect(model.inlineUsageDashboard?.kpis[1].title == "This month")
         #expect(model.inlineUsageDashboard?.kpis[2].title == "This month tokens")
     }
+
+    @Test
+    func `costHistoryInlineDashboard sets currencyCode from snapshot`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 275,
+            sessionCostUSD: 0.25,
+            last30DaysTokens: 425,
+            last30DaysCostUSD: 0.37,
+            currencyCode: "USD",
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2023-11-15",
+                    inputTokens: 200,
+                    outputTokens: 75,
+                    totalTokens: 275,
+                    costUSD: 0.25,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.currencyCode == "USD")
+    }
+
+    @Test
+    func `token-only inline dashboard leaves currencyCode nil`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.zai])
+        let modelUsage = ZaiModelUsageData(
+            xTime: ["2023-11-17 00:00"],
+            modelDataList: [
+                ZaiModelDataItem(modelName: "glm-test", tokensUsage: [123]),
+            ])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            zaiUsage: ZaiUsageSnapshot(
+                tokenLimit: nil,
+                timeLimit: nil,
+                planName: nil,
+                modelUsage: modelUsage,
+                updatedAt: now),
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .zai,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.currencyCode == nil)
+    }
 }

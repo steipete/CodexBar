@@ -308,6 +308,8 @@
 "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar." = "Lien symbolique CodexBarCLI vers /usr/local/bin et /opt/homebrew/bin en tant que codexbar.";
 "System" = "Système";
 "Temporarily shows the loading animation after the next refresh." = "Affiche temporairement l'animation de chargement après la prochaine actualisation.";
+"terminal_app_subtitle" = "Terminal utilisé par l'action Ouvrir le terminal";
+"terminal_app_title" = "Terminal par défaut";
 "Tertiary (\\(label))" = "Tertiaire (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiaire (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "Le compte Codex par défaut sur ce Mac.";
@@ -407,6 +409,7 @@
 "language_french" = "Français";
 "language_dutch" = "Néerlandais";
 "language_ukrainian" = "Ukrainien";
+"language_russian" = "Русский";
 "language_japanese" = "Japonais";
 "language_korean" = "Coréen";
 "language_italian" = "Italiano";
@@ -429,6 +432,8 @@
 "cost_history_window_help" = "Définit le nombre de jours de journaux d'utilisation locaux affichés dans le menu.";
 "cost_history_days_title" = "Fenêtre d'historique : %d jours";
 "cost_auto_refresh_info" = "Actualisation automatique : toutes les heures · Délai d'expiration : 10 min";
+"cost_comparison_periods_title" = "Afficher des périodes de comparaison plus courtes";
+"cost_comparison_periods_subtitle" = "Ajoute les totaux sur 7, 30 et 90 jours lorsqu'ils tiennent dans la période d'historique sélectionnée. Ces totaux réutilisent la même analyse locale.";
 "refresh_cadence_title" = "Fréquence d'actualisation";
 "refresh_cadence_subtitle" = "Définit la fréquence à laquelle CodexBar interroge les fournisseurs en arrière-plan.";
 "manual_refresh_hint" = "L'actualisation automatique est désactivée ; utilisez la commande Actualiser du menu.";
@@ -672,6 +677,7 @@
 "refresh_5min" = "5 minutes";
 "refresh_15min" = "15 minutes";
 "refresh_30min" = "30 minutes";
+"refresh_adaptive" = "Adaptatif";
 
 /* Additional keys */
 "not_found" = "Pas trouvé";
@@ -730,6 +736,7 @@
 "Resets now" = "Réinitialise maintenant";
 "reset_tomorrow_format" = "demain, %@";
 "Lasts until reset" = "Dure jusqu'à la réinitialisation";
+"1.5× headroom" = "marge de 1,5×";
 "Updated %@" = "%@ mis à jour";
 "Updated relative %@" = "%@ mis à jour";
 "Updated absolute %@" = "%@ mis à jour";
@@ -1112,10 +1119,13 @@
 "language_arabic" = "العربية";
 "language_persian" = "فارسی";
 "language_thai" = "ไทย";
+"language_galician" = "Galego";
 "Limit Reset Credits" = "Crédits de réinitialisation de limite";
 "1 available" = "1 disponible";
 "%d available" = "%d disponibles";
 "Next expires %@" = "Prochaine expiration %@";
+"Expires %@" = "Expire %@";
+"No expiry" = "Sans expiration";
 "Other (%d items)" = "Autres (%d éléments)";
 "Expand" = "Développer";
 "Collapse" = "Réduire";
