@@ -1,3 +1,5 @@
+// swiftlint:disable file_length
+// swiftlint:disable file_length
 import Foundation
 import Testing
 @testable import CodexBarCore
