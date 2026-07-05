@@ -129,7 +129,8 @@ public enum ClaudeProviderDescriptor {
     }
 
     private static func noDataMessage() -> String {
-        "No Claude usage logs found in ~/.config/claude/projects or ~/.claude/projects."
+        "No Claude usage logs found in ~/.config/claude/projects, ~/.claude/projects, " +
+            "or Claude Desktop local-agent sessions."
     }
 
     public static func resolveUsageStrategy(

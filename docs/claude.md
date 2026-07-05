@@ -166,9 +166,12 @@ Packaged synthetic proof (fake `cswap` executable, no real accounts or credentia
     - Fallback roots:
       - `~/.config/claude/projects`
       - `~/.claude/projects`
+      - Claude Desktop local-agent/Cowork sessions under
+        `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`
   - Supported pi sessions:
     - `~/.pi/agent/sessions/**/*.jsonl`
-- Files: `**/*.jsonl` under the native project roots plus supported pi session files.
+- Files: `**/*.jsonl` under the native project roots, discovered Claude Desktop local-agent project roots,
+  plus supported pi session files.
 - Parsing:
   - Native Claude logs parse lines with `type: "assistant"` and `message.usage`.
   - Uses per-model token counts (input, cache read/create, output).

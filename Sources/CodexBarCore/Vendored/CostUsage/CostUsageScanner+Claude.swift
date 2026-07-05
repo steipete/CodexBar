@@ -24,12 +24,17 @@ extension CostUsageScanner {
         var unresolved = false
     }
 
-    private static func defaultClaudeProjectsRoots(options: Options) -> [URL] {
+    static func defaultClaudeProjectsRoots(
+        options: Options,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default) -> [URL]
+    {
         if let override = options.claudeProjectsRoots { return override }
 
         var roots: [URL] = []
 
-        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]?
+        if let env = environment["CLAUDE_CONFIG_DIR"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             !env.isEmpty
         {
@@ -44,12 +49,114 @@ extension CostUsageScanner {
                 }
             }
         } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            roots.append(home.appendingPathComponent(".config/claude/projects", isDirectory: true))
-            roots.append(home.appendingPathComponent(".claude/projects", isDirectory: true))
+            roots.append(homeDirectory.appendingPathComponent(".config/claude/projects", isDirectory: true))
+            roots.append(homeDirectory.appendingPathComponent(".claude/projects", isDirectory: true))
+            roots.append(contentsOf: self.claudeDesktopLocalAgentProjectsRoots(
+                homeDirectory: homeDirectory,
+                fileManager: fileManager))
         }
 
+        return self.deduplicatedClaudeProjectRoots(roots)
+    }
+
+    private static func claudeDesktopLocalAgentProjectsRoots(
+        homeDirectory: URL,
+        fileManager: FileManager) -> [URL]
+    {
+        let sessionsRoot = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+        var roots: [URL] = []
+        var queue: [(url: URL, depth: Int)] = [(sessionsRoot, 0)]
+        var visited: Set<String> = [sessionsRoot.standardizedFileURL.path]
+        var nextIndex = 0
+        // Covers observed Desktop local-agent layouts through workspace/session/agent/local_agent
+        // without descending into arbitrary checked-out workspaces.
+        let maxDepth = 4
+
+        while nextIndex < queue.count {
+            let current = queue[nextIndex]
+            nextIndex += 1
+            if let projects = self.claudeProjectsRootUnderDesktopLocalAgentBase(
+                current.url,
+                fileManager: fileManager)
+            {
+                roots.append(projects)
+            }
+
+            guard current.depth < maxDepth else { continue }
+            for child in self.claudeDesktopLocalAgentChildDirectories(
+                at: current.url,
+                fileManager: fileManager)
+            {
+                let standardized = child.standardizedFileURL
+                guard visited.insert(standardized.path).inserted else { continue }
+                queue.append((standardized, current.depth + 1))
+            }
+        }
         return roots
+    }
+
+    private static func claudeProjectsRootUnderDesktopLocalAgentBase(
+        _ base: URL,
+        fileManager: FileManager) -> URL?
+    {
+        let projects = base
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: projects.path, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else { return nil }
+        return projects
+    }
+
+    private static func claudeDesktopLocalAgentChildDirectories(
+        at url: URL,
+        fileManager: FileManager) -> [URL]
+    {
+        let skippedDirectoryNames = Set([
+            ".build",
+            ".git",
+            "build",
+            "DerivedData",
+            "node_modules",
+            "outputs",
+            "target",
+        ])
+        guard let children = try? fileManager.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        else {
+            return []
+        }
+
+        return children.compactMap { child in
+            guard !skippedDirectoryNames.contains(child.lastPathComponent) else { return nil }
+            guard let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isSymbolicLink != true,
+                  values.isDirectory == true
+            else {
+                return nil
+            }
+            return child
+        }
+    }
+
+    private static func deduplicatedClaudeProjectRoots(_ roots: [URL]) -> [URL] {
+        var seen: Set<String> = []
+        var out: [URL] = []
+        for root in roots {
+            let standardized = root.standardizedFileURL
+            let path = standardized.path
+            guard !seen.contains(path) else { continue }
+            seen.insert(path)
+            out.append(standardized)
+        }
+        return out
     }
 
     static func parseClaudeFile(
@@ -647,7 +754,6 @@ extension CostUsageScanner {
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
 
-        let roots = self.defaultClaudeProjectsRoots(options: options)
         let providerFilter = options.claudeLogProviderFilter
 
         var touched: Set<String> = []
@@ -667,6 +773,7 @@ extension CostUsageScanner {
                 modelsDevCacheRoot: options.cacheRoot,
                 checkCancellation: checkCancellation)
 
+            let roots = self.defaultClaudeProjectsRoots(options: options)
             for root in roots {
                 try Self.scanClaudeRoot(
                     root: root,
