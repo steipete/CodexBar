@@ -6,6 +6,38 @@ import Testing
 struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
     @MainActor
     @Test
+    func `established account accepts same owner after access token rotation`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let owner = String(repeating: "a", count: 64)
+        let accountIdentity = UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 30),
+            claudeOAuthPersistentRefHash: "account-a-ref",
+            claudeOAuthHistoryOwnerIdentifier: owner,
+            claudeOAuthActiveAccountObservation: .stable(identity: accountIdentity),
+            isClaudeOAuthSample: true,
+            now: start)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 50),
+            claudeOAuthHistoryOwnerIdentifier: owner,
+            claudeOAuthKeychainCredentialMismatch: true,
+            claudeOAuthActiveAccountObservation: .stable(identity: accountIdentity),
+            isClaudeOAuthSample: true,
+            now: start.addingTimeInterval(2 * 60 * 60))
+
+        let key = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: owner))
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[key] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [30, 50])
+    }
+
+    @MainActor
+    @Test
     func `first sighting without keychain match is quarantined`() async {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let snapshot = UsageSnapshot(
@@ -152,5 +184,16 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
         #expect(stable == .stable(identity: identityB))
         #expect(changed == .changed)
         #expect(unstable == .changed)
+    }
+
+    private func snapshot(usedPercent: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
     }
 }

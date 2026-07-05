@@ -174,18 +174,21 @@ extension UsageStore {
             case let .stable(identity): identity
             case .changed: nil
             }
-            if claudeOAuthKeychainCredentialMismatch || claudeOAuthActiveAccountObservation == .changed {
-                // A proven credential mismatch or an account/credential change while capturing the UUID
-                // cannot safely identify this sample. Never let either case arm or reuse a durable binding.
+            if claudeOAuthActiveAccountObservation == .changed {
+                // An account/credential change while capturing the UUID cannot safely identify this sample.
+                // Never let it arm or reuse a durable binding.
                 effectiveOwner = nil
-            } else if let mapped = map[owner], let currentAccountIdentity, mapped != currentAccountIdentity {
-                // Active Claude account changed (per ~/.claude.json) but a stale credential for a
-                // PREVIOUS account is being served (background cache, keychain gated). Quarantine: do
-                // not attribute B's usage to A's bucket. Recovery happens once a later fetch yields the new
-                // account's credential with exact current-Keychain match evidence.
-                // An existing binding is authoritative, so honor it on ANY interaction (background too).
-                effectiveOwner = nil
-            } else if map[owner] == nil, let currentAccountIdentity {
+            } else if let mapped = map[owner] {
+                if let currentAccountIdentity, mapped != currentAccountIdentity {
+                    // Active Claude account changed (per ~/.claude.json) but a stale credential for a
+                    // PREVIOUS account is being served. An existing binding is authoritative on every poll.
+                    effectiveOwner = nil
+                } else if currentAccountIdentity == nil, claudeOAuthKeychainCredentialMismatch {
+                    // A rotated access token can differ while retaining the same owner. Preserve it only when
+                    // the active account identity still corroborates the established binding.
+                    effectiveOwner = nil
+                }
+            } else if let currentAccountIdentity {
                 if claudeOAuthPersistentRefHash != nil {
                     // First sighting of this owner: bind it only when the exact credential used for the fetch
                     // matches the current Claude Keychain item. Interaction context is insufficient evidence:
@@ -193,7 +196,11 @@ extension UsageStore {
                     // back to a stale cached credential. Never overwrite on mismatch.
                     map[owner] = currentAccountIdentity
                     self.persistClaudeOAuthAccountUuidMap(map)
+                } else if claudeOAuthKeychainCredentialMismatch {
+                    effectiveOwner = nil
                 }
+            } else if claudeOAuthKeychainCredentialMismatch {
+                effectiveOwner = nil
             }
         }
         let detectorAccountKey = if provider == .claude, isClaudeOAuthSample {
