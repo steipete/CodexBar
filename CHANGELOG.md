@@ -15,6 +15,7 @@
 ### Fixed
 - Codex cost history: reuse one pricing catalog while building project rollups and carry fresh cache state across launches, avoiding repeated filesystem work and duplicate background scans on large local histories.
 - Providers: detect Claude Desktop on fresh installs and ignore Gemini CLI installations without usable OAuth credentials.
+- Claude cost history: include nested Claude Desktop local-agent logs while preserving current Code/Cowork coverage through the shared `~/.claude/projects` store. Thanks @Zihao-Qi!
 - Claude: give multiple claude-swap accounts precedence over token-account cards and segmented switching so adapter rows remain visible. Thanks @optimiz-r!
 - Menus: scope manual refresh state to the provider being refreshed, allowing independent provider refreshes without greying unrelated rows. Thanks @hhh2210!
 - Claude history: quarantine same-directory account-switch samples until credential ownership is stable, preventing plan-utilization history from crossing accounts. Thanks @ss251!

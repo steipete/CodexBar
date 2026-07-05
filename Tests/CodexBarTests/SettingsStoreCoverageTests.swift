@@ -390,6 +390,62 @@ struct SettingsStoreCoverageTests {
         #expect(SettingsStore.hasAnyTokenCostUsageSources(
             env: ["CLAUDE_CONFIG_DIR": claudeRoot.path],
             fileManager: fileManager))
+
+        let metadataOnlyHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-metadata-\(UUID().uuidString)",
+            isDirectory: true)
+        let metadataFile = metadataOnlyHome
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id/org-id/local_session.json", isDirectory: false)
+        try fileManager.createDirectory(at: metadataFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"cliSessionId":"desktop-cli-session"}"#.utf8).write(to: metadataFile)
+
+        #expect(!SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: metadataOnlyHome))
+
+        let desktopHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-\(UUID().uuidString)",
+            isDirectory: true)
+        let desktopProjects = desktopHome
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+            .appendingPathComponent("workspace-id", isDirectory: true)
+            .appendingPathComponent("session-id", isDirectory: true)
+            .appendingPathComponent("local_agent", isDirectory: true)
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        try fileManager.createDirectory(at: desktopProjects, withIntermediateDirectories: true)
+        let desktopFile = desktopProjects
+            .appendingPathComponent("project-a", isDirectory: true)
+            .appendingPathComponent("session-a.jsonl", isDirectory: false)
+        try fileManager.createDirectory(at: desktopFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        fileManager.createFile(atPath: desktopFile.path, contents: Data("{}".utf8))
+
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: desktopHome))
+
+        let desktopCodeHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-code-\(UUID().uuidString)",
+            isDirectory: true)
+        let desktopCodeFile = desktopCodeHome
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id/org-id/.claude/projects/project-a", isDirectory: true)
+            .appendingPathComponent("session-a.jsonl", isDirectory: false)
+        try fileManager.createDirectory(
+            at: desktopCodeFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        fileManager.createFile(atPath: desktopCodeFile.path, contents: Data("{}".utf8))
+
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: desktopCodeHome))
     }
 
     @Test

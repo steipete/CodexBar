@@ -940,6 +940,71 @@ struct CostUsageTestEnvironment {
         return url
     }
 
+    func writeClaudeDesktopLocalAgentFile(relativePath: String, contents: String) throws -> URL {
+        let localAgentRoot = self.root
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+            .appendingPathComponent("workspace-id", isDirectory: true)
+            .appendingPathComponent("session-id", isDirectory: true)
+            .appendingPathComponent("local_agent", isDirectory: true)
+        let url = localAgentRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeClaudeDesktopLocalAgentProjectFile(relativePath: String, contents: String) throws -> URL {
+        try self.writeClaudeDesktopLocalAgentFile(
+            relativePath: ".claude/projects/\(relativePath)",
+            contents: contents)
+    }
+
+    func writeClaudeDesktopCodeSessionProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id", isDirectory: true)
+            .appendingPathComponent("org-id", isDirectory: true)
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeClaudeDesktopSharedProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    func writeNestedClaudeDesktopLocalAgentProjectFile(relativePath: String, contents: String) throws -> URL {
+        let projectsRoot = self.root
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
+            .appendingPathComponent("workspace-id", isDirectory: true)
+            .appendingPathComponent("session-id", isDirectory: true)
+            .appendingPathComponent("agent", isDirectory: true)
+            .appendingPathComponent("local_agent", isDirectory: true)
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        let url = projectsRoot.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
     func writeCodexArchivedSessionFile(filename: String, contents: String) throws -> URL {
         let url = self.codexArchivedSessionsRoot.appendingPathComponent(filename, isDirectory: false)
         try contents.write(to: url, atomically: true, encoding: .utf8)

@@ -105,7 +105,9 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Admin API shows organization spend/messages summaries with the same inline dashboard pattern as OpenAI API.
 - App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
 - CLI Auto: Web API (`web`) → CLI PTY (`claude`).
-- Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects` and `~/.claude/projects` JSONL files for the configured history window.
+- Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects`,
+  `~/.claude/projects` (including current Claude Desktop Code/Cowork CLI sessions), and nested Claude Desktop
+  local-agent JSONL files for the configured history window.
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.
 

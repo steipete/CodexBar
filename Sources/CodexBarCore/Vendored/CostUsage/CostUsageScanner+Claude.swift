@@ -24,12 +24,17 @@ extension CostUsageScanner {
         var unresolved = false
     }
 
-    private static func defaultClaudeProjectsRoots(options: Options) -> [URL] {
+    static func defaultClaudeProjectsRoots(
+        options: Options,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        fileManager: FileManager = .default) -> [URL]
+    {
         if let override = options.claudeProjectsRoots { return override }
 
         var roots: [URL] = []
 
-        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]?
+        if let env = environment["CLAUDE_CONFIG_DIR"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             !env.isEmpty
         {
@@ -44,12 +49,27 @@ extension CostUsageScanner {
                 }
             }
         } else {
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            roots.append(home.appendingPathComponent(".config/claude/projects", isDirectory: true))
-            roots.append(home.appendingPathComponent(".claude/projects", isDirectory: true))
+            roots.append(homeDirectory.appendingPathComponent(".config/claude/projects", isDirectory: true))
+            roots.append(homeDirectory.appendingPathComponent(".claude/projects", isDirectory: true))
+            roots.append(contentsOf: ClaudeDesktopProjectsLocator.roots(
+                homeDirectory: homeDirectory,
+                fileManager: fileManager))
         }
 
-        return roots
+        return self.deduplicatedClaudeProjectRoots(roots)
+    }
+
+    private static func deduplicatedClaudeProjectRoots(_ roots: [URL]) -> [URL] {
+        var seen: Set<String> = []
+        var out: [URL] = []
+        for root in roots {
+            let standardized = root.standardizedFileURL
+            let path = standardized.path
+            guard !seen.contains(path) else { continue }
+            seen.insert(path)
+            out.append(standardized)
+        }
+        return out
     }
 
     static func parseClaudeFile(
@@ -647,7 +667,6 @@ extension CostUsageScanner {
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
 
-        let roots = self.defaultClaudeProjectsRoots(options: options)
         let providerFilter = options.claudeLogProviderFilter
 
         var touched: Set<String> = []
@@ -667,6 +686,7 @@ extension CostUsageScanner {
                 modelsDevCacheRoot: options.cacheRoot,
                 checkCancellation: checkCancellation)
 
+            let roots = self.defaultClaudeProjectsRoots(options: options)
             for root in roots {
                 try Self.scanClaudeRoot(
                     root: root,

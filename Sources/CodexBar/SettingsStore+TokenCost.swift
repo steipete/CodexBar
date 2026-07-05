@@ -29,8 +29,11 @@ extension SettingsStore {
 
     nonisolated static func hasAnyTokenCostUsageSources(
         env: [String: String] = ProcessInfo.processInfo.environment,
-        fileManager: FileManager = .default) -> Bool
+        fileManager: FileManager = .default,
+        homeDirectory: URL? = nil) -> Bool
     {
+        let home = homeDirectory ?? fileManager.homeDirectoryForCurrentUser
+
         func hasAnyJsonl(in root: URL) -> Bool {
             guard fileManager.fileExists(atPath: root.path) else { return false }
             guard let enumerator = fileManager.enumerator(
@@ -50,7 +53,7 @@ extension SettingsStore {
             if let raw, !raw.isEmpty {
                 return URL(fileURLWithPath: raw).appendingPathComponent("sessions", isDirectory: true)
             }
-            return fileManager.homeDirectoryForCurrentUser
+            return home
                 .appendingPathComponent(".codex", isDirectory: true)
                 .appendingPathComponent("sessions", isDirectory: true)
         }()
@@ -79,11 +82,10 @@ extension SettingsStore {
                 }
             }
 
-            let home = fileManager.homeDirectoryForCurrentUser
             return [
                 home.appendingPathComponent(".config/claude/projects", isDirectory: true),
                 home.appendingPathComponent(".claude/projects", isDirectory: true),
-            ]
+            ] + ClaudeDesktopProjectsLocator.roots(homeDirectory: home, fileManager: fileManager)
         }()
 
         return claudeRoots.contains(where: hasAnyJsonl(in:))
