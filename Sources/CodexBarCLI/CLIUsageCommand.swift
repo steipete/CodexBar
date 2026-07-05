@@ -600,15 +600,6 @@ extension CodexBarCLI {
             if sourceMode == .auto || settings?.opencodego?.cookieSource == .manual {
                 return false
             }
-
-    private static func deepseekBypassesWebSupportRequirement(
-        sourceMode: ProviderSourceMode,
-        settings: ProviderSettingsSnapshot?,
-        environment: [String: String]?) -> Bool
-    {
-        if settings?.deepseek?.cookieSource == .manual {
-            return true
-        }
         }
         if provider == .commandcode,
            settings?.commandcode?.cookieSource == .manual
@@ -665,7 +656,24 @@ extension CodexBarCLI {
         {
             return false
         }
+        return switch sourceMode {
+        case .web:
+            true
+        case .auto:
+            ProviderDescriptorRegistry.descriptor(for: provider).fetchPlan.sourceModes.contains(.web)
+        case .cli, .oauth, .api:
+            false
+        }
+    }
 
+    private static func deepseekBypassesWebSupportRequirement(
+        sourceMode: ProviderSourceMode,
+        settings: ProviderSettingsSnapshot?,
+        environment: [String: String]?) -> Bool
+    {
+        if settings?.deepseek?.cookieSource == .manual {
+            return true
+        }
         if settings?.deepseek?.cookieSource == .off {
             return sourceMode != .web
         }
@@ -686,13 +694,4 @@ extension CodexBarCLI {
         return false
     }
 
-        return switch sourceMode {
-        case .web:
-            true
-        case .auto:
-            ProviderDescriptorRegistry.descriptor(for: provider).fetchPlan.sourceModes.contains(.web)
-        case .cli, .oauth, .api:
-            false
-        }
-    }
 }
