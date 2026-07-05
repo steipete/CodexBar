@@ -22,8 +22,12 @@ extension StatusItemController {
         }
 
         if self.isMergedOverviewSelected(in: menu) {
-            // Overview refresh is global, so its busy state must mirror the global manual-refresh gate.
-            return self.store.isRefreshing || !self.store.refreshingProviders.isEmpty
+            // Overview stands for every provider, so it is busy while ANY manual refresh runs —
+            // including the post-fetch tail of a per-provider refresh, after `refreshingProviders`
+            // has cleared but its `.provider` task is still finishing status/token/credits work.
+            return self.store.isRefreshing
+                || !self.manualRefreshTasks.isEmpty
+                || !self.store.refreshingProviders.isEmpty
         }
         if let provider = self.menuProvider(for: menu) {
             // A manual refresh of a different provider must not grey out this provider's row: only
@@ -32,7 +36,9 @@ extension StatusItemController {
                 || self.manualRefreshTasks[.provider(provider)] != nil
                 || self.store.refreshingProviders.contains(provider)
         }
-        return self.store.isRefreshing || !self.store.refreshingProviders.isEmpty
+        return self.store.isRefreshing
+            || !self.manualRefreshTasks.isEmpty
+            || !self.store.refreshingProviders.isEmpty
     }
 
     func isMergedOverviewSelected(in menu: NSMenu) -> Bool {

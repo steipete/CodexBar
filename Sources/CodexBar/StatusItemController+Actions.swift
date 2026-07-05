@@ -8,6 +8,31 @@ extension StatusItemController {
         case global
         case provider(UsageProvider)
     }
+
+    /// The in-flight manual refresh task when it is unambiguous: the all-providers one, or the single
+    /// task when exactly one is running. Nil once several run concurrently, so tests await a specific
+    /// scope rather than an arbitrary task. Test-only; the setter writes `.global`, and production code
+    /// keys into `manualRefreshTasks` by scope.
+    var manualRefreshTask: Task<Void, Never>? {
+        get {
+            if let global = self.manualRefreshTasks[.global] { return global }
+            return self.manualRefreshTasks.count == 1 ? self.manualRefreshTasks.values.first : nil
+        }
+        set { self.manualRefreshTasks[.global] = newValue }
+    }
+
+    /// The single per-provider manual refresh in flight, or nil when there is none, a global refresh,
+    /// or several providers refreshing at once. Read only by tests; production code keys into
+    /// `manualRefreshTasks` directly.
+    var manualRefreshProvider: UsageProvider? {
+        guard self.manualRefreshTasks[.global] == nil, self.manualRefreshTasks.count == 1 else {
+            return nil
+        }
+        for case let .provider(provider) in self.manualRefreshTasks.keys {
+            return provider
+        }
+        return nil
+    }
 }
 
 enum LoginNotificationLogic {
@@ -126,8 +151,14 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
             ?? !self.store.refreshingProviders.isEmpty
+        // Two different providers may refresh concurrently, but an all-providers (.global) refresh must
+        // not overlap a per-provider one (or vice versa) — that would duplicate the shared fetch work.
+        let conflictsWithOtherScope = scope == .global
+            ? self.manualRefreshTasks.contains { $0.key != .global }
+            : self.manualRefreshTasks[.global] != nil
         guard !self.hasPreparedForAppShutdown,
               self.manualRefreshTasks[scope] == nil,
+              !conflictsWithOtherScope,
               !self.store.isRefreshing,
               !scopedRefreshInFlight
         else { return }

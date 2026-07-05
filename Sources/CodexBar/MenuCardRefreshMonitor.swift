@@ -33,8 +33,10 @@ final class MenuCardRefreshMonitor {
         frozenModels: [UsageProvider: UsageMenuCardView.Model],
         provider: UsageProvider? = nil)
     {
-        // Merge rather than replace so a second concurrent refresh keeps the first provider's frozen card.
-        self.frozenManualRefreshModels.merge(frozenModels) { _, new in new }
+        // Keep the existing frozen card for any provider already refreshing. `frozenManualRefreshMenuCardModels()`
+        // snapshots every enabled provider, so a second provider's begin re-supplies the first provider's
+        // now-mid-refresh model; old-wins prevents that from clobbering the pre-refresh card we froze for it.
+        self.frozenManualRefreshModels.merge(frozenModels) { existing, _ in existing }
         if let provider {
             self.manualRefreshProviders.insert(provider)
         } else {
