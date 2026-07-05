@@ -1254,16 +1254,16 @@ extension UsageMenuCardView.Model {
             snapshot: snapshot,
             input: input,
             percentStyle: percentStyle))
-        if input.provider == .kilo,
+        if input.provider == .kilo || input.provider == .kimi,
            metrics.contains(where: { $0.id == "primary" }),
            metrics.contains(where: { $0.id == "secondary" })
         {
             metrics.sort { lhs, rhs in
-                let kiloOrder: [String: Int] = [
+                let primarySecondaryOrder: [String: Int] = [
                     "secondary": 0,
                     "primary": 1,
                 ]
-                return (kiloOrder[lhs.id] ?? Int.max) < (kiloOrder[rhs.id] ?? Int.max)
+                return (primarySecondaryOrder[lhs.id] ?? Int.max) < (primarySecondaryOrder[rhs.id] ?? Int.max)
             }
         }
 

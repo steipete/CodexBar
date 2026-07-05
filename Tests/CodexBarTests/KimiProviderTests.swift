@@ -326,15 +326,15 @@ struct KimiUsageResponseParsingTests {
         #expect(snapshot.rateLimit?.used == "19")
 
         let usage = snapshot.toUsageSnapshot()
-        #expect(abs((usage.primary?.usedPercent ?? -1) - 9.5) < 0.001)
-        #expect(usage.primary?.windowMinutes == 300)
-        #expect(usage.primary?.resetDescription == "Rate: 19/200 per 5 hours")
-        #expect(abs((usage.secondary?.usedPercent ?? -1) - 18.3105) < 0.001)
-        #expect(usage.secondary?.resetDescription == "375/2048 requests")
+        #expect(abs((usage.primary?.usedPercent ?? -1) - 18.3105) < 0.001)
+        #expect(usage.primary?.resetDescription == "375/2048 requests")
+        #expect(abs((usage.secondary?.usedPercent ?? -1) - 9.5) < 0.001)
+        #expect(usage.secondary?.windowMinutes == 300)
+        #expect(usage.secondary?.resetDescription == "Rate: 19/200 per 5 hours")
     }
 
     @Test
-    func `converts weekly-only usage into secondary quota lane`() {
+    func `converts weekly-only usage into primary quota lane`() {
         let snapshot = KimiUsageSnapshot(
             weekly: KimiUsageDetail(
                 limit: "2048",
@@ -346,9 +346,9 @@ struct KimiUsageResponseParsingTests {
 
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.primary == nil)
-        #expect(usage.secondary?.usedPercent == 25)
-        #expect(usage.secondary?.resetDescription == "512/2048 requests")
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.primary?.resetDescription == "512/2048 requests")
+        #expect(usage.secondary == nil)
     }
 
     @Test
@@ -652,16 +652,16 @@ struct KimiUsageSnapshotConversionTests {
         let usageSnapshot = snapshot.toUsageSnapshot()
 
         #expect(usageSnapshot.primary != nil)
-        let rateExpected = 200.0 / 200.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
-        #expect(usageSnapshot.primary?.windowMinutes == 300) // 5 hours
-        #expect(usageSnapshot.primary?.resetDescription == "Rate: 200/200 per 5 hours")
+        let weeklyExpected = 375.0 / 2048.0 * 100.0
+        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
+        #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
+        #expect(usageSnapshot.primary?.windowMinutes == nil)
 
         #expect(usageSnapshot.secondary != nil)
-        let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.secondary?.resetDescription == "375/2048 requests")
-        #expect(usageSnapshot.secondary?.windowMinutes == nil)
+        let rateExpected = 200.0 / 200.0 * 100.0
+        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
+        #expect(usageSnapshot.secondary?.windowMinutes == 300) // 5 hours
+        #expect(usageSnapshot.secondary?.resetDescription == "Rate: 200/200 per 5 hours")
 
         #expect(usageSnapshot.tertiary == nil)
         #expect(usageSnapshot.updatedAt == now)
@@ -739,10 +739,10 @@ struct KimiUsageSnapshotConversionTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary == nil)
-        #expect(usageSnapshot.secondary != nil)
+        #expect(usageSnapshot.primary != nil)
         let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
+        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
+        #expect(usageSnapshot.secondary == nil)
         #expect(usageSnapshot.tertiary == nil)
     }
 
@@ -767,8 +767,8 @@ struct KimiUsageSnapshotConversionTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary == nil)
-        #expect(usageSnapshot.secondary?.resetDescription == "375/2048 requests")
+        #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
+        #expect(usageSnapshot.secondary == nil)
     }
 
     @Test
@@ -786,8 +786,8 @@ struct KimiUsageSnapshotConversionTests {
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary == nil)
-        #expect(usageSnapshot.secondary?.usedPercent == 0.0)
+        #expect(usageSnapshot.primary?.usedPercent == 0.0)
+        #expect(usageSnapshot.secondary == nil)
     }
 
     @Test
@@ -805,8 +805,8 @@ struct KimiUsageSnapshotConversionTests {
             updatedAt: now)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.primary == nil)
-        #expect(usageSnapshot.secondary?.usedPercent == 100.0)
+        #expect(usageSnapshot.primary?.usedPercent == 100.0)
+        #expect(usageSnapshot.secondary == nil)
     }
 
     private static func date(_ text: String) -> Date? {

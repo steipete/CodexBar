@@ -107,15 +107,15 @@ struct ProviderInlineDashboardModelTests {
         let metadata = try #require(ProviderDefaults.metadata[.kimi])
         let snapshot = UsageSnapshot(
             primary: RateWindow(
-                usedPercent: 9.5,
-                windowMinutes: 300,
-                resetsAt: now.addingTimeInterval(4 * 60 * 60),
-                resetDescription: "Rate: 19/200 per 5 hours"),
-            secondary: RateWindow(
                 usedPercent: 18.3,
                 windowMinutes: nil,
                 resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
                 resetDescription: "375/2048 requests"),
+            secondary: RateWindow(
+                usedPercent: 9.5,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: "Rate: 19/200 per 5 hours"),
             updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -138,7 +138,7 @@ struct ProviderInlineDashboardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.id) == ["primary", "secondary"])
+        #expect(model.metrics.map(\.id) == ["secondary", "primary"])
         #expect(model.metrics.map(\.title) == ["Rate Limit", "Weekly"])
     }
 

@@ -110,8 +110,8 @@ struct UsageStoreHighestUsageTests {
             secondary: nil,
             updatedAt: Date())
         let kimiSnapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 90, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             updatedAt: Date())
 
         store._setSnapshotForTesting(codexSnapshot, provider: .codex)
