@@ -121,6 +121,20 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
+    func `settings window style remains resizable`() {
+        let bridge = SettingsWindowAppearanceView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+
+        window.contentView = bridge
+
+        #expect(window.styleMask.contains(.resizable))
+    }
+
+    @Test
     func `repeated theme updates cannot leave an explicit appearance`() {
         let resetCapture = ResetCapture()
         let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }

@@ -293,6 +293,9 @@ final class SettingsWindowAppearanceView: NSView {
 
     private func configureWindowStyle() {
         guard let window else { return }
+        if !window.styleMask.contains(.resizable) {
+            window.styleMask.insert(.resizable)
+        }
         if !window.titlebarAppearsTransparent {
             window.titlebarAppearsTransparent = true
         }
