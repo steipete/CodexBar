@@ -18,6 +18,11 @@ public enum CostUsageError: LocalizedError, Sendable {
 }
 
 public struct CostUsageFetcher: Sendable {
+    package struct CachedCodexTokenSnapshotResult: Sendable {
+        package let snapshot: CostUsageTokenSnapshot
+        package let lastRefreshAt: Date?
+    }
+
     private let scannerOptions: CostUsageScanner.Options?
 
     public init(cacheRoot: URL? = nil) {
@@ -34,6 +39,18 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int = 30) async -> CostUsageTokenSnapshot?
     {
         await Self.loadCachedCodexTokenSnapshot(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
+    package func loadCachedCodexTokenSnapshotResult(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30) async -> CachedCodexTokenSnapshotResult?
+    {
+        await Self.loadCachedCodexTokenSnapshotResult(
             now: now,
             codexHomePath: codexHomePath,
             historyDays: historyDays,
@@ -235,6 +252,20 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int = 30,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async -> CostUsageTokenSnapshot?
     {
+        await self.loadCachedCodexTokenSnapshotResult(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            scannerOptions: overrideScannerOptions)?.snapshot
+    }
+
+    static func loadCachedCodexTokenSnapshotResult(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30,
+        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async
+        -> CachedCodexTokenSnapshotResult?
+    {
         if let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !codexHomePath.isEmpty
         {
@@ -243,7 +274,7 @@ public struct CostUsageFetcher: Sendable {
 
         // Decoding the persisted scan cache parses multi-megabyte JSON; keep it off the
         // cooperative pool alongside the scans themselves.
-        let cachedSnapshot: CostUsageTokenSnapshot?? = try? await CostUsageScanExecutor.run { _ in
+        let cachedSnapshot: CachedCodexTokenSnapshotResult?? = try? await CostUsageScanExecutor.run { _ in
             let clampedHistoryDays = max(1, min(365, historyDays))
             let until = now
             let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
@@ -252,6 +283,7 @@ public struct CostUsageFetcher: Sendable {
             let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
             var reports: [CostUsageDailyReport] = []
             var projects: [CostUsageProjectBreakdown] = []
+            var nativeLastRefreshAt: Date?
 
             if !cache.days.isEmpty,
                cache.roots == CostUsageScanner.codexRootsFingerprint(options: options),
@@ -263,6 +295,10 @@ public struct CostUsageFetcher: Sendable {
                     modelsDevCacheRoot: options.cacheRoot)
                 if !daily.data.isEmpty {
                     reports.append(daily)
+                    if cache.lastScanUnixMs > 0 {
+                        nativeLastRefreshAt = Date(
+                            timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+                    }
                     if cache.codexProjectMetadataVersion == CostUsageScanner.codexProjectMetadataVersion {
                         projects.append(contentsOf: CostUsageScanner.buildCodexProjectBreakdownsFromCache(
                             cache: cache,
@@ -280,17 +316,20 @@ public struct CostUsageFetcher: Sendable {
                 cacheRoot: options.cacheRoot)
             {
                 reports.append(piDaily)
+                nativeLastRefreshAt = nil
                 if let piProject = Self.unknownProjectBreakdown(from: piDaily) {
                     projects.append(piProject)
                 }
             }
 
             guard !reports.isEmpty else { return nil }
-            return Self.tokenSnapshot(
-                from: CostUsageDailyReport.merged(reports),
-                now: now,
-                historyDays: clampedHistoryDays,
-                projects: Self.mergedProjectBreakdowns(projects))
+            return CachedCodexTokenSnapshotResult(
+                snapshot: Self.tokenSnapshot(
+                    from: CostUsageDailyReport.merged(reports),
+                    now: now,
+                    historyDays: clampedHistoryDays,
+                    projects: Self.mergedProjectBreakdowns(projects)),
+                lastRefreshAt: nativeLastRefreshAt)
         }
         return cachedSnapshot.flatMap(\.self)
     }

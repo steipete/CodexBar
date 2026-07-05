@@ -93,6 +93,41 @@ struct CostUsagePerformanceGateTests {
         #expect(advanced.lastRowID == scanned.lastRowID + 1)
     }
 
+    @Test
+    func `project rollups resolve the pricing catalog once per build`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        _ = try Self.writeSyntheticCodexCorpus(env: env, day: day, files: 3, turnsPerFile: 4)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var catalogLoadCount = 0
+        let projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
+            cache: cache,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            modelsDevCacheRoot: env.cacheRoot,
+            modelsDevCatalogLoader: { _ in
+                catalogLoadCount += 1
+                return ModelsDevCatalog(providers: [:])
+            })
+
+        #expect(!projects.isEmpty)
+        #expect(catalogLoadCount == 1)
+    }
+
     private static func writeSyntheticCodexCorpus(
         env: CostUsageTestEnvironment,
         day: Date,

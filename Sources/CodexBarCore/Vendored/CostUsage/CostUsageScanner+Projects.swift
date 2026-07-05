@@ -6,8 +6,16 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
-        priorityTurns: [String: CodexPriorityTurnMetadata] = [:]) -> [CostUsageProjectBreakdown]
+        priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
+        modelsDevCatalogLoader: (URL?) -> ModelsDevCatalog? = {
+            CostUsagePricing.modelsDevCatalog(cacheRoot: $0)
+        }) -> [CostUsageProjectBreakdown]
     {
+        // Project rollups build one report per cached session file. Resolve pricing once so every
+        // row does not fall back through ModelsDevCache.load and repeat filesystem metadata reads.
+        let resolvedModelsDevCatalog = modelsDevCatalog
+            ?? modelsDevCatalogLoader(modelsDevCacheRoot)
+            ?? ModelsDevCatalog(providers: [:])
         let projectPathResolver = CodexCanonicalProjectPathResolver()
         var accumulatorsByProjectPath: [String: CodexProjectBreakdownAccumulator] = [:]
         for (filePath, usage) in cache.files {
@@ -20,8 +28,7 @@ extension CostUsageScanner {
             let report = Self.buildCodexReportFromCache(
                 cache: fileCache,
                 range: range,
-                modelsDevCatalog: modelsDevCatalog,
-                modelsDevCacheRoot: modelsDevCacheRoot,
+                modelsDevCatalog: resolvedModelsDevCatalog,
                 priorityTurns: priorityTurns)
             guard !report.data.isEmpty else { continue }
             let projectKey = usage.canonicalProjectPath

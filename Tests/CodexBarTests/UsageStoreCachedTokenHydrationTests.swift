@@ -98,6 +98,99 @@ struct UsageStoreCachedTokenHydrationTests {
         #expect(store.tokenSnapshot(for: .codex) == nil)
     }
 
+    @Test
+    func `fresh cached hydration suppresses the redundant startup token refresh`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let now = Date()
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: now,
+            filename: "cached.jsonl",
+            tokens: 42)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: now,
+            historyDays: 1,
+            scannerOptions: options)
+
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(scannerOptions: options),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var tokenRefreshCount = 0
+        store._test_tokenUsageRefreshOverride = { _, _ in tokenRefreshCount += 1 }
+
+        store.hydrateCachedTokenSnapshots(now: now)
+        for _ in 0..<100 where store.tokenSnapshot(for: .codex) == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        await store.refreshTokenUsageNow(for: .codex, force: false)
+
+        #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 42)
+        #expect(store.tokenLastAttemptAt(for: .codex).map { abs($0.timeIntervalSince(now)) < 0.001 } == true)
+        #expect(tokenRefreshCount == 0)
+    }
+
+    @Test
+    func `stale cached hydration still allows the startup token refresh`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let now = Date()
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: now,
+            filename: "cached.jsonl",
+            tokens: 42)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: now,
+            historyDays: 1,
+            scannerOptions: options)
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache.lastScanUnixMs = Int64(now.addingTimeInterval(-2 * 60 * 60).timeIntervalSince1970 * 1000)
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(scannerOptions: options),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var tokenRefreshCount = 0
+        store._test_tokenUsageRefreshOverride = { _, _ in tokenRefreshCount += 1 }
+
+        store.hydrateCachedTokenSnapshots(now: now)
+        for _ in 0..<100 where store.tokenSnapshot(for: .codex) == nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        await store.refreshTokenUsageNow(for: .codex, force: false)
+
+        #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 42)
+        #expect(store.tokenLastAttemptAt(for: .codex) != nil)
+        #expect(tokenRefreshCount == 1)
+    }
+
     private static func makeCodexOnlySettings(historyDays: Int) -> SettingsStore {
         let suite = "UsageStoreCachedTokenHydrationTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
