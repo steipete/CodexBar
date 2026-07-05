@@ -201,6 +201,8 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(perplexity: self.makeProviderCookieSettings(cookieSettings))
         case .mimo:
             return self.makeSnapshot(mimo: self.makeProviderCookieSettings(cookieSettings))
+        case .deepseek:
+            return self.makeSnapshot(deepseek: self.makeProviderCookieSettings(cookieSettings))
         case .doubao:
             return nil
         case .abacus:
@@ -246,6 +248,7 @@ struct TokenAccountCLIContext {
         jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings? = nil,
         perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings? = nil,
         mimo: ProviderSettingsSnapshot.MiMoProviderSettings? = nil,
+        deepseek: ProviderSettingsSnapshot.DeepSeekProviderSettings? = nil,
         abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
         mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
         qoder: ProviderSettingsSnapshot.QoderProviderSettings? = nil,
@@ -273,6 +276,7 @@ struct TokenAccountCLIContext {
             jetbrains: jetbrains,
             perplexity: perplexity,
             mimo: mimo,
+            deepseek: deepseek,
             abacus: abacus,
             mistral: mistral,
             qoder: qoder,

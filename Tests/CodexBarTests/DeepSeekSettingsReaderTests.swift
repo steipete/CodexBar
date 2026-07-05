@@ -1,5 +1,6 @@
 import CodexBarCore
 import Testing
+@testable import CodexBarCLI
 
 struct DeepSeekSettingsReaderTests {
     @Test
@@ -83,5 +84,45 @@ struct DeepSeekProviderTokenResolverTests {
         let resolution = ProviderTokenResolver.deepseekCookieResolution(environment: env)
         #expect(resolution?.token == "Bearer eyJ.test")
         #expect(resolution?.source == .environment)
+    }
+}
+
+struct DeepSeekCLISettingsSnapshotTests {
+    @Test
+    func `CLI snapshot includes configured deepseek cookie settings`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .deepseek,
+                cookieSource: .manual,
+                cookieHeader: "session=manual"),
+        ])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .deepseek, account: nil))
+        let deepseek = try #require(snapshot.deepseek)
+
+        #expect(deepseek.cookieSource == .manual)
+        #expect(deepseek.manualCookieHeader == "session=manual")
+    }
+
+    @Test
+    func `CLI snapshot honors deepseek cookie source off`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .deepseek,
+                cookieSource: .off,
+                cookieHeader: "session=ignored"),
+        ])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false)
+        let snapshot = try #require(tokenContext.settingsSnapshot(for: .deepseek, account: nil))
+        let deepseek = try #require(snapshot.deepseek)
+
+        #expect(deepseek.cookieSource == .off)
+        #expect(deepseek.manualCookieHeader == "session=ignored")
     }
 }

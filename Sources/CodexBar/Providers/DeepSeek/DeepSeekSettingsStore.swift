@@ -22,6 +22,16 @@ extension SettingsStore {
         }
     }
 
+    var deepSeekUsageDataSource: ProviderSourceMode {
+        get { self.configSnapshot.providerConfig(for: .deepseek)?.source ?? .auto }
+        set {
+            self.updateProviderConfig(provider: .deepseek) { entry in
+                entry.source = newValue
+            }
+            self.logProviderModeChange(provider: .deepseek, field: "usageSource", value: newValue.rawValue)
+        }
+    }
+
     func ensureDeepSeekCookieLoaded() {}
 }
 

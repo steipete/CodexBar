@@ -39,6 +39,8 @@ When an API key is present CodexBar uses it for balance and enriches with the we
 - When a web session provides `get_user_summary`, its wallet balances take precedence over the API-key balance in the menu-card balance line, which also appends `≈<n> tok` from `total_available_token_estimation`.
 - When `users/current` reports an enabled balance alert and the balance drops below `alert_bound`, the balance line is marked full (warning styling) and appends `— below alert <amount>`. The masked account email flows into the provider identity snapshot.
 - Fetch strategy resolution (`DeepSeekProviderDescriptor.resolveStrategies`): `.web` → `deepseek.web` only; `.api` → `deepseek.api` only; `.auto` → `deepseek.api` (with web enrichment) when an API key exists, otherwise `deepseek.web`.
+- App/CLI `source` in `~/.codexbar/config.json` maps to `ProviderSourceMode` via `DeepSeekProviderImplementation.sourceMode` (`.auto` / `.web` / `.api`).
+- Auto usage-summary mode keeps DeepSeek available on macOS before a browser session is cached so the first user-initiated refresh can import Chrome cookies.
 - Disabling the usage-summary source (`cookieSource == .off`) suppresses **all** session candidates — settings, environment `DEEPSEEK_COOKIE`, cache, and browser import.
 - **Manual** usage-summary source uses only the pasted platform session from Settings; it does not fall back to environment variables, cache, or browser import.
 - **Auto** usage-summary source may use settings header, `DEEPSEEK_COOKIE`, cache, and browser import.

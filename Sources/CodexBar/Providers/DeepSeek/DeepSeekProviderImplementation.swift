@@ -15,6 +15,7 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
+        _ = settings.deepSeekUsageDataSource
         _ = settings.deepSeekCookieSource
         _ = settings.deepSeekCookieHeader
     }
@@ -22,6 +23,18 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
         .deepseek(context.settings.deepSeekSettingsSnapshot(tokenOverride: context.tokenOverride))
+    }
+
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        switch context.settings.deepSeekUsageDataSource {
+        case .auto, .cli, .oauth:
+            .auto
+        case .web:
+            .web
+        case .api:
+            .api
+        }
     }
 
     @MainActor
@@ -55,8 +68,11 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
             {
                 return true
             }
-            #endif
+            // Keep auto mode reachable before the first validated browser session is cached.
+            return true
+            #else
             return false
+            #endif
         }
     }
 
