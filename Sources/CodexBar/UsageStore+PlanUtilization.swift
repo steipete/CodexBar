@@ -43,16 +43,7 @@ extension UsageStore {
         case .codex, .claude:
             true
         case .minimax:
-            if self.planUtilizationHistory[provider]?.isEmpty == false {
-                true
-            } else if let snapshot = self.snapshots[provider] {
-                !self.planUtilizationSeriesSamples(
-                    provider: provider,
-                    snapshot: snapshot,
-                    capturedAt: snapshot.updatedAt).isEmpty
-            } else {
-                false
-            }
+            self.miniMaxSupportsPlanUtilizationHistory()
         default:
             if self.planUtilizationHistory[provider]?.isEmpty == false {
                 true
@@ -277,11 +268,7 @@ extension UsageStore {
         case .codex, .claude:
             true
         case .minimax:
-            guard let snapshot = self.snapshots[provider] else { return false }
-            return !self.planUtilizationSeriesSamples(
-                provider: provider,
-                snapshot: snapshot,
-                capturedAt: snapshot.updatedAt).isEmpty
+            self.miniMaxHasRecordablePlanUtilizationSamples()
         default:
             self.settings.historicalTrackingEnabled
         }
@@ -548,6 +535,21 @@ extension UsageStore {
         default:
             return
         }
+    }
+
+    private func miniMaxHasRecordablePlanUtilizationSamples() -> Bool {
+        let provider = UsageProvider.minimax
+        guard let snapshot = self.snapshots[provider] else { return false }
+        return !self.planUtilizationSeriesSamples(
+            provider: provider,
+            snapshot: snapshot,
+            capturedAt: snapshot.updatedAt).isEmpty
+    }
+
+    private func miniMaxSupportsPlanUtilizationHistory() -> Bool {
+        let provider = UsageProvider.minimax
+        if self.planUtilizationHistory[provider]?.isEmpty == false { return true }
+        return self.miniMaxHasRecordablePlanUtilizationSamples()
     }
 
     private func planUtilizationSeriesSamples(
