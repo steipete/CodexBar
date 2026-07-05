@@ -208,36 +208,35 @@ struct TokenAccountCLIContext {
         provider: UsageProvider,
         cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings) -> ProviderSettingsSnapshot?
     {
-        let settings = self.makeProviderCookieSettings(cookieSettings)
         switch provider {
         case .cursor:
-            return self.makeSnapshot(cursor: settings)
+            return self.makeSnapshot(cursor: self.makeProviderCookieSettings(cookieSettings))
         case .commandcode:
-            return self.makeSnapshot(commandcode: settings)
+            return self.makeSnapshot(commandcode: self.makeProviderCookieSettings(cookieSettings))
         case .alibabatokenplan:
-            return self.makeSnapshot(alibabaTokenPlan: settings)
+            return self.makeSnapshot(alibabaTokenPlan: self.makeProviderCookieSettings(cookieSettings))
         case .factory:
-            return self.makeSnapshot(factory: settings)
+            return self.makeSnapshot(factory: self.makeProviderCookieSettings(cookieSettings))
         case .manus:
-            return self.makeSnapshot(manus: settings)
+            return self.makeSnapshot(manus: self.makeProviderCookieSettings(cookieSettings))
         case .augment:
-            return self.makeSnapshot(augment: settings)
+            return self.makeSnapshot(augment: self.makeProviderCookieSettings(cookieSettings))
         case .amp:
-            return self.makeSnapshot(amp: settings)
+            return self.makeSnapshot(amp: self.makeProviderCookieSettings(cookieSettings))
         case .ollama:
-            return self.makeSnapshot(ollama: settings)
+            return self.makeSnapshot(ollama: self.makeProviderCookieSettings(cookieSettings))
         case .kimi:
-            return self.makeSnapshot(kimi: settings)
+            return self.makeSnapshot(kimi: self.makeProviderCookieSettings(cookieSettings))
         case .perplexity:
-            return self.makeSnapshot(perplexity: settings)
+            return self.makeSnapshot(perplexity: self.makeProviderCookieSettings(cookieSettings))
         case .mimo:
-            return self.makeSnapshot(mimo: settings)
+            return self.makeSnapshot(mimo: self.makeProviderCookieSettings(cookieSettings))
         case .deepseek:
-            return self.makeSnapshot(deepseek: settings)
+            return self.makeSnapshot(deepseek: self.makeProviderCookieSettings(cookieSettings))
         case .abacus:
-            return self.makeSnapshot(abacus: settings)
+            return self.makeSnapshot(abacus: self.makeProviderCookieSettings(cookieSettings))
         case .mistral:
-            return self.makeSnapshot(mistral: settings)
+            return self.makeSnapshot(mistral: self.makeProviderCookieSettings(cookieSettings))
         default:
             return nil
         }
