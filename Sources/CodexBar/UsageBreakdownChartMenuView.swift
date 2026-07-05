@@ -19,16 +19,29 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private let breakdown: [OpenAIDashboardDailyBreakdown]
+    private let now: Date
+    private let calendar: Calendar
     private let width: CGFloat
     @State private var selectedDayKey: String?
 
-    init(breakdown: [OpenAIDashboardDailyBreakdown], width: CGFloat) {
+    init(
+        breakdown: [OpenAIDashboardDailyBreakdown],
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        width: CGFloat)
+    {
         self.breakdown = breakdown
+        self.now = now
+        self.calendar = calendar
         self.width = width
     }
 
     var body: some View {
-        let model = Self.makeModel(from: self.breakdown)
+        let summary = OpenAIDashboardDailyBreakdown.recentUsageSummary(
+            from: self.breakdown,
+            now: self.now,
+            calendar: self.calendar)
+        let model = Self.makeModel(from: summary.daily)
         VStack(alignment: .leading, spacing: 10) {
             if model.points.isEmpty {
                 Text(L("No usage breakdown data."))
@@ -36,6 +49,14 @@ struct UsageBreakdownChartMenuView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(L("No usage breakdown data available."))
             } else {
+                HStack(alignment: .firstTextBaseline) {
+                    self.summaryMetric(title: L("Today"), credits: summary.todayCredits)
+                    Spacer(minLength: 12)
+                    self.summaryMetric(
+                        title: String(format: L("Last %d days"), summary.historyDays),
+                        credits: summary.totalCredits)
+                }
+
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
@@ -153,6 +174,25 @@ struct UsageBreakdownChartMenuView: View {
     }
 
     private static let selectionBandColor = Color(nsColor: .labelColor).opacity(0.1)
+
+    private func summaryMetric(title: String, credits: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(Self.creditsString(credits))
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private static func creditsString(_ credits: Double?) -> String {
+        guard let credits, credits.isFinite else { return "—" }
+        let value = credits.formatted(.number.precision(.fractionLength(0...2)))
+        return "\(value) \(L("credits"))"
+    }
 
     private static func makeModel(from breakdown: [OpenAIDashboardDailyBreakdown]) -> Model {
         let sorted = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: breakdown)
