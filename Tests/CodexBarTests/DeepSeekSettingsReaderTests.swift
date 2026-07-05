@@ -93,8 +93,8 @@ struct DeepSeekCLISettingsSnapshotTests {
         let config = CodexBarConfig(providers: [
             ProviderConfig(
                 id: .deepseek,
-                cookieSource: .manual,
-                cookieHeader: "session=manual"),
+                cookieHeader: "session=manual",
+                cookieSource: .manual),
         ])
         let tokenContext = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
@@ -112,8 +112,8 @@ struct DeepSeekCLISettingsSnapshotTests {
         let config = CodexBarConfig(providers: [
             ProviderConfig(
                 id: .deepseek,
-                cookieSource: .off,
-                cookieHeader: "session=ignored"),
+                cookieHeader: "session=ignored",
+                cookieSource: .off),
         ])
         let tokenContext = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
