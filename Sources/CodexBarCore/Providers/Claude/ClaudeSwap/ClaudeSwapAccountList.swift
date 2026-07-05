@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 /// Strictly parsed result of `cswap --list --json` (schema v1).
