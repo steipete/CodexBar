@@ -138,8 +138,23 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
-    var manualRefreshTask: Task<Void, Never>?
-    var manualRefreshProvider: UsageProvider?
+    /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
+    /// a manual refresh of another. `.global` covers the all-providers refresh (⌘R / merged overview).
+    var manualRefreshTasks: [ManualRefreshScope: Task<Void, Never>] = [:]
+
+    /// The in-flight manual refresh task, preferring the all-providers one. Read by tests that await
+    /// whichever refresh they just started; production code keys into `manualRefreshTasks` by scope.
+    var manualRefreshTask: Task<Void, Never>? {
+        get { self.manualRefreshTasks[.global] ?? self.manualRefreshTasks.values.first }
+        set { self.manualRefreshTasks[.global] = newValue }
+    }
+
+    /// A per-provider manual refresh currently in flight, if any. Read only by tests; production code
+    /// keys into `manualRefreshTasks` directly.
+    var manualRefreshProvider: UsageProvider? {
+        for case let .provider(provider) in self.manualRefreshTasks.keys { return provider }
+        return nil
+    }
     var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var closedMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
     var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]

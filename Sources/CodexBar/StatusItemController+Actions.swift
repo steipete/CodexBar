@@ -1,6 +1,15 @@
 import AppKit
 import CodexBarCore
 
+extension StatusItemController {
+    /// Identifies which manual refresh a task belongs to, so per-provider refreshes stay independent
+    /// of each other and of the all-providers refresh.
+    enum ManualRefreshScope: Hashable {
+        case global
+        case provider(UsageProvider)
+    }
+}
+
 enum LoginNotificationLogic {
     static func notificationCopy(providerName: String) -> (title: String, body: String) {
         (
@@ -114,10 +123,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private func startManualRefresh(for provider: UsageProvider?) {
+        let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
             ?? !self.store.refreshingProviders.isEmpty
         guard !self.hasPreparedForAppShutdown,
-              self.manualRefreshTask == nil,
+              self.manualRefreshTasks[scope] == nil,
               !self.store.isRefreshing,
               !scopedRefreshInFlight
         else { return }
@@ -126,9 +136,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                self.manualRefreshTask = nil
-                self.manualRefreshProvider = nil
-                self.menuCardRefreshMonitor.endManualRefresh()
+                self.manualRefreshTasks[scope] = nil
+                self.menuCardRefreshMonitor.endManualRefresh(for: provider)
                 self.updatePersistentRefreshItemsEnabled()
                 self.prepareAttachedClosedMenusIfNeeded()
             }
@@ -152,8 +161,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                     interaction: .userInitiated)
             }
         }
-        self.manualRefreshProvider = provider
-        self.manualRefreshTask = task
+        self.manualRefreshTasks[scope] = task
         self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: provider)
         self.updatePersistentRefreshItemsEnabled()
     }

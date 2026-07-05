@@ -528,6 +528,51 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
+    func `a provider manual refresh only greys its own tab`() throws {
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        Self.enableCodexAndClaude(settings)
+        Self.disableOverview(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer {
+            controller.manualRefreshTasks.values.forEach { $0.cancel() }
+            controller.manualRefreshTasks.removeAll()
+            controller.releaseStatusItemsForTesting()
+        }
+
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        // A manual refresh of Claude must leave the Codex tab's Refresh row enabled.
+        controller.manualRefreshTasks[.provider(.claude)] = Task {}
+        #expect(!controller.isRefreshActionInFlight(for: menu))
+
+        // Switching to the Claude tab reflects Claude's own in-flight refresh.
+        settings.selectedMenuProvider = .claude
+        #expect(controller.isRefreshActionInFlight(for: menu))
+
+        // An all-providers refresh busies every tab regardless of the selected provider.
+        settings.selectedMenuProvider = .codex
+        controller.manualRefreshTasks[.provider(.claude)] = nil
+        controller.manualRefreshTasks[.global] = Task {}
+        #expect(controller.isRefreshActionInFlight(for: menu))
+    }
+
+    @Test
     func `native image menu rows are replaced during reconciliation`() {
         let settings = Self.makeSettings()
         let fetcher = UsageFetcher()

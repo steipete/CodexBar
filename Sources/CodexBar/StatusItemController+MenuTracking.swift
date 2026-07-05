@@ -111,7 +111,7 @@ extension StatusItemController {
 
     var isMenuDataRefreshInFlight: Bool {
         self.store.isRefreshing ||
-            self.manualRefreshTask != nil ||
+            !self.manualRefreshTasks.isEmpty ||
             !self.store.refreshingProviders.isEmpty ||
             UsageProvider.allCases.contains { self.store.isTokenRefreshInFlight(for: $0) }
     }

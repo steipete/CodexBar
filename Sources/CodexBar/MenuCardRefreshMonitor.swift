@@ -13,9 +13,17 @@ final class MenuCardRefreshMonitor {
     typealias ModelResolver = @MainActor (UsageProvider) -> UsageMenuCardView.Model?
 
     private let resolveModel: ModelResolver
-    var isManualRefreshInFlight = false
-    private var manualRefreshProvider: UsageProvider?
+    /// Set while an all-providers refresh is running; it freezes every provider's card.
+    private var globalManualRefreshInFlight = false
+    /// Providers with an individual manual refresh in flight. Concurrent entries are allowed so
+    /// refreshing one provider does not stall or unfreeze another.
+    private var manualRefreshProviders: Set<UsageProvider> = []
     private var frozenManualRefreshModels: [UsageProvider: UsageMenuCardView.Model] = [:]
+
+    /// True while any manual refresh (global or per-provider) is running.
+    var isManualRefreshInFlight: Bool {
+        self.globalManualRefreshInFlight || !self.manualRefreshProviders.isEmpty
+    }
 
     init(resolveModel: @escaping ModelResolver) {
         self.resolveModel = resolveModel
@@ -25,19 +33,34 @@ final class MenuCardRefreshMonitor {
         frozenModels: [UsageProvider: UsageMenuCardView.Model],
         provider: UsageProvider? = nil)
     {
-        self.frozenManualRefreshModels = frozenModels
-        self.manualRefreshProvider = provider
-        self.isManualRefreshInFlight = true
+        // Merge rather than replace so a second concurrent refresh keeps the first provider's frozen card.
+        self.frozenManualRefreshModels.merge(frozenModels) { _, new in new }
+        if let provider {
+            self.manualRefreshProviders.insert(provider)
+        } else {
+            self.globalManualRefreshInFlight = true
+        }
     }
 
-    func endManualRefresh() {
-        self.isManualRefreshInFlight = false
-        self.manualRefreshProvider = nil
+    /// Balances a `beginManualRefresh` with the same `provider` argument (nil ends the global refresh).
+    func endManualRefresh(for provider: UsageProvider? = nil) {
+        if let provider {
+            self.manualRefreshProviders.remove(provider)
+        } else {
+            self.globalManualRefreshInFlight = false
+        }
+        guard self.manualRefreshProviders.isEmpty, !self.globalManualRefreshInFlight else { return }
+        self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
+    }
+
+    func resetManualRefresh() {
+        self.globalManualRefreshInFlight = false
+        self.manualRefreshProviders.removeAll(keepingCapacity: true)
         self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
     }
 
     func isManualRefreshInFlight(for provider: UsageProvider) -> Bool {
-        self.isManualRefreshInFlight && (self.manualRefreshProvider == nil || self.manualRefreshProvider == provider)
+        self.globalManualRefreshInFlight || self.manualRefreshProviders.contains(provider)
     }
 
     func model(

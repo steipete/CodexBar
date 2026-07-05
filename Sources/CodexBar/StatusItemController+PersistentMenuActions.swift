@@ -16,7 +16,8 @@ extension StatusItemController {
     }
 
     func isRefreshActionInFlight(for menu: NSMenu) -> Bool {
-        if self.manualRefreshTask != nil {
+        // An all-providers manual refresh (⌘R / overview) legitimately busies every row.
+        if self.manualRefreshTasks[.global] != nil {
             return true
         }
 
@@ -25,7 +26,11 @@ extension StatusItemController {
             return self.store.isRefreshing || !self.store.refreshingProviders.isEmpty
         }
         if let provider = self.menuProvider(for: menu) {
-            return self.store.isRefreshing || self.store.refreshingProviders.contains(provider)
+            // A manual refresh of a different provider must not grey out this provider's row: only
+            // reflect the global refresh, this provider's own manual refresh, and its store refresh.
+            return self.store.isRefreshing
+                || self.manualRefreshTasks[.provider(provider)] != nil
+                || self.store.refreshingProviders.contains(provider)
         }
         return self.store.isRefreshing || !self.store.refreshingProviders.isEmpty
     }
