@@ -1121,23 +1121,28 @@ extension StatusMenuPersistentRefreshTests {
                 updatedAt: updatedAt)
         }
 
-        // Claude begins refreshing: freeze its pre-refresh card (21% used -> "79% left").
+        // The snapshot helper supplies every enabled provider even for a provider-scoped refresh.
         controller.store.snapshots[.claude] = quotaSnapshot(usedPercent: 21, updatedAt: now)
+        controller.store.snapshots[.codex] = quotaSnapshot(usedPercent: 15, updatedAt: now)
         let claudeFrozen = try #require(controller.menuCardModel(for: .claude))
-        monitor.beginManualRefresh(frozenModels: [.claude: claudeFrozen], provider: .claude)
+        let codexBeforeItsRefresh = try #require(controller.menuCardModel(for: .codex))
+        monitor.beginManualRefresh(
+            frozenModels: [.claude: claudeFrozen, .codex: codexBeforeItsRefresh],
+            provider: .claude)
 
-        // Claude's snapshot moves mid-refresh; then Codex begins and re-supplies Claude's *current*
-        // model, because frozenManualRefreshMenuCardModels captures every enabled provider.
+        // Each provider must freeze the card visible when its own refresh starts.
         controller.store.snapshots[.claude] = quotaSnapshot(usedPercent: 65, updatedAt: now.addingTimeInterval(1))
+        controller.store.snapshots[.codex] = quotaSnapshot(usedPercent: 42, updatedAt: now.addingTimeInterval(1))
         let claudeMidRefresh = try #require(controller.menuCardModel(for: .claude))
         let codexFrozen = try #require(controller.menuCardModel(for: .codex))
         monitor.beginManualRefresh(
             frozenModels: [.claude: claudeMidRefresh, .codex: codexFrozen],
             provider: .codex)
 
-        // Claude must still show its pre-refresh card, not the mid-refresh one Codex's begin supplied.
         let shownClaude = monitor.model(for: .claude, fallback: claudeMidRefresh)
+        let shownCodex = monitor.model(for: .codex, fallback: codexFrozen)
         #expect(shownClaude.metrics.first?.percentLabel == "79% left")
+        #expect(shownCodex.metrics.first?.percentLabel == "58% left")
 
         // Ending Codex leaves Claude frozen; ending Claude clears it.
         monitor.endManualRefresh(for: .codex)

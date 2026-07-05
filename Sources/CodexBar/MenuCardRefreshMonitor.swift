@@ -33,13 +33,11 @@ final class MenuCardRefreshMonitor {
         frozenModels: [UsageProvider: UsageMenuCardView.Model],
         provider: UsageProvider? = nil)
     {
-        // Keep the existing frozen card for any provider already refreshing. `frozenManualRefreshMenuCardModels()`
-        // snapshots every enabled provider, so a second provider's begin re-supplies the first provider's
-        // now-mid-refresh model; old-wins prevents that from clobbering the pre-refresh card we froze for it.
-        self.frozenManualRefreshModels.merge(frozenModels) { existing, _ in existing }
         if let provider {
+            self.frozenManualRefreshModels[provider] = frozenModels[provider]
             self.manualRefreshProviders.insert(provider)
         } else {
+            self.frozenManualRefreshModels = frozenModels
             self.globalManualRefreshInFlight = true
         }
     }
@@ -48,11 +46,11 @@ final class MenuCardRefreshMonitor {
     func endManualRefresh(for provider: UsageProvider? = nil) {
         if let provider {
             self.manualRefreshProviders.remove(provider)
+            self.frozenManualRefreshModels[provider] = nil
         } else {
             self.globalManualRefreshInFlight = false
+            self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
         }
-        guard self.manualRefreshProviders.isEmpty, !self.globalManualRefreshInFlight else { return }
-        self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
     }
 
     func resetManualRefresh() {
