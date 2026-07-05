@@ -3,6 +3,11 @@ import Foundation
 public struct DeepSeekSettingsReader: Sendable {
     public static let apiKeyEnvironmentKey = "DEEPSEEK_API_KEY"
     public static let apiKeyEnvironmentKeys = [Self.apiKeyEnvironmentKey, "DEEPSEEK_KEY"]
+    public static let platformSessionEnvironmentKeys = [
+        "DEEPSEEK_COOKIE",
+        "DEEPSEEK_PLATFORM_COOKIE",
+        "DEEPSEEK_PLATFORM_SESSION",
+    ]
 
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
@@ -17,6 +22,20 @@ public struct DeepSeekSettingsReader: Sendable {
             if !cleaned.isEmpty {
                 return cleaned
             }
+        }
+        return nil
+    }
+
+    public static func platformSession(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        for key in self.platformSessionEnvironmentKeys {
+            guard let raw = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty
+            else {
+                continue
+            }
+            return raw
         }
         return nil
     }

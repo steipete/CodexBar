@@ -19,6 +19,7 @@ extension StatusItemController {
             Self.storageBreakdownID,
             Self.statusComponentsID,
             Self.zaiHourlyUsageChartID,
+            Self.deepSeekUsageSummaryChartID,
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }
@@ -110,6 +111,14 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.deepSeekUsageSummaryChartID:
+            if let providerRawValue = placeholder.toolTip,
+               let provider = UsageProvider(rawValue: providerRawValue)
+            {
+                self.appendDeepSeekUsageSummaryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
         default:
             false
         }
@@ -178,6 +187,12 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.deepSeekUsageSummaryChartID:
+            if let provider = identity.provider {
+                self.appendDeepSeekUsageSummaryChartItem(to: menu, provider: provider, width: width)
+            } else {
+                false
+            }
         default:
             false
         }
@@ -243,6 +258,8 @@ extension StatusItemController {
             identity.provider.map(self.statusComponentsRenderSignature(for:)) ?? "missing-provider"
         case Self.zaiHourlyUsageChartID:
             identity.provider.map(self.zaiHourlyUsageRenderSignature(for:)) ?? "missing-provider"
+        case Self.deepSeekUsageSummaryChartID:
+            identity.provider.map(self.deepSeekUsageSummaryRenderSignature(for:)) ?? "missing-provider"
         default:
             "unknown"
         }
@@ -307,6 +324,22 @@ extension StatusItemController {
     private func zaiHourlyUsageRenderSignature(for provider: UsageProvider) -> String {
         guard let modelUsage = self.store.snapshot(for: provider)?.zaiUsage?.modelUsage else { return "none" }
         return Self.zaiHourlyUsageRenderSignature(modelUsage: modelUsage, now: Date())
+    }
+
+    private func deepSeekUsageSummaryRenderSignature(for provider: UsageProvider) -> String {
+        guard let usage = self.store.snapshot(for: provider)?.deepseekUsage else { return "none" }
+        return Self.deepSeekUsageSummaryRenderSignature(usage: usage)
+    }
+
+    static func deepSeekUsageSummaryRenderSignature(usage: DeepSeekUsageSummary) -> String {
+        [
+            usage.currency,
+            "\(usage.todayTokens)",
+            "\(usage.currentMonthTokens)",
+            usage.todayCost.map { String($0.bitPattern, radix: 16) } ?? "nil",
+            usage.currentMonthCost.map { String($0.bitPattern, radix: 16) } ?? "nil",
+            String(reflecting: usage.daily),
+        ].joined(separator: "|")
     }
 
     static func zaiHourlyUsageRenderSignature(modelUsage: ZaiModelUsageData, now: Date) -> String {

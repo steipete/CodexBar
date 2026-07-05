@@ -105,6 +105,10 @@ struct DeepSeekUsageFetcherTests {
             updatedAt: updatedAt)
     }
 
+    private static let sampleSession = DeepSeekPlatformSession(
+        cookieHeader: "session=abc",
+        authorizationHeader: nil)
+
     @Test
     func `parses USD balance response`() throws {
         let json = """
@@ -367,6 +371,7 @@ struct DeepSeekUsageFetcherTests {
             try await DeepSeekUsageFetcher._fetchUsageForTesting(
                 apiKey: "test-key",
                 includeOptionalUsage: true,
+                platformSession: Self.sampleSession,
                 optionalSummaryJoinGrace: .milliseconds(50),
                 fetchBalanceData: { _ in
                     Data(Self.sampleBalanceJSON.utf8)
@@ -394,6 +399,7 @@ struct DeepSeekUsageFetcherTests {
         let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
             apiKey: "test-key",
             includeOptionalUsage: true,
+            platformSession: Self.sampleSession,
             optionalSummaryJoinGrace: .milliseconds(20),
             fetchBalanceData: { _ in
                 Data(Self.sampleBalanceJSON.utf8)
@@ -420,6 +426,7 @@ struct DeepSeekUsageFetcherTests {
         let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
             apiKey: "test-key",
             includeOptionalUsage: true,
+            platformSession: Self.sampleSession,
             optionalSummaryJoinGrace: .seconds(2),
             fetchBalanceData: { _ in
                 Data(Self.sampleBalanceJSON.utf8)
@@ -440,6 +447,7 @@ struct DeepSeekUsageFetcherTests {
             _ = try await DeepSeekUsageFetcher._fetchUsageForTesting(
                 apiKey: "test-key",
                 includeOptionalUsage: true,
+                platformSession: Self.sampleSession,
                 optionalSummaryJoinGrace: .seconds(2),
                 fetchBalanceData: { _ in
                     await probe.waitUntilStarted()
@@ -469,6 +477,7 @@ struct DeepSeekUsageFetcherTests {
             _ = try await DeepSeekUsageFetcher._fetchUsageForTesting(
                 apiKey: "test-key",
                 includeOptionalUsage: true,
+                platformSession: Self.sampleSession,
                 optionalSummaryJoinGrace: .seconds(2),
                 fetchBalanceData: { _ in
                     await probe.waitUntilStarted()
@@ -497,6 +506,7 @@ struct DeepSeekUsageFetcherTests {
             try await DeepSeekUsageFetcher._fetchUsageForTesting(
                 apiKey: "test-key",
                 includeOptionalUsage: true,
+                platformSession: Self.sampleSession,
                 optionalSummaryJoinGrace: .seconds(30),
                 fetchBalanceData: { _ in
                     Data(Self.sampleBalanceJSON.utf8)
@@ -534,6 +544,7 @@ struct DeepSeekUsageFetcherTests {
             try await DeepSeekUsageFetcher._fetchUsageForTesting(
                 apiKey: "test-key",
                 includeOptionalUsage: true,
+                platformSession: Self.sampleSession,
                 optionalSummaryJoinGrace: .seconds(30),
                 fetchBalanceData: { _ in
                     balanceStarted.continuation.yield(())
@@ -589,11 +600,32 @@ struct DeepSeekUsageFetcherTests {
     }
 
     @Test
+    func `needs prior month when rolling window crosses month boundary`() throws {
+        let earlyJune = try #require(Self.utcDate(year: 2026, month: 6, day: 3))
+        let lateJune = try #require(Self.utcDate(year: 2026, month: 6, day: 30))
+
+        #expect(DeepSeekUsageFetcher._needsPriorMonthDataForTesting(now: earlyJune))
+        #expect(!DeepSeekUsageFetcher._needsPriorMonthDataForTesting(now: lateJune))
+    }
+
+    @Test
+    func `prior usage period resolves previous calendar month`() {
+        let prior = DeepSeekUsageFetcher._priorUsagePeriodForTesting(month: 6, year: 2026)
+        #expect(prior.month == 5)
+        #expect(prior.year == 2026)
+
+        let januaryPrior = DeepSeekUsageFetcher._priorUsagePeriodForTesting(month: 1, year: 2026)
+        #expect(januaryPrior.month == 12)
+        #expect(januaryPrior.year == 2025)
+    }
+
+    @Test
     func `production path can populate usage summary when optional fetch succeeds`() async throws {
         let expected = Self.sampleSummary()
         let snapshot = try await DeepSeekUsageFetcher._fetchUsageForTesting(
             apiKey: "test-key",
             includeOptionalUsage: true,
+            platformSession: Self.sampleSession,
             optionalSummaryJoinGrace: .seconds(2),
             fetchBalanceData: { _ in
                 Data(Self.sampleBalanceJSON.utf8)

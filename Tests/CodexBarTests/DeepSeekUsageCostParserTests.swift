@@ -309,6 +309,11 @@ struct DeepSeekUsageCostParserTests {
         #expect(summary.todayTokens == 102_648_490) // 100_686_720 + 1_305_432 + 656_338
         #expect(summary.requestCount == 1212)
         #expect(summary.currency == "CNY")
+        let day = try #require(summary.daily.first)
+        #expect(day.models.count == 1)
+        #expect(day.models[0].model == "deepseek-v4-flash")
+        #expect(day.models[0].cacheHitTokens == 100_686_720)
+        #expect(day.cacheHitPercent != nil)
     }
 
     @Test

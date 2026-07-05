@@ -54,6 +54,12 @@ struct DeepSeekSettingsReaderTests {
         let env = ["DEEPSEEK_API_KEY": "   "]
         #expect(DeepSeekSettingsReader.apiKey(environment: env) == nil)
     }
+
+    @Test
+    func `reads platform session env`() {
+        let env = ["DEEPSEEK_COOKIE": "session=abc"]
+        #expect(DeepSeekSettingsReader.platformSession(environment: env) == "session=abc")
+    }
 }
 
 struct DeepSeekProviderTokenResolverTests {
@@ -69,5 +75,13 @@ struct DeepSeekProviderTokenResolverTests {
     func `returns nil when key absent`() {
         let resolution = ProviderTokenResolver.deepseekResolution(environment: [:])
         #expect(resolution == nil)
+    }
+
+    @Test
+    func `resolves platform cookie from environment`() {
+        let env = ["DEEPSEEK_PLATFORM_SESSION": "Bearer eyJ.test"]
+        let resolution = ProviderTokenResolver.deepseekCookieResolution(environment: env)
+        #expect(resolution?.token == "Bearer eyJ.test")
+        #expect(resolution?.source == .environment)
     }
 }

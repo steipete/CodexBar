@@ -37,6 +37,7 @@ extension StatusItemController {
     static let usageHistoryChartID = "usageHistoryChart"
     static let storageBreakdownID = "storageBreakdown"
     static let statusComponentsID = "statusComponents"
+    static let deepSeekUsageSummaryChartID = "deepSeekUsageSummaryChart"
 
     func shortcut(for action: MenuDescriptor.MenuAction) -> (key: String, modifiers: NSEvent.ModifierFlags)? {
         switch action {
@@ -758,6 +759,13 @@ extension StatusItemController {
                 addedOpenAIWebItems: addedOpenAIWebItems)
             self.addUsageHistoryClusterIfNeeded(to: menu, context: context)
             if self.addZaiHourlyUsageMenuItemIfNeeded(
+                to: menu,
+                provider: context.currentProvider,
+                width: context.menuWidth)
+            {
+                menu.addItem(.separator())
+            }
+            if self.addDeepSeekUsageSummaryMenuItemIfNeeded(
                 to: menu,
                 provider: context.currentProvider,
                 width: context.menuWidth)
@@ -1558,7 +1566,7 @@ extension StatusItemController {
     /// Providers that surface the live component list as a native submenu. Every other provider
     /// keeps the plain "Status Page" link that opens the website. Kept deliberately small: these
     /// are the statuspage.io/incident.io feeds we actively curate and trust to render well.
-    static let statusComponentsSubmenuProviders: Set<UsageProvider> = [.claude, .codex, .augment]
+    static let statusComponentsSubmenuProviders: Set<UsageProvider> = [.claude, .codex, .augment, .deepseek]
 
     /// Builds the status submenu (component rows + a website link) for the curated providers in
     /// `statusComponentsSubmenuProviders`. Gated on the provider being in that allowlist (and

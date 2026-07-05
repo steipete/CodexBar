@@ -251,17 +251,63 @@ public enum DeepSeekUsageCategory: String, Sendable, Equatable {
     }
 }
 
+public struct DeepSeekDailyModelUsage: Sendable, Equatable {
+    public let model: String
+    public let tokens: Int
+    public let cost: Double?
+    public let cacheHitTokens: Int
+    public let cacheMissTokens: Int
+    public let outputTokens: Int
+    public let requestCount: Int
+
+    public var cacheHitPercent: Double? {
+        DeepSeekUsageSummary.cacheHitPercent(hitTokens: self.cacheHitTokens, missTokens: self.cacheMissTokens)
+    }
+
+    public init(
+        model: String,
+        tokens: Int,
+        cost: Double?,
+        cacheHitTokens: Int,
+        cacheMissTokens: Int,
+        outputTokens: Int,
+        requestCount: Int)
+    {
+        self.model = model
+        self.tokens = tokens
+        self.cost = cost
+        self.cacheHitTokens = cacheHitTokens
+        self.cacheMissTokens = cacheMissTokens
+        self.outputTokens = outputTokens
+        self.requestCount = requestCount
+    }
+}
+
 public struct DeepSeekDailyUsage: Sendable, Equatable {
     public let date: String
     public let totalTokens: Int
     public let cost: Double?
     public let requestCount: Int
+    public let models: [DeepSeekDailyModelUsage]
 
-    public init(date: String, totalTokens: Int, cost: Double?, requestCount: Int) {
+    public var cacheHitPercent: Double? {
+        let hit = self.models.reduce(0) { $0 + $1.cacheHitTokens }
+        let miss = self.models.reduce(0) { $0 + $1.cacheMissTokens }
+        return DeepSeekUsageSummary.cacheHitPercent(hitTokens: hit, missTokens: miss)
+    }
+
+    public init(
+        date: String,
+        totalTokens: Int,
+        cost: Double?,
+        requestCount: Int,
+        models: [DeepSeekDailyModelUsage] = [])
+    {
         self.date = date
         self.totalTokens = totalTokens
         self.cost = cost
         self.requestCount = requestCount
+        self.models = models
     }
 }
 
@@ -279,6 +325,8 @@ enum DeepSeekUsageCostParser {
     static func parse(
         amountData: Data,
         costData: Data,
+        priorAmountData: Data? = nil,
+        priorCostData: Data? = nil,
         now: Date = Date(),
         calendar: Calendar = .current) throws -> DeepSeekUsageSummary
     {
@@ -295,12 +343,39 @@ enum DeepSeekUsageCostParser {
             throw DeepSeekUsageError.parseFailed("cost: \(error.localizedDescription)")
         }
 
+        let priorAmountPayload: DeepSeekAmountPayload?
+        let priorCostPayload: DeepSeekCostPayload?
+        if let priorAmountData {
+            do {
+                priorAmountPayload = try self.decodeAmountPayload(data: priorAmountData)
+            } catch {
+                throw DeepSeekUsageError.parseFailed("prior amount: \(error.localizedDescription)")
+            }
+        } else {
+            priorAmountPayload = nil
+        }
+        if let priorCostData {
+            do {
+                priorCostPayload = try self.decodeCostPayload(data: priorCostData)
+            } catch {
+                throw DeepSeekUsageError.parseFailed("prior cost: \(error.localizedDescription)")
+            }
+        } else {
+            priorCostPayload = nil
+        }
+
         // Validate responses
+        if let code = amountPayload.code, Self.isAuthFailureCode(code) {
+            throw DeepSeekUsageError.invalidCredentials
+        }
         if let code = amountPayload.code, code != 0 {
             throw DeepSeekUsageError.apiError("amount code \(code)")
         }
         if let bizCode = amountPayload.data?.bizCode, bizCode != 0 {
             throw DeepSeekUsageError.apiError("amount biz_code \(bizCode)")
+        }
+        if let code = costPayload.code, Self.isAuthFailureCode(code) {
+            throw DeepSeekUsageError.invalidCredentials
         }
         if let code = costPayload.code, code != 0 {
             throw DeepSeekUsageError.apiError("cost code \(code)")
@@ -319,9 +394,10 @@ enum DeepSeekUsageCostParser {
         let totalAmounts = amountBizData.total ?? []
         let totalCosts = costPayload.data?.bizData?.first?.total ?? []
 
-        // Parse daily data
-        let dailyAmounts = amountBizData.days ?? []
-        let dailyCosts = costPayload.data?.bizData?.first?.days ?? []
+        // Parse daily data, merging prior month when supplied for rolling 30d trends.
+        let dailyAmounts = (priorAmountPayload?.data?.bizData?.days ?? []) + (amountBizData.days ?? [])
+        let dailyCosts = (priorCostPayload?.data?.bizData?.first?.days ?? [])
+            + (costPayload.data?.bizData?.first?.days ?? [])
 
         return self.aggregate(input: AggregationInput(
             totalAmounts: totalAmounts,
@@ -339,6 +415,7 @@ enum DeepSeekUsageCostParser {
         let calendar: Calendar
         let todayString: String
         let startOfMonth: Date
+        let rollingWindowStart: Date
         let now: Date
         let dailyAmountMap: [String: [String: [DeepSeekUsageItem]]]
         let dailyCostMap: [String: [String: [DeepSeekCostItem]]]
@@ -357,6 +434,8 @@ enum DeepSeekUsageCostParser {
             var components = calendar.dateComponents([.year, .month], from: now)
             components.day = 1
             self.startOfMonth = calendar.date(from: components) ?? now
+            let startOfToday = calendar.startOfDay(for: now)
+            self.rollingWindowStart = calendar.date(byAdding: .day, value: -29, to: startOfToday) ?? self.startOfMonth
 
             self.dailyAmountMap = Self.buildAmountMap(from: dailyAmounts)
             self.dailyCostMap = Self.buildCostMap(from: dailyCosts)
@@ -451,6 +530,7 @@ enum DeepSeekUsageCostParser {
         let dailyCtx = DailyAggregationContext(
             allDates: ctx.allDates,
             startOfMonth: ctx.startOfMonth,
+            rollingWindowStart: ctx.rollingWindowStart,
             now: ctx.now,
             amountMap: ctx.dailyAmountMap,
             costMap: ctx.dailyCostMap,
@@ -488,6 +568,7 @@ enum DeepSeekUsageCostParser {
     private struct DailyAggregationContext {
         let allDates: Set<String>
         let startOfMonth: Date
+        let rollingWindowStart: Date
         let now: Date
         let amountMap: [String: [String: [DeepSeekUsageItem]]]
         let costMap: [String: [String: [DeepSeekCostItem]]]
@@ -634,7 +715,7 @@ enum DeepSeekUsageCostParser {
 
         for date in ctx.allDates.sorted() {
             guard let parsed = self.parseDate(date, calendar: ctx.calendar),
-                  parsed >= ctx.startOfMonth,
+                  parsed >= ctx.rollingWindowStart,
                   parsed <= ctx.now
             else { continue }
 
@@ -671,17 +752,77 @@ enum DeepSeekUsageCostParser {
                 }
             }
 
+            let models = Self.buildDailyModelUsages(
+                amountMap: ctx.amountMap[date] ?? [:],
+                costMap: ctx.costMap[date] ?? [:])
+
             result.append(DeepSeekDailyUsage(
                 date: date,
                 totalTokens: dayTokens,
                 cost: dayCost,
-                requestCount: dayRequests))
+                requestCount: dayRequests,
+                models: models))
         }
 
         return result
     }
 
+    private static func buildDailyModelUsages(
+        amountMap: [String: [DeepSeekUsageItem]],
+        costMap: [String: [DeepSeekCostItem]]) -> [DeepSeekDailyModelUsage]
+    {
+        let modelNames = Set(amountMap.keys).union(costMap.keys).sorted()
+        return modelNames.compactMap { model in
+            var cacheHitTokens = 0
+            var cacheMissTokens = 0
+            var outputTokens = 0
+            var requestCount = 0
+            if let items = amountMap[model] {
+                for item in items {
+                    guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
+                    let amount = Self.parseTokenAmount(item.amount)
+                    switch category {
+                    case .promptCacheHitToken:
+                        cacheHitTokens += amount
+                    case .promptCacheMissToken:
+                        cacheMissTokens += amount
+                    case .responseToken:
+                        outputTokens += amount
+                    case .request:
+                        requestCount += amount
+                    }
+                }
+            }
+
+            var modelCost: Double?
+            if let items = costMap[model] {
+                for item in items {
+                    guard let category = DeepSeekUsageCategory(rawValue: item.type ?? ""),
+                          category != .request
+                    else { continue }
+                    let amount = Self.parseCostAmount(item.amount)
+                    modelCost = (modelCost ?? 0) + amount
+                }
+            }
+
+            let tokens = cacheHitTokens + cacheMissTokens + outputTokens
+            guard tokens > 0 || requestCount > 0 else { return nil }
+            return DeepSeekDailyModelUsage(
+                model: model,
+                tokens: tokens,
+                cost: modelCost,
+                cacheHitTokens: cacheHitTokens,
+                cacheMissTokens: cacheMissTokens,
+                outputTokens: outputTokens,
+                requestCount: requestCount)
+        }
+    }
+
     // MARK: - Helpers
+
+    private static func isAuthFailureCode(_ code: Int) -> Bool {
+        code == 40002 || code == 40003
+    }
 
     private static func parseTokenAmount(_ value: String?) -> Int {
         guard let value, let intValue = Int64(value.trimmingCharacters(in: .whitespacesAndNewlines)) else {

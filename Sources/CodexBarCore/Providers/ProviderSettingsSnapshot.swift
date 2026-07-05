@@ -36,6 +36,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         mimo: MiMoProviderSettings? = nil,
+        deepseek: DeepSeekProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
         mistral: MistralProviderSettings? = nil,
         qoder: QoderProviderSettings? = nil,
@@ -69,6 +70,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             windsurf: windsurf,
             perplexity: perplexity,
             mimo: mimo,
+            deepseek: deepseek,
             abacus: abacus,
             mistral: mistral,
             qoder: qoder,
@@ -397,6 +399,16 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    public struct DeepSeekProviderSettings: ProviderCookieSettings {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+        }
+    }
+
     public struct AbacusProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
@@ -473,6 +485,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let windsurf: WindsurfProviderSettings?
     public let perplexity: PerplexityProviderSettings?
     public let mimo: MiMoProviderSettings?
+    public let deepseek: DeepSeekProviderSettings?
     public let abacus: AbacusProviderSettings?
     public let mistral: MistralProviderSettings?
     public let qoder: QoderProviderSettings?
@@ -510,6 +523,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         windsurf: WindsurfProviderSettings? = nil,
         perplexity: PerplexityProviderSettings? = nil,
         mimo: MiMoProviderSettings? = nil,
+        deepseek: DeepSeekProviderSettings? = nil,
         abacus: AbacusProviderSettings? = nil,
         mistral: MistralProviderSettings? = nil,
         qoder: QoderProviderSettings? = nil,
@@ -542,6 +556,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.windsurf = windsurf
         self.perplexity = perplexity
         self.mimo = mimo
+        self.deepseek = deepseek
         self.abacus = abacus
         self.mistral = mistral
         self.qoder = qoder
@@ -575,6 +590,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
     case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
     case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
+    case deepseek(ProviderSettingsSnapshot.DeepSeekProviderSettings)
     case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
     case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
     case qoder(ProviderSettingsSnapshot.QoderProviderSettings)
@@ -609,6 +625,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
     public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
     public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
+    public var deepseek: ProviderSettingsSnapshot.DeepSeekProviderSettings?
     public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
     public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
     public var qoder: ProviderSettingsSnapshot.QoderProviderSettings?
@@ -647,6 +664,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .windsurf(value): self.windsurf = value
         case let .perplexity(value): self.perplexity = value
         case let .mimo(value): self.mimo = value
+        case let .deepseek(value): self.deepseek = value
         case let .abacus(value): self.abacus = value
         case let .mistral(value): self.mistral = value
         case let .qoder(value): self.qoder = value
@@ -683,6 +701,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             windsurf: self.windsurf,
             perplexity: self.perplexity,
             mimo: self.mimo,
+            deepseek: self.deepseek,
             abacus: self.abacus,
             mistral: self.mistral,
             qoder: self.qoder,

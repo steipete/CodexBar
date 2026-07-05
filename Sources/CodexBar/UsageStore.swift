@@ -998,6 +998,10 @@ final class UsageStore {
             var components: [ProviderStatusComponent]?
             if let override = self._test_providerStatusFetchOverride {
                 status = try await override(provider)
+            } else if provider == .deepseek {
+                let summary = try await DeepSeekStatusFetcher.fetchSummary()
+                status = summary.providerStatus
+                components = summary.providerComponents
             } else if let urlString = meta.statusPageURL, let baseURL = URL(string: urlString) {
                 let summary = try await Self.fetchStatusSummary(from: baseURL)
                 status = summary.status
