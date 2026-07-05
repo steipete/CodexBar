@@ -82,7 +82,7 @@ enum KeychainMigration {
             query[kSecAttrAccount as String] = account
         }
 
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
 
         if status == errSecItemNotFound {
             // Item doesn't exist, nothing to migrate
@@ -115,7 +115,7 @@ enum KeychainMigration {
             deleteQuery[kSecAttrAccount as String] = account
         }
 
-        let deleteStatus = SecItemDelete(deleteQuery as CFDictionary)
+        let deleteStatus = KeychainSecurity.delete(deleteQuery as CFDictionary)
         guard deleteStatus == errSecSuccess else {
             throw KeychainMigrationError.deleteFailed(deleteStatus)
         }
@@ -131,7 +131,7 @@ enum KeychainMigration {
             addQuery[kSecAttrAccount as String] = account
         }
 
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        let addStatus = KeychainSecurity.add(addQuery as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
             throw KeychainMigrationError.addFailed(addStatus)
         }

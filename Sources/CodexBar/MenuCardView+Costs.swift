@@ -101,6 +101,7 @@ extension UsageMenuCardView.Model {
     static func tokenUsageSection(
         provider: UsageProvider,
         enabled: Bool,
+        comparisonPeriodsEnabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
         error: String?) -> TokenUsageSection?
     {
@@ -143,9 +144,27 @@ extension UsageMenuCardView.Model {
         return TokenUsageSection(
             sessionLine: sessionLine,
             monthLine: monthLine,
+            comparisonLines: comparisonPeriodsEnabled
+                ? snapshot.comparisonSummaries().map {
+                    Self.costWindowLine(summary: $0, currencyCode: snapshot.currencyCode)
+                }
+                : [],
             hintLine: Self.tokenUsageHint(provider: provider),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
+    }
+
+    static func costWindowLine(summary: CostUsageWindowSummary, currencyCode: String) -> String {
+        let label = Self.costHistoryWindowLabel(days: summary.days)
+        let cost = summary.totalCostUSD.map {
+            UsageFormatter.currencyString($0, currencyCode: currencyCode)
+        } ?? "—"
+        guard let totalTokens = summary.totalTokens else { return "\(label): \(cost)" }
+        return String(
+            format: L("%@: %@ · %@ tokens"),
+            label,
+            cost,
+            UsageFormatter.tokenCountString(totalTokens))
     }
 
     static func tokenUsageHint(provider: UsageProvider) -> String? {

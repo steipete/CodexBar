@@ -276,7 +276,7 @@ public struct ZedKeychainCredentialsReader: ZedCredentialsReading, Sendable {
 
     private func credentials(from query: [String: Any]) throws -> ZedCredentials? {
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             break

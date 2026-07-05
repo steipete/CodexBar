@@ -436,6 +436,8 @@
 "cost_history_window_help" = "設定選單中顯示多少天的本機使用記錄。";
 "cost_history_days_title" = "歷史時段：%d 天";
 "cost_auto_refresh_info" = "自動重新整理：每小時 · 逾時：10 分鐘";
+"cost_comparison_periods_title" = "顯示較短的比較期間";
+"cost_comparison_periods_subtitle" = "當 7 天、30 天和 90 天落在所選歷史時段內時，加入相應總計。這些總計會重複使用同一次本機掃描。";
 "refresh_cadence_title" = "重新整理頻率";
 "refresh_cadence_subtitle" = "CodexBar 在背景輪詢提供者的頻率。";
 "manual_refresh_hint" = "自動重新整理已關閉；請使用選單中的「重新整理」指令。";

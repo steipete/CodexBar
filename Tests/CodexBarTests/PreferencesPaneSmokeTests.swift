@@ -30,6 +30,8 @@ struct PreferencesPaneSmokeTests {
         settings.multiAccountMenuLayout = .stacked
         settings.hidePersonalInfo = true
         settings.resetTimesShowAbsolute = true
+        settings.costUsageEnabled = true
+        settings.costComparisonPeriodsEnabled = true
         settings.debugDisableKeychainAccess = true
         settings.claudeOAuthKeychainPromptMode = .always
         settings.refreshFrequency = .manual

@@ -431,6 +431,8 @@
 "cost_history_window_help" = "Anger hur många dagar med lokala användningsloggar som visas i menyn.";
 "cost_history_days_title" = "Historikfönster: %d dagar";
 "cost_auto_refresh_info" = "Automatisk uppdatering: varje timme · Timeout: 10 min";
+"cost_comparison_periods_title" = "Visa kortare jämförelseperioder";
+"cost_comparison_periods_subtitle" = "Lägger till summor för 7, 30 och 90 dagar när de ryms i det valda historikfönstret. Summorna återanvänder samma lokala genomsökning.";
 "refresh_cadence_title" = "Uppdateringsintervall";
 "refresh_cadence_subtitle" = "Hur ofta CodexBar kontrollerar leverantörer i bakgrunden.";
 "manual_refresh_hint" = "Automatisk uppdatering är avstängd. Använd Uppdatera i menyn.";

@@ -58,5 +58,40 @@ struct KeychainNoUIQueryTests {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         #expect(status == errSecItemNotFound || status == errSecInteractionNotAllowed)
     }
+
+    @Test
+    func `processes block every Security item operation before system access`() {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess())
+
+        let empty = [:] as CFDictionary
+        var result: CFTypeRef?
+        #expect(KeychainSecurity.copyMatching(empty, &result) == errSecInteractionNotAllowed)
+        #expect(KeychainSecurity.update(empty, empty) == errSecInteractionNotAllowed)
+        #expect(KeychainSecurity.add(empty, nil) == errSecInteractionNotAllowed)
+        #expect(KeychainSecurity.delete(empty) == errSecInteractionNotAllowed)
+    }
+
+    @Test
+    func `safety recognizes runner variants and explicit controls`() {
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
+            processName: "swiftpm-testing-helper",
+            environment: [:]))
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
+            processName: "CodexBarPackageTests.xctest",
+            environment: [:]))
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
+            processName: "future-test-runner",
+            environment: [KeychainTestSafety.suppressAccessEnvironmentKey: "1"]))
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
+            processName: "CodexBar",
+            environment: [:]) == false)
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
+            processName: "swiftpm-testing-helper",
+            environment: [KeychainTestSafety.allowAccessEnvironmentKey: "1"]) == false)
+    }
 }
 #endif

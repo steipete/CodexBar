@@ -3,12 +3,19 @@ import SwiftUI
 
 struct CodexResetCreditPresentationItem: Equatable {
     let expiryText: String
+    let compactExpiryText: String
 }
 
 struct CodexResetCreditsPresentation: Equatable {
     let text: String
-    let detailText: String?
     let items: [CodexResetCreditPresentationItem]
+
+    var expirySummaryText: String {
+        let visibleItems = self.items.prefix(4).map(\.compactExpiryText)
+        let hiddenCount = self.items.count - visibleItems.count
+        let suffix = hiddenCount > 0 ? ["+\(hiddenCount)"] : []
+        return (visibleItems + suffix).joined(separator: " · ")
+    }
 
     var helpText: String {
         self.items.enumerated().map { index, item in
@@ -30,19 +37,10 @@ struct CodexResetCreditsPresentation: Equatable {
         let inventory = snapshot.availableInventory(at: now)
         guard !inventory.credits.isEmpty else { return nil }
         let items = inventory.credits.map { credit in
-            CodexResetCreditPresentationItem(
-                expiryText: Self.expiryText(for: credit, resetStyle: resetStyle, now: now))
+            Self.presentationItem(for: credit, resetStyle: resetStyle, now: now)
         }
-        let detailText = inventory.nextExpiringCredit.flatMap { credit in
-            credit.expiresAt.map { expiresAt in
-                String(
-                    format: L("Next expires %@"),
-                    Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now))
-            }
-        } ?? (inventory.credits.allSatisfy { $0.expiresAt == nil } ? L("No expiry") : nil)
         return CodexResetCreditsPresentation(
             text: Self.availableText(count: inventory.count),
-            detailText: detailText,
             items: items)
     }
 
@@ -50,15 +48,21 @@ struct CodexResetCreditsPresentation: Equatable {
         count == 1 ? L("1 available") : String(format: L("%d available"), count)
     }
 
-    private static func expiryText(
+    private static func presentationItem(
         for credit: CodexRateLimitResetCredit,
         resetStyle: ResetTimeDisplayStyle,
-        now: Date) -> String
+        now: Date) -> CodexResetCreditPresentationItem
     {
-        guard let expiresAt = credit.expiresAt else { return L("No expiry") }
-        return String(
-            format: L("Expires %@"),
-            Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now))
+        guard let expiresAt = credit.expiresAt else {
+            return CodexResetCreditPresentationItem(expiryText: L("No expiry"), compactExpiryText: L("No expiry"))
+        }
+        let formattedTime = Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now)
+        let compactExpiryText = resetStyle == .countdown && formattedTime.hasPrefix("in ")
+            ? String(formattedTime.dropFirst(3))
+            : formattedTime
+        return CodexResetCreditPresentationItem(
+            expiryText: String(format: L("Expires %@"), formattedTime),
+            compactExpiryText: compactExpiryText)
     }
 
     private static func formattedTime(
@@ -80,36 +84,30 @@ struct CodexResetCreditsContent: View {
     let presentation: CodexResetCreditsPresentation
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
-    nonisolated static func expiryRows(_ presentation: CodexResetCreditsPresentation) -> [String] {
-        presentation.items.map(\.expiryText)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L("Limit Reset Credits"))
                 .font(.body)
                 .fontWeight(.medium)
                 .lineLimit(1)
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(self.presentation.text)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                     .lineLimit(1)
                     .layoutPriority(1)
-                Spacer()
-                if let detailText = self.presentation.detailText, !detailText.isEmpty {
-                    Text(detailText)
-                        .font(.footnote)
+                Spacer(minLength: 8)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.caption2)
+                    Text(self.presentation.expirySummaryText)
+                        .font(.caption)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-            }
-            ForEach(Array(Self.expiryRows(self.presentation).enumerated()), id: \.offset) { index, expiryText in
-                Text("\(index + 1). \(expiryText)")
-                    .font(.caption)
-                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
