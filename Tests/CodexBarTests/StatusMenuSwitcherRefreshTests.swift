@@ -528,7 +528,7 @@ struct StatusMenuSwitcherRefreshTests {
     }
 
     @Test
-    func `a provider manual refresh only greys its own tab`() throws {
+    func `a provider manual refresh only greys its own tab`() {
         let settings = Self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual

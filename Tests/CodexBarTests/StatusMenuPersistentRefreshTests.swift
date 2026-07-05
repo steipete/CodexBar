@@ -850,40 +850,6 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `refreshing one provider does not block refreshing another`() async throws {
-        let settings = self.makeSettings()
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = false
-        self.enableOnly([.claude, .codex], settings: settings)
-
-        let controller = self.makeController(settings: settings)
-        let codexMenu = try #require(controller.makeMenu(for: .codex) as? StatusItemMenu)
-        controller.menuWillOpen(codexMenu)
-        defer { controller.menuDidClose(codexMenu) }
-
-        // Simulate a Claude manual refresh already in flight.
-        controller.manualRefreshTasks[.provider(.claude)] = Task {}
-        defer {
-            controller.manualRefreshTasks[.provider(.claude)]?.cancel()
-            controller.manualRefreshTasks[.provider(.claude)] = nil
-        }
-
-        let gate = ManualRefreshGate()
-        controller._test_manualRefreshOperation = { await gate.wait() }
-
-        // A Codex refresh must still start rather than being blocked by the in-flight Claude one.
-        controller.performPersistentRefreshAction(in: ObjectIdentifier(codexMenu))
-        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
-            await Task.yield()
-        }
-        let codexTask = try #require(controller.manualRefreshTasks[.provider(.codex)])
-        #expect(controller.isRefreshActionInFlight(for: codexMenu))
-
-        gate.resume()
-        await codexTask.value
-    }
-
-    @Test
     func `provider menu does not replace matching scoped refresh`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
@@ -1133,5 +1099,122 @@ extension StatusMenuPersistentRefreshTests {
         #expect(abs(refreshView.frame.width - expectedWidth) <= 0.5)
         #expect(refreshView.frame.origin == .zero)
         #expect(refreshView.frame.height == metrics.rowHeight)
+    }
+}
+
+extension StatusMenuPersistentRefreshTests {
+    @Test
+    func `concurrent manual refreshes keep each provider's frozen card`() throws {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let monitor = controller.menuCardRefreshMonitor
+        let now = Date()
+
+        func quotaSnapshot(usedPercent: Double, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: usedPercent,
+                    windowMinutes: 300,
+                    resetsAt: updatedAt.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: updatedAt)
+        }
+
+        // Claude begins refreshing: freeze its pre-refresh card (21% used -> "79% left").
+        controller.store.snapshots[.claude] = quotaSnapshot(usedPercent: 21, updatedAt: now)
+        let claudeFrozen = try #require(controller.menuCardModel(for: .claude))
+        monitor.beginManualRefresh(frozenModels: [.claude: claudeFrozen], provider: .claude)
+
+        // Claude's snapshot moves mid-refresh; then Codex begins and re-supplies Claude's *current*
+        // model, because frozenManualRefreshMenuCardModels captures every enabled provider.
+        controller.store.snapshots[.claude] = quotaSnapshot(usedPercent: 65, updatedAt: now.addingTimeInterval(1))
+        let claudeMidRefresh = try #require(controller.menuCardModel(for: .claude))
+        let codexFrozen = try #require(controller.menuCardModel(for: .codex))
+        monitor.beginManualRefresh(
+            frozenModels: [.claude: claudeMidRefresh, .codex: codexFrozen],
+            provider: .codex)
+
+        // Claude must still show its pre-refresh card, not the mid-refresh one Codex's begin supplied.
+        let shownClaude = monitor.model(for: .claude, fallback: claudeMidRefresh)
+        #expect(shownClaude.metrics.first?.percentLabel == "79% left")
+
+        // Ending Codex leaves Claude frozen; ending Claude clears it.
+        monitor.endManualRefresh(for: .codex)
+        #expect(monitor.isManualRefreshInFlight(for: .claude))
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        monitor.endManualRefresh(for: .claude)
+        #expect(!monitor.isManualRefreshInFlight(for: .claude))
+    }
+
+    @Test
+    func `refreshing one provider does not block refreshing another`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        self.enableOnly([.claude, .codex], settings: settings)
+
+        let controller = self.makeController(settings: settings)
+        let codexMenu = try #require(controller.makeMenu(for: .codex) as? StatusItemMenu)
+        controller.menuWillOpen(codexMenu)
+        defer { controller.menuDidClose(codexMenu) }
+
+        // Simulate a Claude manual refresh already in flight.
+        controller.manualRefreshTasks[.provider(.claude)] = Task {}
+        defer {
+            controller.manualRefreshTasks[.provider(.claude)]?.cancel()
+            controller.manualRefreshTasks[.provider(.claude)] = nil
+        }
+
+        let gate = ManualRefreshGate()
+        controller._test_manualRefreshOperation = { await gate.wait() }
+
+        // A Codex refresh must still start rather than being blocked by the in-flight Claude one.
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(codexMenu))
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let codexTask = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        #expect(controller.isRefreshActionInFlight(for: codexMenu))
+
+        gate.resume()
+        await codexTask.value
+    }
+
+    @Test
+    func `overview stays busy through a provider refresh tail and blocks a global refresh`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnly([.claude, .codex], settings: settings)
+        settings.mergedMenuLastSelectedWasOverview = true
+
+        let controller = self.makeController(settings: settings)
+        let menu = try #require(controller.makeMenu() as? StatusItemMenu)
+        controller.mergedMenu = menu
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        // A per-provider Claude refresh whose task outlives the store's `refreshingProviders` window
+        // (the status/token/credits tail runs after the provider is removed from that set).
+        controller.manualRefreshTasks[.provider(.claude)] = Task {}
+        defer {
+            controller.manualRefreshTasks[.provider(.claude)]?.cancel()
+            controller.manualRefreshTasks[.provider(.claude)] = nil
+        }
+
+        // Overview stands for every provider, so its row stays greyed even with `refreshingProviders` empty.
+        #expect(controller.store.refreshingProviders.isEmpty)
+        #expect(controller.isRefreshActionInFlight(for: menu))
+
+        // And a global overview refresh must not start on top of the in-flight provider refresh.
+        var requestCount = 0
+        controller._test_manualRefreshOperation = { requestCount += 1 }
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+        #expect(requestCount == 0)
+        #expect(controller.manualRefreshTasks[.global] == nil)
     }
 }
