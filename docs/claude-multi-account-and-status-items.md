@@ -8,8 +8,7 @@ read_when:
 
 # Claude multi-account and status item decision
 
-Status: **Phase 1 design accepted; do not merge an implementation until its independent adapter and model proof is
-complete.**
+Status: **Phase 1 account display implemented; Phase 2 explicit account activation accepted.**
 
 Related: [#1756](https://github.com/steipete/CodexBar/issues/1756),
 [#1268](https://github.com/steipete/CodexBar/issues/1268), and the bounded Claude sign-in repair in
@@ -17,12 +16,12 @@ Related: [#1756](https://github.com/steipete/CodexBar/issues/1756),
 
 ## Accepted direction
 
-1. Add an opt-in, read-only `claude-swap` adapter as the first Claude subscription multi-account source.
+1. Use an opt-in `claude-swap` adapter as the first Claude subscription multi-account source.
 2. Normalize its results behind a provider-neutral account snapshot before adding any status item UI.
 3. Make per-account status items opt-in, replace the provider item for that provider, cap selection at four, and keep
    them mutually exclusive with Merge Icons.
-4. Defer account switching. A later phase may invoke `cswap --switch-to <slot> --json` only after a separate product
-   decision and explicit user action.
+4. Allow an explicit click on an inactive account card to invoke exactly `cswap --switch-to <slot> --json`. Keep
+   automatic switching and session launching out of scope.
 
 This solves the durable OAuth refresh problem without making CodexBar a second credential vault. It also avoids a
 Claude-only status item implementation that would need to be redesigned for Codex and other providers.
@@ -57,16 +56,15 @@ Keychain and prompt behavior. The safer seam is a credential-free usage adapter 
 | Option | Credential ownership | Durability | Risk | Recommendation |
 | --- | --- | --- | --- | --- |
 | First-party OAuth account vault | CodexBar | High | New login, refresh, storage, revocation, migration, and security surface | Defer |
-| Read-only `claude-swap` adapter | `claude-swap` | High | External executable and schema dependency | **Phase 1** |
+| Bounded `claude-swap` adapter | `claude-swap` | High | External executable and schema dependency | **Phase 1–2** |
 | Discover Claude Code Keychain entries | Claude Code / ambiguous | Unknown | Undocumented enumeration; prompt and identity hazards | Reject |
 | Existing token accounts | CodexBar config | Low for OAuth | Access token expires without refresh metadata | Keep for current cookie/API-key uses |
 
-As of [`claude-swap` v0.16.0](https://github.com/realiti4/claude-swap/releases/tag/v0.16.0),
+As of [`claude-swap` v0.18.0](https://github.com/realiti4/claude-swap/releases/tag/v0.18.0),
 `cswap --list --json` still returns a versioned object with `schemaVersion: 1`, an active account number, account slots,
 redaction-sensitive email labels, 5-hour and 7-day usage percentages, and reset timestamps. Handled failures return an
-error object and non-zero exit. v0.16.0 also adds mutation-capable automatic switching; that does not expand this
-integration. CodexBar does not need `--token-status`, credential files, Keychain access, or raw OAuth values for the
-display-only phase.
+error object and non-zero exit. Direct switching returns the same versioned envelope. CodexBar does not need
+`--token-status`, credential files, Keychain access, or raw OAuth values for display or explicit activation.
 
 ## Phase 1 adapter contract
 
@@ -88,6 +86,20 @@ display-only phase.
 The executable is an optional external dependency, not a bundled component. Preferences should show detected version,
 last refresh, adapter errors, and a link to the upstream project; CodexBar should not install or update it.
 
+## Phase 2 explicit activation contract
+
+- Only an explicit click on an inactive, actionable account card can start a switch.
+- Derive the numeric slot from the already validated account snapshot and execute exactly
+  `cswap --switch-to <slot> --json`; never accept free-form arguments or invoke a shell.
+- Serialize switches, validate `schemaVersion == 1` and the returned target slot, and bound captured output.
+- Once launched, let the external credential transaction reach its natural exit without forced timeout or
+  cancellation. If the adapter setting changes, hide its UI state and discard its result when the original
+  configuration is no longer current.
+- Refresh ambient Claude usage and the adapter account list after completion. Show switch errors independently from
+  list-refresh errors and preserve the last successful usage snapshots.
+- Keep expired, missing, unknown, and Keychain-inaccessible credential slots non-actionable. Never auto-switch, launch
+  sessions, add/import/export/purge accounts, or mutate credentials directly.
+
 ## Provider-neutral account model
 
 Introduce one projection used by menus and status items rather than teaching status item code about Claude OAuth:
@@ -98,6 +110,7 @@ struct ProviderAccountUsageSnapshot: Identifiable {
     let provider: UsageProvider
     let displayLabel: String
     let isActive: Bool
+    let canActivate: Bool
     let snapshot: UsageSnapshot?
     let error: String?
     let sourceLabel: String?
@@ -147,14 +160,15 @@ No real credential, browser session, or provider call was used.
 
 ## Accepted decisions
 
-1. The optional external `claude-swap` dependency is accepted only for exact read-only `cswap --list --json` execution.
-2. Switching, automatic switching, account mutation, and session launching stay out of Phase 1.
+1. The optional external `claude-swap` dependency is accepted for exact `cswap --list --json` execution and explicit
+   `cswap --switch-to <slot> --json` activation.
+2. Automatic switching, account add/import/export/purge, and session launching stay out of scope.
 3. Provider-neutral account snapshots land before any per-account status item work.
 4. Per-account status items are capped at four and mutually exclusive with Merge Icons.
 5. Status item labels use aliases or privacy-safe ordinals, never email identity.
 
-Any change to these decisions requires a new product/auth review before implementation because it changes storage,
-status item migration, process authority, or the credential boundary.
+Any further change to these decisions requires a new product/auth review before implementation because it changes
+storage, status item migration, process authority, or the credential boundary.
 
 ## Implementation and validation sequence
 
@@ -163,6 +177,7 @@ status item migration, process authority, or the credential boundary.
 2. Add the opt-in adapter and provider-neutral projection. Verify no credential reads and no impact on ambient Claude.
 3. Add settings-state and menu-model tests. Keep AppKit status item creation out of headless tests.
 4. Add status item identity/migration tests, then implement account items behind the opt-in setting.
-5. Run focused tests, `make check`, `make test`, packaged synthetic proof, and macOS UI proof with redacted fixtures.
+5. Add exact-argv, strict switch-result, serialization, and refresh tests using a fake executable only.
+6. Run focused tests, `make check`, `make test`, packaged synthetic proof, and macOS UI proof with redacted fixtures.
 
-No credential import, account mutation, or compatibility shim is part of this proposal.
+No credential import, automatic switching, session launching, or compatibility shim is part of this proposal.

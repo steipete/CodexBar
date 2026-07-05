@@ -7,7 +7,10 @@ import Testing
 /// projection renders as a regular Claude usage card with session/weekly
 /// windows, account identity, and Hide Personal Info redaction.
 struct MenuCardClaudeSwapAccountTests {
-    private func makeModel(hidePersonalInfo: Bool) throws -> UsageMenuCardView.Model {
+    private func makeModel(
+        hidePersonalInfo: Bool,
+        planOverride: String? = nil) throws -> UsageMenuCardView.Model
+    {
         let now = Date(timeIntervalSince1970: 1_782_000_000)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let list = ClaudeSwapAccountList(
@@ -34,6 +37,7 @@ struct MenuCardClaudeSwapAccountTests {
             tokenSnapshot: nil,
             tokenError: nil,
             account: AccountInfo(email: account.displayLabel, plan: nil),
+            planOverride: planOverride,
             isRefreshing: false,
             lastError: account.error,
             usageBarsShowUsed: true,
@@ -42,6 +46,13 @@ struct MenuCardClaudeSwapAccountTests {
             showOptionalCreditsAndExtraUsage: false,
             hidePersonalInfo: hidePersonalInfo,
             now: now))
+    }
+
+    @Test
+    func `claude swap action overrides adapter login method`() throws {
+        let model = try self.makeModel(hidePersonalInfo: false, planOverride: "Switch Account...")
+
+        #expect(model.planText == "Switch Account...")
     }
 
     @Test

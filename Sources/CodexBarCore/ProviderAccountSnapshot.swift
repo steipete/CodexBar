@@ -26,6 +26,9 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
     /// responsible for privacy redaction. Never logged or persisted.
     public let displayLabel: String
     public let isActive: Bool
+    /// Whether the source can make this inactive account the provider's active account.
+    /// Activation remains source-owned; CodexBar never handles credential material.
+    public let canActivate: Bool
     public let snapshot: UsageSnapshot?
     public let error: String?
     public let sourceLabel: String?
@@ -35,6 +38,7 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
         provider: UsageProvider,
         displayLabel: String,
         isActive: Bool,
+        canActivate: Bool = false,
         snapshot: UsageSnapshot?,
         error: String?,
         sourceLabel: String?)
@@ -43,6 +47,7 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
         self.provider = provider
         self.displayLabel = displayLabel
         self.isActive = isActive
+        self.canActivate = canActivate
         self.snapshot = snapshot
         self.error = error
         self.sourceLabel = sourceLabel

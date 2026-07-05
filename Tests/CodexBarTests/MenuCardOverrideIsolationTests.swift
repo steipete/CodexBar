@@ -43,6 +43,7 @@ struct MenuCardOverrideIsolationTests {
             accountOverride: AccountInfo(email: "account@example.com", plan: nil)))
 
         #expect(model.tokenUsage == nil)
+        #expect(model.email == "account@example.com")
     }
 
     @Test

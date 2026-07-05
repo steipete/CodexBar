@@ -11,6 +11,14 @@ struct ClaudeSwapAccountProjectionTests {
         #expect(ClaudeSwapAccountProjection.displayError(
             accountError: "Token expired.",
             adapterError: "timed out") == "Token expired.")
+        #expect(ClaudeSwapAccountProjection.displayError(
+            accountError: nil,
+            adapterError: "timed out",
+            switchError: "store locked") == "Account switch failed: store locked")
+        #expect(ClaudeSwapAccountProjection.displayError(
+            accountError: "API-key account",
+            adapterError: nil,
+            switchError: "store locked") == "Account switch failed: store locked")
     }
 
     private let now = Date(timeIntervalSince1970: 1_782_000_000)
@@ -45,6 +53,7 @@ struct ClaudeSwapAccountProjectionTests {
         #expect(active.provider == .claude)
         #expect(active.displayLabel == "personal@example.com")
         #expect(active.isActive == true)
+        #expect(active.canActivate == false)
         #expect(active.error == nil)
         #expect(active.sourceLabel == "claude-swap")
         #expect(active.snapshot?.primary?.usedPercent == 80)
@@ -57,6 +66,7 @@ struct ClaudeSwapAccountProjectionTests {
         let inactive = try #require(snapshots.last)
         #expect(inactive.id.opaqueID == "1")
         #expect(inactive.isActive == false)
+        #expect(inactive.canActivate == true)
         #expect(inactive.snapshot?.primary?.resetsAt == reset)
         #expect(inactive.snapshot?.secondary?.usedPercent == 16.5)
         #expect(inactive.snapshot?.secondary?.windowMinutes == 10080)
@@ -90,6 +100,8 @@ struct ClaudeSwapAccountProjectionTests {
             #expect(snapshot.snapshot == nil)
             let error = try #require(snapshot.error)
             #expect(error.contains(entry.1))
+            let expectedCanActivate = entry.0 == .apiKey || entry.0 == .unavailable
+            #expect(snapshot.canActivate == expectedCanActivate)
         }
     }
 

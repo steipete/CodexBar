@@ -142,6 +142,7 @@ struct UsageMenuCardView: View {
     let model: Model
     var layoutModel: Model?
     let width: CGFloat
+    var planAction: (() -> Void)?
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
@@ -155,7 +156,9 @@ struct UsageMenuCardView: View {
     var body: some View {
         let liveModel = self.liveModel
         VStack(alignment: .leading, spacing: 0) {
-            UsageMenuCardHeaderView(model: self.layoutModel ?? self.model)
+            UsageMenuCardHeaderView(
+                model: self.layoutModel ?? self.model,
+                planAction: self.planAction)
 
             if Self.hasDetails(for: liveModel) {
                 Divider()
@@ -280,6 +283,7 @@ struct UsageMenuCardView: View {
 
 private struct UsageMenuCardHeaderView: View {
     let model: UsageMenuCardView.Model
+    var planAction: (() -> Void)?
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
@@ -336,10 +340,20 @@ private struct UsageMenuCardHeaderView: View {
                         .accessibilityHidden(!showsCopyButton)
                 }
                 if let plan = self.model.planText {
-                    Text(plan)
-                        .font(.footnote)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(1)
+                    Group {
+                        if let planAction {
+                            Button(action: planAction) {
+                                Text(plan)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(plan)
+                        } else {
+                            Text(plan)
+                        }
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
                 }
             }
         }
@@ -539,7 +553,7 @@ struct UsageMenuCardHeaderSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: UsageMenuCardLayout.headerContentSpacing) {
-            UsageMenuCardHeaderView(model: self.model)
+            UsageMenuCardHeaderView(model: self.model, planAction: nil)
 
             if self.showDivider {
                 Divider()
@@ -818,6 +832,7 @@ extension UsageMenuCardView.Model {
             for: input.provider,
             snapshot: input.snapshot,
             account: input.account,
+            override: input.planOverride,
             metadata: input.metadata)
         let metrics = Self.redactedMetrics(
             Self.metrics(input: input),
@@ -971,10 +986,11 @@ extension UsageMenuCardView.Model {
         for provider: UsageProvider,
         snapshot: UsageSnapshot?,
         account: AccountInfo,
-        metadata: ProviderMetadata) -> String
+        metadata: ProviderMetadata,
+        accountIsAuthoritative: Bool) -> String
     {
         if let email = snapshot?.accountEmail(for: provider), !email.isEmpty { return email }
-        if metadata.usesAccountFallback,
+        if metadata.usesAccountFallback || accountIsAuthoritative,
            let email = account.email, !email.isEmpty
         {
             return email
@@ -986,8 +1002,12 @@ extension UsageMenuCardView.Model {
         for provider: UsageProvider,
         snapshot: UsageSnapshot?,
         account: AccountInfo,
+        override: String?,
         metadata: ProviderMetadata) -> String?
     {
+        if let override, !override.isEmpty {
+            return override
+        }
         if provider == .kiro,
            let plan = kiroPlan(snapshot: snapshot)
         {
@@ -1105,7 +1125,8 @@ extension UsageMenuCardView.Model {
                 for: input.provider,
                 snapshot: input.snapshot,
                 account: input.account,
-                metadata: input.metadata),
+                metadata: input.metadata,
+                accountIsAuthoritative: input.accountIsAuthoritative),
             isEnabled: input.hidePersonalInfo)
         let subtitleText = PersonalInfoRedactor.redactEmails(in: subtitle.text, isEnabled: input.hidePersonalInfo)
             ?? subtitle.text

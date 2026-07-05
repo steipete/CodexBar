@@ -112,9 +112,9 @@ Admin API key setup:
   - Extra usage spend/limit (if enabled).
   - Account email + inferred plan.
 
-## claude-swap accounts (opt-in, read-only)
+## claude-swap accounts (opt-in)
 
-Phase 1 of the accepted multi-account design in
+The accepted multi-account design in
 [claude-multi-account-and-status-items.md](claude-multi-account-and-status-items.md).
 
 - Setup: Preferences → Providers → Claude → "Read accounts from claude-swap", then set the path to the
@@ -130,7 +130,12 @@ Phase 1 of the accepted multi-account design in
   stale data, surface the error in provider settings, and never affect the ambient Claude usage card.
 - Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
   `unavailable`) render as per-account notes instead of usage bars.
-- Account switching is intentionally out of scope; use `cswap` directly to switch accounts.
+- Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
+  `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
+  Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs.
+- Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable. A failed switch remains visible
+  on that account without discarding its last successful usage. A running Claude Code process can take up to the
+  claude-swap Keychain cache interval to observe the new account.
 - When multiple claude-swap accounts are available, they take explicit precedence over Claude
   token-account presentation (stacked cards and the segmented switcher).
 

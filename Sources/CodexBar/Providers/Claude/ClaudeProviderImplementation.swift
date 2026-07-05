@@ -103,8 +103,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
             ProviderSettingsToggleDescriptor(
                 id: "claude-swap-accounts",
                 title: "Read accounts from claude-swap",
-                subtitle: "Shows usage for every claude-swap account by running `cswap --list --json`. " +
-                    "Read-only: CodexBar never reads claude-swap or Claude Code credentials.",
+                subtitle: "Shows usage and lets you switch accounts through `cswap`. " +
+                    "Credentials stay managed by claude-swap; CodexBar never reads them.",
                 binding: claudeSwapBinding,
                 statusText: { Self.claudeSwapStatusText(store: context.store, settings: context.settings) },
                 actions: [],

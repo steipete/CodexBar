@@ -7,7 +7,8 @@ extension StatusItemController {
         snapshotOverride: UsageSnapshot? = nil,
         errorOverride: String? = nil,
         forceOverrideCard: Bool = false,
-        accountOverride: AccountInfo? = nil) -> UsageMenuCardView.Model?
+        accountOverride: AccountInfo? = nil,
+        planOverride: String? = nil) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
@@ -101,6 +102,8 @@ extension StatusItemController {
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: fallbackAccount,
+            accountIsAuthoritative: accountOverride != nil,
+            planOverride: planOverride,
             isRefreshing: self.store.shouldShowRefreshingMenuCardIndicator(for: target),
             // Provider-level errors can belong to a different account, so
             // override cards never inherit them (same rule as the snapshot,

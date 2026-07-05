@@ -148,6 +148,29 @@ public enum SubprocessRunner {
 
     // MARK: - Public API
 
+    /// Runs a process to natural exit without letting caller cancellation or a
+    /// forced timeout interrupt an external mutation after launch.
+    public static func runToCompletion(
+        binary: String,
+        arguments: [String],
+        environment: [String: String],
+        currentDirectoryURL: URL? = nil,
+        acceptsNonZeroExit: Bool = false,
+        label: String) async throws -> SubprocessResult
+    {
+        let task = Task.detached(priority: .userInitiated) {
+            try await self.run(
+                binary: binary,
+                arguments: arguments,
+                environment: environment,
+                timeout: .infinity,
+                currentDirectoryURL: currentDirectoryURL,
+                acceptsNonZeroExit: acceptsNonZeroExit,
+                label: label)
+        }
+        return try await task.value
+    }
+
     public static func run(
         binary: String,
         arguments: [String],
@@ -208,15 +231,21 @@ public enum SubprocessRunner {
         }
 
         let killedByTimeout = KillFlag()
-        let timeoutTimer = DispatchSource.makeTimerSource(queue: self.timeoutQueue)
-        timeoutTimer.schedule(deadline: .now() + self.timeoutInterval(timeout))
-        timeoutTimer.setEventHandler {
-            guard process.isRunning else { return }
-            killedByTimeout.set()
-            self.terminateProcess(process, processGroup: processGroup)
+        let timeoutTimerBox: TimeoutTimer? = if timeout.isFinite {
+            {
+                let timeoutTimer = DispatchSource.makeTimerSource(queue: self.timeoutQueue)
+                timeoutTimer.schedule(deadline: .now() + self.timeoutInterval(timeout))
+                timeoutTimer.setEventHandler {
+                    guard process.isRunning else { return }
+                    killedByTimeout.set()
+                    self.terminateProcess(process, processGroup: processGroup)
+                }
+                timeoutTimer.resume()
+                return TimeoutTimer(timer: timeoutTimer)
+            }()
+        } else {
+            nil
         }
-        timeoutTimer.resume()
-        let timeoutTimerBox = TimeoutTimer(timer: timeoutTimer)
 
         do {
             let exitCode = try await withTaskCancellationHandler {
@@ -225,10 +254,10 @@ public enum SubprocessRunner {
                 try Task.checkCancellation()
                 return code
             } onCancel: {
-                timeoutTimerBox.cancel()
+                timeoutTimerBox?.cancel()
                 self.terminateProcess(process, processGroup: processGroup)
             }
-            timeoutTimerBox.cancel()
+            timeoutTimerBox?.cancel()
 
             let duration = Date().timeIntervalSince(start)
             // Race guard: the timeout timer may kill the process just before the

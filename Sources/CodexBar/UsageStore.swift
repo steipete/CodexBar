@@ -153,7 +153,7 @@ final class UsageStore {
     var claudeSwapDetectedVersion: String?
     var claudeSwapRevision: UInt64 = 0
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
-    @ObservationIgnored var claudeSwapVersionProbedPath: String?
+    @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []

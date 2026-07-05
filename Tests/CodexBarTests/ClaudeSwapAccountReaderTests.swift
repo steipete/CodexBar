@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-/// Reader tests use fake executables only, per the Phase 1 contract: no real
+/// Reader tests use fake executables only: no real
 /// claude-swap install, no credentials, no Keychain access.
 struct ClaudeSwapAccountReaderTests {
     private func makeFakeExecutable(_ script: String) throws -> String {
@@ -89,6 +89,72 @@ struct ClaudeSwapAccountReaderTests {
 
         let version = await ClaudeSwapAccountReader.readVersion(executablePath: path)
         #expect(version == "0.16.0")
+    }
+
+    @Test
+    func `switches only by validated numeric slot with fixed arguments`() async throws {
+        let path = try self.makeFakeExecutable("""
+        [ "$1" = "--switch-to" ] || exit 2
+        [ "$2" = "7" ] || exit 2
+        [ "$3" = "--json" ] || exit 2
+        [ -z "$4" ] || exit 2
+        echo '{"schemaVersion":1,"switched":true,"from":{"number":1},"to":{"number":7},"reason":"switched"}'
+        """)
+
+        let result = try await ClaudeSwapAccountReader.switchAccount(
+            executablePath: path,
+            accountNumber: 7)
+
+        #expect(result.switched)
+        #expect(result.fromAccountNumber == 1)
+        #expect(result.toAccountNumber == 7)
+    }
+
+    @Test
+    func `rejects switch result for another slot`() async throws {
+        let path = try self.makeFakeExecutable("""
+        echo '{"schemaVersion":1,"switched":true,"from":{"number":1},"to":{"number":8},"reason":"switched"}'
+        """)
+
+        await #expect(throws: ClaudeSwapSwitchParserError.mismatchedTarget(expected: 7, actual: 8)) {
+            try await ClaudeSwapAccountReader.switchAccount(executablePath: path, accountNumber: 7)
+        }
+    }
+
+    @Test
+    func `surfaces switch error envelope from non zero exit`() async throws {
+        let path = try self.makeFakeExecutable("""
+        echo '{"schemaVersion":1,"error":{"type":"SwitchError","message":"credentials missing"}}'
+        exit 1
+        """)
+
+        await #expect(throws: ClaudeSwapSwitchParserError.reportedError(
+            type: "SwitchError",
+            message: "credentials missing"))
+        {
+            try await ClaudeSwapAccountReader.switchAccount(executablePath: path, accountNumber: 2)
+        }
+    }
+
+    @Test
+    func `started credential switch reaches natural exit after caller cancellation`() async throws {
+        let marker = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-swap-switch-finished-\(UUID().uuidString)")
+        let path = try self.makeFakeExecutable("""
+        sleep 0.3
+        touch '\(marker.path)'
+        echo '{"schemaVersion":1,"switched":true,"from":{"number":1},"to":{"number":2},"reason":"switched"}'
+        """)
+        let task = Task {
+            try await ClaudeSwapAccountReader.switchAccount(executablePath: path, accountNumber: 2)
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        let result = try await task.value
+
+        #expect(result.switched)
+        #expect(FileManager.default.fileExists(atPath: marker.path))
     }
 
     @Test

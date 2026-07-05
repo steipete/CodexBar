@@ -23,14 +23,21 @@ public enum ClaudeSwapAccountProjection {
                 provider: .claude,
                 displayLabel: self.displayLabel(for: row),
                 isActive: row.isActive,
+                canActivate: !row.isActive && self.canActivate(row),
                 snapshot: self.usageSnapshot(for: row, now: now),
                 error: self.errorText(for: row),
                 sourceLabel: self.sourceLabel)
         }
     }
 
-    public static func displayError(accountError: String?, adapterError: String?) -> String? {
-        accountError ?? adapterError.map { "Showing the last successful update: \($0)" }
+    public static func displayError(
+        accountError: String?,
+        adapterError: String?,
+        switchError: String? = nil) -> String?
+    {
+        switchError.map { "Account switch failed: \($0)" }
+            ?? accountError
+            ?? adapterError.map { "Showing the last successful update: \($0)" }
     }
 
     static func displayLabel(for row: ClaudeSwapAccountRow) -> String {
@@ -81,6 +88,15 @@ public enum ClaudeSwapAccountProjection {
             "Usage fetch failed."
         case let .unknown(raw):
             "Unrecognized claude-swap status: \(raw)"
+        }
+    }
+
+    private static func canActivate(_ row: ClaudeSwapAccountRow) -> Bool {
+        switch row.usageStatus {
+        case .ok, .apiKey, .unavailable:
+            true
+        case .tokenExpired, .keychainUnavailable, .noCredentials, .unknown:
+            false
         }
     }
 }

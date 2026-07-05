@@ -15,13 +15,13 @@ public enum ClaudeSwapAccountReaderError: LocalizedError, Sendable {
     }
 }
 
-/// Read-only adapter over the external `claude-swap` executable.
+/// Bounded adapter over the external `claude-swap` executable.
 ///
-/// Executes exactly `cswap --list --json` (never a shell, never config-defined
-/// passthrough arguments) with a bounded runtime and bounded output, per the
-/// Phase 1 contract in `docs/claude-multi-account-and-status-items.md`. CodexBar
-/// never reads claude-swap or Claude Code credential storage; the subprocess is
-/// solely responsible for its own credential access.
+/// Executes only the fixed list and explicit switch argument arrays (never a
+/// shell or config-defined passthrough arguments), per the contracts in
+/// `docs/claude-multi-account-and-status-items.md`. CodexBar never reads
+/// claude-swap or Claude Code credential storage; the subprocess is solely
+/// responsible for its own credential access.
 public enum ClaudeSwapAccountReader {
     public static let maxOutputBytes = 262_144
     public static let defaultTimeout: TimeInterval = 30
@@ -40,6 +40,32 @@ public enum ClaudeSwapAccountReader {
             acceptsNonZeroExit: true,
             label: "claude-swap list")
         return try ClaudeSwapListParser.parse(Data(result.utf8))
+    }
+
+    /// Activates one source-issued numeric slot through claude-swap.
+    ///
+    /// The external tool owns the credential transaction. CodexBar supplies no
+    /// credentials and accepts no config-defined arguments.
+    public static func switchAccount(
+        executablePath: String,
+        accountNumber: Int) async throws
+        -> ClaudeSwapAccountSwitchResult
+    {
+        guard accountNumber > 0 else {
+            throw ClaudeSwapSwitchParserError.malformedShape("requested account slot must be positive")
+        }
+        let result = try await self.runCredentialTransaction(
+            executablePath: executablePath,
+            arguments: ["--switch-to", String(accountNumber), "--json"],
+            acceptsNonZeroExit: true,
+            label: "claude-swap switch")
+        let parsed = try ClaudeSwapSwitchParser.parse(Data(result.utf8))
+        guard parsed.toAccountNumber == accountNumber else {
+            throw ClaudeSwapSwitchParserError.mismatchedTarget(
+                expected: accountNumber,
+                actual: parsed.toAccountNumber)
+        }
+        return parsed
     }
 
     /// Best-effort version probe (`cswap --version` prints `cswap <version>`).
@@ -84,6 +110,27 @@ public enum ClaudeSwapAccountReader {
             arguments: arguments,
             environment: ProcessInfo.processInfo.environment,
             timeout: timeout,
+            acceptsNonZeroExit: acceptsNonZeroExit,
+            label: label)
+        guard result.stdout.utf8.count <= self.maxOutputBytes else {
+            throw ClaudeSwapAccountReaderError.outputTooLarge(byteCount: result.stdout.utf8.count)
+        }
+        return result.stdout
+    }
+
+    /// Once launched, a credential mutation must reach the external tool's
+    /// natural exit; caller cancellation and read-probe timeouts must not kill it.
+    private static func runCredentialTransaction(
+        executablePath: String,
+        arguments: [String],
+        acceptsNonZeroExit: Bool,
+        label: String) async throws -> String
+    {
+        let binary = try self.resolvedExecutablePath(executablePath)
+        let result = try await SubprocessRunner.runToCompletion(
+            binary: binary,
+            arguments: arguments,
+            environment: ProcessInfo.processInfo.environment,
             acceptsNonZeroExit: acceptsNonZeroExit,
             label: label)
         guard result.stdout.utf8.count <= self.maxOutputBytes else {

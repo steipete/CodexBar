@@ -613,17 +613,7 @@ extension StatusItemController {
             provider: context.currentProvider,
             accountCount: self.store.claudeSwapAccountSnapshots.count)
         {
-            let cards = self.store.claudeSwapAccountSnapshots.compactMap { account in
-                self.menuCardModel(
-                    for: .claude,
-                    snapshotOverride: account.snapshot,
-                    errorOverride: ClaudeSwapAccountProjection.displayError(
-                        accountError: account.error,
-                        adapterError: self.store.claudeSwapLastError),
-                    forceOverrideCard: account.snapshot == nil,
-                    accountOverride: AccountInfo(email: account.displayLabel, plan: nil))
-            }
-            self.addStackedMenuCards(cards, to: menu, context: context)
+            self.addClaudeSwapMenuCards(to: menu, context: context)
             return false
         }
 
@@ -689,10 +679,11 @@ extension StatusItemController {
         return false
     }
 
-    private func addStackedMenuCards(
+    func addStackedMenuCards(
         _ cards: [UsageMenuCardView.Model],
         to menu: NSMenu,
-        context: MenuCardContext)
+        context: MenuCardContext,
+        planAction: ((Int) -> (() -> Void)?)? = nil)
     {
         if cards.isEmpty, let model = self.menuCardModel(for: context.selectedProvider) {
             let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
@@ -707,7 +698,10 @@ extension StatusItemController {
         } else {
             for (index, model) in cards.enumerated() {
                 menu.addItem(self.makeMenuCardItem(
-                    UsageMenuCardView(model: model, width: context.menuWidth),
+                    UsageMenuCardView(
+                        model: model,
+                        width: context.menuWidth,
+                        planAction: planAction?(index)),
                     id: "menuCard-\(index)",
                     width: context.menuWidth,
                     heightCacheScope: "\(context.currentProvider.rawValue)-\(index)",
