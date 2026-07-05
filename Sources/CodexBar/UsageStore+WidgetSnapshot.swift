@@ -68,6 +68,11 @@ extension UsageStore {
             creditsRemaining = nil
             codeReviewRemaining = nil
         }
+        let providerCost = if provider == .devin, self.settings.showOptionalCreditsAndExtraUsage {
+            snapshot?.providerCost
+        } else {
+            nil
+        }
 
         return WidgetSnapshot.ProviderEntry(
             provider: provider,
@@ -80,7 +85,7 @@ extension UsageStore {
             codeReviewRemainingPercent: codeReviewRemaining,
             tokenUsage: tokenUsage,
             dailyUsage: dailyUsage,
-            providerCost: snapshot?.providerCost)
+            providerCost: providerCost)
     }
 
     private nonisolated static func widgetTokenUsageSummary(
