@@ -107,8 +107,8 @@ public struct ProviderFetchResult: Sendable {
     /// A one-way discriminator derived from the winning Claude OAuth credential.
     /// Raw access and refresh tokens never enter the fetch result or persisted history.
     public let claudeOAuthHistoryOwnerIdentifier: String?
-    /// Whether the winning Claude OAuth credential belongs to Claude Code's Keychain entry.
-    public let claudeOAuthUsesClaudeCLIKeychain: Bool
+    /// Whether a prompt-free comparison proved the winning credential differs from Claude Code's Keychain entry.
+    public let claudeOAuthKeychainCredentialMismatch: Bool
 
     public init(
         usage: UsageSnapshot,
@@ -119,7 +119,7 @@ public struct ProviderFetchResult: Sendable {
         strategyKind: ProviderFetchKind,
         claudeOAuthKeychainPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
-        claudeOAuthUsesClaudeCLIKeychain: Bool = false)
+        claudeOAuthKeychainCredentialMismatch: Bool = false)
     {
         self.usage = usage
         self.credits = credits
@@ -129,7 +129,7 @@ public struct ProviderFetchResult: Sendable {
         self.strategyKind = strategyKind
         self.claudeOAuthKeychainPersistentRefHash = claudeOAuthKeychainPersistentRefHash
         self.claudeOAuthHistoryOwnerIdentifier = claudeOAuthHistoryOwnerIdentifier
-        self.claudeOAuthUsesClaudeCLIKeychain = claudeOAuthUsesClaudeCLIKeychain
+        self.claudeOAuthKeychainCredentialMismatch = claudeOAuthKeychainCredentialMismatch
     }
 }
 

@@ -1351,10 +1351,20 @@ public enum ClaudeOAuthCredentialsStore {
     public static func matchingClaudeKeychainPersistentRefHashWithoutPrompt(
         for record: ClaudeOAuthCredentialRecord) -> String?
     {
-        guard record.owner == .claudeCLI else { return nil }
-        return self.matchingClaudeKeychainPersistentRefHash(
-            for: record,
-            evidence: self.newestClaudeKeychainCredentialEvidenceWithoutPrompt())
+        self.claudeKeychainCredentialMatchWithoutPrompt(for: record).persistentRefHash
+    }
+
+    static func claudeKeychainCredentialMatchWithoutPrompt(
+        for record: ClaudeOAuthCredentialRecord) -> ClaudeKeychainCredentialMatch
+    {
+        guard record.owner == .claudeCLI else { return .notApplicable }
+        guard let evidence = self.newestClaudeKeychainCredentialEvidenceWithoutPrompt() else {
+            return .unavailable
+        }
+        guard evidence.credentials.accessToken == record.credentials.accessToken else {
+            return .mismatch
+        }
+        return .matched(persistentRefHash: evidence.persistentRefHash)
     }
 
     private static func matchingClaudeKeychainPersistentRefHash(

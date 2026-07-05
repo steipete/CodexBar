@@ -46,8 +46,23 @@ struct ClaudeOAuthHistoryCredentialRoutingTests {
                         .matchingClaudeKeychainPersistentRefHashWithoutPrompt(for: matchingEnvironmentRecord) == nil)
                     #expect(ClaudeOAuthCredentialsStore
                         .matchingClaudeKeychainPersistentRefHashWithoutPrompt(for: matchingCodexBarRecord) == nil)
+                    #expect(ClaudeOAuthCredentialsStore
+                        .claudeKeychainCredentialMatchWithoutPrompt(for: matchingCLIRecord) ==
+                        .matched(persistentRefHash: "opaque-ref"))
+                    #expect(ClaudeOAuthCredentialsStore
+                        .claudeKeychainCredentialMatchWithoutPrompt(for: differentCLIRecord) == .mismatch)
+                    #expect(ClaudeOAuthCredentialsStore
+                        .claudeKeychainCredentialMatchWithoutPrompt(for: matchingEnvironmentRecord) == .notApplicable)
                 }
             }
+        }
+
+        ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+            data: nil,
+            fingerprint: fingerprint)
+        {
+            #expect(ClaudeOAuthCredentialsStore
+                .claudeKeychainCredentialMatchWithoutPrompt(for: matchingCLIRecord) == .unavailable)
         }
     }
 

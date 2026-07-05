@@ -303,7 +303,8 @@ extension UsageStore {
                 claudeOAuthHistoryOwnerIdentifier: isClaudeOAuthSample
                     ? result.claudeOAuthHistoryOwnerIdentifier
                     : nil,
-                isClaudeCLIKeychainSample: isClaudeOAuthSample && result.claudeOAuthUsesClaudeCLIKeychain,
+                claudeOAuthKeychainCredentialMismatch: isClaudeOAuthSample
+                    && result.claudeOAuthKeychainCredentialMismatch,
                 isClaudeOAuthSample: isClaudeOAuthSample)
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             if let runtime = self.providerRuntimes[provider] {

@@ -153,7 +153,7 @@ extension UsageStore {
         account: ProviderTokenAccount? = nil,
         claudeOAuthPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
-        isClaudeCLIKeychainSample: Bool = false,
+        claudeOAuthKeychainCredentialMismatch: Bool = false,
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
         shouldAdoptUnscopedHistory: Bool = true,
@@ -162,11 +162,7 @@ extension UsageStore {
     {
         let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
         var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
-        if provider == .claude,
-           isClaudeOAuthSample,
-           isClaudeCLIKeychainSample,
-           let owner = claudeOAuthHistoryOwnerIdentifier
-        {
+        if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
             let currentAccountIdentity = Self.activeClaudeAccountIdentity()
             var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
             if let mapped = map[owner], let currentAccountIdentity, mapped != currentAccountIdentity {
@@ -184,9 +180,10 @@ extension UsageStore {
                     // back to a stale cached credential. Never overwrite on mismatch.
                     map[owner] = currentAccountIdentity
                     self.persistClaudeOAuthAccountUuidMap(map)
-                } else {
+                } else if claudeOAuthKeychainCredentialMismatch {
                     // An empty map is common immediately after upgrading. Without exact credential evidence,
-                    // accepting the sample could contaminate history before the quarantine is armed.
+                    // a proven mismatch could contaminate history before the quarantine is armed. An unavailable
+                    // comparison remains compatible with file-backed and Keychain-disabled OAuth routes.
                     effectiveOwner = nil
                 }
             }

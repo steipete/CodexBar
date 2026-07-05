@@ -186,6 +186,22 @@ public enum ClaudeOAuthCredentialSource: String, Sendable {
     case claudeKeychain
 }
 
+enum ClaudeKeychainCredentialMatch: Equatable, Sendable {
+    case notApplicable
+    case unavailable
+    case mismatch
+    case matched(persistentRefHash: String)
+
+    var persistentRefHash: String? {
+        guard case let .matched(persistentRefHash) = self else { return nil }
+        return persistentRefHash
+    }
+
+    var isMismatch: Bool {
+        self == .mismatch
+    }
+}
+
 public struct ClaudeOAuthCredentialRecord: Sendable {
     public let credentials: ClaudeOAuthCredentials
     public let owner: ClaudeOAuthCredentialOwner
