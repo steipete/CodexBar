@@ -208,6 +208,38 @@ struct CodexUserFacingErrorTests {
     }
 
     @Test
+    func `menu card hides optional codex setup diagnostics kept by providers pane`() throws {
+        let settings = self.makeSettingsStore(suite: "CodexUserFacingErrorTests-menu-diagnostics")
+        let store = self.makeUsageStore(settings: settings)
+        store.lastCreditsError = UsageError.noRateLimitsFound.errorDescription
+        store.lastOpenAIDashboardError =
+            "No matching OpenAI web session found. Sign in to chatgpt.com, then refresh OpenAI cookies."
+
+        let fetcher = UsageFetcher(environment: [:])
+        let menuModel = try withStatusItemControllerForTesting(
+            store: store,
+            settings: settings,
+            fetcher: fetcher)
+        { controller in
+            try #require(controller.menuCardModel(for: .codex))
+        }
+        let pane = ProvidersPane(settings: settings, store: store)
+        let settingsModel = pane._test_menuCardModel(for: .codex)
+        let settingsDiagnostic = pane._test_openAIWebDiagnostic(for: .codex)
+        let settingsInfoRows = ProviderMetricsInlineView.infoRows(
+            for: settingsModel,
+            openAIWebDiagnostic: settingsDiagnostic)
+
+        #expect(menuModel.creditsText == nil)
+        #expect(menuModel.creditsHintText == nil)
+        #expect(settingsModel.creditsText == UsageError.noRateLimitsFound.errorDescription)
+        #expect(settingsModel.creditsHintText?.contains("No matching OpenAI web session found") == true)
+        #expect(settingsInfoRows.contains { row in
+            row.id == .openAIWeb && row.value.contains("No matching OpenAI web session found")
+        })
+    }
+
+    @Test
     func `providers pane codex error display keeps raw full text for copy`() {
         let settings = self.makeSettingsStore(suite: "CodexUserFacingErrorTests-pane-error-display")
         let store = self.makeUsageStore(settings: settings)

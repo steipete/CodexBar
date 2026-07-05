@@ -47,6 +47,7 @@ struct ProvidersPane: View {
             isEnabled: self.binding(for: self.provider),
             subtitle: self.providerSubtitle(self.provider),
             model: self.menuCardModel(for: self.provider),
+            openAIWebDiagnostic: self.openAIWebDiagnostic(for: self.provider),
             settingsPickers: self.extraSettingsPickers(for: self.provider),
             settingsToggles: self.extraSettingsToggles(for: self.provider),
             settingsFields: self.extraSettingsFields(for: self.provider),
@@ -697,6 +698,14 @@ struct ProvidersPane: View {
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    func openAIWebDiagnostic(for provider: UsageProvider) -> String? {
+        guard provider == .codex else { return nil }
+        let diagnostic = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .liveCard)?.userFacingErrors.dashboard
+        return PersonalInfoRedactor.redactEmails(in: diagnostic, isEnabled: self.settings.hidePersonalInfo)
     }
 
     private func quotaWarningMarkerThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {

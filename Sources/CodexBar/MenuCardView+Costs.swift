@@ -47,6 +47,7 @@ extension UsageMenuCardView.Model {
         error: String?) -> String?
     {
         guard metadata.supportsCredits else { return nil }
+        if metadata.id == .codex, credits == nil, error == nil { return nil }
         if metadata.id == .amp,
            let ampUsage = snapshot?.ampUsage,
            let ampCredits = self.ampCreditsLine(ampUsage)

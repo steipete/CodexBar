@@ -75,6 +75,10 @@ extension ProvidersPane {
         self.menuCardModel(for: provider)
     }
 
+    func _test_openAIWebDiagnostic(for provider: UsageProvider) -> String? {
+        self.openAIWebDiagnostic(for: provider)
+    }
+
     func _test_providerErrorDisplay(for provider: UsageProvider) -> ProviderErrorDisplay? {
         self.providerErrorDisplay(provider)
     }
@@ -171,6 +175,7 @@ enum ProvidersPaneTestHarness {
             isEnabled: enabledBinding,
             subtitle: "Subtitle",
             model: model,
+            openAIWebDiagnostic: pane._test_openAIWebDiagnostic(for: .codex),
             settingsPickers: [descriptors.picker],
             settingsToggles: [descriptors.toggle],
             settingsFields: [descriptors.fieldPlain, descriptors.fieldSecure],

@@ -7,6 +7,65 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuNativeSectionSpacingTests {
     @Test
+    func `buy credits stays available without an error only credits section`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.showOptionalCreditsAndExtraUsage = true
+        self.enableOnlyCodex(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store.lastCreditsError = UsageError.noRateLimitsFound.errorDescription
+        store.lastOpenAIDashboardError =
+            "No matching OpenAI web session found. Sign in to chatgpt.com, then refresh OpenAI cookies."
+        let event = CreditEvent(date: Date(), service: "CLI", creditsUsed: 1)
+        let breakdown = OpenAIDashboardSnapshot.makeDailyBreakdown(from: [event], maxDays: 30)
+        store.openAIDashboard = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 100,
+            creditEvents: [event],
+            dailyBreakdown: breakdown,
+            usageBreakdown: breakdown,
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+        store.openAIDashboardAttachmentAuthorized = true
+        store.openAIDashboardRequiresLogin = false
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        #expect(menu.items.contains { ($0.representedObject as? String) == "menuCardCredits" } == false)
+        #expect(menu.items.contains { $0.title == "Buy Credits..." })
+        #expect(menu.items.contains { item in
+            item.submenu?.items.contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true
+        })
+
+        settings.showOptionalCreditsAndExtraUsage = false
+        let hiddenMenu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(hiddenMenu)
+        #expect(hiddenMenu.items.contains { $0.title == "Buy Credits..." } == false)
+        #expect(hiddenMenu.items.contains { item in
+            item.submenu?.items.contains { ($0.representedObject as? String) == "creditsHistoryChart" } == true
+        } == false)
+    }
+
+    @Test
     func `usage history cost and storage stay together without adjacent separators`() throws {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true

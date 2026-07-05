@@ -45,9 +45,11 @@ extension StatusItemController {
         let tokenError: String?
         if let codexProjection {
             credits = codexProjection.credits?.snapshot
-            creditsError = codexProjection.credits?.userFacingError
+            // Credits and dashboard collection are optional adjuncts. Keep their setup diagnostics in
+            // provider Settings so a signed-out browser does not dominate the glanceable menu card.
+            creditsError = nil
             dashboard = nil
-            dashboardError = codexProjection.userFacingErrors.dashboard
+            dashboardError = nil
             if surface == .liveCard {
                 tokenSnapshot = projectedTokenSnapshot ?? storedTokenSnapshot
                 tokenError = self.store.tokenError(for: target)

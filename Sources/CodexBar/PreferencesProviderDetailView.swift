@@ -13,6 +13,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     @Binding var isEnabled: Bool
     let subtitle: String
     let model: UsageMenuCardView.Model
+    let openAIWebDiagnostic: String?
     let settingsPickers: [ProviderSettingsPickerDescriptor]
     let settingsToggles: [ProviderSettingsToggleDescriptor]
     let settingsFields: [ProviderSettingsFieldDescriptor]
@@ -32,6 +33,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         isEnabled: Binding<Bool>,
         subtitle: String,
         model: UsageMenuCardView.Model,
+        openAIWebDiagnostic: String?,
         settingsPickers: [ProviderSettingsPickerDescriptor],
         settingsToggles: [ProviderSettingsToggleDescriptor],
         settingsFields: [ProviderSettingsFieldDescriptor],
@@ -50,6 +52,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self._isEnabled = isEnabled
         self.subtitle = subtitle
         self.model = model
+        self.openAIWebDiagnostic = openAIWebDiagnostic
         self.settingsPickers = settingsPickers
         self.settingsToggles = settingsToggles
         self.settingsFields = settingsFields
@@ -122,6 +125,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 ProviderMetricsInlineView(
                     provider: self.provider,
                     model: self.model,
+                    openAIWebDiagnostic: self.openAIWebDiagnostic,
                     isEnabled: self.isEnabled)
             } header: {
                 Text(L("Usage"))
@@ -326,17 +330,43 @@ private struct ProviderDetailInfoRow: View {
 struct ProviderMetricsInlineView: View {
     let provider: UsageProvider
     let model: UsageMenuCardView.Model
+    let openAIWebDiagnostic: String?
     let isEnabled: Bool
+
+    struct InfoRow: Identifiable, Equatable {
+        enum ID: Hashable {
+            case credits
+            case openAIWeb
+        }
+
+        let id: ID
+        let label: String
+        let value: String
+    }
+
+    static func infoRows(
+        for model: UsageMenuCardView.Model,
+        openAIWebDiagnostic: String?) -> [InfoRow]
+    {
+        var rows: [InfoRow] = []
+        if let credits = model.creditsText {
+            rows.append(InfoRow(id: .credits, label: L("Credits"), value: credits))
+        }
+        if let diagnostic = openAIWebDiagnostic {
+            rows.append(InfoRow(id: .openAIWeb, label: L("OpenAI web extras"), value: diagnostic))
+        }
+        return rows
+    }
 
     var body: some View {
         let hasMetrics = !self.model.metrics.isEmpty
         let hasUsageNotes = !self.model.usageNotes.isEmpty
-        let hasCredits = self.model.creditsText != nil
+        let infoRows = Self.infoRows(for: self.model, openAIWebDiagnostic: self.openAIWebDiagnostic)
         let hasProviderCost = self.model.providerCost != nil
         let hasTokenUsage = self.model.tokenUsage != nil
         let hasResetCredits = self.model.codexResetCredits != nil
 
-        if !hasMetrics, !hasUsageNotes, !hasProviderCost, !hasCredits, !hasTokenUsage, !hasResetCredits {
+        if !hasMetrics, !hasUsageNotes, !hasProviderCost, infoRows.isEmpty, !hasTokenUsage, !hasResetCredits {
             Text(self.placeholderText)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -360,8 +390,8 @@ struct ProviderMetricsInlineView: View {
                 }
             }
 
-            if let credits = self.model.creditsText {
-                ProviderDetailInfoRow(label: L("Credits"), value: credits)
+            ForEach(infoRows) { row in
+                ProviderDetailInfoRow(label: row.label, value: row.value)
             }
 
             if let resetCredits = self.model.codexResetCredits {
