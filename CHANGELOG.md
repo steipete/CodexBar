@@ -3,6 +3,7 @@
 ## 0.39.1 — Unreleased
 
 ### Added
+- Codex dashboard: show calendar-correct raw Today and 30-day credit totals without converting credits to billed dollars. Thanks @avenoxai!
 - Devin: show remaining extra-usage balance in menus, CLI, and widgets while respecting optional-usage visibility. Thanks @FNDEVVE!
 - Widgets: make Mistral available in provider selection and switching. Thanks @joeVenner!
 

@@ -140,12 +140,26 @@ struct OpenAIDashboardModelsTests {
             now: Self.utcDate(year: 2026, month: 6, day: 30),
             calendar: Self.utcCalendar)
 
-        #expect(summary.todayCredits == nil)
+        #expect(summary.todayCredits == 0)
         #expect(summary.totalCredits == 4)
         let day = try #require(summary.daily.first)
         #expect(day.day == "2026-06-20")
         #expect(day.totalCreditsUsed == 4)
         #expect(day.services.map(\.service) == ["CLI"])
+    }
+
+    @Test
+    func `recent credit totals report zero when history has no row for today`() {
+        let summary = OpenAIDashboardDailyBreakdown.recentUsageSummary(
+            from: [
+                .init(day: "2026-06-29", services: [], totalCreditsUsed: 4),
+            ],
+            now: Self.utcDate(year: 2026, month: 6, day: 30),
+            calendar: Self.utcCalendar)
+
+        #expect(summary.todayCredits == 0)
+        #expect(summary.totalCredits == 4)
+        #expect(summary.daily.map(\.day) == ["2026-06-29"])
     }
 
     @Test

@@ -211,6 +211,7 @@ public struct OpenAIDashboardDailyBreakdown: Codable, Equatable, Sendable {
             .compactMap { self.sanitized($0, startKey: startKey, todayKey: todayKey, calendar: dayCalendar) }
             .sorted { $0.day < $1.day }
         let todayCredits = recent.first(where: { $0.day == todayKey })?.totalCreditsUsed
+            ?? (recent.isEmpty ? nil : 0)
         let totalCredits = self.finiteSum(recent.map(\.totalCreditsUsed))
         return OpenAIDashboardUsageBreakdownSummary(
             historyDays: days,
