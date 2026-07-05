@@ -2,6 +2,17 @@
 
 ## 0.39.1 — Unreleased
 
+### Added
+- Devin: show remaining extra-usage balance in menus, CLI, and widgets while respecting optional-usage visibility. Thanks @FNDEVVE!
+- Widgets: make Mistral available in provider selection and switching. Thanks @joeVenner!
+
+### Changed
+- Settings: keep the sidebar fixed and visible while resizing, prevent collapse or over-expansion, and cap detail content width for readability. Thanks @Zihao-Qi!
+
+### Fixed
+- Reset times: preserve minute precision in long day-scale countdowns when there are no whole hours, while keeping countdowns compact to two units. Thanks @konon4!
+- Mistral: reject non-finite and overflowing credit balances before they can reach menu, CLI, or widget formatting. Thanks @joeVenner!
+
 ## 0.39.0 — 2026-07-04
 
 ### Added

@@ -88,24 +88,29 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      SWIFT_VERSION: 6.2.1
+      SWIFTLY_VERSION: 1.1.3
+      SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
       SWIFT_STATIC_LINUX_SDK_URL: https://download.swift.org/swift-6.2.1-release/static-sdk/swift-6.2.1-RELEASE/swift-6.2.1-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
       SWIFT_STATIC_LINUX_SDK_CHECKSUM: 08e1939a504e499ec871b36826569173103e4562769e12b9b8c2a50f098374ad
-      SQLITE_AMALGAMATION_VERSION: "3530200"
-      SQLITE_AMALGAMATION_SHA3_256: 81142986038e18f96c4a54e1a72562ae17e502a916f2a7701eff43388cbf1a40
+      SQLITE_AMALGAMATION_VERSION: "3530300"
+      SQLITE_AMALGAMATION_SHA3_256: d45c688a8cb23f68611a894a756a12d7eb6ab6e9e2468ca70adbeab3808b5ab9
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Select Xcode 26.1.1 (if present) or fallback to default
+      - name: Select Xcode 26.3 or 26.2
         if: matrix.platform == 'macos'
         run: |
           set -euo pipefail
-          for candidate in /Applications/Xcode_26.1.1.app /Applications/Xcode_26.1.app /Applications/Xcode.app; do
+          # Both versions are part of the official macOS 15 runner image.
+          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
             if [[ -d "$candidate" ]]; then
               sudo xcode-select -s "${candidate}/Contents/Developer"
               echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
               break
             fi
           done
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
           /usr/bin/xcodebuild -version
 
       - name: Runner info
@@ -129,7 +134,7 @@ jobs:
             exit 1
           fi
 
-      - name: Install Swift 6.2.1 via swiftly
+      - name: Install Swift ${{ env.SWIFT_VERSION }} via swiftly
         if: matrix.platform == 'linux'
         shell: bash
         run: |
@@ -141,13 +146,25 @@ jobs:
           fi
 
           SWIFTLY_ARCH="$(uname -m)"
+          SWIFTLY_ARCHIVE="$RUNNER_TEMP/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz"
+          SWIFTLY_SIGNATURE="${SWIFTLY_ARCHIVE}.sig"
           SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
           SWIFTLY_BIN_DIR="$HOME/.local/bin"
+          SWIFT_GNUPGHOME="$(mktemp -d)"
+          SWIFT_KEYS="$RUNNER_TEMP/swift-signing-keys.asc"
           POST_INSTALL_SCRIPT="$(mktemp)"
 
           mkdir -p "$SWIFTLY_BIN_DIR"
-          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_ARCH}.tar.gz" -o /tmp/swiftly.tar.gz
-          tar -xzf /tmp/swiftly.tar.gz -C /tmp
+          chmod 700 "$SWIFT_GNUPGHOME"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz" -o "$SWIFTLY_ARCHIVE"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz.sig" -o "$SWIFTLY_SIGNATURE"
+          curl -fsSL --compressed "https://www.swift.org/keys/all-keys.asc" -o "$SWIFT_KEYS"
+          GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --import "$SWIFT_KEYS"
+          SIGNATURE_STATUS="$(GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --status-fd=1 \
+            --verify "$SWIFTLY_SIGNATURE" "$SWIFTLY_ARCHIVE" 2>&1)"
+          printf '%s\n' "$SIGNATURE_STATUS"
+          grep -Fq "[GNUPG:] VALIDSIG ${SWIFTLY_SIGNING_FINGERPRINT} " <<< "$SIGNATURE_STATUS"
+          tar -xzf "$SWIFTLY_ARCHIVE" -C /tmp
           /tmp/swiftly init --assume-yes --skip-install
 
           . "$SWIFTLY_HOME_DIR/env.sh"
@@ -155,7 +172,7 @@ jobs:
           echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
           echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
 
-          swiftly install 6.2.1 --use --assume-yes --post-install-file "$POST_INSTALL_SCRIPT"
+          swiftly install "$SWIFT_VERSION" --use --assume-yes --verify --post-install-file "$POST_INSTALL_SCRIPT"
           if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
             sudo apt-get update
             sudo bash "$POST_INSTALL_SCRIPT"
@@ -393,7 +410,7 @@ jobs:
 
       - name: Upload workflow artifact (manual runs)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: codexbar-cli-${{ matrix.name }}
           path: |
@@ -401,7 +418,7 @@ jobs:
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
 
   update-homebrew-tap:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-cli
     if: github.event_name == 'release'
     steps:

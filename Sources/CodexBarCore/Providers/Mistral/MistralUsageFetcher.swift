@@ -154,11 +154,17 @@ public enum MistralUsageFetcher {
             throw MistralUsageError.parseFailed(error.localizedDescription)
         }
 
-        return MistralCreditsSnapshot(
+        let snapshot = MistralCreditsSnapshot(
             walletAmount: response.walletAmount,
             creditNotesAmount: response.creditNotesAmount ?? 0,
             ongoingUsageBalance: response.ongoingUsageBalance ?? 0,
             currency: response.currency)
+        let amounts = [snapshot.walletAmount, snapshot.creditNotesAmount, snapshot.ongoingUsageBalance]
+        let available = snapshot.walletAmount + snapshot.creditNotesAmount - snapshot.ongoingUsageBalance
+        guard amounts.allSatisfy(\.isFinite), available.isFinite else {
+            throw MistralUsageError.parseFailed("Invalid credit amount")
+        }
+        return snapshot
     }
 
     static func vibeCookieHeader(csrfToken: String) throws -> String {

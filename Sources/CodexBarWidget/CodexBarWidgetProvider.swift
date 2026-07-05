@@ -12,10 +12,12 @@ enum ProviderChoice: String, AppEnum {
     case antigravity
     case zai
     case copilot
+    case devin
     case minimax
     case kilo
     case opencode
     case opencodego
+    case mistral
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -28,10 +30,12 @@ enum ProviderChoice: String, AppEnum {
         .antigravity: DisplayRepresentation(title: "Antigravity"),
         .zai: DisplayRepresentation(title: "z.ai"),
         .copilot: DisplayRepresentation(title: "Copilot"),
+        .devin: DisplayRepresentation(title: "Devin"),
         .minimax: DisplayRepresentation(title: "MiniMax"),
         .kilo: DisplayRepresentation(title: "Kilo"),
         .opencode: DisplayRepresentation(title: "OpenCode"),
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
+        .mistral: DisplayRepresentation(title: "Mistral"),
     ]
 
     var provider: UsageProvider {
@@ -44,10 +48,12 @@ enum ProviderChoice: String, AppEnum {
         case .antigravity: .antigravity
         case .zai: .zai
         case .copilot: .copilot
+        case .devin: .devin
         case .minimax: .minimax
         case .kilo: .kilo
         case .opencode: .opencode
         case .opencodego: .opencodego
+        case .mistral: .mistral
         }
     }
 
@@ -68,7 +74,7 @@ enum ProviderChoice: String, AppEnum {
         case .zai: self = .zai
         case .factory: return nil // Factory not yet supported in widgets
         case .copilot: self = .copilot
-        case .devin: return nil // Devin not yet supported in widgets
+        case .devin: self = .devin
         case .minimax: self = .minimax
         case .manus: return nil // Manus not yet supported in widgets
         case .vertexai: return nil // Vertex AI not yet supported in widgets
@@ -94,7 +100,7 @@ enum ProviderChoice: String, AppEnum {
         case .doubao: return nil // Doubao not yet supported in widgets
         case .sakana: return nil // Sakana AI not yet supported in widgets
         case .abacus: return nil // Abacus AI not yet supported in widgets
-        case .mistral: return nil // Mistral not yet supported in widgets
+        case .mistral: self = .mistral
         case .deepseek: return nil // DeepSeek not yet supported in widgets
         case .codebuff: return nil // Codebuff not yet supported in widgets
         case .crof: return nil // Crof not yet supported in widgets

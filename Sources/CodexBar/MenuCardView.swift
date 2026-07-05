@@ -842,6 +842,7 @@ extension UsageMenuCardView.Model {
         let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
         let hidesOptionalProviderCost = ((input.provider == .claude && !isClaudeAdminAPI) ||
             input.provider == .factory ||
+            input.provider == .devin ||
             (input.provider == .opencodego && !isRequiredOpenCodeZenBalance)) &&
             !input.showOptionalCreditsAndExtraUsage
         let providerCost: ProviderCostSection? = if input.provider == .sakana {

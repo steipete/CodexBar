@@ -11,12 +11,12 @@ enum SettingsPane: Hashable {
     case debug
     case provider(UsageProvider)
 
-    static let windowWidth: CGFloat = 920
-    static let windowHeight: CGFloat = 640
-    static let windowMinWidth: CGFloat = 780
-    static let windowMinHeight: CGFloat = 520
-    static let sidebarWidth: CGFloat = 224
-    static let sidebarMinWidth: CGFloat = 224
+    static let windowWidth: CGFloat = 880
+    static let windowHeight: CGFloat = 620
+    static let windowMinWidth: CGFloat = 800
+    static let windowMinHeight: CGFloat = 540
+    static let sidebarWidth: CGFloat = 260
+    static let detailMaxWidth: CGFloat = 780
 
     var title: String {
         switch self {
@@ -41,7 +41,6 @@ struct PreferencesView: View {
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @Environment(\.colorScheme) private var colorScheme
-    @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
 
     init(
         settings: SettingsStore,
@@ -66,20 +65,37 @@ struct PreferencesView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: self.columnVisibilityBinding) {
-            SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
-                .frame(
-                    minWidth: SettingsPane.sidebarMinWidth,
-                    idealWidth: SettingsPane.sidebarWidth,
-                    maxWidth: SettingsPane.sidebarWidth)
-                .navigationSplitViewColumnWidth(
-                    min: SettingsPane.sidebarMinWidth,
-                    ideal: SettingsPane.sidebarWidth,
-                    max: SettingsPane.sidebarWidth)
-                .toolbar(removing: .sidebarToggle)
-        } detail: {
+        HStack(spacing: 0) {
+            ZStack {
+                SettingsSidebarMaterial()
+                    .blur(radius: 20)
+                self.sidebarWashColor
+
+                SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
+            .shadow(color: Color.black.opacity(0.22), radius: 20, x: 0, y: 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.22), lineWidth: 0.75))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        self.colorScheme == .dark ? Color.white.opacity(0.27) : Color.white.opacity(0.72),
+                        lineWidth: 0.85))
+            .frame(width: SettingsPane.sidebarWidth)
+            .padding(.leading, 12)
+            .padding(.top, 0)
+            .padding(.bottom, 12)
+            .padding(.trailing, 4)
+
             self.detailView
-                .navigationTitle(self.selection.pane.title)
+                .frame(
+                    maxWidth: SettingsPane.detailMaxWidth,
+                    maxHeight: .infinity,
+                    alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(
             minWidth: SettingsPane.windowMinWidth,
@@ -90,12 +106,11 @@ struct PreferencesView: View {
             maxHeight: .infinity)
         .id(self.settings.appLanguage)
         .background {
-            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme)
+            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme, windowTitle: self.selection.pane.title)
                 .allowsHitTesting(false)
         }
         .onAppear {
             self.ensureValidSelection()
-            self.columnVisibility = .doubleColumn
         }
         .onChange(of: self.settings.debugMenuEnabled) { _, _ in
             self.ensureValidSelection()
@@ -127,14 +142,10 @@ struct PreferencesView: View {
         }
     }
 
-    private var columnVisibilityBinding: Binding<NavigationSplitViewVisibility> {
-        Binding(
-            get: { self.columnVisibility },
-            set: { self.columnVisibility = Self.visibleColumnVisibility(for: $0) })
-    }
-
-    static func visibleColumnVisibility(for _: NavigationSplitViewVisibility) -> NavigationSplitViewVisibility {
-        .doubleColumn
+    private var sidebarWashColor: Color {
+        self.colorScheme == .dark
+            ? Color.black.opacity(0.60)
+            : Color.white.opacity(0.60)
     }
 
     private func ensureValidSelection() {
@@ -162,24 +173,6 @@ enum SettingsWindowSizing {
             frame.size = repairedSize
             window.setFrame(frame, display: true)
         }
-
-        self.enforceSidebarWidth(in: window)
-    }
-
-    private static func enforceSidebarWidth(in window: NSWindow) {
-        // SwiftUI's split-view identifier is private and has changed across macOS releases.
-        // The Settings navigation split is the widest vertical two-pane split in this window.
-        guard let splitView = window.contentView?.descendantSplitViews
-            .filter({ $0.isVertical && $0.subviews.count == 2 })
-            .max(by: { $0.bounds.width < $1.bounds.width })
-        else {
-            return
-        }
-
-        let sidebar = splitView.subviews[0]
-        guard sidebar.frame.width < SettingsPane.sidebarWidth else { return }
-        splitView.setPosition(SettingsPane.sidebarWidth, ofDividerAt: 0)
-        splitView.adjustSubviews()
     }
 }
 
@@ -215,23 +208,17 @@ enum SettingsWindowAppearance {
     }
 }
 
-extension NSView {
-    fileprivate var descendantSplitViews: [NSSplitView] {
-        let current = (self as? NSSplitView).map { [$0] } ?? []
-        return current + self.subviews.flatMap(\.descendantSplitViews)
-    }
-}
-
 @MainActor
 struct SettingsWindowAppearanceBridge: NSViewRepresentable {
     let colorScheme: ColorScheme
+    let windowTitle: String
 
     func makeNSView(context: Context) -> SettingsWindowAppearanceView {
         SettingsWindowAppearanceView()
     }
 
     func updateNSView(_ nsView: SettingsWindowAppearanceView, context: Context) {
-        nsView.refreshWindowAppearance(for: self.colorScheme)
+        nsView.refreshWindowAppearance(for: self.colorScheme, windowTitle: self.windowTitle)
     }
 }
 
@@ -239,6 +226,7 @@ struct SettingsWindowAppearanceBridge: NSViewRepresentable {
 final class SettingsWindowAppearanceView: NSView {
     private let scheduleReset: SettingsWindowAppearance.ResetScheduler
     private var colorScheme: ColorScheme?
+    private var windowTitle: String?
 
     init(scheduleReset: @escaping SettingsWindowAppearance.ResetScheduler = SettingsWindowAppearance.scheduleReset) {
         self.scheduleReset = scheduleReset
@@ -250,19 +238,97 @@ final class SettingsWindowAppearanceView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didUpdateNotification, object: nil)
+        if let window {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.windowDidUpdate(_:)),
+                name: NSWindow.didUpdateNotification,
+                object: window)
+        }
+        self.configureWindowStyle()
         self.refreshWindowAppearance()
     }
 
-    func refreshWindowAppearance(for colorScheme: ColorScheme) {
-        guard self.colorScheme != colorScheme else { return }
+    @objc private func windowDidUpdate(_ notification: Notification) {
+        self.configureWindowStyle()
+    }
+
+    func refreshWindowAppearance(for colorScheme: ColorScheme, windowTitle: String? = nil) {
+        let colorSchemeChanged = self.colorScheme != colorScheme
+        let windowTitleChanged = self.windowTitle != windowTitle
+        guard colorSchemeChanged || windowTitleChanged else { return }
         self.colorScheme = colorScheme
-        self.refreshWindowAppearance()
+        self.windowTitle = windowTitle
+
+        guard let window else { return }
+        self.configureWindowStyle()
+        if windowTitleChanged, let windowTitle {
+            window.title = windowTitle
+        }
+        if colorSchemeChanged {
+            SettingsWindowAppearance.refresh(window, scheduleReset: self.scheduleReset)
+        }
     }
 
     private func refreshWindowAppearance() {
         guard let window else { return }
+        self.configureWindowStyle()
+        if let windowTitle {
+            window.title = windowTitle
+        }
         SettingsWindowAppearance.refresh(window, scheduleReset: self.scheduleReset)
+    }
+
+    override func layout() {
+        super.layout()
+        self.configureWindowStyle()
+    }
+
+    private func configureWindowStyle() {
+        guard let window else { return }
+        if !window.styleMask.contains(.resizable) {
+            window.styleMask.insert(.resizable)
+        }
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
+        }
+        if window.titleVisibility != .visible {
+            window.titleVisibility = .visible
+        }
+        if window.titlebarSeparatorStyle != .none {
+            window.titlebarSeparatorStyle = .none
+        }
+        if window.toolbar != nil {
+            window.toolbar = nil
+        }
+        if window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.remove(.fullSizeContentView)
+        }
+    }
+}
+
+@MainActor
+private struct SettingsSidebarMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        self.configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        self.configure(nsView)
+    }
+
+    private func configure(_ view: NSVisualEffectView) {
+        view.material = .sidebar
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
     }
 }

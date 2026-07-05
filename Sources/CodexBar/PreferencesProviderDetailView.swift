@@ -183,6 +183,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
     }
 }
 
