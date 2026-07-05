@@ -100,6 +100,32 @@ struct ClaudeSwapAccountReaderTests {
     }
 
     @Test
+    func `cancellation during version probe prevents account list launch`() async throws {
+        let marker = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-swap-list-launched-\(UUID().uuidString)")
+        let path = try self.makeFakeExecutable("""
+        if [ "$1" = "--version" ]; then
+          sleep 30
+          exit 0
+        fi
+        touch '\(marker.path)'
+        echo '{"schemaVersion":1,"activeAccountNumber":null,"accounts":[]}'
+        """)
+        let task = Task {
+            _ = await ClaudeSwapAccountReader.readVersion(executablePath: path)
+            return try await ClaudeSwapAccountReader.readAccountList(executablePath: path)
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await task.value
+        }
+        #expect(!FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    @Test
     func `expands tilde in configured paths`() throws {
         let resolved = try ClaudeSwapAccountReader.resolvedExecutablePath("~/bin/cswap")
         #expect(resolved.hasPrefix("/"))

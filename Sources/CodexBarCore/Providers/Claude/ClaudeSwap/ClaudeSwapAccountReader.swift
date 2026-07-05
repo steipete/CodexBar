@@ -77,6 +77,7 @@ public enum ClaudeSwapAccountReader {
         acceptsNonZeroExit: Bool = false,
         label: String) async throws -> String
     {
+        try Task.checkCancellation()
         let binary = try self.resolvedExecutablePath(executablePath)
         let result = try await SubprocessRunner.run(
             binary: binary,
