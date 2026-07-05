@@ -626,7 +626,7 @@ extension CodexBarCLI {
             return false
         }
         if provider == .deepseek,
-           Self.deepseekBypassesWebSupportRequirement(
+           self.deepseekBypassesWebSupportRequirement(
                sourceMode: sourceMode,
                settings: settings,
                environment: environment)
@@ -693,5 +693,4 @@ extension CodexBarCLI {
         }
         return false
     }
-
 }
