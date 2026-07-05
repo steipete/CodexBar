@@ -607,11 +607,12 @@ extension StatusItemController {
             return false
         }
 
-        // The opt-in claude-swap adapter takes explicit precedence over Claude
-        // token-account cards: enabling it declares claude-swap as the account
-        // source, and its rows would otherwise be silently hidden whenever
-        // multiple token accounts render stacked.
-        if context.currentProvider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 {
+        // Multiple claude-swap rows take precedence over Claude token-account cards; otherwise
+        // the stacked token-account branch below would return before rendering the adapter rows.
+        if ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: context.currentProvider,
+            accountCount: self.store.claudeSwapAccountSnapshots.count)
+        {
             let cards = self.store.claudeSwapAccountSnapshots.compactMap { account in
                 self.menuCardModel(
                     for: .claude,

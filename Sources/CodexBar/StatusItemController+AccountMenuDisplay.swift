@@ -1,6 +1,12 @@
 import AppKit
 import CodexBarCore
 
+enum ClaudeSwapMenuPrecedence {
+    static func prefersClaudeSwap(provider: UsageProvider, accountCount: Int) -> Bool {
+        provider == .claude && accountCount > 1
+    }
+}
+
 extension StatusItemController {
     private static let defaultCodexAccountMenuProjectionRevalidationEnabled = !SettingsStore.isRunningTests
 
@@ -28,10 +34,14 @@ extension StatusItemController {
 
     func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
-        // Active claude-swap accounts replace Claude token-account presentation
-        // (stacked cards and the segmented switcher) so the opt-in adapter's rows
-        // are never hidden behind, or mixed with, token-account UI.
-        if provider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 { return nil }
+        // Multiple claude-swap rows are the selected Claude account source, so do not mix them
+        // with token-account cards or the segmented token-account switcher.
+        if ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: provider,
+            accountCount: self.store.claudeSwapAccountSnapshots.count)
+        {
+            return nil
+        }
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }
         let activeIndex = self.settings.tokenAccountsData(for: provider)?.clampedActiveIndex() ?? 0

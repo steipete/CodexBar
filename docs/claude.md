@@ -131,8 +131,8 @@ Phase 1 of the accepted multi-account design in
 - Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
   `unavailable`) render as per-account notes instead of usage bars.
 - Account switching is intentionally out of scope; use `cswap` directly to switch accounts.
-- When claude-swap accounts are active, they take explicit precedence over Claude token-account
-  presentation (stacked cards and the segmented switcher).
+- When multiple claude-swap accounts are available, they take explicit precedence over Claude
+  token-account presentation (stacked cards and the segmented switcher).
 
 Packaged synthetic proof (fake `cswap` executable, no real accounts or credentials):
 
