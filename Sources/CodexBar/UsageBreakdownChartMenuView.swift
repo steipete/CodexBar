@@ -4,6 +4,12 @@ import SwiftUI
 
 @MainActor
 struct UsageBreakdownChartMenuView: View {
+    enum PresentationState: Equatable {
+        case empty
+        case totalsOnly
+        case chart
+    }
+
     private struct Point: Identifiable {
         let id: String
         let date: Date
@@ -42,13 +48,11 @@ struct UsageBreakdownChartMenuView: View {
             now: self.now,
             calendar: self.calendar)
         let model = Self.makeModel(from: summary.daily)
+        let presentationState = Self.presentationState(
+            hasSummary: !summary.daily.isEmpty,
+            hasChartPoints: !model.points.isEmpty)
         VStack(alignment: .leading, spacing: 10) {
-            if model.points.isEmpty {
-                Text(L("No usage breakdown data."))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(L("No usage breakdown data available."))
-            } else {
+            if presentationState != .empty {
                 HStack(alignment: .firstTextBaseline) {
                     self.summaryMetric(title: L("Today"), credits: summary.todayCredits)
                     Spacer(minLength: 12)
@@ -56,7 +60,14 @@ struct UsageBreakdownChartMenuView: View {
                         title: String(format: L("Last %d days"), summary.historyDays),
                         credits: summary.totalCredits)
                 }
+            }
 
+            if presentationState == .empty {
+                Text(L("No usage breakdown data."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(L("No usage breakdown data available."))
+            } else if presentationState == .chart {
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
@@ -156,6 +167,12 @@ struct UsageBreakdownChartMenuView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .leading)
+    }
+
+    static func presentationState(hasSummary: Bool, hasChartPoints: Bool) -> PresentationState {
+        if hasChartPoints { return .chart }
+        if hasSummary { return .totalsOnly }
+        return .empty
     }
 
     private struct Model {
