@@ -3,6 +3,16 @@ import Testing
 @testable import CodexBarCore
 
 struct ClaudeSwapAccountProjectionTests {
+    @Test
+    func `adapter failures mark retained account snapshots as stale`() {
+        #expect(ClaudeSwapAccountProjection.displayError(
+            accountError: nil,
+            adapterError: "timed out") == "Showing the last successful update: timed out")
+        #expect(ClaudeSwapAccountProjection.displayError(
+            accountError: "Token expired.",
+            adapterError: "timed out") == "Token expired.")
+    }
+
     private let now = Date(timeIntervalSince1970: 1_782_000_000)
 
     @Test

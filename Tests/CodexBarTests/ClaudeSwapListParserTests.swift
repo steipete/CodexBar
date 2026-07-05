@@ -129,6 +129,9 @@ struct ClaudeSwapListParserTests {
         #expect(throws: ClaudeSwapListParserError.malformedShape("missing accounts array")) {
             try self.parse(#"{"schemaVersion": 1}"#)
         }
+        #expect(throws: ClaudeSwapListParserError.malformedShape("missing activeAccountNumber")) {
+            try self.parse(#"{"schemaVersion": 1, "accounts": []}"#)
+        }
         #expect(throws: ClaudeSwapListParserError.notJSONObject) {
             try self.parse("not json at all")
         }
@@ -138,18 +141,59 @@ struct ClaudeSwapListParserTests {
     }
 
     @Test
+    func `rejects invalid or duplicate account slots`() throws {
+        #expect(throws: ClaudeSwapListParserError.malformedShape("account slot must be positive")) {
+            try self.parse("""
+            {"schemaVersion": 1, "activeAccountNumber": null, "accounts": [
+              {"number": 0, "active": false, "usageStatus": "ok"}
+            ]}
+            """)
+        }
+        #expect(throws: ClaudeSwapListParserError.malformedShape("duplicate account slot 1")) {
+            try self.parse("""
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
+              {"number": 1, "active": true, "usageStatus": "ok"},
+              {"number": 1, "active": false, "usageStatus": "ok"}
+            ]}
+            """)
+        }
+        #expect(throws: ClaudeSwapListParserError.malformedShape(
+            "activeAccountNumber is not a numeric slot or null"))
+        {
+            try self.parse(#"{"schemaVersion": 1, "activeAccountNumber": "1", "accounts": []}"#)
+        }
+        #expect(throws: ClaudeSwapListParserError.malformedShape("active account fields disagree")) {
+            try self.parse("""
+            {"schemaVersion": 1, "activeAccountNumber": 2, "accounts": [
+              {"number": 1, "active": true, "usageStatus": "ok"},
+              {"number": 2, "active": false, "usageStatus": "ok"}
+            ]}
+            """)
+        }
+    }
+
+    @Test
     func `rejects rows with missing required fields`() throws {
         #expect(throws: (any Error).self) {
-            try self.parse(
-                #"{"schemaVersion": 1, "accounts": [{"email": "a@b.c", "active": true, "usageStatus": "ok"}]}"#)
+            try self.parse("""
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
+              {"email": "a@b.c", "active": true, "usageStatus": "ok"}
+            ]}
+            """)
         }
         #expect(throws: (any Error).self) {
-            try self.parse(
-                #"{"schemaVersion": 1, "accounts": [{"number": 1, "email": "a@b.c", "usageStatus": "ok"}]}"#)
+            try self.parse("""
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
+              {"number": 1, "email": "a@b.c", "usageStatus": "ok"}
+            ]}
+            """)
         }
         #expect(throws: (any Error).self) {
-            try self.parse(
-                #"{"schemaVersion": 1, "accounts": [{"number": 1, "email": "a@b.c", "active": true}]}"#)
+            try self.parse("""
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
+              {"number": 1, "email": "a@b.c", "active": true}
+            ]}
+            """)
         }
     }
 
@@ -157,7 +201,7 @@ struct ClaudeSwapListParserTests {
     func `rejects invalid percentages and timestamps`() throws {
         #expect(throws: (any Error).self) {
             try self.parse("""
-            {"schemaVersion": 1, "accounts": [
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
               {"number": 1, "email": "a@b.c", "active": true, "usageStatus": "ok",
                "usage": {"fiveHour": {"pct": "not-a-number"}}}
             ]}
@@ -165,7 +209,7 @@ struct ClaudeSwapListParserTests {
         }
         #expect(throws: (any Error).self) {
             try self.parse("""
-            {"schemaVersion": 1, "accounts": [
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
               {"number": 1, "email": "a@b.c", "active": true, "usageStatus": "ok",
                "usage": {"fiveHour": {"pct": true}}}
             ]}
@@ -173,7 +217,7 @@ struct ClaudeSwapListParserTests {
         }
         #expect(throws: (any Error).self) {
             try self.parse("""
-            {"schemaVersion": 1, "accounts": [
+            {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
               {"number": 1, "email": "a@b.c", "active": true, "usageStatus": "ok",
                "usage": {"fiveHour": {"pct": 10, "resetsAt": "yesterday-ish"}}}
             ]}
@@ -184,7 +228,7 @@ struct ClaudeSwapListParserTests {
     @Test
     func `clamps out of range percentages`() throws {
         let json = """
-        {"schemaVersion": 1, "accounts": [
+        {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
           {"number": 1, "email": "a@b.c", "active": true, "usageStatus": "ok",
            "usage": {"fiveHour": {"pct": 130.5}, "sevenDay": {"pct": -4}}}
         ]}
@@ -198,7 +242,7 @@ struct ClaudeSwapListParserTests {
     @Test
     func `parses fractional second timestamps`() throws {
         let json = """
-        {"schemaVersion": 1, "accounts": [
+        {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
           {"number": 1, "email": "a@b.c", "active": true, "usageStatus": "ok",
            "usage": {"fiveHour": {"pct": 10, "resetsAt": "2026-06-22T23:29:59.500Z"}}}
         ]}

@@ -638,7 +638,9 @@ extension StatusItemController {
                 self.menuCardModel(
                     for: .claude,
                     snapshotOverride: account.snapshot,
-                    errorOverride: account.error,
+                    errorOverride: ClaudeSwapAccountProjection.displayError(
+                        accountError: account.error,
+                        adapterError: self.store.claudeSwapLastError),
                     forceOverrideCard: account.snapshot == nil,
                     accountOverride: AccountInfo(email: account.displayLabel, plan: nil))
             }

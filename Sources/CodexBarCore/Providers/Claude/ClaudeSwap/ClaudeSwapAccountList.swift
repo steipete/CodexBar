@@ -127,12 +127,29 @@ public enum ClaudeSwapListParser {
         guard let rawAccounts = object["accounts"] as? [Any] else {
             throw ClaudeSwapListParserError.malformedShape("missing accounts array")
         }
-        let activeAccountNumber = object["activeAccountNumber"] as? Int
+        guard let rawActiveAccountNumber = object["activeAccountNumber"] else {
+            throw ClaudeSwapListParserError.malformedShape("missing activeAccountNumber")
+        }
+        let activeAccountNumber: Int? = switch rawActiveAccountNumber {
+        case is NSNull: nil
+        case let number as Int where number > 0: number
+        default:
+            throw ClaudeSwapListParserError.malformedShape("activeAccountNumber is not a numeric slot or null")
+        }
+        var seenSlots: Set<Int> = []
         let accounts = try rawAccounts.map { rawRow -> ClaudeSwapAccountRow in
             guard let row = rawRow as? [String: Any] else {
                 throw ClaudeSwapListParserError.malformedShape("account row is not an object")
             }
-            return try self.parseRow(row)
+            let account = try self.parseRow(row)
+            guard seenSlots.insert(account.number).inserted else {
+                throw ClaudeSwapListParserError.malformedShape("duplicate account slot \(account.number)")
+            }
+            return account
+        }
+        let activeSlots = accounts.filter(\.isActive).map(\.number)
+        guard activeSlots == (activeAccountNumber.map { [$0] } ?? []) else {
+            throw ClaudeSwapListParserError.malformedShape("active account fields disagree")
         }
         return ClaudeSwapAccountList(activeAccountNumber: activeAccountNumber, accounts: accounts)
     }
@@ -140,6 +157,9 @@ public enum ClaudeSwapListParser {
     private static func parseRow(_ row: [String: Any]) throws -> ClaudeSwapAccountRow {
         guard let number = row["number"] as? Int else {
             throw ClaudeSwapListParserError.malformedShape("account row has no numeric slot")
+        }
+        guard number > 0 else {
+            throw ClaudeSwapListParserError.malformedShape("account slot must be positive")
         }
         guard let isActive = row["active"] as? Bool else {
             throw ClaudeSwapListParserError.malformedShape("slot \(number) has no active flag")

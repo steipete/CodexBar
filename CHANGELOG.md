@@ -3,7 +3,6 @@
 ## 0.39.1 — Unreleased
 
 ### Added
-- Claude: opt-in read-only claude-swap adapter shows session and weekly usage for every claude-swap account as stacked menu cards, without CodexBar reading any credentials (#1756, #1268). Thanks @optimiz-r!
 - Codex dashboard: show calendar-correct raw Today and 30-day credit totals without converting credits to billed dollars. Thanks @avenoxai!
 - Cursor: read the signed-in app token on Linux, with explicit manual-cookie web-source support and XDG config paths. Thanks @DonnieFi!
 - Devin: show remaining extra-usage balance in menus, CLI, and widgets while respecting optional-usage visibility. Thanks @FNDEVVE!

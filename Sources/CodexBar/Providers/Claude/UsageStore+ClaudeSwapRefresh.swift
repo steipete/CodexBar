@@ -11,9 +11,30 @@ extension UsageStore {
     }
 
     func clearClaudeSwapAccountState() {
+        let hadState = !self.claudeSwapAccountSnapshots.isEmpty ||
+            self.claudeSwapLastRefreshAt != nil || self.claudeSwapLastError != nil
+        self.claudeSwapRefreshTask?.cancel()
+        self.claudeSwapRefreshTask = nil
         self.claudeSwapAccountSnapshots = []
         self.claudeSwapLastRefreshAt = nil
         self.claudeSwapLastError = nil
+        if hadState {
+            self.claudeSwapRevision &+= 1
+        }
+    }
+
+    /// Runs the optional adapter independently so it cannot delay the ambient Claude card.
+    func scheduleClaudeSwapAccountRefresh(generation: UInt64) {
+        self.claudeSwapRefreshTask?.cancel()
+        guard self.shouldFetchClaudeSwapAccounts() else {
+            self.clearClaudeSwapAccountState()
+            return
+        }
+
+        self.claudeSwapRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.refreshClaudeSwapAccounts(generation: generation)
+        }
     }
 
     func refreshClaudeSwapAccounts(generation: UInt64? = nil) async {
@@ -27,12 +48,19 @@ extension UsageStore {
             self.claudeSwapAccountSnapshots = snapshots
             self.claudeSwapLastRefreshAt = Date()
             self.claudeSwapLastError = nil
+            self.claudeSwapRevision &+= 1
+        } catch is CancellationError {
+            return
         } catch {
             guard self.isCurrentProviderRefreshGeneration(.claude, generation: generation) else { return }
             // Retain the last successful snapshots as stale data; the settings
             // pane surfaces the adapter error and last refresh time.
-            self.claudeSwapLastError = (error as? LocalizedError)?.errorDescription
+            let message = (error as? LocalizedError)?.errorDescription
                 ?? error.localizedDescription
+            if self.claudeSwapLastError != message {
+                self.claudeSwapLastError = message
+                self.claudeSwapRevision &+= 1
+            }
         }
     }
 

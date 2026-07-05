@@ -119,6 +119,7 @@ extension StatusItemController {
             "openAIUsage=\(Self.dashboardBreakdownReadinessSignature(dashboardUsageBreakdown))",
             "credits=\(self.store.credits == nil ? "0" : "1")",
             "planHistoryRevision=\(self.store.planUtilizationHistoryRevision)",
+            "claudeSwapRevision=\(self.store.claudeSwapRevision)",
         ]
 
         for provider in self.store.enabledProvidersForDisplay() {

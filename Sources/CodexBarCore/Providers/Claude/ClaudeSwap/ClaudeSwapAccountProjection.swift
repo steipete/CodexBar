@@ -29,6 +29,10 @@ public enum ClaudeSwapAccountProjection {
         }
     }
 
+    public static func displayError(accountError: String?, adapterError: String?) -> String? {
+        accountError ?? adapterError.map { "Showing the last successful update: \($0)" }
+    }
+
     static func displayLabel(for row: ClaudeSwapAccountRow) -> String {
         row.email.isEmpty ? "Account \(row.number)" : row.email
     }

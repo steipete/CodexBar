@@ -159,13 +159,8 @@ extension UsageStore {
             await MainActor.run { self.kiloScopeSnapshots = [] }
         }
 
-        if provider == .claude, self.shouldFetchClaudeSwapAccounts() {
-            await self.refreshClaudeSwapAccounts(generation: generation)
-            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
-            // The ambient Claude refresh continues below; multi-element
-            // claudeSwapAccountSnapshots trigger stacked rendering.
-        } else if provider == .claude {
-            await MainActor.run { self.clearClaudeSwapAccountState() }
+        if provider == .claude {
+            self.scheduleClaudeSwapAccountRefresh(generation: generation)
         }
 
         let tokenAccounts = self.tokenAccounts(for: provider)

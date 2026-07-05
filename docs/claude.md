@@ -119,8 +119,8 @@ Phase 1 of the accepted multi-account design in
 
 - Setup: Preferences → Providers → Claude → "Read accounts from claude-swap", then set the path to the
   [`cswap`](https://github.com/realiti4/claude-swap) executable (for example `~/.local/bin/cswap`).
-- Behavior: on each Claude refresh, CodexBar executes exactly `cswap --list --json` (no shell, fixed
-  arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
+- Behavior: on each Claude refresh, CodexBar runs `cswap --list --json` independently of the ambient Claude fetch (no
+  shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
   active state, usage status, email (display only), and the 5-hour/7-day windows.
 - Display: when claude-swap reports more than one account, the Claude menu shows one stacked card per
   account (active account first) alongside nothing else changing; with zero or one account the menu is
