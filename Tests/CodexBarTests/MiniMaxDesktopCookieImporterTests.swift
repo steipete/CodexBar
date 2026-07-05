@@ -34,7 +34,18 @@ struct MiniMaxDesktopCookieImporterTests {
     }
 
     @Test
-    func `imports encrypted desktop cookies when plaintext value is empty`() throws {
+    func `imports parent domain minimax agent cookies`() throws {
+        let databaseURL = try self.makeCookiesDatabase(
+            records: [
+                (".minimaxi.com", "_token", "parent-domain-token", nil),
+            ])
+        defer { try? FileManager.default.removeItem(at: databaseURL.deletingLastPathComponent()) }
+
+        let session = MiniMaxDesktopCookieImporter.importSession(databaseURL: databaseURL)
+        #expect(session?.cookieHeader.contains("_token=parent-domain-token") == true)
+    }
+
+    @Test
         let password = "desktop-test-password"
         let encrypted = try self.makeEncryptedCookieValue(plaintext: "encrypted-token-value", password: password)
         let databaseURL = try self.makeCookiesDatabase(

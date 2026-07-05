@@ -1176,6 +1176,104 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `web enrichment requires verified group match before attaching summary`() async throws {
+        let summaryBody = """
+        {
+          "daily_token_usage": [100],
+          "date_model_usage": [],
+          "base_resp": { "status_code": 0, "status_msg": "success" }
+        }
+        """
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path.contains("usage_summary") {
+                return Self.httpResponse(url: url, body: summaryBody, contentType: "application/json")
+            }
+            let body = """
+            {
+              "remaining_credits": 20000,
+              "credit_packages_details": [{"group_id":"verified-group"}],
+              "base_resp":{"status_code":0}
+            }
+            """
+            return Self.httpResponse(url: url, body: body, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=valid",
+            authorizationToken: nil,
+            region: .global,
+            environment: [:],
+            transport: transport)
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: context,
+            groupID: "verified-group")
+
+        #expect(attempt.receivedWebData)
+        #expect(attempt.snapshot.usageSummary?.latestSnapshotTokens == 100)
+        #expect(attempt.snapshot.pointsBalance == 20000)
+    }
+
+    @Test
+    func `web enrichment ignores summary when credit group does not match`() async throws {
+        let summaryBody = """
+        {
+          "daily_token_usage": [100],
+          "date_model_usage": [],
+          "base_resp": { "status_code": 0, "status_msg": "success" }
+        }
+        """
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path.contains("usage_summary") {
+                return Self.httpResponse(url: url, body: summaryBody, contentType: "application/json")
+            }
+            let body = """
+            {
+              "remaining_credits": 20000,
+              "credit_packages_details": [{"group_id":"other-group"}],
+              "base_resp":{"status_code":0}
+            }
+            """
+            return Self.httpResponse(url: url, body: body, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: MiniMaxUsageFetcher.WebFetchContext(
+                cookie: "HERTZ-SESSION=valid",
+                authorizationToken: nil,
+                region: .global,
+                environment: [:],
+                transport: transport),
+            groupID: "expected-group")
+
+        #expect(attempt.accountMismatch)
+        #expect(!attempt.receivedWebData)
+        #expect(attempt.snapshot.usageSummary == nil)
+        #expect(attempt.snapshot.pointsBalance == nil)
+    }
+
+    @Test
     func `web usage fetch keeps quota when billing history is forbidden`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in

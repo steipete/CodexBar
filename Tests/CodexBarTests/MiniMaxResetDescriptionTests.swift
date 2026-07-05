@@ -121,4 +121,33 @@ struct MiniMaxResetDescriptionTests {
         #expect(service.resetsAt == Date(timeIntervalSince1970: TimeInterval(end) / 1000))
         #expect(service.resetDescription == "Resets in 5 hours")
     }
+
+    @Test
+    func `eight hour reset keeps plausible remains time cap`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = 1_700_000_000_000
+        let eightHoursMillis = 28_800_000
+        let end = start + eightHoursMillis
+        let remainsMillis = 25_200_000
+        let json = """
+        {
+          "base_resp": { "status_code": 0 },
+          "model_remains": [
+            {
+              "model_name": "general",
+              "current_interval_total_count": 100,
+              "current_interval_usage_count": 0,
+              "current_interval_remaining_percent": 100,
+              "start_time": \(start),
+              "end_time": \(end),
+              "remains_time": \(remainsMillis)
+            }
+          ]
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
+        let service = try #require(snapshot.services?.first { $0.windowType == "8 hours" })
+        #expect(service.resetsAt == now.addingTimeInterval(TimeInterval(remainsMillis) / 1000))
+    }
 }

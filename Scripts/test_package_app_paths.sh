@@ -82,4 +82,31 @@ assert_rejects "outside repo" "/tmp/CodexBar.app"
 assert_rejects "non app bundle" "$ROOT/CodexBar.zip"
 assert_rejects "wrong basename" "$ROOT/OtherApp.app"
 
+same_stage="$ROOT/.build/package/CodexBar.app"
+assert_accepts "shared stage path" "$same_stage"
+if validate_package_app_path "CODEXBAR_PACKAGE_OUTPUT" "$same_stage" 2>"$TEMP_DIR/same-path.log" \
+  && validate_package_app_path "CODEXBAR_PACKAGE_STAGE" "$same_stage" 2>>"$TEMP_DIR/same-path.log"
+then
+  ROOT_RESOLVED=$(cd "$ROOT" && pwd -P)
+  resolve_path() {
+    local path="$1"
+    local base_name parent_dir resolved
+    base_name=$(basename "$path")
+    parent_dir=$(dirname "$path")
+    resolved=$(cd "$parent_dir" && pwd -P)
+    printf '%s\n' "$resolved/$base_name"
+  }
+  final_resolved=$(resolve_path "$same_stage")
+  stage_resolved=$(resolve_path "$same_stage")
+  if [[ "$final_resolved" == "$stage_resolved" ]]; then
+  passes=$((passes + 1))
+  else
+    echo "ERROR: expected identical resolved package paths for rejection test" >&2
+    exit 1
+  fi
+else
+  echo "ERROR: expected package path validation to accept identical stage path inputs" >&2
+  exit 1
+fi
+
 echo "Package app path tests passed ($passes checks)."

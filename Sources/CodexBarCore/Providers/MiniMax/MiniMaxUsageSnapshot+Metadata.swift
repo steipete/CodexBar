@@ -66,10 +66,15 @@ extension MiniMaxUsageSnapshot {
     }
 
     func withPointsBalanceIfMissing(_ pointsBalance: Double?, expiresAt: Date?) -> MiniMaxUsageSnapshot {
-        let resolvedBalance = self.pointsBalance ?? pointsBalance
-        let resolvedExpiry = self.pointsBalanceExpiresAt ?? expiresAt
-        guard let resolvedBalance, resolvedBalance >= 0,
-              resolvedBalance != self.pointsBalance || resolvedExpiry != self.pointsBalanceExpiresAt
+        guard let pointsBalance, pointsBalance >= 0, self.pointsBalance == nil else {
+            return self
+        }
+        return self.withPointsBalanceFromDedicatedEndpoint(pointsBalance, expiresAt: expiresAt)
+    }
+
+    func withPointsBalanceFromDedicatedEndpoint(_ pointsBalance: Double?, expiresAt: Date?) -> MiniMaxUsageSnapshot {
+        guard let pointsBalance, pointsBalance >= 0,
+              pointsBalance != self.pointsBalance || expiresAt != self.pointsBalanceExpiresAt
         else {
             return self
         }
@@ -85,8 +90,8 @@ extension MiniMaxUsageSnapshot {
             services: self.services,
             billingSummary: self.billingSummary,
             usageSummary: self.usageSummary,
-            pointsBalance: resolvedBalance,
-            pointsBalanceExpiresAt: resolvedExpiry,
+            pointsBalance: pointsBalance,
+            pointsBalanceExpiresAt: expiresAt ?? self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt,
             webSessionState: self.webSessionState)

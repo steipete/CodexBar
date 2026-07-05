@@ -337,8 +337,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     func menuBarResetTimeWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
         if provider == .minimax {
-            return MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot)
-                ?? self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+            let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+            if preference == .automatic {
+                return MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot)
+                    ?? self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+            }
+            return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
         }
         return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
     }

@@ -18,16 +18,15 @@ extension MiniMaxUsageFetcher {
         var rejectedCredentials = false
         var receivedWebData = false
         var accountMismatch = false
+        var fetchedSummary: MiniMaxUsageSummary?
 
         do {
-            let summary = try await MiniMaxUsageSummaryFetcher.fetch(
+            fetchedSummary = try await MiniMaxUsageSummaryFetcher.fetch(
                 cookieHeader: context.cookie,
                 groupID: resolvedGroupID,
                 region: context.region,
                 environment: context.environment,
                 transport: context.transport)
-            enriched = enriched.withUsageSummary(summary)
-            receivedWebData = true
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as URLError where error.code == .cancelled {
@@ -47,12 +46,20 @@ extension MiniMaxUsageFetcher {
                 transport: context.transport)
             if let resolvedGroupID,
                !credit.groupIDs.isEmpty,
-               !credit.groupIDs.contains(resolvedGroupID)
+               credit.groupIDs.contains(resolvedGroupID)
+            {
+                enriched = enriched.withPointsBalanceFromDedicatedEndpoint(
+                    credit.balance,
+                    expiresAt: credit.expiresAt)
+                if let fetchedSummary {
+                    enriched = enriched.withUsageSummary(fetchedSummary)
+                }
+                receivedWebData = true
+            } else if let resolvedGroupID,
+                      !credit.groupIDs.isEmpty,
+                      !credit.groupIDs.contains(resolvedGroupID)
             {
                 accountMismatch = true
-            } else {
-                enriched = enriched.withPointsBalanceIfMissing(credit.balance, expiresAt: credit.expiresAt)
-                receivedWebData = true
             }
         } catch is CancellationError {
             throw CancellationError()

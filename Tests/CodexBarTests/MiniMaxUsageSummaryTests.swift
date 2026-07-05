@@ -129,4 +129,27 @@ struct MiniMaxUsageSummaryTests {
         #expect(summary.last7DaysTokens == 600)
         #expect(summary.latestSnapshotTokens == 300)
     }
+
+    @Test
+    func `login only usage summary maps to invalid credentials`() {
+        let body = """
+        {
+          "daily_token_usage": [],
+          "date_model_usage": [],
+          "base_resp": { "status_code": 1004, "status_msg": "not login" }
+        }
+        """
+        #expect(throws: MiniMaxUsageError.invalidCredentials) {
+            try MiniMaxUsageSummaryParser.parse(data: Data(body.utf8))
+        }
+    }
+
+    @Test
+    func `daily only summary anchors year from reference date near new year`() {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current
+        let reference = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 12))!
+        let key = MiniMaxUsageSummary.dateKey(fromUpdateTime: "12-31 18:00", referenceDate: reference)
+        #expect(key == "2025-12-31")
+    }
 }

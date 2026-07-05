@@ -50,11 +50,11 @@ extension MiniMaxUsageParser {
         if normalized == "today" || normalized == "daily" {
             return 26 * 3600
         }
-        if normalized == "5 hours" || normalized == "5h" || normalized.contains("hour") {
-            return 6 * 3600
-        }
         if let hours = Int(normalized.split(separator: " ").first ?? ""), normalized.contains("hour") {
             return TimeInterval(hours + 1) * 3600
+        }
+        if normalized == "5 hours" || normalized == "5h" || normalized.contains("hour") {
+            return 6 * 3600
         }
         return nil
     }

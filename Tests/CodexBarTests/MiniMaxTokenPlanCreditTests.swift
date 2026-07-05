@@ -223,6 +223,23 @@ struct MiniMaxTokenPlanCreditTests {
     }
 
     @Test
+    func `dedicated credit endpoint replaces remains fallback balance`() {
+        let snapshot = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 0,
+            remainingPrompts: 100,
+            windowMinutes: 300,
+            usedPercent: 0,
+            resetsAt: nil,
+            updatedAt: Date(),
+            pointsBalance: 5000)
+
+        let enriched = snapshot.withPointsBalanceFromDedicatedEndpoint(20000, expiresAt: nil)
+        #expect(enriched.pointsBalance == 20000)
+    }
+
+    @Test
     func `credit enrichment fetches missing expiry without replacing existing balance`() async throws {
         let creditJSON = try String(contentsOf: Self.fixtureURL(named: "token-plan-credit-normal.json"))
         let transport = ProviderHTTPTransportStub { request in

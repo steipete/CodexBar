@@ -113,7 +113,8 @@ enum MiniMaxDesktopCookieImporter {
         let normalized = domain.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
             .lowercased()
-        return self.webCookieHosts.contains(normalized)
+        if self.webCookieHosts.contains(normalized) { return true }
+        return normalized == "minimaxi.com" || normalized == "minimax.io"
     }
 
     private static func makeHTTPCookies(from records: [Record]) -> [HTTPCookie] {

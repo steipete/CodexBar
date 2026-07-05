@@ -116,7 +116,7 @@ public struct MiniMaxUsageSummary: Sendable, Equatable {
         return self.days.suffix(count).reduce(0) { $0 + $1.totalToken }
     }
 
-    static func dateKey(fromUpdateTime raw: String?) -> String? {
+    static func dateKey(fromUpdateTime raw: String?, referenceDate: Date = Date()) -> String? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return nil
         }
@@ -130,13 +130,20 @@ public struct MiniMaxUsageSummary: Sendable, Equatable {
         else {
             return nil
         }
+        let calendar = Calendar.current
         var components = DateComponents()
-        components.calendar = Calendar.current
+        components.calendar = calendar
         components.timeZone = TimeZone.current
-        components.year = Calendar.current.component(.year, from: Date())
+        components.year = calendar.component(.year, from: referenceDate)
         components.month = month
         components.day = day
-        guard let date = components.date else { return nil }
+        guard var date = components.date else { return nil }
+        let futureThreshold = calendar.date(byAdding: .day, value: 1, to: referenceDate) ?? referenceDate
+        if date > futureThreshold {
+            components.year = (components.year ?? calendar.component(.year, from: referenceDate)) - 1
+            guard let adjusted = components.date else { return nil }
+            date = adjusted
+        }
         return Self.todayDateKey(for: date)
     }
 
@@ -350,6 +357,11 @@ enum MiniMaxUsageSummaryParser {
         let payload = try JSONDecoder().decode(MiniMaxUsageSummaryPayload.self, from: data)
         if let status = payload.baseResp?.statusCode, status != 0 {
             let message = payload.baseResp?.statusMessage ?? "status_code \(status)"
+            if status == 1004 || message.lowercased().contains("cookie")
+                || message.lowercased().contains("login")
+            {
+                throw MiniMaxUsageError.invalidCredentials
+            }
             throw MiniMaxUsageError.apiError(message)
         }
         return MiniMaxUsageSummary(

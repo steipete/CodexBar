@@ -239,6 +239,24 @@ APP_FINAL="${CODEXBAR_PACKAGE_OUTPUT:-$ROOT/CodexBar.app}"
 APP_STAGE="${CODEXBAR_PACKAGE_STAGE:-$ROOT/.build/package/CodexBar.app}"
 validate_package_app_path "CODEXBAR_PACKAGE_OUTPUT" "$APP_FINAL"
 validate_package_app_path "CODEXBAR_PACKAGE_STAGE" "$APP_STAGE"
+resolve_package_app_path() {
+  local path="$1"
+  local base_name parent_dir resolved
+  base_name=$(basename "$path")
+  parent_dir=$(dirname "$path")
+  if ! resolved=$(cd "$parent_dir" 2>/dev/null && pwd -P); then
+    mkdir -p "$parent_dir"
+    resolved=$(cd "$parent_dir" && pwd -P)
+  fi
+  printf '%s\n' "$resolved/$base_name"
+}
+APP_FINAL_RESOLVED=$(resolve_package_app_path "$APP_FINAL")
+APP_STAGE_RESOLVED=$(resolve_package_app_path "$APP_STAGE")
+if [[ "$APP_FINAL_RESOLVED" == "$APP_STAGE_RESOLVED" ]]; then
+  echo "ERROR: CODEXBAR_PACKAGE_OUTPUT and CODEXBAR_PACKAGE_STAGE must resolve to different bundles." >&2
+  echo "       output=$APP_FINAL_RESOLVED stage=$APP_STAGE_RESOLVED" >&2
+  exit 1
+fi
 mkdir -p "$(dirname "$APP_FINAL")" "$(dirname "$APP_STAGE")"
 rm -rf "$APP_STAGE"
 APP="$APP_STAGE"
