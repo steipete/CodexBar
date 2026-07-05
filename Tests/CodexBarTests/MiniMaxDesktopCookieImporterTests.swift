@@ -46,6 +46,7 @@ struct MiniMaxDesktopCookieImporterTests {
     }
 
     @Test
+    func `imports encrypted desktop cookies when plaintext value is empty`() throws {
         let password = "desktop-test-password"
         let encrypted = try self.makeEncryptedCookieValue(plaintext: "encrypted-token-value", password: password)
         let databaseURL = try self.makeCookiesDatabase(

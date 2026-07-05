@@ -185,6 +185,9 @@ struct MenuBarMiniMaxResetTimeDisplayTests {
 
         let displayText = controller.menuBarDisplayText(for: .minimax, snapshot: snapshot)
 
+        #expect(displayText == "↻ \(UsageFormatter.resetDescription(from: sessionReset, now: now))")
+    }
+
     @Test
     func `reset time mode honors explicit weekly metric preference`() {
         let settings = testSettingsStore(suiteName: "MenuBarMiniMaxResetTimeDisplayTests-explicit-weekly")
