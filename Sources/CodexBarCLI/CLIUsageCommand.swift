@@ -600,6 +600,15 @@ extension CodexBarCLI {
             if sourceMode == .auto || settings?.opencodego?.cookieSource == .manual {
                 return false
             }
+
+    private static func deepseekBypassesWebSupportRequirement(
+        sourceMode: ProviderSourceMode,
+        settings: ProviderSettingsSnapshot?,
+        environment: [String: String]?) -> Bool
+    {
+        if settings?.deepseek?.cookieSource == .manual {
+            return true
+        }
         }
         if provider == .commandcode,
            settings?.commandcode?.cookieSource == .manual
@@ -657,14 +666,6 @@ extension CodexBarCLI {
             return false
         }
 
-    private static func deepseekBypassesWebSupportRequirement(
-        sourceMode: ProviderSourceMode,
-        settings: ProviderSettingsSnapshot?,
-        environment: [String: String]?) -> Bool
-    {
-        if settings?.deepseek?.cookieSource == .manual {
-            return true
-        }
         if settings?.deepseek?.cookieSource == .off {
             return sourceMode != .web
         }
