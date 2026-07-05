@@ -309,9 +309,9 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
             UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerB))
         let hourStart = Date(timeIntervalSince1970: 1_700_000_000)
 
-        // 1) Active account A (~/.claude.json = uuid-A). A USER-INITIATED refresh ran the keychain freshness
-        //    sync, so the served owner_A is trustworthy: it binds to A and writes to key_A.
-        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
+        // 1) Active account A (~/.claude.json = uuid-A). The credential used for this fetch exactly matches
+        //    the current Claude Keychain item, so owner_A is trustworthy: it binds to A and writes to key_A.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await store.recordPlanUtilizationHistorySample(
                     provider: .claude,
@@ -334,12 +334,12 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         //    poll still serves the STALE owner_A credential. The existing owner_A -> uuid-A binding (created
         //    in step 1) is authoritative and detects the mismatch, so this must be quarantined even though it
         //    is a background poll: no new sample lands.
-        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
             await ProviderInteractionContext.$current.withValue(.background) {
                 await store.recordPlanUtilizationHistorySample(
                     provider: .claude,
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
-                    claudeOAuthPersistentRefHash: "account-a-ref",
+                    claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(2 * 60 * 60))
@@ -357,10 +357,9 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
             #expect(buckets.accounts[keyB] == nil)
         }
 
-        // 3) A USER-INITIATED refresh yields account B's real credential (owner_B); the freshness sync makes
-        //    the served owner trustworthy so it binds owner_B -> uuid-B. Recovery: writes to key_B, key_A
-        //    stays untouched.
-        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+        // 3) A USER-INITIATED refresh yields account B's real credential (owner_B), with exact current-Keychain
+        //    match evidence. Recovery: bind owner_B -> uuid-B, write to key_B, and leave key_A untouched.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await store.recordPlanUtilizationHistorySample(
                     provider: .claude,
@@ -382,19 +381,20 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
     @MainActor
     @Test
-    func `background first sighting does not poison the account map`() async throws {
+    func `exact keychain match arms account map on background poll`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let ownerA = self.oauthOwnerIdentifier("a")
         let ownerB = self.oauthOwnerIdentifier("b")
+        let keyA = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerA))
         let keyB = try #require(
             UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerB))
         let hourStart = Date(timeIntervalSince1970: 1_700_000_000)
 
-        // 1) First run after upgrading: the account UUID map is EMPTY. A BACKGROUND poll serves owner_A while
-        //    ~/.claude.json still reports uuid-A. Because the freshness sync is gated on a background poll, the
-        //    served owner is NOT trustworthy for creating a binding: fail-open writes the sample (key_A bucket)
-        //    but must NOT persist any owner_A binding.
-        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
+        // 1) First run after upgrading: the map is empty. A background poll serves owner_A while
+        //    ~/.claude.json reports uuid-A, and exact current-Keychain evidence corroborates the credential.
+        //    This is safe to bind even though the interaction is background.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
             await ProviderInteractionContext.$current.withValue(.background) {
                 await store.recordPlanUtilizationHistorySample(
                     provider: .claude,
@@ -406,16 +406,18 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
             }
         }
 
+        let mapAfterFirstSample = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
+        #expect(mapAfterFirstSample[ownerA] == "uuid-A")
+
         // 2) `/login` switched to account B (~/.claude.json = uuid-B), but the gated BACKGROUND poll still
-        //    serves the STALE owner_A credential. This is the Codex P2 scenario: with an unmapped owner, the
-        //    naive first-sighting bind would persist owner_A -> uuid-B, POISONING the map. The fix must NOT
-        //    create that (or any) binding for owner_A on a background poll.
-        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+        //    serves the stale owner_A credential. It no longer matches the current Keychain item, and the
+        //    existing owner_A -> uuid-A binding detects the UUID mismatch, so the sample is quarantined.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
             await ProviderInteractionContext.$current.withValue(.background) {
                 await store.recordPlanUtilizationHistorySample(
                     provider: .claude,
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
-                    claudeOAuthPersistentRefHash: "account-a-ref",
+                    claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(2 * 60 * 60))
@@ -424,19 +426,17 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
         do {
             let mapAfterBackground = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
-            // No poison: owner_A was never bound to uuid-B. Stronger: no binding for owner_A exists at all,
-            // because a background poll can never create a first-sighting binding.
-            #expect(mapAfterBackground[ownerA] == nil)
-            #expect(mapAfterBackground["uuid-B"] == nil)
+            #expect(mapAfterBackground[ownerA] == "uuid-A")
             let buckets = try #require(store.planUtilizationHistory[.claude])
+            #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+                .entries.map(\.usedPercent) == [30])
             #expect(buckets.unscoped.isEmpty)
         }
 
-        // 3) A USER-INITIATED refresh yields account B's real credential (owner_B). The freshness sync ran, so
-        //    the served owner is trustworthy: this CREATES the owner_B -> uuid-B binding (arming the quarantine)
-        //    and writes to key_B. This proves the primary #1886 fix still arms via normal user-initiated use.
-        try await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
-            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+        // 3) A background poll now yields account B's real credential (owner_B) with exact current-Keychain
+        //    match evidence. That evidence, not the interaction label, binds owner_B -> uuid-B and writes key_B.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await ProviderInteractionContext.$current.withValue(.background) {
                 await store.recordPlanUtilizationHistorySample(
                     provider: .claude,
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
@@ -448,13 +448,33 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         }
 
         let mapAfterRecovery = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
-        // User-initiated (not background) is what creates the binding.
         #expect(mapAfterRecovery[ownerB] == "uuid-B")
-        #expect(mapAfterRecovery[ownerA] == nil)
+        #expect(mapAfterRecovery[ownerA] == "uuid-A")
         let buckets = try #require(store.planUtilizationHistory[.claude])
         #expect(findSeries(buckets.accounts[keyB] ?? [], name: .session, windowMinutes: 300)?
             .entries.map(\.usedPercent) == [75])
         #expect(buckets.unscoped.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `user initiated first sighting without keychain match does not bind`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let staleOwner = self.oauthOwnerIdentifier("s")
+
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-current") {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
+                    claudeOAuthPersistentRefHash: nil,
+                    claudeOAuthHistoryOwnerIdentifier: staleOwner,
+                    isClaudeOAuthSample: true)
+            }
+        }
+
+        let map = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
+        #expect(map[staleOwner] == nil)
     }
 
     @MainActor

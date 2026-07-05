@@ -167,23 +167,19 @@ extension UsageStore {
             if let mapped = map[owner], let currentUuid, mapped != currentUuid {
                 // Active Claude account changed (per ~/.claude.json) but a stale credential for a
                 // PREVIOUS account is being served (background cache, keychain gated). Quarantine: do
-                // not attribute B's usage to A's bucket. Recovery happens on the next user-initiated
-                // refresh, when the keychain freshness sync yields the new account's real credential.
+                // not attribute B's usage to A's bucket. Recovery happens once a later fetch yields the new
+                // account's credential with exact current-Keychain match evidence.
                 // An existing binding is authoritative, so honor it on ANY interaction (background too).
                 effectiveOwner = nil
             } else if map[owner] == nil,
                       let currentUuid,
-                      ProviderInteractionContext.current == .userInitiated
+                      claudeOAuthPersistentRefHash != nil
             {
-                // First sighting of this owner: bind it to the account active right now. Only trustworthy
-                // on a USER-INITIATED refresh, where the Claude keychain freshness sync runs (gate open),
-                // so the served owner reflects the CURRENTLY ACTIVE account (either the cache was already
-                // correct, or the sync corrected it after a switch). On a BACKGROUND poll the sync is gated
-                // and the served owner may be STALE for a previous account: binding it here would POISON the
-                // map (a false owner->uuid binding that later wrongly quarantines legitimate samples). So we
-                // fail-open instead: effectiveOwner stays = owner, the write proceeds, and NO binding is
-                // persisted. The binding still gets created on the next user-initiated use while on this
-                // account, arming the quarantine for a later background switch.
+                // First sighting of this owner: bind it only when the exact credential used for the fetch
+                // matches the current Claude Keychain item. Interaction context is insufficient evidence:
+                // even a user-initiated freshness sync can be unavailable, cancelled, or denied and fall
+                // back to a stale cached credential. Without the match, fail open without persisting a
+                // binding; a later corroborated sample can safely arm the quarantine.
                 // Never OVERWRITE on mismatch (that is the stale case handled above).
                 map[owner] = currentUuid
                 self.persistClaudeOAuthAccountUuidMap(map)
