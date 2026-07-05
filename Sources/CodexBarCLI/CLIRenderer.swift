@@ -293,8 +293,27 @@ enum CLIRenderer {
     }
 
     static func gradientUsedBar(usedPercent: Double, width: Int) -> String {
-        let remaining = max(0, min(100, 100 - usedPercent))
-        return self.gradientRemainingBar(remainingPercent: remaining, width: width)
+        let clamped = max(0, min(100, usedPercent))
+        let barWidth = max(4, width)
+        let rawFilled = Int((clamped / 100) * Double(barWidth))
+        let filled = max(0, min(barWidth, rawFilled))
+        let empty = max(0, barWidth - filled)
+        let colors = self.remainingGradientRGB(remainingPercent: 100 - clamped)
+        var bar = ""
+        if filled > 0 {
+            for index in 0..<filled {
+                let t = filled == 1 ? 1.0 : Double(index) / Double(filled - 1)
+                let red = Int(Double(colors.dark.0) * (1 - t) + Double(colors.light.0) * t)
+                let green = Int(Double(colors.dark.1) * (1 - t) + Double(colors.light.1) * t)
+                let blue = Int(Double(colors.dark.2) * (1 - t) + Double(colors.light.2) * t)
+                bar += self.ansiTrueColor(red: red, green: green, blue: blue, "█")
+            }
+        }
+        if empty > 0 {
+            let emptyCell = self.ansiTrueColor(red: 48, green: 50, blue: 62, "░")
+            bar += String(repeating: emptyCell, count: empty)
+        }
+        return bar
     }
 
     static func colorizeEnhancedAccentBold(_ text: String) -> String {

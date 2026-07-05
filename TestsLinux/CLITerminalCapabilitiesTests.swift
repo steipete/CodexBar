@@ -29,10 +29,16 @@ struct CLITerminalCapabilitiesTests {
     }
 
     @Test
-    func `defaults cards to enhanced when color is enabled`() {
+    func `defaults cards to standard on plain ansi terminals`() {
         let env = ["TERM": "xterm-256color"]
-        #expect(CLITerminalCapabilities.supportsEnhancedCards(useColor: true, environment: env))
+        #expect(!CLITerminalCapabilities.supportsEnhancedCards(useColor: true, environment: env))
         #expect(!CLITerminalCapabilities.supportsEnhancedCards(useColor: false, environment: env))
+    }
+
+    @Test
+    func `defaults cards to enhanced on truecolor terminals`() {
+        let env = ["TERM": "xterm-256color", "COLORTERM": "truecolor"]
+        #expect(CLITerminalCapabilities.supportsEnhancedCards(useColor: true, environment: env))
     }
 
     @Test

@@ -1,8 +1,10 @@
 import CodexBarCore
 import Foundation
-#if os(Linux)
+#if canImport(Glibc)
 import Glibc
-#elseif os(macOS)
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(Darwin)
 import Darwin
 #endif
 

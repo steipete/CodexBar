@@ -24,7 +24,7 @@ enum CLITerminalCapabilities {
         guard useColor else { return false }
         if environment["CODEXBAR_CARDS_ENHANCED"] == "1" { return true }
         if environment["CODEXBAR_CARDS_ENHANCED"] == "0" { return false }
-        return true
+        return self.supportsTruecolor(environment: environment)
     }
 
     static func supportsKittyGraphics(environment: [String: String]) -> Bool {
