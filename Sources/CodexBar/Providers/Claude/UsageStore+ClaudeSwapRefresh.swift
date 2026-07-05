@@ -6,7 +6,7 @@ extension UsageStore {
     /// ambient Claude refresh. The adapter is display-only: it never reads
     /// credentials and its failures never affect the ambient Claude snapshot.
     func shouldFetchClaudeSwapAccounts() -> Bool {
-        self.settings.claudeSwapEnabled &&
+        self.isEnabled(.claude) && self.settings.claudeSwapEnabled &&
             !self.settings.claudeSwapExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -24,7 +24,7 @@ extension UsageStore {
     }
 
     /// Runs the optional adapter independently so it cannot delay the ambient Claude card.
-    func scheduleClaudeSwapAccountRefresh(generation: UInt64) {
+    func scheduleClaudeSwapAccountRefresh(generation: UInt64? = nil) {
         self.claudeSwapRefreshTask?.cancel()
         guard self.shouldFetchClaudeSwapAccounts() else {
             self.clearClaudeSwapAccountState()
@@ -44,7 +44,9 @@ extension UsageStore {
         do {
             let list = try await ClaudeSwapAccountReader.readAccountList(executablePath: executablePath)
             let snapshots = ClaudeSwapAccountProjection.accountSnapshots(from: list)
-            guard self.isCurrentProviderRefreshGeneration(.claude, generation: generation) else { return }
+            guard self.isCurrentClaudeSwapRefresh(executablePath: executablePath, generation: generation) else {
+                return
+            }
             self.claudeSwapAccountSnapshots = snapshots
             self.claudeSwapLastRefreshAt = Date()
             self.claudeSwapLastError = nil
@@ -52,7 +54,9 @@ extension UsageStore {
         } catch is CancellationError {
             return
         } catch {
-            guard self.isCurrentProviderRefreshGeneration(.claude, generation: generation) else { return }
+            guard self.isCurrentClaudeSwapRefresh(executablePath: executablePath, generation: generation) else {
+                return
+            }
             // Retain the last successful snapshots as stale data; the settings
             // pane surfaces the adapter error and last refresh time.
             let message = (error as? LocalizedError)?.errorDescription
@@ -67,7 +71,18 @@ extension UsageStore {
     private func probeClaudeSwapVersionIfNeeded(executablePath: String) async {
         guard self.claudeSwapVersionProbedPath != executablePath else { return }
         let version = await ClaudeSwapAccountReader.readVersion(executablePath: executablePath)
+        guard self.isCurrentClaudeSwapConfiguration(executablePath: executablePath) else { return }
         self.claudeSwapVersionProbedPath = executablePath
         self.claudeSwapDetectedVersion = version
+    }
+
+    private func isCurrentClaudeSwapRefresh(executablePath: String, generation: UInt64?) -> Bool {
+        self.isCurrentProviderRefreshGeneration(.claude, generation: generation) &&
+            self.isCurrentClaudeSwapConfiguration(executablePath: executablePath)
+    }
+
+    private func isCurrentClaudeSwapConfiguration(executablePath: String) -> Bool {
+        self.isEnabled(.claude) && self.settings.claudeSwapEnabled &&
+            self.settings.claudeSwapExecutablePath == executablePath
     }
 }

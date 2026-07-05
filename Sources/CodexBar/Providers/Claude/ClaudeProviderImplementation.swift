@@ -48,6 +48,10 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         }
     }
 
+    func makeRuntime() -> (any ProviderRuntime)? {
+        ClaudeProviderRuntime()
+    }
+
     @MainActor
     func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
         context.settings.claudeUsageDataSource.rawValue
