@@ -153,10 +153,14 @@ struct TokenAccountCLIContext {
         config: ProviderConfig?) -> ProviderSettingsSnapshot?
     {
         let cookieSettings = self.cookieSettings(provider: provider, account: account, config: config)
+        if let snapshot = self.makeSimpleProviderCookieSnapshot(
+            provider: provider,
+            cookieSettings: cookieSettings)
+        {
+            return snapshot
+        }
 
         switch provider {
-        case .cursor:
-            return self.makeSnapshot(cursor: self.makeProviderCookieSettings(cookieSettings))
         case .opencode:
             return self.makeSnapshot(
                 opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings(
@@ -169,46 +173,20 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSettings.cookieSource,
                     manualCookieHeader: cookieSettings.manualCookieHeader,
                     workspaceID: config?.workspaceID))
-        case .commandcode:
-            return self.makeSnapshot(commandcode: self.makeProviderCookieSettings(cookieSettings))
         case .alibaba:
             return self.makeSnapshot(
                 alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
                     cookieSource: cookieSettings.cookieSource,
                     manualCookieHeader: cookieSettings.manualCookieHeader,
                     apiRegion: self.resolveAlibabaCodingPlanRegion(config)))
-        case .alibabatokenplan:
-            return self.makeSnapshot(alibabaTokenPlan: self.makeProviderCookieSettings(cookieSettings))
-        case .factory:
-            return self.makeSnapshot(factory: self.makeProviderCookieSettings(cookieSettings))
         case .minimax:
             return self.makeSnapshot(
                 minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
                     cookieSource: cookieSettings.cookieSource,
                     manualCookieHeader: cookieSettings.manualCookieHeader,
                     apiRegion: self.resolveMiniMaxRegion(config)))
-        case .manus:
-            return self.makeSnapshot(manus: self.makeProviderCookieSettings(cookieSettings))
-        case .augment:
-            return self.makeSnapshot(augment: self.makeProviderCookieSettings(cookieSettings))
-        case .amp:
-            return self.makeSnapshot(amp: self.makeProviderCookieSettings(cookieSettings))
-        case .ollama:
-            return self.makeSnapshot(ollama: self.makeProviderCookieSettings(cookieSettings))
-        case .kimi:
-            return self.makeSnapshot(kimi: self.makeProviderCookieSettings(cookieSettings))
-        case .perplexity:
-            return self.makeSnapshot(perplexity: self.makeProviderCookieSettings(cookieSettings))
-        case .mimo:
-            return self.makeSnapshot(mimo: self.makeProviderCookieSettings(cookieSettings))
-        case .deepseek:
-            return self.makeSnapshot(deepseek: self.makeProviderCookieSettings(cookieSettings))
         case .doubao:
             return nil
-        case .abacus:
-            return self.makeSnapshot(abacus: self.makeProviderCookieSettings(cookieSettings))
-        case .mistral:
-            return self.makeSnapshot(mistral: self.makeProviderCookieSettings(cookieSettings))
         case .stepfun:
             let stepfunSettings = self.cookieSettings(
                 provider: provider,
@@ -221,6 +199,45 @@ struct TokenAccountCLIContext {
                     manualToken: stepfunSettings.manualCookieHeader ?? "",
                     username: config?.sanitizedAPIKey ?? "",
                     password: ""))
+        default:
+            return nil
+        }
+    }
+
+    private func makeSimpleProviderCookieSnapshot(
+        provider: UsageProvider,
+        cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings) -> ProviderSettingsSnapshot?
+    {
+        let settings = self.makeProviderCookieSettings(cookieSettings)
+        switch provider {
+        case .cursor:
+            return self.makeSnapshot(cursor: settings)
+        case .commandcode:
+            return self.makeSnapshot(commandcode: settings)
+        case .alibabatokenplan:
+            return self.makeSnapshot(alibabaTokenPlan: settings)
+        case .factory:
+            return self.makeSnapshot(factory: settings)
+        case .manus:
+            return self.makeSnapshot(manus: settings)
+        case .augment:
+            return self.makeSnapshot(augment: settings)
+        case .amp:
+            return self.makeSnapshot(amp: settings)
+        case .ollama:
+            return self.makeSnapshot(ollama: settings)
+        case .kimi:
+            return self.makeSnapshot(kimi: settings)
+        case .perplexity:
+            return self.makeSnapshot(perplexity: settings)
+        case .mimo:
+            return self.makeSnapshot(mimo: settings)
+        case .deepseek:
+            return self.makeSnapshot(deepseek: settings)
+        case .abacus:
+            return self.makeSnapshot(abacus: settings)
+        case .mistral:
+            return self.makeSnapshot(mistral: settings)
         default:
             return nil
         }
