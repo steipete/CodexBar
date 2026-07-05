@@ -454,5 +454,22 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .mimo,
             environment: ["MIMO_LOCAL_USAGE_PATH": directory.appendingPathComponent("missing.json").path]))
+        #if os(Linux)
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .cursor,
+            settings: ProviderSettingsSnapshot.make(
+                cursor: .init(cookieSource: .auto, manualCookieHeader: nil))))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .cursor,
+            settings: ProviderSettingsSnapshot.make(
+                cursor: .init(cookieSource: .manual, manualCookieHeader: "WorkosCursorSessionToken=test"))))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .cursor,
+            settings: ProviderSettingsSnapshot.make(
+                cursor: .init(cookieSource: .off, manualCookieHeader: nil))))
+        #endif
     }
 }

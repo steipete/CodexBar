@@ -7,11 +7,14 @@ import SweetCookieKit
 import SQLite3
 #endif
 
-#if os(macOS)
+#if os(macOS) || os(Linux)
 
+#if os(macOS)
 private let cursorCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.cursor]?.browserCookieOrder ?? Browser.defaultImportOrder
+#endif
 
+#if os(macOS)
 // MARK: - Cursor Cookie Importer
 
 /// Imports Cursor session cookies from browser cookies.
@@ -186,6 +189,7 @@ public enum CursorCookieImporter {
         }
     }
 }
+#endif
 
 // MARK: - Cursor API Models
 
@@ -408,15 +412,38 @@ protocol CursorAppAuthSessionProviding: Sendable {
 }
 
 struct CursorAppAuthStore: CursorAppAuthSessionProviding {
-    private static let defaultDBPath: String = {
-        let home = NSHomeDirectory()
-        return "\(home)/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
-    }()
+    private static let defaultDBPath: String = Self.resolveDefaultDBPath()
 
     private let dbPath: String
 
     init(dbPath: String? = nil) {
         self.dbPath = dbPath ?? Self.defaultDBPath
+    }
+
+    static func resolveDefaultDBPath(
+        home: String = NSHomeDirectory(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> String
+    {
+        #if os(macOS)
+        _ = environment
+        _ = fileManager
+        return "\(home)/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+        #elseif os(Linux)
+        let configHome = environment[CodexBarConfigStore.xdgConfigHomeEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let base: String = if let configHome, !configHome.isEmpty {
+            (configHome as NSString).expandingTildeInPath
+        } else {
+            "\(home)/.config"
+        }
+        return "\(base)/Cursor/User/globalStorage/state.vscdb"
+        #else
+        _ = home
+        _ = environment
+        _ = fileManager
+        return ""
+        #endif
     }
 
     func loadSession() throws -> CursorAppAuthSession? {
@@ -705,15 +732,23 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .notLoggedIn:
+            #if os(macOS)
             "Not logged in to Cursor. Please log in via the CodexBar menu."
+            #else
+            "Not logged in to Cursor. Sign in to the Cursor app on this machine or paste a session cookie in CodexBar settings."
+            #endif
         case let .networkError(msg):
             "Cursor API error: \(msg)"
         case let .parseFailed(msg):
             "Could not parse Cursor usage: \(msg)"
         case .noSessionCookie:
+            #if os(macOS)
             "No Cursor session found. \(Self.safariFullDiskAccessHint) "
                 + "Please log in to cursor.com in \(cursorCookieImportOrder.loginHint). "
                 + "You can also sign in to Cursor from the CodexBar menu (Add / switch account)."
+            #else
+            "No Cursor session found. Sign in to the Cursor app on this machine, paste a Cookie header from cursor.com in settings, or log in to cursor.com in your browser."
+            #endif
         }
     }
 }
@@ -860,7 +895,7 @@ public struct CursorStatusProbe: Sendable {
             baseURL: baseURL,
             timeout: timeout,
             browserDetection: browserDetection,
-            browserCookieImportOrder: cursorCookieImportOrder,
+            browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore())
     }
@@ -869,7 +904,7 @@ public struct CursorStatusProbe: Sendable {
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
         browserDetection: BrowserDetection,
-        browserCookieImportOrder: BrowserCookieImportOrder = cursorCookieImportOrder,
+        browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         appAuthStore: any CursorAppAuthSessionProviding)
     {
@@ -927,6 +962,7 @@ public struct CursorStatusProbe: Sendable {
             }
         }
 
+        #if os(macOS)
         // Try each browser in order. The first browser that *has* session cookie names is not always valid
         // (e.g. stale Chrome tokens); keep trying until the API accepts a session or we run out of browsers.
         let browserCandidates = self.browserCookieImportOrder.cookieImportCandidates(using: self.browserDetection)
@@ -965,6 +1001,7 @@ public struct CursorStatusProbe: Sendable {
         case let .exhausted(error):
             firstRecoverableError = error ?? firstRecoverableError
         }
+        #endif
 
         // Fall back to stored session cookies (from "Add Account" login flow)
         if allowCachedSessions {
@@ -1363,6 +1400,12 @@ public struct CursorStatusProbe: Sendable {
             requestsUsed: requestsUsed,
             requestsLimit: requestsLimit)
     }
+
+    #if os(macOS)
+    private static let defaultBrowserCookieImportOrder: BrowserCookieImportOrder = cursorCookieImportOrder
+    #else
+    private static let defaultBrowserCookieImportOrder: BrowserCookieImportOrder = Browser.defaultImportOrder
+    #endif
 }
 
 #else
