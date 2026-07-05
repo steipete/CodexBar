@@ -1059,6 +1059,7 @@ public struct CursorStatusProbe: Sendable {
         throw CursorStatusProbeError.noSessionCookie
     }
 
+    #if os(macOS)
     enum ImportedSessionFetchOutcome {
         case succeeded(CursorStatusSnapshot)
         case tryNextBrowser
@@ -1141,6 +1142,7 @@ public struct CursorStatusProbe: Sendable {
             return .failed(.networkError(error.localizedDescription))
         }
     }
+    #endif
 
     private func fetchWithCookieHeader(
         _ cookieHeader: String,
@@ -1404,7 +1406,7 @@ public struct CursorStatusProbe: Sendable {
     #if os(macOS)
     private static let defaultBrowserCookieImportOrder: BrowserCookieImportOrder = cursorCookieImportOrder
     #else
-    private static let defaultBrowserCookieImportOrder: BrowserCookieImportOrder = Browser.defaultImportOrder
+    private static let defaultBrowserCookieImportOrder: BrowserCookieImportOrder = []
     #endif
 }
 

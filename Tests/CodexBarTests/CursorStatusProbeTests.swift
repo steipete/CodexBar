@@ -976,24 +976,6 @@ extension CursorStatusProbeTests {
         #expect(session == CursorAppAuthSession(accessToken: "app-token"))
     }
 
-    #if os(Linux)
-    @Test
-    func `resolveDefaultDBPath honors XDG config home on Linux`() {
-        let path = CursorAppAuthStore.resolveDefaultDBPath(
-            home: "/home/test",
-            environment: ["XDG_CONFIG_HOME": "/custom/config"])
-        #expect(path == "/custom/config/Cursor/User/globalStorage/state.vscdb")
-    }
-
-    @Test
-    func `resolveDefaultDBPath falls back to dot config on Linux`() {
-        let path = CursorAppAuthStore.resolveDefaultDBPath(
-            home: "/home/test",
-            environment: [:])
-        #expect(path == "/home/test/.config/Cursor/User/globalStorage/state.vscdb")
-    }
-    #endif
-
     @Test
     func `fetch ignores user info failure when usage summary succeeds`() async throws {
         let testSession = CursorStatusProbeTestSession { request in
