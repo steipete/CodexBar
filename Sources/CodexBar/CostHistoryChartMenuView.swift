@@ -775,13 +775,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func yAxisCostString(_ value: Double, currencyCode: String) -> String {
-        if value != 0, abs(value) < 1 {
-            return self.costString(value, currencyCode: currencyCode)
-        }
-        return value.formatted(
-            .currency(code: currencyCode)
-                .precision(.fractionLength(0))
-                .locale(Locale(identifier: "en_US")))
+        UsageFormatter.compactCurrencyString(value, currencyCode: currencyCode)
     }
 
     private static func breakdownAccentOpacity(for index: Int) -> Double {

@@ -372,6 +372,16 @@ struct UsageFormatterTests {
         #expect(result == "$0.00")
     }
 
+    @Test(arguments: [
+        (0.0, "$0"),
+        (0.50, "$0.50"),
+        (12.56, "$13"),
+        (1515.0, "$1,515"),
+    ])
+    func `compact currency keeps cents only below one unit`(value: Double, expected: String) {
+        #expect(UsageFormatter.compactCurrencyString(value, currencyCode: "USD") == expected)
+    }
+
     @Test
     func `currency string handles non USD currencies`() {
         // FormatStyle handles all currencies with proper symbols

@@ -826,28 +826,31 @@ private struct UsageHistoryChart: View {
             if isCostMode { return point.costUSD ?? 0 }
             return Double(point.totalTokens ?? 0)
         }
-        let maxValue = values.max() ?? 0
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(values.indices, id: \.self) { index in
-                let value = values[index]
-                let height = maxValue > 0 ? CGFloat(value / maxValue) : 0
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(self.color.opacity(0.85))
-                    .frame(maxWidth: .infinity)
-                    .scaleEffect(x: 1, y: height, anchor: .bottom)
-                    .animation(.easeOut(duration: 0.2), value: height)
-            }
-        }
-        .overlay(alignment: .topTrailing) {
+        let scale = UsageChartScale(values: values)
+        VStack(alignment: .trailing, spacing: 2) {
             if isCostMode,
                let currencyCode = self.currencyCode,
-               maxValue > 0
+               scale.maximum > 0
             {
-                Text(WidgetFormat.currency(maxValue, code: currencyCode))
+                Text(UsageFormatter.compactCurrencyString(scale.maximum, currencyCode: currencyCode))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
                     .lineLimit(1)
                     .allowsTightening(true)
+            }
+            GeometryReader { geometry in
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(values.indices, id: \.self) { index in
+                        let fraction = scale.fraction(for: values[index])
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(self.color.opacity(0.85))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: max(fraction > 0 ? 2 : 0, CGFloat(fraction) * geometry.size.height))
+                            .animation(.easeOut(duration: 0.2), value: fraction)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
     }
