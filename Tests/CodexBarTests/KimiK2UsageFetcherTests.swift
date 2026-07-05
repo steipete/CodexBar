@@ -41,6 +41,23 @@ struct KimiK2UsageFetcherTests {
     }
 
     @Test
+    func `ignores nonfinite usage values`() throws {
+        let json = """
+        {
+          "total_credits_consumed": "NaN",
+          "credits_remaining": "Infinity",
+          "average_tokens": "1e309"
+        }
+        """
+
+        let summary = try KimiK2UsageFetcher._parseSummaryForTesting(Data(json.utf8))
+
+        #expect(summary.consumed == 0)
+        #expect(summary.remaining == 0)
+        #expect(summary.averageTokens == nil)
+    }
+
+    @Test
     func `parses numeric timestamp seconds`() throws {
         let json = """
         {
