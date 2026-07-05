@@ -21,6 +21,10 @@ check_package_product_paths() {
   "${ROOT_DIR}/Scripts/test_package_product_paths.sh"
 }
 
+check_package_app_paths() {
+  "${ROOT_DIR}/Scripts/test_package_app_paths.sh"
+}
+
 check_package_strip() {
   "${ROOT_DIR}/Scripts/test_package_strip.sh"
 }
@@ -77,6 +81,7 @@ check_llms_index() {
 run_portable_checks() {
   check_codex_parser_hash
   check_package_product_paths
+  check_package_app_paths
   check_package_strip
   check_package_signing
   check_release_dsym_paths

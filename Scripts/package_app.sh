@@ -19,6 +19,58 @@ SIGNING_MODE=
 resolve_package_signing_mode
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+
+validate_package_app_path() {
+  local label="$1"
+  local path="$2"
+  if [[ -z "$path" ]]; then
+    echo "ERROR: $label is empty." >&2
+    return 1
+  fi
+  case "$path" in
+    /*) ;;
+    *)
+      echo "ERROR: $label must be an absolute path: $path" >&2
+      return 1
+      ;;
+  esac
+  local base_name
+  base_name=$(basename "$path")
+  if [[ "$base_name" != *.app ]]; then
+    echo "ERROR: $label must point to a .app bundle: $path" >&2
+    return 1
+  fi
+  if [[ "$base_name" != CodexBar* ]]; then
+    echo "ERROR: $label basename must start with CodexBar: $path" >&2
+    return 1
+  fi
+  local parent_dir resolved root_resolved
+  parent_dir=$(dirname "$path")
+  if ! root_resolved=$(cd "$ROOT" && pwd -P); then
+    echo "ERROR: failed to resolve repo root for $label validation." >&2
+    return 1
+  fi
+  if ! resolved=$(cd "$parent_dir" 2>/dev/null && pwd -P); then
+    mkdir -p "$parent_dir"
+    if ! resolved=$(cd "$parent_dir" && pwd -P); then
+      echo "ERROR: $label parent directory is invalid: $parent_dir" >&2
+      return 1
+    fi
+  fi
+  resolved="$resolved/$base_name"
+  if [[ "$resolved" == "$root_resolved" ]]; then
+    echo "ERROR: $label must not target the repo root: $path" >&2
+    return 1
+  fi
+  case "$resolved" in
+    "$root_resolved"/*) ;;
+    *)
+      echo "ERROR: $label must stay inside the repo root ($root_resolved): $path" >&2
+      return 1
+      ;;
+  esac
+}
+
 LOWER_CONF=$(printf "%s" "$CONF" | tr '[:upper:]' '[:lower:]')
 case "$LOWER_CONF" in
   debug|release) ;;
@@ -185,6 +237,8 @@ done
 
 APP_FINAL="${CODEXBAR_PACKAGE_OUTPUT:-$ROOT/CodexBar.app}"
 APP_STAGE="${CODEXBAR_PACKAGE_STAGE:-$ROOT/.build/package/CodexBar.app}"
+validate_package_app_path "CODEXBAR_PACKAGE_OUTPUT" "$APP_FINAL"
+validate_package_app_path "CODEXBAR_PACKAGE_STAGE" "$APP_STAGE"
 mkdir -p "$(dirname "$APP_FINAL")" "$(dirname "$APP_STAGE")"
 rm -rf "$APP_STAGE"
 APP="$APP_STAGE"

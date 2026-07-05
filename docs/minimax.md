@@ -25,7 +25,7 @@ falls back across the provider's supported web requests when needed.
    - Reads the logged-in MiniMax Agent / MiniMax Code desktop cookie store from
      `~/Library/Application Support/MiniMax/Cookies`.
    - Does not require Chrome Keychain access; used first on web-session refreshes when present.
-   - Not used for API-token optional enrichment (see Snapshot mapping).
+   - Also used for API-token optional enrichment when no explicit manual/env cookie is available.
 
 3) **Cached/imported browser session** (automatic web path)
    - Uses CodexBar's standard cookie cache and browser import flow.
@@ -66,7 +66,7 @@ falls back across the provider's supported web requests when needed.
 - Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.
 - Token Plan recharge credits (积分余额) are fetched from `GET https://www.minimaxi.com/backend/account/token_plan_credit` (or the global `www.minimax.io` host) using a web session cookie. API-token remains responses do not include this balance.
 - **Web-session refreshes** merge recharge credits and usage-summary enrichment through `MiniMaxWebEnrichmentResolver.candidates`, trying MiniMax Agent cookies first, then cached/browser/manual candidates. Successful browser profiles are cached for later background refreshes once Chrome Keychain access is already authorized.
-- **API-token refreshes** attach optional recharge credits and usage-summary enrichment from explicit cookies (manual settings cookie header or `MINIMAX_COOKIE` / `MINIMAX_COOKIE_HEADER`), a previously validated browser-session cache, or a user-initiated browser re-import. The API path calls `MiniMaxWebEnrichmentResolver.apiEnrichmentCandidates` and does not attach MiniMax Agent desktop cookies or background browser imports, so a different account's live browser session cannot be merged onto an API-key quota snapshot without user action.
+- **API-token refreshes** attach optional recharge credits and usage-summary enrichment from explicit cookies (manual settings cookie header or `MINIMAX_COOKIE` / `MINIMAX_COOKIE_HEADER`), **MiniMax Agent desktop cookies**, a previously validated browser-session cache, or a user-initiated browser re-import. The API path calls `MiniMaxWebEnrichmentResolver.apiEnrichmentCandidates` and does not attach background browser imports, so a different account's live browser session cannot be merged onto an API-key quota snapshot without user action.
 - Console usage summary (`GET .../backend/account/token_plan/usage_summary`) uses the same cookie source split as recharge credits above.
 - Pay-as-you-go cost projections treat `input_token` and `cache_read_token` as separate counters when pricing usage-summary model rows.
 - Menu **Usage Dashboard** opens `https://platform.minimax.io/console/usage` or `https://platform.minimaxi.com/console/usage` based on the configured API region. Settings **Open Token Plan** still opens the Coding Plan page.
