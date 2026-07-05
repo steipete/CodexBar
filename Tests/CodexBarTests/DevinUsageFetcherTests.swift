@@ -54,6 +54,80 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
+    func `parses overage balance into extra usage provider cost`() throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+            "overage_balance": 70.87,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == 70.87)
+        let cost = try #require(snapshot.toUsageSnapshot().providerCost)
+        #expect(cost.used == 70.87)
+        #expect(cost.limit == 0)
+        #expect(cost.currencyCode == "USD")
+        #expect(cost.period == "Extra usage balance")
+        #expect(cost.updatedAt == Self.now)
+    }
+
+    @Test
+    func `parses overage balance cents into extra usage provider cost`() throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+            "overage_balance_cents": 7087,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == 70.87)
+        #expect(snapshot.toUsageSnapshot().providerCost?.period == "Extra usage balance")
+    }
+
+    @Test
+    func `omits provider cost when overage balance is absent`() throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == nil)
+        #expect(snapshot.toUsageSnapshot().providerCost == nil)
+    }
+
+    @Test(arguments: ["-1", "Infinity", "NaN"])
+    func `omits invalid overage balances`(_ balance: String) throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+            "overage_balance": balance,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == nil)
+        #expect(snapshot.toUsageSnapshot().providerCost == nil)
+    }
+
+    @Test(arguments: ["-1", "Infinity", "NaN"])
+    func `omits invalid overage balance cents`(_ balance: String) throws {
+        let response: [String: Any] = [
+            "daily_percentage": 12,
+            "weekly_percentage": 42,
+            "overage_balance_cents": balance,
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.overageBalance == nil)
+        #expect(snapshot.toUsageSnapshot().providerCost == nil)
+    }
+
+    @Test
     func `keeps weekly quota when current plan hides daily quota`() throws {
         let response: [String: Any] = [
             "weekly_percentage": 25,

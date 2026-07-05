@@ -431,6 +431,8 @@
 "cost_history_window_help" = "Stelt in hoeveel dagen lokale gebruikslogboeken in het menu verschijnen.";
 "cost_history_days_title" = "Geschiedenisvenster: %d dagen";
 "cost_auto_refresh_info" = "Automatisch vernieuwen: elk uur · Time-out: 10m";
+"cost_comparison_periods_title" = "Kortere vergelijkingsperioden tonen";
+"cost_comparison_periods_subtitle" = "Voegt totalen voor 7, 30 en 90 dagen toe wanneer ze binnen het geselecteerde geschiedenisvenster vallen. Deze totalen gebruiken dezelfde lokale scan.";
 "refresh_cadence_title" = "Cadans vernieuwen";
 "refresh_cadence_subtitle" = "Hoe vaak CodexBar providers op de achtergrond ondervraagt.";
 "manual_refresh_hint" = "Automatisch vernieuwen is uitgeschakeld; gebruik de opdracht Vernieuwen van het menu.";

@@ -100,6 +100,10 @@ public enum KeychainAccessPreflight {
         self.checkGenericPasswordOverride = override
     }
 
+    static var hasCheckGenericPasswordOverrideForTesting: Bool {
+        self.taskCheckGenericPasswordOverrideStore != nil || self.checkGenericPasswordOverride != nil
+    }
+
     static func withCheckGenericPasswordOverrideForTesting<T>(
         _ override: ((String, String?) -> Outcome)?,
         operation: () throws -> T) rethrows -> T
@@ -137,7 +141,7 @@ public enum KeychainAccessPreflight {
         let query = self.makeGenericPasswordPreflightQuery(service: service, account: account)
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
             self.log.debug("Keychain preflight allowed", metadata: ["service": service])

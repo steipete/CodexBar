@@ -1103,4 +1103,31 @@ struct CLISnapshotTests {
         #expect(output.contains("Tokens:"))
         #expect(output.contains("MCP:"))
     }
+
+    @Test
+    func `devin overage balance without primary window omits generic cost line`() {
+        let snap = UsageSnapshot(
+            primary: nil,
+            secondary: .init(usedPercent: 42, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 48.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: Date(timeIntervalSince1970: 0)),
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CLIRenderer.renderText(
+            provider: .devin,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Devin (devin)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+        #expect(output.contains("Extra usage: $48.00"))
+        #expect(!output.contains("Cost:"))
+        #expect(!output.contains(" / 0.0"))
+    }
 }

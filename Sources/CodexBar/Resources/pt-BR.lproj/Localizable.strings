@@ -428,6 +428,8 @@
 "cost_history_window_help" = "Define quantos dias de logs de uso locais aparecem no menu.";
 "cost_history_days_title" = "Janela do histórico: %d dias";
 "cost_auto_refresh_info" = "Atualização automática: a cada hora · Timeout: 10 min";
+"cost_comparison_periods_title" = "Mostrar períodos de comparação mais curtos";
+"cost_comparison_periods_subtitle" = "Adiciona totais de 7, 30 e 90 dias quando couberem na janela de histórico selecionada. Esses totais reutilizam a mesma varredura local.";
 "refresh_cadence_title" = "Cadência de atualização";
 "refresh_cadence_subtitle" = "Frequência com que o CodexBar consulta provedores em segundo plano.";
 "manual_refresh_hint" = "A atualização automática está desativada; use Atualizar no menu.";

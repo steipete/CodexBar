@@ -7,6 +7,13 @@ GROUP_SIZE="${CODEXBAR_TEST_GROUP_SIZE:-12}"
 SUITE_TIMEOUT="${CODEXBAR_TEST_SUITE_TIMEOUT:-180}"
 
 cd "${ROOT_DIR}"
+
+# Defense in depth: test processes also self-detect, but keep this explicit so runner changes cannot
+# expose the user's login Keychain. Deliberate isolated Keychain tests must opt in by setting the allow flag.
+if [[ "${CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS:-}" != "1" ]]; then
+  export CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1
+fi
+
 ARGS=(
   --group-size "${GROUP_SIZE}"
   --timeout "${SUITE_TIMEOUT}"

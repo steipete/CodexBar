@@ -435,6 +435,8 @@
 "cost_history_window_help" = "设置菜单中显示多少天的本地使用日志。";
 "cost_history_days_title" = "历史窗口：%d 天";
 "cost_auto_refresh_info" = "自动刷新：每小时 · 超时：10 分钟";
+"cost_comparison_periods_title" = "显示更短的对比周期";
+"cost_comparison_periods_subtitle" = "当 7 天、30 天和 90 天处于所选历史窗口内时，添加相应汇总。这些汇总复用同一次本地扫描。";
 "refresh_cadence_title" = "刷新频率";
 "refresh_cadence_subtitle" = "CodexBar 在后台轮询提供商的频率。";
 "manual_refresh_hint" = "自动刷新已关闭；请使用菜单中的“刷新”命令。";

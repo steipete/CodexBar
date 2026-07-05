@@ -74,8 +74,13 @@ struct TTYIntegrationTests {
 
     @Test
     func `claude pty usage stops on subscription notice`() async throws {
-        let cli = try Self.makeSubscriptionNoticeClaudeCLI()
-        defer { Task { await ClaudeCLISession.shared.reset() } }
+        let logURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBarTTYTests-\(UUID().uuidString).log")
+        let cli = try Self.makeSubscriptionNoticeClaudeCLI(logURL: logURL)
+        defer {
+            try? FileManager.default.removeItem(at: logURL)
+            Task { await ClaudeCLISession.shared.reset() }
+        }
 
         do {
             try await ClaudeCLISession.withIsolatedSessionForTesting {
@@ -87,6 +92,10 @@ struct TTYIntegrationTests {
         } catch {
             #expect(Bool(false), "Unexpected error: \(error)")
         }
+
+        let commands = try String(contentsOf: logURL, encoding: .utf8)
+        #expect(commands.contains("/usage"))
+        #expect(!commands.contains("/status"))
     }
 
     private static func makeSlowUsageClaudeCLI() throws -> URL {
@@ -117,7 +126,7 @@ struct TTYIntegrationTests {
         return url
     }
 
-    private static func makeSubscriptionNoticeClaudeCLI() throws -> URL {
+    private static func makeSubscriptionNoticeClaudeCLI(logURL: URL) throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("CodexBarTTYTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -125,6 +134,7 @@ struct TTYIntegrationTests {
         let script = """
         #!/bin/sh
         while IFS= read -r line; do
+          printf '%s\\n' "$line" >> '\(logURL.path)'
           case "$line" in
             *"/usage"*)
               printf '%s\\n' 'You are currently using your subscription to power your Claude Code usage'

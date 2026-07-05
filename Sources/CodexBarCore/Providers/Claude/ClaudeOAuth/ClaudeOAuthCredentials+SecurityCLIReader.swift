@@ -272,6 +272,13 @@ extension ClaudeOAuthCredentialsStore {
         account: String?,
         environment: [String: String]) -> [String]?
     {
+        let isolatedKeychainPath = self.isolatedSecurityCLIKeychainPath(environment: environment)
+        if KeychainTestSafety.shouldBlockRealKeychainAccess(environment: environment),
+           isolatedKeychainPath == nil
+        {
+            return nil
+        }
+
         var arguments = [
             "find-generic-password",
             "-s",
@@ -285,10 +292,10 @@ extension ClaudeOAuthCredentialsStore {
         let rawIsolatedPath = environment[self.isolatedSecurityCLIKeychainEnvironmentKey]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if rawIsolatedPath != nil || KeychainAccessGate.isDisabledByEnvironment(environment) {
-            guard let isolatedPath = self.isolatedSecurityCLIKeychainPath(environment: environment) else {
+            guard let isolatedKeychainPath else {
                 return nil
             }
-            arguments.append(isolatedPath)
+            arguments.append(isolatedKeychainPath)
         }
         return arguments
     }
