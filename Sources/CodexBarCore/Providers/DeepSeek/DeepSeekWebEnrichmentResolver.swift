@@ -9,15 +9,19 @@ enum DeepSeekWebEnrichmentResolver {
     }
 
     static func candidates(context: ProviderFetchContext) -> [Candidate] {
-        // When the user disables usage summaries, no session source is eligible —
-        // including environment cookies, cache, and browser imports.
-        if context.settings?.deepseek?.cookieSource == .off { return [] }
-        var candidates = self.explicitCandidates(context: context)
+        let cookieSource = context.settings?.deepseek?.cookieSource ?? .auto
+        if cookieSource == .off { return [] }
+
+        if cookieSource == .manual {
+            return self.deduplicated(self.manualCandidates(context: context))
+        }
+
+        var candidates = self.autoExplicitCandidates(context: context)
         #if os(macOS)
         if let cached = CookieHeaderCache.load(provider: .deepseek),
            let session = DeepSeekCookieHeader.session(from: cached.cookieHeader)
         {
-            let sanitized = DeepSeekLocalStorageImporter.sanitized(session)
+            let sanitized = DeepSeekSessionAuthorization.sanitized(session)
             if sanitized.isEmpty {
                 CookieHeaderCache.clear(provider: .deepseek)
             } else {
@@ -46,7 +50,37 @@ enum DeepSeekWebEnrichmentResolver {
     /// Lightweight availability probe: checks explicit (settings/env) sessions and the
     /// cached cookie without triggering a browser import or Keychain-prompting read.
     static func hasExplicitOrCachedSession(context: ProviderFetchContext) -> Bool {
-        if !self.explicitCandidates(context: context).isEmpty {
+        let cookieSource = context.settings?.deepseek?.cookieSource ?? .auto
+        if cookieSource == .off { return false }
+        if cookieSource == .manual {
+            return !self.manualCandidates(context: context).isEmpty
+        }
+        if !self.autoExplicitCandidates(context: context).isEmpty {
+            return true
+        }
+        #if os(macOS)
+        if let cached = CookieHeaderCache.load(provider: .deepseek),
+           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return true
+        }
+        #endif
+        return false
+    }
+
+    static func hasConfiguredWebSession(
+        settings: ProviderSettingsSnapshot?,
+        environment: [String: String]) -> Bool
+    {
+        let cookieSource = settings?.deepseek?.cookieSource ?? .auto
+        if cookieSource == .off { return false }
+        if cookieSource == .manual {
+            return self.manualSession(from: settings?.deepseek?.manualCookieHeader) != nil
+        }
+        if self.manualSession(from: settings?.deepseek?.manualCookieHeader) != nil {
+            return true
+        }
+        if ProviderTokenResolver.deepseekCookie(environment: environment) != nil {
             return true
         }
         #if os(macOS)
@@ -75,27 +109,30 @@ enum DeepSeekWebEnrichmentResolver {
     }
     #endif
 
-    private static func explicitCandidates(context: ProviderFetchContext) -> [Candidate] {
+    private static func manualCandidates(context: ProviderFetchContext) -> [Candidate] {
+        guard let session = self.manualSession(from: context.settings?.deepseek?.manualCookieHeader) else {
+            return []
+        }
+        return [Candidate(
+            session: session,
+            sourceLabel: "settings",
+            shouldCache: false,
+            isCached: false)]
+    }
+
+    private static func autoExplicitCandidates(context: ProviderFetchContext) -> [Candidate] {
         var candidates: [Candidate] = []
-        if let settings = context.settings?.deepseek,
-           settings.cookieSource != .off,
-           let header = settings.manualCookieHeader?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !header.isEmpty,
-           let session = DeepSeekCookieHeader.session(from: header)
-        {
-            let sanitized = DeepSeekLocalStorageImporter.sanitized(session)
-            if !sanitized.isEmpty {
-                candidates.append(Candidate(
-                    session: sanitized,
-                    sourceLabel: "settings",
-                    shouldCache: false,
-                    isCached: false))
-            }
+        if let session = self.manualSession(from: context.settings?.deepseek?.manualCookieHeader) {
+            candidates.append(Candidate(
+                session: session,
+                sourceLabel: "settings",
+                shouldCache: false,
+                isCached: false))
         }
         if let raw = ProviderTokenResolver.deepseekCookie(environment: context.env),
            let session = DeepSeekCookieHeader.session(from: raw)
         {
-            let sanitized = DeepSeekLocalStorageImporter.sanitized(session)
+            let sanitized = DeepSeekSessionAuthorization.sanitized(session)
             if !sanitized.isEmpty {
                 candidates.append(Candidate(
                     session: sanitized,
@@ -105,6 +142,17 @@ enum DeepSeekWebEnrichmentResolver {
             }
         }
         return candidates
+    }
+
+    private static func manualSession(from raw: String?) -> DeepSeekPlatformSession? {
+        guard let header = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !header.isEmpty,
+              let session = DeepSeekCookieHeader.session(from: header)
+        else {
+            return nil
+        }
+        let sanitized = DeepSeekSessionAuthorization.sanitized(session)
+        return sanitized.isEmpty ? nil : sanitized
     }
 
     private static func deduplicated(_ candidates: [Candidate]) -> [Candidate] {

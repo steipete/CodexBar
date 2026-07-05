@@ -650,8 +650,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         guard !session.isEmpty else {
             throw DeepSeekUsageError.invalidCredentials
         }
-        // Both are optional/best-effort: a failure in one must not drop the other.
-        let summary = try? await self.fetchAccountSummary(session: session)
+        let summary = try await self.fetchAccountSummary(session: session)
         let identity = try? await self.fetchIdentity(session: session)
         return (summary, identity)
     }
@@ -768,6 +767,9 @@ public struct DeepSeekUsageFetcher: Sendable {
         let wallets = normal + bonus
         if wallets.contains(where: { $0.currency == "USD" && (Double($0.balance ?? "") ?? 0) > 0 }) {
             return "USD"
+        }
+        if let funded = wallets.first(where: { (Double($0.balance ?? "") ?? 0) > 0 }) {
+            return funded.currency ?? "CNY"
         }
         return normal.first?.currency ?? bonus.first?.currency ?? "CNY"
     }

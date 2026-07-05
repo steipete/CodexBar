@@ -40,6 +40,9 @@ When an API key is present CodexBar uses it for balance and enriches with the we
 - When `users/current` reports an enabled balance alert and the balance drops below `alert_bound`, the balance line is marked full (warning styling) and appends `— below alert <amount>`. The masked account email flows into the provider identity snapshot.
 - Fetch strategy resolution (`DeepSeekProviderDescriptor.resolveStrategies`): `.web` → `deepseek.web` only; `.api` → `deepseek.api` only; `.auto` → `deepseek.api` (with web enrichment) when an API key exists, otherwise `deepseek.web`.
 - Disabling the usage-summary source (`cookieSource == .off`) suppresses **all** session candidates — settings, environment `DEEPSEEK_COOKIE`, cache, and browser import.
+- **Manual** usage-summary source uses only the pasted platform session from Settings; it does not fall back to environment variables, cache, or browser import.
+- **Auto** usage-summary source may use settings header, `DEEPSEEK_COOKIE`, cache, and browser import.
+- Browser cookie/localStorage import runs only on **user-initiated app refresh** (`ProviderInteractionContext.userInitiated`); background refreshes and CLI never trigger browser import.
 - When multiple currencies are present, USD is shown preferentially.
 - If total balance is zero, CodexBar shows an add-credits message. If balance is nonzero but `is_available` is false, it shows "Balance unavailable for API calls".
 - DeepSeek does not expose session/weekly quota windows via API.

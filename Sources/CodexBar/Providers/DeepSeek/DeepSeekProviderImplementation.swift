@@ -29,7 +29,35 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
         if DeepSeekSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.tokenAccounts(for: .deepseek).isEmpty
+        if !context.settings.tokenAccounts(for: .deepseek).isEmpty {
+            return true
+        }
+        switch context.settings.deepSeekCookieSource {
+        case .off:
+            return false
+        case .manual:
+            return !context.settings.deepSeekCookieHeader
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+        case .auto:
+            if !context.settings.deepSeekCookieHeader
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+            {
+                return true
+            }
+            if ProviderTokenResolver.deepseekCookie(environment: context.environment) != nil {
+                return true
+            }
+            #if os(macOS)
+            if let cached = CookieHeaderCache.load(provider: .deepseek),
+               !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                return true
+            }
+            #endif
+            return false
+        }
     }
 
     @MainActor

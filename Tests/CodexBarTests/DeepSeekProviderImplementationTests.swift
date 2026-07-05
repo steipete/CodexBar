@@ -37,4 +37,25 @@ struct DeepSeekProviderImplementationTests {
         #expect(actions.count == 1)
         #expect(actions[0].actions.first?.title == "Open Usage Dashboard")
     }
+
+    @Test
+    func `web only session makes provider available`() throws {
+        let suite = "DeepSeekProviderImplementationTests-availability"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.deepSeekCookieSource = .manual
+        settings.deepSeekCookieHeader = "session=manual"
+
+        let available = DeepSeekProviderImplementation().isAvailable(context: ProviderAvailabilityContext(
+            provider: .deepseek,
+            settings: settings,
+            environment: [:]))
+        #expect(available)
+    }
 }

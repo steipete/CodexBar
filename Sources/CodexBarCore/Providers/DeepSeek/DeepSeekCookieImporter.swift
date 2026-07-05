@@ -107,7 +107,7 @@ public enum DeepSeekCookieImporter {
         guard liveBearer != nil || !storageTokens.isEmpty else {
             return sessions.map { session in
                 SessionInfo(
-                    session: DeepSeekLocalStorageImporter.sanitized(session.session),
+                    session: DeepSeekSessionAuthorization.sanitized(session.session),
                     sourceLabel: session.sourceLabel)
             }
         }
@@ -130,16 +130,16 @@ public enum DeepSeekCookieImporter {
 
         return sessions.map { session in
             let normalizedLabel = self.normalizeStorageLabel(session.sourceLabel)
-            let bearer = liveBearer
-                ?? bearerByLabel[session.sourceLabel]
+            let labelMatched = bearerByLabel[session.sourceLabel]
                 ?? bearerByLabel.first(where: { self.normalizeStorageLabel($0.key) == normalizedLabel })?.value
+            let bearer = labelMatched ?? (sessions.count == 1 ? liveBearer : nil)
             guard let bearer else {
                 return SessionInfo(
-                    session: DeepSeekLocalStorageImporter.sanitized(session.session),
+                    session: DeepSeekSessionAuthorization.sanitized(session.session),
                     sourceLabel: session.sourceLabel)
             }
             return SessionInfo(
-                session: DeepSeekLocalStorageImporter.sanitized(DeepSeekPlatformSession(
+                session: DeepSeekSessionAuthorization.sanitized(DeepSeekPlatformSession(
                     cookieHeader: session.session.cookieHeader,
                     authorizationHeader: bearer)),
                 sourceLabel: session.sourceLabel)
@@ -203,9 +203,7 @@ public enum DeepSeekCookieImporter {
             let mergedRecords = self.mergeRecords(group)
             guard !mergedRecords.isEmpty else { continue }
             let cookies = BrowserCookieClient.makeHTTPCookies(mergedRecords, origin: origin)
-            let cookieHeader = DeepSeekCookieHeader.header(from: cookies)
-                ?? DeepSeekCookieHeader.supplementalHeader(from: cookies)
-            guard let cookieHeader else {
+            guard let cookieHeader = DeepSeekCookieHeader.header(from: cookies) else {
                 continue
             }
             let session = DeepSeekPlatformSession(cookieHeader: cookieHeader, authorizationHeader: nil)

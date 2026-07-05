@@ -118,13 +118,14 @@ struct DeepSeekPlatformSessionTests {
 struct DeepSeekWebEnrichmentResolverTests {
     @Test
     func `explicit env cookie becomes enrichment candidate`() {
+        CookieHeaderCache.clear(provider: .deepseek)
         let context = DeepSeekWebEnrichmentTestSupport.makeContext(
             env: ["DEEPSEEK_COOKIE": "session=abc"],
             settings: ProviderSettingsSnapshot.make(deepseek: .init(cookieSource: .auto, manualCookieHeader: nil)))
         let candidates = DeepSeekWebEnrichmentResolver.candidates(context: context)
-        #expect(candidates.count == 1)
-        #expect(candidates[0].sourceLabel == "environment")
-        #expect(candidates[0].session.cookieHeader == "session=abc")
+        let envCandidates = candidates.filter { $0.sourceLabel == "environment" }
+        #expect(envCandidates.count == 1)
+        #expect(envCandidates[0].session.cookieHeader == "session=abc")
     }
 
     @Test
@@ -135,4 +136,91 @@ struct DeepSeekWebEnrichmentResolverTests {
         let candidates = DeepSeekWebEnrichmentResolver.candidates(context: context)
         #expect(candidates.isEmpty)
     }
+
+    @Test
+    func `manual mode uses pasted session only`() {
+        let context = DeepSeekWebEnrichmentTestSupport.makeContext(
+            env: ["DEEPSEEK_COOKIE": "session=env"],
+            settings: ProviderSettingsSnapshot.make(deepseek: .init(
+                cookieSource: .manual,
+                manualCookieHeader: "session=manual")))
+        let candidates = DeepSeekWebEnrichmentResolver.candidates(context: context)
+        #expect(candidates.count == 1)
+        #expect(candidates[0].sourceLabel == "settings")
+        #expect(candidates[0].session.cookieHeader == "session=manual")
+    }
+
+    @Test
+    func `manual mode ignores cached session`() {
+        CookieHeaderCache.store(
+            provider: .deepseek,
+            cookieHeader: "session=cached",
+            sourceLabel: "Chrome")
+        defer { CookieHeaderCache.clear(provider: .deepseek) }
+
+        let context = DeepSeekWebEnrichmentTestSupport.makeContext(
+            env: [:],
+            settings: ProviderSettingsSnapshot.make(deepseek: .init(
+                cookieSource: .manual,
+                manualCookieHeader: "session=manual")))
+        let candidates = DeepSeekWebEnrichmentResolver.candidates(context: context)
+        #expect(candidates.count == 1)
+        #expect(candidates[0].session.cookieHeader == "session=manual")
+    }
+
+    @Test
+    func `configured web session detects manual header`() {
+        let settings = ProviderSettingsSnapshot.make(deepseek: .init(
+            cookieSource: .manual,
+            manualCookieHeader: "session=manual"))
+        #expect(DeepSeekWebEnrichmentResolver.hasConfiguredWebSession(
+            settings: settings,
+            environment: [:]))
+    }
+
+    @Test
+    func `configured web session detects env cookie in auto mode`() {
+        let settings = ProviderSettingsSnapshot.make(deepseek: .init(cookieSource: .auto, manualCookieHeader: nil))
+        #expect(DeepSeekWebEnrichmentResolver.hasConfiguredWebSession(
+            settings: settings,
+            environment: ["DEEPSEEK_COOKIE": "session=env"]))
+    }
+
+    #if os(macOS)
+    @Test
+    func `browser import requires user initiated app refresh`() {
+        let appContext = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: ProviderSettingsSnapshot.make(deepseek: .init(cookieSource: .auto, manualCookieHeader: nil)),
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: DeepSeekWebEnrichmentTestClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+        let cliContext = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: ProviderSettingsSnapshot.make(deepseek: .init(cookieSource: .auto, manualCookieHeader: nil)),
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: DeepSeekWebEnrichmentTestClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+
+        #expect(DeepSeekWebEnrichmentResolver.allowsBrowserCookieImport(context: appContext) == false)
+        #expect(DeepSeekWebEnrichmentResolver.allowsBrowserCookieImport(context: cliContext) == false)
+
+        ProviderInteractionContext.$current.withValue(.userInitiated) {
+            #expect(DeepSeekWebEnrichmentResolver.allowsBrowserCookieImport(context: appContext))
+            #expect(DeepSeekWebEnrichmentResolver.allowsBrowserCookieImport(context: cliContext) == false)
+        }
+    }
+    #endif
 }

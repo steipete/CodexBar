@@ -72,6 +72,25 @@ struct DeepSeekAccountSummaryParserTests {
     }
 
     @Test
+    func `prefers funded wallet when USD row is empty`() throws {
+        let json = """
+        {
+          "code": 0,
+          "data": { "biz_code": 0, "biz_data": {
+            "normal_wallets": [
+              { "currency": "USD", "balance": "0", "token_estimation": "0" },
+              { "currency": "CNY", "balance": "27.15", "token_estimation": "9052464" }
+            ],
+            "bonus_wallets": []
+          }}
+        }
+        """
+        let summary = try DeepSeekUsageFetcher._parseAccountSummaryForTesting(self.data(json))
+        #expect(summary.currency == "CNY")
+        #expect(abs(summary.paidBalance - 27.15) < 0.0001)
+    }
+
+    @Test
     func `auth failure code maps to invalid credentials`() {
         let json = #"{ "code": 40003, "msg": "authorization failed" }"#
         #expect(throws: DeepSeekUsageError.self) {

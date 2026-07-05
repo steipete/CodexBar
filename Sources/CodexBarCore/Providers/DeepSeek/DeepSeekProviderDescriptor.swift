@@ -82,12 +82,37 @@ struct DeepSeekAPITokenFetchStrategy: ProviderFetchStrategy {
         return self.makeResult(usage: enriched.toUsageSnapshot(), sourceLabel: "api")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.settings?.deepseek?.cookieSource != .off else { return false }
+        switch error {
+        case DeepSeekUsageError.missingCredentials, DeepSeekUsageError.invalidCredentials:
+            return true
+        case let DeepSeekUsageError.apiError(message):
+            return message.contains("401") || message.contains("403")
+        default:
+            return false
+        }
     }
 }
 
 extension DeepSeekAPITokenFetchStrategy {
+    static func shouldApplyWebBalance(
+        apiSnapshot: DeepSeekUsageSnapshot,
+        webIdentity: DeepSeekAccountIdentity?) -> Bool
+    {
+        guard let webEmail = webIdentity?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !webEmail.isEmpty
+        else {
+            return true
+        }
+        guard let apiEmail = apiSnapshot.identity?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !apiEmail.isEmpty
+        else {
+            return true
+        }
+        return apiEmail.caseInsensitiveCompare(webEmail) == .orderedSame
+    }
+
     static func enrichUsageSnapshot(
         context: ProviderFetchContext,
         snapshot: DeepSeekUsageSnapshot) async throws -> DeepSeekUsageSnapshot
@@ -104,15 +129,26 @@ extension DeepSeekAPITokenFetchStrategy {
                 let account = try await DeepSeekUsageFetcher.fetchWebAccount(session: candidate.session)
                 let usage = try? await DeepSeekUsageFetcher.fetchUsageSummary(session: candidate.session)
                 guard account.summary != nil || usage != nil else { continue }
+                let applyWebBalance = Self.shouldApplyWebBalance(
+                    apiSnapshot: enriched,
+                    webIdentity: account.identity)
                 enriched = DeepSeekUsageSnapshot(
                     isAvailable: enriched.isAvailable,
-                    currency: account.summary?.currency ?? enriched.currency,
-                    totalBalance: account.summary?.totalBalance ?? enriched.totalBalance,
-                    grantedBalance: account.summary?.grantedBalance ?? enriched.grantedBalance,
-                    toppedUpBalance: account.summary?.paidBalance ?? enriched.toppedUpBalance,
+                    currency: applyWebBalance
+                        ? (account.summary?.currency ?? enriched.currency)
+                        : enriched.currency,
+                    totalBalance: applyWebBalance
+                        ? (account.summary?.totalBalance ?? enriched.totalBalance)
+                        : enriched.totalBalance,
+                    grantedBalance: applyWebBalance
+                        ? (account.summary?.grantedBalance ?? enriched.grantedBalance)
+                        : enriched.grantedBalance,
+                    toppedUpBalance: applyWebBalance
+                        ? (account.summary?.paidBalance ?? enriched.toppedUpBalance)
+                        : enriched.toppedUpBalance,
                     usageSummary: usage,
-                    accountSummary: account.summary,
-                    identity: account.identity,
+                    accountSummary: applyWebBalance ? account.summary : enriched.accountSummary,
+                    identity: account.identity ?? enriched.identity,
                     updatedAt: enriched.updatedAt)
                 DeepSeekWebEnrichmentResolver.cacheValidated(candidate)
                 return enriched
