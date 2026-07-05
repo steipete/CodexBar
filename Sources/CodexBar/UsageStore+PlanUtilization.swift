@@ -162,27 +162,28 @@ extension UsageStore {
         let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
         var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
         if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
-            let currentUuid = Self.activeClaudeAccountUuid()
+            let currentAccountIdentity = Self.activeClaudeAccountIdentity()
             var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
-            if let mapped = map[owner], let currentUuid, mapped != currentUuid {
+            if let mapped = map[owner], let currentAccountIdentity, mapped != currentAccountIdentity {
                 // Active Claude account changed (per ~/.claude.json) but a stale credential for a
                 // PREVIOUS account is being served (background cache, keychain gated). Quarantine: do
                 // not attribute B's usage to A's bucket. Recovery happens once a later fetch yields the new
                 // account's credential with exact current-Keychain match evidence.
                 // An existing binding is authoritative, so honor it on ANY interaction (background too).
                 effectiveOwner = nil
-            } else if map[owner] == nil,
-                      let currentUuid,
-                      claudeOAuthPersistentRefHash != nil
-            {
-                // First sighting of this owner: bind it only when the exact credential used for the fetch
-                // matches the current Claude Keychain item. Interaction context is insufficient evidence:
-                // even a user-initiated freshness sync can be unavailable, cancelled, or denied and fall
-                // back to a stale cached credential. Without the match, fail open without persisting a
-                // binding; a later corroborated sample can safely arm the quarantine.
-                // Never OVERWRITE on mismatch (that is the stale case handled above).
-                map[owner] = currentUuid
-                self.persistClaudeOAuthAccountUuidMap(map)
+            } else if map[owner] == nil, let currentAccountIdentity {
+                if claudeOAuthPersistentRefHash != nil {
+                    // First sighting of this owner: bind it only when the exact credential used for the fetch
+                    // matches the current Claude Keychain item. Interaction context is insufficient evidence:
+                    // even a user-initiated freshness sync can be unavailable, cancelled, or denied and fall
+                    // back to a stale cached credential. Never overwrite on mismatch.
+                    map[owner] = currentAccountIdentity
+                    self.persistClaudeOAuthAccountUuidMap(map)
+                } else {
+                    // An empty map is common immediately after upgrading. Without exact credential evidence,
+                    // accepting the sample could contaminate history before the quarantine is armed.
+                    effectiveOwner = nil
+                }
             }
         }
         let detectorAccountKey = if provider == .claude, isClaudeOAuthSample {
@@ -920,7 +921,7 @@ extension UsageStore {
         ClaudeActiveAccountProbe.activeClaudeAccountUuid()
     }
 
-    /// Persisted `historyOwnerIdentifier -> active accountUuid` bindings. Mirrors `loadLimitResetDetectorStates`.
+    /// Persisted `historyOwnerIdentifier -> hashed active account identity` bindings.
     nonisolated static func loadClaudeOAuthAccountUuidMap(from userDefaults: UserDefaults) -> [String: String] {
         guard let data = userDefaults.data(forKey: claudeOAuthAccountUuidMapDefaultsKey) else { return [:] }
         do {
@@ -945,14 +946,27 @@ extension UsageStore {
         }
     }
 
+    private nonisolated static func activeClaudeAccountIdentity() -> String? {
+        self.activeClaudeAccountUuid().map(self.claudeAccountIdentity)
+    }
+
+    private nonisolated static func claudeAccountIdentity(_ uuid: String) -> String {
+        self.sha256Hex(
+            "claude:active-account:v1:\(uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
+    }
+
     #if DEBUG
     static func withActiveClaudeAccountUuidForTesting<T>(
         _ uuid: String?,
         _ body: () async throws -> T) async rethrows -> T
     {
         try await ClaudeActiveAccountProbe.$activeClaudeAccountUuidOverrideForTesting.withValue(
-            uuid,
+            .value(uuid),
             operation: body)
+    }
+
+    nonisolated static func _activeClaudeAccountIdentityForTesting(_ uuid: String) -> String {
+        self.claudeAccountIdentity(uuid)
     }
     #endif
 
@@ -1493,7 +1507,11 @@ actor PlanUtilizationHistoryPersistenceCoordinator {
 /// storage must be nonisolated, whereas `UsageStore` is `@MainActor`.
 private enum ClaudeActiveAccountProbe {
     #if DEBUG
-    @TaskLocal static var activeClaudeAccountUuidOverrideForTesting: String?
+    enum Override: Sendable {
+        case value(String?)
+    }
+
+    @TaskLocal static var activeClaudeAccountUuidOverrideForTesting: Override?
     #endif
 
     private struct ClaudeConfigAccount: Decodable {
@@ -1506,8 +1524,8 @@ private enum ClaudeActiveAccountProbe {
 
     static func activeClaudeAccountUuid() -> String? {
         #if DEBUG
-        if let override = self.activeClaudeAccountUuidOverrideForTesting {
-            return override
+        if case let .value(uuid) = self.activeClaudeAccountUuidOverrideForTesting {
+            return uuid
         }
         #endif
         // `~/.claude.json` is a SIBLING of `.claude/`, not inside it. Home resolution mirrors
