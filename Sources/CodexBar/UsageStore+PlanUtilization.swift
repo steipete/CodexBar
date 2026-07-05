@@ -1,6 +1,8 @@
 import CodexBarCore
 import Foundation
 
+// swiftlint:disable file_length
+
 extension UsageStore {
     private nonisolated static let limitResetThreshold = 1.0
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
