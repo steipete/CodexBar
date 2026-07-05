@@ -5,6 +5,22 @@ enum CodexBarLocalizationOverride {
     @TaskLocal static var appLanguage: String?
 }
 
+enum AppLanguagePreferenceMigration {
+    private static let appleLanguagesKey = "AppleLanguages"
+
+    static func clearLegacyOverrideIfOwned(
+        storedAppLanguage: String,
+        defaults: UserDefaults = .standard)
+    {
+        let language = storedAppLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !language.isEmpty,
+              defaults.stringArray(forKey: self.appleLanguagesKey) == [language]
+        else { return }
+
+        defaults.removeObject(forKey: self.appleLanguagesKey)
+    }
+}
+
 private func appLanguageDefaults() -> UserDefaults {
     if Bundle.main.bundleIdentifier != nil {
         return .standard

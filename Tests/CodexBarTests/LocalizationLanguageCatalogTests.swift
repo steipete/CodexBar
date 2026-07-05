@@ -128,6 +128,45 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `system language preserves an external Apple Languages override`() {
+        Self.withTemporaryDefaults(for: #function) { defaults, _ in
+            defaults.set(["de"], forKey: "AppleLanguages")
+
+            AppLanguagePreferenceMigration.clearLegacyOverrideIfOwned(
+                storedAppLanguage: "",
+                defaults: defaults)
+
+            #expect(defaults.stringArray(forKey: "AppleLanguages") == ["de"])
+        }
+    }
+
+    @Test
+    func `matching legacy language override is cleared`() {
+        Self.withTemporaryDefaults(for: #function) { defaults, suiteName in
+            defaults.set(["ja"], forKey: "AppleLanguages")
+
+            AppLanguagePreferenceMigration.clearLegacyOverrideIfOwned(
+                storedAppLanguage: "ja",
+                defaults: defaults)
+
+            #expect(defaults.persistentDomain(forName: suiteName)?["AppleLanguages"] == nil)
+        }
+    }
+
+    @Test
+    func `unrelated external language override is preserved`() {
+        Self.withTemporaryDefaults(for: #function) { defaults, _ in
+            defaults.set(["de"], forKey: "AppleLanguages")
+
+            AppLanguagePreferenceMigration.clearLegacyOverrideIfOwned(
+                storedAppLanguage: "ja",
+                defaults: defaults)
+
+            #expect(defaults.stringArray(forKey: "AppleLanguages") == ["de"])
+        }
+    }
+
+    @Test
     func `new language bundles include representative native labels`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -513,5 +552,16 @@ struct LocalizationLanguageCatalogTests {
 
         #expect(rendered.contains("7일간"))
         #expect(rendered.contains("3개 서비스"))
+    }
+
+    private static func withTemporaryDefaults(
+        for testName: String,
+        _ body: (UserDefaults, String) -> Void)
+    {
+        let suiteName = "LocalizationLanguageCatalogTests.\(testName).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        body(defaults, suiteName)
     }
 }
