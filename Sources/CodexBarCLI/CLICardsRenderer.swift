@@ -32,6 +32,19 @@ struct CLICardFailure: Sendable, Equatable {
     let message: String
 }
 
+struct CLICardBuildInput: Sendable {
+    let provider: UsageProvider
+    let snapshot: UsageSnapshot
+    let credits: CreditsSnapshot?
+    let source: String
+    let status: ProviderStatusPayload?
+    let notes: [String]
+    let useColor: Bool
+    let resetStyle: ResetTimeDisplayStyle
+    let weeklyWorkDays: Int?
+    let now: Date
+}
+
 enum CLICardsRenderer {
     static let minCardWidth = 38
     static let maxCardWidth = 42
@@ -69,55 +82,46 @@ enum CLICardsRenderer {
         return min(Self.maxCardWidth, availableWidth)
     }
 
-    static func makeCard(
-        provider: UsageProvider,
-        snapshot: UsageSnapshot,
-        credits: CreditsSnapshot?,
-        source: String,
-        status: ProviderStatusPayload?,
-        notes: [String],
-        useColor: Bool,
-        resetStyle: ResetTimeDisplayStyle,
-        weeklyWorkDays: Int? = nil,
-        now: Date = Date()) -> CLICardModel
-    {
+    static func makeCard(_ input: CLICardBuildInput) -> CLICardModel {
+        let provider = input.provider
+        let snapshot = input.snapshot
         let displayName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         let context = RenderContext(
             header: displayName,
-            status: status,
-            useColor: useColor,
-            resetStyle: resetStyle,
-            weeklyWorkDays: weeklyWorkDays,
-            notes: notes)
+            status: input.status,
+            useColor: input.useColor,
+            resetStyle: input.resetStyle,
+            weeklyWorkDays: input.weeklyWorkDays,
+            notes: input.notes)
         let infoLines = CLIRenderer.collectCardInfoLines(
             provider: provider,
             snapshot: snapshot,
-            credits: credits,
-            notes: notes,
-            useColor: useColor,
-            now: now)
+            credits: input.credits,
+            notes: input.notes,
+            useColor: input.useColor,
+            now: input.now)
         let metrics = CLIRenderer.collectCardMetrics(
             provider: provider,
             snapshot: snapshot,
-            resetStyle: resetStyle,
-            now: now)
+            resetStyle: input.resetStyle,
+            now: input.now)
         let extraLines = CLIRenderer.collectCardExtraLines(
             provider: provider,
             snapshot: snapshot,
-            credits: credits,
+            credits: input.credits,
             context: context,
-            now: now)
+            now: input.now)
         let statusLine: String?
-        if let status {
+        if let status = input.status {
             let line = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
-            statusLine = CLIRenderer.colorizeStatusLine(line, indicator: status.indicator, useColor: useColor)
+            statusLine = CLIRenderer.colorizeStatusLine(line, indicator: status.indicator, useColor: input.useColor)
         } else {
             statusLine = nil
         }
         return CLICardModel(
             provider: provider,
             title: displayName,
-            sourceLabel: Self.normalizedSourceLabel(source),
+            sourceLabel: Self.normalizedSourceLabel(input.source),
             planBadge: CLIRenderer.planBadgeText(provider: provider, snapshot: snapshot),
             accountLine: snapshot.accountEmail(for: provider),
             infoLines: infoLines,

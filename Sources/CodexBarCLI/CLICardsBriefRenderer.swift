@@ -10,6 +10,12 @@ struct CLICardsBriefRow: Sendable, Equatable {
     let resetLabel: String?
 }
 
+private struct CLICardsBriefColumns {
+    let provider: Int
+    let usage: Int
+    let reset: Int
+}
+
 enum CLICardsBriefRenderer {
     private static let warningUsedThreshold = 85.0
     private static let tableBorderOverhead = 10
@@ -123,26 +129,26 @@ enum CLICardsBriefRenderer {
         useColor: Bool,
         enhanced: Bool) -> [String]
     {
-        let (providerWidth, usageWidth, resetWidth) = Self.tableColumnWidths(
+        let columns = Self.tableColumnWidths(
             rows: rows,
             terminalWidth: terminalWidth)
 
         let top = Self.tableTop(
-            providerWidth: providerWidth,
-            usageWidth: usageWidth,
-            resetWidth: resetWidth,
+            providerWidth: columns.provider,
+            usageWidth: columns.usage,
+            resetWidth: columns.reset,
             useColor: useColor,
             enhanced: enhanced)
         let header = Self.tableHeaderRow(
-            providerWidth: providerWidth,
-            usageWidth: usageWidth,
-            resetWidth: resetWidth,
+            providerWidth: columns.provider,
+            usageWidth: columns.usage,
+            resetWidth: columns.reset,
             useColor: useColor,
             enhanced: enhanced)
         let divider = Self.tableDivider(
-            providerWidth: providerWidth,
-            usageWidth: usageWidth,
-            resetWidth: resetWidth,
+            providerWidth: columns.provider,
+            usageWidth: columns.usage,
+            resetWidth: columns.reset,
             useColor: useColor,
             enhanced: enhanced)
 
@@ -150,16 +156,14 @@ enum CLICardsBriefRenderer {
         for row in rows {
             lines.append(Self.dataRow(
                 row: row,
-                providerWidth: providerWidth,
-                usageWidth: usageWidth,
-                resetWidth: resetWidth,
+                columns: columns,
                 useColor: useColor,
                 enhanced: enhanced))
         }
         lines.append(Self.tableBottom(
-            providerWidth: providerWidth,
-            usageWidth: usageWidth,
-            resetWidth: resetWidth,
+            providerWidth: columns.provider,
+            usageWidth: columns.usage,
+            resetWidth: columns.reset,
             useColor: useColor,
             enhanced: enhanced))
         return lines
@@ -334,21 +338,19 @@ enum CLICardsBriefRenderer {
 
     private static func dataRow(
         row: CLICardsBriefRow,
-        providerWidth: Int,
-        usageWidth: Int,
-        resetWidth: Int,
+        columns: CLICardsBriefColumns,
         useColor: Bool,
         enhanced: Bool) -> String
     {
         let provider = Self.styledProviderCell(
             row: row,
-            width: providerWidth,
+            width: columns.provider,
             useColor: useColor,
             enhanced: enhanced)
         let usage: String
         if let used = row.usedPercent {
             let percent = String(format: "%.0f%%", used.rounded())
-            let barWidth = max(4, min(Self.usageBarMaxWidth, usageWidth - Self.visibleLength(percent) - 1))
+            let barWidth = max(4, min(Self.usageBarMaxWidth, columns.usage - Self.visibleLength(percent) - 1))
             let bar: String = if useColor, enhanced {
                 CLIRenderer.gradientUsedBar(usedPercent: used, width: barWidth)
             } else {
@@ -359,13 +361,13 @@ enum CLICardsBriefRenderer {
             } else {
                 CLIRenderer.colorizeCardUsedPercent(percent, usedPercent: used, useColor: useColor)
             }
-            usage = Self.pad("\(coloredPercent) \(bar)", width: usageWidth)
+            usage = Self.pad("\(coloredPercent) \(bar)", width: columns.usage)
         } else {
-            usage = Self.pad("—", width: usageWidth)
+            usage = Self.pad("—", width: columns.usage)
         }
         let reset = Self.styledResetCell(
             row.resetLabel ?? "—",
-            width: resetWidth,
+            width: columns.reset,
             useColor: useColor,
             enhanced: enhanced)
         return "│ \(provider) │ \(usage) │ \(reset) │"
@@ -406,7 +408,7 @@ enum CLICardsBriefRenderer {
 
     private static func tableColumnWidths(
         rows: [CLICardsBriefRow],
-        terminalWidth: Int) -> (providerWidth: Int, usageWidth: Int, resetWidth: Int)
+        terminalWidth: Int) -> CLICardsBriefColumns
     {
         let providerContent = rows.map { Self.providerPlainLabel($0).count }.max() ?? Self.providerColumnMin
         let resetContent = rows.compactMap(\.resetLabel).map(\.count).max() ?? 6
@@ -427,7 +429,7 @@ enum CLICardsBriefRenderer {
             }
         }
 
-        return (providerWidth, usageWidth, resetWidth)
+        return CLICardsBriefColumns(provider: providerWidth, usage: usageWidth, reset: resetWidth)
     }
 
     private static func briefResetLabel(_ resetText: String?) -> String? {

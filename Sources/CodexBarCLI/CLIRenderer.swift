@@ -1,6 +1,7 @@
 import CodexBarCore
 import Foundation
 
+// swiftlint:disable:next type_body_length
 enum CLIRenderer {
     private static let accentColor = "95"
     private static let accentBoldColor = "1;95"

@@ -25,7 +25,7 @@ struct CLICardsRendererTests {
             tertiary: nil,
             updatedAt: Date(timeIntervalSince1970: 0),
             identity: identity)
-        let card = CLICardsRenderer.makeCard(
+        let card = CLICardsRenderer.makeCard(CLICardBuildInput(
             provider: .codex,
             snapshot: snapshot,
             credits: CreditsSnapshot(remaining: 42, events: [], updatedAt: Date()),
@@ -33,7 +33,9 @@ struct CLICardsRendererTests {
             status: nil,
             notes: [],
             useColor: false,
-            resetStyle: .absolute)
+            resetStyle: .absolute,
+            weeklyWorkDays: nil,
+            now: Date()))
 
         let output = CLICardsRenderer.render(cards: [card], failures: [], terminalWidth: 80, useColor: false)
 
@@ -63,7 +65,7 @@ struct CLICardsRendererTests {
             tertiary: nil,
             updatedAt: Date(timeIntervalSince1970: 0),
             identity: identity)
-        let card = CLICardsRenderer.makeCard(
+        let card = CLICardsRenderer.makeCard(CLICardBuildInput(
             provider: .codex,
             snapshot: snapshot,
             credits: nil,
@@ -71,7 +73,9 @@ struct CLICardsRendererTests {
             status: nil,
             notes: [],
             useColor: false,
-            resetStyle: .absolute)
+            resetStyle: .absolute,
+            weeklyWorkDays: nil,
+            now: Date()))
 
         let lines = CLICardsRenderer.renderCard(card, width: 48, useColor: false)
         let joined = lines.joined(separator: "\n")
