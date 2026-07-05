@@ -136,21 +136,21 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
 
     @Test
     func `credential change around account read invalidates the observation`() {
-        let identity = UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")
+        let identityA = UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")
+        let identityB = UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")
         let stable = UsageStore._claudeOAuthActiveAccountObservationForTesting(
-            fingerprintBefore: "fingerprint-B",
-            fingerprintAfter: "fingerprint-B",
-            persistentRefBefore: "ref-B",
-            persistentRefAfter: "ref-B",
-            identity: identity)
+            identityBeforeFetch: identityB,
+            identityAfterFetch: identityB)
         let changed = UsageStore._claudeOAuthActiveAccountObservationForTesting(
-            fingerprintBefore: "fingerprint-A",
-            fingerprintAfter: "fingerprint-B",
-            persistentRefBefore: "ref-A",
-            persistentRefAfter: "ref-B",
-            identity: identity)
+            identityBeforeFetch: identityA,
+            identityAfterFetch: identityB)
+        let unstable = UsageStore._claudeOAuthActiveAccountObservationForTesting(
+            identityBeforeFetch: identityB,
+            identityAfterFetch: identityB,
+            beforeFetchWasStable: false)
 
-        #expect(stable == .stable(identity: identity))
+        #expect(stable == .stable(identity: identityB))
         #expect(changed == .changed)
+        #expect(unstable == .changed)
     }
 }

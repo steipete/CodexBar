@@ -213,6 +213,9 @@ extension UsageStore {
             afterFetchFingerprintToken: claudeAuthFingerprintAfterFetch,
             afterFetchPersistentRefHash: claudeHistoryAccountState?.keychainPersistentRefHash,
             accountStateWasStable: claudeHistoryAccountState?.wasStable == true)
+        let claudeOAuthActiveAccountObservation = Self.claudeOAuthActiveAccountObservation(
+            beforeFetch: claudeAuthStateBeforeFetch,
+            afterFetch: claudeHistoryAccountState)
         // Credential detection consumes change markers. Clean up before rejecting a superseded generation;
         // replacement refreshes wait for their predecessor, so they cannot race this state reset.
         if claudeCredentialsChanged {
@@ -229,8 +232,7 @@ extension UsageStore {
                 generation: generation,
                 codexExpectedGuard: codexExpectedGuard,
                 claudeOAuthHistoryPersistentRefHash: claudeOAuthHistoryPersistentRefHash,
-                claudeOAuthActiveAccountObservation: claudeHistoryAccountState?.observation
-                    ?? .stable(identity: nil)))
+                claudeOAuthActiveAccountObservation: claudeOAuthActiveAccountObservation))
     }
 
     private func applyProviderRefreshOutcome(
@@ -370,12 +372,14 @@ extension UsageStore {
         let credentialsFileChanged: Bool
         let keychainFingerprintChanged: Bool
         let keychainPersistentRefHash: String?
+        let activeAccountIdentity: String?
+        let accountStateWasStable: Bool
     }
 
     private struct ClaudeHistoryAccountState {
         let fingerprintToken: String
         let keychainPersistentRefHash: String?
-        let observation: ClaudeOAuthActiveAccountObservation
+        let activeAccountIdentity: String?
         let wasStable: Bool
     }
 
@@ -408,19 +412,27 @@ extension UsageStore {
     {
         await withTaskGroup(of: ClaudeRefreshAuthState.self, returning: ClaudeRefreshAuthState.self) { group in
             group.addTask {
-                let fingerprintToken = ClaudeOAuthCredentialsStore.authFingerprintToken()
                 let credentialsFileChanged = invalidateCredentialsFile
                     ? ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
                     : false
                 let keychainFingerprintChanged = ClaudeOAuthCredentialsStore
                     .claudeKeychainFingerprintChangedWithoutConsuming()
-                let keychainPersistentRefHash = ClaudeOAuthCredentialsStore
+                let fingerprintBefore = ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let persistentRefBefore = ClaudeOAuthCredentialsStore
                     .claudeKeychainPersistentRefHashWithoutPrompt()
+                let activeAccountIdentity = Self.activeClaudeAccountIdentity()
+                let persistentRefAfter = ClaudeOAuthCredentialsStore
+                    .claudeKeychainPersistentRefHashWithoutPrompt()
+                let fingerprintAfter = ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let accountStateWasStable = fingerprintBefore == fingerprintAfter
+                    && persistentRefBefore == persistentRefAfter
                 return ClaudeRefreshAuthState(
-                    fingerprintToken: fingerprintToken,
+                    fingerprintToken: fingerprintAfter,
                     credentialsFileChanged: credentialsFileChanged,
                     keychainFingerprintChanged: keychainFingerprintChanged,
-                    keychainPersistentRefHash: keychainPersistentRefHash)
+                    keychainPersistentRefHash: persistentRefAfter,
+                    activeAccountIdentity: activeAccountIdentity,
+                    accountStateWasStable: accountStateWasStable)
             }
             return await group.next()!
         }
@@ -440,12 +452,7 @@ extension UsageStore {
                 return ClaudeHistoryAccountState(
                     fingerprintToken: fingerprintAfter,
                     keychainPersistentRefHash: persistentRefAfter,
-                    observation: self.claudeOAuthActiveAccountObservation(
-                        fingerprintBefore: fingerprintBefore,
-                        fingerprintAfter: fingerprintAfter,
-                        persistentRefBefore: persistentRefBefore,
-                        persistentRefAfter: persistentRefAfter,
-                        identity: activeAccountIdentity),
+                    activeAccountIdentity: activeAccountIdentity,
                     wasStable: wasStable)
             }
             return await group.next()!
@@ -453,14 +460,18 @@ extension UsageStore {
     }
 
     private nonisolated static func claudeOAuthActiveAccountObservation(
-        fingerprintBefore: String,
-        fingerprintAfter: String,
-        persistentRefBefore: String?,
-        persistentRefAfter: String?,
-        identity: String?) -> ClaudeOAuthActiveAccountObservation
+        beforeFetch: ClaudeRefreshAuthState?,
+        afterFetch: ClaudeHistoryAccountState?) -> ClaudeOAuthActiveAccountObservation
     {
-        let wasStable = fingerprintBefore == fingerprintAfter && persistentRefBefore == persistentRefAfter
-        return wasStable ? .stable(identity: identity) : .changed
+        guard let beforeFetch,
+              beforeFetch.accountStateWasStable,
+              let afterFetch,
+              afterFetch.wasStable,
+              beforeFetch.activeAccountIdentity == afterFetch.activeAccountIdentity
+        else {
+            return .changed
+        }
+        return .stable(identity: afterFetch.activeAccountIdentity)
     }
 
     private nonisolated static func stableClaudeKeychainPersistentRefHash(
@@ -471,6 +482,7 @@ extension UsageStore {
     {
         guard accountStateWasStable,
               let beforeFetch,
+              beforeFetch.accountStateWasStable,
               beforeFetch.fingerprintToken == afterFetchFingerprintToken,
               let beforeFetchPersistentRefHash = beforeFetch.keychainPersistentRefHash,
               beforeFetchPersistentRefHash == afterFetchPersistentRefHash
@@ -492,25 +504,33 @@ extension UsageStore {
                 fingerprintToken: beforeFetchFingerprintToken,
                 credentialsFileChanged: false,
                 keychainFingerprintChanged: false,
-                keychainPersistentRefHash: beforeFetchPersistentRefHash),
+                keychainPersistentRefHash: beforeFetchPersistentRefHash,
+                activeAccountIdentity: nil,
+                accountStateWasStable: true),
             afterFetchFingerprintToken: afterFetchFingerprintToken,
             afterFetchPersistentRefHash: afterFetchPersistentRefHash,
             accountStateWasStable: true)
     }
 
     nonisolated static func _claudeOAuthActiveAccountObservationForTesting(
-        fingerprintBefore: String,
-        fingerprintAfter: String,
-        persistentRefBefore: String?,
-        persistentRefAfter: String?,
-        identity: String?) -> ClaudeOAuthActiveAccountObservation
+        identityBeforeFetch: String?,
+        identityAfterFetch: String?,
+        beforeFetchWasStable: Bool = true,
+        afterFetchWasStable: Bool = true) -> ClaudeOAuthActiveAccountObservation
     {
         self.claudeOAuthActiveAccountObservation(
-            fingerprintBefore: fingerprintBefore,
-            fingerprintAfter: fingerprintAfter,
-            persistentRefBefore: persistentRefBefore,
-            persistentRefAfter: persistentRefAfter,
-            identity: identity)
+            beforeFetch: ClaudeRefreshAuthState(
+                fingerprintToken: "before",
+                credentialsFileChanged: false,
+                keychainFingerprintChanged: false,
+                keychainPersistentRefHash: "before-ref",
+                activeAccountIdentity: identityBeforeFetch,
+                accountStateWasStable: beforeFetchWasStable),
+            afterFetch: ClaudeHistoryAccountState(
+                fingerprintToken: "after",
+                keychainPersistentRefHash: "after-ref",
+                activeAccountIdentity: identityAfterFetch,
+                wasStable: afterFetchWasStable))
     }
     #endif
 
