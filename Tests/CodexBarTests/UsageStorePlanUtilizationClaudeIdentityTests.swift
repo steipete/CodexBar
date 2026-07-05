@@ -318,6 +318,8 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
                     claudeOAuthPersistentRefHash: "account-a-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")),
                     isClaudeOAuthSample: true,
                     now: hourStart)
             }
@@ -342,6 +344,8 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
                     claudeOAuthKeychainCredentialMismatch: true,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(2 * 60 * 60))
             }
@@ -367,6 +371,8 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
                     claudeOAuthPersistentRefHash: "account-b-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(3 * 60 * 60))
             }
@@ -402,6 +408,8 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
                     claudeOAuthPersistentRefHash: "account-a-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")),
                     isClaudeOAuthSample: true,
                     now: hourStart)
             }
@@ -424,6 +432,8 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     claudeOAuthPersistentRefHash: nil,
                     claudeOAuthHistoryOwnerIdentifier: ownerA,
                     claudeOAuthKeychainCredentialMismatch: true,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(2 * 60 * 60))
             }
@@ -447,6 +457,8 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
                     snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
                     claudeOAuthPersistentRefHash: "account-b-ref",
                     claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
                     isClaudeOAuthSample: true,
                     now: hourStart.addingTimeInterval(3 * 60 * 60))
             }
@@ -459,29 +471,6 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         #expect(findSeries(buckets.accounts[keyB] ?? [], name: .session, windowMinutes: 300)?
             .entries.map(\.usedPercent) == [75])
         #expect(buckets.unscoped.isEmpty)
-    }
-
-    @MainActor
-    @Test
-    func `first sighting without keychain match is quarantined`() async {
-        let store = UsageStorePlanUtilizationTests.makeStore()
-        let staleOwner = self.oauthOwnerIdentifier("s")
-
-        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-current") {
-            await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                await store.recordPlanUtilizationHistorySample(
-                    provider: .claude,
-                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
-                    claudeOAuthPersistentRefHash: nil,
-                    claudeOAuthHistoryOwnerIdentifier: staleOwner,
-                    claudeOAuthKeychainCredentialMismatch: true,
-                    isClaudeOAuthSample: true)
-            }
-        }
-
-        let map = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
-        #expect(map[staleOwner] == nil)
-        #expect(store.planUtilizationHistory[.claude] == nil)
     }
 
     @MainActor

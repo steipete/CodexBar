@@ -6,6 +6,7 @@ extension UsageStore {
         let generation: UInt64
         let codexExpectedGuard: CodexAccountScopedRefreshGuard?
         let claudeOAuthHistoryPersistentRefHash: String?
+        let claudeOAuthActiveAccountObservation: ClaudeOAuthActiveAccountObservation
     }
 
     static func commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
@@ -192,12 +193,10 @@ extension UsageStore {
             }
             return await group.next()!
         }
-        let claudeAuthFingerprintAfterFetch = provider == .claude
-            ? await Self.captureClaudeAuthFingerprintToken()
+        let claudeHistoryAccountState = provider == .claude
+            ? await Self.captureClaudeHistoryAccountState()
             : nil
-        let claudeKeychainPersistentRefHashAfterFetch = provider == .claude
-            ? await Self.captureClaudeKeychainPersistentRefHash()
-            : nil
+        let claudeAuthFingerprintAfterFetch = claudeHistoryAccountState?.fingerprintToken
         let claudeAuthChangedDuringFetch = Self.claudeAuthChangedDuringFetch(
             provider: provider,
             beforeFetch: claudeAuthStateBeforeFetch,
@@ -212,7 +211,8 @@ extension UsageStore {
         let claudeOAuthHistoryPersistentRefHash = Self.stableClaudeKeychainPersistentRefHash(
             beforeFetch: claudeAuthStateBeforeFetch,
             afterFetchFingerprintToken: claudeAuthFingerprintAfterFetch,
-            afterFetchPersistentRefHash: claudeKeychainPersistentRefHashAfterFetch)
+            afterFetchPersistentRefHash: claudeHistoryAccountState?.keychainPersistentRefHash,
+            accountStateWasStable: claudeHistoryAccountState?.wasStable == true)
         // Credential detection consumes change markers. Clean up before rejecting a superseded generation;
         // replacement refreshes wait for their predecessor, so they cannot race this state reset.
         if claudeCredentialsChanged {
@@ -228,7 +228,9 @@ extension UsageStore {
             context: ProviderRefreshOutcomeContext(
                 generation: generation,
                 codexExpectedGuard: codexExpectedGuard,
-                claudeOAuthHistoryPersistentRefHash: claudeOAuthHistoryPersistentRefHash))
+                claudeOAuthHistoryPersistentRefHash: claudeOAuthHistoryPersistentRefHash,
+                claudeOAuthActiveAccountObservation: claudeHistoryAccountState?.observation
+                    ?? .stable(identity: nil)))
     }
 
     private func applyProviderRefreshOutcome(
@@ -305,6 +307,7 @@ extension UsageStore {
                     : nil,
                 claudeOAuthKeychainCredentialMismatch: isClaudeOAuthSample
                     && result.claudeOAuthKeychainCredentialMismatch,
+                claudeOAuthActiveAccountObservation: context.claudeOAuthActiveAccountObservation,
                 isClaudeOAuthSample: isClaudeOAuthSample)
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             if let runtime = self.providerRuntimes[provider] {
@@ -369,6 +372,13 @@ extension UsageStore {
         let keychainPersistentRefHash: String?
     }
 
+    private struct ClaudeHistoryAccountState {
+        let fingerprintToken: String
+        let keychainPersistentRefHash: String?
+        let observation: ClaudeOAuthActiveAccountObservation
+        let wasStable: Bool
+    }
+
     private nonisolated static func claudeCredentialsChanged(
         beforeFetch: ClaudeRefreshAuthState?,
         changedDuringFetch: Bool) -> Bool
@@ -416,30 +426,51 @@ extension UsageStore {
         }
     }
 
-    private nonisolated static func captureClaudeAuthFingerprintToken() async -> String {
-        await withTaskGroup(of: String.self, returning: String.self) { group in
+    private nonisolated static func captureClaudeHistoryAccountState() async -> ClaudeHistoryAccountState {
+        await withTaskGroup(of: ClaudeHistoryAccountState.self, returning: ClaudeHistoryAccountState.self) { group in
             group.addTask {
-                ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let fingerprintBefore = ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let persistentRefBefore = ClaudeOAuthCredentialsStore
+                    .claudeKeychainPersistentRefHashWithoutPrompt()
+                let activeAccountIdentity = Self.activeClaudeAccountIdentity()
+                let persistentRefAfter = ClaudeOAuthCredentialsStore
+                    .claudeKeychainPersistentRefHashWithoutPrompt()
+                let fingerprintAfter = ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let wasStable = fingerprintBefore == fingerprintAfter && persistentRefBefore == persistentRefAfter
+                return ClaudeHistoryAccountState(
+                    fingerprintToken: fingerprintAfter,
+                    keychainPersistentRefHash: persistentRefAfter,
+                    observation: self.claudeOAuthActiveAccountObservation(
+                        fingerprintBefore: fingerprintBefore,
+                        fingerprintAfter: fingerprintAfter,
+                        persistentRefBefore: persistentRefBefore,
+                        persistentRefAfter: persistentRefAfter,
+                        identity: activeAccountIdentity),
+                    wasStable: wasStable)
             }
             return await group.next()!
         }
     }
 
-    private nonisolated static func captureClaudeKeychainPersistentRefHash() async -> String? {
-        await withTaskGroup(of: String?.self, returning: String?.self) { group in
-            group.addTask {
-                ClaudeOAuthCredentialsStore.claudeKeychainPersistentRefHashWithoutPrompt()
-            }
-            return await group.next()!
-        }
+    private nonisolated static func claudeOAuthActiveAccountObservation(
+        fingerprintBefore: String,
+        fingerprintAfter: String,
+        persistentRefBefore: String?,
+        persistentRefAfter: String?,
+        identity: String?) -> ClaudeOAuthActiveAccountObservation
+    {
+        let wasStable = fingerprintBefore == fingerprintAfter && persistentRefBefore == persistentRefAfter
+        return wasStable ? .stable(identity: identity) : .changed
     }
 
     private nonisolated static func stableClaudeKeychainPersistentRefHash(
         beforeFetch: ClaudeRefreshAuthState?,
         afterFetchFingerprintToken: String?,
-        afterFetchPersistentRefHash: String?) -> String?
+        afterFetchPersistentRefHash: String?,
+        accountStateWasStable: Bool) -> String?
     {
-        guard let beforeFetch,
+        guard accountStateWasStable,
+              let beforeFetch,
               beforeFetch.fingerprintToken == afterFetchFingerprintToken,
               let beforeFetchPersistentRefHash = beforeFetch.keychainPersistentRefHash,
               beforeFetchPersistentRefHash == afterFetchPersistentRefHash
@@ -463,7 +494,23 @@ extension UsageStore {
                 keychainFingerprintChanged: false,
                 keychainPersistentRefHash: beforeFetchPersistentRefHash),
             afterFetchFingerprintToken: afterFetchFingerprintToken,
-            afterFetchPersistentRefHash: afterFetchPersistentRefHash)
+            afterFetchPersistentRefHash: afterFetchPersistentRefHash,
+            accountStateWasStable: true)
+    }
+
+    nonisolated static func _claudeOAuthActiveAccountObservationForTesting(
+        fingerprintBefore: String,
+        fingerprintAfter: String,
+        persistentRefBefore: String?,
+        persistentRefAfter: String?,
+        identity: String?) -> ClaudeOAuthActiveAccountObservation
+    {
+        self.claudeOAuthActiveAccountObservation(
+            fingerprintBefore: fingerprintBefore,
+            fingerprintAfter: fingerprintAfter,
+            persistentRefBefore: persistentRefBefore,
+            persistentRefAfter: persistentRefAfter,
+            identity: identity)
     }
     #endif
 

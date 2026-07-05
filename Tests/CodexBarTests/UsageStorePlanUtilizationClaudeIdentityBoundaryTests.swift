@@ -6,6 +6,57 @@ import Testing
 struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
     @MainActor
     @Test
+    func `first sighting without keychain match is quarantined`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 90,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: snapshot,
+            claudeOAuthHistoryOwnerIdentifier: String(repeating: "s", count: 64),
+            claudeOAuthKeychainCredentialMismatch: true,
+            claudeOAuthActiveAccountObservation: .stable(
+                identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-current")),
+            isClaudeOAuthSample: true)
+
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults).isEmpty)
+        #expect(store.planUtilizationHistory[.claude] == nil)
+    }
+
+    @MainActor
+    @Test
+    func `account change during identity capture cannot bind or write history`() async {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 90,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: snapshot,
+            claudeOAuthPersistentRefHash: "account-a-ref",
+            claudeOAuthHistoryOwnerIdentifier: String(repeating: "r", count: 64),
+            claudeOAuthActiveAccountObservation: .changed,
+            isClaudeOAuthSample: true)
+
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults).isEmpty)
+        #expect(store.planUtilizationHistory[.claude] == nil)
+    }
+
+    @MainActor
+    @Test
     func `missing active account identity preserves owner scoped history`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let owner = String(repeating: "c", count: 64)
@@ -25,6 +76,7 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
                 provider: .claude,
                 snapshot: snapshot,
                 claudeOAuthHistoryOwnerIdentifier: owner,
+                claudeOAuthActiveAccountObservation: .stable(identity: nil),
                 isClaudeOAuthSample: true)
         }
 
@@ -54,6 +106,8 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
                 provider: .claude,
                 snapshot: snapshot,
                 claudeOAuthHistoryOwnerIdentifier: owner,
+                claudeOAuthActiveAccountObservation: .stable(
+                    identity: UsageStore._activeClaudeAccountIdentityForTesting("claude-code-account")),
                 isClaudeOAuthSample: true)
         }
 
@@ -78,5 +132,25 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
 
         #expect(stablePersistentRefHash == "stable-ref")
         #expect(changedFingerprintPersistentRefHash == nil)
+    }
+
+    @Test
+    func `credential change around account read invalidates the observation`() {
+        let identity = UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")
+        let stable = UsageStore._claudeOAuthActiveAccountObservationForTesting(
+            fingerprintBefore: "fingerprint-B",
+            fingerprintAfter: "fingerprint-B",
+            persistentRefBefore: "ref-B",
+            persistentRefAfter: "ref-B",
+            identity: identity)
+        let changed = UsageStore._claudeOAuthActiveAccountObservationForTesting(
+            fingerprintBefore: "fingerprint-A",
+            fingerprintAfter: "fingerprint-B",
+            persistentRefBefore: "ref-A",
+            persistentRefAfter: "ref-B",
+            identity: identity)
+
+        #expect(stable == .stable(identity: identity))
+        #expect(changed == .changed)
     }
 }
