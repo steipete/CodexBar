@@ -21,19 +21,23 @@ enum MiniMaxWebEnrichmentResolver {
 
     /// API-token enrichment: explicit cookies, desktop Agent session, validated cache, and user-initiated
     /// browser import only.
+    #if os(macOS)
     static func apiEnrichmentCandidates(
         context: ProviderFetchContext,
         desktopSession: MiniMaxCookieImporter.SessionInfo? = nil) -> [Candidate]
     {
         var candidates = self.explicitCandidates(context: context)
-        #if os(macOS)
         candidates.append(contentsOf: self.desktopAgentCandidates(
             context: context,
             session: desktopSession))
         candidates.append(contentsOf: self.cachedAndBrowserCandidates(context: context))
-        #endif
         return self.deduplicated(candidates)
     }
+    #else
+    static func apiEnrichmentCandidates(context: ProviderFetchContext) -> [Candidate] {
+        self.deduplicated(self.explicitCandidates(context: context))
+    }
+    #endif
 
     /// Cookies from explicit user configuration only.
     static func explicitCandidates(context: ProviderFetchContext) -> [Candidate] {
