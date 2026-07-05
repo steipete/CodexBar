@@ -34,6 +34,17 @@ struct CostUsageScannerClaudeDesktopTests {
                 ],
             ],
         ]
+        let currentAssistant: [String: Any] = [
+            "type": "assistant",
+            "timestamp": iso0,
+            "message": [
+                "model": "claude-test-model",
+                "usage": [
+                    "input_tokens": 7,
+                    "output_tokens": 3,
+                ],
+            ],
+        ]
         let decoyAssistant: [String: Any] = [
             "type": "assistant",
             "timestamp": iso0,
@@ -55,6 +66,11 @@ struct CostUsageScannerClaudeDesktopTests {
             contents: env.jsonl([nestedAssistant]))
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+        let currentProjectsRoot = try env.writeClaudeDesktopCodeSessionProjectFile(
+            relativePath: "project-c/session-c.jsonl",
+            contents: env.jsonl([currentAssistant]))
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let decoyProjectsRoot = try env.writeClaudeDesktopLocalAgentFile(
             relativePath: "outputs/node_modules/package/.claude/projects/project-decoy/session-decoy.jsonl",
             contents: env.jsonl([decoyAssistant]))
@@ -67,6 +83,7 @@ struct CostUsageScannerClaudeDesktopTests {
             homeDirectory: env.root)
         #expect(discovered.contains(projectsRoot.standardizedFileURL))
         #expect(discovered.contains(nestedProjectsRoot.standardizedFileURL))
+        #expect(discovered.contains(currentProjectsRoot.standardizedFileURL))
         #expect(!discovered.contains(decoyProjectsRoot.standardizedFileURL))
 
         var options = CostUsageScanner.Options(
@@ -83,10 +100,10 @@ struct CostUsageScannerClaudeDesktopTests {
             options: options)
 
         #expect(report.data.count == 1)
-        #expect(report.data[0].inputTokens == 130)
+        #expect(report.data[0].inputTokens == 137)
         #expect(report.data[0].cacheCreationTokens == 30)
         #expect(report.data[0].cacheReadTokens == 20)
-        #expect(report.data[0].outputTokens == 45)
-        #expect(report.data[0].totalTokens == 225)
+        #expect(report.data[0].outputTokens == 48)
+        #expect(report.data[0].totalTokens == 235)
     }
 }

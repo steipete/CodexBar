@@ -85,93 +85,9 @@ extension SettingsStore {
             return [
                 home.appendingPathComponent(".config/claude/projects", isDirectory: true),
                 home.appendingPathComponent(".claude/projects", isDirectory: true),
-            ] + self.claudeDesktopLocalAgentProjectsRoots(homeDirectory: home, fileManager: fileManager)
+            ] + ClaudeDesktopProjectsLocator.roots(homeDirectory: home, fileManager: fileManager)
         }()
 
         return claudeRoots.contains(where: hasAnyJsonl(in:))
-    }
-
-    private nonisolated static func claudeDesktopLocalAgentProjectsRoots(
-        homeDirectory: URL,
-        fileManager: FileManager) -> [URL]
-    {
-        let sessionsRoot = homeDirectory
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Claude", isDirectory: true)
-            .appendingPathComponent("local-agent-mode-sessions", isDirectory: true)
-        var roots: [URL] = []
-        var queue: [(url: URL, depth: Int)] = [(sessionsRoot, 0)]
-        var visited: Set<String> = [sessionsRoot.standardizedFileURL.path]
-        var nextIndex = 0
-        // Covers observed Desktop local-agent layouts through workspace/session/agent/local_agent
-        // without descending into arbitrary checked-out workspaces.
-        let maxDepth = 4
-
-        while nextIndex < queue.count {
-            let current = queue[nextIndex]
-            nextIndex += 1
-            if let projects = self.claudeProjectsRootUnderDesktopLocalAgentBase(
-                current.url,
-                fileManager: fileManager)
-            {
-                roots.append(projects)
-            }
-
-            guard current.depth < maxDepth else { continue }
-            for child in self.claudeDesktopLocalAgentChildDirectories(at: current.url, fileManager: fileManager) {
-                let standardized = child.standardizedFileURL
-                guard visited.insert(standardized.path).inserted else { continue }
-                queue.append((standardized, current.depth + 1))
-            }
-        }
-        return roots
-    }
-
-    private nonisolated static func claudeProjectsRootUnderDesktopLocalAgentBase(
-        _ base: URL,
-        fileManager: FileManager) -> URL?
-    {
-        let projects = base
-            .appendingPathComponent(".claude", isDirectory: true)
-            .appendingPathComponent("projects", isDirectory: true)
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: projects.path, isDirectory: &isDirectory),
-              isDirectory.boolValue
-        else { return nil }
-        return projects
-    }
-
-    private nonisolated static func claudeDesktopLocalAgentChildDirectories(
-        at url: URL,
-        fileManager: FileManager) -> [URL]
-    {
-        let skippedDirectoryNames = Set([
-            ".build",
-            ".git",
-            "build",
-            "DerivedData",
-            "node_modules",
-            "outputs",
-            "target",
-        ])
-        guard let children = try? fileManager.contentsOfDirectory(
-            at: url,
-            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants])
-        else {
-            return []
-        }
-
-        return children.compactMap { child in
-            guard !skippedDirectoryNames.contains(child.lastPathComponent) else { return nil }
-            guard let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
-                  values.isSymbolicLink != true,
-                  values.isDirectory == true
-            else {
-                return nil
-            }
-            return child
-        }
     }
 }

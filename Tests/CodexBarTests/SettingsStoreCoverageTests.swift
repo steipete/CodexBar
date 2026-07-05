@@ -415,6 +415,23 @@ struct SettingsStoreCoverageTests {
             env: [:],
             fileManager: fileManager,
             homeDirectory: desktopHome))
+
+        let desktopCodeHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "claude-desktop-code-\(UUID().uuidString)",
+            isDirectory: true)
+        let desktopCodeFile = desktopCodeHome
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions", isDirectory: true)
+            .appendingPathComponent("account-id/org-id/.claude/projects/project-a", isDirectory: true)
+            .appendingPathComponent("session-a.jsonl", isDirectory: false)
+        try fileManager.createDirectory(
+            at: desktopCodeFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        fileManager.createFile(atPath: desktopCodeFile.path, contents: Data("{}".utf8))
+
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: [:],
+            fileManager: fileManager,
+            homeDirectory: desktopCodeHome))
     }
 
     @Test
