@@ -70,6 +70,449 @@ enum CLIRenderer {
         return lines.joined(separator: "\n")
     }
 
+    static func renderCardBodyLines(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        credits: CreditsSnapshot?,
+        context: RenderContext,
+        includeIdentity: Bool,
+        now: Date = Date()) -> [String]
+    {
+        let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+        let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
+        var lines: [String] = []
+        self.appendPrimaryLines(
+            provider: provider,
+            snapshot: snapshot,
+            labels: labels,
+            context: context,
+            now: now,
+            lines: &lines)
+        self.appendSecondaryLines(
+            provider: provider,
+            snapshot: snapshot,
+            labels: labels,
+            context: context,
+            now: now,
+            lines: &lines)
+        self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendDevinOverageBalanceLine(
+            provider: provider,
+            snapshot: snapshot,
+            useColor: context.useColor,
+            lines: &lines)
+        self.appendLimitsUnavailableLine(
+            provider: provider,
+            snapshot: snapshot,
+            useColor: context.useColor,
+            lines: &lines)
+        self.appendCreditsLine(provider: provider, credits: credits, useColor: context.useColor, lines: &lines)
+        self.appendCodexResetCreditsLine(
+            provider: provider,
+            snapshot: snapshot,
+            now: now,
+            useColor: context.useColor,
+            lines: &lines)
+        if includeIdentity {
+            self.appendIdentityAndNotes(
+                provider: provider,
+                snapshot: snapshot,
+                context: context,
+                lines: &lines)
+        } else {
+            for note in context.notes {
+                let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                lines.append(self.labelValueLine("Note", value: trimmed, useColor: context.useColor))
+            }
+        }
+        return lines
+    }
+
+    static func planBadgeText(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+        if let usage = snapshot.mimoUsage {
+            return usage.balanceDetail
+        }
+        if let usage = snapshot.crossModelUsage {
+            return "Balance: \(usage.balanceDisplay)"
+        }
+        if provider == .kilo {
+            let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
+            if let pass = kiloLogin.pass {
+                return UsageFormatter.cleanPlanName(pass)
+            }
+            return nil
+        }
+        guard let plan = snapshot.loginMethod(for: provider),
+              !plan.isEmpty,
+              provider != .mimo || !plan.localizedCaseInsensitiveContains("balance:")
+        else {
+            return nil
+        }
+        if provider == .codex {
+            return CodexPlanFormatting.displayName(plan) ?? plan
+        }
+        return plan.capitalized
+    }
+
+    static func colorizeAccentBold(_ text: String) -> String {
+        self.ansi(self.accentBoldColor, text)
+    }
+
+    static func colorizeAccent(_ text: String) -> String {
+        self.ansi(self.accentColor, text)
+    }
+
+    static func colorizeSubtle(_ text: String) -> String {
+        self.ansi(self.subtleColor, text)
+    }
+
+    static func colorizeCardBorder(_ text: String) -> String {
+        self.ansi("90", text)
+    }
+
+    static func colorizeCardBadge(_ source: String) -> String {
+        self.ansi("97;44", " \(source) ")
+    }
+
+    static func colorizeCardPlanBox(_ text: String) -> String {
+        self.ansi("37", text)
+    }
+
+    static func colorizeCardPercent(_ text: String, remainingPercent: Double, useColor: Bool) -> String {
+        guard useColor else { return text }
+        let code = switch remainingPercent {
+        case ..<10: "31"
+        case ..<50: "33"
+        default: "36"
+        }
+        return self.ansi(code, text)
+    }
+
+    static func colorizeCardUsedPercent(_ text: String, usedPercent: Double, useColor: Bool) -> String {
+        guard useColor else { return text }
+        let code = switch usedPercent {
+        case 90...: "31"
+        case 60...: "33"
+        default: "36"
+        }
+        return self.ansi(code, text)
+    }
+
+    static func cardUsedBar(usedPercent: Double, width: Int, useColor: Bool) -> String {
+        let clamped = max(0, min(100, usedPercent))
+        let barWidth = max(4, width)
+        let rawFilled = Int((clamped / 100) * Double(barWidth))
+        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let empty = max(0, barWidth - filled)
+        let bar = String(repeating: "█", count: filled) + String(repeating: "░", count: empty)
+        guard useColor else { return bar }
+        return self.colorizeCardUsedPercent(bar, usedPercent: clamped, useColor: true)
+    }
+
+    static func colorizeWarning(_ text: String) -> String {
+        self.ansi("33", text)
+    }
+
+    static func ansiTrueColor(red: Int, green: Int, blue: Int, _ text: String) -> String {
+        let r = max(0, min(255, red))
+        let g = max(0, min(255, green))
+        let b = max(0, min(255, blue))
+        return "\u{001B}[38;2;\(r);\(g);\(b)m\(text)\u{001B}[0m"
+    }
+
+    static func ansiTrueColorBackground(red: Int, green: Int, blue: Int, _ text: String) -> String {
+        let r = max(0, min(255, red))
+        let g = max(0, min(255, green))
+        let b = max(0, min(255, blue))
+        return "\u{001B}[48;2;\(r);\(g);\(b)m\(text)\u{001B}[0m"
+    }
+
+    static func remainingGradientRGB(remainingPercent: Double) -> (dark: (Int, Int, Int), light: (Int, Int, Int)) {
+        switch remainingPercent {
+        case ..<10:
+            ((180, 55, 55), (255, 95, 95))
+        case ..<50:
+            ((200, 120, 40), (255, 190, 90))
+        default:
+            ((40, 150, 140), (90, 220, 200))
+        }
+    }
+
+    static func gradientRemainingBar(remainingPercent: Double, width: Int) -> String {
+        let clamped = max(0, min(100, remainingPercent))
+        let barWidth = max(4, width)
+        let rawFilled = Int((clamped / 100) * Double(barWidth))
+        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let empty = max(0, barWidth - filled)
+        let colors = self.remainingGradientRGB(remainingPercent: clamped)
+        var bar = ""
+        if filled > 0 {
+            for index in 0..<filled {
+                let t = filled == 1 ? 1.0 : Double(index) / Double(filled - 1)
+                let red = Int(Double(colors.dark.0) * (1 - t) + Double(colors.light.0) * t)
+                let green = Int(Double(colors.dark.1) * (1 - t) + Double(colors.light.1) * t)
+                let blue = Int(Double(colors.dark.2) * (1 - t) + Double(colors.light.2) * t)
+                bar += self.ansiTrueColor(red: red, green: green, blue: blue, "█")
+            }
+        }
+        if empty > 0 {
+            let emptyCell = self.ansiTrueColor(red: 48, green: 50, blue: 62, "░")
+            bar += String(repeating: emptyCell, count: empty)
+        }
+        return bar
+    }
+
+    static func gradientRemainingTrackBar(remainingPercent: Double, width: Int) -> String {
+        let clamped = max(0, min(100, remainingPercent))
+        let barWidth = max(4, width)
+        let rawFilled = Int((clamped / 100) * Double(barWidth))
+        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let empty = max(0, barWidth - filled)
+        let colors = self.remainingGradientRGB(remainingPercent: clamped)
+        var bar = ""
+        if filled > 0 {
+            for index in 0..<filled {
+                let t = filled == 1 ? 1.0 : Double(index) / Double(filled - 1)
+                let red = Int(Double(colors.dark.0) * (1 - t) + Double(colors.light.0) * t)
+                let green = Int(Double(colors.dark.1) * (1 - t) + Double(colors.light.1) * t)
+                let blue = Int(Double(colors.dark.2) * (1 - t) + Double(colors.light.2) * t)
+                bar += self.ansiTrueColorBackground(red: red, green: green, blue: blue, " ")
+            }
+        }
+        if empty > 0 {
+            let emptyCell = self.ansiTrueColorBackground(red: 17, green: 30, blue: 50, " ")
+            bar += String(repeating: emptyCell, count: empty)
+        }
+        return bar
+    }
+
+    static func gradientUsedBar(usedPercent: Double, width: Int) -> String {
+        let remaining = max(0, min(100, 100 - usedPercent))
+        return self.gradientRemainingBar(remainingPercent: remaining, width: width)
+    }
+
+    static func colorizeEnhancedAccentBold(_ text: String) -> String {
+        self.ansiTrueColor(red: 198, green: 146, blue: 255, text)
+    }
+
+    static func colorizeEnhancedAccent(_ text: String) -> String {
+        self.ansiTrueColor(red: 176, green: 132, blue: 232, text)
+    }
+
+    static func colorizeEnhancedSubtle(_ text: String) -> String {
+        self.ansiTrueColor(red: 130, green: 135, blue: 150, text)
+    }
+
+    static func colorizeEnhancedBorder(_ text: String) -> String {
+        self.ansiTrueColor(red: 90, green: 95, blue: 110, text)
+    }
+
+    static func colorizeEnhancedBadge(_ source: String) -> String {
+        let r = max(0, min(255, 66))
+        let g = max(0, min(255, 133))
+        let b = max(0, min(255, 244))
+        return "\u{001B}[38;2;245;248;255;48;2;\(r);\(g);\(b)m \(source) \u{001B}[0m"
+    }
+
+    static func colorizeEnhancedPlanBox(_ text: String) -> String {
+        self.ansiTrueColor(red: 220, green: 222, blue: 230, text)
+    }
+
+    static func colorizeEnhancedPlanLabel(_ text: String) -> String {
+        self.ansiTrueColor(red: 104, green: 111, blue: 135, text)
+    }
+
+    static func colorizeEnhancedPlanValue(_ text: String) -> String {
+        self.ansiTrueColor(red: 238, green: 184, blue: 92, text)
+    }
+
+    static func colorizeEnhancedRemainingPercent(_ text: String, remainingPercent: Double) -> String {
+        let colors = self.remainingGradientRGB(remainingPercent: remainingPercent)
+        return self.ansiTrueColor(red: colors.light.0, green: colors.light.1, blue: colors.light.2, text)
+    }
+
+    static func colorizeEnhancedUsedPercent(_ text: String, usedPercent: Double) -> String {
+        self.colorizeEnhancedRemainingPercent(text, remainingPercent: 100 - usedPercent)
+    }
+
+    static func colorizeEnhancedReadable(_ text: String) -> String {
+        self.ansiTrueColor(red: 235, green: 238, blue: 245, text)
+    }
+
+    static func colorizeEnhancedReadableMuted(_ text: String) -> String {
+        self.ansiTrueColor(red: 170, green: 178, blue: 195, text)
+    }
+
+    static func colorizeEnhancedGood(_ text: String) -> String {
+        self.ansiTrueColor(red: 116, green: 220, blue: 195, text)
+    }
+
+    static func colorizeReadable(_ text: String) -> String {
+        self.ansi("97", text)
+    }
+
+    static func colorizeReadableMuted(_ text: String) -> String {
+        self.ansi("37", text)
+    }
+
+    static func cardBlockBar(remainingPercent: Double, width: Int, useColor: Bool) -> String {
+        let clamped = max(0, min(100, remainingPercent))
+        let barWidth = max(8, width)
+        let rawFilled = Int((clamped / 100) * Double(barWidth))
+        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let empty = max(0, barWidth - filled)
+        let filledBar = String(repeating: "━", count: filled)
+        let emptyBar = String(repeating: " ", count: empty)
+        guard useColor else { return filledBar + emptyBar }
+        return self.colorizeCardPercent(filledBar, remainingPercent: remainingPercent, useColor: true)
+            + self.colorizeSubtle(String(repeating: "─", count: empty))
+    }
+
+    static func collectCardMetrics(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date = Date()) -> [CLICardMetric]
+    {
+        let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+        let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
+        var metrics: [CLICardMetric] = []
+        if let primary = snapshot.primary {
+            metrics.append(self.makeCardMetric(
+                label: labels.primary,
+                window: primary,
+                resetStyle: resetStyle,
+                now: now))
+        }
+        if let secondary = snapshot.secondary {
+            metrics.append(self.makeCardMetric(
+                label: labels.secondary,
+                window: secondary,
+                resetStyle: resetStyle,
+                now: now))
+        }
+        if labels.showsTertiary, let tertiary = snapshot.tertiary {
+            metrics.append(self.makeCardMetric(
+                label: labels.tertiary,
+                window: tertiary,
+                resetStyle: resetStyle,
+                now: now))
+        }
+        return metrics
+    }
+
+    static func collectCardInfoLines(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        credits: CreditsSnapshot?,
+        notes: [String],
+        useColor: Bool,
+        now: Date = Date()) -> [String]
+    {
+        var lines: [String] = []
+        if provider == .codex, let resetCredits = snapshot.codexResetCredits {
+            let inventory = resetCredits.availableInventory(at: now)
+            let value = inventory.count == 1 ? "1 available" : "\(inventory.count) available"
+            lines.append(self.labelValueLine("Limit Reset Credits", value: value, useColor: useColor))
+        }
+        if provider == .codex, let credits {
+            let remaining = credits.codexCreditLimit?.remaining ?? credits.remaining
+            lines.append(self.labelValueLine(
+                "Credits",
+                value: UsageFormatter.creditsString(from: remaining),
+                useColor: useColor))
+        }
+        for note in notes {
+            let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            lines.append(self.labelValueLine("Note", value: trimmed, useColor: useColor))
+        }
+        return lines
+    }
+
+    static func collectCardExtraLines(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        credits: CreditsSnapshot?,
+        context: RenderContext,
+        now: Date = Date()) -> [String]
+    {
+        var lines: [String] = []
+        if snapshot.primary == nil {
+            self.appendPrimaryLines(
+                provider: provider,
+                snapshot: snapshot,
+                labels: self.rateWindowLabels(
+                    provider: provider,
+                    metadata: ProviderDescriptorRegistry.descriptor(for: provider).metadata,
+                    snapshot: snapshot),
+                context: context,
+                now: now,
+                lines: &lines)
+        }
+        if snapshot.mimoUsage != nil {
+            self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        }
+        self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendDevinOverageBalanceLine(
+            provider: provider,
+            snapshot: snapshot,
+            useColor: context.useColor,
+            lines: &lines)
+        self.appendLimitsUnavailableLine(
+            provider: provider,
+            snapshot: snapshot,
+            useColor: context.useColor,
+            lines: &lines)
+        if provider == .kilo {
+            let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
+            for detail in kiloLogin.details {
+                lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
+            }
+        }
+        return lines
+    }
+
+    private static func makeCardMetric(
+        label: String,
+        window: RateWindow,
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date) -> CLICardMetric
+    {
+        let resetText: String? = if let reset = self.resetLine(for: window, style: .countdown, now: now) {
+            "⏳ \(reset)"
+        } else if let reset = self.resetLineForDetailBackedWindow(window: window, style: .countdown, now: now) {
+            "⏳ \(reset)"
+        } else {
+            nil
+        }
+        return CLICardMetric(
+            label: label,
+            remainingPercent: window.remainingPercent,
+            resetText: resetText)
+    }
+
+    static func colorizeError(_ text: String) -> String {
+        self.ansi("31", text)
+    }
+
+    static func colorizeStatusLine(
+        _ text: String,
+        indicator: ProviderStatusPayload.ProviderStatusIndicator,
+        useColor: Bool) -> String
+    {
+        self.colorize(text, indicator: indicator, useColor: useColor)
+    }
+
     static func providerPacePayload(
         provider: UsageProvider,
         snapshot: UsageSnapshot,

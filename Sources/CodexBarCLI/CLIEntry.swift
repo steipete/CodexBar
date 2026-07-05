@@ -34,6 +34,12 @@ enum CodexBarCLI {
             let invocation = try program.resolve(argv: argv)
             Self.bootstrapLogging(path: invocation.path, values: invocation.parsedValues)
             switch invocation.path {
+            case ["cards"]:
+                let signalMonitor = CLITerminationSignalMonitor { signalNumber in
+                    CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signalNumber)
+                }
+                defer { signalMonitor.cancel() }
+                await self.runCards(invocation.parsedValues)
             case ["usage"]:
                 let signalMonitor = CLITerminationSignalMonitor { signalNumber in
                     CLITerminationSignalMonitor.terminateActiveHelpersAndReraise(signalNumber)
@@ -79,6 +85,7 @@ enum CodexBarCLI {
     }
 
     private static func commandDescriptors() -> [CommandDescriptor] {
+        let cardsSignature = CommandSignature.describe(CardsOptions())
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
         let serveSignature = CommandSignature.describe(ServeOptions())
@@ -89,6 +96,11 @@ enum CodexBarCLI {
         let diagnoseSignature = CommandSignature.describe(DiagnoseOptions())
 
         return [
+            CommandDescriptor(
+                name: "cards",
+                abstract: "Print usage as a terminal card grid",
+                discussion: nil,
+                signature: cardsSignature),
             CommandDescriptor(
                 name: "usage",
                 abstract: "Print usage as text or JSON",

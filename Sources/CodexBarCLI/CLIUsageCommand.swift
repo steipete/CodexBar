@@ -24,11 +24,14 @@ struct UsageCommandContext {
     /// between fetches instead of resetting after each one-shot fetch.
     var persistCLISessions: Bool = false
     var persistentCLISessionIdleWindow: TimeInterval?
+    var cardsLayout: Bool = false
 }
 
 struct UsageCommandOutput {
     var sections: [String] = []
     var payload: [ProviderPayload] = []
+    var cards: [CLICardModel] = []
+    var cardFailures: [CLICardFailure] = []
     var exitCode: ExitCode = .success
 }
 
@@ -36,6 +39,8 @@ extension UsageCommandOutput {
     mutating func merge(_ other: UsageCommandOutput) {
         self.sections.append(contentsOf: other.sections)
         self.payload.append(contentsOf: other.payload)
+        self.cards.append(contentsOf: other.cards)
+        self.cardFailures.append(contentsOf: other.cardFailures)
         if other.exitCode != .success {
             self.exitCode = other.exitCode
         }
@@ -243,6 +248,11 @@ extension CodexBarCLI {
                 status: status,
                 error: error,
                 kind: .provider))
+        } else if command.cardsLayout {
+            output.cardFailures.append(CLICardFailure(
+                provider: provider,
+                accountLabel: nil,
+                message: error.localizedDescription))
         } else if !command.jsonOnly {
             Self.writeStderr("Error: \(error.localizedDescription)\n")
         }
@@ -383,21 +393,34 @@ extension CodexBarCLI {
 
             switch command.format {
             case .text:
-                var text = CLIRenderer.renderText(
-                    provider: provider,
-                    snapshot: usage,
-                    credits: result.credits,
-                    context: RenderContext(
-                        header: header,
+                if command.cardsLayout {
+                    output.cards.append(CLICardsRenderer.makeCard(
+                        provider: provider,
+                        snapshot: usage,
+                        credits: result.credits,
+                        source: source,
                         status: status,
+                        notes: notes,
                         useColor: command.useColor,
                         resetStyle: command.resetStyle,
-                        weeklyWorkDays: command.weeklyWorkDays,
-                        notes: notes))
-                if let dashboard, provider == .codex, effectiveSourceMode.usesWeb {
-                    text += "\n" + Self.renderOpenAIWebDashboardText(dashboard)
+                        weeklyWorkDays: command.weeklyWorkDays))
+                } else {
+                    var text = CLIRenderer.renderText(
+                        provider: provider,
+                        snapshot: usage,
+                        credits: result.credits,
+                        context: RenderContext(
+                            header: header,
+                            status: status,
+                            useColor: command.useColor,
+                            resetStyle: command.resetStyle,
+                            weeklyWorkDays: command.weeklyWorkDays,
+                            notes: notes))
+                    if let dashboard, provider == .codex, effectiveSourceMode.usesWeb {
+                        text += "\n" + Self.renderOpenAIWebDashboardText(dashboard)
+                    }
+                    output.sections.append(text)
                 }
-                output.sections.append(text)
             case .json:
                 output.payload.append(Self.makeUsagePayload(
                     provider: provider,
@@ -423,6 +446,11 @@ extension CodexBarCLI {
                     status: status,
                     error: error,
                     kind: .provider))
+            } else if command.cardsLayout {
+                output.cardFailures.append(CLICardFailure(
+                    provider: provider,
+                    accountLabel: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    message: error.localizedDescription))
             } else if !command.jsonOnly {
                 if let accountLabel = account?.label ?? codexVisibleAccount?.menuDisplayName {
                     Self.writeStderr(
@@ -544,6 +572,11 @@ extension CodexBarCLI {
                 status: status,
                 error: error,
                 kind: .runtime))
+        } else if command.cardsLayout {
+            output.cardFailures.append(CLICardFailure(
+                provider: provider,
+                accountLabel: account.label,
+                message: error.localizedDescription))
         } else if !command.jsonOnly {
             Self.writeStderr("Error: \(error.localizedDescription)\n")
         }

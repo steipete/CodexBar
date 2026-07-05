@@ -18,6 +18,25 @@ let sqlite3LinkerSettings: [LinkerSetting] = if let sqlite3LibDir, !sqlite3LibDi
     []
 }
 
+let packageDependencies: [Package.Dependency] = {
+    var dependencies: [Package.Dependency] = [
+        .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+        .package(url: "https://github.com/apple/swift-log", from: "1.13.2"),
+        sweetCookieKitDependency,
+    ]
+
+    #if os(macOS)
+    dependencies.append(contentsOf: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.3"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0"),
+        .package(url: "https://github.com/zats/Vortex", revision: "ef5392088d4aeb255c4eee83157dbdafcd31bf07"),
+    ])
+    #endif
+
+    return dependencies
+}()
+
 let package = Package(
     name: "CodexBar",
     defaultLocalization: "en",
@@ -41,15 +60,7 @@ let package = Package(
 
         return products
     }(),
-    dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.3"),
-        .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),
-        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
-        .package(url: "https://github.com/apple/swift-log", from: "1.13.2"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0"),
-        .package(url: "https://github.com/zats/Vortex", revision: "ef5392088d4aeb255c4eee83157dbdafcd31bf07"),
-        sweetCookieKitDependency,
-    ],
+    dependencies: packageDependencies,
     targets: {
         var targets: [Target] = [
             // Host pkg-config paths contaminate cross-musl links; the module map supplies sqlite3 linkage.
