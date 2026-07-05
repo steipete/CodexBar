@@ -539,8 +539,7 @@ extension UsageStore {
 
     private func miniMaxHasRecordablePlanUtilizationSamples() -> Bool {
         guard let snapshot = self.snapshots[.minimax] else { return false }
-        return !self.planUtilizationSeriesSamples(
-            provider: .minimax, snapshot: snapshot, capturedAt: snapshot.updatedAt).isEmpty
+        return !self.planUtilizationSeriesSamples(provider: .minimax, snapshot: snapshot, capturedAt: snapshot.updatedAt).isEmpty
     }
 
     private func miniMaxSupportsPlanUtilizationHistory() -> Bool {
