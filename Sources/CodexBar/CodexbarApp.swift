@@ -100,7 +100,7 @@ struct CodexBarApp: App {
                 })
         }
         .defaultSize(width: SettingsPane.windowWidth, height: SettingsPane.windowHeight)
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
     }
 
     private func openSettings(pane: SettingsPane) {

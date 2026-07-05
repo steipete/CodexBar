@@ -431,6 +431,8 @@
 "cost_history_window_title" = "Geçmiş penceresi";
 "cost_history_window_help" = "Menüde kaç günlük yerel kullanım günlüğünün gösterileceğini belirler.";
 "cost_history_days_title" = "Geçmiş penceresi: %d gün";
+"cost_comparison_periods_title" = "Daha kısa karşılaştırma dönemlerini göster";
+"cost_comparison_periods_subtitle" = "Seçilen geçmiş aralığına sığdığında 7, 30 ve 90 günlük toplamları ekler. Bu toplamlar aynı yerel taramayı yeniden kullanır.";
 "cost_auto_refresh_info" = "Otomatik yenileme: saatlik · Zaman aşımı: 10 dk";
 "refresh_cadence_title" = "Yenileme sıklığı";
 "refresh_cadence_subtitle" = "CodexBar'ın arka planda sağlayıcıları ne sıklıkla sorgulayacağı.";

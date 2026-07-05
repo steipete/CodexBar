@@ -59,15 +59,7 @@ public enum KeychainAccessGate {
 
     #if DEBUG
     private nonisolated(unsafe) static var forcesDisabledUnderTests: Bool {
-        self.isRunningUnderTests
-            && ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1"
-    }
-
-    private nonisolated(unsafe) static var isRunningUnderTests: Bool {
-        let processName = ProcessInfo.processInfo.processName
-        return processName == "swiftpm-testing-helper"
-            || processName.hasSuffix("PackageTests")
-            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        KeychainTestSafety.shouldBlockRealKeychainAccess()
     }
     #endif
 

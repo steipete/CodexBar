@@ -111,6 +111,7 @@ extension UsageMenuCardView.Model.TokenUsageSection {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("session", self.sessionLine),
             MenuCardHeightFingerprint.field("month", self.monthLine),
+            MenuCardHeightFingerprint.field("comparisons", self.comparisonLines.joined(separator: "|")),
             MenuCardHeightFingerprint.field("hint", self.hintLine),
             MenuCardHeightFingerprint.field("error", self.errorLine),
             MenuCardHeightFingerprint.field("errorCopy", self.errorCopyText),
@@ -122,10 +123,7 @@ extension CodexResetCreditsPresentation {
     fileprivate var heightFingerprint: String {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("text", self.text),
-            MenuCardHeightFingerprint.field("detail", self.detailText),
-            MenuCardHeightFingerprint.join(self.items.map {
-                MenuCardHeightFingerprint.field("expiry", $0.expiryText)
-            }),
+            MenuCardHeightFingerprint.field("expirySummary", self.expirySummaryText),
         ])
     }
 }

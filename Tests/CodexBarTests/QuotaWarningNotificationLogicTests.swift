@@ -47,6 +47,42 @@ struct QuotaWarningNotificationLogicTests {
     }
 
     @Test
+    func `quota warning copy uses the extra-window display label when provided`() {
+        Self.withAppLanguage("en") {
+            let copy = QuotaWarningNotificationLogic.notificationCopy(
+                providerName: "Claude",
+                window: .weekly,
+                threshold: 50,
+                currentRemaining: 45,
+                windowDisplayLabel: "Fable only")
+
+            #expect(copy.title == "Claude Fable only quota low")
+            #expect(copy.body == "45% left. Reached your 50% Fable only warning threshold.")
+        }
+    }
+
+    @Test
+    func `extra-window notification identifiers are independent`() {
+        let fable = QuotaWarningEvent(
+            window: .weekly,
+            threshold: 50,
+            currentRemaining: 45,
+            windowID: "claude-weekly-scoped-fable")
+        let routines = QuotaWarningEvent(
+            window: .weekly,
+            threshold: 50,
+            currentRemaining: 45,
+            windowID: "claude-routines")
+
+        let ids = [fable, routines].map {
+            QuotaWarningNotificationLogic.notificationIDPrefix(provider: .claude, event: $0)
+        }
+        #expect(Set(ids).count == 2)
+        #expect(ids[0].contains("claude-weekly-scoped-fable"))
+        #expect(ids[1].contains("claude-routines"))
+    }
+
+    @Test
     func `quota warning copy follows Traditional Chinese app language`() {
         Self.withAppLanguage("zh-Hant") {
             let copy = QuotaWarningNotificationLogic.notificationCopy(

@@ -433,6 +433,8 @@
 "cost_history_window_title" = "Zakres historii";
 "cost_history_window_help" = "Ustawia, ile dni lokalnych dzienników użycia pokazać w menu.";
 "cost_history_days_title" = "Zakres historii: %d dni";
+"cost_comparison_periods_title" = "Pokaż krótsze okresy porównawcze";
+"cost_comparison_periods_subtitle" = "Dodaj sumy z 7, 30 i 90 dni, gdy mieszczą się w wybranym zakresie historii. Sumy te wykorzystują to samo skanowanie lokalne.";
 "cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
 "refresh_cadence_title" = "Częstotliwość odświeżania";
 "refresh_cadence_subtitle" = "Jak często CodexBar odpyta dostawców w tle.";

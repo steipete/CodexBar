@@ -287,7 +287,8 @@ public struct MistralCreditsSnapshot: Codable, Equatable, Sendable {
     }
 
     public var availableAmount: Double {
-        max(0, self.walletAmount + self.creditNotesAmount - self.ongoingUsageBalance)
+        let amount = self.walletAmount + self.creditNotesAmount - self.ongoingUsageBalance
+        return amount.isFinite ? max(0, amount) : 0
     }
 
     public var formattedAvailableAmount: String {

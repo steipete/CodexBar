@@ -36,6 +36,59 @@ extension UsageStore {
             rateWindow: secondaryWindow,
             source: source,
             accountDisplayName: accountDisplayName)
+        self.handleClaudeExtraWindowQuotaWarnings(
+            provider: provider,
+            snapshot: snapshot,
+            accountDisplayName: accountDisplayName)
+    }
+
+    /// Emit weekly-lane quota warnings for Claude's extra rate windows — model-scoped weekly
+    /// carve-outs (`claude-weekly-scoped-*`, e.g. Fable) and Daily Routines — which surface in the
+    /// menu but were otherwise silent. Antigravity's summary windows are already covered by the
+    /// primary and weekly lanes above, so they are excluded here.
+    private func handleClaudeExtraWindowQuotaWarnings(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        accountDisplayName: String?)
+    {
+        guard provider == .claude else { return }
+        guard self.settings.quotaWarningEnabled(provider: provider, window: .weekly) else {
+            let extraWindowKeys = self.quotaWarningState.keys.filter {
+                $0.provider == provider && $0.windowID != nil
+            }
+            for key in extraWindowKeys {
+                self.quotaWarningState.removeValue(forKey: key)
+            }
+            return
+        }
+
+        let windows = (snapshot.extraRateWindows ?? []).filter(Self.isClaudeNotifiableExtraWindow)
+        for named in windows {
+            self.handleQuotaWarningTransition(
+                provider: provider,
+                window: .weekly,
+                rateWindow: named.window,
+                source: nil,
+                accountDisplayName: accountDisplayName,
+                windowID: named.id,
+                windowDisplayLabel: named.title)
+        }
+        // A missing extras payload is not authoritative, but when another notifiable window remains,
+        // reconcile tracked IDs so a later incarnation of a disappeared window can warn again.
+        guard !windows.isEmpty else { return }
+        let activeIDs = Set(windows.map(\.id))
+        let staleKeys = self.quotaWarningState.keys.filter { key in
+            guard key.provider == provider, let windowID = key.windowID else { return false }
+            return !activeIDs.contains(windowID)
+        }
+        for key in staleKeys {
+            self.quotaWarningState.removeValue(forKey: key)
+        }
+    }
+
+    private static func isClaudeNotifiableExtraWindow(_ named: NamedRateWindow) -> Bool {
+        guard named.usageKnown else { return false }
+        return named.id.hasPrefix("claude-weekly-scoped-") || named.id == "claude-routines"
     }
 
     private func handleQuotaWarningTransition(
@@ -43,9 +96,11 @@ extension UsageStore {
         window: QuotaWarningWindow,
         rateWindow: RateWindow?,
         source: SessionQuotaWindowSource?,
-        accountDisplayName: String?)
+        accountDisplayName: String?,
+        windowID: String? = nil,
+        windowDisplayLabel: String? = nil)
     {
-        let key = QuotaWarningStateKey(provider: provider, window: window)
+        let key = QuotaWarningStateKey(provider: provider, window: window, windowID: windowID)
         guard self.settings.quotaWarningEnabled(provider: provider, window: window) else {
             self.quotaWarningState.removeValue(forKey: key)
             return
@@ -84,7 +139,9 @@ extension UsageStore {
                     window: window,
                     threshold: threshold,
                     currentRemaining: currentRemaining,
-                    accountDisplayName: accountDisplayName),
+                    accountDisplayName: accountDisplayName,
+                    windowID: windowID,
+                    windowDisplayLabel: windowDisplayLabel),
                 provider: provider)
         }
 

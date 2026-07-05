@@ -252,4 +252,52 @@ struct UsageStoreWidgetSnapshotTests {
         #expect(entry.tokenUsage?.sessionTokens == 4200)
         #expect(entry.tokenUsage?.last30DaysTokens == 42000)
     }
+
+    @Test(arguments: [true, false])
+    func `widget snapshot respects extra usage visibility for Devin`(_ showsExtraUsage: Bool) async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-devin-extra-usage-\(showsExtraUsage)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.showOptionalCreditsAndExtraUsage = showsExtraUsage
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                providerCost: ProviderCostSnapshot(
+                    used: 48,
+                    limit: 0,
+                    currencyCode: "USD",
+                    period: "Extra usage balance",
+                    updatedAt: updatedAt),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .devin,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: nil)),
+            provider: .devin)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "devin-extra-usage-visibility-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .devin })
+        #expect((entry.providerCost != nil) == showsExtraUsage)
+    }
 }

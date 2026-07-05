@@ -428,6 +428,8 @@
 "cost_history_window_help" = "メニューに表示するローカル使用ログの日数を設定します。";
 "cost_history_days_title" = "履歴期間: %d 日";
 "cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
+"cost_comparison_periods_title" = "短い比較期間を表示";
+"cost_comparison_periods_subtitle" = "選択した履歴期間に収まる場合、7日、30日、90日の合計を追加します。これらの合計には同じローカルスキャンを再利用します。";
 "refresh_cadence_title" = "更新間隔";
 "refresh_cadence_subtitle" = "CodexBar がバックグラウンドでプロバイダをポーリングする頻度です。";
 "manual_refresh_hint" = "自動更新はオフです。メニューの「更新」コマンドを使用してください。";
