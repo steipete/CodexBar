@@ -2,27 +2,6 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    func supportsMiniMaxPlanUtilizationHistory() -> Bool {
-        let provider = UsageProvider.minimax
-        if self.planUtilizationHistory[provider]?.isEmpty == false {
-            return true
-        }
-        guard let snapshot = self.snapshots[provider] else { return false }
-        return !self.planUtilizationSeriesSamples(
-            provider: provider,
-            snapshot: snapshot,
-            capturedAt: snapshot.updatedAt).isEmpty
-    }
-
-    func shouldRecordMiniMaxPlanUtilizationHistory() -> Bool {
-        let provider = UsageProvider.minimax
-        guard let snapshot = self.snapshots[provider] else { return false }
-        return !self.planUtilizationSeriesSamples(
-            provider: provider,
-            snapshot: snapshot,
-            capturedAt: snapshot.updatedAt).isEmpty
-    }
-
     func appendMiniMaxPlanUtilizationSamples(
         snapshot: UsageSnapshot,
         appendWindow: (_ window: RateWindow?, _ name: PlanUtilizationSeriesName?) -> Void)
