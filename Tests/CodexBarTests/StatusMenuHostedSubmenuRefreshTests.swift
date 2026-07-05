@@ -7,6 +7,30 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuHostedSubmenuRefreshTests {
     @Test
+    func `claude swap completion changes open menu readiness`() {
+        let settings = Self.makeSettings()
+        settings.setProviderEnabled(
+            provider: .claude,
+            metadata: ProviderDescriptorRegistry.descriptor(for: .claude).metadata,
+            enabled: true)
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let before = controller.menuAdjunctReadinessSignature()
+        store.claudeSwapRevision &+= 1
+
+        #expect(controller.menuAdjunctReadinessSignature() != before)
+    }
+
+    @Test
     func `status components change open menu readiness`() {
         let settings = Self.makeSettings()
         settings.statusChecksEnabled = true

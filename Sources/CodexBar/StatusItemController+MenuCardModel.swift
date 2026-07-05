@@ -55,7 +55,7 @@ extension StatusItemController {
                 tokenError = nil
             }
         } else if ProviderDescriptorRegistry.descriptor(for: target).tokenCost.supportsTokenCost,
-                  snapshotOverride == nil
+                  surface == .liveCard
         {
             credits = nil
             creditsError = nil
@@ -72,7 +72,7 @@ extension StatusItemController {
             tokenError = nil
         }
 
-        let sourceLabel = snapshotOverride == nil ? self.store.sourceLabel(for: target) : nil
+        let sourceLabel = surface == .liveCard ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         // Abacus uses primary for monthly credits (no secondary window)
         let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
@@ -102,9 +102,12 @@ extension StatusItemController {
             tokenError: tokenError,
             account: fallbackAccount,
             isRefreshing: self.store.shouldShowRefreshingMenuCardIndicator(for: target),
+            // Provider-level errors can belong to a different account, so
+            // override cards never inherit them (same rule as the snapshot,
+            // token-cost, and source-label fallbacks above).
             lastError: errorOverride
                 ?? codexProjection?.userFacingErrors.usage
-                ?? self.store.userFacingError(for: target),
+                ?? (surface == .liveCard ? self.store.userFacingError(for: target) : nil),
             limitsAvailability: self.store.knownLimitsAvailability(for: target),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,

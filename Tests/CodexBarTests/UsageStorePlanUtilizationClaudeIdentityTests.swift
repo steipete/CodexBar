@@ -101,37 +101,6 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
 
     @MainActor
     @Test
-    func `claude history without identity falls back to last resolved account`() async {
-        let store = UsageStorePlanUtilizationTests.makeStore()
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            updatedAt: Date(),
-            identity: ProviderIdentitySnapshot(
-                providerID: .claude,
-                accountEmail: "alice@example.com",
-                accountOrganization: nil,
-                loginMethod: "max"))
-        store._setSnapshotForTesting(snapshot, provider: .claude)
-
-        await store.recordPlanUtilizationHistorySample(
-            provider: .claude,
-            snapshot: snapshot,
-            now: Date(timeIntervalSince1970: 1_700_000_000))
-
-        let identitylessSnapshot = UsageSnapshot(
-            primary: snapshot.primary,
-            secondary: snapshot.secondary,
-            updatedAt: snapshot.updatedAt)
-        store._setSnapshotForTesting(identitylessSnapshot, provider: .claude)
-
-        let history = store.planUtilizationHistory(for: .claude)
-        #expect(findSeries(history, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 10)
-        #expect(findSeries(history, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 20)
-    }
-
-    @MainActor
-    @Test
     func `claude oauth credential owner separates switched account history`() async throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let accountBOwner = self.oauthOwnerIdentifier("b")
@@ -295,6 +264,220 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         #expect(selection.accountKey == accountAKey)
         #expect(findSeries(selection.histories, name: .session, windowMinutes: 300)?
             .entries.map(\.usedPercent) == [70])
+    }
+
+    @MainActor
+    @Test
+    func `same dir account switch quarantines stale background credential`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let ownerA = self.oauthOwnerIdentifier("a")
+        let ownerB = self.oauthOwnerIdentifier("b")
+        let keyA = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerA))
+        let keyB = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerB))
+        let hourStart = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // 1) Active account A (~/.claude.json = uuid-A). Two stable exact-Keychain observations bind owner_A
+        //    to A; the short confirmation interval does not add a second history point.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
+                    claudeOAuthPersistentRefHash: "account-a-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart)
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
+                    claudeOAuthPersistentRefHash: "account-a-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(30 * 60))
+            }
+        }
+
+        do {
+            let buckets = try #require(store.planUtilizationHistory[.claude])
+            #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+                .entries.map(\.usedPercent) == [30])
+            #expect(buckets.unscoped.isEmpty)
+        }
+
+        // 2) `/login` switched the active account to B (~/.claude.json = uuid-B), but the gated BACKGROUND
+        //    poll still serves the STALE owner_A credential. Prompt-free Keychain comparison is unavailable,
+        //    but the existing owner_A -> uuid-A binding detects the mismatch, so this must be quarantined:
+        //    no new sample lands.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await ProviderInteractionContext.$current.withValue(.background) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
+                    claudeOAuthPersistentRefHash: nil,
+                    claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthKeychainCredentialUnavailable: true,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(2 * 60 * 60))
+            }
+        }
+
+        do {
+            let buckets = try #require(store.planUtilizationHistory[.claude])
+            // key_A history is UNCHANGED (the stale sample was dropped, not appended).
+            #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+                .entries.map(\.usedPercent) == [30])
+            // Critically, the quarantined sample did NOT leak into the shared unscoped bucket. This is the
+            // assertion that catches the naive-nil bug (nil accountKey writes to `unscoped`, not nowhere).
+            #expect(buckets.unscoped.isEmpty)
+            #expect(buckets.accounts[keyB] == nil)
+        }
+
+        // 3) A USER-INITIATED refresh yields account B's real credential (owner_B), with exact current-Keychain
+        //    match evidence. Recovery: bind owner_B -> uuid-B, write to key_B, and leave key_A untouched.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
+                    claudeOAuthPersistentRefHash: "account-b-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(3 * 60 * 60))
+            }
+        }
+
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[keyB] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [75])
+        #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [30])
+        #expect(buckets.unscoped.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `exact keychain match arms account map on background poll`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let ownerA = self.oauthOwnerIdentifier("a")
+        let ownerB = self.oauthOwnerIdentifier("b")
+        let keyA = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerA))
+        let keyB = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: ownerB))
+        let hourStart = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // 1) First run after upgrading: the map is empty. A background poll serves owner_A while
+        //    ~/.claude.json reports uuid-A, and exact current-Keychain evidence corroborates the credential.
+        //    The first observation stages a candidate; a later identical observation confirms the binding.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
+            await ProviderInteractionContext.$current.withValue(.background) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
+                    claudeOAuthPersistentRefHash: "account-a-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart)
+            }
+        }
+
+        let accountAIdentity = UsageStore._activeClaudeAccountIdentityForTesting("uuid-A")
+        let accountBIdentity = UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)[ownerA] == nil)
+        #expect(UsageStore.loadClaudeOAuthAccountBindingCandidateMap(
+            from: store.settings.userDefaults)[ownerA]?.identity == accountAIdentity)
+
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-A") {
+            await ProviderInteractionContext.$current.withValue(.background) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 30),
+                    claudeOAuthPersistentRefHash: "account-a-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthActiveAccountObservation: .stable(identity: accountAIdentity),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(30 * 60))
+            }
+        }
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(
+            from: store.settings.userDefaults)[ownerA] == accountAIdentity)
+
+        // 2) `/login` switched to account B (~/.claude.json = uuid-B), but the gated BACKGROUND poll still
+        //    serves the stale owner_A credential. It no longer matches the current Keychain item, and the
+        //    existing owner_A -> uuid-A binding detects the UUID mismatch, so the sample is quarantined.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await ProviderInteractionContext.$current.withValue(.background) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 90),
+                    claudeOAuthPersistentRefHash: nil,
+                    claudeOAuthHistoryOwnerIdentifier: ownerA,
+                    claudeOAuthKeychainCredentialMismatch: true,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(2 * 60 * 60))
+            }
+        }
+
+        do {
+            let mapAfterBackground = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
+            #expect(mapAfterBackground[ownerA] == accountAIdentity)
+            let buckets = try #require(store.planUtilizationHistory[.claude])
+            #expect(findSeries(buckets.accounts[keyA] ?? [], name: .session, windowMinutes: 300)?
+                .entries.map(\.usedPercent) == [30])
+            #expect(buckets.unscoped.isEmpty)
+        }
+
+        // 3) A background poll now yields account B's real credential (owner_B) with exact current-Keychain
+        //    match evidence. That evidence, not the interaction label, binds owner_B -> uuid-B and writes key_B.
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await ProviderInteractionContext.$current.withValue(.background) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
+                    claudeOAuthPersistentRefHash: "account-b-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    claudeOAuthActiveAccountObservation: .stable(
+                        identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-B")),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(3 * 60 * 60))
+            }
+        }
+
+        #expect(UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)[ownerB] == nil)
+        await UsageStore.withActiveClaudeAccountUuidForTesting("uuid-B") {
+            await ProviderInteractionContext.$current.withValue(.background) {
+                await store.recordPlanUtilizationHistorySample(
+                    provider: .claude,
+                    snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
+                    claudeOAuthPersistentRefHash: "account-b-ref",
+                    claudeOAuthHistoryOwnerIdentifier: ownerB,
+                    claudeOAuthActiveAccountObservation: .stable(identity: accountBIdentity),
+                    isClaudeOAuthSample: true,
+                    now: hourStart.addingTimeInterval(3 * 60 * 60 + 30 * 60))
+            }
+        }
+
+        let mapAfterRecovery = UsageStore.loadClaudeOAuthAccountUuidMap(from: store.settings.userDefaults)
+        #expect(mapAfterRecovery[ownerB] == accountBIdentity)
+        #expect(mapAfterRecovery[ownerA] == accountAIdentity)
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[keyB] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [75])
+        #expect(buckets.unscoped.isEmpty)
     }
 
     @MainActor
@@ -470,18 +653,20 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         let accountBKey = try #require(UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(
             historyOwnerIdentifier: accountBOwner))
 
-        await store.recordPlanUtilizationHistorySample(
-            provider: .claude,
-            snapshot: self.identitylessClaudeSnapshot(usedPercent: 10),
-            claudeOAuthHistoryOwnerIdentifier: accountAOwner,
-            isClaudeOAuthSample: true,
-            now: Date(timeIntervalSince1970: 1_700_000_000))
-        await store.recordPlanUtilizationHistorySample(
-            provider: .claude,
-            snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
-            claudeOAuthHistoryOwnerIdentifier: accountBOwner,
-            isClaudeOAuthSample: true,
-            now: Date(timeIntervalSince1970: 1_700_007_200))
+        await UsageStore.withActiveClaudeAccountUuidForTesting(nil) {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: self.identitylessClaudeSnapshot(usedPercent: 10),
+                claudeOAuthHistoryOwnerIdentifier: accountAOwner,
+                isClaudeOAuthSample: true,
+                now: Date(timeIntervalSince1970: 1_700_000_000))
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: self.identitylessClaudeSnapshot(usedPercent: 75),
+                claudeOAuthHistoryOwnerIdentifier: accountBOwner,
+                isClaudeOAuthSample: true,
+                now: Date(timeIntervalSince1970: 1_700_007_200))
+        }
 
         let buckets = try #require(store.planUtilizationHistory[.claude])
         #expect(buckets.unscoped.isEmpty)
@@ -558,23 +743,6 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
         #expect(first != owner)
         #expect(first.hasPrefix("__claude_oauth__:"))
         #expect(first.dropFirst("__claude_oauth__:".count).count == 64)
-    }
-
-    @Test
-    func `claude oauth history scope requires full auth fingerprint stability`() {
-        let stablePersistentRefHash = UsageStore._stableClaudeKeychainPersistentRefHashForTesting(
-            beforeFetchFingerprintToken: "stable-fingerprint",
-            afterFetchFingerprintToken: "stable-fingerprint",
-            beforeFetchPersistentRefHash: "stable-ref",
-            afterFetchPersistentRefHash: "stable-ref")
-        let changedFingerprintPersistentRefHash = UsageStore._stableClaudeKeychainPersistentRefHashForTesting(
-            beforeFetchFingerprintToken: "before-fingerprint",
-            afterFetchFingerprintToken: "after-fingerprint",
-            beforeFetchPersistentRefHash: "stable-ref",
-            afterFetchPersistentRefHash: "stable-ref")
-
-        #expect(stablePersistentRefHash == "stable-ref")
-        #expect(changedFingerprintPersistentRefHash == nil)
     }
 
     @Test

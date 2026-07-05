@@ -5,9 +5,32 @@ extension UsageStore {
     private nonisolated static let limitResetThreshold = 1.0
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
     private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
+    private nonisolated static let claudeOAuthAccountUuidMapDefaultsKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
+    private nonisolated static let claudeOAuthAccountCandidateMapDefaultsKey =
+        "ClaudeOAuthHistoryOwnerAccountCandidateMapV1"
     private nonisolated static let weeklyWindowMinutes = 7 * 24 * 60
     private nonisolated static let planUtilizationUnscopedPreferredKey = "__unscoped__"
     private nonisolated static let claudeOAuthPlanUtilizationAccountKeyPrefix = "__claude_oauth__:"
+
+    enum ClaudeOAuthActiveAccountObservation: Equatable, Sendable {
+        case stable(identity: String?)
+        case changed
+    }
+
+    struct ClaudeOAuthAccountBindingCandidate: Codable, Equatable {
+        let identity: String
+        let observedAt: Date
+    }
+
+    private struct ClaudeOAuthHistoryEvidence {
+        let owner: String
+        let persistentRefHash: String?
+        let keychainCredentialMismatch: Bool
+        let keychainCredentialAbsent: Bool
+        let keychainCredentialUnavailable: Bool
+        let activeAccountObservation: ClaudeOAuthActiveAccountObservation
+        let observedAt: Date
+    }
 
     struct LimitResetDetectorState: Codable, Equatable {
         let wasAboveThreshold: Bool
@@ -152,6 +175,10 @@ extension UsageStore {
         account: ProviderTokenAccount? = nil,
         claudeOAuthPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
+        claudeOAuthKeychainCredentialMismatch: Bool = false,
+        claudeOAuthKeychainCredentialAbsent: Bool = false,
+        claudeOAuthKeychainCredentialUnavailable: Bool = false,
+        claudeOAuthActiveAccountObservation: ClaudeOAuthActiveAccountObservation = .stable(identity: nil),
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
         shouldAdoptUnscopedHistory: Bool = true,
@@ -159,9 +186,20 @@ extension UsageStore {
         async
     {
         let samples = self.planUtilizationSeriesSamples(provider: provider, snapshot: snapshot, capturedAt: now)
+        var effectiveOwner = claudeOAuthHistoryOwnerIdentifier
+        if provider == .claude, isClaudeOAuthSample, let owner = claudeOAuthHistoryOwnerIdentifier {
+            effectiveOwner = self.resolvedClaudeOAuthHistoryOwner(evidence: ClaudeOAuthHistoryEvidence(
+                owner: owner,
+                persistentRefHash: claudeOAuthPersistentRefHash,
+                keychainCredentialMismatch: claudeOAuthKeychainCredentialMismatch,
+                keychainCredentialAbsent: claudeOAuthKeychainCredentialAbsent,
+                keychainCredentialUnavailable: claudeOAuthKeychainCredentialUnavailable,
+                activeAccountObservation: claudeOAuthActiveAccountObservation,
+                observedAt: now))
+        }
         let detectorAccountKey = if provider == .claude, isClaudeOAuthSample {
             Self.claudeOAuthPlanUtilizationAccountKey(
-                historyOwnerIdentifier: claudeOAuthHistoryOwnerIdentifier,
+                historyOwnerIdentifier: effectiveOwner,
                 corroboratingPersistentRefHash: claudeOAuthPersistentRefHash)
         } else {
             self.planUtilizationAccountKey(
@@ -199,7 +237,7 @@ extension UsageStore {
                 snapshot: snapshot,
                 preferredAccount: preferredAccount,
                 claudeOAuthPersistentRefHash: claudeOAuthPersistentRefHash,
-                claudeOAuthHistoryOwnerIdentifier: claudeOAuthHistoryOwnerIdentifier,
+                claudeOAuthHistoryOwnerIdentifier: effectiveOwner,
                 isClaudeOAuthSample: isClaudeOAuthSample,
                 shouldUpdatePreferredAccountKey: shouldUpdatePreferredAccountKey,
                 shouldAdoptUnscopedHistory: shouldAdoptUnscopedHistory,
@@ -884,6 +922,186 @@ extension UsageStore {
         }
     }
 
+    // MARK: - Active Claude account corroboration (~/.claude.json)
+
+    /// The currently-active Claude account UUID, read prompt-free from `~/.claude.json`. This is the only
+    /// always-fresh, never-gated signal of the active account on a background poll: Claude Code's `/login`
+    /// updates the Keychain item in place and leaves `~/.claude/.credentials.json` stale, but immediately
+    /// rewrites `oauthAccount.accountUuid` in this sibling plain file. Returns nil on absence/corruption.
+    nonisolated static func activeClaudeAccountUuid() -> String? {
+        ClaudeActiveAccountProbe.activeClaudeAccountUuid()
+    }
+
+    /// Persisted `historyOwnerIdentifier -> hashed active account identity` bindings.
+    nonisolated static func loadClaudeOAuthAccountUuidMap(from userDefaults: UserDefaults) -> [String: String] {
+        guard let data = userDefaults.data(forKey: claudeOAuthAccountUuidMapDefaultsKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: String].self, from: data)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to decode Claude OAuth history owner account UUID map",
+                metadata: ["error": String(describing: error)])
+            return [:]
+        }
+    }
+
+    /// Persist the `historyOwnerIdentifier -> active accountUuid` map. Mirrors `persistLimitResetDetectorStates`.
+    func persistClaudeOAuthAccountUuidMap(_ map: [String: String]) {
+        do {
+            let data = try JSONEncoder().encode(map)
+            self.settings.userDefaults.set(data, forKey: Self.claudeOAuthAccountUuidMapDefaultsKey)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to encode Claude OAuth history owner account UUID map",
+                metadata: ["error": String(describing: error)])
+        }
+    }
+
+    nonisolated static func loadClaudeOAuthAccountBindingCandidateMap(
+        from userDefaults: UserDefaults) -> [String: ClaudeOAuthAccountBindingCandidate]
+    {
+        guard let data = userDefaults.data(forKey: claudeOAuthAccountCandidateMapDefaultsKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: ClaudeOAuthAccountBindingCandidate].self, from: data)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to decode Claude OAuth account binding candidates",
+                metadata: ["error": String(describing: error)])
+            return [:]
+        }
+    }
+
+    private func confirmClaudeOAuthAccountBindingCandidate(
+        owner: String,
+        identity: String,
+        observedAt: Date) -> Bool
+    {
+        var candidates = Self.loadClaudeOAuthAccountBindingCandidateMap(from: self.settings.userDefaults)
+        if let candidate = candidates[owner],
+           candidate.identity == identity,
+           candidate.observedAt < observedAt
+        {
+            candidates.removeValue(forKey: owner)
+            self.persistClaudeOAuthAccountBindingCandidateMap(candidates)
+            return true
+        }
+        candidates[owner] = ClaudeOAuthAccountBindingCandidate(identity: identity, observedAt: observedAt)
+        self.persistClaudeOAuthAccountBindingCandidateMap(candidates)
+        return false
+    }
+
+    private func resolvedClaudeOAuthHistoryOwner(evidence: ClaudeOAuthHistoryEvidence) -> String? {
+        let requiresClaudeCodeCorroboration = evidence.persistentRefHash != nil
+            || evidence.keychainCredentialMismatch
+            || evidence.keychainCredentialAbsent
+            || evidence.keychainCredentialUnavailable
+        guard requiresClaudeCodeCorroboration else {
+            // Explicit/environment credentials do not belong to Claude Code's active-account lifecycle.
+            return evidence.owner
+        }
+        guard case let .stable(currentAccountIdentity) = evidence.activeAccountObservation else {
+            // An account/credential change while capturing the UUID cannot safely identify this sample.
+            return nil
+        }
+        var map = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)
+        if let mapped = map[evidence.owner] {
+            guard let currentAccountIdentity else {
+                return evidence.keychainCredentialMismatch || evidence.keychainCredentialUnavailable
+                    ? nil
+                    : evidence.owner
+            }
+            guard mapped != currentAccountIdentity else {
+                self.clearClaudeOAuthAccountBindingCandidate(owner: evidence.owner)
+                return evidence.owner
+            }
+            guard evidence.persistentRefHash != nil,
+                  self.confirmClaudeOAuthAccountBindingCandidate(
+                      owner: evidence.owner,
+                      identity: currentAccountIdentity,
+                      observedAt: evidence.observedAt)
+            else {
+                return nil
+            }
+            // Two stable exact-Keychain observations repair a binding poisoned by a non-atomic login.
+            map[evidence.owner] = currentAccountIdentity
+            self.persistClaudeOAuthAccountUuidMap(map)
+            return evidence.owner
+        }
+
+        if evidence.keychainCredentialUnavailable,
+           !evidence.keychainCredentialMismatch
+        {
+            // With no authoritative binding, the secret-derived file owner is the only safe bootstrap scope.
+            // Existing bindings are checked above, so normal background gating cannot bypass a detected switch.
+            return evidence.owner
+        }
+        if evidence.keychainCredentialAbsent {
+            // A proven-empty Keychain leaves the file credential as the only owner. Existing bindings were
+            // checked above, so an unbound owner is safe without inventing account continuity.
+            return evidence.owner
+        }
+
+        guard let currentAccountIdentity else {
+            return evidence.keychainCredentialMismatch || evidence.keychainCredentialUnavailable
+                ? nil
+                : evidence.owner
+        }
+        guard evidence.persistentRefHash != nil else { return nil }
+        // Two stable exact-Keychain observations are required before a first binding becomes authoritative.
+        if self.confirmClaudeOAuthAccountBindingCandidate(
+            owner: evidence.owner,
+            identity: currentAccountIdentity,
+            observedAt: evidence.observedAt)
+        {
+            map[evidence.owner] = currentAccountIdentity
+            self.persistClaudeOAuthAccountUuidMap(map)
+        }
+        return evidence.owner
+    }
+
+    private func clearClaudeOAuthAccountBindingCandidate(owner: String) {
+        var candidates = Self.loadClaudeOAuthAccountBindingCandidateMap(from: self.settings.userDefaults)
+        guard candidates.removeValue(forKey: owner) != nil else { return }
+        self.persistClaudeOAuthAccountBindingCandidateMap(candidates)
+    }
+
+    private func persistClaudeOAuthAccountBindingCandidateMap(
+        _ candidates: [String: ClaudeOAuthAccountBindingCandidate])
+    {
+        do {
+            let data = try JSONEncoder().encode(candidates)
+            self.settings.userDefaults.set(data, forKey: Self.claudeOAuthAccountCandidateMapDefaultsKey)
+        } catch {
+            CodexBarLog.logger(LogCategories.confetti).error(
+                "Failed to encode Claude OAuth account binding candidates",
+                metadata: ["error": String(describing: error)])
+        }
+    }
+
+    nonisolated static func activeClaudeAccountIdentity() -> String? {
+        self.activeClaudeAccountUuid().map(self.claudeAccountIdentity)
+    }
+
+    private nonisolated static func claudeAccountIdentity(_ uuid: String) -> String {
+        self.sha256Hex(
+            "claude:active-account:v1:\(uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
+    }
+
+    #if DEBUG
+    static func withActiveClaudeAccountUuidForTesting<T>(
+        _ uuid: String?,
+        _ body: () async throws -> T) async rethrows -> T
+    {
+        try await ClaudeActiveAccountProbe.$activeClaudeAccountUuidOverrideForTesting.withValue(
+            .value(uuid),
+            operation: body)
+    }
+
+    nonisolated static func _activeClaudeAccountIdentityForTesting(_ uuid: String) -> String {
+        self.claudeAccountIdentity(uuid)
+    }
+    #endif
+
     private func resolvePlanUtilizationAccountKey(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
@@ -1413,5 +1631,48 @@ actor PlanUtilizationHistoryPersistenceCoordinator {
         await Task.detached(priority: .utility) {
             store.save(snapshot)
         }.value
+    }
+}
+
+/// Prompt-free reader for the active Claude account UUID recorded in `~/.claude.json`. The `@TaskLocal` test
+/// seam lives here (not on `UsageStore`) because Swift forbids stored properties in extensions and task-local
+/// storage must be nonisolated, whereas `UsageStore` is `@MainActor`.
+private enum ClaudeActiveAccountProbe {
+    #if DEBUG
+    enum Override: Sendable {
+        case value(String?)
+    }
+
+    @TaskLocal static var activeClaudeAccountUuidOverrideForTesting: Override?
+    #endif
+
+    private struct ClaudeConfigAccount: Decodable {
+        struct OAuthAccount: Decodable {
+            let accountUuid: String?
+        }
+
+        let oauthAccount: OAuthAccount?
+    }
+
+    static func activeClaudeAccountUuid() -> String? {
+        #if DEBUG
+        if case let .value(uuid) = self.activeClaudeAccountUuidOverrideForTesting {
+            return uuid
+        }
+        #endif
+        // `~/.claude.json` is a SIBLING of `.claude/`, not inside it. Home resolution mirrors
+        // `ClaudeOAuthCredentials.defaultCredentialsURL()`. This intentionally does NOT honor
+        // CLAUDE_CONFIG_DIR: the credential store that yields `historyOwnerIdentifier` is purely
+        // home-relative, so the accountUuid corroboration must resolve against the same home or the
+        // two signals would point at different accounts.
+        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
+        guard let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode(ClaudeConfigAccount.self, from: data),
+              let uuid = decoded.oauthAccount?.accountUuid?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !uuid.isEmpty
+        else {
+            return nil
+        }
+        return uuid
     }
 }

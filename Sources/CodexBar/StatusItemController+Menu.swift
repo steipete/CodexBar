@@ -634,6 +634,21 @@ extension StatusItemController {
             return false
         }
 
+        if context.currentProvider == .claude, self.store.claudeSwapAccountSnapshots.count > 1 {
+            let cards = self.store.claudeSwapAccountSnapshots.compactMap { account in
+                self.menuCardModel(
+                    for: .claude,
+                    snapshotOverride: account.snapshot,
+                    errorOverride: ClaudeSwapAccountProjection.displayError(
+                        accountError: account.error,
+                        adapterError: self.store.claudeSwapLastError),
+                    forceOverrideCard: account.snapshot == nil,
+                    accountOverride: AccountInfo(email: account.displayLabel, plan: nil))
+            }
+            self.addStackedMenuCards(cards, to: menu, context: context)
+            return false
+        }
+
         guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
         let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
         if context.openAIContext.hasOpenAIWebMenuItems ||

@@ -106,6 +106,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var workspaceID: String?
     public var enterpriseHost: String?
     public var tokenAccounts: ProviderTokenAccountData?
+    public var claudeSwapEnabled: Bool?
+    public var claudeSwapExecutablePath: String?
     public var codexActiveSource: CodexActiveSource?
     public var codexProfileHomePaths: [String]?
     public var quotaWarnings: QuotaWarningConfig?
@@ -127,6 +129,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         workspaceID: String? = nil,
         enterpriseHost: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
+        claudeSwapEnabled: Bool? = nil,
+        claudeSwapExecutablePath: String? = nil,
         codexActiveSource: CodexActiveSource? = nil,
         codexProfileHomePaths: [String]? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
@@ -147,6 +151,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.workspaceID = workspaceID
         self.enterpriseHost = enterpriseHost
         self.tokenAccounts = tokenAccounts
+        self.claudeSwapEnabled = claudeSwapEnabled
+        self.claudeSwapExecutablePath = claudeSwapExecutablePath
         self.codexActiveSource = codexActiveSource
         self.codexProfileHomePaths = codexProfileHomePaths
         self.quotaWarnings = quotaWarnings
@@ -178,6 +184,10 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
 
     public var sanitizedEnterpriseHost: String? {
         Self.clean(self.enterpriseHost)
+    }
+
+    public var sanitizedClaudeSwapExecutablePath: String? {
+        Self.clean(self.claudeSwapExecutablePath)
     }
 
     public var sanitizedAWSProfile: String? {
