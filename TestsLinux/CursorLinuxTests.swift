@@ -39,6 +39,11 @@ struct CursorLinuxTests {
     }
 
     @Test
+    func `Cursor descriptor accepts explicit web source`() {
+        #expect(CursorProviderDescriptor.descriptor.fetchPlan.sourceModes.contains(.web))
+    }
+
+    @Test
     func `Cursor manual cookie does not require macOS web support`() {
         #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
