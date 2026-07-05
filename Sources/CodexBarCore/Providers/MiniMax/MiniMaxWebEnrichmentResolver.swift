@@ -19,8 +19,8 @@ enum MiniMaxWebEnrichmentResolver {
         return self.deduplicated(candidates)
     }
 
-    /// API-token enrichment: explicit cookies, desktop Agent session, validated cache, and user-initiated
-    /// browser import only.
+    // API-token enrichment: explicit cookies, desktop Agent session, validated cache, and user-initiated
+    // browser import only.
     #if os(macOS)
     static func apiEnrichmentCandidates(
         context: ProviderFetchContext,
