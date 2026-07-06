@@ -279,6 +279,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
+        if provider == .alibabatokenplan {
+            return AlibabaTokenPlanUsageFetcher.dashboardURL(
+                region: self.settings.alibabaTokenPlanAPIRegion,
+                environment: environment)
+        }
         if provider == .minimax {
             return self.settings.minimaxAPIRegion.dashboardURL
         }

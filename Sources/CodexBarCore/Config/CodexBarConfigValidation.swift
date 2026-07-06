@@ -271,6 +271,13 @@ public enum CodexBarConfigValidator {
                 isValid: AlibabaCodingPlanAPIRegion(rawValue: region) != nil,
                 displayName: "Alibaba Coding Plan",
                 issues: &issues)
+        case .alibabatokenplan:
+            self.validateKnownRegion(
+                region,
+                provider: provider,
+                isValid: AlibabaTokenPlanAPIRegion(rawValue: region) != nil,
+                displayName: "Alibaba Token Plan",
+                issues: &issues)
         case .moonshot:
             self.validateKnownRegion(
                 region,

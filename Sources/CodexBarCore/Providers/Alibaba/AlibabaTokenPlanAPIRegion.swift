@@ -53,4 +53,8 @@ public enum AlibabaTokenPlanAPIRegion: String, CaseIterable, Sendable {
             "sfm_tokenplanteams_dp_cn"
         }
     }
+
+    public var cookieCacheScope: CookieHeaderCache.Scope {
+        .providerVariant("alibaba-token-plan.\(self.rawValue)")
+    }
 }

@@ -15,9 +15,10 @@ public struct CodexBarConfig: Codable, Sendable {
         metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) -> CodexBarConfig
     {
         let providers = UsageProvider.allCases.map { provider in
-            ProviderConfig(
-                id: provider,
-                enabled: metadata[provider]?.defaultEnabled)
+            Self.defaultProviderConfig(
+                provider,
+                metadata: metadata,
+                alibabaTokenPlanRegion: .international)
         }
         return CodexBarConfig(version: Self.currentVersion, providers: providers)
     }
@@ -57,9 +58,10 @@ public struct CodexBarConfig: Codable, Sendable {
         }
 
         for provider in UsageProvider.allCases where !seen.contains(provider) {
-            normalized.append(ProviderConfig(
-                id: provider,
-                enabled: metadata[provider]?.defaultEnabled))
+            normalized.append(Self.defaultProviderConfig(
+                provider,
+                metadata: metadata,
+                alibabaTokenPlanRegion: .chinaMainland))
         }
 
         return CodexBarConfig(
@@ -90,6 +92,17 @@ public struct CodexBarConfig: Codable, Sendable {
         } else {
             self.providers.append(config)
         }
+    }
+
+    private static func defaultProviderConfig(
+        _ provider: UsageProvider,
+        metadata: [UsageProvider: ProviderMetadata],
+        alibabaTokenPlanRegion: AlibabaTokenPlanAPIRegion) -> ProviderConfig
+    {
+        ProviderConfig(
+            id: provider,
+            enabled: metadata[provider]?.defaultEnabled,
+            region: provider == .alibabatokenplan ? alibabaTokenPlanRegion.rawValue : nil)
     }
 }
 

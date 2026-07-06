@@ -24,8 +24,8 @@ extension SettingsStore {
 
     var alibabaTokenPlanAPIRegion: AlibabaTokenPlanAPIRegion {
         get {
-            let raw = self.configSnapshot.providerConfig(for: .alibabatokenplan)?.region
-            return AlibabaTokenPlanAPIRegion(rawValue: raw ?? "") ?? .international
+            let raw = self.configSnapshot.providerConfig(for: .alibabatokenplan)?.sanitizedRegion
+            return AlibabaTokenPlanAPIRegion(rawValue: raw ?? "") ?? .chinaMainland
         }
         set {
             self.updateProviderConfig(provider: .alibabatokenplan) { entry in

@@ -15,6 +15,7 @@ public enum CookieHeaderCache {
         case managedAccount(UUID)
         case managedStoreUnreadable
         case profileHome(String)
+        case providerVariant(String)
 
         public var isolationIdentifier: String {
             switch self {
@@ -24,6 +25,8 @@ public enum CookieHeaderCache {
                 "managed-store-unreadable"
             case let .profileHome(path):
                 "profile-home.\(Self.profileHomeDigest(path))"
+            case let .providerVariant(variant):
+                "provider-variant.\(Self.providerVariantDigest(variant))"
             }
         }
 
@@ -39,6 +42,19 @@ public enum CookieHeaderCache {
                 .joined()
             #else
             let digest = standardized.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { partial, byte in
+                (partial ^ UInt64(byte)) &* 1_099_511_628_211
+            }
+            return String(digest, radix: 16)
+            #endif
+        }
+
+        private static func providerVariantDigest(_ variant: String) -> String {
+            #if canImport(CryptoKit)
+            return SHA256.hash(data: Data(variant.utf8))
+                .map { String(format: "%02x", $0) }
+                .joined()
+            #else
+            let digest = variant.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { partial, byte in
                 (partial ^ UInt64(byte)) &* 1_099_511_628_211
             }
             return String(digest, radix: 16)
