@@ -10,7 +10,7 @@ public struct KimiUsageFetcher: Sendable {
     private static let usageURL =
         URL(string: "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages")!
     private static let subscriptionStatURL =
-        URL(string: "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStat")!
+        URL(string: "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats")!
 
     public static func fetchCodeAPIUsage(
         apiKey: String,
@@ -133,6 +133,7 @@ public struct KimiUsageFetcher: Sendable {
             weekly: codingUsage.detail,
             rateLimit: codingUsage.limits?.first?.detail,
             subscriptionBalance: subscriptionStat?.subscriptionBalance,
+            subscriptionCodeWeeklyLimit: subscriptionStat?.ratelimitCode7d,
             updatedAt: now)
     }
 

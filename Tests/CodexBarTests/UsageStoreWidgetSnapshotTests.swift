@@ -53,8 +53,8 @@ struct UsageStoreWidgetSnapshotTests {
     }
 
     @Test
-    func `widget snapshot includes Kimi monthly quota`() async throws {
-        let suite = "UsageStoreWidgetSnapshotTests-kimi-monthly"
+    func `widget snapshot includes Kimi subscription quota rows`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-kimi-subscription-rows"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
 
@@ -82,6 +82,14 @@ struct UsageStoreWidgetSnapshotTests {
                         windowMinutes: nil,
                         resetsAt: nil,
                         resetDescription: nil)),
+                NamedRateWindow(
+                    id: "kimi-code-7d",
+                    title: "Code 7-day",
+                    window: RateWindow(
+                        usedPercent: 10,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
             ],
             updatedAt: Date(),
             identity: ProviderIdentitySnapshot(
@@ -95,14 +103,14 @@ struct UsageStoreWidgetSnapshotTests {
         store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
         defer { store._test_widgetSnapshotSaveOverride = nil }
 
-        store.persistWidgetSnapshot(reason: "kimi-monthly-test")
+        store.persistWidgetSnapshot(reason: "kimi-subscription-rows-test")
         await store.widgetSnapshotPersistTask?.value
 
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .kimi })
         // Widgets preserve persisted lane order; menu-only presentation may reorder these lanes.
-        #expect(entry.usageRows?.map(\.id) == ["primary", "secondary", "kimi-monthly"])
-        #expect(entry.usageRows?.map(\.title) == ["Weekly", "Rate Limit", "Monthly"])
-        #expect(entry.usageRows?.compactMap(\.percentLeft) == [75, 50, 25])
+        #expect(entry.usageRows?.map(\.id) == ["primary", "secondary", "kimi-monthly", "kimi-code-7d"])
+        #expect(entry.usageRows?.map(\.title) == ["Weekly", "Rate Limit", "Monthly", "Code 7-day"])
+        #expect(entry.usageRows?.compactMap(\.percentLeft) == [75, 50, 25, 90])
     }
 
     @Test
