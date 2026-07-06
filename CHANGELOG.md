@@ -4,6 +4,7 @@
 
 ### Added
 - Widgets: make Kimi available with Weekly, Rate Limit, and Monthly quota rows. Thanks @joeVenner!
+- Kimi: show the subscription 7-day Code quota from the membership stats endpoint. Thanks @Skyzer!
 
 ### Fixed
 - Amp: open the current Usage page from the menu dashboard action. Thanks @3kh0!
@@ -18,6 +19,7 @@
 - Devin: keep exact 1% usage from being inflated to 100% while preserving fractional fallback quota semantics. Thanks @Lex-ic-on!
 - Kimi K2: reject invalid and out-of-range numeric timestamps while preserving valid second and millisecond values. Thanks @joeVenner!
 - Kimi K2: reject non-finite credit and token values before they reach menus, CLI output, or widgets. Thanks @joeVenner!
+- Kimi: call the current `GetSubscriptionStats` membership endpoint so the Monthly subscription quota is populated again. Thanks @Skyzer!
 - Kimi: show the five-hour rate limit before the weekly quota while preserving existing menu-bar metric preferences. Thanks @Zihao-Qi!
 
 ## 0.40.0 — 2026-07-05

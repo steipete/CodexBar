@@ -181,14 +181,13 @@ extension UsageStore {
                 title: metadata?.opusLabel ?? "Opus",
                 percentLeft: snapshot.tertiary?.remainingPercent))
         }
-        if provider == .kimi,
-           let monthly = snapshot.extraRateWindows?.first(where: { $0.id == "kimi-monthly" }),
-           monthly.usageKnown
-        {
-            rows.append(WidgetSnapshot.WidgetUsageRowSnapshot(
-                id: monthly.id,
-                title: monthly.title,
-                percentLeft: monthly.window.remainingPercent))
+        if provider == .kimi {
+            rows.append(contentsOf: snapshot.extraRateWindows?.filter(\.usageKnown).map { window in
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: window.id,
+                    title: window.title,
+                    percentLeft: window.window.remainingPercent)
+            } ?? [])
         }
         return rows.filter { $0.percentLeft != nil }
     }

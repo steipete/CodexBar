@@ -5,23 +5,27 @@ public struct KimiUsageSnapshot: Sendable {
     public let rateLimit: KimiUsageDetail?
     public let updatedAt: Date
     let subscriptionBalance: KimiSubscriptionBalance?
+    let subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit?
 
     public init(weekly: KimiUsageDetail, rateLimit: KimiUsageDetail?, updatedAt: Date) {
         self.weekly = weekly
         self.rateLimit = rateLimit
         self.updatedAt = updatedAt
         self.subscriptionBalance = nil
+        self.subscriptionCodeWeeklyLimit = nil
     }
 
     init(
         weekly: KimiUsageDetail,
         rateLimit: KimiUsageDetail?,
         subscriptionBalance: KimiSubscriptionBalance?,
+        subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit? = nil,
         updatedAt: Date)
     {
         self.weekly = weekly
         self.rateLimit = rateLimit
         self.subscriptionBalance = subscriptionBalance
+        self.subscriptionCodeWeeklyLimit = subscriptionCodeWeeklyLimit
         self.updatedAt = updatedAt
     }
 
@@ -100,6 +104,19 @@ extension KimiUsageSnapshot {
             return NamedRateWindow(id: "kimi-monthly", title: "Monthly", window: window)
         }
 
+        let subscriptionCodeWeeklyWindow = self.subscriptionCodeWeeklyLimit.flatMap { limit -> NamedRateWindow? in
+            guard limit.enabled != false else { return nil }
+            guard let ratio = limit.ratio else { return nil }
+            let window = RateWindow(
+                usedPercent: Self.clampedPercent(ratio * 100),
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: Self.parseDate(limit.resetTime),
+                resetDescription: nil)
+            return NamedRateWindow(id: "kimi-code-7d", title: "Code 7-day", window: window)
+        }
+
+        let extraRateWindows = [monthlyWindow, subscriptionCodeWeeklyWindow].compactMap(\.self)
+
         let identity = ProviderIdentitySnapshot(
             providerID: .kimi,
             accountEmail: nil,
@@ -110,7 +127,7 @@ extension KimiUsageSnapshot {
             primary: weeklyWindow,
             secondary: rateLimitWindow,
             tertiary: nil,
-            extraRateWindows: monthlyWindow.map { [$0] },
+            extraRateWindows: extraRateWindows.isEmpty ? nil : extraRateWindows,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)

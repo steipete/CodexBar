@@ -376,7 +376,7 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
-    func `small and medium Kimi widgets keep all three persisted lane rows`() {
+    func `small and medium Kimi widgets keep all persisted quota rows`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .kimi,
@@ -388,6 +388,7 @@ struct CodexBarWidgetProviderTests {
                 WidgetSnapshot.WidgetUsageRowSnapshot(id: "primary", title: "Weekly", percentLeft: 75),
                 WidgetSnapshot.WidgetUsageRowSnapshot(id: "secondary", title: "Rate Limit", percentLeft: 50),
                 WidgetSnapshot.WidgetUsageRowSnapshot(id: "kimi-monthly", title: "Monthly", percentLeft: 25),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "kimi-code-7d", title: "Code 7-day", percentLeft: 90),
             ],
             creditsRemaining: nil,
             codeReviewRemainingPercent: nil,
@@ -401,9 +402,9 @@ struct CodexBarWidgetProviderTests {
             for: entry,
             limit: WidgetUsageRow.mediumWidgetRowLimit(for: entry))
 
-        #expect(WidgetUsageRow.smallWidgetRowLimit(for: entry) == 3)
-        #expect(WidgetUsageRow.mediumWidgetRowLimit(for: entry) == 3)
-        #expect(smallRows.map(\.id) == ["primary", "secondary", "kimi-monthly"])
+        #expect(WidgetUsageRow.smallWidgetRowLimit(for: entry) == 4)
+        #expect(WidgetUsageRow.mediumWidgetRowLimit(for: entry) == 4)
+        #expect(smallRows.map(\.id) == ["primary", "secondary", "kimi-monthly", "kimi-code-7d"])
         #expect(mediumRows == smallRows)
     }
 
