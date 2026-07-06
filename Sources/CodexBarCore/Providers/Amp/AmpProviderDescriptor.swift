@@ -21,7 +21,7 @@ public enum AmpProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
-                dashboardURL: "https://ampcode.com/settings#billing",
+                dashboardURL: "https://ampcode.com/settings/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .amp,

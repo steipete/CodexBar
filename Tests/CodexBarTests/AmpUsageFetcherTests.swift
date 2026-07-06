@@ -30,6 +30,11 @@ struct AmpUsageFetcherTests {
     }
 
     @Test
+    func `provider dashboard points to current usage page`() {
+        #expect(AmpProviderDescriptor.descriptor.metadata.dashboardURL == "https://ampcode.com/settings/usage")
+    }
+
+    @Test
     func `web fallback requires browser import or a manual session cookie`() {
         let disabled = ProviderSettingsSnapshot.AmpProviderSettings(cookieSource: .off, manualCookieHeader: nil)
         let invalidManual = ProviderSettingsSnapshot.AmpProviderSettings(

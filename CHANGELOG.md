@@ -6,6 +6,7 @@
 - Widgets: make Kimi available with Weekly, Rate Limit, and Monthly quota rows. Thanks @joeVenner!
 
 ### Fixed
+- Amp: open the current Usage page from the menu dashboard action. Thanks @3kh0!
 - Settings: keep Language, Default Terminal, and Refresh cadence selectors interactive on macOS 27.
 - Codex menu: hide error-only optional Credits and OpenAI web setup diagnostics while keeping them visible in provider Settings.
 - Codex quotas: show the session quota as unavailable while an exhausted weekly limit is still binding, including menu-bar icons and widgets. Thanks @Yuxin-Qiao!
