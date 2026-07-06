@@ -79,10 +79,9 @@ enum IconRemainingResolver {
                 secondary: windows.dropFirst().first)
         }
         if style == .antigravity {
-            // Prefer current quota-summary buckets for fixed session/weekly lanes; fall back to legacy
-            // family representatives so older/local snapshots still keep the compact icon populated.
+            // Only current quota-summary buckets define the fixed session/weekly icon lanes.
             return self.antigravityQuotaSummaryWindows(snapshot: snapshot)
-                ?? (primary: snapshot.primary, secondary: snapshot.secondary)
+                ?? (primary: nil, secondary: nil)
         }
         if style == .codex {
             let windows = self.codexVisibleWindows(snapshot: snapshot, now: now)

@@ -49,7 +49,7 @@ struct CodexBarTests {
     }
 
     @Test
-    func `antigravity icon falls back to legacy family quota lanes`() {
+    func `antigravity icon ignores legacy model quota lanes`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 30, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 60, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
@@ -68,8 +68,8 @@ struct CodexBarTests {
 
         let remaining = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .antigravity)
 
-        #expect(remaining.primary == 70)
-        #expect(remaining.secondary == 40)
+        #expect(remaining.primary == nil)
+        #expect(remaining.secondary == nil)
     }
 
     @Test
