@@ -4,6 +4,12 @@ import Testing
 
 struct OllamaUsageFetcherTests {
     @Test
+    func `sign in errors point to current recovery page`() {
+        #expect(OllamaUsageError.notLoggedIn.errorDescription?.contains("https://ollama.com/signin") == true)
+        #expect(OllamaUsageError.noSessionCookie.errorDescription?.contains("https://ollama.com/signin") == true)
+    }
+
+    @Test
     func `attaches cookie for ollama hosts`() {
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://ollama.com/settings")))
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://www.ollama.com")))
