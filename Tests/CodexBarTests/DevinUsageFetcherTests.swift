@@ -142,6 +142,21 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
+    func `parses integer 1 percent without inflating to 100`() throws {
+        let response: [String: Any] = [
+            "daily_percentage": 1,
+            "weekly_percentage": 1,
+            "daily_reset_at": "2026-06-11T00:00:00-08:00",
+            "weekly_reset_at": "2026-06-14T00:00:00-08:00",
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.daily?.usedPercent == 1)
+        #expect(snapshot.weekly?.usedPercent == 1)
+    }
+
+    @Test
     func `parses zero percentages from JSON response`() throws {
         let data = Data("""
         {

@@ -146,7 +146,7 @@ public enum DevinUsageParser {
     private static func currentQuotaWindow(percent: Any?, resetsAt: Any?) -> DevinQuotaWindow? {
         guard let usedPercent = self.double(percent) else { return nil }
         return DevinQuotaWindow(
-            usedPercent: usedPercent <= 1 ? usedPercent * 100 : usedPercent,
+            usedPercent: usedPercent < 1 ? usedPercent * 100 : usedPercent,
             resetsAt: self.date(from: resetsAt))
     }
 
@@ -196,7 +196,7 @@ public enum DevinUsageParser {
 
     private static func percent(from object: Any) -> Double? {
         if let number = self.double(object) {
-            return number <= 1 ? number * 100 : number
+            return number < 1 ? number * 100 : number
         }
         guard let dictionary = object as? [String: Any] else { return nil }
 
@@ -211,14 +211,14 @@ public enum DevinUsageParser {
         ]
         for key in directKeys {
             if let value = self.double(dictionary[key]) {
-                return value <= 1 ? value * 100 : value
+                return value < 1 ? value * 100 : value
             }
         }
 
         let remainingKeys = ["remaining_percent", "remainingPercent", "percent_remaining", "percentRemaining"]
         for key in remainingKeys {
             if let value = self.double(dictionary[key]) {
-                let percent = value <= 1 ? value * 100 : value
+                let percent = value < 1 ? value * 100 : value
                 return 100 - percent
             }
         }
