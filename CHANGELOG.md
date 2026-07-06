@@ -10,6 +10,7 @@
 - Claude: distinguish Max 5x and Max 20x in the plan label instead of a flat "Max". Thanks @kes02!
 
 ### Fixed
+- Ollama: point missing-session recovery to the current `/signin` page instead of the protected settings page. Thanks @joeVenner!
 - Alibaba Token Plan: support International Model Studio while preserving China-mainland upgrades and isolating regional cookie caches. Thanks @harshav167!
 - Amp: open the current Usage page from the menu dashboard action. Thanks @3kh0!
 - Browser cookies: stop automatic Chromium-family probes after the first Safe Storage denial, while keeping an explicit Refresh retry available (#1952). Thanks @CoreyCole!
