@@ -639,7 +639,10 @@ public struct OllamaUsageFetcher: Sendable {
         if host == "ollama.com" || host == "www.ollama.com" {
             return path == "/signin"
         }
-        return host == "api.workos.com" && path.hasPrefix("/user_management/authorize")
+        // WorkOS AuthKit serves the hosted authorization flow from auth.workos.com
+        // (and historically api.workos.com); match any WorkOS host carrying the
+        // authorize path so the detection survives host changes or CNAMEs.
+        return host.hasSuffix(".workos.com") && path.hasPrefix("/user_management/authorize")
     }
 }
 
