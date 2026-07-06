@@ -27,7 +27,7 @@ extension StatusItemController {
 
         if providers.contains(.codex) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
-            if let resetAt = projection.sessionBindingResetAt {
+            if let resetAt = projection.nextMenuBarStateChangeAt {
                 delays.append(max(
                     Self.menuBarCountdownRefreshEpsilon,
                     resetAt.timeIntervalSince(now) + Self.menuBarCountdownRefreshEpsilon))

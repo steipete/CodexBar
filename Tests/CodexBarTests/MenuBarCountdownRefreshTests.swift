@@ -33,7 +33,7 @@ struct MenuBarCountdownRefreshTests {
     }
 
     @Test
-    func `status item schedules countdown and weekly cap refreshes`() {
+    func `status item schedules countdown and exhausted lane refreshes`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "MenuBarCountdownRefreshTests-scheduling"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -112,6 +112,23 @@ struct MenuBarCountdownRefreshTests {
             provider: .codex)
         controller.updateIcons()
         #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(90),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 40,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        controller.updateIcons()
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
 
         settings.resetTimesShowAbsolute = false
         store._setSnapshotForTesting(nil, provider: .codex)

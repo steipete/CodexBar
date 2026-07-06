@@ -320,14 +320,16 @@ struct CodexConsumerProjection {
         self.rateWindowsByLane[lane]
     }
 
-    var sessionBindingResetAt: Date? {
-        guard self.rateWindowsByLane[.session] != nil,
-              let weekly = self.rateWindowsByLane[.weekly],
-              Self.weeklyCapsSession(weekly: weekly, evaluationTime: self.evaluationTime)
-        else {
-            return nil
-        }
-        return weekly.resetsAt
+    var nextMenuBarStateChangeAt: Date? {
+        self.rateWindowsByLane.values.compactMap { window in
+            guard window.remainingPercent <= 0,
+                  let resetAt = window.resetsAt,
+                  resetAt > self.evaluationTime
+            else {
+                return nil
+            }
+            return resetAt
+        }.min()
     }
 
     func remainingPercent(for metric: SupplementalMetric) -> Double? {
