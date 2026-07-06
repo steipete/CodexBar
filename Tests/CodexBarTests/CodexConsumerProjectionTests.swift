@@ -231,6 +231,67 @@ struct CodexConsumerProjectionTests {
         #expect(projection.credits?.remaining == 92239)
     }
 
+    @Test
+    func `exhausted weekly lane caps session display until weekly reset`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-caps-session")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(4 * 24 * 3600)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 157,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        let session = try #require(projection.rateWindow(for: .session))
+        let weekly = try #require(projection.rateWindow(for: .weekly))
+
+        #expect(session.remainingPercent == 0)
+        #expect(session.resetsAt == weeklyReset)
+        #expect(weekly.remainingPercent == 0)
+        #expect(weekly.resetsAt == weeklyReset)
+    }
+
+    @Test
+    func `weekly cap does not alter session display when weekly has reset`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-reset-session-uncapped")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(-3600)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        let session = try #require(projection.rateWindow(for: .session))
+
+        #expect(session.remainingPercent == 99)
+        #expect(session.resetsAt == sessionReset)
+    }
+
     private func makeStore(suite: String) -> UsageStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

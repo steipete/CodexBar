@@ -236,6 +236,7 @@ struct CodexConsumerProjection {
     let hasCreditsHistory: Bool
 
     private let rateWindowsByLane: [RateLane: RateWindow]
+    private let now: Date
     private let codeReviewRemainingPercent: Double?
     private let codeReviewLimit: RateWindow?
 
@@ -296,12 +297,22 @@ struct CodexConsumerProjection {
             hasUsageBreakdown: hasUsageBreakdown,
             hasCreditsHistory: hasCreditsHistory,
             rateWindowsByLane: rateWindowsByLane,
+            now: context.now,
             codeReviewRemainingPercent: dashboardVisibility == .attached ? dashboard?.codeReviewRemainingPercent : nil,
             codeReviewLimit: dashboardVisibility == .attached ? dashboard?.codeReviewLimit : nil)
     }
 
     func rateWindow(for lane: RateLane) -> RateWindow? {
-        self.rateWindowsByLane[lane]
+        guard let window = self.rateWindowsByLane[lane] else { return nil }
+        switch lane {
+        case .session:
+            return Self.sessionDisplayWindow(
+                session: window,
+                weekly: self.rateWindowsByLane[.weekly],
+                now: self.now)
+        case .weekly:
+            return window
+        }
     }
 
     func remainingPercent(for metric: SupplementalMetric) -> Double? {
@@ -397,6 +408,33 @@ struct CodexConsumerProjection {
         }
 
         return (lane, window)
+    }
+
+    /// When Codex's weekly lane is exhausted, it is the binding cap: session quota cannot be used until
+    /// the weekly window resets, even if the API still reports room in the 5-hour bucket.
+    private static func weeklyCapsSession(weekly: RateWindow?, now: Date) -> Bool {
+        guard let weekly else { return false }
+        guard weekly.remainingPercent <= 0 else { return false }
+        return weekly.resetsAt.map { $0 > now } ?? true
+    }
+
+    private static func sessionDisplayWindow(
+        session: RateWindow,
+        weekly: RateWindow?,
+        now: Date) -> RateWindow
+    {
+        guard self.weeklyCapsSession(weekly: weekly, now: now),
+              session.remainingPercent > 0
+        else {
+            return session
+        }
+        return RateWindow(
+            usedPercent: 100,
+            windowMinutes: session.windowMinutes,
+            resetsAt: weekly?.resetsAt ?? session.resetsAt,
+            resetDescription: weekly?.resetDescription ?? session.resetDescription,
+            nextRegenPercent: session.nextRegenPercent,
+            isSyntheticPlaceholder: session.isSyntheticPlaceholder)
     }
 
     private static func menuBarFallback(
