@@ -100,4 +100,18 @@ enum GeminiAPITestHelpers {
     static func loadCodeAssistLegacyTierResponse() -> Data {
         self.loadCodeAssistResponse(tierId: "legacy-tier")
     }
+
+    static func consumerTierDeprecationResponse() -> Data {
+        self.jsonData([
+            "error": [
+                "code": 403,
+                "message": """
+                IneligibleTierError / UNSUPPORTED_CLIENT: This client is no longer supported for \
+                Gemini Code Assist for individuals. To continue using Gemini, please migrate to the \
+                Antigravity suite of products.
+                """,
+                "status": "PERMISSION_DENIED",
+            ],
+        ])
+    }
 }

@@ -104,6 +104,7 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
     case geminiNotInstalled
     case notLoggedIn
     case unsupportedAuthType(String)
+    case consumerTierDeprecated
     case parseFailed(String)
     case timedOut
     case apiError(String)
@@ -116,6 +117,11 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
             "Not logged in to Gemini. Run 'gemini' in Terminal to authenticate."
         case let .unsupportedAuthType(authType):
             "Gemini \(authType) auth not supported. Use Google account (OAuth) instead."
+        case .consumerTierDeprecated:
+            """
+            Google no longer supports Gemini CLI OAuth for individual, AI Pro, or Ultra accounts. \
+            Enable CodexBar's Antigravity provider, sign in to Antigravity or run `agy`, then refresh.
+            """
         case let .parseFailed(msg):
             "Could not parse Gemini usage: \(msg)"
         case .timedOut:
@@ -123,6 +129,33 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
         case let .apiError(msg):
             "Gemini API error: \(msg)"
         }
+    }
+
+    /// Detects Google's consumer-tier Gemini CLI shutdown responses.
+    public static func isConsumerTierDeprecationSignal(_ text: String) -> Bool {
+        let normalized = text.lowercased()
+        if normalized.contains("unsupported_client") {
+            return true
+        }
+        if normalized.contains("ineligibletiererror") {
+            return true
+        }
+        if normalized.contains("no longer supported"), normalized.contains("gemini code assist") {
+            return true
+        }
+        if normalized.contains("migrate"), normalized.contains("antigravity") {
+            return true
+        }
+        return false
+    }
+
+    public static func throwIfConsumerTierDeprecated(data: Data) throws {
+        guard let text = String(data: data, encoding: .utf8),
+              isConsumerTierDeprecationSignal(text)
+        else {
+            return
+        }
+        throw GeminiStatusProbeError.consumerTierDeprecated
     }
 }
 
@@ -255,7 +288,7 @@ public struct GeminiStatusProbe: Sendable {
         let claims = Self.extractClaimsFromToken(idToken)
 
         // Load Code Assist status to get project ID and tier (aligned with CLI setupUser logic)
-        let caStatus = await Self.loadCodeAssistStatus(
+        let caStatus = try await Self.loadCodeAssistStatus(
             accessToken: accessToken,
             timeout: timeout,
             dataLoader: dataLoader)
@@ -296,10 +329,12 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         if httpResponse.statusCode == 401 {
+            try GeminiStatusProbeError.throwIfConsumerTierDeprecated(data: data)
             throw GeminiStatusProbeError.notLoggedIn
         }
 
         guard httpResponse.statusCode == 200 else {
+            try GeminiStatusProbeError.throwIfConsumerTierDeprecated(data: data)
             throw GeminiStatusProbeError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -386,7 +421,8 @@ public struct GeminiStatusProbe: Sendable {
     private static func loadCodeAssistStatus(
         accessToken: String,
         timeout: TimeInterval,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async -> CodeAssistStatus
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        -> CodeAssistStatus
     {
         guard let url = URL(string: loadCodeAssistEndpoint) else {
             self.log.warning("loadCodeAssist: invalid endpoint URL")
@@ -415,6 +451,7 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
+            try GeminiStatusProbeError.throwIfConsumerTierDeprecated(data: data)
             Self.log.warning("loadCodeAssist: HTTP error", metadata: [
                 "statusCode": "\(httpResponse.statusCode)",
                 "body": String(data: data, encoding: .utf8) ?? "<binary>",
@@ -851,6 +888,7 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
+            try GeminiStatusProbeError.throwIfConsumerTierDeprecated(data: data)
             Self.log.error("Token refresh failed", metadata: [
                 "statusCode": "\(httpResponse.statusCode)",
             ])

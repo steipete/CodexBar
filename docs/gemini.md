@@ -70,5 +70,14 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
   - `legacy-tier` → "Legacy"
 - Email from `id_token` JWT claims.
 
+## Consumer-tier migration (June 2026)
+- Google stopped serving Gemini CLI OAuth for individual, AI Pro, and Ultra accounts on
+  2026-06-18. Standard/Enterprise, Google Cloud, Vertex, and API-key-backed setups are unchanged.
+- When quota, `loadCodeAssist`, or token-refresh responses include Google's unsupported-client
+  migration signal (`UNSUPPORTED_CLIENT`, `IneligibleTierError`, or Antigravity migration copy),
+  CodexBar surfaces `consumerTierDeprecated` with guidance to use the Antigravity provider.
+- Gemini CLI login still runs in Terminal; if OAuth fails there, check Terminal output and switch
+  to Antigravity (`agy` or the Antigravity app) for consumer-tier quota tracking.
+
 ## Key files
 - `Sources/CodexBarCore/Providers/Gemini/GeminiStatusProbe.swift`
