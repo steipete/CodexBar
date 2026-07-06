@@ -126,4 +126,62 @@ struct CodexWeeklyCapSurfaceTests {
         #expect(cappedCredits == 80)
         #expect(resetCredits == nil)
     }
+
+    @Test
+    func `combined menu bar modes ignore exhausted weekly lane after its reset`() throws {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "CodexWeeklyCapSurfaceTests-combined-reset"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .codex
+        settings.usageBarsShowUsed = false
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
+
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionReset = now.addingTimeInterval(3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 1,
+                windowMinutes: 300,
+                resetsAt: sessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 10080,
+                resetsAt: now,
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-7200))
+        store._setSnapshotForTesting(snapshot, provider: .codex)
+
+        let selected = try #require(controller.menuBarMetricWindow(for: .codex, snapshot: snapshot, now: now))
+        #expect(selected.remainingPercent == 99)
+        #expect(selected.resetsAt == sessionReset)
+
+        settings.menuBarDisplayMode = .percent
+        #expect(controller.menuBarDisplayText(for: .codex, snapshot: snapshot, now: now) == "5h 99%")
+        settings.menuBarDisplayMode = .pace
+        #expect(controller.menuBarDisplayText(for: .codex, snapshot: snapshot, now: now) == "99%")
+        settings.menuBarDisplayMode = .both
+        #expect(controller.menuBarDisplayText(for: .codex, snapshot: snapshot, now: now) == "99%")
+        settings.menuBarDisplayMode = .resetTime
+        #expect(controller.menuBarDisplayText(for: .codex, snapshot: snapshot, now: now) == "↻ in 1h")
+    }
 }

@@ -27,6 +27,37 @@ struct CodexCombinedMetricHighestUsageTests {
     }
 
     @Test
+    func `combined codex metric ignores expired weekly lane when ranking highest usage`() {
+        let store = self.makeStore(suiteName: "CodexCombinedMetricHighestUsageTests-expired-weekly-ranking")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: now,
+                    resetDescription: nil),
+                updatedAt: now.addingTimeInterval(-7200)),
+            provider: .codex)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 80, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .claude)
+
+        let highest = store.providerWithHighestUsage(now: now)
+        #expect(highest?.provider == .claude)
+        #expect(highest?.usedPercent == 80)
+    }
+
+    @Test
     func `combined codex metric stays eligible when only one lane is exhausted`() {
         let store = self.makeStore(suiteName: "CodexCombinedMetricHighestUsageTests-one-exhausted")
 

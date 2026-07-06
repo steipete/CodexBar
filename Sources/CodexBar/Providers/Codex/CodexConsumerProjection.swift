@@ -320,6 +320,17 @@ struct CodexConsumerProjection {
         self.rateWindowsByLane[lane]
     }
 
+    func menuBarSelectableRateWindow(for lane: RateLane) -> RateWindow? {
+        guard let window = self.rateWindow(for: lane) else { return nil }
+        guard window.remainingPercent <= 0,
+              let resetAt = window.resetsAt,
+              resetAt <= self.evaluationTime
+        else {
+            return window
+        }
+        return nil
+    }
+
     var nextMenuBarStateChangeAt: Date? {
         self.rateWindowsByLane.values.compactMap { window in
             guard window.remainingPercent <= 0,
@@ -516,5 +527,38 @@ extension UsageStore {
             now: now)
         guard projection.menuBarFallback == .creditsBalance else { return nil }
         return projection.credits?.remaining
+    }
+
+    func codexMenuBarMetricWindow(snapshot: UsageSnapshot, now: Date = Date()) -> RateWindow? {
+        let projection = self.codexConsumerProjection(
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)
+        let lanes = projection.visibleRateLanes
+        let first = lanes.first.flatMap { projection.rateWindow(for: $0) }
+        let second = lanes.dropFirst().first.flatMap { projection.rateWindow(for: $0) }
+
+        switch self.settings.menuBarMetricPreference(for: .codex, snapshot: snapshot) {
+        case .secondary, .tertiary:
+            return second ?? first
+        case .extraUsage:
+            return first
+        case .average:
+            guard self.settings.menuBarMetricSupportsAverage(for: .codex),
+                  let primary = first,
+                  let secondary = second
+            else {
+                return first
+            }
+            let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
+            return RateWindow(
+                usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
+        case .primaryAndSecondary:
+            return lanes.prefix(2)
+                .compactMap { projection.menuBarSelectableRateWindow(for: $0) }
+                .max(by: { $0.usedPercent < $1.usedPercent })
+        case .automatic, .primary, .monthlyPlan:
+            return first
+        }
     }
 }

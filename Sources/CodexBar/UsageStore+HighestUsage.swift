@@ -5,7 +5,7 @@ import Foundation
 extension UsageStore {
     /// Returns the enabled candidate provider with the highest usage percentage (closest to rate limit).
     /// Excludes providers that are fully rate-limited.
-    func providerWithHighestUsage(candidateProviders: [UsageProvider]? = nil)
+    func providerWithHighestUsage(candidateProviders: [UsageProvider]? = nil, now: Date = Date())
         -> (provider: UsageProvider, usedPercent: Double)?
     {
         let candidateSet = candidateProviders.map(Set.init)
@@ -14,7 +14,11 @@ extension UsageStore {
             where candidateSet?.contains(provider) ?? true
         {
             guard let snapshot = self.snapshots[provider] else { continue }
-            guard let window = self.menuBarMetricWindowForHighestUsage(provider: provider, snapshot: snapshot) else {
+            guard let window = self.menuBarMetricWindowForHighestUsage(
+                provider: provider,
+                snapshot: snapshot,
+                now: now)
+            else {
                 continue
             }
             let percent = window.usedPercent
@@ -32,10 +36,17 @@ extension UsageStore {
         return highest
     }
 
-    private func menuBarMetricWindowForHighestUsage(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
+    private func menuBarMetricWindowForHighestUsage(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        now: Date) -> RateWindow?
+    {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         if provider == .antigravity, effectivePreference == .automatic {
             return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
+        }
+        if provider == .codex {
+            return self.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
         }
         return MenuBarMetricWindowResolver.rateWindow(
             preference: effectivePreference,

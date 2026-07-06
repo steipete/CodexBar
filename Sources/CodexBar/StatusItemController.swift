@@ -348,43 +348,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?, now: Date) -> RateWindow? {
         guard let snapshot else { return nil }
-        let projection = CodexConsumerProjection.make(
-            surface: .menuBar,
-            context: CodexConsumerProjection.Context(
-                snapshot: snapshot,
-                rawUsageError: nil,
-                liveCredits: self.store.credits,
-                rawCreditsError: self.store.lastCreditsError,
-                liveDashboard: self.store.openAIDashboard,
-                rawDashboardError: self.store.lastOpenAIDashboardError,
-                dashboardAttachmentAuthorized: self.store.openAIDashboardAttachmentAuthorized,
-                dashboardRequiresLogin: self.store.openAIDashboardRequiresLogin,
-                now: now))
-        let lanes = projection.visibleRateLanes
-        let first = lanes.first.flatMap { projection.rateWindow(for: $0) }
-        let second = lanes.dropFirst().first.flatMap { projection.rateWindow(for: $0) }
-        let preference = self.settings.menuBarMetricPreference(for: .codex, snapshot: snapshot)
-
-        switch preference {
-        case .secondary, .tertiary:
-            return second ?? first
-        case .extraUsage:
-            return first
-        case .average:
-            guard self.settings.menuBarMetricSupportsAverage(for: .codex),
-                  let primary = first,
-                  let secondary = second
-            else {
-                return first
-            }
-            let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
-            return RateWindow(
-                usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-        case .primaryAndSecondary:
-            return [first, second].compactMap(\.self).max(by: { $0.usedPercent < $1.usedPercent })
-        case .automatic, .primary, .monthlyPlan:
-            return first
-        }
+        return self.store.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
     }
 
     init(
