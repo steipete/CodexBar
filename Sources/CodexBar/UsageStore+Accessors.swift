@@ -2,6 +2,10 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    func version(for provider: UsageProvider) -> String? {
+        self.versions[provider]
+    }
+
     var codexSnapshot: UsageSnapshot? {
         self.snapshots[.codex]
     }

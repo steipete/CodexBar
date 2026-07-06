@@ -1,5 +1,3 @@
-import AppKit
-import CodexBarCore
 import Testing
 @testable import CodexBar
 
@@ -21,11 +19,9 @@ struct GeminiLoginAlertTests {
     }
 
     @Test
-    func `returns informational alert on success`() {
+    func `returns nil on success`() {
         let result = GeminiLoginRunner.Result(outcome: .success)
         let info = StatusItemController.geminiLoginAlertInfo(for: result)
-        #expect(info?.title == "Gemini sign-in opened in Terminal")
-        #expect(info?.message == GeminiConsumerTierMigration.terminalLoginGuidance)
-        #expect(info?.style == .informational)
+        #expect(info == nil)
     }
 }

@@ -725,33 +725,23 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func presentGeminiLoginResult(_ result: GeminiLoginRunner.Result) {
         guard let info = Self.geminiLoginAlertInfo(for: result) else { return }
-        self.presentLoginAlert(title: info.title, message: info.message, style: info.style)
+        self.presentLoginAlert(title: info.title, message: info.message)
     }
 
     func presentAntigravityLoginResult(_ result: AntigravityLoginRunner.Result) {
         guard let info = Self.antigravityLoginAlertInfo(for: result) else { return }
-        self.presentLoginAlert(title: info.title, message: info.message, style: info.style)
+        self.presentLoginAlert(title: info.title, message: info.message)
     }
 
     struct LoginAlertInfo: Equatable {
         let title: String
         let message: String
-        let style: NSAlert.Style
-
-        init(title: String, message: String, style: NSAlert.Style = .warning) {
-            self.title = title
-            self.message = message
-            self.style = style
-        }
     }
 
     nonisolated static func geminiLoginAlertInfo(for result: GeminiLoginRunner.Result) -> LoginAlertInfo? {
         switch result.outcome {
         case .success:
-            LoginAlertInfo(
-                title: L("Gemini sign-in opened in Terminal"),
-                message: L(GeminiConsumerTierMigration.terminalLoginGuidance),
-                style: .informational)
+            nil
         case .missingBinary:
             LoginAlertInfo(
                 title: L("Gemini CLI not found"),
@@ -778,11 +768,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
-    func presentLoginAlert(title: String, message: String, style: NSAlert.Style = .warning) {
+    func presentLoginAlert(title: String, message: String) {
         let alert = NSAlert()
         alert.messageText = L(title)
         alert.informativeText = L(message)
-        alert.alertStyle = style
+        alert.alertStyle = .warning
         alert.runModal()
     }
 

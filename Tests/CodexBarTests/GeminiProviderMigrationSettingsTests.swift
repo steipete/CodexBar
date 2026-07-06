@@ -59,30 +59,36 @@ struct GeminiProviderMigrationSettingsTests {
     }
 
     @Test
-    func `not logged in proactive hint does not satisfy typed predicate`() {
-        let message = GeminiStatusProbeError.notLoggedIn.errorDescription ?? ""
-        #expect(GeminiStatusProbeError.isConsumerTierDeprecationSignal(message))
-        #expect(!UsageStore.isGeminiConsumerTierDeprecationError(GeminiStatusProbeError.notLoggedIn))
+    func `ordinary auth errors do not set migration observation`() {
+        let settings = self.makeSettings()
+        let store = self.makeStore(settings: settings)
+
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.notLoggedIn)
+
+        #expect(!store.geminiObservedConsumerTierDeprecation)
     }
 
     @Test
     func `settings action appears when deprecation was observed`() {
         let settings = self.makeSettings()
         let store = self.makeStore(settings: settings)
-        store.syncGeminiConsumerTierDeprecationObservation(from: GeminiStatusProbeError.consumerTierDeprecated)
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.consumerTierDeprecated)
 
         let impl = GeminiProviderImplementation()
+        let antigravity = ProviderDescriptorRegistry.descriptor(for: .antigravity).metadata
+        let wasEnabled = settings.isProviderEnabled(provider: .antigravity, metadata: antigravity)
         let actions = impl.settingsActions(context: self.makeContext(settings: settings, store: store))
 
         #expect(actions.map(\.id) == ["gemini-antigravity-migration"])
+        #expect(settings.isProviderEnabled(provider: .antigravity, metadata: antigravity) == wasEnabled)
     }
 
     @Test
-    func `settings action hidden for not logged in even with proactive hint text stored`() {
+    func `settings action hidden for ordinary not logged in errors`() {
         let settings = self.makeSettings()
         let store = self.makeStore(settings: settings)
         store.errors[.gemini] = GeminiStatusProbeError.notLoggedIn.errorDescription
-        store.syncGeminiConsumerTierDeprecationObservation(from: GeminiStatusProbeError.notLoggedIn)
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.notLoggedIn)
 
         let impl = GeminiProviderImplementation()
         let actions = impl.settingsActions(context: self.makeContext(settings: settings, store: store))
@@ -101,11 +107,28 @@ struct GeminiProviderMigrationSettingsTests {
         let settings = self.makeSettings()
         let store = self.makeStore(settings: settings)
         store.errors[.gemini] = GeminiStatusProbeError.notLoggedIn.errorDescription
-        store.syncGeminiConsumerTierDeprecationObservation(from: GeminiStatusProbeError.notLoggedIn)
+        store.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.notLoggedIn)
 
         let impl = GeminiProviderImplementation()
         let actions = impl.settingsActions(context: self.makeContext(settings: settings, store: store))
 
         #expect(actions.isEmpty)
+    }
+
+    @Test
+    func `migration observation is store scoped and survives unrelated failures`() {
+        let firstSettings = self.makeSettings()
+        let firstStore = self.makeStore(settings: firstSettings)
+        let secondSettings = self.makeSettings()
+        let secondStore = self.makeStore(settings: secondSettings)
+
+        firstStore.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.consumerTierDeprecated)
+        firstStore.observeGeminiConsumerTierDeprecation(from: GeminiStatusProbeError.notLoggedIn)
+
+        #expect(firstStore.geminiObservedConsumerTierDeprecation)
+        #expect(!secondStore.geminiObservedConsumerTierDeprecation)
+
+        firstStore.clearGeminiConsumerTierDeprecationObservation()
+        #expect(!firstStore.geminiObservedConsumerTierDeprecation)
     }
 }

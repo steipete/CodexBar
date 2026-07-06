@@ -8,7 +8,7 @@ extension UsageStore {
         self.snapshots.removeValue(forKey: provider)
         self.errors[provider] = nil
         if provider == .gemini {
-            self.syncGeminiConsumerTierDeprecationObservation(from: nil)
+            self.clearGeminiConsumerTierDeprecationObservation()
         }
         self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
         self.lastSourceLabels.removeValue(forKey: provider)

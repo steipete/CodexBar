@@ -13,7 +13,7 @@ struct GeminiConsumerTierMigrationTests {
         "UNSUPPORTED_CLIENT",
         "IneligibleTierError",
         "no longer supported for Gemini Code Assist for individuals",
-        "please migrate to the Antigravity suite",
+        "please migrate Gemini to the Antigravity suite",
     ])
     func `detects consumer tier deprecation signals`(signal: String) {
         #expect(GeminiStatusProbeError.isConsumerTierDeprecationSignal(signal))
@@ -147,18 +147,6 @@ struct GeminiConsumerTierMigrationTests {
         await Self.expectError(.consumerTierDeprecated) {
             _ = try await probe.fetch()
         }
-    }
-
-    @Test
-    func `not logged in includes migration hint`() {
-        let message = GeminiStatusProbeError.notLoggedIn.errorDescription ?? ""
-        #expect(message.contains(GeminiConsumerTierMigration.notLoggedInHint))
-    }
-
-    @Test
-    func `antigravity not running includes gemini migration hint`() {
-        let message = AntigravityStatusProbeError.notRunning.errorDescription ?? ""
-        #expect(message.contains(GeminiConsumerTierMigration.antigravitySetupHint))
     }
 
     private static func expectError(

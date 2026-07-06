@@ -114,10 +114,7 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
         case .geminiNotInstalled:
             "Gemini CLI is not installed or not on PATH."
         case .notLoggedIn:
-            """
-            Not logged in to Gemini. Run 'gemini' in Terminal to authenticate. \
-            \(GeminiConsumerTierMigration.notLoggedInHint)
-            """
+            "Not logged in to Gemini. Run 'gemini' in Terminal to authenticate."
         case let .unsupportedAuthType(authType):
             "Gemini \(authType) auth not supported. Use Google account (OAuth) instead."
         case .consumerTierDeprecated:
@@ -143,7 +140,7 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
         if normalized.contains("no longer supported"), normalized.contains("gemini code assist") {
             return true
         }
-        if normalized.contains("migrate"), normalized.contains("antigravity") {
+        if normalized.contains("migrate"), normalized.contains("antigravity"), normalized.contains("gemini") {
             return true
         }
         return false

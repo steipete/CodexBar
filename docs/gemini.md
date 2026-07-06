@@ -71,18 +71,17 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 - Email from `id_token` JWT claims.
 
 ## Consumer-tier migration (June 2026)
-- Google stopped serving Gemini CLI OAuth for individual, AI Pro, and Ultra accounts on
-  2026-06-18. Standard/Enterprise, Google Cloud, Vertex, and API-key-backed setups are unchanged.
+- [Google stopped serving](https://developers.google.com/gemini-code-assist/docs/deprecations/code-assist-individuals)
+  Gemini CLI OAuth for individual, AI Pro, and Ultra accounts on 2026-06-18. Standard and Enterprise
+  subscriptions remain supported; paid API-key access is outside CodexBar's OAuth-backed Gemini provider.
 - When quota, `loadCodeAssist`, or token-refresh responses include Google's unsupported-client
   migration signal (`UNSUPPORTED_CLIENT`, `IneligibleTierError`, or Antigravity migration copy),
   CodexBar surfaces `consumerTierDeprecated` with guidance to use the Antigravity provider.
-- Gemini login opens Terminal with proactive migration guidance (CodexBar does not capture Terminal
-  `gemini` OAuth output; the alert covers the common dead-end where Google prints the error in Terminal).
-- `notLoggedIn` and Antigravity `notRunning` include short migration footnotes for the same setup path.
 - Settings shows an **Enable Antigravity provider** action only after CodexBar observes
   `consumerTierDeprecated` during a Gemini refresh (typed sentinel state, not user-facing text matching).
-- Gemini CLI login still runs in Terminal; if OAuth fails there, check Terminal output and switch
-  to Antigravity (`agy` or the Antigravity app) for consumer-tier quota tracking.
+- The action is explicit: CodexBar never automatically enables Antigravity or falls back to it.
+- Ordinary Gemini login, `notLoggedIn`, and Antigravity setup errors remain unchanged. CodexBar does not
+  capture Terminal `gemini` OAuth output, so Terminal-only failures cannot activate the migration action.
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Gemini/GeminiStatusProbe.swift`
