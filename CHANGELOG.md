@@ -6,6 +6,7 @@
 - Widgets: make Kimi available with Weekly, Rate Limit, and Monthly quota rows. Thanks @joeVenner!
 
 ### Fixed
+- Settings: keep Language, Default Terminal, and Refresh cadence selectors interactive on macOS 27.
 - Codex menu: hide error-only optional Credits and OpenAI web setup diagnostics while keeping them visible in provider Settings.
 - Codex quotas: show the session quota as unavailable while an exhausted weekly limit is still binding, including menu-bar icons and widgets. Thanks @Yuxin-Qiao!
 - Codex cost history: reuse cached aggregate pricing and one pricing catalog across daily and project reports, carry fresh cache state across launches, and treat unpriced models as migrated, avoiding repeated row scans, filesystem work, and duplicate background scans on large local histories.

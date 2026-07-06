@@ -82,27 +82,30 @@ struct GeneralPane: View {
     var body: some View {
         Form {
             Section {
-                Picker(selection: self.$settings.appLanguage) {
-                    ForEach(AppLanguage.allCases) { option in
-                        Text(verbatim: option.label).tag(option.rawValue)
-                    }
-                } label: {
-                    SettingsRowLabel(L("language_title"), subtitle: L("language_subtitle"))
-                }
+                SettingsMenuPicker(
+                    selection: self.$settings.appLanguage,
+                    options: GeneralSettingsMenuOptions.languages,
+                    label: {
+                        SettingsRowLabel(L("language_title"), subtitle: L("language_subtitle"))
+                    },
+                    optionLabel: { rawValue in
+                        Text(verbatim: AppLanguage(rawValue: rawValue)?.label ?? rawValue)
+                    })
 
-                Picker(selection: self.$settings.terminalApp) {
-                    ForEach(TerminalApp.pickerOptions(selected: self.settings.terminalApp)) { option in
+                SettingsMenuPicker(
+                    selection: self.$settings.terminalApp,
+                    options: GeneralSettingsMenuOptions.terminalApps(selected: self.settings.terminalApp),
+                    label: {
+                        SettingsRowLabel(L("terminal_app_title"), subtitle: L("terminal_app_subtitle"))
+                    },
+                    optionLabel: { option in
                         HStack(spacing: 6) {
                             if let icon = option.pickerIcon {
                                 Image(nsImage: icon)
                             }
                             Text(option.label)
                         }
-                        .tag(option)
-                    }
-                } label: {
-                    SettingsRowLabel(L("terminal_app_title"), subtitle: L("terminal_app_subtitle"))
-                }
+                    })
 
                 Toggle(L("start_at_login_title"), isOn: self.$settings.launchAtLogin)
             } header: {
@@ -110,11 +113,11 @@ struct GeneralPane: View {
             }
 
             Section {
-                Picker(L("refresh_cadence_title"), selection: self.$settings.refreshFrequency) {
-                    ForEach(RefreshFrequency.allCases) { option in
-                        Text(option.label).tag(option)
-                    }
-                }
+                SettingsMenuPicker(
+                    selection: self.$settings.refreshFrequency,
+                    options: GeneralSettingsMenuOptions.refreshFrequencies,
+                    label: { Text(L("refresh_cadence_title")) },
+                    optionLabel: { option in Text(option.label) })
 
                 Toggle(L("refresh_on_open_title"), isOn: self.$settings.refreshAllProvidersOnMenuOpen)
 

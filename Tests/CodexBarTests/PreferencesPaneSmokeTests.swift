@@ -49,6 +49,40 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `general menu options cover persisted settings`() {
+        let previousLanguage = UserDefaults.standard.object(forKey: "appLanguage")
+        let previousAppleLanguages = UserDefaults.standard.object(forKey: "AppleLanguages")
+        defer {
+            if let previousLanguage {
+                UserDefaults.standard.set(previousLanguage, forKey: "appLanguage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "appLanguage")
+            }
+            if let previousAppleLanguages {
+                UserDefaults.standard.set(previousAppleLanguages, forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+        }
+
+        #expect(GeneralSettingsMenuOptions.languages == AppLanguage.allCases.map(\.rawValue))
+        #expect(GeneralSettingsMenuOptions.refreshFrequencies == RefreshFrequency.allCases)
+        #expect(GeneralSettingsMenuOptions.terminalApps(selected: .terminal) { _ in nil } == [.terminal])
+        #expect(GeneralSettingsMenuOptions.terminalApps(selected: .iTerm) { _ in nil } == [.terminal, .iTerm])
+
+        let suite = "PreferencesPaneSmokeTests-general-menu-persistence"
+        let settings = Self.makeSettingsStore(suite: suite)
+        settings.appLanguage = "ja"
+        settings.terminalApp = .iTerm
+        settings.refreshFrequency = .fiveMinutes
+
+        let reloaded = Self.makeSettingsStore(suite: suite, reset: false)
+        #expect(reloaded.appLanguage == "ja")
+        #expect(reloaded.terminalApp == .iTerm)
+        #expect(reloaded.refreshFrequency == .fiveMinutes)
+    }
+
+    @Test
     func `overview provider limit text formats numeric limit as object argument`() {
         let text = DisplayPane.overviewProviderLimitText(limit: 3)
 
@@ -180,10 +214,12 @@ struct PreferencesPaneSmokeTests {
         }
     }
 
-    private static func makeSettingsStore(suite: String) -> SettingsStore {
+    private static func makeSettingsStore(suite: String, reset: Bool = true) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        let configStore = testConfigStore(suiteName: suite)
+        if reset {
+            defaults.removePersistentDomain(forName: suite)
+        }
+        let configStore = testConfigStore(suiteName: suite, reset: reset)
 
         return SettingsStore(
             userDefaults: defaults,
