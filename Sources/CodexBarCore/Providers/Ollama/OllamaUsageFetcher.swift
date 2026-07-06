@@ -12,6 +12,7 @@ private let ollamaSessionCookieNames: Set<String> = [
     "__Secure-session",
     "ollama_session",
     "__Host-ollama_session",
+    "wos-session",
     "__Secure-next-auth.session-token",
     "next-auth.session-token",
 ]
