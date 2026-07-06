@@ -47,7 +47,7 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case .invalidCredentials:
             "Ollama session cookie expired. Please log in again."
         case .apiUnauthorized:
-            "Ollama API key is invalid or expired."
+            "Ollama API key is invalid or revoked."
         case let .parseFailed(message):
             "Could not parse Ollama usage: \(message)"
         case let .networkError(message):
