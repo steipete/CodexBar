@@ -285,6 +285,9 @@ extension UsageStore {
                 }
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
+                if provider == .gemini {
+                    self.syncGeminiConsumerTierDeprecationObservation(from: nil)
+                }
                 self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 self.failureGates[provider]?.recordSuccess()
                 if provider == .codex {
@@ -601,6 +604,15 @@ extension UsageStore {
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+            if provider == .gemini {
+                defer {
+                    if self.errors[.gemini] != nil {
+                        self.syncGeminiConsumerTierDeprecationObservation(from: error)
+                    } else {
+                        self.syncGeminiConsumerTierDeprecationObservation(from: nil)
+                    }
+                }
+            }
             let hadKnownUnavailableLimits = self.knownLimitsAvailabilityByProvider[provider]?.isUnavailable == true
             self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
             if provider == .claude,

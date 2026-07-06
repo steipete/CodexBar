@@ -40,7 +40,6 @@ struct GeminiProviderImplementation: ProviderImplementation {
 
     @MainActor
     private static func showsAntigravityMigrationAction(context: ProviderSettingsContext) -> Bool {
-        guard let error = context.store.userFacingError(for: .gemini) else { return false }
-        return GeminiStatusProbeError.isConsumerTierDeprecationSignal(error)
+        context.store.geminiObservedConsumerTierDeprecation
     }
 }
