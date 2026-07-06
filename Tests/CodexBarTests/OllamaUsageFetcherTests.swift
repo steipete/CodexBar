@@ -32,6 +32,15 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
+    func `recognizes current ollama sign in redirects`() {
+        #expect(OllamaUsageFetcher.isSignInRedirect(URL(string: "https://ollama.com/signin")))
+        #expect(OllamaUsageFetcher.isSignInRedirect(URL(
+            string: "https://api.workos.com/user_management/authorize?client_id=test")))
+        #expect(!OllamaUsageFetcher.isSignInRedirect(URL(string: "https://ollama.com/settings")))
+        #expect(!OllamaUsageFetcher.isSignInRedirect(URL(string: "https://api.workos.com/other")))
+    }
+
+    @Test
     func `manual mode without valid header throws no session cookie`() {
         do {
             _ = try OllamaUsageFetcher.resolveManualCookieHeader(
