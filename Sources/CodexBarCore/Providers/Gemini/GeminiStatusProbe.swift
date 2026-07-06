@@ -50,10 +50,7 @@ public struct GeminiStatusSnapshot: Sendable {
         let flashMin = flashQuotas.min(by: { $0.percentLeft < $1.percentLeft })
         let proMin = proQuotas.min(by: { $0.percentLeft < $1.percentLeft })
 
-        // Nil out the primary window when the account has no Pro-tier quota, mirroring
-        // secondary/tertiary. Fabricating a 0%-used Pro window (`?? 0`) makes an account
-        // with only Flash quotas report a phantom "0% used" primary that hides the real
-        // Flash usage downstream (the automatic resolver falls back to `primary ?? secondary`).
+        // Keep missing tiers nil so downstream selectors can fall back to a quota the account actually reports.
         let primary: RateWindow? = proMin.map {
             RateWindow(
                 usedPercent: 100 - $0.percentLeft,

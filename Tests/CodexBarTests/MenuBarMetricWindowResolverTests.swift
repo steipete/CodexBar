@@ -5,6 +5,25 @@ import Testing
 
 struct MenuBarMetricWindowResolverTests {
     @Test
+    func `gemini metrics fall back to Flash when Pro is unavailable`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(usedPercent: 95, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 40, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        for preference in [MenuBarMetricPreference.automatic, .primary, .average] {
+            let window = MenuBarMetricWindowResolver.rateWindow(
+                preference: preference,
+                provider: .gemini,
+                snapshot: snapshot,
+                supportsAverage: true)
+
+            #expect(window?.usedPercent == 95, "Failed preference: \(preference)")
+        }
+    }
+
+    @Test
     func `automatic metric uses zai 5-hour token lane when it is most constrained`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
