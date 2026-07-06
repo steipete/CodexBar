@@ -17,9 +17,10 @@ public enum AdaptiveRefreshTraceEventKind: String, Sendable, Codable {
 
 /// One line of a JSONL adaptive-refresh trace. Field presence depends on `kind`: `decision`
 /// records populate `menuAgeSeconds`, `lowPowerModeEnabled`, `thermalState`, `reason`, and
-/// `delaySeconds`; `timerAdvanced` records populate `previousScheduledAt`, `candidateScheduledAt`,
-/// `reason`, and `delaySeconds`; `menuOpen` and `refreshCompleted` carry only `kind` and
-/// `timestamp`.
+/// `delaySeconds`, plus the shadow-mode `codexActivitySeconds` / `claudeActivitySeconds` signals
+/// when tracing sampled them; `timerAdvanced` records populate `previousScheduledAt`,
+/// `candidateScheduledAt`, `reason`, and `delaySeconds`; `menuOpen` and `refreshCompleted` carry
+/// only `kind` and `timestamp`.
 public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
     public let kind: AdaptiveRefreshTraceEventKind
     public let timestamp: Date
@@ -35,6 +36,13 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
     /// `timerAdvanced` only: the refresh time the timer advanced to, i.e. the menu-open timestamp
     /// plus the freshly computed decision's delay.
     public let candidateScheduledAt: Date?
+    /// `decision` only, and only while the `CodingActivityProbe` shadow-mode signal is being
+    /// recorded: seconds since the newest local Codex session transcript was modified, or `nil`
+    /// when unavailable. Record-only telemetry — never fed into `AdaptiveRefreshPolicy`. Optional
+    /// so old trace lines without this field keep decoding (see `AdaptiveReplayTraceParserTests`).
+    public let codexActivitySeconds: TimeInterval?
+    /// `decision` only: the Claude Code counterpart of `codexActivitySeconds`.
+    public let claudeActivitySeconds: TimeInterval?
 
     public init(
         kind: AdaptiveRefreshTraceEventKind,
@@ -45,7 +53,9 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         reason: String? = nil,
         delaySeconds: TimeInterval? = nil,
         previousScheduledAt: Date? = nil,
-        candidateScheduledAt: Date? = nil)
+        candidateScheduledAt: Date? = nil,
+        codexActivitySeconds: TimeInterval? = nil,
+        claudeActivitySeconds: TimeInterval? = nil)
     {
         self.kind = kind
         self.timestamp = timestamp
@@ -56,6 +66,8 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         self.delaySeconds = delaySeconds
         self.previousScheduledAt = previousScheduledAt
         self.candidateScheduledAt = candidateScheduledAt
+        self.codexActivitySeconds = codexActivitySeconds
+        self.claudeActivitySeconds = claudeActivitySeconds
     }
 
     // swiftlint:disable:next function_parameter_count
@@ -65,7 +77,9 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         lowPowerModeEnabled: Bool,
         thermalState: ReplayThermalState,
         reason: String,
-        delaySeconds: TimeInterval) -> Self
+        delaySeconds: TimeInterval,
+        codexActivitySeconds: TimeInterval? = nil,
+        claudeActivitySeconds: TimeInterval? = nil) -> Self
     {
         Self(
             kind: .decision,
@@ -74,7 +88,9 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
             lowPowerModeEnabled: lowPowerModeEnabled,
             thermalState: thermalState,
             reason: reason,
-            delaySeconds: delaySeconds)
+            delaySeconds: delaySeconds,
+            codexActivitySeconds: codexActivitySeconds,
+            claudeActivitySeconds: claudeActivitySeconds)
     }
 
     public static func menuOpen(timestamp: Date) -> Self {

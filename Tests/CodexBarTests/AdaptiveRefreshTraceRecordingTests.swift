@@ -142,6 +142,49 @@ struct AdaptiveRefreshTraceRecordingTests {
         }
     }
 
+    /// Anchors the shadow-mode `CodingActivityProbe` plumb-through: `recordDecision`'s two optional
+    /// activity parameters must land unchanged in the recorded trace line. This calls
+    /// `recordDecision` directly with explicit sample values rather than going through
+    /// `nextAdaptiveTimerSleepDuration`, so the assertion is independent of whatever the real
+    /// `~/.codex` / `~/.claude` directories on the machine running this test happen to contain.
+    @Test
+    func `recordDecision plumbs the coding-activity probe sample into the trace line`() async throws {
+        try await self.withTracingEnabled { url in
+            AdaptiveRefreshTraceRecording.recordDecision(
+                now: Date(),
+                lastMenuOpenAt: nil,
+                lowPowerModeEnabled: false,
+                thermalState: .nominal,
+                decision: AdaptiveRefreshPolicy.Decision(delay: .seconds(1800), reason: .longIdle),
+                codexActivitySeconds: 42,
+                claudeActivitySeconds: 99)
+
+            let records = try await self.waitForRecords(at: url) { $0.contains { $0.kind == .decision } }
+            let decision = try #require(records.first { $0.kind == .decision })
+            #expect(decision.codexActivitySeconds == 42)
+            #expect(decision.claudeActivitySeconds == 99)
+        }
+    }
+
+    /// The default (no probe sample supplied) keeps recording nil activity fields, matching every
+    /// existing call site that doesn't pass them.
+    @Test
+    func `recordDecision without an activity sample records nil activity fields`() async throws {
+        try await self.withTracingEnabled { url in
+            AdaptiveRefreshTraceRecording.recordDecision(
+                now: Date(),
+                lastMenuOpenAt: nil,
+                lowPowerModeEnabled: false,
+                thermalState: .nominal,
+                decision: AdaptiveRefreshPolicy.Decision(delay: .seconds(1800), reason: .longIdle))
+
+            let records = try await self.waitForRecords(at: url) { $0.contains { $0.kind == .decision } }
+            let decision = try #require(records.first { $0.kind == .decision })
+            #expect(decision.codexActivitySeconds == nil)
+            #expect(decision.claudeActivitySeconds == nil)
+        }
+    }
+
     /// Anchors `StatusItemController+Menu.swift`'s `recordMenuOpen()` call inside `menuWillOpen`.
     @Test
     func `menuWillOpen records a menuOpen line`() async throws {

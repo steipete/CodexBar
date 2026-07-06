@@ -43,7 +43,27 @@ enum AdaptiveReplayCLI {
             print(Self.renderJSON(results))
         } else {
             print(Self.renderTable(results))
+            print(Self.renderActivityCoverage(ActivityCoverageStats.compute(from: records)))
         }
+    }
+
+    /// Fork-only shadow-mode telemetry line (never fed into any policy): how much of the trace
+    /// carries the `CodingActivityProbe` signal, and how much of that looked like active coding.
+    private static func renderActivityCoverage(_ stats: ActivityCoverageStats) -> String {
+        guard stats.decisionCount > 0 else {
+            return "activity telemetry: no decision events in trace"
+        }
+        let sampledSummary = String(
+            format: "%d/%d decisions sampled (%.0f%%)",
+            stats.sampledCount,
+            stats.decisionCount,
+            stats.sampledFraction * 100)
+        let activeSummary = String(
+            format: "%d/%d active coding at decision time (%.0f%%)",
+            stats.activeCount,
+            stats.sampledCount,
+            stats.activeFraction * 100)
+        return "activity telemetry: \(sampledSummary), \(activeSummary)"
     }
 
     private static func policy(named name: String) throws -> any ReplayPolicy {

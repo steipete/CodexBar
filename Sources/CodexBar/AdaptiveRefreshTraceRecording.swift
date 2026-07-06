@@ -49,7 +49,9 @@ enum AdaptiveRefreshTraceRecording {
         lastMenuOpenAt: Date?,
         lowPowerModeEnabled: Bool,
         thermalState: ProcessInfo.ThermalState,
-        decision: AdaptiveRefreshPolicy.Decision)
+        decision: AdaptiveRefreshPolicy.Decision,
+        codexActivitySeconds: TimeInterval? = nil,
+        claudeActivitySeconds: TimeInterval? = nil)
     {
         guard self.isEnabled else { return }
         let menuAgeSeconds = lastMenuOpenAt.map { now.timeIntervalSince($0) }
@@ -59,7 +61,9 @@ enum AdaptiveRefreshTraceRecording {
             lowPowerModeEnabled: lowPowerModeEnabled,
             thermalState: self.replayThermalState(for: thermalState),
             reason: decision.reason.rawValue,
-            delaySeconds: TimeInterval(decision.delay.components.seconds)))
+            delaySeconds: TimeInterval(decision.delay.components.seconds),
+            codexActivitySeconds: codexActivitySeconds,
+            claudeActivitySeconds: claudeActivitySeconds))
     }
 
     static func recordMenuOpen(at date: Date = Date()) {

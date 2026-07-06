@@ -126,4 +126,60 @@ struct AdaptiveReplayTraceParserTests {
 
         #expect(parsed[0].previousScheduledAt == nil)
     }
+
+    /// Backward compatibility: the ~500 pre-existing lines in this machine's live trace were
+    /// written before `codexActivitySeconds`/`claudeActivitySeconds` existed. A hand-written
+    /// old-format `decision` line (no activity keys at all) must still decode, with both new
+    /// fields nil rather than failing to parse.
+    @Test
+    func `an old-format decision line without activity fields decodes with nil activity signals`() throws {
+        let oldFormatLine = """
+        {"kind":"decision","timestamp":"2026-01-01T00:00:00Z","menuAgeSeconds":30,\
+        "lowPowerModeEnabled":false,"thermalState":"nominal","reason":"longIdle","delaySeconds":1800}
+        """
+
+        let parsed = try AdaptiveRefreshTraceParser.parse(oldFormatLine)
+
+        #expect(parsed.count == 1)
+        #expect(parsed[0].reason == "longIdle")
+        #expect(parsed[0].codexActivitySeconds == nil)
+        #expect(parsed[0].claudeActivitySeconds == nil)
+    }
+
+    /// A `decision` record carrying both activity signals round-trips them exactly.
+    @Test
+    func `a decision record with activity signals round-trips both values`() throws {
+        let record = AdaptiveRefreshTraceRecord.decision(
+            timestamp: Self.referenceNow,
+            menuAgeSeconds: 5,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal,
+            reason: "recentInteraction",
+            delaySeconds: 120,
+            codexActivitySeconds: 42,
+            claudeActivitySeconds: 99)
+        let text = try self.encode(record)
+
+        let parsed = try AdaptiveRefreshTraceParser.parse(text)
+
+        #expect(parsed[0].codexActivitySeconds == 42)
+        #expect(parsed[0].claudeActivitySeconds == 99)
+    }
+
+    /// The writer must omit nil activity fields rather than emitting explicit `null`s, so old
+    /// tooling and hand-inspection of a trace stay unsurprised by fields it doesn't expect.
+    @Test
+    func `encoding a decision with nil activity signals omits both keys entirely`() throws {
+        let record = AdaptiveRefreshTraceRecord.decision(
+            timestamp: Self.referenceNow,
+            menuAgeSeconds: 5,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal,
+            reason: "recentInteraction",
+            delaySeconds: 120)
+        let text = try self.encode(record)
+
+        #expect(!text.contains("codexActivitySeconds"))
+        #expect(!text.contains("claudeActivitySeconds"))
+    }
 }
