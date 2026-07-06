@@ -80,14 +80,15 @@ struct AlibabaTokenPlanCookieHeaders {
 enum AlibabaTokenPlanCookieHeader {
     static func headers(
         from cookies: [HTTPCookie],
+        region: AlibabaTokenPlanAPIRegion = .international,
         environment: [String: String] = ProcessInfo.processInfo.environment) -> AlibabaTokenPlanCookieHeaders?
     {
         guard let apiHeader = self.header(
             from: cookies,
-            targetURL: AlibabaTokenPlanUsageFetcher.resolveQuotaURL(environment: environment)),
+            targetURL: AlibabaTokenPlanUsageFetcher.resolveQuotaURL(region: region, environment: environment)),
             let dashboardHeader = self.header(
                 from: cookies,
-                targetURL: AlibabaTokenPlanUsageFetcher.dashboardURL(environment: environment))
+                targetURL: AlibabaTokenPlanUsageFetcher.dashboardURL(region: region, environment: environment))
         else {
             return nil
         }

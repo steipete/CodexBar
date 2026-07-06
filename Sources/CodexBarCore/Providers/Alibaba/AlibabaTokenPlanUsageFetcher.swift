@@ -29,12 +29,8 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
 // swiftlint:disable:next type_body_length
 public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger("alibaba-token-plan")
-    private static let gatewayBaseURLString = "https://bailian.console.aliyun.com"
-    private static let dashboardOriginURLString = "https://bailian.console.aliyun.com"
-    private static let currentRegionID = "cn-beijing"
     private static let bssServiceCode = "BssOpenAPI-V3"
     private static let subscriptionSummaryAction = "GetSubscriptionSummary"
-    private static let tokenPlanProductCode = "sfm_tokenplanteams_dp_cn"
     private static let browserLikeUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -43,11 +39,29 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Safari/605.1.15"
 
     public static var dashboardURL: URL {
-        URL(string: "https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/token-plan")!
+        Self.dashboardURL(region: .international, environment: ProcessInfo.processInfo.environment)
+    }
+
+    public static func dashboardURL(
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
+        if let host = AlibabaTokenPlanSettingsReader.hostOverride(environment: environment),
+           let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: host),
+           var components = URLComponents(url: base, resolvingAgainstBaseURL: false),
+           let dashboardComponents = URLComponents(url: region.dashboardURL, resolvingAgainstBaseURL: false)
+        {
+            components.path = dashboardComponents.path
+            components.percentEncodedQuery = dashboardComponents.percentEncodedQuery
+            components.fragment = dashboardComponents.fragment
+            return components.url ?? region.dashboardURL
+        }
+        return region.dashboardURL
     }
 
     public static func fetchUsage(
         cookieHeader: String,
+        region: AlibabaTokenPlanAPIRegion = .international,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date()) async throws -> AlibabaTokenPlanUsageSnapshot
     {
@@ -57,6 +71,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return try await self.fetchUsage(
             apiCookieHeader: headers.apiCookieHeader,
             dashboardCookieHeader: headers.dashboardCookieHeader,
+            region: region,
             environment: environment,
             now: now)
     }
@@ -64,6 +79,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     static func fetchUsage(
         apiCookieHeader: String,
         dashboardCookieHeader: String,
+        region: AlibabaTokenPlanAPIRegion = .international,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date(),
         session overrideSession: URLSession? = nil) async throws -> AlibabaTokenPlanUsageSnapshot
@@ -74,7 +90,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             throw AlibabaTokenPlanSettingsError.invalidCookie
         }
 
-        let url = self.resolveQuotaURL(environment: environment)
+        let url = self.resolveQuotaURL(region: region, environment: environment)
         let apiRedirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
         let dashboardRedirectDiagnostics: RedirectDiagnostics?
         let apiSession: URLSession
@@ -104,12 +120,14 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         let secToken = await self.resolveSECToken(
             dashboardCookieHeader: normalizedDashboardHeader,
             apiCookieHeader: normalizedAPIHeader,
+            region: region,
             environment: environment,
             session: dashboardSession)
         Self.log.info(
             "Fetching Alibaba Token Plan usage",
             metadata: [
                 "apiHost": url.host ?? "unknown",
+                "region": region.rawValue,
                 "apiCookieNames": self.cookieNamesDescription(from: normalizedAPIHeader),
                 "dashboardCookieNames": self.cookieNamesDescription(from: normalizedDashboardHeader),
                 "hasCSRF": self.hasCSRF(in: normalizedAPIHeader) ? "1" : "0",
@@ -119,7 +137,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 20
-        request.httpBody = self.subscriptionSummaryRequestBody(secToken: secToken)
+        request.httpBody = self.subscriptionSummaryRequestBody(region: region, secToken: secToken)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("*/*", forHTTPHeaderField: "Accept")
         request.setValue(normalizedAPIHeader, forHTTPHeaderField: "Cookie")
@@ -131,8 +149,10 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         }
         request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
         request.setValue(Self.browserLikeUserAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue(Self.dashboardOriginURLString, forHTTPHeaderField: "Origin")
-        request.setValue(Self.dashboardURL.absoluteString, forHTTPHeaderField: "Referer")
+        request.setValue(region.dashboardOriginURLString, forHTTPHeaderField: "Origin")
+        request.setValue(
+            Self.dashboardURL(region: region, environment: environment).absoluteString,
+            forHTTPHeaderField: "Referer")
 
         let data: Data
         let response: URLResponse
@@ -185,7 +205,10 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return try self.parseUsageSnapshot(from: data, now: now)
     }
 
-    static func resolveQuotaURL(environment: [String: String]) -> URL {
+    static func resolveQuotaURL(
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String]) -> URL
+    {
         if let override = AlibabaTokenPlanSettingsReader.quotaURL(environment: environment) {
             return override
         }
@@ -194,11 +217,15 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         {
             return hostURL
         }
-        return self.defaultQuotaURL
+        return self.defaultQuotaURL(region: region)
     }
 
     static var defaultQuotaURL: URL {
-        var components = URLComponents(string: Self.gatewayBaseURLString)!
+        self.defaultQuotaURL(region: .international)
+    }
+
+    static func defaultQuotaURL(region: AlibabaTokenPlanAPIRegion) -> URL {
+        var components = URLComponents(string: region.gatewayBaseURLString)!
         components.path = "/data/api.json"
         components.queryItems = [
             URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
@@ -253,8 +280,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             updatedAt: now)
     }
 
-    private static func subscriptionSummaryRequestBody(secToken: String?) -> Data {
-        let paramsObject = ["ProductCode": Self.tokenPlanProductCode]
+    private static func subscriptionSummaryRequestBody(region: AlibabaTokenPlanAPIRegion, secToken: String?) -> Data {
+        let paramsObject = ["ProductCode": region.tokenPlanProductCode]
         guard let paramsData = try? JSONSerialization.data(withJSONObject: paramsObject, options: []),
               let paramsString = String(data: paramsData, encoding: .utf8)
         else {
@@ -266,7 +293,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             URLQueryItem(name: "product", value: Self.bssServiceCode),
             URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
             URLQueryItem(name: "params", value: paramsString),
-            URLQueryItem(name: "region", value: Self.currentRegionID),
+            URLQueryItem(name: "region", value: region.currentRegionID),
         ]
         if let secToken, !secToken.isEmpty {
             queryItems.append(URLQueryItem(name: "sec_token", value: secToken))
@@ -278,12 +305,13 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static func resolveSECToken(
         dashboardCookieHeader: String,
         apiCookieHeader: String,
+        region: AlibabaTokenPlanAPIRegion,
         environment: [String: String],
         session: URLSession) async -> String?
     {
         let cookieSECToken = self.extractCookieValue(name: "sec_token", from: dashboardCookieHeader) ??
             self.extractCookieValue(name: "sec_token", from: apiCookieHeader)
-        var request = URLRequest(url: self.dashboardURL(environment: environment))
+        var request = URLRequest(url: self.dashboardURL(region: region, environment: environment))
         request.httpMethod = "GET"
         request.timeoutInterval = 10
         request.setValue(dashboardCookieHeader, forHTTPHeaderField: "Cookie")
@@ -309,6 +337,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
         if let token = await self.fetchSECTokenFromUserInfo(
             cookieHeader: dashboardCookieHeader,
+            region: region,
             environment: environment,
             session: session)
         {
@@ -331,10 +360,11 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
     private static func fetchSECTokenFromUserInfo(
         cookieHeader: String,
+        region: AlibabaTokenPlanAPIRegion,
         environment: [String: String],
         session: URLSession) async -> String?
     {
-        let baseURL = self.consoleBaseURL(environment: environment)
+        let baseURL = self.consoleBaseURL(region: region, environment: environment)
         let userInfoURL = baseURL.appendingPathComponent("tool/user/info.json")
         var request = URLRequest(url: userInfoURL)
         request.httpMethod = "GET"
@@ -369,39 +399,29 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return token
     }
 
-    private static func consoleBaseURL(environment: [String: String]) -> URL {
-        let dashboard = self.dashboardURL(environment: environment)
+    private static func consoleBaseURL(
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String]) -> URL
+    {
+        let dashboard = self.dashboardURL(region: region, environment: environment)
         var components = URLComponents()
         components.scheme = dashboard.scheme
         components.host = dashboard.host
         components.port = dashboard.port
-        return components.url ?? URL(string: Self.dashboardOriginURLString)!
+        return components.url ?? URL(string: region.dashboardOriginURLString)!
     }
 
     private static func quotaURL(from rawHost: String) -> URL? {
         let cleaned = AlibabaTokenPlanSettingsReader.cleaned(rawHost)
         guard let cleaned else { return nil }
-        let base = URL(string: cleaned)?.scheme == nil ? URL(string: "https://\(cleaned)") : URL(string: cleaned)
-        guard let base else { return nil }
+        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
-        let defaultComponents = URLComponents(url: Self.defaultQuotaURL, resolvingAgainstBaseURL: false)
+        let defaultComponents = URLComponents(
+            url: Self.defaultQuotaURL(region: .international),
+            resolvingAgainstBaseURL: false)
         components?.path = "/data/api.json"
         components?.queryItems = defaultComponents?.queryItems
         return components?.url
-    }
-
-    static func dashboardURL(environment: [String: String]) -> URL {
-        if let host = AlibabaTokenPlanSettingsReader.hostOverride(environment: environment),
-           let base = URL(string: host)?.scheme == nil ? URL(string: "https://\(host)") : URL(string: host),
-           var components = URLComponents(url: base, resolvingAgainstBaseURL: false),
-           let dashboardComponents = URLComponents(url: dashboardURL, resolvingAgainstBaseURL: false)
-        {
-            components.path = dashboardComponents.path
-            components.percentEncodedQuery = dashboardComponents.percentEncodedQuery
-            components.fragment = dashboardComponents.fragment
-            return components.url ?? self.dashboardURL
-        }
-        return Self.dashboardURL
     }
 
     private final class RedirectDiagnostics: NSObject, URLSessionTaskDelegate, @unchecked Sendable {

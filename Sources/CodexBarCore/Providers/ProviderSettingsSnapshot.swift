@@ -179,10 +179,20 @@ public struct ProviderSettingsSnapshot: Sendable {
     public struct AlibabaTokenPlanProviderSettings: ProviderCookieSettings {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
+        public let apiRegion: AlibabaTokenPlanAPIRegion
 
-        public init(cookieSource: ProviderCookieSource = .auto, manualCookieHeader: String? = nil) {
+        public init(
+            cookieSource: ProviderCookieSource = .auto,
+            manualCookieHeader: String? = nil,
+            apiRegion: AlibabaTokenPlanAPIRegion = .international)
+        {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
+            self.apiRegion = apiRegion
+        }
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+            self.init(cookieSource: cookieSource, manualCookieHeader: manualCookieHeader, apiRegion: .international)
         }
     }
 

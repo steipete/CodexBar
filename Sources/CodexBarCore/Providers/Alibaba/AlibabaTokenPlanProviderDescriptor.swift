@@ -102,11 +102,13 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let cookieSource = context.settings?.alibabaTokenPlan?.cookieSource ?? .auto
-        let cookieHeaders = try Self.resolveCookieHeaders(context: context, allowCached: true)
+        let region = context.settings?.alibabaTokenPlan?.apiRegion ?? .international
+        let cookieHeaders = try Self.resolveCookieHeaders(context: context, allowCached: true, region: region)
         do {
             let usage = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
                 apiCookieHeader: cookieHeaders.apiCookieHeader,
                 dashboardCookieHeader: cookieHeaders.dashboardCookieHeader,
+                region: region,
                 environment: context.env)
             return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "web")
         } catch let error as AlibabaTokenPlanUsageError
@@ -114,10 +116,11 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         {
             #if os(macOS)
             CookieHeaderCache.clear(provider: .alibabatokenplan)
-            let refreshedHeaders = try Self.resolveCookieHeaders(context: context, allowCached: false)
+            let refreshedHeaders = try Self.resolveCookieHeaders(context: context, allowCached: false, region: region)
             let usage = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
                 apiCookieHeader: refreshedHeaders.apiCookieHeader,
                 dashboardCookieHeader: refreshedHeaders.dashboardCookieHeader,
+                region: region,
                 environment: context.env)
             return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "web")
             #else
@@ -131,12 +134,14 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
     }
 
     static func resolveCookieHeader(context: ProviderFetchContext, allowCached: Bool) throws -> String {
-        try self.resolveCookieHeaders(context: context, allowCached: allowCached).apiCookieHeader
+        try self.resolveCookieHeaders(context: context, allowCached: allowCached, region: .international)
+            .apiCookieHeader
     }
 
     static func resolveCookieHeaders(
         context: ProviderFetchContext,
-        allowCached: Bool) throws -> AlibabaTokenPlanCookieHeaders
+        allowCached: Bool,
+        region: AlibabaTokenPlanAPIRegion = .international) throws -> AlibabaTokenPlanCookieHeaders
     {
         if let settings = context.settings?.alibabaTokenPlan,
            settings.cookieSource == .manual
@@ -192,6 +197,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
             let rawCookieNames = session.cookies.map(\.name).filter { !$0.isEmpty }.uniquedSorted()
             guard let headers = AlibabaTokenPlanCookieHeader.headers(
                 from: session.cookies,
+                region: region,
                 environment: context.env)
             else {
                 Self.log.warning(
