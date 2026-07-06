@@ -1130,7 +1130,7 @@ extension StatusItemController {
         percentWindow: RateWindow?) -> RateWindow?
     {
         if let projection {
-            return projection.rateWindow(for: .weekly)
+            return projection.menuBarSelectableRateWindow(for: .weekly)
         }
         if provider == .abacus {
             return snapshot?.primary

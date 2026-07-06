@@ -534,9 +534,11 @@ extension UsageStore {
             surface: .menuBar,
             snapshotOverride: snapshot,
             now: now)
-        let lanes = projection.visibleRateLanes
-        let first = lanes.first.flatMap { projection.rateWindow(for: $0) }
-        let second = lanes.dropFirst().first.flatMap { projection.rateWindow(for: $0) }
+        let windows = projection.visibleRateLanes.compactMap {
+            projection.menuBarSelectableRateWindow(for: $0)
+        }
+        let first = windows.first
+        let second = windows.dropFirst().first
 
         switch self.settings.menuBarMetricPreference(for: .codex, snapshot: snapshot) {
         case .secondary, .tertiary:
@@ -554,9 +556,7 @@ extension UsageStore {
             return RateWindow(
                 usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         case .primaryAndSecondary:
-            return lanes.prefix(2)
-                .compactMap { projection.menuBarSelectableRateWindow(for: $0) }
-                .max(by: { $0.usedPercent < $1.usedPercent })
+            return windows.prefix(2).max(by: { $0.usedPercent < $1.usedPercent })
         case .automatic, .primary, .monthlyPlan:
             return first
         }

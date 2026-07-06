@@ -662,7 +662,7 @@ struct CodexBarTests {
         #expect(capped.primary == 0)
         #expect(capped.secondary == 0)
         #expect(reset.primary == 99)
-        #expect(reset.secondary == 0)
+        #expect(reset.secondary == nil)
     }
 
     @Test

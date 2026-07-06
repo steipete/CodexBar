@@ -25,7 +25,7 @@ enum IconRemainingResolver {
 
     private static func codexVisibleWindows(snapshot: UsageSnapshot, now: Date) -> [RateWindow] {
         let projection = self.codexProjection(snapshot: snapshot, now: now)
-        return projection.visibleRateLanes.compactMap { projection.rateWindow(for: $0) }
+        return projection.visibleRateLanes.compactMap { projection.menuBarSelectableRateWindow(for: $0) }
     }
 
     private static func antigravityQuotaSummaryWindows(

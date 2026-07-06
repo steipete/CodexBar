@@ -183,5 +183,36 @@ struct CodexWeeklyCapSurfaceTests {
         #expect(controller.menuBarDisplayText(for: .codex, snapshot: snapshot, now: now) == "99%")
         settings.menuBarDisplayMode = .resetTime
         #expect(controller.menuBarDisplayText(for: .codex, snapshot: snapshot, now: now) == "↻ in 1h")
+
+        settings.setMenuBarMetricPreference(.primary, for: .codex)
+        settings.menuBarDisplayMode = .percent
+        let expiredSessionSnapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 300,
+                resetsAt: now,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-7200))
+        store._setSnapshotForTesting(expiredSessionSnapshot, provider: .codex)
+        store.credits = CreditsSnapshot(remaining: 80, events: [], updatedAt: now)
+
+        let resetPrimary = try #require(controller.menuBarMetricWindow(
+            for: .codex,
+            snapshot: expiredSessionSnapshot,
+            now: now))
+        let resetIcon = IconRemainingResolver.resolvedRemaining(
+            snapshot: expiredSessionSnapshot,
+            style: .codex,
+            now: now)
+        #expect(resetPrimary.remainingPercent == 60)
+        #expect(controller.menuBarDisplayText(for: .codex, snapshot: expiredSessionSnapshot, now: now) == "60%")
+        #expect(resetIcon.primary == 60)
+        #expect(resetIcon.secondary == nil)
+        #expect(store.codexConsumerProjection(surface: .menuBar, now: now).menuBarFallback == .none)
     }
 }
