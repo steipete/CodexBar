@@ -621,13 +621,29 @@ struct WidgetUsageRow: Identifiable, Equatable {
     {
         let rows: [WidgetUsageRow]
         if let usageRows = entry.usageRows {
-            let sourceRows = usageRows.map { row in
+            let resolvedSnapshots = usageRows.map { row in
+                guard row.window == nil,
+                      let window = self.legacyCodexRateWindow(for: row.id, entry: entry)
+                else {
+                    return row
+                }
+                return WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: row.id,
+                    title: row.title,
+                    percentLeft: row.percentLeft,
+                    window: window)
+            }
+            let sourceRows = resolvedSnapshots.map { row in
                 WidgetUsageRow(
                     id: row.id,
                     title: row.title,
                     percentLeft: row.window?.remainingPercent ?? row.percentLeft)
             }
-            rows = self.applyingCodexWeeklyCap(sourceRows, snapshots: usageRows, provider: entry.provider, now: now)
+            rows = self.applyingCodexWeeklyCap(
+                sourceRows,
+                snapshots: resolvedSnapshots,
+                provider: entry.provider,
+                now: now)
         } else {
             let metadata = ProviderDefaults.metadata[entry.provider]
             var defaultRows = [
@@ -697,6 +713,26 @@ struct WidgetUsageRow: Identifiable, Equatable {
             guard row.id == "session" else { return row }
             return WidgetUsageRow(id: row.id, title: row.title, percentLeft: 0)
         }
+    }
+
+    private static func legacyCodexRateWindow(
+        for rowID: String,
+        entry: WidgetSnapshot.ProviderEntry) -> RateWindow?
+    {
+        guard entry.provider == .codex else { return nil }
+        let candidates = [(entry.primary, "session"), (entry.secondary, "weekly")]
+        for (window, fallbackID) in candidates {
+            guard let window else { continue }
+            let classifiedID = switch window.windowMinutes {
+            case 300: "session"
+            case 10080: "weekly"
+            default: fallbackID
+            }
+            if classifiedID == rowID {
+                return window
+            }
+        }
+        return nil
     }
 
     static func compactTokenUsage(
