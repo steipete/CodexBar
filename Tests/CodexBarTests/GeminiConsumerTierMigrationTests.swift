@@ -149,6 +149,18 @@ struct GeminiConsumerTierMigrationTests {
         }
     }
 
+    @Test
+    func `not logged in includes migration hint`() {
+        let message = GeminiStatusProbeError.notLoggedIn.errorDescription ?? ""
+        #expect(message.contains(GeminiConsumerTierMigration.notLoggedInHint))
+    }
+
+    @Test
+    func `antigravity not running includes gemini migration hint`() {
+        let message = AntigravityStatusProbeError.notRunning.errorDescription ?? ""
+        #expect(message.contains(GeminiConsumerTierMigration.antigravitySetupHint))
+    }
+
     private static func expectError(
         _ expected: GeminiStatusProbeError,
         operation: () async throws -> Void) async

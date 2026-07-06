@@ -114,14 +114,14 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
         case .geminiNotInstalled:
             "Gemini CLI is not installed or not on PATH."
         case .notLoggedIn:
-            "Not logged in to Gemini. Run 'gemini' in Terminal to authenticate."
+            """
+            Not logged in to Gemini. Run 'gemini' in Terminal to authenticate. \
+            \(GeminiConsumerTierMigration.notLoggedInHint)
+            """
         case let .unsupportedAuthType(authType):
             "Gemini \(authType) auth not supported. Use Google account (OAuth) instead."
         case .consumerTierDeprecated:
-            """
-            Google no longer supports Gemini CLI OAuth for individual, AI Pro, or Ultra accounts. \
-            Enable CodexBar's Antigravity provider, sign in to Antigravity or run `agy`, then refresh.
-            """
+            GeminiConsumerTierMigration.deprecationError
         case let .parseFailed(msg):
             "Could not parse Gemini usage: \(msg)"
         case .timedOut:

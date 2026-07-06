@@ -9,6 +9,11 @@ read_when:
 
 # Antigravity provider
 
+For Google individual, AI Pro, and Ultra accounts blocked by the June 2026 Gemini CLI OAuth
+shutdown, Antigravity is the replacement path for Gemini quota tracking in CodexBar. Launch
+the Antigravity app or run `agy`, sign in, then refresh. See `docs/gemini.md` for the Gemini
+provider migration notes.
+
 Antigravity supports four usage data sources:
 
 1. The Antigravity 2.0 app's local `language_server` (preferred when the app is open).

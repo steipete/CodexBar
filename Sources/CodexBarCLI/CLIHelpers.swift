@@ -310,7 +310,8 @@ extension CodexBarCLI {
              CostUsageError.unsupportedProvider,
              UsageError.decodeFailed,
              UsageError.noRateLimitsFound,
-             GeminiStatusProbeError.parseFailed:
+             GeminiStatusProbeError.parseFailed,
+             GeminiStatusProbeError.consumerTierDeprecated:
             ExitCode(3)
         default:
             .failure
