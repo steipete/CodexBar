@@ -157,12 +157,11 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
-    func `parses remaining percent 1 as fully unused quota`() throws {
+    func `preserves fractional boundaries for fallback quota percentages`() throws {
         let response: [String: Any] = [
             "quota_usage": [
                 "daily_quota": [
-                    "used": 0,
-                    "limit": 10,
+                    "used_percent": 1,
                     "reset_at": "2026-06-01T08:00:00Z",
                 ],
                 "weekly_quota": [
@@ -174,6 +173,7 @@ struct DevinUsageFetcherTests {
 
         let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
 
+        #expect(snapshot.daily?.usedPercent == 100)
         #expect(snapshot.weekly?.usedPercent == 0)
     }
 

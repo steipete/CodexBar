@@ -196,7 +196,7 @@ public enum DevinUsageParser {
 
     private static func percent(from object: Any) -> Double? {
         if let number = self.double(object) {
-            return number < 1 ? number * 100 : number
+            return number <= 1 ? number * 100 : number
         }
         guard let dictionary = object as? [String: Any] else { return nil }
 
@@ -211,15 +211,13 @@ public enum DevinUsageParser {
         ]
         for key in directKeys {
             if let value = self.double(dictionary[key]) {
-                return value < 1 ? value * 100 : value
+                return value <= 1 ? value * 100 : value
             }
         }
 
         let remainingKeys = ["remaining_percent", "remainingPercent", "percent_remaining", "percentRemaining"]
         for key in remainingKeys {
             if let value = self.double(dictionary[key]) {
-                // remaining_percent uses fractional representation (0..1), so 1 = 100% remaining = 0% used.
-                // Keep `<= 1` here unlike the used-percent paths where 1 means integer 1%.
                 let percent = value <= 1 ? value * 100 : value
                 return 100 - percent
             }

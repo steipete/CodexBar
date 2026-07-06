@@ -15,6 +15,7 @@
 - Codex menu: hide error-only optional Credits and OpenAI web setup diagnostics while keeping them visible in provider Settings.
 - Codex quotas: show the session quota as unavailable while an exhausted weekly limit is still binding, including menu-bar icons and widgets. Thanks @Yuxin-Qiao!
 - Codex cost history: reuse cached aggregate pricing and one pricing catalog across daily and project reports, carry fresh cache state across launches, and treat unpriced models as migrated, avoiding repeated row scans, filesystem work, and duplicate background scans on large local histories.
+- Devin: keep exact 1% usage from being inflated to 100% while preserving fractional fallback quota semantics. Thanks @Lex-ic-on!
 - Kimi K2: reject invalid and out-of-range numeric timestamps while preserving valid second and millisecond values. Thanks @joeVenner!
 - Kimi K2: reject non-finite credit and token values before they reach menus, CLI output, or widgets. Thanks @joeVenner!
 - Kimi: show the five-hour rate limit before the weekly quota while preserving existing menu-bar metric preferences. Thanks @Zihao-Qi!
