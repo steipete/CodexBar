@@ -236,7 +236,6 @@ struct CodexConsumerProjection {
     let hasCreditsHistory: Bool
 
     private let rateWindowsByLane: [RateLane: RateWindow]
-    private let now: Date
     private let codeReviewRemainingPercent: Double?
     private let codeReviewLimit: RateWindow?
 
@@ -297,7 +296,6 @@ struct CodexConsumerProjection {
             hasUsageBreakdown: hasUsageBreakdown,
             hasCreditsHistory: hasCreditsHistory,
             rateWindowsByLane: rateWindowsByLane,
-            now: context.now,
             codeReviewRemainingPercent: dashboardVisibility == .attached ? dashboard?.codeReviewRemainingPercent : nil,
             codeReviewLimit: dashboardVisibility == .attached ? dashboard?.codeReviewLimit : nil)
     }
@@ -309,7 +307,7 @@ struct CodexConsumerProjection {
             return Self.sessionDisplayWindow(
                 session: window,
                 weekly: self.rateWindowsByLane[.weekly],
-                now: self.now)
+                evaluationTime: Date())
         case .weekly:
             return window
         }
@@ -412,27 +410,25 @@ struct CodexConsumerProjection {
 
     /// When Codex's weekly lane is exhausted, it is the binding cap: session quota cannot be used until
     /// the weekly window resets, even if the API still reports room in the 5-hour bucket.
-    private static func weeklyCapsSession(weekly: RateWindow?, now: Date) -> Bool {
+    private static func weeklyCapsSession(weekly: RateWindow?, evaluationTime: Date) -> Bool {
         guard let weekly else { return false }
         guard weekly.remainingPercent <= 0 else { return false }
-        return weekly.resetsAt.map { $0 > now } ?? true
+        return weekly.resetsAt.map { $0 > evaluationTime } ?? true
     }
 
     private static func sessionDisplayWindow(
         session: RateWindow,
         weekly: RateWindow?,
-        now: Date) -> RateWindow
+        evaluationTime: Date) -> RateWindow
     {
-        guard self.weeklyCapsSession(weekly: weekly, now: now),
-              session.remainingPercent > 0
-        else {
+        guard self.weeklyCapsSession(weekly: weekly, evaluationTime: evaluationTime) else {
             return session
         }
         return RateWindow(
-            usedPercent: 100,
+            usedPercent: max(session.usedPercent, 100),
             windowMinutes: session.windowMinutes,
-            resetsAt: weekly?.resetsAt ?? session.resetsAt,
-            resetDescription: weekly?.resetDescription ?? session.resetDescription,
+            resetsAt: weekly?.resetsAt,
+            resetDescription: weekly?.resetDescription,
             nextRegenPercent: session.nextRegenPercent,
             isSyntheticPlaceholder: session.isSyntheticPlaceholder)
     }

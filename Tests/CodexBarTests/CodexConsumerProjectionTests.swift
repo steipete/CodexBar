@@ -234,7 +234,7 @@ struct CodexConsumerProjectionTests {
     @Test
     func `exhausted weekly lane caps session display until weekly reset`() throws {
         let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-caps-session")
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = Date()
         let sessionReset = now.addingTimeInterval(3 * 3600)
         let weeklyReset = now.addingTimeInterval(4 * 24 * 3600)
 
@@ -264,9 +264,98 @@ struct CodexConsumerProjectionTests {
     }
 
     @Test
+    func `exhausted weekly lane retargets session reset when session is also exhausted`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-caps-both-exhausted")
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(42 * 60)
+        let weeklyReset = now.addingTimeInterval(4 * 24 * 3600)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 157,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        let session = try #require(projection.rateWindow(for: .session))
+
+        #expect(session.remainingPercent == 0)
+        #expect(session.resetsAt == weeklyReset)
+        #expect(session.resetsAt != sessionReset)
+    }
+
+    @Test
+    func `exhausted weekly lane leaves session reset unknown when weekly reset is unknown`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-caps-unknown-reset")
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(42 * 60)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: "in 42m"),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        let session = try #require(projection.rateWindow(for: .session))
+
+        #expect(session.remainingPercent == 0)
+        #expect(session.resetsAt == nil)
+        #expect(session.resetDescription == nil)
+    }
+
+    @Test
+    func `weekly cap lifts after weekly reset even with stale snapshot timestamp`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-cap-stale-snapshot")
+        let now = Date()
+        let snapshotCapturedAt = now.addingTimeInterval(-2 * 3600)
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(-3600)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: snapshotCapturedAt),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: snapshotCapturedAt)
+        let session = try #require(projection.rateWindow(for: .session))
+
+        #expect(session.remainingPercent == 99)
+        #expect(session.resetsAt == sessionReset)
+    }
+
+    @Test
     func `weekly cap does not alter session display when weekly has reset`() throws {
         let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-reset-session-uncapped")
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = Date()
         let sessionReset = now.addingTimeInterval(3 * 3600)
         let weeklyReset = now.addingTimeInterval(-3600)
 
