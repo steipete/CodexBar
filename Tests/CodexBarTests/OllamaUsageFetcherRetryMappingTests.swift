@@ -84,15 +84,15 @@ struct OllamaUsageFetcherRetryMappingTests {
         #expect(strategy.shouldFallback(on: OllamaUsageError.parseFailed("missing"), context: context))
     }
 
-    @Test
-    func `api fetch sends bearer token and rejects unauthorized key`() async throws {
+    @Test(arguments: [401, 403])
+    func `api fetch describes rejected key as invalid or revoked`(statusCode: Int) async throws {
         let url = try #require(URL(string: "https://ollama.com/api/tags"))
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.url == url)
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer ollama-test")
             let response = HTTPURLResponse(
                 url: url,
-                statusCode: 401,
+                statusCode: statusCode,
                 httpVersion: "HTTP/1.1",
                 headerFields: nil)!
             return (Data("{}".utf8), response)
@@ -106,6 +106,7 @@ struct OllamaUsageFetcherRetryMappingTests {
                 Issue.record("Expected apiUnauthorized, got \(error)")
                 return
             }
+            #expect(error.localizedDescription == "Ollama API key is invalid or revoked.")
         } catch {
             Issue.record("Expected OllamaUsageError.apiUnauthorized, got \(error)")
         }

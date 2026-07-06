@@ -4,11 +4,6 @@ import Testing
 
 struct OllamaUsageFetcherTests {
     @Test
-    func `api authorization error describes revocation`() {
-        #expect(OllamaUsageError.apiUnauthorized.errorDescription == "Ollama API key is invalid or revoked.")
-    }
-
-    @Test
     func `attaches cookie for ollama hosts`() {
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://ollama.com/settings")))
         #expect(OllamaUsageFetcher.shouldAttachCookie(to: URL(string: "https://www.ollama.com")))

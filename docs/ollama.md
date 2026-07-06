@@ -27,7 +27,7 @@ Usage limits for session and weekly windows.
 3. For API-key mode, paste an API key from `https://ollama.com/settings/keys` or set `OLLAMA_API_KEY`.
 4. For quota bars, leave **Cookie source** on **Auto** (recommended, imports Chrome cookies by default).
 
-Ollama API keys do not expire, but they can be revoked from the key settings page.
+Ollama API keys currently do not expire, but they can be revoked from the key settings page.
 
 ### Manual cookie import (optional)
 
