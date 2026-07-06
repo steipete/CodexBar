@@ -14,7 +14,10 @@ struct StatusItemIconObservationSignatureTests {
         settings.statusChecksEnabled = true
         settings.refreshFrequency = .manual
         settings.menuBarShowsBrandIconWithPercent = false
+        settings.menuBarShowsHighestUsage = false
         settings.mergeIcons = true
+        settings.mergedMenuLastSelectedWasOverview = false
+        settings.selectedMenuProvider = .codex
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -88,6 +91,7 @@ struct StatusItemIconObservationSignatureTests {
         let registry = ProviderRegistry.shared
         let claudeMetadata = try #require(registry.metadata[.claude])
         settings.setProviderEnabled(provider: .claude, metadata: claudeMetadata, enabled: true)
+        settings.selectedMenuProvider = .codex
         store._setSnapshotForTesting(
             Self.makeSnapshot(provider: .claude, email: "claude@example.com"),
             provider: .claude)

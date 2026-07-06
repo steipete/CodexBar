@@ -138,6 +138,7 @@ struct CodexWeeklyCapSurfaceTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.usageBarsShowUsed = false
+        settings.resetTimesShowAbsolute = false
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .codex)
 
         if let codexMeta = ProviderRegistry.shared.metadata[.codex] {

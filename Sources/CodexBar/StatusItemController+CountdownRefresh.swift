@@ -25,7 +25,7 @@ extension StatusItemController {
             }
         }
 
-        if providers.contains(.codex) {
+        if self.menuBarObservesCodexReset(providers: providers) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
             if let resetAt = projection.nextMenuBarStateChangeAt {
                 delays.append(max(
@@ -68,6 +68,15 @@ extension StatusItemController {
             return [self.primaryProviderForUnifiedIcon()]
         }
         return UsageProvider.allCases.filter(self.isVisible)
+    }
+
+    private func menuBarObservesCodexReset(providers: [UsageProvider]) -> Bool {
+        if providers.contains(.codex) { return true }
+        guard self.shouldMergeIcons, self.settings.menuBarShowsHighestUsage else { return false }
+        let activeProviders = self.store.enabledProvidersForDisplay()
+        return self.settings.resolvedMergedOverviewProviders(
+            activeProviders: activeProviders,
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)
     }
 
     #if DEBUG
