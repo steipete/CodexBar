@@ -81,7 +81,8 @@ Admin API key setup:
   - `extra_usage` → Extra usage cost (monthly spend/limit).
 - Successful OAuth login enables Claude and selects OAuth as the usage source.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
-  Max/Pro/Team/Enterprise.
+  Max/Pro/Team/Enterprise. When a Max `rate_limit_tier` carries a usage multiplier
+  (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
 
 ## Web API (cookies)
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).

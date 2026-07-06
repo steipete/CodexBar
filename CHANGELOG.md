@@ -6,6 +6,7 @@
 - Antigravity: show pace details for legacy model-family and current session/weekly quota rows without changing compact icon lane semantics. Thanks @Zihao-Qi!
 - Widgets: make Kimi available with Weekly, Rate Limit, and Monthly quota rows. Thanks @joeVenner!
 - Kimi: show the subscription 7-day Code quota in menus and large widgets. Thanks @skyzer!
+- Claude: distinguish Max 5x and Max 20x in the plan label instead of a flat "Max". Thanks @kes02!
 
 ### Fixed
 - Alibaba Token Plan: support International Model Studio while preserving China-mainland upgrades and isolating regional cookie caches. Thanks @harshav167!

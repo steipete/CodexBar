@@ -22,6 +22,16 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
         }
     }
 
+    /// Branded label including the Max usage multiplier when the rate-limit tier
+    /// carries one, e.g. "Claude Max 5x" / "Claude Max 20x". Falls back to the plain
+    /// branded label for tiers without a multiplier (Pro/Team/Enterprise, or a bare Max).
+    public func brandedLoginMethod(rateLimitTier: String?) -> String {
+        guard let multiplier = Self.usageMultiplier(for: self, rateLimitTier: rateLimitTier) else {
+            return self.brandedLoginMethod
+        }
+        return "\(self.brandedLoginMethod) \(multiplier)"
+    }
+
     public var compactLoginMethod: String {
         switch self {
         case .max:
@@ -92,17 +102,19 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
     }
 
     public static func oauthLoginMethod(rateLimitTier: String?) -> String? {
-        self.fromOAuthRateLimitTier(rateLimitTier)?.brandedLoginMethod
+        self.fromOAuthRateLimitTier(rateLimitTier)?.brandedLoginMethod(rateLimitTier: rateLimitTier)
     }
 
     public static func oauthLoginMethod(subscriptionType: String?, rateLimitTier: String?) -> String? {
         self.fromOAuthCredentials(
             subscriptionType: subscriptionType,
-            rateLimitTier: rateLimitTier)?.brandedLoginMethod
+            rateLimitTier: rateLimitTier)?.brandedLoginMethod(rateLimitTier: rateLimitTier)
     }
 
     public static func webLoginMethod(rateLimitTier: String?, billingType: String?) -> String? {
-        self.fromWebAccount(rateLimitTier: rateLimitTier, billingType: billingType)?.brandedLoginMethod
+        self.fromWebAccount(
+            rateLimitTier: rateLimitTier,
+            billingType: billingType)?.brandedLoginMethod(rateLimitTier: rateLimitTier)
     }
 
     public static func cliCompatibilityLoginMethod(_ loginMethod: String?) -> String? {
@@ -138,6 +150,25 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
             return .enterprise
         }
         return nil
+    }
+
+    /// Extracts the usage multiplier ("5x" / "20x") that Anthropic encodes in the
+    /// rate-limit tier string (e.g. "default_claude_max_20x").
+    ///
+    /// The multiplier is only surfaced when the tier string actually names the resolved
+    /// plan. This keeps the label faithful to whatever tier Anthropic assigns — so a
+    /// future `default_claude_team_5x` would render "Claude Team 5x" — while never
+    /// leaking a stray multiplier onto a plan whose subscription type disagreed with the
+    /// rate-limit tier (e.g. a Team subscription reported alongside a `max_5x` tier).
+    private static func usageMultiplier(for plan: Self, rateLimitTier: String?) -> String? {
+        let tier = Self.normalized(rateLimitTier)
+        guard tier.contains(plan.rawValue) else {
+            return nil
+        }
+        guard let range = tier.range(of: "[0-9]+x", options: .regularExpression) else {
+            return nil
+        }
+        return String(tier[range])
     }
 
     private static func normalized(_ text: String?) -> String {
