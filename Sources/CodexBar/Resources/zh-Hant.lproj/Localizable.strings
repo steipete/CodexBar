@@ -1015,6 +1015,7 @@
 "minimax_service_coding_plan_search" = "Coding Plan 搜尋";
 "Clearing removes old plan-mode files." = "會移除舊的 plan-mode 檔案。";
 "%.0f%% %@" = "%2$@ %1$.0f%%";
+"<1%% %@" = "%1$@ <1%%";
 "%@: %@%% used" = "%@：已使用 %@%%";
 "terminal_app_subtitle" = "「開啟終端」動作使用的終端";
 "Admin API key" = "Admin API 金鑰";

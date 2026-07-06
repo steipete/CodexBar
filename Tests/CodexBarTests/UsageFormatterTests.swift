@@ -54,6 +54,12 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.percentString(1) == "1%")
         #expect(UsageFormatter.percentString(101) == "100%")
         #expect(UsageFormatter.usageLine(remaining: 99.9, used: 0.1, showUsed: true) == "<1% used")
+        // Values in (0.5, 1) round up to "1%" under %.0f, so the old post-format
+        // "0%" -> "<1%" replacement missed them. percentText must show "<1%"
+        // across the whole sub-1% range, matching percentString above.
+        #expect(UsageFormatter.usageLine(remaining: 99.4, used: 0.6, showUsed: true) == "<1% used")
+        #expect(UsageFormatter.usageLine(remaining: 99.25, used: 0.75, showUsed: true) == "<1% used")
+        #expect(UsageFormatter.usageLine(remaining: 0.75, used: 99.25, showUsed: false) == "<1% left")
 
         let usedWindow = RateWindow(usedPercent: 0.1, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         let leftWindow = RateWindow(usedPercent: 99.9, windowMinutes: nil, resetsAt: nil, resetDescription: nil)

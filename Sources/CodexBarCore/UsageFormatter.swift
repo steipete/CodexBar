@@ -82,9 +82,10 @@ public enum UsageFormatter {
 
     public static func percentText(_ percent: Double, suffix: String) -> String {
         let clamped = min(100, max(0, percent))
-        let text = self.localized("%.0f%% %@", clamped, suffix)
-        guard clamped > 0, clamped < 1 else { return text }
-        return text.replacingOccurrences(of: "0%", with: "<1%")
+        if clamped > 0, clamped < 1 {
+            return self.localized("<1%% %@", suffix)
+        }
+        return self.localized("%.0f%% %@", clamped, suffix)
     }
 
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
