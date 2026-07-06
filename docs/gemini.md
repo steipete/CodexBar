@@ -76,8 +76,11 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 - When quota, `loadCodeAssist`, or token-refresh responses include Google's unsupported-client
   migration signal (`UNSUPPORTED_CLIENT`, `IneligibleTierError`, or Antigravity migration copy),
   CodexBar surfaces `consumerTierDeprecated` with guidance to use the Antigravity provider.
-- Gemini login opens Terminal with migration guidance if Google blocks the account during OAuth.
-- Settings shows an **Enable Antigravity provider** action when the migration error is detected.
+- Gemini login opens Terminal with proactive migration guidance (CodexBar does not capture Terminal
+  `gemini` OAuth output; the alert covers the common dead-end where Google prints the error in Terminal).
+- `notLoggedIn` and Antigravity `notRunning` include short migration footnotes for the same setup path.
+- Settings shows an **Enable Antigravity provider** action only when a surfaced error matches the
+  migration signal detector.
 - Gemini CLI login still runs in Terminal; if OAuth fails there, check Terminal output and switch
   to Antigravity (`agy` or the Antigravity app) for consumer-tier quota tracking.
 
