@@ -30,6 +30,8 @@ private func hasRecognizedOllamaSessionCookie(in header: String) -> Bool {
 }
 
 public enum OllamaUsageError: LocalizedError, Sendable {
+    private static let signInURL = "https://ollama.com/signin"
+
     case missingAPIKey
     case notLoggedIn
     case invalidCredentials
@@ -43,9 +45,9 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case .missingAPIKey:
             "Missing Ollama API key. Set apiKey in ~/.codexbar/config.json or OLLAMA_API_KEY."
         case .notLoggedIn:
-            "Not signed in to Ollama. Please sign in at https://ollama.com/signin."
+            "Not signed in to Ollama. Please sign in at \(Self.signInURL)."
         case .invalidCredentials:
-            "Ollama session cookie expired. Please log in again."
+            "Ollama session cookie expired. Please sign in again at \(Self.signInURL)."
         case .apiUnauthorized:
             "Ollama API key is invalid or revoked."
         case let .parseFailed(message):
@@ -53,7 +55,7 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case let .networkError(message):
             "Ollama request failed: \(message)"
         case .noSessionCookie:
-            "No Ollama session cookie found. Please sign in at https://ollama.com/signin in your browser."
+            "No Ollama session cookie found. Please sign in at \(Self.signInURL) in your browser."
         }
     }
 }

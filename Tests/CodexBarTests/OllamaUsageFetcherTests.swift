@@ -4,8 +4,9 @@ import Testing
 
 struct OllamaUsageFetcherTests {
     @Test
-    func `sign in errors point to current recovery page`() {
+    func `session authentication errors point to current recovery page`() {
         #expect(OllamaUsageError.notLoggedIn.errorDescription?.contains("https://ollama.com/signin") == true)
+        #expect(OllamaUsageError.invalidCredentials.errorDescription?.contains("https://ollama.com/signin") == true)
         #expect(OllamaUsageError.noSessionCookie.errorDescription?.contains("https://ollama.com/signin") == true)
     }
 
