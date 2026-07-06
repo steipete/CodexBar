@@ -418,6 +418,11 @@ enum CLIRenderer {
         {
             let displayPlan = if provider == .codex {
                 CodexPlanFormatting.displayName(plan) ?? plan
+            } else if provider == .claude,
+                      plan.hasPrefix("Claude "),
+                      ClaudePlan.fromCompatibilityLoginMethod(plan) != nil
+            {
+                plan
             } else {
                 plan.capitalized
             }

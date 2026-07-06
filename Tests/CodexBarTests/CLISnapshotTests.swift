@@ -225,6 +225,34 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `renders Claude Max multiplier without uppercasing x`() {
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: "Claude Max 5x")
+        let snapshot = UsageSnapshot(
+            primary: .init(usedPercent: 2, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: identity)
+
+        let output = CLIRenderer.renderText(
+            provider: .claude,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Claude (oauth)",
+                status: nil,
+                useColor: false,
+                resetStyle: .absolute))
+
+        #expect(output.contains("Plan: Claude Max 5x"))
+        #expect(!output.contains("Plan: Claude Max 5X"))
+    }
+
+    @Test
     func `renders warp unlimited as detail not reset`() {
         let meta = ProviderDescriptorRegistry.descriptor(for: .warp).metadata
         let snap = UsageSnapshot(

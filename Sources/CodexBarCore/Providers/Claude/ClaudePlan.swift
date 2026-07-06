@@ -22,11 +22,9 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
         }
     }
 
-    /// Branded label including the Max usage multiplier when the rate-limit tier
-    /// carries one, e.g. "Claude Max 5x" / "Claude Max 20x". Falls back to the plain
-    /// branded label for tiers without a multiplier (Pro/Team/Enterprise, or a bare Max).
+    /// Branded label including the Max usage multiplier when the rate-limit tier carries one.
     public func brandedLoginMethod(rateLimitTier: String?) -> String {
-        guard let multiplier = Self.usageMultiplier(for: self, rateLimitTier: rateLimitTier) else {
+        guard self == .max, let multiplier = Self.maxUsageMultiplier(rateLimitTier: rateLimitTier) else {
             return self.brandedLoginMethod
         }
         return "\(self.brandedLoginMethod) \(multiplier)"
@@ -152,23 +150,19 @@ public enum ClaudePlan: String, CaseIterable, Sendable {
         return nil
     }
 
-    /// Extracts the usage multiplier ("5x" / "20x") that Anthropic encodes in the
-    /// rate-limit tier string (e.g. "default_claude_max_20x").
-    ///
-    /// The multiplier is only surfaced when the tier string actually names the resolved
-    /// plan. This keeps the label faithful to whatever tier Anthropic assigns — so a
-    /// future `default_claude_team_5x` would render "Claude Team 5x" — while never
-    /// leaking a stray multiplier onto a plan whose subscription type disagreed with the
-    /// rate-limit tier (e.g. a Team subscription reported alongside a `max_5x` tier).
-    private static func usageMultiplier(for plan: Self, rateLimitTier: String?) -> String? {
-        let tier = Self.normalized(rateLimitTier)
-        guard tier.contains(plan.rawValue) else {
+    private static func maxUsageMultiplier(rateLimitTier: String?) -> String? {
+        let words = Self.normalizedWords(rateLimitTier)
+        guard let maxIndex = words.firstIndex(of: Self.max.rawValue),
+              words.indices.contains(maxIndex + 1)
+        else {
             return nil
         }
-        guard let range = tier.range(of: "[0-9]+x", options: .regularExpression) else {
+
+        let multiplier = words[maxIndex + 1]
+        guard multiplier.last == "x", Int(multiplier.dropLast()) != nil else {
             return nil
         }
-        return String(tier[range])
+        return multiplier
     }
 
     private static func normalized(_ text: String?) -> String {
