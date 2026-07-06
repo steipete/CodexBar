@@ -113,7 +113,7 @@ struct GeminiConsumerTierMigrationTests {
         defer { env.cleanup() }
         try env.writeCredentials(
             accessToken: "old-token",
-            refreshToken: "refresh-token",
+            refreshToken: "refresh",
             expiry: Date().addingTimeInterval(-3600),
             idToken: nil)
 
