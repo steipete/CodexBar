@@ -65,7 +65,12 @@ enum CLICardsBriefRenderer {
 
         var lines: [String] = []
         lines.append(Self.titleLine(now: now, terminalWidth: terminalWidth, useColor: useColor, enhanced: enhanced))
-        lines.append(Self.summaryLine(rows: rows, now: now, useColor: useColor, enhanced: enhanced))
+        lines.append(contentsOf: Self.summaryLines(
+            rows: rows,
+            now: now,
+            terminalWidth: terminalWidth,
+            useColor: useColor,
+            enhanced: enhanced))
         lines.append("")
         lines.append(contentsOf: Self.tableLines(
             rows: rows,
@@ -111,24 +116,31 @@ enum CLICardsBriefRenderer {
         return left + String(repeating: " ", count: gap) + right
     }
 
-    private static func summaryLine(
+    private static func summaryLines(
         rows: [CLICardsBriefRow],
         now: Date,
+        terminalWidth: Int,
         useColor: Bool,
-        enhanced: Bool) -> String
+        enhanced: Bool) -> [String]
     {
         var parts: [String] = []
         if let nextReset = Self.nextResetSummary(rows: rows, now: now) {
             parts.append("Next reset: \(nextReset)")
         }
         let text = parts.joined(separator: " • ")
+        guard !text.isEmpty else { return [] }
+        let lines = Self.wrapText(
+            text,
+            firstPrefix: "",
+            continuationPrefix: "  ",
+            width: terminalWidth)
         if useColor, enhanced {
-            return CLIRenderer.colorizeEnhancedReadable(text)
+            return lines.map(CLIRenderer.colorizeEnhancedReadable)
         }
         if useColor {
-            return CLIRenderer.colorizeReadable(text)
+            return lines.map(CLIRenderer.colorizeReadable)
         }
-        return text
+        return lines
     }
 
     private static func providerPlainLabel(_ row: CLICardsBriefRow) -> String {

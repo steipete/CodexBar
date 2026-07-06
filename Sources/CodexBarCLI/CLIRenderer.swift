@@ -403,7 +403,7 @@ enum CLIRenderer {
         let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
         let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
         var metrics: [CLICardMetric] = []
-        if let primary = snapshot.primary {
+        if let primary = snapshot.primary, !primary.isSyntheticPlaceholder {
             metrics.append(self.makeCardMetric(
                 provider: provider,
                 label: labels.primary,
@@ -411,7 +411,7 @@ enum CLIRenderer {
                 resetStyle: resetStyle,
                 now: now))
         }
-        if let secondary = snapshot.secondary {
+        if let secondary = snapshot.secondary, !secondary.isSyntheticPlaceholder {
             metrics.append(self.makeCardMetric(
                 provider: provider,
                 label: labels.secondary,
@@ -419,7 +419,7 @@ enum CLIRenderer {
                 resetStyle: resetStyle,
                 now: now))
         }
-        if labels.showsTertiary, let tertiary = snapshot.tertiary {
+        if labels.showsTertiary, let tertiary = snapshot.tertiary, !tertiary.isSyntheticPlaceholder {
             metrics.append(self.makeCardMetric(
                 provider: provider,
                 label: labels.tertiary,

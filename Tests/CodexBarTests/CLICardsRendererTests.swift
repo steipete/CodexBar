@@ -186,6 +186,69 @@ struct CLICardsRendererTests {
     }
 
     @Test
+    func `synthetic quota lanes do not replace real brief usage`() {
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil,
+                isSyntheticPlaceholder: true),
+            secondary: .init(
+                usedPercent: 20,
+                windowMinutes: 10080,
+                resetsAt: nil,
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let card = CLICardsRenderer.makeCard(CLICardBuildInput(
+            provider: .claude,
+            snapshot: snapshot,
+            credits: nil,
+            source: "oauth",
+            status: nil,
+            notes: [],
+            useColor: false,
+            resetStyle: .countdown,
+            weeklyWorkDays: nil,
+            now: Date(timeIntervalSince1970: 0)))
+        let rows = CLICardsBriefRenderer.makeRows(cards: [card])
+
+        #expect(card.metrics.map(\.label) == ["Weekly"])
+        #expect(rows.first?.usedPercent == 20)
+    }
+
+    @Test
+    func `brief reset summary wraps to terminal width`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let card = CLICardModel(
+            provider: .alibabatokenplan,
+            title: "Alibaba Token Plan",
+            sourceLabel: "web",
+            planBadge: "International",
+            accountLine: nil,
+            infoLines: [],
+            metrics: [CLICardMetric(
+                label: "Monthly budget",
+                remainingPercent: 50,
+                resetText: "⏳ Resets July 30 at 11:59 PM",
+                resetAt: now.addingTimeInterval(3600))],
+            extraLines: [],
+            statusLine: nil)
+
+        let output = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: [card]),
+            failures: [],
+            terminalWidth: 40,
+            useColor: false,
+            now: now)
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
+
+        #expect(output.contains("Next reset: Alibaba Token Plan"))
+        #expect(lines.allSatisfy { $0.count <= 40 })
+    }
+
+    @Test
     func `detail backed quota descriptions are not rendered as resets`() {
         let snapshot = UsageSnapshot(
             primary: .init(
