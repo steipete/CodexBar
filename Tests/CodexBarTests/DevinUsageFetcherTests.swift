@@ -142,18 +142,23 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
-    func `parses integer 1 percent without inflating to 100`() throws {
-        let response: [String: Any] = [
-            "daily_percentage": 1,
-            "weekly_percentage": 1,
-            "daily_reset_at": "2026-06-11T00:00:00-08:00",
-            "weekly_reset_at": "2026-06-14T00:00:00-08:00",
+    func `normalizes mixed-scale current percentages at the one-percent boundary`() throws {
+        let cases: [(input: Double, expected: Double)] = [
+            (0.5, 50),
+            (1, 1),
+            (1.5, 1.5),
         ]
 
-        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+        for value in cases {
+            let response: [String: Any] = [
+                "daily_percentage": value.input,
+                "weekly_percentage": value.input,
+            ]
+            let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
 
-        #expect(snapshot.daily?.usedPercent == 1)
-        #expect(snapshot.weekly?.usedPercent == 1)
+            #expect(snapshot.daily?.usedPercent == value.expected)
+            #expect(snapshot.weekly?.usedPercent == value.expected)
+        }
     }
 
     @Test
