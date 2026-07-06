@@ -182,4 +182,117 @@ struct AdaptiveReplayTraceParserTests {
         #expect(!text.contains("codexActivitySeconds"))
         #expect(!text.contains("claudeActivitySeconds"))
     }
+
+    /// Backward compatibility for the "B layer" (session duration / transcript bytes /
+    /// active-transcript count): an old-format line written before those three fields per CLI
+    /// existed — including one already carrying the earlier "A layer" activity-seconds fields —
+    /// must still decode, with all six new fields nil.
+    @Test
+    func `an old-format decision line without B-layer fields decodes with nil B-layer signals`() throws {
+        let oldFormatLine = """
+        {"kind":"decision","timestamp":"2026-01-01T00:00:00Z","menuAgeSeconds":30,\
+        "lowPowerModeEnabled":false,"thermalState":"nominal","reason":"longIdle","delaySeconds":1800,\
+        "codexActivitySeconds":42,"claudeActivitySeconds":99}
+        """
+
+        let parsed = try AdaptiveRefreshTraceParser.parse(oldFormatLine)
+
+        #expect(parsed.count == 1)
+        #expect(parsed[0].codexActivitySeconds == 42)
+        #expect(parsed[0].claudeActivitySeconds == 99)
+        #expect(parsed[0].codexSessionDurationSeconds == nil)
+        #expect(parsed[0].claudeSessionDurationSeconds == nil)
+        #expect(parsed[0].codexTranscriptBytes == nil)
+        #expect(parsed[0].claudeTranscriptBytes == nil)
+        #expect(parsed[0].codexActiveTranscriptCount == nil)
+        #expect(parsed[0].claudeActiveTranscriptCount == nil)
+    }
+
+    /// A trace mixing a pre-B-layer line, a pre-A-layer (original phase 1) line, and a full
+    /// current-format line all parse together — the parser never requires every line in a trace
+    /// to share the same schema vintage.
+    @Test
+    func `a trace mixing old and new format decision lines parses every line`() throws {
+        let phase1Line = """
+        {"kind":"decision","timestamp":"2026-01-01T00:00:00Z","reason":"longIdle","delaySeconds":1800}
+        """
+        let aLayerOnlyLine = """
+        {"kind":"decision","timestamp":"2026-01-02T00:00:00Z","reason":"warm","delaySeconds":300,\
+        "codexActivitySeconds":10}
+        """
+        let currentLine = try self.encode(.decision(
+            timestamp: Self.referenceNow,
+            menuAgeSeconds: nil,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal,
+            reason: "recentInteraction",
+            delaySeconds: 120,
+            codexActivitySeconds: 1,
+            claudeActivitySeconds: 2,
+            codexSessionDurationSeconds: 3,
+            claudeSessionDurationSeconds: 4,
+            codexTranscriptBytes: 5,
+            claudeTranscriptBytes: 6,
+            codexActiveTranscriptCount: 7,
+            claudeActiveTranscriptCount: 8))
+        let text = [phase1Line, aLayerOnlyLine, currentLine].joined(separator: "\n")
+
+        let parsed = try AdaptiveRefreshTraceParser.parse(text)
+
+        #expect(parsed.count == 3)
+        #expect(parsed[0].codexActivitySeconds == nil)
+        #expect(parsed[1].codexActivitySeconds == 10)
+        #expect(parsed[1].codexSessionDurationSeconds == nil)
+        #expect(parsed[2].codexSessionDurationSeconds == 3)
+        #expect(parsed[2].claudeActiveTranscriptCount == 8)
+    }
+
+    /// A `decision` record carrying all six B-layer fields round-trips them exactly.
+    @Test
+    func `a decision record with B-layer fields round-trips all six values`() throws {
+        let record = AdaptiveRefreshTraceRecord.decision(
+            timestamp: Self.referenceNow,
+            menuAgeSeconds: 5,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal,
+            reason: "recentInteraction",
+            delaySeconds: 120,
+            codexSessionDurationSeconds: 600,
+            claudeSessionDurationSeconds: 900,
+            codexTranscriptBytes: 12345,
+            claudeTranscriptBytes: 67890,
+            codexActiveTranscriptCount: 2,
+            claudeActiveTranscriptCount: 4)
+        let text = try self.encode(record)
+
+        let parsed = try AdaptiveRefreshTraceParser.parse(text)
+
+        #expect(parsed[0].codexSessionDurationSeconds == 600)
+        #expect(parsed[0].claudeSessionDurationSeconds == 900)
+        #expect(parsed[0].codexTranscriptBytes == 12345)
+        #expect(parsed[0].claudeTranscriptBytes == 67890)
+        #expect(parsed[0].codexActiveTranscriptCount == 2)
+        #expect(parsed[0].claudeActiveTranscriptCount == 4)
+    }
+
+    /// The writer must omit nil B-layer fields rather than emitting explicit `null`s, matching the
+    /// A-layer's contract.
+    @Test
+    func `encoding a decision with nil B-layer fields omits all six keys entirely`() throws {
+        let record = AdaptiveRefreshTraceRecord.decision(
+            timestamp: Self.referenceNow,
+            menuAgeSeconds: 5,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal,
+            reason: "recentInteraction",
+            delaySeconds: 120)
+        let text = try self.encode(record)
+
+        #expect(!text.contains("codexSessionDurationSeconds"))
+        #expect(!text.contains("claudeSessionDurationSeconds"))
+        #expect(!text.contains("codexTranscriptBytes"))
+        #expect(!text.contains("claudeTranscriptBytes"))
+        #expect(!text.contains("codexActiveTranscriptCount"))
+        #expect(!text.contains("claudeActiveTranscriptCount"))
+    }
 }

@@ -9,7 +9,7 @@ struct ActivityCoverageStatsTests {
 
     private static func decision(codex: TimeInterval?, claude: TimeInterval?) -> AdaptiveRefreshTraceRecord {
         .decision(
-            timestamp: Self.referenceNow,
+            timestamp: self.referenceNow,
             menuAgeSeconds: nil,
             lowPowerModeEnabled: false,
             thermalState: .nominal,

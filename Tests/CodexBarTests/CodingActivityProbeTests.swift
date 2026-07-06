@@ -15,19 +15,25 @@ struct CodingActivityProbeTests {
         try body(root, fileManager)
     }
 
-    /// Writes an empty file at `path` (relative to `home`) and sets its modification date, creating
-    /// intermediate directories as needed. Only mtime matters to the probe — contents are never read.
+    /// Writes a file at `path` (relative to `home`) with `sizeBytes` of content and sets its
+    /// modification (and optionally creation) date, creating intermediate directories as needed.
+    /// Only file *metadata* matters to the probe — contents are never read, so the bytes written
+    /// are always zeroes; only their count matters for `transcriptBytes` assertions.
     @discardableResult
     private func writeTranscript(
         at path: String,
         under home: URL,
         modified: Date,
+        created: Date? = nil,
+        sizeBytes: Int = 0,
         fileManager: FileManager) throws -> URL
     {
         let url = home.appendingPathComponent(path, isDirectory: false)
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        #expect(fileManager.createFile(atPath: url.path, contents: nil))
-        try fileManager.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+        #expect(fileManager.createFile(atPath: url.path, contents: Data(repeating: 0, count: sizeBytes)))
+        var attributes: [FileAttributeKey: Any] = [.modificationDate: modified]
+        if let created { attributes[.creationDate] = created }
+        try fileManager.setAttributes(attributes, ofItemAtPath: url.path)
         return url
     }
 
@@ -221,6 +227,142 @@ struct CodingActivityProbeTests {
             let sample = self.sample(fileManager: fileManager, home: home)
             #expect(sample.codexSecondsSinceActivity == 90)
             #expect(sample.claudeSecondsSinceActivity == 15)
+        }
+    }
+
+    // MARK: - B layer: session duration, transcript bytes, active-transcript count
+
+    @Test
+    func `reports session duration as mtime minus creationDate for the newest codex transcript`() throws {
+        try self.withFakeHome { home, fileManager in
+            try self.writeTranscript(
+                at: ".codex/sessions/\(Self.dayPath(for: Self.referenceNow))/rollout.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-60),
+                created: Self.referenceNow.addingTimeInterval(-660),
+                fileManager: fileManager)
+
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.codexSessionDurationSeconds == 600)
+        }
+    }
+
+    /// A creationDate after mtime (e.g. a file copied/restored with its birthtime reset forward)
+    /// must clamp session duration to zero rather than reporting a negative duration.
+    @Test
+    func `clamps session duration to zero when creationDate is after modificationDate`() throws {
+        try self.withFakeHome { home, fileManager in
+            try self.writeTranscript(
+                at: ".claude/projects/project-a/session.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-100),
+                created: Self.referenceNow.addingTimeInterval(-50),
+                fileManager: fileManager)
+
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.claudeSessionDurationSeconds == 0)
+        }
+    }
+
+    @Test
+    func `reports the newest codex transcript's byte size`() throws {
+        try self.withFakeHome { home, fileManager in
+            try self.writeTranscript(
+                at: ".codex/sessions/\(Self.dayPath(for: Self.referenceNow))/rollout.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-30),
+                sizeBytes: 4096,
+                fileManager: fileManager)
+
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.codexTranscriptBytes == 4096)
+        }
+    }
+
+    /// The active-transcript count boundary at the 300-second window: a file modified 299s ago
+    /// counts as active, one modified 301s ago does not.
+    @Test
+    func `counts only transcripts modified within the last 300 seconds as active`() throws {
+        try self.withFakeHome { home, fileManager in
+            try self.writeTranscript(
+                at: ".claude/projects/project-a/inside.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-299),
+                fileManager: fileManager)
+            try self.writeTranscript(
+                at: ".claude/projects/project-b/outside.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-301),
+                fileManager: fileManager)
+
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.claudeActiveTranscriptCount == 1)
+        }
+    }
+
+    @Test
+    func `counts multiple concurrently active codex transcripts`() throws {
+        try self.withFakeHome { home, fileManager in
+            let today = Self.dayPath(for: Self.referenceNow)
+            try self.writeTranscript(
+                at: ".codex/sessions/\(today)/rollout-a.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-10),
+                fileManager: fileManager)
+            try self.writeTranscript(
+                at: ".codex/sessions/\(today)/rollout-b.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-20),
+                fileManager: fileManager)
+            try self.writeTranscript(
+                at: ".codex/sessions/\(today)/rollout-c.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-3600),
+                fileManager: fileManager)
+
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.codexActiveTranscriptCount == 2)
+        }
+    }
+
+    /// All per-file B-layer fields (session duration, byte size) must describe the same file as
+    /// the A-layer seconds-since-activity — i.e. the newest one — even when an older transcript
+    /// has a larger size or longer duration that would win if the fields were sourced independently.
+    @Test
+    func `all per-file fields describe the newest transcript when several exist`() throws {
+        try self.withFakeHome { home, fileManager in
+            try self.writeTranscript(
+                at: ".claude/projects/project-a/older.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-500),
+                created: Self.referenceNow.addingTimeInterval(-50000),
+                sizeBytes: 99999,
+                fileManager: fileManager)
+            try self.writeTranscript(
+                at: ".claude/projects/project-b/newer.jsonl",
+                under: home,
+                modified: Self.referenceNow.addingTimeInterval(-10),
+                created: Self.referenceNow.addingTimeInterval(-310),
+                sizeBytes: 256,
+                fileManager: fileManager)
+
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.claudeSecondsSinceActivity == 10)
+            #expect(sample.claudeSessionDurationSeconds == 300)
+            #expect(sample.claudeTranscriptBytes == 256)
+        }
+    }
+
+    @Test
+    func `reports nil for all B-layer fields when no transcript is found`() throws {
+        try self.withFakeHome { home, fileManager in
+            let sample = self.sample(fileManager: fileManager, home: home)
+            #expect(sample.codexSessionDurationSeconds == nil)
+            #expect(sample.claudeSessionDurationSeconds == nil)
+            #expect(sample.codexTranscriptBytes == nil)
+            #expect(sample.claudeTranscriptBytes == nil)
+            #expect(sample.codexActiveTranscriptCount == nil)
+            #expect(sample.claudeActiveTranscriptCount == nil)
         }
     }
 }

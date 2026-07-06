@@ -4,8 +4,8 @@ import Foundation
 ///
 /// Reports how many seconds ago the newest Codex / Claude Code session transcript was written, as a
 /// privacy-safe proxy for "a coding turn just happened, so provider quota is being spent right now".
-/// It reads only file *modification times* — never file contents, project paths, or account data —
-/// so the only thing it can contribute to a trace is two elapsed-seconds numbers.
+/// It reads only file *metadata* (modification/creation dates, size) — never file contents, project
+/// paths, or account data.
 ///
 /// Signal choice: transcript mtime tracks actual turns. Raw process presence is a weaker signal — an
 /// editor or an unattended agent can sit open and idle for hours without spending anything. The probe
@@ -21,6 +21,9 @@ import Foundation
 /// - Claude transcripts sit directly under `.claude/projects/<project>/*.jsonl` with no further
 ///   nesting relevant here (some projects also hold a `memory/` subdirectory), so project
 ///   directories are listed non-recursively and only their direct `.jsonl` children are considered.
+/// Adding the size/creation-date fields below reuses the same `contentsOfDirectory` /
+/// `resourceValues` calls the mtime-only walk already made (more resource keys per call, not more
+/// calls), so it doesn't add directory traversals.
 ///
 /// Trade-off: if neither Codex nor Claude wrote a transcript in the last two calendar days, the
 /// probe reports "unavailable" (nil) even if an older transcript exists. That's acceptable for
@@ -32,6 +35,24 @@ struct CodingActivitySample: Sendable, Equatable {
     let codexSecondsSinceActivity: TimeInterval?
     /// Seconds since the newest Claude Code transcript was modified, or nil when none is found.
     let claudeSecondsSinceActivity: TimeInterval?
+    /// How long the newest Codex transcript has been growing: its (mtime − creationDate), clamped
+    /// to >= 0. A proxy for "how long has the current session been running" — not a separate age
+    /// field, since age = `codexSecondsSinceActivity` + `codexSessionDurationSeconds`.
+    let codexSessionDurationSeconds: TimeInterval?
+    /// The Claude Code counterpart of `codexSessionDurationSeconds`.
+    let claudeSessionDurationSeconds: TimeInterval?
+    /// Size in bytes of the newest Codex transcript. Recorded as a stateless raw value — offline
+    /// replay analysis computes deltas between consecutive decisions to estimate burn intensity;
+    /// this probe never computes a delta itself.
+    let codexTranscriptBytes: Int64?
+    /// The Claude Code counterpart of `codexTranscriptBytes`.
+    let claudeTranscriptBytes: Int64?
+    /// Count of Codex `.jsonl` transcripts (within the bounded lookback window) modified in the
+    /// last `activeTranscriptWindowSeconds`. Captures concurrent-session intensity — several agents
+    /// running at once — that a newest-file-only metric misses.
+    let codexActiveTranscriptCount: Int?
+    /// The Claude Code counterpart of `codexActiveTranscriptCount`.
+    let claudeActiveTranscriptCount: Int?
 }
 
 enum CodingActivityProbe {
@@ -41,9 +62,30 @@ enum CodingActivityProbe {
     private static let claudeProjectsSubpath = ".claude/projects"
     /// How many calendar days back (inclusive of today) the Codex walk looks: today and yesterday.
     private static let codexLookbackDays = 2
+    /// A transcript modified more recently than this counts toward `*ActiveTranscriptCount`.
+    private static let activeTranscriptWindowSeconds: TimeInterval = 300
 
-    private static let statResourceKeys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
+    private static let statResourceKeys: [URLResourceKey] = [
+        .contentModificationDateKey, .creationDateKey, .fileSizeKey, .isRegularFileKey,
+    ]
     private static let statResourceKeySet: Set<URLResourceKey> = Set(Self.statResourceKeys)
+
+    /// Per-file metadata read in a single `resourceValues` call — never the file's contents, path,
+    /// or name beyond the `.jsonl` extension check already applied by the caller.
+    private struct TranscriptStat: Sendable, Equatable {
+        let modificationDate: Date
+        let creationDate: Date?
+        let fileSize: Int64?
+    }
+
+    /// The newest transcript's stat plus a count of how many transcripts (in the same bounded
+    /// listing) were modified within `activeTranscriptWindowSeconds`. All per-file fields in
+    /// `CodingActivitySample` for one CLI derive from `newest`, so they always describe the same
+    /// file.
+    private struct TranscriptAggregate {
+        let newest: TranscriptStat
+        let activeCount: Int
+    }
 
     static func sample(
         now: Date = Date(),
@@ -52,31 +94,53 @@ enum CodingActivityProbe {
     {
         let codexRoot = homeDirectory.appendingPathComponent(self.codexSessionsSubpath, isDirectory: true)
         let claudeRoot = homeDirectory.appendingPathComponent(self.claudeProjectsSubpath, isDirectory: true)
-        let codexNewest = Self.newestCodexTranscriptModificationDate(
-            root: codexRoot, now: now, fileManager: fileManager)
-        let claudeNewest = Self.newestClaudeTranscriptModificationDate(root: claudeRoot, fileManager: fileManager)
+        let codexAggregate = Self.aggregate(
+            stats: Self.codexTranscriptStats(root: codexRoot, now: now, fileManager: fileManager), now: now)
+        let claudeAggregate = Self.aggregate(
+            stats: Self.claudeTranscriptStats(root: claudeRoot, fileManager: fileManager), now: now)
         return CodingActivitySample(
-            codexSecondsSinceActivity: codexNewest.map { max(0, now.timeIntervalSince($0)) },
-            claudeSecondsSinceActivity: claudeNewest.map { max(0, now.timeIntervalSince($0)) })
+            codexSecondsSinceActivity: codexAggregate.map { Self.secondsSinceActivity($0, now: now) },
+            claudeSecondsSinceActivity: claudeAggregate.map { Self.secondsSinceActivity($0, now: now) },
+            codexSessionDurationSeconds: codexAggregate.flatMap(Self.sessionDurationSeconds),
+            claudeSessionDurationSeconds: claudeAggregate.flatMap(Self.sessionDurationSeconds),
+            codexTranscriptBytes: codexAggregate?.newest.fileSize,
+            claudeTranscriptBytes: claudeAggregate?.newest.fileSize,
+            codexActiveTranscriptCount: codexAggregate?.activeCount,
+            claudeActiveTranscriptCount: claudeAggregate?.activeCount)
+    }
+
+    private static func secondsSinceActivity(_ aggregate: TranscriptAggregate, now: Date) -> TimeInterval {
+        max(0, now.timeIntervalSince(aggregate.newest.modificationDate))
+    }
+
+    private static func sessionDurationSeconds(_ aggregate: TranscriptAggregate) -> TimeInterval? {
+        aggregate.newest.creationDate.map { max(0, aggregate.newest.modificationDate.timeIntervalSince($0)) }
+    }
+
+    /// Picks the newest-by-mtime stat and counts recently-modified entries. Returns nil when
+    /// `stats` is empty (tree missing or no transcript in the bounded window), so every field
+    /// derived from it is nil together.
+    private static func aggregate(stats: [TranscriptStat], now: Date) -> TranscriptAggregate? {
+        guard let newest = stats.max(by: { $0.modificationDate < $1.modificationDate }) else { return nil }
+        let activeCount = stats.count { Self.isActive($0, now: now) }
+        return TranscriptAggregate(newest: newest, activeCount: activeCount)
+    }
+
+    private static func isActive(_ stat: TranscriptStat, now: Date) -> Bool {
+        now.timeIntervalSince(stat.modificationDate) < self.activeTranscriptWindowSeconds
     }
 
     /// Lists only today's and yesterday's `YYYY/MM/DD` directories (never the whole year/month
-    /// tree) and returns the newest `.jsonl` modification date across them.
-    private static func newestCodexTranscriptModificationDate(
-        root: URL,
-        now: Date,
-        fileManager: FileManager) -> Date?
-    {
+    /// tree) and returns stats for every `.jsonl` file found across them.
+    private static func codexTranscriptStats(root: URL, now: Date, fileManager: FileManager) -> [TranscriptStat] {
         let calendar = Calendar(identifier: .gregorian)
-        var newest: Date?
+        var stats: [TranscriptStat] = []
         for dayOffset in 0..<self.codexLookbackDays {
             guard let day = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
             let dayDirectory = root.appendingPathComponent(self.dayPathComponent(for: day, calendar: calendar))
-            for candidate in Self.jsonlModificationDates(in: dayDirectory, fileManager: fileManager) {
-                if newest == nil || candidate > newest! { newest = candidate }
-            }
+            stats.append(contentsOf: Self.jsonlTranscriptStats(in: dayDirectory, fileManager: fileManager))
         }
-        return newest
+        return stats
     }
 
     private static func dayPathComponent(for date: Date, calendar: Calendar) -> String {
@@ -87,43 +151,45 @@ enum CodingActivityProbe {
     /// Lists project directories non-recursively, then each project directory's direct `.jsonl`
     /// children non-recursively — never descending into a project's `memory/` or other
     /// subdirectories.
-    private static func newestClaudeTranscriptModificationDate(root: URL, fileManager: FileManager) -> Date? {
+    private static func claudeTranscriptStats(root: URL, fileManager: FileManager) -> [TranscriptStat] {
         guard let projectDirectories = try? fileManager.contentsOfDirectory(
             at: root,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles])
         else {
-            return nil
+            return []
         }
-        var newest: Date?
+        var stats: [TranscriptStat] = []
         for projectDirectory in projectDirectories {
             let isDirectory = (try? projectDirectory.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
             guard isDirectory else { continue }
-            for candidate in Self.jsonlModificationDates(in: projectDirectory, fileManager: fileManager) {
-                if newest == nil || candidate > newest! { newest = candidate }
-            }
+            stats.append(contentsOf: Self.jsonlTranscriptStats(in: projectDirectory, fileManager: fileManager))
         }
-        return newest
+        return stats
     }
 
-    /// Non-recursive `.jsonl` modification dates directly inside `directory`. Missing directories
-    /// (no sessions yet today, tool never installed) simply yield no dates.
-    private static func jsonlModificationDates(in directory: URL, fileManager: FileManager) -> [Date] {
+    /// Non-recursive `.jsonl` stats directly inside `directory`. Missing directories (no sessions
+    /// yet today, tool never installed) simply yield no stats.
+    private static func jsonlTranscriptStats(in directory: URL, fileManager: FileManager) -> [TranscriptStat] {
         guard let entries = try? fileManager.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: Self.statResourceKeys,
+            includingPropertiesForKeys: statResourceKeys,
             options: [.skipsHiddenFiles])
         else {
             return []
         }
-        return entries.compactMap { url -> Date? in
+        return entries.compactMap { url -> TranscriptStat? in
             guard url.pathExtension == "jsonl",
                   let values = try? url.resourceValues(forKeys: Self.statResourceKeySet),
-                  values.isRegularFile == true
+                  values.isRegularFile == true,
+                  let modified = values.contentModificationDate
             else {
                 return nil
             }
-            return values.contentModificationDate
+            return TranscriptStat(
+                modificationDate: modified,
+                creationDate: values.creationDate,
+                fileSize: values.fileSize.map(Int64.init))
         }
     }
 }

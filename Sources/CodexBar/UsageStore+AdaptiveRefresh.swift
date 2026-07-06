@@ -113,8 +113,7 @@ extension UsageStore {
             lowPowerModeEnabled: lowPowerModeEnabled,
             thermalState: thermalState,
             decision: decision,
-            codexActivitySeconds: activitySample?.codexSecondsSinceActivity,
-            claudeActivitySeconds: activitySample?.claudeSecondsSinceActivity)
+            activitySample: activitySample)
         return store.effectiveTimerSleepDuration(decision.delay)
     }
 

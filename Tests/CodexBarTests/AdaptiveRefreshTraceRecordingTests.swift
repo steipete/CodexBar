@@ -142,27 +142,43 @@ struct AdaptiveRefreshTraceRecordingTests {
         }
     }
 
-    /// Anchors the shadow-mode `CodingActivityProbe` plumb-through: `recordDecision`'s two optional
-    /// activity parameters must land unchanged in the recorded trace line. This calls
-    /// `recordDecision` directly with explicit sample values rather than going through
-    /// `nextAdaptiveTimerSleepDuration`, so the assertion is independent of whatever the real
-    /// `~/.codex` / `~/.claude` directories on the machine running this test happen to contain.
+    /// Anchors the shadow-mode `CodingActivityProbe` plumb-through: `recordDecision`'s
+    /// `activitySample` parameter — A-layer (seconds-since-activity) and B-layer (session
+    /// duration, transcript bytes, active-transcript count) alike — must land unchanged in the
+    /// recorded trace line. This calls `recordDecision` directly with an explicit sample rather
+    /// than going through `nextAdaptiveTimerSleepDuration`, so the assertion is independent of
+    /// whatever the real `~/.codex` / `~/.claude` directories on the machine running this test
+    /// happen to contain.
     @Test
     func `recordDecision plumbs the coding-activity probe sample into the trace line`() async throws {
         try await self.withTracingEnabled { url in
+            let sample = CodingActivitySample(
+                codexSecondsSinceActivity: 42,
+                claudeSecondsSinceActivity: 99,
+                codexSessionDurationSeconds: 1200,
+                claudeSessionDurationSeconds: 300,
+                codexTranscriptBytes: 4096,
+                claudeTranscriptBytes: 2048,
+                codexActiveTranscriptCount: 3,
+                claudeActiveTranscriptCount: 1)
             AdaptiveRefreshTraceRecording.recordDecision(
                 now: Date(),
                 lastMenuOpenAt: nil,
                 lowPowerModeEnabled: false,
                 thermalState: .nominal,
                 decision: AdaptiveRefreshPolicy.Decision(delay: .seconds(1800), reason: .longIdle),
-                codexActivitySeconds: 42,
-                claudeActivitySeconds: 99)
+                activitySample: sample)
 
             let records = try await self.waitForRecords(at: url) { $0.contains { $0.kind == .decision } }
             let decision = try #require(records.first { $0.kind == .decision })
             #expect(decision.codexActivitySeconds == 42)
             #expect(decision.claudeActivitySeconds == 99)
+            #expect(decision.codexSessionDurationSeconds == 1200)
+            #expect(decision.claudeSessionDurationSeconds == 300)
+            #expect(decision.codexTranscriptBytes == 4096)
+            #expect(decision.claudeTranscriptBytes == 2048)
+            #expect(decision.codexActiveTranscriptCount == 3)
+            #expect(decision.claudeActiveTranscriptCount == 1)
         }
     }
 
@@ -182,6 +198,12 @@ struct AdaptiveRefreshTraceRecordingTests {
             let decision = try #require(records.first { $0.kind == .decision })
             #expect(decision.codexActivitySeconds == nil)
             #expect(decision.claudeActivitySeconds == nil)
+            #expect(decision.codexSessionDurationSeconds == nil)
+            #expect(decision.claudeSessionDurationSeconds == nil)
+            #expect(decision.codexTranscriptBytes == nil)
+            #expect(decision.claudeTranscriptBytes == nil)
+            #expect(decision.codexActiveTranscriptCount == nil)
+            #expect(decision.claudeActiveTranscriptCount == nil)
         }
     }
 

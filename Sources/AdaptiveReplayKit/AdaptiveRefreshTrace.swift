@@ -17,10 +17,11 @@ public enum AdaptiveRefreshTraceEventKind: String, Sendable, Codable {
 
 /// One line of a JSONL adaptive-refresh trace. Field presence depends on `kind`: `decision`
 /// records populate `menuAgeSeconds`, `lowPowerModeEnabled`, `thermalState`, `reason`, and
-/// `delaySeconds`, plus the shadow-mode `codexActivitySeconds` / `claudeActivitySeconds` signals
-/// when tracing sampled them; `timerAdvanced` records populate `previousScheduledAt`,
-/// `candidateScheduledAt`, `reason`, and `delaySeconds`; `menuOpen` and `refreshCompleted` carry
-/// only `kind` and `timestamp`.
+/// `delaySeconds`, plus the shadow-mode `CodingActivityProbe` signals when tracing sampled them
+/// (`codexActivitySeconds`/`claudeActivitySeconds`, the "A layer" seconds-since-newest-transcript,
+/// and the "B layer" per-file intensity fields alongside them); `timerAdvanced` records populate
+/// `previousScheduledAt`, `candidateScheduledAt`, `reason`, and `delaySeconds`; `menuOpen` and
+/// `refreshCompleted` carry only `kind` and `timestamp`.
 public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
     public let kind: AdaptiveRefreshTraceEventKind
     public let timestamp: Date
@@ -43,6 +44,24 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
     public let codexActivitySeconds: TimeInterval?
     /// `decision` only: the Claude Code counterpart of `codexActivitySeconds`.
     public let claudeActivitySeconds: TimeInterval?
+    /// `decision` only, shadow-mode "B layer": how long the newest Codex transcript has been
+    /// growing (its mtime minus its creationDate), or `nil` when unavailable. Not a separate
+    /// session-age field — age is `codexActivitySeconds` + `codexSessionDurationSeconds`.
+    public let codexSessionDurationSeconds: TimeInterval?
+    /// `decision` only: the Claude Code counterpart of `codexSessionDurationSeconds`.
+    public let claudeSessionDurationSeconds: TimeInterval?
+    /// `decision` only, shadow-mode "B layer": size in bytes of the newest Codex transcript, as a
+    /// stateless raw value. Offline replay analysis derives burn-intensity deltas between
+    /// consecutive decisions from this; the app never computes the delta itself.
+    public let codexTranscriptBytes: Int64?
+    /// `decision` only: the Claude Code counterpart of `codexTranscriptBytes`.
+    public let claudeTranscriptBytes: Int64?
+    /// `decision` only, shadow-mode "B layer": count of Codex `.jsonl` transcripts (within the
+    /// probe's bounded lookback window) modified in the last few minutes, i.e. concurrent-session
+    /// intensity a newest-file-only metric would miss.
+    public let codexActiveTranscriptCount: Int?
+    /// `decision` only: the Claude Code counterpart of `codexActiveTranscriptCount`.
+    public let claudeActiveTranscriptCount: Int?
 
     public init(
         kind: AdaptiveRefreshTraceEventKind,
@@ -55,7 +74,13 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         previousScheduledAt: Date? = nil,
         candidateScheduledAt: Date? = nil,
         codexActivitySeconds: TimeInterval? = nil,
-        claudeActivitySeconds: TimeInterval? = nil)
+        claudeActivitySeconds: TimeInterval? = nil,
+        codexSessionDurationSeconds: TimeInterval? = nil,
+        claudeSessionDurationSeconds: TimeInterval? = nil,
+        codexTranscriptBytes: Int64? = nil,
+        claudeTranscriptBytes: Int64? = nil,
+        codexActiveTranscriptCount: Int? = nil,
+        claudeActiveTranscriptCount: Int? = nil)
     {
         self.kind = kind
         self.timestamp = timestamp
@@ -68,6 +93,12 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         self.candidateScheduledAt = candidateScheduledAt
         self.codexActivitySeconds = codexActivitySeconds
         self.claudeActivitySeconds = claudeActivitySeconds
+        self.codexSessionDurationSeconds = codexSessionDurationSeconds
+        self.claudeSessionDurationSeconds = claudeSessionDurationSeconds
+        self.codexTranscriptBytes = codexTranscriptBytes
+        self.claudeTranscriptBytes = claudeTranscriptBytes
+        self.codexActiveTranscriptCount = codexActiveTranscriptCount
+        self.claudeActiveTranscriptCount = claudeActiveTranscriptCount
     }
 
     // swiftlint:disable:next function_parameter_count
@@ -79,7 +110,13 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         reason: String,
         delaySeconds: TimeInterval,
         codexActivitySeconds: TimeInterval? = nil,
-        claudeActivitySeconds: TimeInterval? = nil) -> Self
+        claudeActivitySeconds: TimeInterval? = nil,
+        codexSessionDurationSeconds: TimeInterval? = nil,
+        claudeSessionDurationSeconds: TimeInterval? = nil,
+        codexTranscriptBytes: Int64? = nil,
+        claudeTranscriptBytes: Int64? = nil,
+        codexActiveTranscriptCount: Int? = nil,
+        claudeActiveTranscriptCount: Int? = nil) -> Self
     {
         Self(
             kind: .decision,
@@ -90,7 +127,13 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
             reason: reason,
             delaySeconds: delaySeconds,
             codexActivitySeconds: codexActivitySeconds,
-            claudeActivitySeconds: claudeActivitySeconds)
+            claudeActivitySeconds: claudeActivitySeconds,
+            codexSessionDurationSeconds: codexSessionDurationSeconds,
+            claudeSessionDurationSeconds: claudeSessionDurationSeconds,
+            codexTranscriptBytes: codexTranscriptBytes,
+            claudeTranscriptBytes: claudeTranscriptBytes,
+            codexActiveTranscriptCount: codexActiveTranscriptCount,
+            claudeActiveTranscriptCount: claudeActiveTranscriptCount)
     }
 
     public static func menuOpen(timestamp: Date) -> Self {

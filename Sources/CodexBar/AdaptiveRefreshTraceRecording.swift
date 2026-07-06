@@ -44,14 +44,17 @@ enum AdaptiveRefreshTraceRecording {
         #endif
     }
 
+    /// - Parameter activitySample: the shadow-mode `CodingActivityProbe` reading for this tick, or
+    ///   `nil` when the caller didn't sample one (e.g. tracing was disabled at sample time). Every
+    ///   field on it is optional and independent, so a partial sample (say, Codex data but no
+    ///   Claude data) still records whatever it has.
     static func recordDecision(
         now: Date,
         lastMenuOpenAt: Date?,
         lowPowerModeEnabled: Bool,
         thermalState: ProcessInfo.ThermalState,
         decision: AdaptiveRefreshPolicy.Decision,
-        codexActivitySeconds: TimeInterval? = nil,
-        claudeActivitySeconds: TimeInterval? = nil)
+        activitySample: CodingActivitySample? = nil)
     {
         guard self.isEnabled else { return }
         let menuAgeSeconds = lastMenuOpenAt.map { now.timeIntervalSince($0) }
@@ -62,8 +65,14 @@ enum AdaptiveRefreshTraceRecording {
             thermalState: self.replayThermalState(for: thermalState),
             reason: decision.reason.rawValue,
             delaySeconds: TimeInterval(decision.delay.components.seconds),
-            codexActivitySeconds: codexActivitySeconds,
-            claudeActivitySeconds: claudeActivitySeconds))
+            codexActivitySeconds: activitySample?.codexSecondsSinceActivity,
+            claudeActivitySeconds: activitySample?.claudeSecondsSinceActivity,
+            codexSessionDurationSeconds: activitySample?.codexSessionDurationSeconds,
+            claudeSessionDurationSeconds: activitySample?.claudeSessionDurationSeconds,
+            codexTranscriptBytes: activitySample?.codexTranscriptBytes,
+            claudeTranscriptBytes: activitySample?.claudeTranscriptBytes,
+            codexActiveTranscriptCount: activitySample?.codexActiveTranscriptCount,
+            claudeActiveTranscriptCount: activitySample?.claudeActiveTranscriptCount))
     }
 
     static func recordMenuOpen(at date: Date = Date()) {
