@@ -142,11 +142,19 @@ public struct KimiK2UsageFetcher: Sendable {
         return KimiK2UsageSnapshot(summary: summary)
     }
 
-    static func _parseSummaryForTesting(_ data: Data, headers: [AnyHashable: Any] = [:]) throws -> KimiK2UsageSummary {
-        try self.parseSummary(data: data, headers: headers)
+    static func _parseSummaryForTesting(
+        _ data: Data,
+        headers: [AnyHashable: Any] = [:],
+        now: Date = Date()) throws -> KimiK2UsageSummary
+    {
+        try self.parseSummary(data: data, headers: headers, now: now)
     }
 
-    private static func parseSummary(data: Data, headers: [AnyHashable: Any]) throws -> KimiK2UsageSummary {
+    private static func parseSummary(
+        data: Data,
+        headers: [AnyHashable: Any],
+        now: Date = Date()) throws -> KimiK2UsageSummary
+    {
         guard let json = try? jsonSerializer.jsonObject(with: data),
               let dictionary = json as? [String: Any]
         else {
@@ -159,7 +167,7 @@ public struct KimiK2UsageFetcher: Sendable {
             ?? Self.doubleValueFromHeaders(headers: headers, key: "x-credits-remaining")
             ?? 0
         let averageTokens = Self.doubleValue(for: Self.averageTokenPaths, in: contexts)
-        let updatedAt = Self.dateValue(for: Self.timestampPaths, in: contexts) ?? Date()
+        let updatedAt = Self.dateValue(for: Self.timestampPaths, in: contexts) ?? now
 
         return KimiK2UsageSummary(
             consumed: consumed,
@@ -285,7 +293,7 @@ public struct KimiK2UsageFetcher: Sendable {
 
     private static func dateFromNumeric(_ value: Double) -> Date? {
         guard value.isFinite, value > 0 else { return nil }
-        let seconds = value > 1_000_000_000_000 ? value / 1000 : value
+        let seconds = value >= 1_000_000_000_000 ? value / 1000 : value
         guard seconds.isFinite, seconds <= Date.distantFuture.timeIntervalSince1970 else { return nil }
         return Date(timeIntervalSince1970: seconds)
     }
