@@ -209,7 +209,7 @@ enum CLIRenderer {
         let clamped = max(0, min(100, usedPercent))
         let barWidth = max(4, width)
         let rawFilled = Int((clamped / 100) * Double(barWidth))
-        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let filled = max(0, min(barWidth, rawFilled))
         let empty = max(0, barWidth - filled)
         let bar = String(repeating: "█", count: filled) + String(repeating: "░", count: empty)
         guard useColor else { return bar }
@@ -249,7 +249,7 @@ enum CLIRenderer {
         let clamped = max(0, min(100, remainingPercent))
         let barWidth = max(4, width)
         let rawFilled = Int((clamped / 100) * Double(barWidth))
-        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let filled = max(0, min(barWidth, rawFilled))
         let empty = max(0, barWidth - filled)
         let colors = self.remainingGradientRGB(remainingPercent: clamped)
         var bar = ""
@@ -273,7 +273,7 @@ enum CLIRenderer {
         let clamped = max(0, min(100, remainingPercent))
         let barWidth = max(4, width)
         let rawFilled = Int((clamped / 100) * Double(barWidth))
-        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let filled = max(0, min(barWidth, rawFilled))
         let empty = max(0, barWidth - filled)
         let colors = self.remainingGradientRGB(remainingPercent: clamped)
         var bar = ""
@@ -385,7 +385,7 @@ enum CLIRenderer {
         let clamped = max(0, min(100, remainingPercent))
         let barWidth = max(8, width)
         let rawFilled = Int((clamped / 100) * Double(barWidth))
-        let filled = max(0, min(barWidth, max(1, rawFilled)))
+        let filled = max(0, min(barWidth, rawFilled))
         let empty = max(0, barWidth - filled)
         let filledBar = String(repeating: "━", count: filled)
         let emptyBar = String(repeating: " ", count: empty)

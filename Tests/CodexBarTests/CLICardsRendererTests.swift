@@ -227,6 +227,82 @@ struct CLICardsRendererTests {
     }
 
     @Test
+    func `standard brief mode fills bars from used percentage`() {
+        let rows = CLICardsBriefRenderer.makeRows(cards: [
+            CLICardModel(
+                provider: .codex,
+                title: "Unused",
+                sourceLabel: "oauth",
+                planBadge: nil,
+                accountLine: nil,
+                infoLines: [],
+                metrics: [CLICardMetric(label: "Session", remainingPercent: 100, resetText: nil)],
+                extraLines: [],
+                statusLine: nil),
+            CLICardModel(
+                provider: .openrouter,
+                title: "Exhausted",
+                sourceLabel: "api",
+                planBadge: nil,
+                accountLine: nil,
+                infoLines: [],
+                metrics: [CLICardMetric(label: "Session", remainingPercent: 0, resetText: nil)],
+                extraLines: [],
+                statusLine: nil),
+        ])
+        let output = CLICardsBriefRenderer.render(
+            rows: rows,
+            failures: [],
+            terminalWidth: 80,
+            useColor: false,
+            enhanced: false,
+            now: Date(timeIntervalSince1970: 0))
+        let plainLines = output.split(separator: "\n")
+        let unusedLine = String(plainLines.first { $0.contains("Unused") } ?? "")
+        let exhaustedLine = String(plainLines.first { $0.contains("Exhausted") } ?? "")
+
+        #expect(unusedLine.contains("0%"))
+        #expect(unusedLine.filter { $0 == "█" }.isEmpty)
+        #expect(exhaustedLine.contains("100%"))
+        #expect(exhaustedLine.filter { $0 == "░" }.isEmpty)
+    }
+
+    @Test
+    func `standard card grid shows empty remaining bar at exhaustion`() {
+        let card = CLICardModel(
+            provider: .openrouter,
+            title: "Exhausted",
+            sourceLabel: "api",
+            planBadge: nil,
+            accountLine: nil,
+            infoLines: [],
+            metrics: [CLICardMetric(label: "Session", remainingPercent: 0, resetText: nil)],
+            extraLines: [],
+            statusLine: nil)
+        let lines = CLICardsRenderer.renderCard(card, width: 48, useColor: false, enhanced: false)
+        let barLine = String(lines.first { $0.contains("[ ") && $0.contains("]") } ?? "")
+        #expect(barLine.filter { $0 == "━" }.isEmpty)
+    }
+
+    @Test
+    func `enhanced card grid shows empty remaining bar at exhaustion`() {
+        let card = CLICardModel(
+            provider: .openrouter,
+            title: "Exhausted",
+            sourceLabel: "api",
+            planBadge: nil,
+            accountLine: nil,
+            infoLines: [],
+            metrics: [CLICardMetric(label: "Session", remainingPercent: 0, resetText: nil)],
+            extraLines: [],
+            statusLine: nil)
+        let lines = CLICardsRenderer.renderCard(card, width: 48, useColor: true, enhanced: true)
+        let plainBarLine = TextParsing.stripANSICodes(
+            String(lines.first { $0.contains("[ ") && $0.contains("]") } ?? ""))
+        #expect(plainBarLine.filter { !$0.isWhitespace && $0 != "│" && $0 != "[" && $0 != "]" }.isEmpty)
+    }
+
+    @Test
     func `enhanced mode uses truecolor gradient bars`() {
         let card = CLICardModel(
             provider: .codex,

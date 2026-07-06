@@ -19,6 +19,7 @@ extension CodexBarCLI {
           Honors enabled providers from config and reuses the same fetch flags as codexbar usage.
           Failed providers are summarized in a footer instead of error cards.
           Use --brief for a compact table layout (Provider / Usage / Reset).
+          Stdout is always the rendered card/table text; --json-output only affects stderr logs.
 
         Global flags:
           -h, --help      Show help
@@ -32,6 +33,7 @@ extension CodexBarCLI {
           codexbar cards
           codexbar cards --provider codex
           codexbar cards --provider all --status
+          codexbar cards --brief
           codexbar cards --no-color
         """
     }
