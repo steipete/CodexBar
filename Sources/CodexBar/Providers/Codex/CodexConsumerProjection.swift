@@ -343,6 +343,12 @@ struct CodexConsumerProjection {
         }.min()
     }
 
+    var hasBindingWeeklyCap: Bool {
+        Self.weeklyCapsSession(
+            weekly: self.rateWindowsByLane[.weekly],
+            evaluationTime: self.evaluationTime)
+    }
+
     func remainingPercent(for metric: SupplementalMetric) -> Double? {
         switch metric {
         case .codeReview:

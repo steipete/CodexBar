@@ -25,7 +25,8 @@ extension UsageStore {
             guard !self.shouldExcludeFromHighestUsage(
                 provider: provider,
                 snapshot: snapshot,
-                metricPercent: percent)
+                metricPercent: percent,
+                now: now)
             else {
                 continue
             }
@@ -58,12 +59,21 @@ extension UsageStore {
     private func shouldExcludeFromHighestUsage(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        metricPercent: Double)
+        metricPercent: Double,
+        now: Date)
         -> Bool
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         guard metricPercent >= 100 else { return false }
         if provider == .codex || provider == .claude, effectivePreference == .primaryAndSecondary {
+            if provider == .codex,
+               self.codexConsumerProjection(
+                   surface: .menuBar,
+                   snapshotOverride: snapshot,
+                   now: now).hasBindingWeeklyCap
+            {
+                return true
+            }
             // A Claude spend-limit-only snapshot has no real session/weekly lanes; the metric resolves to
             // the spend-limit window, so reaching here (metricPercent >= 100) means the spend limit itself
             // is exhausted. Mirror that resolver fallback and exclude, instead of inspecting the raw 0%

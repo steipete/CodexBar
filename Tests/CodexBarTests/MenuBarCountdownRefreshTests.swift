@@ -185,7 +185,7 @@ struct MenuBarCountdownRefreshTests {
         store._setSnapshotForTesting(
             UsageSnapshot(
                 primary: RateWindow(
-                    usedPercent: 100,
+                    usedPercent: 1,
                     windowMinutes: 300,
                     resetsAt: now.addingTimeInterval(60),
                     resetDescription: nil),
