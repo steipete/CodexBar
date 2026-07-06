@@ -614,12 +614,20 @@ struct WidgetUsageRow: Identifiable, Equatable {
         return limit
     }
 
-    static func rows(for entry: WidgetSnapshot.ProviderEntry, limit: Int? = nil) -> [WidgetUsageRow] {
+    static func rows(
+        for entry: WidgetSnapshot.ProviderEntry,
+        limit: Int? = nil,
+        now: Date = Date()) -> [WidgetUsageRow]
+    {
         let rows: [WidgetUsageRow]
         if let usageRows = entry.usageRows {
-            rows = usageRows.map { row in
-                WidgetUsageRow(id: row.id, title: row.title, percentLeft: row.percentLeft)
+            let sourceRows = usageRows.map { row in
+                WidgetUsageRow(
+                    id: row.id,
+                    title: row.title,
+                    percentLeft: row.window?.remainingPercent ?? row.percentLeft)
             }
+            rows = self.applyingCodexWeeklyCap(sourceRows, snapshots: usageRows, provider: entry.provider, now: now)
         } else {
             let metadata = ProviderDefaults.metadata[entry.provider]
             var defaultRows = [
@@ -670,6 +678,25 @@ struct WidgetUsageRow: Identifiable, Equatable {
             return selected
         }
         return Array(rows.prefix(max(0, limit)))
+    }
+
+    private static func applyingCodexWeeklyCap(
+        _ rows: [WidgetUsageRow],
+        snapshots: [WidgetSnapshot.WidgetUsageRowSnapshot],
+        provider: UsageProvider,
+        now: Date) -> [WidgetUsageRow]
+    {
+        guard provider == .codex,
+              let weekly = snapshots.first(where: { $0.id == "weekly" })?.window,
+              weekly.remainingPercent <= 0,
+              weekly.resetsAt.map({ $0 > now }) ?? true
+        else {
+            return rows
+        }
+        return rows.map { row in
+            guard row.id == "session" else { return row }
+            return WidgetUsageRow(id: row.id, title: row.title, percentLeft: 0)
+        }
     }
 
     static func compactTokenUsage(

@@ -33,7 +33,7 @@ struct MenuBarCountdownRefreshTests {
     }
 
     @Test
-    func `status item schedules countdown refresh only for countdown reset dates`() {
+    func `status item schedules countdown and weekly cap refreshes`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "MenuBarCountdownRefreshTests-scheduling"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -75,6 +75,41 @@ struct MenuBarCountdownRefreshTests {
         #expect(controller._test_isMenuBarCountdownRefreshScheduled())
 
         settings.resetTimesShowAbsolute = true
+        controller.updateIcons()
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(60),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(90),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        controller.updateIcons()
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(60),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(-1),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
         controller.updateIcons()
         #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
 

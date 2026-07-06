@@ -228,8 +228,9 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
     {
         let provider = configuration.provider.provider
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
-        let entry = CodexBarWidgetEntry(date: Date(), provider: provider, snapshot: snapshot)
-        let refresh = Date().addingTimeInterval(30 * 60)
+        let now = Date()
+        let entry = CodexBarWidgetEntry(date: now, provider: provider, snapshot: snapshot)
+        let refresh = BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: provider, now: now)
         return Timeline(entries: [entry], policy: .after(refresh))
     }
 }
@@ -251,7 +252,10 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CodexBarSwitcherEntry>) -> Void) {
         let entry = self.makeEntry()
-        let refresh = Date().addingTimeInterval(30 * 60)
+        let refresh = BurnDownRefreshSchedule.nextRefresh(
+            snapshot: entry.snapshot,
+            provider: entry.provider,
+            now: entry.date)
         completion(Timeline(entries: [entry], policy: .after(refresh)))
     }
 

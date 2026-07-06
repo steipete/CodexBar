@@ -1366,12 +1366,14 @@ extension StatusItemController {
         let snapshot = self.store.snapshot(for: provider)
         let showUsed = self.settings.usageBarsShowUsed
         let style = self.store.style(for: provider)
+        let now = Date()
         let resolved = snapshot.map {
             IconRemainingResolver.resolvedPercents(
                 snapshot: $0,
                 style: style,
                 showUsed: showUsed,
-                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0))
+                secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0),
+                now: now)
         }
         let primary = resolved?.primary
         let weekly = resolved?.secondary
@@ -1379,11 +1381,11 @@ extension StatusItemController {
             for: provider,
             surface: .menuBar,
             snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
+            now: now)
         let credits = creditsProjection?.menuBarFallback == .creditsBalance
             ? self.store.codexMenuBarCreditsRemaining(
                 snapshotOverride: snapshot,
-                now: snapshot?.updatedAt ?? Date())
+                now: now)
             : nil
         let stale = self.store.isStale(provider: provider)
         let indicator = self.store.statusIndicator(for: provider)

@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 
 enum IconRemainingResolver {
     private static let visibleZeroPercent = 0.0001
@@ -7,7 +8,7 @@ enum IconRemainingResolver {
     private static let sessionWindowMinutes = 5 * 60
     private static let weeklyWindowMinutes = 7 * 24 * 60
 
-    private static func codexProjection(snapshot: UsageSnapshot) -> CodexConsumerProjection {
+    private static func codexProjection(snapshot: UsageSnapshot, now: Date) -> CodexConsumerProjection {
         CodexConsumerProjection.make(
             surface: .menuBar,
             context: CodexConsumerProjection.Context(
@@ -19,11 +20,11 @@ enum IconRemainingResolver {
                 rawDashboardError: nil,
                 dashboardAttachmentAuthorized: false,
                 dashboardRequiresLogin: false,
-                now: snapshot.updatedAt))
+                now: now))
     }
 
-    private static func codexVisibleWindows(snapshot: UsageSnapshot) -> [RateWindow] {
-        let projection = self.codexProjection(snapshot: snapshot)
+    private static func codexVisibleWindows(snapshot: UsageSnapshot, now: Date) -> [RateWindow] {
+        let projection = self.codexProjection(snapshot: snapshot, now: now)
         return projection.visibleRateLanes.compactMap { projection.rateWindow(for: $0) }
     }
 
@@ -67,7 +68,8 @@ enum IconRemainingResolver {
     static func resolvedWindows(
         snapshot: UsageSnapshot,
         style: IconStyle,
-        secondaryOverrideWindowID: String? = nil)
+        secondaryOverrideWindowID: String? = nil,
+        now: Date = Date())
         -> (primary: RateWindow?, secondary: RateWindow?)
     {
         if style == .perplexity {
@@ -82,7 +84,7 @@ enum IconRemainingResolver {
                 ?? (primary: nil, secondary: nil)
         }
         if style == .codex {
-            let windows = self.codexVisibleWindows(snapshot: snapshot)
+            let windows = self.codexVisibleWindows(snapshot: snapshot, now: now)
             return (
                 primary: windows.first,
                 secondary: windows.dropFirst().first)
@@ -103,13 +105,15 @@ enum IconRemainingResolver {
     static func resolvedRemaining(
         snapshot: UsageSnapshot,
         style: IconStyle,
-        secondaryOverrideWindowID: String? = nil)
+        secondaryOverrideWindowID: String? = nil,
+        now: Date = Date())
         -> (primary: Double?, secondary: Double?)
     {
         let windows = self.resolvedWindows(
             snapshot: snapshot,
             style: style,
-            secondaryOverrideWindowID: secondaryOverrideWindowID)
+            secondaryOverrideWindowID: secondaryOverrideWindowID,
+            now: now)
         return (
             primary: windows.primary?.remainingPercent,
             secondary: windows.secondary?.remainingPercent)
@@ -120,13 +124,15 @@ enum IconRemainingResolver {
         style: IconStyle,
         showUsed: Bool,
         renderingStyle: IconStyle? = nil,
-        secondaryOverrideWindowID: String? = nil)
+        secondaryOverrideWindowID: String? = nil,
+        now: Date = Date())
         -> (primary: Double?, secondary: Double?)
     {
         let windows = Self.resolvedWindows(
             snapshot: snapshot,
             style: style,
-            secondaryOverrideWindowID: secondaryOverrideWindowID)
+            secondaryOverrideWindowID: secondaryOverrideWindowID,
+            now: now)
         var percents = (
             primary: showUsed ? windows.primary?.usedPercent : windows.primary?.remainingPercent,
             secondary: showUsed ? windows.secondary?.usedPercent : windows.secondary?.remainingPercent)

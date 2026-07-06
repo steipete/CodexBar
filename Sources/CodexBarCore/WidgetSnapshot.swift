@@ -5,11 +5,13 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let id: String
         public let title: String
         public let percentLeft: Double?
+        public let window: RateWindow?
 
-        public init(id: String, title: String, percentLeft: Double?) {
+        public init(id: String, title: String, percentLeft: Double?, window: RateWindow? = nil) {
             self.id = id
             self.title = title
             self.percentLeft = percentLeft
+            self.window = window
         }
     }
 

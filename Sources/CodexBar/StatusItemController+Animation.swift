@@ -615,7 +615,11 @@ extension StatusItemController {
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
     }
 
-    func menuBarCreditsRemainingForIcon(provider: UsageProvider, snapshot: UsageSnapshot?) -> Double? {
+    func menuBarCreditsRemainingForIcon(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        now: Date = Date()) -> Double?
+    {
         // Derive the menu-bar credits fallback from the same Codex projection path the rendered
         // icon and menu use (`codexConsumerProjection` -> `menuBarFallback`), instead of a
         // hand-rolled rate-window predicate. The projection is pure value composition over
@@ -626,7 +630,7 @@ extension StatusItemController {
         guard provider == .codex else { return nil }
         return self.store.codexMenuBarCreditsRemaining(
             snapshotOverride: snapshot,
-            now: snapshot?.updatedAt ?? Date())
+            now: now)
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {

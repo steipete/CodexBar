@@ -637,6 +637,35 @@ struct CodexBarTests {
     }
 
     @Test
+    func `codex icon caps session only until exhausted weekly lane resets`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let weeklyReset = now.addingTimeInterval(3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 1,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(1800),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 10080,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-7200))
+
+        let capped = IconRemainingResolver.resolvedRemaining(snapshot: snapshot, style: .codex, now: now)
+        let reset = IconRemainingResolver.resolvedRemaining(
+            snapshot: snapshot,
+            style: .codex,
+            now: weeklyReset)
+
+        #expect(capped.primary == 0)
+        #expect(capped.secondary == 0)
+        #expect(reset.primary == 99)
+        #expect(reset.secondary == 0)
+    }
+
+    @Test
     func `status overlays cut halos through the quota bar and keep glyphs visible`() throws {
         let plain = IconRenderer.makeIcon(
             primaryRemaining: 100,

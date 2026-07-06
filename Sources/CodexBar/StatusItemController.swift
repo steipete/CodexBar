@@ -335,9 +335,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         case waitingBrowser
     }
 
-    func menuBarMetricWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
+    func menuBarMetricWindow(for provider: UsageProvider, snapshot: UsageSnapshot?, now: Date = Date()) -> RateWindow? {
         if provider == .codex {
-            return self.codexMenuBarMetricWindow(snapshot: snapshot)
+            return self.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
         }
         return MenuBarMetricWindowResolver.rateWindow(
             preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
@@ -346,7 +346,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
     }
 
-    private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+    private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?, now: Date) -> RateWindow? {
         guard let snapshot else { return nil }
         let projection = CodexConsumerProjection.make(
             surface: .menuBar,
@@ -359,7 +359,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 rawDashboardError: self.store.lastOpenAIDashboardError,
                 dashboardAttachmentAuthorized: self.store.openAIDashboardAttachmentAuthorized,
                 dashboardRequiresLogin: self.store.openAIDashboardRequiresLogin,
-                now: snapshot.updatedAt))
+                now: now))
         let lanes = projection.visibleRateLanes
         let first = lanes.first.flatMap { projection.rateWindow(for: $0) }
         let second = lanes.dropFirst().first.flatMap { projection.rateWindow(for: $0) }

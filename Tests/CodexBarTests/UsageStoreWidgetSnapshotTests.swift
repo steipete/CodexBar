@@ -6,6 +6,53 @@ import Testing
 @MainActor
 struct UsageStoreWidgetSnapshotTests {
     @Test
+    func `widget snapshot preserves raw Codex windows for timeline projection`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-codex-weekly-cap"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 1,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(1800),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                updatedAt: now.addingTimeInterval(-7200)),
+            provider: .codex)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "codex-weekly-cap-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .codex })
+        #expect(entry.usageRows?.map(\.id) == ["session", "weekly"])
+        #expect(entry.usageRows?.compactMap(\.percentLeft) == [99, 0])
+        #expect(entry.usageRows?.first?.window?.usedPercent == 1)
+        #expect(entry.usageRows?.last?.window?.resetsAt == now.addingTimeInterval(3600))
+    }
+
+    @Test
     func `widget snapshot includes Kimi monthly quota`() async throws {
         let suite = "UsageStoreWidgetSnapshotTests-kimi-monthly"
         let defaults = try #require(UserDefaults(suiteName: suite))

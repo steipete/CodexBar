@@ -556,6 +556,50 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `codex widget session cap lifts at weekly reset without a new snapshot`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let weeklyReset = now.addingTimeInterval(3600)
+        let sessionWindow = RateWindow(
+            usedPercent: 1,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(1800),
+            resetDescription: nil)
+        let weeklyWindow = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 10080,
+            resetsAt: weeklyReset,
+            resetDescription: nil)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .codex,
+            updatedAt: now.addingTimeInterval(-7200),
+            primary: sessionWindow,
+            secondary: weeklyWindow,
+            tertiary: nil,
+            usageRows: [
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "session",
+                    title: "Session",
+                    percentLeft: 99,
+                    window: sessionWindow),
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "weekly",
+                    title: "Weekly",
+                    percentLeft: 0,
+                    window: weeklyWindow),
+            ],
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+
+        let capped = WidgetUsageRow.rows(for: entry, now: now)
+        let reset = WidgetUsageRow.rows(for: entry, now: weeklyReset)
+
+        #expect(capped.map(\.percentLeft) == [0, 0])
+        #expect(reset.map(\.percentLeft) == [99, 0])
+    }
+
+    @Test
     func `legacy widget usage rows use antigravity grouped slots`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = WidgetSnapshot.ProviderEntry(
