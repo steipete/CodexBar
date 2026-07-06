@@ -591,11 +591,13 @@ struct WidgetUsageRow: Identifiable, Equatable {
     }
 
     static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        self.antigravityQuotaSummaryRowLimit(for: entry, limit: 2)
+        if entry.provider == .kimi { return 3 }
+        return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 2)
     }
 
     static func mediumWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        self.antigravityQuotaSummaryRowLimit(for: entry, limit: 3)
+        if entry.provider == .kimi { return 3 }
+        return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 3)
     }
 
     private static func antigravityQuotaSummaryRowLimit(

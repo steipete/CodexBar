@@ -376,6 +376,38 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `small and medium Kimi widgets keep all three persisted lane rows`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .kimi,
+            updatedAt: now,
+            primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            usageRows: [
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "primary", title: "Weekly", percentLeft: 75),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "secondary", title: "Rate Limit", percentLeft: 50),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "kimi-monthly", title: "Monthly", percentLeft: 25),
+            ],
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+
+        let smallRows = WidgetUsageRow.rows(
+            for: entry,
+            limit: WidgetUsageRow.smallWidgetRowLimit(for: entry))
+        let mediumRows = WidgetUsageRow.rows(
+            for: entry,
+            limit: WidgetUsageRow.mediumWidgetRowLimit(for: entry))
+
+        #expect(WidgetUsageRow.smallWidgetRowLimit(for: entry) == 3)
+        #expect(WidgetUsageRow.mediumWidgetRowLimit(for: entry) == 3)
+        #expect(smallRows.map(\.id) == ["primary", "secondary", "kimi-monthly"])
+        #expect(mediumRows == smallRows)
+    }
+
+    @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
     }

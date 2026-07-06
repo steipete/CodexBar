@@ -52,6 +52,7 @@ struct UsageStoreWidgetSnapshotTests {
         await store.widgetSnapshotPersistTask?.value
 
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .kimi })
+        // Widgets preserve persisted lane order; menu-only presentation may reorder these lanes.
         #expect(entry.usageRows?.map(\.id) == ["primary", "secondary", "kimi-monthly"])
         #expect(entry.usageRows?.map(\.title) == ["Weekly", "Rate Limit", "Monthly"])
         #expect(entry.usageRows?.compactMap(\.percentLeft) == [75, 50, 25])
