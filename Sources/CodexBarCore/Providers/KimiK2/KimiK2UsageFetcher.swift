@@ -243,19 +243,17 @@ public struct KimiK2UsageFetcher: Sendable {
     }
 
     private static func double(from raw: Any) -> Double? {
-        if let value = raw as? Double {
-            return value.isFinite ? value : nil
+        let value: Double? = if let raw = raw as? Double {
+            raw
+        } else if let raw = raw as? Int {
+            Double(raw)
+        } else if let raw = raw as? String {
+            Double(raw)
+        } else {
+            nil
         }
-        if let value = raw as? Int {
-            return Double(value)
-        }
-        if let value = raw as? String,
-           let parsed = Double(value),
-           parsed.isFinite
-        {
-            return parsed
-        }
-        return nil
+        guard let value, value.isFinite else { return nil }
+        return value
     }
 
     private static func date(from raw: Any) -> Date? {

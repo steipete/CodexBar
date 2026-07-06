@@ -41,7 +41,7 @@ struct KimiK2UsageFetcherTests {
     }
 
     @Test
-    func `ignores nonfinite usage values`() throws {
+    func `fetch ignores non-finite usage values`() async throws {
         let json = """
         {
           "total_credits_consumed": "NaN",
@@ -49,8 +49,19 @@ struct KimiK2UsageFetcherTests {
           "average_tokens": "1e309"
         }
         """
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["X-Credits-Remaining": "-Infinity"]))
+            return (Data(json.utf8), response)
+        }
 
-        let summary = try KimiK2UsageFetcher._parseSummaryForTesting(Data(json.utf8))
+        let snapshot = try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-key", transport: transport)
+        let summary = snapshot.summary
 
         #expect(summary.consumed == 0)
         #expect(summary.remaining == 0)
