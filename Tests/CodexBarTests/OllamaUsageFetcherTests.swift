@@ -84,6 +84,14 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
+    func `manual mode accepts workos session cookie header`() throws {
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: "wos-session=abc; theme=dark",
+            manualCookieMode: true)
+        #expect(resolved?.contains("wos-session=abc") == true)
+    }
+
+    @Test
     func `retry policy retries only for auth errors`() {
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.invalidCredentials))
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.notLoggedIn))
@@ -155,6 +163,16 @@ struct OllamaUsageFetcherTests {
 
         let selected = try OllamaCookieImporter.selectSessionInfo(from: [candidate])
         #expect(selected.sourceLabel == "Profile D")
+    }
+
+    @Test
+    func `cookie selector accepts workos session cookie`() throws {
+        let candidate = OllamaCookieImporter.SessionInfo(
+            cookies: [Self.makeCookie(name: "wos-session", value: "auth")],
+            sourceLabel: "WorkOS Profile")
+
+        let selected = try OllamaCookieImporter.selectSessionInfo(from: [candidate])
+        #expect(selected.sourceLabel == "WorkOS Profile")
     }
 
     @Test
