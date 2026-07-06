@@ -4,6 +4,46 @@ import Testing
 
 struct KimiK2UsageFetcherTests {
     @Test
+    func `trims API key before sending authorization`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{"credits_remaining":10}"#.utf8), response)
+        }
+
+        let snapshot = try await KimiK2UsageFetcher.fetchUsage(
+            apiKey: "  test-token\n",
+            transport: transport)
+
+        #expect(snapshot.summary.remaining == 10)
+    }
+
+    @Test(arguments: [401, 403])
+    func `maps rejected API key to invalid credentials`(statusCode: Int) async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{"error":"Unauthorized"}"#.utf8), response)
+        }
+
+        await #expect {
+            try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
+        } throws: { error in
+            guard case KimiK2UsageError.invalidCredentials = error else { return false }
+            return error.localizedDescription == "Kimi K2 API key is invalid or expired."
+        }
+    }
+
+    @Test
     func `parses usage from nested usage`() throws {
         let json = """
         {
