@@ -532,6 +532,10 @@ public struct OllamaUsageFetcher: Sendable {
             statusCode: httpResponse.statusCode,
             url: httpResponse.response.url?.absoluteString ?? "unknown")
 
+        if Self.isSignInRedirect(httpResponse.response.url) {
+            throw OllamaUsageError.invalidCredentials
+        }
+
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 throw OllamaUsageError.invalidCredentials
@@ -627,6 +631,15 @@ public struct OllamaUsageFetcher: Sendable {
         guard let host = url?.host?.lowercased() else { return false }
         if host == "ollama.com" || host == "www.ollama.com" { return true }
         return host.hasSuffix(".ollama.com")
+    }
+
+    static func isSignInRedirect(_ url: URL?) -> Bool {
+        guard let url, let host = url.host?.lowercased() else { return false }
+        let path = url.path.lowercased()
+        if host == "ollama.com" || host == "www.ollama.com" {
+            return path == "/signin"
+        }
+        return host == "api.workos.com" && path.hasPrefix("/user_management/authorize")
     }
 }
 
