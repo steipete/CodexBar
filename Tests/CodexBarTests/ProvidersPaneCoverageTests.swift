@@ -265,6 +265,27 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `kimi menu bar metric picker preserves stored lane labels`() {
+        Self.withEnglishLocalization {
+            let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-kimi-picker")
+            let store = Self.makeUsageStore(settings: settings)
+            let pane = ProvidersPane(settings: settings, store: store)
+
+            let picker = pane._test_menuBarMetricPicker(for: .kimi)
+            #expect(picker?.options.map(\.id) == [
+                MenuBarMetricPreference.automatic.rawValue,
+                MenuBarMetricPreference.primary.rawValue,
+                MenuBarMetricPreference.secondary.rawValue,
+            ])
+            #expect(picker?.options.map(\.title) == [
+                "Automatic",
+                "Primary (Weekly)",
+                "Secondary (Rate Limit)",
+            ])
+        }
+    }
+
+    @Test
     func `cursor menu bar metric picker omits tertiary api lane when snapshot has no api metric`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-cursor-no-tertiary-picker")
         let store = Self.makeUsageStore(settings: settings)
