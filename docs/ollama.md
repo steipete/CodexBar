@@ -41,6 +41,8 @@ Ollama API keys currently do not expire, but they can be revoked from the key se
 - Cookie mode fetches `https://ollama.com/settings` using browser cookies.
 - Cookie discovery recognizes the current WorkOS AuthKit `wos-session` cookie alongside legacy Ollama and NextAuth
   session names.
+- Redirects from settings to `/signin` or the WorkOS AuthKit authorization page are treated as expired sessions, so
+  CodexBar can try the next cookie candidate and show sign-in guidance instead of a parser error.
 - Parses:
   - Plan badge under **Cloud Usage**.
   - **Session usage** and **Weekly usage** percentages.
