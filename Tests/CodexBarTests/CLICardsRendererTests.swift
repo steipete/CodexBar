@@ -303,6 +303,71 @@ struct CLICardsRendererTests {
     }
 
     @Test
+    func `brief rows preserve account identity`() {
+        let cards = [
+            CLICardModel(
+                provider: .codex,
+                title: "Codex",
+                sourceLabel: "oauth",
+                planBadge: "Pro",
+                accountLine: "one@x.dev",
+                infoLines: [],
+                metrics: [CLICardMetric(label: "Session", remainingPercent: 80, resetText: nil)],
+                extraLines: [],
+                statusLine: nil),
+            CLICardModel(
+                provider: .codex,
+                title: "Codex",
+                sourceLabel: "oauth",
+                planBadge: "Pro",
+                accountLine: "two@x.dev",
+                infoLines: [],
+                metrics: [CLICardMetric(label: "Session", remainingPercent: 60, resetText: nil)],
+                extraLines: [],
+                statusLine: nil),
+        ]
+
+        let output = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: cards),
+            failures: [],
+            terminalWidth: 80,
+            useColor: false,
+            now: Date(timeIntervalSince1970: 0))
+
+        #expect(output.contains("one@x.dev"))
+        #expect(output.contains("two@x.dev"))
+    }
+
+    @Test
+    func `brief warnings wrap to terminal width`() {
+        let cards = ["OpenRouter", "Antigravity", "CommandCode"].map { title in
+            CLICardModel(
+                provider: .openrouter,
+                title: title,
+                sourceLabel: "api",
+                planBadge: nil,
+                accountLine: nil,
+                infoLines: [],
+                metrics: [CLICardMetric(label: "Monthly budget", remainingPercent: 5, resetText: nil)],
+                extraLines: [],
+                statusLine: nil)
+        }
+
+        let output = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: cards),
+            failures: [],
+            terminalWidth: 40,
+            useColor: false,
+            now: Date(timeIntervalSince1970: 0))
+        let warningLines = output.split(separator: "\n").filter {
+            $0.contains("Warnings:") || $0.contains("% used")
+        }
+
+        #expect(warningLines.count > 1)
+        #expect(warningLines.allSatisfy { $0.count <= 40 })
+    }
+
+    @Test
     func `brief summary ignores unparseable reset labels and fits narrow terminals`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let rows = CLICardsBriefRenderer.makeRows(cards: [

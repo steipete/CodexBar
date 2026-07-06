@@ -6,6 +6,7 @@ struct CLICardsBriefRow: Sendable, Equatable {
     let providerName: String
     let sourceLabel: String
     let planBadge: String?
+    let accountLabel: String?
     let metricLabel: String?
     let usedPercent: Double?
     let resetLabel: String?
@@ -42,6 +43,7 @@ enum CLICardsBriefRenderer {
                 providerName: card.title,
                 sourceLabel: card.sourceLabel,
                 planBadge: card.planBadge,
+                accountLabel: card.accountLine,
                 metricLabel: metric?.label,
                 usedPercent: usedPercent,
                 resetLabel: resetLabel,
@@ -71,9 +73,10 @@ enum CLICardsBriefRenderer {
             useColor: useColor,
             enhanced: enhanced))
 
-        if let warnings = Self.warningLine(rows: rows, useColor: useColor) {
+        let warningLines = Self.warningLines(rows: rows, terminalWidth: terminalWidth, useColor: useColor)
+        if !warningLines.isEmpty {
             lines.append("")
-            lines.append(warnings)
+            lines.append(contentsOf: warningLines)
         }
 
         if !failures.isEmpty {
@@ -129,6 +132,9 @@ enum CLICardsBriefRenderer {
     }
 
     private static func providerPlainLabel(_ row: CLICardsBriefRow) -> String {
+        if let account = row.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !account.isEmpty {
+            return "\(row.providerName) · \(account) · \(row.sourceLabel)"
+        }
         if let plan = row.planBadge, !plan.isEmpty {
             return "\(row.providerName) · \(row.sourceLabel) · \(plan)"
         }
@@ -269,6 +275,13 @@ enum CLICardsBriefRenderer {
         useColor: Bool,
         enhanced: Bool) -> String
     {
+        if row.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            let fitted = Self.fitCell(Self.providerPlainLabel(row), width: width)
+            if useColor, enhanced {
+                return CLIRenderer.colorizeEnhancedReadable(fitted)
+            }
+            return useColor ? CLIRenderer.colorizeReadable(fitted) : fitted
+        }
         guard useColor else {
             return self.plainProviderCell(row: row, width: width)
         }
@@ -322,6 +335,9 @@ enum CLICardsBriefRenderer {
     }
 
     private static func plainProviderCell(row: CLICardsBriefRow, width: Int) -> String {
+        if row.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            return self.fitCell(self.providerPlainLabel(row), width: width)
+        }
         guard
             let plan = row.planBadge,
             !plan.isEmpty
@@ -385,15 +401,55 @@ enum CLICardsBriefRenderer {
         return "│ \(provider) │ \(usage) │ \(reset) │"
     }
 
-    private static func warningLine(rows: [CLICardsBriefRow], useColor: Bool) -> String? {
+    private static func warningLines(
+        rows: [CLICardsBriefRow],
+        terminalWidth: Int,
+        useColor: Bool) -> [String]
+    {
         let warnings = rows.compactMap { row -> String? in
             guard let used = row.usedPercent, used >= Self.warningUsedThreshold else { return nil }
             let label = row.metricLabel ?? "Usage"
             return "\(row.providerName) \(label): \(Int(used.rounded()))% used"
         }
-        guard !warnings.isEmpty else { return nil }
-        let text = "⚠ Warnings: \(warnings.joined(separator: "; "))"
-        return useColor ? CLIRenderer.colorizeWarning(text) : text
+        guard !warnings.isEmpty else { return [] }
+        let lines = Self.wrapText(
+            warnings.joined(separator: "; "),
+            firstPrefix: "⚠ Warnings: ",
+            continuationPrefix: "  ",
+            width: terminalWidth)
+        return useColor ? lines.map(CLIRenderer.colorizeWarning) : lines
+    }
+
+    private static func wrapText(
+        _ text: String,
+        firstPrefix: String,
+        continuationPrefix: String,
+        width: Int) -> [String]
+    {
+        let lineWidth = max(16, width)
+        var lines: [String] = []
+        var line = firstPrefix
+        var hasContent = false
+        for word in text.split(separator: " ").map(String.init) {
+            let separator = hasContent ? " " : ""
+            if line.count + separator.count + word.count <= lineWidth {
+                line += separator + word
+                hasContent = true
+                continue
+            }
+            if hasContent {
+                lines.append(line)
+            } else if !line.isEmpty {
+                lines.append(Self.truncatePlain(line, width: lineWidth))
+            }
+            let available = max(1, lineWidth - continuationPrefix.count)
+            line = continuationPrefix + Self.truncatePlain(word, width: available)
+            hasContent = true
+        }
+        if hasContent {
+            lines.append(line)
+        }
+        return lines
     }
 
     private static func nextResetSummary(rows: [CLICardsBriefRow], now: Date) -> String? {
