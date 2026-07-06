@@ -157,6 +157,27 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
+    func `parses remaining percent 1 as fully unused quota`() throws {
+        let response: [String: Any] = [
+            "quota_usage": [
+                "daily_quota": [
+                    "used": 0,
+                    "limit": 10,
+                    "reset_at": "2026-06-01T08:00:00Z",
+                ],
+                "weekly_quota": [
+                    "remaining_percent": 1,
+                    "next_reset_at": 1_780_560_000,
+                ],
+            ],
+        ]
+
+        let snapshot = try DevinUsageParser.parse(response, organization: nil, now: Self.now)
+
+        #expect(snapshot.weekly?.usedPercent == 0)
+    }
+
+    @Test
     func `parses zero percentages from JSON response`() throws {
         let data = Data("""
         {
