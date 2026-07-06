@@ -460,13 +460,37 @@ struct CodexConsumerProjection {
         guard self.weeklyCapsSession(weekly: weekly, evaluationTime: evaluationTime) else {
             return session
         }
+        let reset = self.bindingReset(
+            session: session,
+            weekly: weekly,
+            evaluationTime: evaluationTime)
         return RateWindow(
             usedPercent: max(session.usedPercent, 100),
             windowMinutes: session.windowMinutes,
-            resetsAt: weekly?.resetsAt,
-            resetDescription: weekly?.resetDescription,
+            resetsAt: reset.date,
+            resetDescription: reset.description,
             nextRegenPercent: session.nextRegenPercent,
             isSyntheticPlaceholder: session.isSyntheticPlaceholder)
+    }
+
+    private static func bindingReset(
+        session: RateWindow,
+        weekly: RateWindow?,
+        evaluationTime: Date) -> (date: Date?, description: String?)
+    {
+        guard let weekly else { return (nil, nil) }
+        let sessionIsExhausted = session.remainingPercent <= 0 &&
+            (session.resetsAt.map { $0 > evaluationTime } ?? true)
+        guard sessionIsExhausted else {
+            return (weekly.resetsAt, weekly.resetDescription)
+        }
+        guard let sessionReset = session.resetsAt, let weeklyReset = weekly.resetsAt else {
+            return (nil, nil)
+        }
+        if sessionReset > weeklyReset {
+            return (sessionReset, session.resetDescription)
+        }
+        return (weeklyReset, weekly.resetDescription)
     }
 
     private static func menuBarFallback(

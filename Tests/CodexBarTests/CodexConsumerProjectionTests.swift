@@ -295,6 +295,64 @@ struct CodexConsumerProjectionTests {
     }
 
     @Test
+    func `both exhausted lanes use the later session reset`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-session-reset-binds-later")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let weeklyReset = now.addingTimeInterval(60 * 60)
+        let sessionReset = now.addingTimeInterval(4 * 60 * 60)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: "session reset"),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: "weekly reset"),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        let session = try #require(projection.rateWindow(for: .session))
+
+        #expect(session.remainingPercent == 0)
+        #expect(session.resetsAt == sessionReset)
+        #expect(session.resetDescription == "session reset")
+    }
+
+    @Test
+    func `both exhausted lanes keep effective reset unknown when session reset is unknown`() throws {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-session-reset-unknown")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(60 * 60),
+                    resetDescription: "weekly reset"),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        let session = try #require(projection.rateWindow(for: .session))
+
+        #expect(session.remainingPercent == 0)
+        #expect(session.resetsAt == nil)
+        #expect(session.resetDescription == nil)
+    }
+
+    @Test
     func `exhausted weekly lane leaves session reset unknown when weekly reset is unknown`() throws {
         let store = self.makeStore(suite: "CodexConsumerProjectionTests-weekly-caps-unknown-reset")
         let now = Date(timeIntervalSince1970: 1_800_000_000)
