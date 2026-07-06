@@ -130,6 +130,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let menuRefreshEnabledForController: Bool
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
+    /// App intent survives Tahoe changing `NSStatusItem.isVisible` after Control Center rejects its scene.
+    var expectedVisibleStatusItemAutosaveNames: Set<String> = []
     var lastMenuProvider: UsageProvider?
     var menuProviders: [ObjectIdentifier: UsageProvider] = [:]
     var menuSession = MenuSessionCoordinator<ObjectIdentifier>()
@@ -743,8 +745,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let anyEnabled = !self.store.enabledProvidersForDisplay().isEmpty
         let force = self.store.debugForceAnimation
         let mergeIcons = self.shouldMergeIcons
+        var expectedVisibleAutosaveNames: Set<String> = []
         if mergeIcons {
-            self.statusItem.isVisible = anyEnabled || force
+            let shouldBeVisible = anyEnabled || force
+            self.statusItem.isVisible = shouldBeVisible
+            if shouldBeVisible {
+                expectedVisibleAutosaveNames.insert(self.statusItem.autosaveName)
+            }
             for provider in Array(self.statusItems.keys) {
                 self.removeProviderStatusItem(for: provider)
             }
@@ -758,12 +765,14 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 if shouldBeVisible {
                     let item = self.lazyStatusItem(for: provider)
                     item.isVisible = true
+                    expectedVisibleAutosaveNames.insert(item.autosaveName)
                 } else {
                     self.removeProviderStatusItem(for: provider)
                 }
             }
             self.attachMenus(fallback: fallback)
         }
+        self.expectedVisibleStatusItemAutosaveNames = expectedVisibleAutosaveNames
         self.updateAnimationState()
         self.updateBlinkingState()
     }

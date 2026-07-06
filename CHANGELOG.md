@@ -19,6 +19,7 @@
 - Kimi K2: reject invalid and out-of-range numeric timestamps while preserving valid second and millisecond values. Thanks @joeVenner!
 - Kimi K2: reject non-finite credit and token values before they reach menus, CLI output, or widgets. Thanks @joeVenner!
 - Kimi: show the five-hour rate limit before the weekly quota while preserving existing menu-bar metric preferences. Thanks @Zihao-Qi!
+- Menu bar: detect Tahoe's blocked no-window state at startup when macOS still records the icon as enabled, so affected users receive recovery guidance instead of a silently missing icon (#1945). Thanks @mmyyfirstb!
 
 ## 0.40.0 — 2026-07-05
 
