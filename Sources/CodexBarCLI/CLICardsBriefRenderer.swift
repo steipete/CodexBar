@@ -6,8 +6,10 @@ struct CLICardsBriefRow: Sendable, Equatable {
     let providerName: String
     let sourceLabel: String
     let planBadge: String?
+    let metricLabel: String?
     let usedPercent: Double?
     let resetLabel: String?
+    let resetAt: Date?
 }
 
 private struct CLICardsBriefColumns {
@@ -20,11 +22,14 @@ enum CLICardsBriefRenderer {
     private static let warningUsedThreshold = 85.0
     private static let tableBorderOverhead = 10
     private static let providerColumnMin = 20
+    private static let providerColumnFloor = 8
     private static let providerColumnMax = 34
     private static let usageColumnMin = 22
+    private static let usageColumnFloor = 9
     private static let usageColumnWidth = 28
     private static let usageBarMaxWidth = 22
     private static let resetColumnMin = 8
+    private static let resetColumnFloor = 5
     private static let resetColumnMax = 10
 
     static func makeRows(cards: [CLICardModel]) -> [CLICardsBriefRow] {
@@ -37,8 +42,10 @@ enum CLICardsBriefRenderer {
                 providerName: card.title,
                 sourceLabel: card.sourceLabel,
                 planBadge: card.planBadge,
+                metricLabel: metric?.label,
                 usedPercent: usedPercent,
-                resetLabel: resetLabel)
+                resetLabel: resetLabel,
+                resetAt: metric?.resetAt)
         }
     }
 
@@ -56,7 +63,7 @@ enum CLICardsBriefRenderer {
 
         var lines: [String] = []
         lines.append(Self.titleLine(now: now, terminalWidth: terminalWidth, useColor: useColor, enhanced: enhanced))
-        lines.append(Self.summaryLine(rows: rows, useColor: useColor, enhanced: enhanced))
+        lines.append(Self.summaryLine(rows: rows, now: now, useColor: useColor, enhanced: enhanced))
         lines.append("")
         lines.append(contentsOf: Self.tableLines(
             rows: rows,
@@ -86,6 +93,10 @@ enum CLICardsBriefRenderer {
             "codexbar • AI Usage & Limits"
         }
         let timestamp = Self.timestampString(now: now)
+        guard Self.visibleLength(left) + timestamp.count + 1 <= terminalWidth else {
+            if Self.visibleLength(left) <= terminalWidth { return left }
+            return Self.truncatePlain(TextParsing.stripANSICodes(left), width: terminalWidth)
+        }
         let gap = max(1, terminalWidth - Self.visibleLength(left) - timestamp.count)
         let right: String = if useColor, enhanced {
             CLIRenderer.colorizeEnhancedReadableMuted(timestamp)
@@ -99,11 +110,12 @@ enum CLICardsBriefRenderer {
 
     private static func summaryLine(
         rows: [CLICardsBriefRow],
+        now: Date,
         useColor: Bool,
         enhanced: Bool) -> String
     {
         var parts: [String] = []
-        if let nextReset = Self.nextResetSummary(rows: rows) {
+        if let nextReset = Self.nextResetSummary(rows: rows, now: now) {
             parts.append("Next reset: \(nextReset)")
         }
         let text = parts.joined(separator: " • ")
@@ -376,34 +388,47 @@ enum CLICardsBriefRenderer {
     private static func warningLine(rows: [CLICardsBriefRow], useColor: Bool) -> String? {
         let warnings = rows.compactMap { row -> String? in
             guard let used = row.usedPercent, used >= Self.warningUsedThreshold else { return nil }
-            return "\(row.providerName) approaching session limit"
+            let label = row.metricLabel ?? "Usage"
+            return "\(row.providerName) \(label): \(Int(used.rounded()))% used"
         }
         guard !warnings.isEmpty else { return nil }
         let text = "⚠ Warnings: \(warnings.joined(separator: "; "))"
         return useColor ? CLIRenderer.colorizeWarning(text) : text
     }
 
-    private static func nextResetSummary(rows: [CLICardsBriefRow]) -> String? {
-        guard let (row, label) = rows.compactMap({ row -> (CLICardsBriefRow, String)? in
+    private static func nextResetSummary(rows: [CLICardsBriefRow], now: Date) -> String? {
+        guard let (row, label, _) = rows.compactMap({ row -> (CLICardsBriefRow, String, Date)? in
             guard let reset = row.resetLabel, !reset.isEmpty, reset != "—" else { return nil }
-            return (row, reset)
-        }).min(by: { Self.resetSortKey($0.1) < Self.resetSortKey($1.1) })
+            let sortDate = row.resetAt ?? Self.resetSortDate(reset, now: now)
+            guard let sortDate else { return nil }
+            return (row, reset, sortDate)
+        }).min(by: { $0.2 < $1.2 })
         else { return nil }
-        return "\(row.providerName) in \(label)"
+        let separator = Self.resetDurationMinutes(label) == nil ? " · " : " in "
+        return "\(row.providerName)\(separator)\(label)"
     }
 
-    private static func resetSortKey(_ label: String) -> Int {
+    private static func resetSortDate(_ label: String, now: Date) -> Date? {
+        guard let minutes = resetDurationMinutes(label) else { return nil }
+        return now.addingTimeInterval(TimeInterval(minutes * 60))
+    }
+
+    private static func resetDurationMinutes(_ label: String) -> Int? {
         var minutes = 0
+        var matched = false
         if let match = label.range(of: #"(\d+)d"#, options: .regularExpression) {
+            matched = true
             minutes += (Int(label[match].dropLast()) ?? 0) * 24 * 60
         }
         if let match = label.range(of: #"(\d+)h"#, options: .regularExpression) {
+            matched = true
             minutes += (Int(label[match].dropLast()) ?? 0) * 60
         }
         if let match = label.range(of: #"(\d+)m"#, options: .regularExpression) {
+            matched = true
             minutes += Int(label[match].dropLast()) ?? 0
         }
-        return minutes
+        return matched ? minutes : nil
     }
 
     private static func tableColumnWidths(
@@ -423,6 +448,18 @@ enum CLICardsBriefRenderer {
             } else if providerWidth > Self.providerColumnMin {
                 providerWidth -= 1
             } else if resetWidth > Self.resetColumnMin {
+                resetWidth -= 1
+            } else {
+                break
+            }
+        }
+
+        while providerWidth + usageWidth + resetWidth + Self.tableBorderOverhead > terminalWidth {
+            if providerWidth > Self.providerColumnFloor {
+                providerWidth -= 1
+            } else if usageWidth > Self.usageColumnFloor {
+                usageWidth -= 1
+            } else if resetWidth > Self.resetColumnFloor {
                 resetWidth -= 1
             } else {
                 break

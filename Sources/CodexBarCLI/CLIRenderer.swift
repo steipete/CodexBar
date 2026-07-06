@@ -405,6 +405,7 @@ enum CLIRenderer {
         var metrics: [CLICardMetric] = []
         if let primary = snapshot.primary {
             metrics.append(self.makeCardMetric(
+                provider: provider,
                 label: labels.primary,
                 window: primary,
                 resetStyle: resetStyle,
@@ -412,6 +413,7 @@ enum CLIRenderer {
         }
         if let secondary = snapshot.secondary {
             metrics.append(self.makeCardMetric(
+                provider: provider,
                 label: labels.secondary,
                 window: secondary,
                 resetStyle: resetStyle,
@@ -419,6 +421,7 @@ enum CLIRenderer {
         }
         if labels.showsTertiary, let tertiary = snapshot.tertiary {
             metrics.append(self.makeCardMetric(
+                provider: provider,
                 label: labels.tertiary,
                 window: tertiary,
                 resetStyle: resetStyle,
@@ -503,22 +506,23 @@ enum CLIRenderer {
     }
 
     private static func makeCardMetric(
+        provider: UsageProvider,
         label: String,
         window: RateWindow,
         resetStyle: ResetTimeDisplayStyle,
         now: Date) -> CLICardMetric
     {
-        let resetText: String? = if let reset = self.resetLine(for: window, style: .countdown, now: now) {
-            "⏳ \(reset)"
-        } else if let reset = self.resetLineForDetailBackedWindow(window: window, style: .countdown, now: now) {
-            "⏳ \(reset)"
-        } else {
-            nil
-        }
+        let detailBacked = self.usesDetailBackedWindow(provider: provider)
+        let reset = detailBacked
+            ? self.resetLineForDetailBackedWindow(window: window, style: resetStyle, now: now)
+            : self.resetLine(for: window, style: resetStyle, now: now)
+        let detailText = detailBacked ? self.detailLineForDetailBackedWindow(window: window) : nil
         return CLICardMetric(
             label: label,
             remainingPercent: window.remainingPercent,
-            resetText: resetText)
+            resetText: reset.map { "⏳ \($0)" },
+            resetAt: window.resetsAt,
+            detailText: detailText)
     }
 
     static func colorizeError(_ text: String) -> String {
@@ -931,10 +935,7 @@ enum CLIRenderer {
         now: Date,
         lines: inout [String])
     {
-        if provider == .warp || provider == .kilo || provider == .mistral || provider == .deepseek ||
-            provider == .qoder ||
-            provider == .crof
-        {
+        if self.usesDetailBackedWindow(provider: provider) {
             if let reset = self.resetLineForDetailBackedWindow(window: window, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
@@ -951,6 +952,15 @@ enum CLIRenderer {
 
     private static func resetLine(for window: RateWindow, style: ResetTimeDisplayStyle, now: Date) -> String? {
         UsageFormatter.resetLine(for: window, style: style, now: now)
+    }
+
+    private static func usesDetailBackedWindow(provider: UsageProvider) -> Bool {
+        switch provider {
+        case .warp, .kilo, .mistral, .deepseek, .qoder, .crof:
+            true
+        default:
+            false
+        }
     }
 
     private static func resetLineForDetailBackedWindow(

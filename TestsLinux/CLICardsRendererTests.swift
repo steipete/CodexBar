@@ -186,6 +186,166 @@ struct CLICardsRendererTests {
     }
 
     @Test
+    func `detail backed quota descriptions are not rendered as resets`() {
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 25,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "25/100 credits"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let card = CLICardsRenderer.makeCard(CLICardBuildInput(
+            provider: .kilo,
+            snapshot: snapshot,
+            credits: nil,
+            source: "api",
+            status: nil,
+            notes: [],
+            useColor: false,
+            resetStyle: .countdown,
+            weeklyWorkDays: nil,
+            now: Date(timeIntervalSince1970: 0)))
+
+        #expect(card.metrics.first?.resetText == nil)
+        #expect(card.metrics.first?.detailText == "25/100 credits")
+
+        let output = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: [card]),
+            failures: [],
+            terminalWidth: 80,
+            useColor: false,
+            now: Date(timeIntervalSince1970: 0))
+        #expect(!output.contains("Next reset"))
+        #expect(!output.contains("Reset 25/100 credits"))
+    }
+
+    @Test
+    func `card metrics honor reset display style`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+        let countdown = CLICardsRenderer.makeCard(CLICardBuildInput(
+            provider: .codex,
+            snapshot: snapshot,
+            credits: nil,
+            source: "oauth",
+            status: nil,
+            notes: [],
+            useColor: false,
+            resetStyle: .countdown,
+            weeklyWorkDays: nil,
+            now: now))
+        let absolute = CLICardsRenderer.makeCard(CLICardBuildInput(
+            provider: .codex,
+            snapshot: snapshot,
+            credits: nil,
+            source: "oauth",
+            status: nil,
+            notes: [],
+            useColor: false,
+            resetStyle: .absolute,
+            weeklyWorkDays: nil,
+            now: now))
+
+        #expect(countdown.metrics.first?.resetText != absolute.metrics.first?.resetText)
+        #expect(countdown.metrics.first?.resetText?.contains("in 1h") == true)
+        #expect(absolute.metrics.first?.resetAt == now.addingTimeInterval(3600))
+    }
+
+    @Test
+    func `long detail rows stay within card width`() {
+        let card = CLICardModel(
+            provider: .clawrouter,
+            title: "ClawRouter",
+            sourceLabel: "api",
+            planBadge: nil,
+            accountLine: nil,
+            infoLines: ["Workspace: " + String(repeating: "long-name-", count: 12)],
+            metrics: [],
+            extraLines: [],
+            statusLine: nil)
+
+        let lines = CLICardsRenderer.renderCard(card, width: 38, useColor: true, enhanced: true)
+        #expect(lines.allSatisfy { TextParsing.stripANSICodes($0).count == 38 })
+    }
+
+    @Test
+    func `brief warnings name the actual quota metric`() {
+        let card = CLICardModel(
+            provider: .openrouter,
+            title: "OpenRouter",
+            sourceLabel: "api",
+            planBadge: nil,
+            accountLine: nil,
+            infoLines: [],
+            metrics: [CLICardMetric(label: "Spend", remainingPercent: 10, resetText: nil)],
+            extraLines: [],
+            statusLine: nil)
+
+        let output = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: [card]),
+            failures: [],
+            terminalWidth: 80,
+            useColor: false,
+            now: Date(timeIntervalSince1970: 0))
+
+        #expect(output.contains("OpenRouter Spend: 90% used"))
+        #expect(!output.contains("session limit"))
+    }
+
+    @Test
+    func `brief summary ignores unparseable reset labels and fits narrow terminals`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let rows = CLICardsBriefRenderer.makeRows(cards: [
+            CLICardModel(
+                provider: .kilo,
+                title: "Kilo",
+                sourceLabel: "api",
+                planBadge: nil,
+                accountLine: nil,
+                infoLines: [],
+                metrics: [CLICardMetric(label: "Credits", remainingPercent: 75, resetText: "Reset Unlimited")],
+                extraLines: [],
+                statusLine: nil),
+            CLICardModel(
+                provider: .codex,
+                title: "Codex",
+                sourceLabel: "oauth",
+                planBadge: "Pro",
+                accountLine: nil,
+                infoLines: [],
+                metrics: [CLICardMetric(
+                    label: "Session",
+                    remainingPercent: 50,
+                    resetText: "⏳ Resets in 5h",
+                    resetAt: now.addingTimeInterval(5 * 3600))],
+                extraLines: [],
+                statusLine: nil),
+        ])
+
+        let output = CLICardsBriefRenderer.render(
+            rows: rows,
+            failures: [],
+            terminalWidth: 40,
+            useColor: false,
+            now: now)
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false)
+
+        #expect(output.contains("Next reset: Codex in 5h"))
+        #expect(!output.contains("Next reset: Kilo"))
+        #expect(lines.allSatisfy { $0.count <= 40 })
+    }
+
+    @Test
     func `enhanced brief mode fills bars from used percentage`() {
         let rows = CLICardsBriefRenderer.makeRows(cards: [
             CLICardModel(

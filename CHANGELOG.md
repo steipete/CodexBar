@@ -4,6 +4,7 @@
 
 ### Added
 - Antigravity: show pace details for legacy model-family and current session/weekly quota rows without changing compact icon lane semantics. Thanks @Zihao-Qi!
+- CLI: add responsive `codexbar cards` and compact `--brief` terminal usage views. Thanks @DonnieFi!
 - Widgets: make Kimi available with Weekly, Rate Limit, and Monthly quota rows. Thanks @joeVenner!
 - Kimi: show the subscription 7-day Code quota in menus and large widgets. Thanks @skyzer!
 

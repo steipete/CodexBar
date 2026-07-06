@@ -12,6 +12,22 @@ struct CLICardMetric: Sendable, Equatable {
     let label: String
     let remainingPercent: Double
     let resetText: String?
+    let resetAt: Date?
+    let detailText: String?
+
+    init(
+        label: String,
+        remainingPercent: Double,
+        resetText: String?,
+        resetAt: Date? = nil,
+        detailText: String? = nil)
+    {
+        self.label = label
+        self.remainingPercent = remainingPercent
+        self.resetText = resetText
+        self.resetAt = resetAt
+        self.detailText = detailText
+    }
 }
 
 struct CLICardModel: Sendable, Equatable {
@@ -228,6 +244,14 @@ enum CLICardsRenderer {
                     enhanced: enhanced,
                     style: .subtle))
             }
+            if let detailText = metric.detailText {
+                lines.append(Self.contentLine(
+                    detailText,
+                    innerWidth: innerWidth,
+                    useColor: useColor,
+                    enhanced: enhanced,
+                    style: .subtle))
+            }
         }
 
         for extraLine in card.extraLines {
@@ -421,8 +445,9 @@ enum CLICardsRenderer {
         enhanced: Bool,
         contentStyle: ContentStyle = .normal) -> String
     {
-        let padding = max(0, innerWidth - Self.visibleLength(content))
-        let padded = content + String(repeating: " ", count: padding)
+        let fitted = Self.fitContent(content, width: innerWidth)
+        let padding = max(0, innerWidth - Self.visibleLength(fitted))
+        let padded = fitted + String(repeating: " ", count: padding)
         let visible = "│ \(padded) │"
         guard useColor else { return visible }
         let left = Self.styleBorder("│ ", useColor: useColor, enhanced: enhanced)
@@ -457,6 +482,11 @@ enum CLICardsRenderer {
         guard text.count > width else { return text }
         if width <= 1 { return String(text.prefix(width)) }
         return String(text.prefix(width - 1)) + "…"
+    }
+
+    private static func fitContent(_ text: String, width: Int) -> String {
+        guard self.visibleLength(text) > width else { return text }
+        return self.truncatePlain(TextParsing.stripANSICodes(text), width: width)
     }
 
     private static func normalizeGlyphs(_ text: String) -> String {
