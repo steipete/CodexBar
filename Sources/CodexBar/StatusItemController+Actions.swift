@@ -39,7 +39,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         refreshOpenMenusWhenComplete: Bool,
         interaction: ProviderInteraction) async
     {
-        await ProviderInteractionContext.$current.withValue(interaction) {
+        await self.withProviderInteraction(interaction) {
             await self.store.refresh(forceTokenUsage: forceTokenUsage)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             self.store.scheduleStorageFootprintRefreshForOverview(force: true)
@@ -56,7 +56,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         refreshOpenMenusWhenComplete: Bool,
         interaction: ProviderInteraction) async
     {
-        await ProviderInteractionContext.$current.withValue(interaction) {
+        await self.withProviderInteraction(interaction) {
             let refreshStartedAt = Date()
             await self.store.refreshProvider(provider)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
@@ -84,6 +84,23 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 self.refreshOpenMenusAfterExplicitStoreAction()
             } else {
                 self.invalidateMenus()
+            }
+        }
+    }
+
+    private func withProviderInteraction(
+        _ interaction: ProviderInteraction,
+        operation: () async -> Void) async
+    {
+        if interaction == .userInitiated {
+            await BrowserCookieAccessGate.withExplicitRetry {
+                await ProviderInteractionContext.$current.withValue(interaction) {
+                    await operation()
+                }
+            }
+        } else {
+            await ProviderInteractionContext.$current.withValue(interaction) {
+                await operation()
             }
         }
     }

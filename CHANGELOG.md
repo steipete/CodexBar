@@ -8,6 +8,7 @@
 
 ### Fixed
 - Amp: open the current Usage page from the menu dashboard action. Thanks @3kh0!
+- Browser cookies: stop automatic Chromium-family probes after the first Safe Storage denial, while keeping an explicit Refresh retry available (#1952). Thanks @CoreyCole!
 - Claude: keep yearless reset dates in the upcoming year when a quota crosses New Year's Day. Thanks @devYRPauli!
 - Claude web: preserve fractional session and weekly utilization instead of displaying it as zero or unavailable. Thanks @devYRPauli!
 - Gemini: use the real Flash quota in menu-bar metrics when an account has no Pro quota. Thanks @devYRPauli!
