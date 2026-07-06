@@ -43,7 +43,7 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case .missingAPIKey:
             "Missing Ollama API key. Set apiKey in ~/.codexbar/config.json or OLLAMA_API_KEY."
         case .notLoggedIn:
-            "Not logged in to Ollama. Please log in via ollama.com/settings."
+            "Not signed in to Ollama. Please sign in at https://ollama.com/signin."
         case .invalidCredentials:
             "Ollama session cookie expired. Please log in again."
         case .apiUnauthorized:
@@ -53,7 +53,7 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case let .networkError(message):
             "Ollama request failed: \(message)"
         case .noSessionCookie:
-            "No Ollama session cookie found. Please log in to ollama.com in your browser."
+            "No Ollama session cookie found. Please sign in at https://ollama.com/signin in your browser."
         }
     }
 }
