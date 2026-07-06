@@ -7,6 +7,7 @@
 
 ### Fixed
 - Amp: open the current Usage page from the menu dashboard action. Thanks @3kh0!
+- Claude: keep yearless reset dates in the upcoming year when a quota crosses New Year's Day. Thanks @devYRPauli!
 - Settings: keep Language, Default Terminal, and Refresh cadence selectors interactive on macOS 27.
 - Usage formatting: show every positive sub-1% value as `<1%` instead of rounding values above 0.5% up to `1%`. Thanks @devYRPauli!
 - Codex menu: hide error-only optional Credits and OpenAI web setup diagnostics while keeping them visible in provider Settings.

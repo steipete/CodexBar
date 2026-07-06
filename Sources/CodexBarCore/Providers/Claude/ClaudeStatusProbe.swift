@@ -659,10 +659,7 @@ public struct ClaudeStatusProbe: Sendable {
         return calendar.date(byAdding: .day, value: 1, to: anchored)
     }
 
-    /// The date+time reset formats carry no year, so `defaultDate` fills in the
-    /// current year. Near a year boundary that puts a "Jan 2" reset read on
-    /// "Dec 31" into the past; roll it forward a year, mirroring the time-only
-    /// branches above and CodexStatusProbe.bumpYearIfNeeded.
+    /// Yearless dates parsed just before New Year's can otherwise land nearly a year in the past.
     private static func bumpYearIfNeeded(_ date: Date?, now: Date, calendar: Calendar) -> Date? {
         guard let date else { return nil }
         if date >= now { return date }

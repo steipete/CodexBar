@@ -665,14 +665,18 @@ struct StatusProbeTests {
         calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
         let now = try #require(calendar.date(from: DateComponents(
             year: 2026, month: 12, day: 31, hour: 23, minute: 0, second: 0)))
-        // Reset text carries no year; on Dec 31 a "Jan 2" reset must resolve to
-        // next year (a few hours ahead), not the current year (~a year in the past).
-        let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Jan 2, 3:00am (UTC)", now: now)
-        let expected = calendar.date(from: DateComponents(
-            year: 2027, month: 1, day: 2, hour: 3, minute: 0, second: 0))
-        #expect(parsed == expected)
-        let resolved = try #require(parsed)
-        #expect(resolved > now)
+        let cases = [
+            ("Resets Jan 2, 3:15am (UTC)", 15),
+            ("Resets Jan 2, 3am (UTC)", 0),
+        ]
+
+        for (text, minute) in cases {
+            let parsed = ClaudeStatusProbe.parseResetDate(from: text, now: now)
+            let expected = calendar.date(from: DateComponents(
+                year: 2027, month: 1, day: 2, hour: 3, minute: minute, second: 0))
+            #expect(parsed == expected, "Failed to roll forward: \(text)")
+            #expect(try #require(parsed) > now)
+        }
     }
 
     @Test
