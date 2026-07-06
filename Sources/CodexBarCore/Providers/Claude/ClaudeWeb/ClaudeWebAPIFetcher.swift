@@ -614,9 +614,7 @@ public enum ClaudeWebAPIFetcher {
         var sessionResets: Date?
         let fiveHour = json["five_hour"] as? [String: Any]
         if let fiveHour {
-            if let utilization = fiveHour["utilization"] as? Int {
-                sessionPercent = Double(utilization)
-            }
+            sessionPercent = Self.percentValue(from: fiveHour["utilization"])
             if let resetsAt = fiveHour["resets_at"] as? String {
                 sessionResets = self.parseISO8601Date(resetsAt)
             }
@@ -631,9 +629,7 @@ public enum ClaudeWebAPIFetcher {
         var weeklyPercent: Double?
         var weeklyResets: Date?
         if let sevenDay = json["seven_day"] as? [String: Any] {
-            if let utilization = sevenDay["utilization"] as? Int {
-                weeklyPercent = Double(utilization)
-            }
+            weeklyPercent = Self.percentValue(from: sevenDay["utilization"])
             if let resetsAt = sevenDay["resets_at"] as? String {
                 weeklyResets = self.parseISO8601Date(resetsAt)
             }

@@ -102,6 +102,27 @@ struct RateWindowSyntheticPlaceholderTests {
     }
 
     @Test
+    func `web mapping keeps a fractional utilization instead of dropping it to zero`() throws {
+        // Claude web can report a fractional utilization (the OAuth model types it as Double).
+        // A decimal like 45.5 must survive parsing; an Int-only cast drops it to nil -> a phantom
+        // "0% used" on a genuinely live, ~45%-used session.
+        let json = """
+        {
+          "five_hour": { "utilization": 45.5, "resets_at": "2025-12-29T20:00:00.000Z" },
+          "seven_day": { "utilization": 12.25, "resets_at": "2025-12-29T23:00:00.000Z" }
+        }
+        """
+        let webData = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(Data(json.utf8))
+        #expect(webData.sessionPercentUsed == 45.5)
+        #expect(webData.weeklyPercentUsed == 12.25)
+        #expect(webData.hasLiveSessionWindow == true)
+
+        let primary = ClaudeUsageFetcher.webPrimaryWindow(from: webData)
+        #expect(primary.isSyntheticPlaceholder == false)
+        #expect(primary.usedPercent == 45.5)
+    }
+
+    @Test
     func `web mapping keeps a real zero-usage session that omits a reset`() throws {
         // A reported `five_hour` object at 0% with no `resets_at` is a real idle session, not the
         // `five_hour: null` placeholder. The flag keys off object presence (not percent/reset), so this
