@@ -660,6 +660,22 @@ struct StatusProbeTests {
     }
 
     @Test
+    func `rolls claude reset date forward across the year boundary`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let now = try #require(calendar.date(from: DateComponents(
+            year: 2026, month: 12, day: 31, hour: 23, minute: 0, second: 0)))
+        // Reset text carries no year; on Dec 31 a "Jan 2" reset must resolve to
+        // next year (a few hours ahead), not the current year (~a year in the past).
+        let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Jan 2, 3:00am (UTC)", now: now)
+        let expected = calendar.date(from: DateComponents(
+            year: 2027, month: 1, day: 2, hour: 3, minute: 0, second: 0))
+        #expect(parsed == expected)
+        let resolved = try #require(parsed)
+        #expect(resolved > now)
+    }
+
+    @Test
     func `parses claude reset with dot separated time`() throws {
         let now = Date(timeIntervalSince1970: 1_733_690_000)
         let parsed = ClaudeStatusProbe.parseResetDate(from: "Resets Dec 9 at 5.27am (UTC)", now: now)

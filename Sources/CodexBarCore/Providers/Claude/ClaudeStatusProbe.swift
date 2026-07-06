@@ -628,13 +628,13 @@ public struct ClaudeStatusProbe: Sendable {
         if let date = self.parseDate(raw, formats: Self.resetDateTimeWithMinutes, formatter: formatter) {
             var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
             comps.second = 0
-            return calendar.date(from: comps)
+            return self.bumpYearIfNeeded(calendar.date(from: comps), now: now, calendar: calendar)
         }
         if let date = self.parseDate(raw, formats: Self.resetDateTimeHourOnly, formatter: formatter) {
             var comps = calendar.dateComponents([.year, .month, .day, .hour], from: date)
             comps.minute = 0
             comps.second = 0
-            return calendar.date(from: comps)
+            return self.bumpYearIfNeeded(calendar.date(from: comps), now: now, calendar: calendar)
         }
 
         if let time = self.parseDate(raw, formats: Self.resetTimeWithMinutes, formatter: formatter) {
@@ -657,6 +657,16 @@ public struct ClaudeStatusProbe: Sendable {
             of: now) else { return nil }
         if anchored >= now { return anchored }
         return calendar.date(byAdding: .day, value: 1, to: anchored)
+    }
+
+    /// The date+time reset formats carry no year, so `defaultDate` fills in the
+    /// current year. Near a year boundary that puts a "Jan 2" reset read on
+    /// "Dec 31" into the past; roll it forward a year, mirroring the time-only
+    /// branches above and CodexStatusProbe.bumpYearIfNeeded.
+    private static func bumpYearIfNeeded(_ date: Date?, now: Date, calendar: Calendar) -> Date? {
+        guard let date else { return nil }
+        if date >= now { return date }
+        return calendar.date(byAdding: .year, value: 1, to: date)
     }
 
     private static let resetTimeWithMinutes = ["h:mma", "h:mm a", "HH:mm", "H:mm"]
