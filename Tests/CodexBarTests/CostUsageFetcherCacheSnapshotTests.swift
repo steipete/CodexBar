@@ -36,6 +36,42 @@ struct CostUsageFetcherCacheSnapshotTests {
     }
 
     @Test
+    func `cached codex token snapshot keeps the cache scan time as updatedAt`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "cached.jsonl",
+            tokens: 42)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            scannerOptions: options)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        #expect(cache.lastScanUnixMs > 0)
+        let scanTime = Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+
+        let hydratedAt = day.addingTimeInterval(50 * 60)
+        let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: hydratedAt,
+            historyDays: 1,
+            scannerOptions: options)
+
+        #expect(cached?.updatedAt == scanTime)
+        #expect(cached?.updatedAt != hydratedAt)
+    }
+
+    @Test
     func `cached codex token snapshot refuses expanded or managed scopes`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

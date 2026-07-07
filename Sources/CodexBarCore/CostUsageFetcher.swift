@@ -323,12 +323,15 @@ public struct CostUsageFetcher: Sendable {
             }
 
             guard !reports.isEmpty else { return nil }
+            // Cached snapshots must keep the cache's real scan time as updatedAt; stamping the
+            // hydration time would let stale token rows inherit app-start freshness (#1964).
             return CachedCodexTokenSnapshotResult(
                 snapshot: Self.tokenSnapshot(
                     from: CostUsageDailyReport.merged(reports),
                     now: now,
                     historyDays: clampedHistoryDays,
-                    projects: Self.mergedProjectBreakdowns(projects)),
+                    projects: Self.mergedProjectBreakdowns(projects),
+                    updatedAt: nativeLastRefreshAt),
                 lastRefreshAt: nativeLastRefreshAt)
         }
         return cachedSnapshot.flatMap(\.self)
@@ -352,7 +355,8 @@ public struct CostUsageFetcher: Sendable {
         now: Date,
         historyDays: Int = 30,
         useCurrentLocalDayForSession: Bool = true,
-        projects: [CostUsageProjectBreakdown] = []) -> CostUsageTokenSnapshot
+        projects: [CostUsageProjectBreakdown] = [],
+        updatedAt: Date? = nil) -> CostUsageTokenSnapshot
     {
         let sessionEntry = useCurrentLocalDayForSession
             ? CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
@@ -388,7 +392,7 @@ public struct CostUsageFetcher: Sendable {
             historyDays: historyDays,
             daily: daily.data,
             projects: projects,
-            updatedAt: now)
+            updatedAt: updatedAt ?? now)
     }
 
     private static func unknownProjectBreakdown(from daily: CostUsageDailyReport) -> CostUsageProjectBreakdown? {
