@@ -151,12 +151,32 @@ enum PiSessionCostScanner {
             pricingContext: pricingContext)
     }
 
+    struct CachedDailyReportResult {
+        let report: CostUsageDailyReport
+        let lastScanAt: Date?
+    }
+
     static func loadCachedDailyReport(
         provider: UsageProvider,
         since: Date,
         until: Date,
         now: Date = Date(),
         cacheRoot: URL? = nil) -> CostUsageDailyReport?
+    {
+        self.loadCachedDailyReportResult(
+            provider: provider,
+            since: since,
+            until: until,
+            now: now,
+            cacheRoot: cacheRoot)?.report
+    }
+
+    static func loadCachedDailyReportResult(
+        provider: UsageProvider,
+        since: Date,
+        until: Date,
+        now: Date = Date(),
+        cacheRoot: URL? = nil) -> CachedDailyReportResult?
     {
         guard provider == .codex || provider == .claude else { return nil }
 
@@ -173,7 +193,11 @@ enum PiSessionCostScanner {
             cache: cache,
             range: range,
             pricingContext: pricingContext)
-        return report.data.isEmpty ? nil : report
+        guard !report.data.isEmpty else { return nil }
+        let lastScanAt = cache.lastScanUnixMs > 0
+            ? Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+            : nil
+        return CachedDailyReportResult(report: report, lastScanAt: lastScanAt)
     }
 
     private static func requestedWindowExpandsCache(

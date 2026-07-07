@@ -283,7 +283,11 @@ public struct CostUsageFetcher: Sendable {
             let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
             var reports: [CostUsageDailyReport] = []
             var projects: [CostUsageProjectBreakdown] = []
-            var nativeLastRefreshAt: Date?
+            // Raw inputs for the derived result fields below: the native cache's own scan
+            // time, every constituent scan time, and whether a second source joined the merge.
+            var nativeScanAt: Date?
+            var scanTimes: [Date] = []
+            var piMerged = false
 
             if !cache.days.isEmpty,
                cache.roots == CostUsageScanner.codexRootsFingerprint(options: options),
@@ -296,8 +300,9 @@ public struct CostUsageFetcher: Sendable {
                 if !daily.data.isEmpty {
                     reports.append(daily)
                     if cache.lastScanUnixMs > 0 {
-                        nativeLastRefreshAt = Date(
-                            timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+                        let scanAt = Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+                        nativeScanAt = scanAt
+                        scanTimes.append(scanAt)
                     }
                     if cache.codexProjectMetadataVersion == CostUsageScanner.codexProjectMetadataVersion {
                         projects.append(contentsOf: CostUsageScanner.buildCodexProjectBreakdownsFromCache(
@@ -308,31 +313,36 @@ public struct CostUsageFetcher: Sendable {
                 }
             }
 
-            if let piDaily = PiSessionCostScanner.loadCachedDailyReport(
+            if let piResult = PiSessionCostScanner.loadCachedDailyReportResult(
                 provider: .codex,
                 since: since,
                 until: until,
                 now: now,
                 cacheRoot: options.cacheRoot)
             {
-                reports.append(piDaily)
-                nativeLastRefreshAt = nil
-                if let piProject = Self.unknownProjectBreakdown(from: piDaily) {
+                reports.append(piResult.report)
+                piMerged = true
+                if let piLastScanAt = piResult.lastScanAt {
+                    scanTimes.append(piLastScanAt)
+                }
+                if let piProject = Self.unknownProjectBreakdown(from: piResult.report) {
                     projects.append(piProject)
                 }
             }
 
             guard !reports.isEmpty else { return nil }
-            // Cached snapshots must keep the cache's real scan time as updatedAt; stamping the
-            // hydration time would let stale token rows inherit app-start freshness (#1964).
+            // updatedAt keeps the caches' real (oldest) scan time; stamping the hydration time
+            // would let stale token rows inherit app-start freshness (#1964). lastRefreshAt
+            // drives TTL suppression and stays native-only: a merged load must never delay a
+            // rescan on the strength of another source's scan.
             return CachedCodexTokenSnapshotResult(
                 snapshot: Self.tokenSnapshot(
                     from: CostUsageDailyReport.merged(reports),
                     now: now,
                     historyDays: clampedHistoryDays,
                     projects: Self.mergedProjectBreakdowns(projects),
-                    updatedAt: nativeLastRefreshAt),
-                lastRefreshAt: nativeLastRefreshAt)
+                    updatedAt: scanTimes.min()),
+                lastRefreshAt: piMerged ? nil : nativeScanAt)
         }
         return cachedSnapshot.flatMap(\.self)
     }
