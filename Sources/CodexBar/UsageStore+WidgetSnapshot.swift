@@ -107,7 +107,8 @@ extension UsageStore {
             last30DaysTokens: monthTokensValue,
             currencyCode: snapshot.currencyCode,
             sessionLabel: sessionLabel,
-            last30DaysLabel: monthLabel)
+            last30DaysLabel: monthLabel,
+            updatedAt: snapshot.updatedAt)
     }
 
     private func widgetUsageRows(

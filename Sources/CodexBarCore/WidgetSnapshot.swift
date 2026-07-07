@@ -56,6 +56,10 @@ public struct WidgetSnapshot: Codable, Sendable {
     }
 
     public struct TokenUsageSummary: Codable, Sendable {
+        /// Token-cost rows refresh on a slower cadence than quota rows; beyond this lag the
+        /// widget discloses their own age instead of inheriting `ProviderEntry.updatedAt`.
+        public static let staleLagThreshold: TimeInterval = 10 * 60
+
         public let sessionCostUSD: Double?
         public let sessionTokens: Int?
         public let last30DaysCostUSD: Double?
@@ -63,6 +67,7 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let currencyCode: String
         public let sessionLabel: String
         public let last30DaysLabel: String
+        public let updatedAt: Date?
 
         public init(
             sessionCostUSD: Double?,
@@ -71,7 +76,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             last30DaysTokens: Int?,
             currencyCode: String = "USD",
             sessionLabel: String = "Today",
-            last30DaysLabel: String = "30d")
+            last30DaysLabel: String = "30d",
+            updatedAt: Date? = nil)
         {
             self.sessionCostUSD = sessionCostUSD
             self.sessionTokens = sessionTokens
@@ -86,6 +92,13 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.last30DaysLabel = last30DaysLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "30d"
                 : last30DaysLabel
+            self.updatedAt = updatedAt
+        }
+
+        /// Unknown age (legacy snapshots) counts as fresh.
+        public func isStale(comparedTo entryUpdatedAt: Date) -> Bool {
+            guard let updatedAt else { return false }
+            return entryUpdatedAt.timeIntervalSince(updatedAt) > Self.staleLagThreshold
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -96,6 +109,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             case currencyCode
             case sessionLabel
             case last30DaysLabel
+            case updatedAt
         }
 
         public init(from decoder: Decoder) throws {
@@ -107,7 +121,8 @@ public struct WidgetSnapshot: Codable, Sendable {
                 last30DaysTokens: container.decodeIfPresent(Int.self, forKey: .last30DaysTokens),
                 currencyCode: container.decodeIfPresent(String.self, forKey: .currencyCode) ?? "USD",
                 sessionLabel: container.decodeIfPresent(String.self, forKey: .sessionLabel) ?? "Today",
-                last30DaysLabel: container.decodeIfPresent(String.self, forKey: .last30DaysLabel) ?? "30d")
+                last30DaysLabel: container.decodeIfPresent(String.self, forKey: .last30DaysLabel) ?? "30d",
+                updatedAt: container.decodeIfPresent(Date.self, forKey: .updatedAt))
         }
     }
 

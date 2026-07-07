@@ -206,4 +206,50 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.first?.tokenUsage?.last30DaysLabel == "30d")
         #expect(decoded.enabledProviders == [.codex])
     }
+
+    @Test
+    func `token usage summary round trips updatedAt and tolerates legacy payloads`() throws {
+        let updatedAt = Date(timeIntervalSince1970: 1_760_000_000)
+        let summary = WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: 1.5,
+            sessionTokens: 100,
+            last30DaysCostUSD: 30,
+            last30DaysTokens: 2000,
+            updatedAt: updatedAt)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let decoded = try decoder.decode(
+            WidgetSnapshot.TokenUsageSummary.self,
+            from: encoder.encode(summary))
+        #expect(decoded.updatedAt == updatedAt)
+
+        let legacy = try decoder.decode(
+            WidgetSnapshot.TokenUsageSummary.self,
+            from: Data(#"{"sessionCostUSD": 1.5, "sessionTokens": 100}"#.utf8))
+        #expect(legacy.updatedAt == nil)
+    }
+
+    @Test
+    func `token usage staleness discloses only meaningful lag`() {
+        let entryUpdatedAt = Date()
+
+        func summary(updatedAt: Date?) -> WidgetSnapshot.TokenUsageSummary {
+            WidgetSnapshot.TokenUsageSummary(
+                sessionCostUSD: nil,
+                sessionTokens: nil,
+                last30DaysCostUSD: nil,
+                last30DaysTokens: nil,
+                updatedAt: updatedAt)
+        }
+
+        #expect(!summary(updatedAt: entryUpdatedAt.addingTimeInterval(-5 * 60))
+            .isStale(comparedTo: entryUpdatedAt))
+        #expect(summary(updatedAt: entryUpdatedAt.addingTimeInterval(-61 * 60))
+            .isStale(comparedTo: entryUpdatedAt))
+        #expect(!summary(updatedAt: nil).isStale(comparedTo: entryUpdatedAt))
+    }
 }
