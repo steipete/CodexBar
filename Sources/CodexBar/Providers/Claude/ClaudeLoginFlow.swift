@@ -1,5 +1,11 @@
 import CodexBarCore
 
+enum ClaudeLoginFlowPolicy {
+    static func usageDataSourceAfterSuccessfulLogin(previous _: ClaudeUsageDataSource) -> ClaudeUsageDataSource {
+        .auto
+    }
+}
+
 @MainActor
 extension StatusItemController {
     func runClaudeLoginFlow() async -> Bool {
@@ -21,7 +27,8 @@ extension StatusItemController {
         if case .success = result.outcome {
             let metadata = self.store.metadata(for: .claude)
             self.settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
-            self.settings.claudeUsageDataSource = .oauth
+            self.settings.claudeUsageDataSource = ClaudeLoginFlowPolicy.usageDataSourceAfterSuccessfulLogin(
+                previous: self.settings.claudeUsageDataSource)
             self.postLoginNotification(for: .claude)
             return true
         }
