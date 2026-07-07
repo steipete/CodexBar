@@ -72,6 +72,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | GroqCloud | API key → Prometheus metrics API for request/token/cache-hit rates (`api`). |
 | LLM Proxy | API key + base URL → `/v1/quota-stats` aggregate proxy usage (`api`). |
 | ClawRouter | API key + optional base URL → `/v1/usage` monthly budget, spend, and routed-provider usage (`api`). |
+| Wayfinder | Local gateway URL → `/healthz`, `/v1/savings`, `/router/models`, `/metrics` for health, routing split, savings, and decision latency (`api`). |
 | LiteLLM | API key + base URL → `/key/info`, then `/user/info` or `/team/info` budget usage (`api`). |
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
@@ -440,6 +441,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Reads `/v1/usage` for the key policy's monthly budget, spend, request/token totals, and per-provider breakdown.
 - Provider rows are data-driven, so any routed provider returned by ClawRouter is displayed without provider-specific CodexBar code.
 - Details: `docs/clawrouter.md`.
+
+## Wayfinder
+- No credentials: the local gateway's read-only endpoints are unauthenticated on loopback.
+- Defaults to `http://127.0.0.1:8088`; optional config `enterpriseHost` or `WAYFINDER_GATEWAY_URL` overrides it (HTTPS anywhere, plain HTTP for loopback only).
+- Reads `/healthz`, `/router/models`, and `/v1/savings?period=30d` for gateway health, the local/cloud routing split, and savings vs. always-cloud; parses `/metrics` best-effort for average decision latency.
+- Read-only: never calls the gateway's chat endpoints, and the polled endpoints return accounting metadata only — no prompt text.
+- Details: `docs/wayfinder.md`.
 
 ## AWS Bedrock
 - AWS credentials from `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN`.
