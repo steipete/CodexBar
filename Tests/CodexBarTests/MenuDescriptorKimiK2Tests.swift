@@ -4,19 +4,14 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct MenuDescriptorKimiK2Tests {
     @Test
     func `kimi K2 menu exposes the usage dashboard action`() throws {
-        let suite = "MenuDescriptorKimiK2Tests-dashboard"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(suiteName: "MenuDescriptorKimiK2Tests-dashboard")
         settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
