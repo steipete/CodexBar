@@ -2,6 +2,9 @@
 
 ## 0.41.1 — Unreleased
 
+### Added
+- Agent Sessions: list and focus live local or SSH-discovered Codex and Claude Code sessions from the menu and CLI.
+
 ## 0.41.0 — 2026-07-06
 
 ### Added

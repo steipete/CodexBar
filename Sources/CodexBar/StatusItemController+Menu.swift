@@ -70,6 +70,7 @@ extension StatusItemController {
     func menuWillOpen(_ menu: NSMenu) {
         // Records interaction and may bring an adaptive timer forward; never refreshes synchronously.
         self.store.noteMenuOpened()
+        self.agentSessions.refreshOnMenuOpen()
 
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }
@@ -787,13 +788,7 @@ extension StatusItemController {
         width: CGFloat,
         captureMenu: NSMenu? = nil)
     {
-        let actionableSections = sections.filter { section in
-            section.entries.contains { entry in
-                if case .action = entry { return true }
-                if case .submenu = entry { return true }
-                return false
-            }
-        }
+        let actionableSections = sections.filter { section in section.entries.contains(where: \ .isActionable) }
         for (index, section) in actionableSections.enumerated() {
             for entry in section.entries {
                 switch entry {
@@ -856,6 +851,11 @@ extension StatusItemController {
                         item.isEnabled = false
                         self.applySubtitle(subtitle, to: item, title: localizedTitle)
                     }
+                    menu.addItem(item)
+                case let .unavailable(title, tooltip):
+                    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                    item.isEnabled = false
+                    item.toolTip = tooltip
                     menu.addItem(item)
                 case let .submenu(title, systemImageName, submenuItems):
                     let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")

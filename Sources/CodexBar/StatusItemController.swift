@@ -117,6 +117,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
 
     let store: UsageStore
     let settings: SettingsStore
+    let agentSessions: AgentSessionsStore
     lazy var menuCardRefreshMonitor = MenuCardRefreshMonitor { [weak self] provider in
         self?.menuCardModel(for: provider)
     }
@@ -243,6 +244,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
+    private var lastAgentSessionsEnabled: Bool
+    private var lastAgentSessionsTailscaleEnabled: Bool
+    private var lastAgentSessionsManualHosts: String
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
     /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
     var lastSwitcherUsageBarsShowUsed: Bool
@@ -372,6 +376,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.store = store
         self.settings = settings
+        self.agentSessions = AgentSessionsStore(settings: settings)
         self.account = account
         self.updater = updater
         self.preferencesSelection = preferencesSelection
@@ -387,6 +392,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
+        self.lastAgentSessionsTailscaleEnabled = settings.agentSessionsTailscaleEnabled
+        self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.menuCardRenderingEnabledForController = menuCardRenderingEnabled
         self.menuRefreshEnabledForController = menuRefreshEnabled
@@ -409,6 +417,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMenuAdjunctReadinessSignature = self.menuAdjunctReadinessSignature()
         self.lastMenuAdjunctReadinessBaselineVersion = self.menuSession.contentVersion
         self.wireBindings()
+        self.agentSessions.onUpdate = { [weak self] in
+            self?.invalidateMenus(refreshOpenMenus: true)
+        }
+        if !SettingsStore.isRunningTests {
+            self.agentSessions.start()
+        }
         self.updateVisibility()
         self.updateIcons()
         self.scheduleCodexAccountMenuProjectionRevalidationIfNeeded(
@@ -640,6 +654,15 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
+        let agentSessionsSettingsChanged = self.settings.agentSessionsEnabled != self.lastAgentSessionsEnabled ||
+            self.settings.agentSessionsTailscaleEnabled != self.lastAgentSessionsTailscaleEnabled ||
+            self.settings.agentSessionsManualHosts != self.lastAgentSessionsManualHosts
+        if agentSessionsSettingsChanged {
+            self.lastAgentSessionsEnabled = self.settings.agentSessionsEnabled
+            self.lastAgentSessionsTailscaleEnabled = self.settings.agentSessionsTailscaleEnabled
+            self.lastAgentSessionsManualHosts = self.settings.agentSessionsManualHosts
+            self.agentSessions.settingsDidChange()
+        }
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let localizationChanged = self.menuLocalizationSignature() != self.lastMenuLocalizationSignature

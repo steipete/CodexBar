@@ -48,6 +48,10 @@ enum CodexBarCLI {
                 await self.runUsage(invocation.parsedValues)
             case ["cost"]:
                 await self.runCost(invocation.parsedValues)
+            case ["sessions", "list"]:
+                await self.runSessions(invocation.parsedValues)
+            case ["sessions", "focus"]:
+                await self.runSessionsFocus(invocation.parsedValues)
             case ["serve"]:
                 await self.runServe(invocation.parsedValues)
             case ["config", "validate"]:
@@ -88,6 +92,8 @@ enum CodexBarCLI {
         let cardsSignature = CommandSignature.describe(CardsOptions())
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
+        let sessionsSignature = CommandSignature.describe(SessionsOptions())
+        let sessionsFocusSignature = CommandSignature.describe(SessionsFocusOptions())
         let serveSignature = CommandSignature.describe(ServeOptions())
         let configSignature = CommandSignature.describe(ConfigOptions())
         let configProviderToggleSignature = CommandSignature.describe(ConfigProviderToggleOptions())
@@ -111,6 +117,24 @@ enum CodexBarCLI {
                 abstract: "Print local cost usage as text or JSON",
                 discussion: nil,
                 signature: costSignature),
+            CommandDescriptor(
+                name: "sessions",
+                abstract: "List live Codex and Claude Code sessions",
+                discussion: nil,
+                signature: CommandSignature(),
+                subcommands: [
+                    CommandDescriptor(
+                        name: "list",
+                        abstract: "List live Codex and Claude Code sessions",
+                        discussion: nil,
+                        signature: sessionsSignature),
+                    CommandDescriptor(
+                        name: "focus",
+                        abstract: "Focus the window for a session",
+                        discussion: nil,
+                        signature: sessionsFocusSignature),
+                ],
+                defaultSubcommandName: "list"),
             CommandDescriptor(
                 name: "serve",
                 abstract: "Serve usage and cost JSON over localhost HTTP",

@@ -71,6 +71,10 @@ struct MenuContent: View {
                 }
             }
             .buttonStyle(.plain)
+        case let .unavailable(title, tooltip):
+            Text(title)
+                .foregroundStyle(.secondary)
+                .help(tooltip ?? "")
         case let .submenu(title, systemImageName, submenuItems):
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -142,6 +146,8 @@ struct MenuContent: View {
             self.actions.quit()
         case let .copyError(message):
             self.actions.copyError(message)
+        case .focusAgentSession:
+            return
         }
     }
 }

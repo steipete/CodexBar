@@ -24,8 +24,16 @@ struct MenuDescriptor {
     enum Entry {
         case text(String, TextStyle)
         case action(String, MenuAction)
+        case unavailable(String, String?)
         case submenu(String, String?, [SubmenuItem])
         case divider
+
+        var isActionable: Bool {
+            switch self {
+            case .action, .submenu, .unavailable: true
+            case .text, .divider: false
+            }
+        }
     }
 
     enum MenuActionSystemImage: String {
@@ -68,6 +76,7 @@ struct MenuDescriptor {
         case about
         case quit
         case copyError(String)
+        case focusAgentSession(AgentSession, remoteHost: String?)
     }
 
     var sections: [Section]
@@ -80,7 +89,11 @@ struct MenuDescriptor {
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator? = nil,
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         updateReady: Bool,
-        includeContextualActions: Bool = true) -> MenuDescriptor
+        includeContextualActions: Bool = true,
+        agentSessionsEnabled: Bool = false,
+        localAgentSessions: [AgentSession] = [],
+        remoteAgentHosts: [RemoteSessionHostResult] = [],
+        now: Date = Date()) -> MenuDescriptor
     {
         var sections: [Section] = []
 
@@ -129,9 +142,69 @@ struct MenuDescriptor {
                 sections.append(actions)
             }
         }
+        if agentSessionsEnabled {
+            sections.append(Self.agentSessionsSection(
+                localSessions: localAgentSessions,
+                remoteHosts: remoteAgentHosts,
+                now: now))
+        }
         sections.append(Self.metaSection(updateReady: updateReady))
 
         return MenuDescriptor(sections: sections)
+    }
+
+    static func agentSessionsSection(
+        localSessions: [AgentSession],
+        remoteHosts: [RemoteSessionHostResult],
+        now: Date = Date()) -> Section
+    {
+        let totalCount = localSessions.count + remoteHosts.reduce(0) { $0 + $1.sessions.count }
+        var entries: [Entry] = [.text("Agent Sessions (\(totalCount))", .headline)]
+
+        for session in localSessions {
+            entries.append(.action(
+                self.agentSessionRowTitle(session, now: now),
+                .focusAgentSession(session, remoteHost: nil)))
+        }
+        for remoteHost in remoteHosts {
+            if let error = remoteHost.error {
+                entries.append(.unavailable("\(remoteHost.host) — unreachable", error))
+                continue
+            }
+            entries.append(.text("\(remoteHost.host) — \(remoteHost.sessions.count)", .secondary))
+            for session in remoteHost.sessions {
+                entries.append(.action(
+                    self.agentSessionRowTitle(session, now: now),
+                    .focusAgentSession(session, remoteHost: remoteHost.host)))
+            }
+        }
+        if totalCount == 0 {
+            entries.append(.unavailable("No agent sessions found", nil))
+        }
+        return Section(entries: entries)
+    }
+
+    private static func agentSessionRowTitle(_ session: AgentSession, now: Date) -> String {
+        let state = session.state == .active ? "●" : "○"
+        let providerGlyph = session.provider == .codex ? "⌘" : "✦"
+        let project = session.projectName ?? "Unknown project"
+        return "\(state) \(providerGlyph) \(project) — \(session.provider.rawValue) · " +
+            "\(session.source.rawValue) · \(self.agentSessionAge(session, now: now))"
+    }
+
+    private static func agentSessionAge(_ session: AgentSession, now: Date) -> String {
+        guard let activity = session.lastActivityAt ?? session.startedAt else { return "now" }
+        let seconds = max(0, Int(now.timeIntervalSince(activity)))
+        if seconds < 60 {
+            return "\(seconds)s"
+        }
+        if seconds < 3600 {
+            return "\(seconds / 60)m"
+        }
+        if seconds < 86400 {
+            return "\(seconds / 3600)h"
+        }
+        return "\(seconds / 86400)d"
     }
 
     private static func usageSection(
@@ -822,6 +895,8 @@ extension MenuDescriptor.MenuAction {
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
+        case .focusAgentSession:
+            nil
         }
     }
 }
