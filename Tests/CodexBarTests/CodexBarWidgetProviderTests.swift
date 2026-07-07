@@ -876,6 +876,39 @@ struct CodexBarWidgetProviderTests {
 
 extension CodexBarWidgetProviderTests {
     @Test
+    func `widget token titles disclose stale age for today and history rows`() {
+        let entryUpdatedAt = Date()
+        let staleToken = WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: 1.25,
+            sessionTokens: 4200,
+            last30DaysCostUSD: 12.50,
+            last30DaysTokens: 42000,
+            updatedAt: entryUpdatedAt.addingTimeInterval(-45 * 60))
+        let freshToken = WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: 1.25,
+            sessionTokens: 4200,
+            last30DaysCostUSD: 12.50,
+            last30DaysTokens: 42000,
+            updatedAt: entryUpdatedAt.addingTimeInterval(-5 * 60))
+
+        let todayTitle = WidgetFormat.tokenRowTitle(
+            staleToken.sessionLabel,
+            token: staleToken,
+            entryUpdatedAt: entryUpdatedAt)
+        let historyTitle = WidgetFormat.tokenRowTitle(
+            staleToken.last30DaysLabel,
+            token: staleToken,
+            entryUpdatedAt: entryUpdatedAt)
+
+        #expect(todayTitle.hasPrefix("Today · "))
+        #expect(historyTitle.hasPrefix("30d · "))
+        #expect(WidgetFormat.tokenRowTitle(
+            freshToken.sessionLabel,
+            token: freshToken,
+            entryUpdatedAt: entryUpdatedAt) == "Today")
+    }
+
+    @Test
     func `usage history chart mode requires every point to expose cost`() {
         let costPoints = [
             WidgetSnapshot.DailyUsagePoint(dayKey: "2026-07-01", totalTokens: 100, costUSD: 1.2),

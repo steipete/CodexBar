@@ -370,7 +370,10 @@ private struct SwitcherSmallUsageView: View {
             }
             if let token = WidgetUsageRow.compactTokenUsage(for: self.entry) {
                 ValueLine(
-                    title: token.sessionLabel,
+                    title: WidgetFormat.tokenRowTitle(
+                        token.sessionLabel,
+                        token: token,
+                        entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
                         tokens: token.sessionTokens,
@@ -450,7 +453,10 @@ private struct SwitcherLargeUsageView: View {
                             tokens: token.sessionTokens,
                             currencyCode: token.currencyCode))
                     ValueLine(
-                        title: token.last30DaysLabel,
+                        title: WidgetFormat.tokenRowTitle(
+                            token.last30DaysLabel,
+                            token: token,
+                            entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens,
@@ -579,7 +585,10 @@ private struct LargeUsageView: View {
                             tokens: token.sessionTokens,
                             currencyCode: token.currencyCode))
                     ValueLine(
-                        title: token.last30DaysLabel,
+                        title: WidgetFormat.tokenRowTitle(
+                            token.last30DaysLabel,
+                            token: token,
+                            entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
                             tokens: token.last30DaysTokens,
@@ -830,7 +839,10 @@ private struct HistoryView: View {
                         tokens: token.sessionTokens,
                         currencyCode: token.currencyCode))
                 ValueLine(
-                    title: token.last30DaysLabel,
+                    title: WidgetFormat.tokenRowTitle(
+                        token.last30DaysLabel,
+                        token: token,
+                        entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.last30DaysCostUSD,
                         tokens: token.last30DaysTokens,
