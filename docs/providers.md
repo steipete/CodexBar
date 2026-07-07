@@ -301,6 +301,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `SYNTHETIC_API_KEY`.
 - Shows rolling five-hour, weekly token, search-hourly, and cost/credit quota lanes when present.
 - Status: none yet.
+- Details: `docs/synthetic.md`.
 
 ## OpenRouter
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `OPENROUTER_API_KEY` env var.

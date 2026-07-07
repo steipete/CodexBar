@@ -101,6 +101,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Augment](docs/augment.md) — Augment CLI or browser cookies for credits tracking and usage monitoring.
 - [Amp](docs/amp.md) — Browser cookie-based authentication with Amp Free usage tracking.
 - [Ollama](docs/ollama.md) — API key access plus browser cookies for Ollama Cloud usage windows.
+- [Synthetic](docs/synthetic.md) — API key quota endpoint for rolling five-hour, weekly token, and search-hourly usage.
 - [JetBrains AI](docs/jetbrains.md) — Local XML-based quota from JetBrains IDE configuration; monthly credits tracking.
 - [Warp](docs/warp.md) — API token for GraphQL request limits and monthly credits.
 - [ElevenLabs](docs/elevenlabs.md) — API key for character credits and voice slot usage.
