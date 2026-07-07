@@ -1,4 +1,9 @@
 import CodexBarCore
+import Foundation
+
+typealias ClaudeLoginFlowRunner = (
+    _ timeout: TimeInterval,
+    _ onPhaseChange: @escaping @Sendable (ClaudeLoginRunner.Phase) -> Void) async -> ClaudeLoginRunner.Result
 
 enum ClaudeLoginFlowPolicy {
     static func usageDataSourceAfterSuccessfulLogin(previous: ClaudeUsageDataSource) -> ClaudeUsageDataSource {
@@ -9,6 +14,13 @@ enum ClaudeLoginFlowPolicy {
 @MainActor
 extension StatusItemController {
     func runClaudeLoginFlow() async -> Bool {
+        await self.runClaudeLoginFlow(
+            loginRunner: { timeout, onPhaseChange in
+                await ClaudeLoginRunner.run(timeout: timeout, onPhaseChange: onPhaseChange)
+            })
+    }
+
+    func runClaudeLoginFlow(loginRunner: ClaudeLoginFlowRunner) async -> Bool {
         let phaseHandler: @Sendable (ClaudeLoginRunner.Phase) -> Void = { [weak self] phase in
             Task { @MainActor in
                 switch phase {
@@ -17,7 +29,7 @@ extension StatusItemController {
                 }
             }
         }
-        let result = await ClaudeLoginRunner.run(timeout: 120, onPhaseChange: phaseHandler)
+        let result = await loginRunner(120, phaseHandler)
         guard !Task.isCancelled else { return false }
         self.loginPhase = .idle
         self.presentClaudeLoginResult(result)
