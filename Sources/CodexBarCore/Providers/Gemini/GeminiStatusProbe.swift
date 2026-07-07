@@ -337,25 +337,10 @@ public struct GeminiStatusProbe: Sendable {
 
         let snapshot = try Self.parseAPIResponse(data, email: claims.email)
 
-        // Plan display strings with tier mapping:
-        // - standard-tier: Paid subscription (AI Pro, AI Ultra, Code Assist
-        //   Standard/Enterprise, Developer Program Premium)
-        // - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
-        // - free-tier: Personal free account (1000 req/day limit)
-        // - legacy-tier: Unknown legacy/grandfathered tier
-        // - nil (API failed): Leave blank (no display)
-        let plan: String? = switch (caStatus.tier, claims.hostedDomain) {
-        case (.standard, _):
-            "Paid"
-        case let (.free, .some(domain)):
-            { Self.log.info("Workspace account detected", metadata: ["domain": domain]); return "Workspace" }()
-        case (.free, .none):
-            { Self.log.info("Personal free account"); return "Free" }()
-        case (.legacy, _):
-            "Legacy"
-        case (.none, _):
-            { Self.log.info("Tier detection failed, leaving plan blank"); return nil }()
-        }
+        let plan = Self.resolveAccountPlan(
+            tier: caStatus.tier,
+            hostedDomain: claims.hostedDomain,
+            paidTierName: caStatus.paidTierName)
 
         return GeminiStatusSnapshot(
             modelQuotas: snapshot.modelQuotas,
@@ -411,8 +396,9 @@ public struct GeminiStatusProbe: Sendable {
     private struct CodeAssistStatus {
         let tier: GeminiUserTierId?
         let projectId: String?
+        let paidTierName: String?
 
-        static let empty = CodeAssistStatus(tier: nil, projectId: nil)
+        static let empty = CodeAssistStatus(tier: nil, projectId: nil, paidTierName: nil)
     }
 
     private static func loadCodeAssistStatus(
@@ -484,20 +470,26 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         let tierId = (json["currentTier"] as? [String: Any])?["id"] as? String
+        let paidTierName = Self.parsePaidTierName(from: json)
+
         guard let tierId else {
             Self.log.warning("loadCodeAssist: no currentTier.id in response", metadata: [
                 "json": "\(json)",
             ])
-            return CodeAssistStatus(tier: nil, projectId: projectId)
+            return CodeAssistStatus(tier: nil, projectId: projectId, paidTierName: paidTierName)
         }
 
         guard let tier = GeminiUserTierId(rawValue: tierId) else {
             Self.log.warning("loadCodeAssist: unknown tier ID", metadata: ["tierId": tierId])
-            return CodeAssistStatus(tier: nil, projectId: projectId)
+            return CodeAssistStatus(tier: nil, projectId: projectId, paidTierName: paidTierName)
         }
 
-        Self.log.info("loadCodeAssist: success", metadata: ["tier": tierId, "projectId": projectId ?? "nil"])
-        return CodeAssistStatus(tier: tier, projectId: projectId)
+        Self.log.info("loadCodeAssist: success", metadata: [
+            "tier": tierId,
+            "projectId": projectId ?? "nil",
+            "paidTierName": paidTierName ?? "nil",
+        ])
+        return CodeAssistStatus(tier: tier, projectId: projectId, paidTierName: paidTierName)
     }
 
     private struct OAuthCredentials {
@@ -1139,6 +1131,51 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         return quotas
+    }
+}
+
+extension GeminiStatusProbe {
+    /// Plan display strings with tier mapping:
+    /// - standard-tier: Paid subscription (Code Assist Standard/Enterprise, Developer Program Premium)
+    /// - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
+    /// - free-tier + paidTier.name: Consumer subscription (Google AI Pro/Ultra, shown as Plus/Ultra)
+    /// - free-tier: Personal free account
+    /// - legacy-tier: Unknown legacy/grandfathered tier
+    /// - nil (API failed): Leave blank (no display)
+    fileprivate static func resolveAccountPlan(
+        tier: GeminiUserTierId?,
+        hostedDomain: String?,
+        paidTierName: String?) -> String?
+    {
+        switch (tier, hostedDomain) {
+        case (.standard, _):
+            return "Paid"
+        case let (.free, .some(domain)):
+            Self.log.info("Workspace account detected", metadata: ["domain": domain])
+            return "Workspace"
+        case (.free, .none):
+            if let paidTierName {
+                self.log.info("Consumer paid tier detected", metadata: ["plan": paidTierName])
+                return paidTierName
+            }
+            Self.log.info("Personal free account")
+            return "Free"
+        case (.legacy, _):
+            return "Legacy"
+        case (.none, _):
+            self.log.info("Tier detection failed, leaving plan blank")
+            return nil
+        }
+    }
+
+    fileprivate static func parsePaidTierName(from json: [String: Any]) -> String? {
+        guard let paidTier = json["paidTier"] as? [String: Any],
+              let rawName = paidTier["name"] as? String
+        else {
+            return nil
+        }
+        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
