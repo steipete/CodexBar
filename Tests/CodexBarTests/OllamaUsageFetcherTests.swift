@@ -45,6 +45,9 @@ struct OllamaUsageFetcherTests {
             string: "https://signin.ollama.com/?client_id=test&authorization_session_id=x")))
         #expect(!OllamaUsageFetcher.isSignInRedirect(URL(string: "https://ollama.com/settings")))
         #expect(!OllamaUsageFetcher.isSignInRedirect(URL(string: "https://api.workos.com/other")))
+        #expect(!OllamaUsageFetcher.isSignInRedirect(URL(string: "http://ollama.com/signin")))
+        #expect(!OllamaUsageFetcher.isSignInRedirect(URL(
+            string: "http://auth.workos.com/user_management/authorize?client_id=test")))
         #expect(!OllamaUsageFetcher.isSignInRedirect(URL(
             string: "https://example.com/user_management/authorize?client_id=test")))
     }

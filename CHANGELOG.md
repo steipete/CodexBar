@@ -7,6 +7,7 @@
 
 ### Fixed
 - Ollama: recognize current WorkOS AuthKit sessions during browser-cookie discovery and manual cookie validation. Thanks @joeVenner!
+- Ollama: classify current WorkOS sign-in redirects as expired sessions, enabling cookie-candidate fallback instead of a parser error. Thanks @joeVenner!
 
 ## 0.41.0 — 2026-07-06
 

@@ -122,13 +122,7 @@ struct OllamaUsageFetcherRetryMappingTests {
             return Self.makeResponse(url: url, body: body, statusCode: 200)
         }
 
-        let fetcher = OllamaUsageFetcher(
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            makeURLSession: { delegate in
-                let config = URLSessionConfiguration.ephemeral
-                config.protocolClasses = [OllamaRetryMappingStubURLProtocol.self]
-                return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
-            })
+        let fetcher = self.makeCookieFetcher()
         do {
             _ = try await fetcher.fetch(
                 cookieHeaderOverride: "session=test-cookie",
@@ -143,6 +137,70 @@ struct OllamaUsageFetcherRetryMappingTests {
         } catch {
             Issue.record("Expected OllamaUsageError.parseFailed, got \(error)")
         }
+    }
+
+    @Test
+    func `workos sign in landing surfaces invalid credentials before parsing`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let landingURL = try #require(URL(
+            string: "https://signin.ollama.com/?client_id=test&authorization_session_id=expired"))
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.url == URL(string: "https://ollama.com/settings"))
+            let body = "<html><body>Sign in to Ollama</body></html>"
+            return Self.makeResponse(url: landingURL, body: body, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        do {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=expired-cookie",
+                manualCookieMode: true)
+            Issue.record("Expected OllamaUsageError.invalidCredentials")
+        } catch let error as OllamaUsageError {
+            guard case .invalidCredentials = error else {
+                Issue.record("Expected invalidCredentials, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected OllamaUsageError.invalidCredentials, got \(error)")
+        }
+    }
+
+    @Test
+    func `workos sign in service failure remains a network error`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let landingURL = try #require(URL(string: "https://signin.ollama.com/"))
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            Self.makeResponse(url: landingURL, body: "Service unavailable", statusCode: 503)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        do {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=expired-cookie",
+                manualCookieMode: true)
+            Issue.record("Expected OllamaUsageError.networkError")
+        } catch let error as OllamaUsageError {
+            guard case let .networkError(message) = error else {
+                Issue.record("Expected networkError, got \(error)")
+                return
+            }
+            #expect(message == "HTTP 503")
+        } catch {
+            Issue.record("Expected OllamaUsageError.networkError, got \(error)")
+        }
+    }
+
+    private func makeCookieFetcher() -> OllamaUsageFetcher {
+        OllamaUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            makeURLSession: { delegate in
+                let config = URLSessionConfiguration.ephemeral
+                config.protocolClasses = [OllamaRetryMappingStubURLProtocol.self]
+                return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+            })
     }
 
     private static func makeResponse(

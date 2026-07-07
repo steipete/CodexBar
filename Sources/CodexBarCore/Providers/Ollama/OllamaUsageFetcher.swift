@@ -532,7 +532,7 @@ public struct OllamaUsageFetcher: Sendable {
             statusCode: httpResponse.statusCode,
             url: httpResponse.response.url?.absoluteString ?? "unknown")
 
-        if Self.isSignInRedirect(httpResponse.response.url) {
+        if httpResponse.statusCode == 200, Self.isSignInRedirect(httpResponse.response.url) {
             throw OllamaUsageError.invalidCredentials
         }
 
@@ -634,6 +634,7 @@ public struct OllamaUsageFetcher: Sendable {
     }
 
     static func isSignInRedirect(_ url: URL?) -> Bool {
+        guard url?.scheme?.lowercased() == "https" else { return false }
         guard let url, let host = url.host?.lowercased() else { return false }
         let path = url.path.lowercased()
         if host == "ollama.com" || host == "www.ollama.com" {
