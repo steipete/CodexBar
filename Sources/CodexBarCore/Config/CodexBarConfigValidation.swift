@@ -234,7 +234,7 @@ public enum CodexBarConfigValidator {
 
     private static func providerSupportsEnterpriseHost(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .azureopenai, .copilot, .kimi, .llmproxy, .litellm, .clawrouter:
+        case .azureopenai, .copilot, .kimi, .llmproxy, .litellm, .clawrouter, .wayfinder:
             true
         default:
             false

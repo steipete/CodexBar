@@ -110,6 +110,7 @@ public enum ProviderDescriptorRegistry {
         .chutes: ChutesProviderDescriptor.descriptor,
         .crossmodel: CrossModelProviderDescriptor.descriptor,
         .clawrouter: ClawRouterProviderDescriptor.descriptor,
+        .wayfinder: WayfinderProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

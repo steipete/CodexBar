@@ -187,6 +187,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot?
     public let crossModelUsage: CrossModelUsageSnapshot?
     public let clawRouterUsage: ClawRouterUsageSnapshot?
+    public let wayfinderUsage: WayfinderUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
     public let claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot?
@@ -219,6 +220,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case sakanaPayAsYouGo
         case crossModelUsage
         case clawRouterUsage
+        case wayfinderUsage
         case openAIAPIUsage
         case codexResetCredits
         case claudeAdminAPIUsage
@@ -251,6 +253,7 @@ public struct UsageSnapshot: Codable, Sendable {
         sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot? = nil,
         crossModelUsage: CrossModelUsageSnapshot? = nil,
         clawRouterUsage: ClawRouterUsageSnapshot? = nil,
+        wayfinderUsage: WayfinderUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         claudeAdminAPIUsage: ClaudeAdminAPIUsageSnapshot? = nil,
@@ -282,6 +285,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.sakanaPayAsYouGo = sakanaPayAsYouGo
         self.crossModelUsage = crossModelUsage
         self.clawRouterUsage = clawRouterUsage
+        self.wayfinderUsage = wayfinderUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
         self.claudeAdminAPIUsage = claudeAdminAPIUsage
@@ -332,6 +336,7 @@ public struct UsageSnapshot: Codable, Sendable {
             forKey: .sakanaPayAsYouGo)
         self.crossModelUsage = try container.decodeIfPresent(CrossModelUsageSnapshot.self, forKey: .crossModelUsage)
         self.clawRouterUsage = try container.decodeIfPresent(ClawRouterUsageSnapshot.self, forKey: .clawRouterUsage)
+        self.wayfinderUsage = try container.decodeIfPresent(WayfinderUsageSnapshot.self, forKey: .wayfinderUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
@@ -387,6 +392,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.sakanaPayAsYouGo, forKey: .sakanaPayAsYouGo)
         try container.encodeIfPresent(self.crossModelUsage, forKey: .crossModelUsage)
         try container.encodeIfPresent(self.clawRouterUsage, forKey: .clawRouterUsage)
+        try container.encodeIfPresent(self.wayfinderUsage, forKey: .wayfinderUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.claudeAdminAPIUsage, forKey: .claudeAdminAPIUsage)
@@ -568,6 +574,7 @@ public struct UsageSnapshot: Codable, Sendable {
             sakanaPayAsYouGo: self.sakanaPayAsYouGo,
             crossModelUsage: self.crossModelUsage,
             clawRouterUsage: self.clawRouterUsage,
+            wayfinderUsage: self.wayfinderUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
             claudeAdminAPIUsage: self.claudeAdminAPIUsage,

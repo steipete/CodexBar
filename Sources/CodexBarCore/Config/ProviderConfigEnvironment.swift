@@ -70,6 +70,8 @@ public enum ProviderConfigEnvironment {
             LiteLLMSettingsReader.baseURLEnvironmentKey
         case .clawrouter:
             ClawRouterSettingsReader.baseURLEnvironmentKey
+        case .wayfinder:
+            WayfinderSettingsReader.baseURLEnvironmentKey
         default:
             nil
         }
