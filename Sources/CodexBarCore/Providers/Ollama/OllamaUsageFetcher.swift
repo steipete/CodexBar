@@ -639,6 +639,12 @@ public struct OllamaUsageFetcher: Sendable {
         if host == "ollama.com" || host == "www.ollama.com" {
             return path == "/signin"
         }
+        // WorkOS AuthKit ultimately bounces unauthenticated requests to a hosted
+        // Ollama sign-in page on the `signin.ollama.com` subdomain; any landing
+        // there means the session is expired and the user must sign in again.
+        if host == "signin.ollama.com" {
+            return true
+        }
         // WorkOS AuthKit serves the hosted authorization flow from auth.workos.com
         // (and historically api.workos.com); match any WorkOS host carrying the
         // authorize path so the detection survives host changes or CNAMEs.
