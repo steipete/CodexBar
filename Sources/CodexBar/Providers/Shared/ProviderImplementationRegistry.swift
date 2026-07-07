@@ -70,6 +70,7 @@ enum ProviderImplementationRegistry {
         case .chutes: ChutesProviderImplementation()
         case .crossmodel: CrossModelProviderImplementation()
         case .clawrouter: ClawRouterProviderImplementation()
+        case .wayfinder: WayfinderProviderImplementation()
         }
     }
 

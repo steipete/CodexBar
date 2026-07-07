@@ -38,6 +38,7 @@ enum CLIRenderer {
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDevinOverageBalanceLine(
@@ -100,6 +101,7 @@ enum CLIRenderer {
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDevinOverageBalanceLine(
@@ -484,6 +486,7 @@ enum CLIRenderer {
         }
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDevinOverageBalanceLine(
@@ -704,6 +707,29 @@ enum CLIRenderer {
                 .map { "\($0.provider): \(UsageFormatter.tokenCountString($0.requestCount))" }
                 .joined(separator: " · ")
             lines.append(self.labelValueLine("Routed providers", value: providerMix, useColor: useColor))
+        }
+    }
+
+    private static func appendWayfinderUsageLines(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.wayfinderUsage else { return }
+
+        var gatewayValue = "\(usage.gatewayStatus) · \(usage.modelCountLabel)"
+        if usage.offline { gatewayValue += " · offline" }
+        if usage.dryRun { gatewayValue += " · dry run" }
+        lines.append(self.labelValueLine("Gateway", value: gatewayValue, useColor: useColor))
+
+        if let routed = usage.routedSummary {
+            lines.append(self.labelValueLine("Routed", value: routed, useColor: useColor))
+        }
+        if let saved = usage.savedSummary {
+            lines.append(self.labelValueLine("Saved", value: saved, useColor: useColor))
+        }
+        if let avgDecision = usage.avgDecisionSummary {
+            lines.append(self.labelValueLine("Avg decision", value: avgDecision, useColor: useColor))
         }
     }
 

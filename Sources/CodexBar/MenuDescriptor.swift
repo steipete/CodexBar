@@ -298,6 +298,17 @@ struct MenuDescriptor {
                 entries.append(.text("Routed providers: \(mix)", .secondary))
             }
         }
+        if let wayfinderUsage = snapshot.wayfinderUsage {
+            if let routed = wayfinderUsage.routedSummary {
+                entries.append(.text("Routed: \(routed)", .secondary))
+            }
+            if let saved = wayfinderUsage.savedSummary {
+                entries.append(.text("Saved: \(saved)", .secondary))
+            }
+            if let avgDecision = wayfinderUsage.avgDecisionSummary {
+                entries.append(.text("Avg decision: \(avgDecision)", .secondary))
+            }
+        }
         if let poeUsage = snapshot.poeUsage, !poeUsage.daily.isEmpty {
             Self.appendPoeUsageSummary(entries: &entries, usage: poeUsage)
         }
