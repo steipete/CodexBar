@@ -44,7 +44,6 @@ public struct WayfinderUsageSnapshot: Codable, Sendable, Equatable {
     public let dryRun: Bool
     public let missingKeys: [String]
     public let modelCount: Int
-    public let localModel: String?
     public let requests: Int
     public let tokens: Int
     public let realized: Double
@@ -55,15 +54,6 @@ public struct WayfinderUsageSnapshot: Codable, Sendable, Equatable {
     public let routes: [RouteSummary]
     public let avgDecisionMs: Double?
     public let updatedAt: Date
-
-    public var localRequests: Int {
-        guard let localModel = self.localModel else { return 0 }
-        return self.routes.first { $0.name == localModel }?.requests ?? 0
-    }
-
-    public var cloudRequests: Int {
-        max(0, self.requests - self.localRequests)
-    }
 
     public var statusLabel: String {
         if self.offline { return "Offline mode" }
@@ -80,11 +70,16 @@ public struct WayfinderUsageSnapshot: Codable, Sendable, Equatable {
         self.modelCount == 1 ? "1 model" : "\(self.modelCount) models"
     }
 
-    /// "local 34 · cloud 8" — nil until the gateway has routed anything in the period.
+    /// "local: 10 · cloud: 4" — the gateway's own configured route names, not a guessed
+    /// local/cloud split: `/router/models` has no field asserting which tier is "local", and
+    /// route names are whatever the user named their endpoints in the Wayfinder config.
+    /// nil until the gateway has routed anything in the period.
     public var routedSummary: String? {
         guard self.requests > 0 else { return nil }
-        return "local \(UsageFormatter.tokenCountString(self.localRequests)) · " +
-            "cloud \(UsageFormatter.tokenCountString(self.cloudRequests))"
+        let mix = self.routes.prefix(5)
+            .map { "\($0.name): \(UsageFormatter.tokenCountString($0.requests))" }
+            .joined(separator: " · ")
+        return mix.isEmpty ? nil : mix
     }
 
     /// "$4.12 · 38.2% vs always-cloud" when priced, percent-only otherwise.
@@ -248,7 +243,6 @@ public enum WayfinderUsageFetcher {
             dryRun: models.dryRun,
             missingKeys: health.missingKeys ?? [],
             modelCount: models.models.count,
-            localModel: models.models.first?.name,
             requests: savings.requests,
             tokens: savings.tokens,
             realized: savings.realized,

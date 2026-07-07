@@ -18,15 +18,14 @@ struct WayfinderProviderLinuxTests {
         #expect(!snapshot.dryRun)
         #expect(snapshot.missingKeys.isEmpty)
         #expect(snapshot.modelCount == 2)
-        #expect(snapshot.localModel == "local")
         #expect(snapshot.requests == 14)
         #expect(snapshot.tokens == 1028)
         #expect(snapshot.priced)
         #expect(snapshot.saved == 0.005694)
         #expect(snapshot.savedPct == 61.5)
         #expect(snapshot.routes.map(\.name) == ["local", "cloud"])
-        #expect(snapshot.localRequests == 10)
-        #expect(snapshot.cloudRequests == 4)
+        #expect(snapshot.routes.first { $0.name == "local" }?.requests == 10)
+        #expect(snapshot.routes.first { $0.name == "cloud" }?.requests == 4)
         #expect(snapshot.statusLabel == "Local gateway")
 
         let avgMs = try #require(snapshot.avgDecisionMs)
@@ -75,7 +74,7 @@ struct WayfinderProviderLinuxTests {
     @Test
     func `sub-cent priced savings render below one cent`() throws {
         let snapshot = try Self.makeSnapshot()
-        #expect(snapshot.routedSummary == "local 10 · cloud 4")
+        #expect(snapshot.routedSummary == "local: 10 · cloud: 4")
         #expect(snapshot.savedSummary == "<$0.01 · 61.5% vs always-cloud")
         #expect(snapshot.avgDecisionSummary == "0.1 ms")
     }
@@ -254,10 +253,47 @@ struct WayfinderProviderLinuxTests {
                 resetStyle: .countdown))
 
         #expect(output.contains("Gateway: ok · 2 models"))
-        #expect(output.contains("Routed: local 10 · cloud 4"))
+        #expect(output.contains("Routed: local: 10 · cloud: 4"))
         #expect(output.contains("Saved: <$0.01 · 61.5% vs always-cloud"))
         #expect(output.contains("Avg decision: 0.1 ms"))
         #expect(!output.contains("Cost:"))
+    }
+
+    @Test
+    func `routed summary reflects request counts regardless of configured model order`() throws {
+        // The heavier-traffic route ("primary-tier") is configured SECOND in /router/models,
+        // and the lighter one ("secondary-tier") FIRST — proving nothing in the summary is
+        // derived from array position (the gateway's config order is not a semantic signal).
+        let reorderedModels = Data("""
+        {"models":[{"name":"secondary-tier","endpoint":"http://127.0.0.1:9102/v1",\
+        "model":"stand-in-large","api_key_env":"RIG_CLOUD_KEY","key_ok":true},\
+        {"name":"primary-tier","endpoint":"http://127.0.0.1:9101/v1","model":"stand-in-small",\
+        "api_key_env":null,"key_ok":true}],"dry_run":false}
+        """.utf8)
+        let snapshot = try Self.makeSnapshot(modelsData: reorderedModels)
+
+        #expect(snapshot.routedSummary == "local: 10 · cloud: 4")
+        #expect(snapshot.routes.first?.name == "local")
+    }
+
+    @Test
+    func `routed summary uses the gateway's own route names, not a hardcoded local or cloud label`() throws {
+        // Route names are whatever the user named their endpoints in the Wayfinder config —
+        // there is no "local"/"cloud" semantic anywhere in the gateway's JSON.
+        let customNamedSavings = Data("""
+        {"period_days":30,"unit":"usd","priced":true,"requests":14,"estimated_requests":0,\
+        "tokens":1028,"realized":0.003558,"baseline":0.009252,"saved":0.005694,"saved_pct":61.5,\
+        "by_route":{"groq-8b":{"requests":10,"realized":0.000264,"baseline":0.005958,\
+        "saved":0.005694,"tokens":662},"openai-o1":{"requests":4,"realized":0.003294,\
+        "baseline":0.003294,"saved":0.0,"tokens":366}},"by_key":{},\
+        "price_table_version":"a3db80fd9a78"}
+        """.utf8)
+        let snapshot = try Self.makeSnapshot(savingsData: customNamedSavings)
+        let summary = try #require(snapshot.routedSummary)
+
+        #expect(summary == "groq-8b: 10 · openai-o1: 4")
+        #expect(!summary.contains("local"))
+        #expect(!summary.contains("cloud"))
     }
 
     // MARK: - Helpers

@@ -1,5 +1,5 @@
 ---
-summary: "Wayfinder setup for local gateway health, local/cloud routing split, and savings."
+summary: "Wayfinder setup for local gateway health, per-route breakdown, and savings."
 read_when:
   - Configuring Wayfinder usage tracking
   - Debugging Wayfinder gateway health or savings display
@@ -12,8 +12,8 @@ read_when:
 local/cloud LLM router. Its gateway runs on the user's machine (default
 `http://127.0.0.1:8088`) and scores each prompt offline — no model call — to decide whether
 the cheap/local or the dearer/cloud tier serves it. CodexBar polls the gateway's read-only
-JSON endpoints and shows whether the gateway is up, how traffic split between local and
-cloud, what that saved versus routing everything to the cloud tier, and the average routing
+JSON endpoints and shows whether the gateway is up, how traffic split across the configured
+routes, what that saved versus routing everything to the dearest tier, and the average routing
 decision time.
 
 The integration is read-only. CodexBar never sends prompts through the gateway, never calls
@@ -39,8 +39,9 @@ endpoints are rejected.
 
 - Gateway health: `ok` or `degraded` (with the number of models missing API keys), plus
   offline-mode and dry-run markers.
-- Routing split over the last 30 days: requests served by the local tier versus the cloud
-  tiers, from the gateway's savings ledger.
+- Routing split over the last 30 days: requests per configured route (up to 5, by request
+  count), using each route's own name from the Wayfinder config — the gateway has no field
+  asserting which route is "local," so CodexBar never guesses.
 - Savings over the last 30 days versus routing everything to the dearest tier, with the
   percentage. Dollar amounts appear only when the gateway config prices its models
   (`cost_per_1k`); unpriced gateways report a relative percentage only.
@@ -53,7 +54,7 @@ endpoints are rejected.
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /healthz` | Gateway status, configured models, offline flag, missing keys. |
-| `GET /router/models` | Tier order (first entry is the cheapest/local tier) and dry-run flag. |
+| `GET /router/models` | Configured model count and dry-run flag. |
 | `GET /v1/savings?period=30d` | Requests, tokens, realized/baseline cost, savings, per-route split. |
 | `GET /metrics` | Decision-latency histogram for the average routing time (best effort). |
 

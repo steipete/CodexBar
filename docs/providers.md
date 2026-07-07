@@ -445,7 +445,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 ## Wayfinder
 - No credentials: the local gateway's read-only endpoints are unauthenticated on loopback.
 - Defaults to `http://127.0.0.1:8088`; optional config `enterpriseHost` or `WAYFINDER_GATEWAY_URL` overrides it (HTTPS anywhere, plain HTTP for loopback only).
-- Reads `/healthz`, `/router/models`, and `/v1/savings?period=30d` for gateway health, the local/cloud routing split, and savings vs. always-cloud; parses `/metrics` best-effort for average decision latency.
+- Reads `/healthz`, `/router/models`, and `/v1/savings?period=30d` for gateway health, the per-route breakdown by configured name, and savings vs. always-cloud; parses `/metrics` best-effort for average decision latency.
 - Read-only: never calls the gateway's chat endpoints, and the polled endpoints return accounting metadata only — no prompt text.
 - Details: `docs/wayfinder.md`.
 
