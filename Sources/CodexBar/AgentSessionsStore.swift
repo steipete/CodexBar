@@ -132,9 +132,7 @@ final class AgentSessionsStore {
         guard var generation = self.remoteRefreshGate.begin() else { return }
         while self.settings.agentSessionsEnabled {
             var hosts = self.manualHosts
-            if self.settings.agentSessionsTailscaleEnabled {
-                await hosts.append(contentsOf: self.remoteFetcher.discoveredHosts())
-            }
+            await hosts.append(contentsOf: self.remoteFetcher.discoveredHosts())
             let results = await self.remoteFetcher.fetch(hosts: hosts)
             let outcome = self.remoteRefreshGate.finish(generation: generation)
             guard !Task.isCancelled, self.settings.agentSessionsEnabled else { return }

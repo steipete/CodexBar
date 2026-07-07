@@ -122,12 +122,6 @@ public struct RemoteSessionFetcher: Sendable {
             label: "focus remote agent session")
     }
 
-    public func tailscaleIsAvailable(
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
-    {
-        self.tailscaleBinary(environment: environment) != nil
-    }
-
     private func fetch(host: String, environment: [String: String]) async -> RemoteSessionHostResult {
         guard let ssh = self.findExecutable("ssh", environment: environment) ??
             (["/usr/bin/ssh", "/bin/ssh"].first { FileManager.default.isExecutableFile(atPath: $0) })

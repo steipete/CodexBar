@@ -462,9 +462,6 @@ extension SettingsStore {
             forKey: "providersSortedAlphabetically") as? Bool ?? false
         let appLanguageRaw = userDefaults.string(forKey: "appLanguage")
         let agentSessionsEnabled = userDefaults.object(forKey: "agentSessionsEnabled") as? Bool ?? true
-        let tailscaleDefault = RemoteSessionFetcher().tailscaleIsAvailable()
-        let agentSessionsTailscaleEnabled = userDefaults.object(
-            forKey: "agentSessionsTailscaleEnabled") as? Bool ?? tailscaleDefault
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
@@ -527,7 +524,6 @@ extension SettingsStore {
             appLanguageRaw: appLanguageRaw,
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"),
             agentSessionsEnabled: agentSessionsEnabled,
-            agentSessionsTailscaleEnabled: agentSessionsTailscaleEnabled,
             agentSessionsManualHosts: agentSessionsManualHosts)
     }
 

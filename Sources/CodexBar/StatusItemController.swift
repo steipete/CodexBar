@@ -245,7 +245,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     private var lastAgentSessionsEnabled: Bool
-    private var lastAgentSessionsTailscaleEnabled: Bool
     private var lastAgentSessionsManualHosts: String
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
     /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
@@ -393,7 +392,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
         self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
-        self.lastAgentSessionsTailscaleEnabled = settings.agentSessionsTailscaleEnabled
         self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.menuCardRenderingEnabledForController = menuCardRenderingEnabled
@@ -655,11 +653,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard !self.isReleasedForTesting else { return }
         #endif
         let agentSessionsSettingsChanged = self.settings.agentSessionsEnabled != self.lastAgentSessionsEnabled ||
-            self.settings.agentSessionsTailscaleEnabled != self.lastAgentSessionsTailscaleEnabled ||
             self.settings.agentSessionsManualHosts != self.lastAgentSessionsManualHosts
         if agentSessionsSettingsChanged {
             self.lastAgentSessionsEnabled = self.settings.agentSessionsEnabled
-            self.lastAgentSessionsTailscaleEnabled = self.settings.agentSessionsTailscaleEnabled
             self.lastAgentSessionsManualHosts = self.settings.agentSessionsManualHosts
             self.agentSessions.settingsDidChange()
         }

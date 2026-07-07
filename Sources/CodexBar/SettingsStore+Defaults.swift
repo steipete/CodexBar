@@ -769,14 +769,6 @@ extension SettingsStore {
         }
     }
 
-    var agentSessionsTailscaleEnabled: Bool {
-        get { self.defaultsState.agentSessionsTailscaleEnabled }
-        set {
-            self.defaultsState.agentSessionsTailscaleEnabled = newValue
-            self.userDefaults.set(newValue, forKey: "agentSessionsTailscaleEnabled")
-        }
-    }
-
     var agentSessionsManualHosts: String {
         get { self.defaultsState.agentSessionsManualHosts }
         set {

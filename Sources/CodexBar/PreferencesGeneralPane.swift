@@ -157,17 +157,14 @@ struct GeneralPane: View {
             Section {
                 Toggle("Enable Agent Sessions", isOn: self.$settings.agentSessionsEnabled)
 
-                Toggle(
-                    "Auto-discover Macs with Tailscale",
-                    isOn: self.$settings.agentSessionsTailscaleEnabled)
-                    .disabled(!self.settings.agentSessionsEnabled)
-
                 TextField("Manual SSH hosts", text: self.$settings.agentSessionsManualHosts)
                     .disabled(!self.settings.agentSessionsEnabled)
             } header: {
                 Text("Sessions")
             } footer: {
-                Text("Local sessions refresh every 30 seconds; remote hosts every 60 seconds and when the menu opens.")
+                Text(
+                    "Macs on your tailnet are discovered automatically. Local sessions refresh every " +
+                        "30 seconds; remote hosts every 60 seconds and when the menu opens.")
             }
 
             Section {

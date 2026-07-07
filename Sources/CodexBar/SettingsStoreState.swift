@@ -61,6 +61,5 @@ struct SettingsDefaultsState {
     var appLanguageRaw: String?
     var terminalAppRaw: String?
     var agentSessionsEnabled: Bool
-    var agentSessionsTailscaleEnabled: Bool
     var agentSessionsManualHosts: String
 }

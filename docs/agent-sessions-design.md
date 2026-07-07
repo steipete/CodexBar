@@ -55,7 +55,7 @@ Scanner is `Sendable`, pure functions where possible; ps/lsof output parsing liv
 
 `RemoteSessionFetcher`:
 
-- Host list = manual entries (settings, ssh destinations like `steipete@clawmac`) ∪ Tailscale auto-discovery when enabled: run `tailscale status --json` (PATH, then `/Applications/Tailscale.app/Contents/MacOS/Tailscale`), take online peers with `"OS": "macOS"|"linux"`, use first `DNSName` label as host. Local host excluded.
+- Host list = manual entries (settings, ssh destinations like `steipete@clawmac`) ∪ automatic Tailscale discovery (no-op when tailscale is absent): run `tailscale status --json` (PATH, then `/Applications/Tailscale.app/Contents/MacOS/Tailscale`), take online peers with `"OS": "macOS"|"linux"`, use first `DNSName` label as host. Local host excluded.
 - Fetch per host (parallel, 5 s budget): `ssh -o BatchMode=yes -o ConnectTimeout=3 <host> sh -lc 'codexbar sessions --json'` with fallback to the bundled app CLI path (resolve the canonical bundled location from `Scripts/package_app.sh` and hardcode it as fallback: `… || <bundled-path> sessions --json`). Host errors are non-fatal: host shown as unreachable, others still render.
 - Remote focus: fire-and-forget `ssh <host> sh -lc 'codexbar sessions focus <id>'`.
 - Refresh: local scan every 30 s while the status item exists (cheap), remote every 60 s and immediately on menu open; both skipped when the feature is off. Reuse existing refresh loop plumbing rather than new timers if it fits.
@@ -65,7 +65,7 @@ Scanner is `Sendable`, pure functions where possible; ps/lsof output parsing liv
 - New menu section **Agent Sessions (N)** (N = total, all hosts) above the settings/footer area, built through the existing `MenuDescriptor`-style seam so it's testable headless.
 - Local sessions first, then one group per remote host (`clawmac — 2`, unreachable hosts greyed with a tooltip). Row: state dot (● active / ○ idle), provider glyph, `projectName — provider · source · 12m`.
 - Click local row → `SessionWindowFocuser`. Click remote row → remote focus ssh call.
-- Settings: "Sessions" group — enable toggle (default on), Tailscale auto-discover toggle (default on when tailscale binary found), manual hosts text field (comma-separated), staleness note. Persist in `SettingsStore` like neighboring prefs.
+- Settings: "Sessions" group — a single enable toggle (default on) plus a manual hosts text field (comma-separated); Tailscale discovery is always on while the feature is enabled. Persist in `SettingsStore` like neighboring prefs.
 
 ## Focus (macOS, app + CLI shared in Core or app-adjacent target)
 
