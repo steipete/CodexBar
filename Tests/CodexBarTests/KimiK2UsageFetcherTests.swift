@@ -23,13 +23,13 @@ struct KimiK2UsageFetcherTests {
         #expect(snapshot.summary.remaining == 10)
     }
 
-    @Test(arguments: [401, 403])
-    func `maps rejected API key to invalid credentials`(statusCode: Int) async throws {
+    @Test
+    func `maps 401 to invalid credentials`() async throws {
         let transport = ProviderHTTPTransportHandler { request in
             let url = try #require(request.url)
             let response = try #require(HTTPURLResponse(
                 url: url,
-                statusCode: statusCode,
+                statusCode: 401,
                 httpVersion: nil,
                 headerFields: nil))
             return (Data(#"{"error":"Unauthorized"}"#.utf8), response)
@@ -40,6 +40,26 @@ struct KimiK2UsageFetcherTests {
         } throws: { error in
             guard case KimiK2UsageError.invalidCredentials = error else { return false }
             return error.localizedDescription == "Kimi K2 API key is invalid or expired."
+        }
+    }
+
+    @Test
+    func `maps 403 insufficient credits to a body preserving api error`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 403,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{"error":"insufficient_credits"}"#.utf8), response)
+        }
+
+        await #expect {
+            try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
+        } throws: { error in
+            guard case let KimiK2UsageError.apiError(message) = error else { return false }
+            return message.contains("insufficient_credits")
         }
     }
 

@@ -135,9 +135,14 @@ public struct KimiK2UsageFetcher: Sendable {
         switch response.statusCode {
         case 200:
             break
-        case 401, 403:
+        case 401:
+            // 401 is an authentication failure: the key is wrong, revoked, or expired.
             throw KimiK2UsageError.invalidCredentials
         default:
+            // 403 and other non-200 responses are not necessarily credential
+            // failures — Kimrel returns 403 for insufficient credits or missing
+            // permissions, so preserve the response body as an actionable API
+            // error instead of mislabeling a valid key as invalid/expired.
             let body = String(data: data, encoding: .utf8) ?? "HTTP \(response.statusCode)"
             Self.log.error("Kimi K2 API returned \(response.statusCode): \(body)")
             throw KimiK2UsageError.apiError(body)
