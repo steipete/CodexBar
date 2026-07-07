@@ -4,9 +4,9 @@ import Testing
 
 struct ClaudeLoginFlowPolicyTests {
     @Test
-    func `successful Claude login keeps source on auto so fallback remains available`() {
+    func `successful Claude login preserves selected source so auto fallback remains available`() {
         for source in ClaudeUsageDataSource.allCases {
-            #expect(ClaudeLoginFlowPolicy.usageDataSourceAfterSuccessfulLogin(previous: source) == .auto)
+            #expect(ClaudeLoginFlowPolicy.usageDataSourceAfterSuccessfulLogin(previous: source) == source)
         }
     }
 }

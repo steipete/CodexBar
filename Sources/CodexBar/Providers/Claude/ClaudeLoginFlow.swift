@@ -1,8 +1,8 @@
 import CodexBarCore
 
 enum ClaudeLoginFlowPolicy {
-    static func usageDataSourceAfterSuccessfulLogin(previous _: ClaudeUsageDataSource) -> ClaudeUsageDataSource {
-        .auto
+    static func usageDataSourceAfterSuccessfulLogin(previous: ClaudeUsageDataSource) -> ClaudeUsageDataSource {
+        previous
     }
 }
 
