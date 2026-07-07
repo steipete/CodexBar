@@ -23,6 +23,7 @@
 - Ollama: validate API keys against an authenticated endpoint instead of the public model catalog while preserving refresh cancellation. Thanks @joeVenner!
 - Claude CLI: resolve yearless and time-only reset timestamps against their quota window and exact calendar occurrence, keeping recently stale resets current without moving future, leap-day, or repeated-hour resets into the past. Thanks @fanwenlin!
 - Catalan: complete current strings, align instructional voice, and enforce catalog parity. Thanks @pmontp19!
+- Kimi K2: trim API keys and distinguish rejected credentials from credit or permission failures. Thanks @joeVenner!
 - Quota warnings: use compact per-window threshold editors that save on focus loss, Return, or window close while preserving provider inheritance. Thanks @Zihao-Qi!
 - Display settings: keep display mode, work days, multi-account layout, and cost summary selectors interactive on macOS 27. Thanks @jordanschwartz-js!
 - Antigravity: recover CLI listening ports from Linux procfs when `lsof` is unavailable, including process network namespaces. Thanks @junmo-kim!
