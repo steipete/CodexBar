@@ -22,6 +22,8 @@ extension UsageStore {
             #if canImport(WidgetKit)
             WidgetCenter.shared.reloadAllTimelines()
             #endif
+            // Mirror the snapshot to the iPhone companion app (opt-in, no-op unless enabled).
+            MobileSyncPublisher.shared.handleSnapshot(snapshot)
         }
     }
 

@@ -1,0 +1,82 @@
+name: CodexBarMobile
+options:
+  bundleIdPrefix: com.steipete.codexbar.ios
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    # CI/simulator-friendly: unsigned builds run in the simulator without a team.
+    # For a real-device install, switch to automatic signing and set your DEVELOPMENT_TEAM
+    # (e.g. `xcodebuild ... CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=XXXXXXXXXX -allowProvisioningUpdates`).
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  CodexBarMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: ../ios/Shared
+      - path: ../ios/CodexBarMobile
+    entitlements:
+      path: CodexBarMobile/CodexBarMobile.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.steipete.codexbar.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+    info:
+      path: CodexBarMobile/Info.plist
+      properties:
+        CFBundleDisplayName: CodexBar
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSRequiresIPhoneOS: true
+        UIApplicationSupportsIndirectInputEvents: true
+        # Empty UILaunchScreen opts into native full-screen rendering (without it iOS letterboxes the app).
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSSupportsLiveActivities: true
+        NSLocalNetworkUsageDescription: "CodexBar finds your Mac on the local network to sync usage instantly."
+        NSBonjourServices:
+          - _codexbar-sync._tcp
+        UIBackgroundModes:
+          - remote-notification
+    dependencies:
+      - target: CodexBarMobileWidget
+
+  CodexBarMobileWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ../ios/Shared
+      - path: ../ios/CodexBarMobileWidget
+      - path: ../ios/CodexBarMobile/Assets.xcassets
+    entitlements:
+      path: CodexBarMobileWidget/CodexBarMobileWidget.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.steipete.codexbar.ios.widget
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: CodexBarMobileWidget/Info.plist
+      properties:
+        CFBundleDisplayName: CodexBar
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
