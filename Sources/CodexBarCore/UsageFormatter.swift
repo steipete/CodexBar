@@ -138,6 +138,21 @@ public enum UsageFormatter {
         return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
     }
 
+    public static func preciseDateTimeDescription(from date: Date, now: Date = .init()) -> String {
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(.dateTime.hour().minute().second().locale(self.currentLocale()))
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           calendar.isDate(date, inSameDayAs: tomorrow)
+        {
+            let timeStr = date.formatted(.dateTime.hour().minute().second().locale(self.currentLocale()))
+            return self.localized("reset_tomorrow_format", timeStr)
+        }
+        return date.formatted(
+            .dateTime.year().month(.abbreviated).day().hour().minute().second().locale(self.currentLocale()))
+    }
+
     public static func resetLine(
         for window: RateWindow,
         style: ResetTimeDisplayStyle,

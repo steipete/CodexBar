@@ -30,7 +30,7 @@ extension UsageMenuCardView.Model {
                 percent: displayPercent,
                 percentStyle: percentStyle,
                 statusText: service.isUnlimited ? "∞ Unlimited" : nil,
-                resetText: Self.localizedMiniMaxResetDescription(service.resetDescription),
+                resetText: Self.miniMaxResetText(for: service, input: input),
                 detailText: nil,
                 detailLeftText: usageLabel,
                 detailRightText: nil,
@@ -110,6 +110,24 @@ extension UsageMenuCardView.Model {
             return L("Daily")
         }
         return trimmed.isEmpty ? windowType : trimmed
+    }
+
+    private static func miniMaxResetText(for service: MiniMaxServiceUsage, input: Input) -> String {
+        if service.isUnlimited {
+            return self.localizedMiniMaxResetDescription(service.resetDescription)
+        }
+        if let resetsAt = service.resetsAt {
+            switch input.resetTimeDisplayStyle {
+            case .absolute:
+                let text = UsageFormatter.resetDescription(from: resetsAt, now: input.now)
+                return L("Resets %@", text)
+            case .countdown:
+                let phrase = MiniMaxServiceUsage.resetCountdownPhrase(from: resetsAt, now: input.now)
+                if phrase == "now" { return L("Resets now") }
+                return L("Resets in %@", phrase)
+            }
+        }
+        return Self.localizedMiniMaxResetDescription(service.resetDescription)
     }
 
     private static func localizedMiniMaxResetDescription(_ text: String) -> String {

@@ -18,8 +18,10 @@ extension MiniMaxUsageSnapshot {
             services: self.services,
             billingSummary: self.billingSummary,
             pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
-            subscriptionRenewsAt: self.subscriptionRenewsAt)
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
     }
 
     func withSubscriptionMetadata(_ metadata: MiniMaxSubscriptionMetadata) -> MiniMaxUsageSnapshot {
@@ -35,8 +37,59 @@ extension MiniMaxUsageSnapshot {
             services: self.services,
             billingSummary: self.billingSummary,
             pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: metadata.subscriptionExpiresAt ?? self.subscriptionExpiresAt,
-            subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt)
+            subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
+    }
+
+    func withPointsBalanceIfMissing(_ pointsBalance: Double?, expiresAt: Date?) -> MiniMaxUsageSnapshot {
+        if let pointsBalance, pointsBalance >= 0, self.pointsBalance == nil {
+            return self.withPointsBalanceFromDedicatedEndpoint(pointsBalance, expiresAt: expiresAt)
+        }
+        if self.pointsBalanceExpiresAt == nil, let expiresAt {
+            return MiniMaxUsageSnapshot(
+                planName: self.planName,
+                availablePrompts: self.availablePrompts,
+                currentPrompts: self.currentPrompts,
+                remainingPrompts: self.remainingPrompts,
+                windowMinutes: self.windowMinutes,
+                usedPercent: self.usedPercent,
+                resetsAt: self.resetsAt,
+                updatedAt: self.updatedAt,
+                services: self.services,
+                billingSummary: self.billingSummary,
+                pointsBalance: self.pointsBalance,
+                pointsBalanceExpiresAt: expiresAt,
+                subscriptionExpiresAt: self.subscriptionExpiresAt,
+                subscriptionRenewsAt: self.subscriptionRenewsAt,
+                webSessionState: self.webSessionState)
+        }
+        return self
+    }
+
+    func withPointsBalanceFromDedicatedEndpoint(_ pointsBalance: Double?, expiresAt: Date?) -> MiniMaxUsageSnapshot {
+        guard let pointsBalance, pointsBalance >= 0,
+              pointsBalance != self.pointsBalance || expiresAt != self.pointsBalanceExpiresAt
+        else {
+            return self
+        }
+        return MiniMaxUsageSnapshot(
+            planName: self.planName,
+            availablePrompts: self.availablePrompts,
+            currentPrompts: self.currentPrompts,
+            remainingPrompts: self.remainingPrompts,
+            windowMinutes: self.windowMinutes,
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            updatedAt: self.updatedAt,
+            services: self.services,
+            billingSummary: self.billingSummary,
+            pointsBalance: pointsBalance,
+            pointsBalanceExpiresAt: expiresAt ?? self.pointsBalanceExpiresAt,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
     }
 }
 

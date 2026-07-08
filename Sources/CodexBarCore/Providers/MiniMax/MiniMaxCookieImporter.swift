@@ -12,9 +12,11 @@ public enum MiniMaxCookieImporter {
     private static let cookieDomains = [
         "platform.minimax.io",
         "openplatform.minimax.io",
+        "www.minimax.io",
         "minimax.io",
         "platform.minimaxi.com",
         "openplatform.minimaxi.com",
+        "www.minimaxi.com",
         "minimaxi.com",
     ]
 

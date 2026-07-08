@@ -255,6 +255,18 @@ struct MiniMaxTokenPlanChangeTests {
             if url.host == "platform.minimaxi.com", url.path.contains("coding_plan/remains") {
                 return Self.httpResponse(url: url, body: "not json", contentType: "application/json")
             }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             #expect(url.host == "www.minimaxi.com")
             #expect(url.path == "/v1/api/openplatform/coding_plan/remains")
             return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
@@ -292,6 +304,18 @@ struct MiniMaxTokenPlanChangeTests {
             if url.host == "platform.minimaxi.com", url.path.contains("coding_plan/remains") {
                 throw URLError(.timedOut)
             }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             #expect(url.host == "www.minimaxi.com")
             #expect(url.path == "/v1/api/openplatform/coding_plan/remains")
             return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
@@ -310,6 +334,8 @@ struct MiniMaxTokenPlanChangeTests {
         #expect(requests.map { $0.url?.host } == [
             "platform.minimaxi.com",
             "platform.minimaxi.com",
+            "www.minimaxi.com",
+            "www.minimaxi.com",
             "www.minimaxi.com",
         ])
     }
@@ -593,6 +619,18 @@ struct MiniMaxTokenPlanChangeTests {
             }
             if url.path.contains("coding_plan/remains") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
             }
             #expect(url.host == "www.minimaxi.com")
             #expect(url.path == "/v1/api/openplatform/charge/combo/cycle_audio_resource_package")

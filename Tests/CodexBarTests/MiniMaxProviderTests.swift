@@ -33,12 +33,14 @@ struct MiniMaxEndpointOverrideSettingsTests {
             MiniMaxSettingsReader.hostKey: "https://attacker.example",
             MiniMaxSettingsReader.codingPlanURLKey: "https://attacker.example/coding-plan",
             MiniMaxSettingsReader.remainsURLKey: "https://attacker.example/remains",
+            MiniMaxSettingsReader.tokenPlanCreditURLKey: "https://attacker.example/token-plan-credit",
             MiniMaxSettingsReader.billingHistoryURLKey: "https://attacker.example/account/amount",
         ]
 
         #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
         #expect(MiniMaxSettingsReader.codingPlanURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.tokenPlanCreditURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.billingHistoryURL(environment: env) == nil)
     }
 
@@ -50,12 +52,14 @@ struct MiniMaxEndpointOverrideSettingsTests {
             MiniMaxSettingsReader.hostKey: encodedSlash,
             MiniMaxSettingsReader.codingPlanURLKey: "\(encodedSlash)/coding-plan",
             MiniMaxSettingsReader.remainsURLKey: "\(encodedSlash)/remains",
+            MiniMaxSettingsReader.tokenPlanCreditURLKey: "\(encodedSlash)/token-plan-credit",
             MiniMaxSettingsReader.billingHistoryURLKey: "\(encodedSlash)/account/amount",
         ]
 
         #expect(MiniMaxSettingsReader.hostOverride(environment: env) == nil)
         #expect(MiniMaxSettingsReader.codingPlanURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.remainsURL(environment: env) == nil)
+        #expect(MiniMaxSettingsReader.tokenPlanCreditURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.billingHistoryURL(environment: env) == nil)
         #expect(MiniMaxSettingsReader.hostOverride(environment: [
             MiniMaxSettingsReader.hostKey: doubleEncodedSlash,
@@ -297,6 +301,7 @@ struct MiniMaxCookieHeaderTests {
     }
 }
 
+// swiftlint:disable type_body_length
 struct MiniMaxUsageParserTests {
     @Test
     func `signed out check ignores login copy inside scripts`() {
@@ -663,7 +668,7 @@ struct MiniMaxUsageParserTests {
 
         let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(data: Data(json.utf8), now: now)
         let expectedUsed = Double(11) / Double(15000) * 100
-        let expectedReset = Date(timeIntervalSince1970: TimeInterval(end) / 1000)
+        let expectedReset = Date(timeIntervalSince1970: 1_700_000_100 + (8_941_292.0 / 1000.0))
 
         #expect(snapshot.planName == "Max")
         #expect(snapshot.availablePrompts == 15000)
@@ -950,6 +955,18 @@ struct MiniMaxUsageParserTests {
                     body: Self.codingPlanJSON,
                     contentType: "application/json")
             }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             #expect(url.path == "/account/amount")
             #expect(url.query?.contains("aggregate=false") == true)
             #expect(request.value(forHTTPHeaderField: "Cookie") == "HERTZ-SESSION=abc")
@@ -993,6 +1010,12 @@ struct MiniMaxUsageParserTests {
                     body: Self.codingPlanJSON,
                     contentType: "application/json")
             }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"remaining_credits":0,"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
             let page = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?
                 .first { $0.name == "page" }?
@@ -1028,15 +1051,31 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func `web usage fetch skips billing history when optional usage is disabled`() async throws {
+    func `web usage fetch still enriches credit and usage summary when billing history disabled`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            #expect(url.path.contains("coding-plan"))
-            return Self.httpResponse(
-                url: url,
-                body: Self.codingPlanJSON,
-                contentType: "application/json")
+            if url.path.contains("coding-plan") {
+                return Self.httpResponse(
+                    url: url,
+                    body: Self.codingPlanJSON,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan/usage_summary" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/backend/account/token_plan_credit" {
+                return Self.httpResponse(
+                    url: url,
+                    body: #"{"base_resp":{"status_code":1004,"status_msg":"not login"}}"#,
+                    statusCode: 401,
+                    contentType: "application/json")
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.httpResponse(url: url, body: "{}", contentType: "application/json")
         }
 
         let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
@@ -1050,7 +1089,165 @@ struct MiniMaxUsageParserTests {
         let requests = await transport.requests()
         #expect(snapshot.currentPrompts == 2)
         #expect(snapshot.billingSummary == nil)
-        #expect(requests.count == 1)
+        #expect(snapshot.pointsBalance == nil)
+        let billingRequests = requests.filter { $0.url?.path == "/account/amount" }
+        #expect(billingRequests.isEmpty)
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" })
+    }
+
+    @Test
+    func `web enrichment reports expired credentials without discarding API quota`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            return Self.httpResponse(url: url, body: "{}", statusCode: 403, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=expired",
+            authorizationToken: nil,
+            region: .global,
+            environment: [:],
+            transport: transport)
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: context,
+            groupID: nil)
+
+        #expect(attempt.rejectedCredentials)
+        #expect(!attempt.receivedWebData)
+        #expect(!attempt.accountMismatch)
+        #expect(attempt.snapshot.currentPrompts == 25)
+        #expect(attempt.snapshot.pointsBalance == nil)
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
+    func `web enrichment rejects credit response for a different group`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path.contains("usage_summary") {
+                return Self.httpResponse(url: url, body: "{}", statusCode: 503, contentType: "application/json")
+            }
+            let body = """
+            {
+              "remaining_credits": 20000,
+              "credit_packages_details": [{"group_id":"different-group"}],
+              "base_resp":{"status_code":0}
+            }
+            """
+            return Self.httpResponse(url: url, body: body, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=valid",
+            authorizationToken: nil,
+            region: .global,
+            environment: [:],
+            transport: transport)
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: context,
+            groupID: "expected-group")
+
+        #expect(attempt.accountMismatch)
+        #expect(!attempt.receivedWebData)
+        #expect(attempt.snapshot.pointsBalance == nil)
+        #expect(attempt.snapshot.currentPrompts == 25)
+    }
+
+    @Test
+    func `web enrichment attaches credit when group matches`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let body = """
+            {
+              "remaining_credits": 20000,
+              "credit_packages_details": [{"group_id":"verified-group"}],
+              "base_resp":{"status_code":0}
+            }
+            """
+            return Self.httpResponse(url: url, body: body, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+        let context = MiniMaxUsageFetcher.WebFetchContext(
+            cookie: "HERTZ-SESSION=valid",
+            authorizationToken: nil,
+            region: .global,
+            environment: [:],
+            transport: transport)
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: context,
+            groupID: "verified-group")
+
+        #expect(attempt.receivedWebData)
+        #expect(attempt.snapshot.pointsBalance == 20000)
+    }
+
+    @Test
+    func `web enrichment ignores credit when group does not match`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let body = """
+            {
+              "remaining_credits": 20000,
+              "credit_packages_details": [{"group_id":"other-group"}],
+              "base_resp":{"status_code":0}
+            }
+            """
+            return Self.httpResponse(url: url, body: body, contentType: "application/json")
+        }
+        let quota = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: 100,
+            currentPrompts: 25,
+            remainingPrompts: 75,
+            windowMinutes: 300,
+            usedPercent: 25,
+            resetsAt: nil,
+            updatedAt: Date())
+
+        let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+            of: quota,
+            context: MiniMaxUsageFetcher.WebFetchContext(
+                cookie: "HERTZ-SESSION=valid",
+                authorizationToken: nil,
+                region: .global,
+                environment: [:],
+                transport: transport),
+            groupID: "expected-group")
+
+        #expect(attempt.accountMismatch)
+        #expect(!attempt.receivedWebData)
+        #expect(attempt.snapshot.pointsBalance == nil)
     }
 
     @Test
@@ -1162,6 +1359,7 @@ struct MiniMaxUsageParserTests {
     }
 }
 
+// swiftlint:enable type_body_length
 struct MiniMaxAPIRegionTests {
     @Test
     func `defaults to global hosts`() {
@@ -1196,6 +1394,57 @@ struct MiniMaxAPIRegionTests {
         let url = MiniMaxUsageFetcher.resolveTokenPlanRemainsURL(region: .chinaMainland)
         #expect(url.host == "api.minimaxi.com")
         #expect(url.path == "/v1/token_plan/remains")
+    }
+
+    @Test
+    func `dashboard URL opens console usage page`() {
+        #expect(MiniMaxAPIRegion.global.dashboardURL.absoluteString == "https://platform.minimax.io/console/usage")
+        #expect(MiniMaxAPIRegion.chinaMainland.dashboardURL.absoluteString ==
+            "https://platform.minimaxi.com/console/usage")
+        #expect(MiniMaxProviderDescriptor.descriptor.metadata.dashboardURL ==
+            MiniMaxAPIRegion.global.dashboardURL.absoluteString)
+    }
+
+    @Test
+    func `resolves token plan credit URLs on www hosts`() {
+        let global = MiniMaxAPIRegion.global.tokenPlanCreditURL
+        let china = MiniMaxAPIRegion.chinaMainland.tokenPlanCreditURL
+        #expect(global.host == "www.minimax.io")
+        #expect(global.path == "/backend/account/token_plan_credit")
+        #expect(china.host == "www.minimaxi.com")
+        #expect(china.path == "/backend/account/token_plan_credit")
+    }
+
+    @Test
+    func `token plan credit URL override wins`() throws {
+        let override = try #require(URL(string: "https://www.minimaxi.com/backend/account/token_plan_credit"))
+        let env = [MiniMaxSettingsReader.tokenPlanCreditURLKey: override.absoluteString]
+        let resolved = try MiniMaxTokenPlanCreditFetcher.resolveCreditURL(region: .global, environment: env)
+        #expect(resolved == override)
+    }
+
+    @Test
+    func `host override selects matching www token plan credit host`() throws {
+        let chinaEnv = [MiniMaxSettingsReader.hostKey: "platform.minimaxi.com"]
+        let chinaResolved = try MiniMaxTokenPlanCreditFetcher.resolveCreditURL(
+            region: .global,
+            environment: chinaEnv)
+        #expect(chinaResolved.host == "www.minimaxi.com")
+        #expect(chinaResolved.path == "/backend/account/token_plan_credit")
+
+        let globalEnv = [MiniMaxSettingsReader.hostKey: "platform.minimax.io"]
+        let globalResolved = try MiniMaxTokenPlanCreditFetcher.resolveCreditURL(
+            region: .chinaMainland,
+            environment: globalEnv)
+        #expect(globalResolved.host == "www.minimax.io")
+        #expect(globalResolved.path == "/backend/account/token_plan_credit")
+    }
+
+    @Test
+    func `host override routes token plan credit through custom proxy host`() throws {
+        let env = [MiniMaxSettingsReader.hostKey: "proxy.example.test:8443"]
+        let resolved = try MiniMaxTokenPlanCreditFetcher.resolveCreditURL(region: .global, environment: env)
+        #expect(resolved.absoluteString == "https://proxy.example.test:8443/backend/account/token_plan_credit")
     }
 
     @Test
