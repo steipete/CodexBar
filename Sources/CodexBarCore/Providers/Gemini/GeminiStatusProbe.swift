@@ -1163,26 +1163,90 @@ extension GeminiStatusProbe {
         return nil
     }
 
+    /// Optional Homebrew/npm prefixes for last-resort discovery when the gemini
+    /// binary cannot be resolved (GUI PATH / sandbox). Tests inject fake Cellar trees.
+    @TaskLocal public static var knownInstallPrefixesForTesting: [String]?
+
     fileprivate static func discoverOAuthCredentialsFromKnownInstallPaths() -> OAuthClientCredentials? {
         let oauthFile = "dist/src/code_assist/oauth2.js"
         let nestedOAuthFile =
             "node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/\(oauthFile)"
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let possiblePaths = [
-            "/opt/homebrew/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
-            "/opt/homebrew/lib/\(nestedOAuthFile)",
-            "/usr/local/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
-            "/usr/local/lib/\(nestedOAuthFile)",
-            "\(home)/.npm-global/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
-            "\(home)/.npm-global/lib/\(nestedOAuthFile)",
-        ]
 
-        for path in possiblePaths {
-            if let credentials = Self.parseOAuthCredentials(fromFile: path) {
+        // When tests inject Homebrew prefixes, skip the hard-coded host paths so
+        // fixture Cellar trees are not shadowed by the developer's real install.
+        if Self.knownInstallPrefixesForTesting == nil {
+            let possiblePaths = [
+                "/opt/homebrew/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
+                "/opt/homebrew/lib/\(nestedOAuthFile)",
+                "/usr/local/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
+                "/usr/local/lib/\(nestedOAuthFile)",
+                "\(home)/.npm-global/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
+                "\(home)/.npm-global/lib/\(nestedOAuthFile)",
+            ]
+
+            for path in possiblePaths {
+                if let credentials = Self.parseOAuthCredentials(fromFile: path) {
+                    return credentials
+                }
+            }
+        }
+
+        // Homebrew Cellar/opt libexec layouts keep credentials inside the package
+        // bundle when GUI PATH cannot resolve `/opt/homebrew/bin/gemini`.
+        for packageRoot in Self.knownHomebrewGeminiPackageRoots() {
+            if let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot) {
                 return credentials
             }
         }
         return nil
+    }
+
+    fileprivate static func knownHomebrewPrefixes() -> [String] {
+        if let overrides = self.knownInstallPrefixesForTesting, !overrides.isEmpty {
+            return overrides
+        }
+        return ["/opt/homebrew", "/usr/local"]
+    }
+
+    fileprivate static func knownHomebrewGeminiPackageRoots(
+        fileManager: FileManager = .default) -> [String]
+    {
+        var roots: [String] = []
+        var seen = Set<String>()
+
+        func appendPackageRoot(under prefixRoot: String) {
+            let packageRoot = URL(fileURLWithPath: prefixRoot)
+                .appendingPathComponent("libexec")
+                .appendingPathComponent("lib")
+                .appendingPathComponent("node_modules")
+                .appendingPathComponent("@google")
+                .appendingPathComponent("gemini-cli")
+                .path
+            guard fileManager.fileExists(atPath: packageRoot),
+                  seen.insert(packageRoot).inserted
+            else {
+                return
+            }
+            roots.append(packageRoot)
+        }
+
+        for prefix in Self.knownHomebrewPrefixes() {
+            let optRoot = "\(prefix)/opt/gemini-cli"
+            if fileManager.fileExists(atPath: optRoot) {
+                appendPackageRoot(under: optRoot)
+            }
+
+            let cellarRoot = "\(prefix)/Cellar/gemini-cli"
+            guard let versions = try? fileManager.contentsOfDirectory(atPath: cellarRoot) else {
+                continue
+            }
+            for version in versions.sorted() {
+                appendPackageRoot(under: "\(cellarRoot)/\(version)")
+            }
+        }
+
+        return roots
     }
 
     fileprivate static func parseOAuthCredentials(fromFile path: String) -> OAuthClientCredentials? {

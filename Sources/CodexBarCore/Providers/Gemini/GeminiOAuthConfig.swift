@@ -13,19 +13,51 @@ public enum GeminiOAuthConfig: Sendable {
         }
     }
 
+    /// Test-injectable environment view so suites can override OAuth knobs without
+    /// mutating process-wide env (which races parallel Gemini suites).
+    public struct EnvironmentValues: Sendable, Equatable {
+        public var clientID: String?
+        public var clientSecret: String?
+        public var oauth2JSPath: String?
+
+        public init(clientID: String? = nil, clientSecret: String? = nil, oauth2JSPath: String? = nil) {
+            self.clientID = clientID
+            self.clientSecret = clientSecret
+            self.oauth2JSPath = oauth2JSPath
+        }
+
+        public static func fromProcessEnvironment(
+            _ environment: [String: String] = ProcessInfo.processInfo.environment) -> Self
+        {
+            Self(
+                clientID: environment["GEMINI_OAUTH_CLIENT_ID"],
+                clientSecret: environment["GEMINI_OAUTH_CLIENT_SECRET"],
+                oauth2JSPath: environment["GEMINI_OAUTH2_JS_PATH"])
+        }
+    }
+
+    @TaskLocal public static var environmentOverride: EnvironmentValues?
+
+    public static var currentEnvironment: EnvironmentValues {
+        self.environmentOverride ?? .fromProcessEnvironment()
+    }
+
     public static var configuredClientID: String? {
-        let value = ProcessInfo.processInfo.environment["GEMINI_OAUTH_CLIENT_ID"]
-        return value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.currentEnvironment.clientID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
     }
 
     public static var configuredClientSecret: String? {
-        let value = ProcessInfo.processInfo.environment["GEMINI_OAUTH_CLIENT_SECRET"]
-        return value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.currentEnvironment.clientSecret?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
     }
 
     public static var configuredOAuth2JSPath: String? {
-        let value = ProcessInfo.processInfo.environment["GEMINI_OAUTH2_JS_PATH"]
-        return value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.currentEnvironment.oauth2JSPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
     }
 
     public static func environmentClient() -> ClientCredentials? {
