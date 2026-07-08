@@ -813,6 +813,31 @@ struct MiniMaxUsageParserTests {
             now: now)
 
         #expect(snapshot.pointsBalance == 14000)
+        #expect(snapshot.services?.isEmpty == false)
+    }
+
+    @Test
+    func `inactive token plan without remains returns empty quota snapshot`() throws {
+        let now = Date(timeIntervalSince1970: 1_780_282_340)
+        let json = """
+        {
+          "base_resp": {
+            "status_code": 1001,
+            "status_msg": "no active token plan subscription"
+          },
+          "data": {
+            "model_remains": []
+          }
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(
+            data: Data(json.utf8),
+            now: now)
+
+        #expect(snapshot.services == nil || snapshot.services?.isEmpty == true)
+        #expect(snapshot.pointsBalance == nil)
+        #expect(snapshot.usedPercent == nil)
     }
 
     @Test

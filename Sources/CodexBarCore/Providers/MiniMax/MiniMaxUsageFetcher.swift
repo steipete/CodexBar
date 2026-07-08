@@ -902,28 +902,39 @@ enum MiniMaxUsageParser {
         now: Date = Date()) throws -> MiniMaxUsageSnapshot
     {
         let baseResponse = payload.data.baseResp ?? payload.baseResp
+        var tokenPlanInactive = false
         if let status = baseResponse?.statusCode, status != 0 {
             let message = baseResponse?.statusMessage ?? "status_code \(status)"
             let lower = message.lowercased()
-            let tokenPlanInactiveMessage =
-                lower.contains("token plan") &&
-                (lower.contains("no active") || lower.contains("not active") || lower.contains("inactive") || lower.contains("subscription"))
-            let hasPointsBalance = payload.data.pointsBalance.map { $0 >= 0 } ?? false
             if status == 1004 || lower.contains("cookie") || lower.contains("log in") || lower.contains("login") {
                 throw MiniMaxUsageError.invalidCredentials
             }
-            // MiniMax may return a non-zero status when token plan subscription is not active,
-            // while still including `points_balance` (credits) that haven't expired.
-            // In that case, treat it as a partial/benign envelope instead of surfacing a
-            // blocking user-facing error.
-            if tokenPlanInactiveMessage, hasPointsBalance {
+            // MiniMax returns this when Token Plan quota lanes are gone, but recharge credits
+            // (`token_plan_credit` / residual `points_balance`) can still be valid. Treat it as a soft
+            // empty-quota envelope so the pipeline can keep attaching credits instead of failing the
+            // whole MiniMax refresh with a blocking red error.
+            if self.isInactiveTokenPlanMessage(lower) {
+                tokenPlanInactive = true
                 MiniMaxUsageFetcher.log.debug("MiniMax coding plan status ignored: \(status) \(message)")
             } else {
                 throw MiniMaxUsageError.apiError(message)
             }
         }
 
-        guard !payload.data.modelRemains.isEmpty else {
+        if payload.data.modelRemains.isEmpty {
+            let pointsBalance = payload.data.pointsBalance
+            if tokenPlanInactive || (pointsBalance.map { $0 >= 0 } ?? false) {
+                return MiniMaxUsageSnapshot(
+                    planName: self.parsePlanName(data: payload.data),
+                    availablePrompts: nil,
+                    currentPrompts: nil,
+                    remainingPrompts: nil,
+                    windowMinutes: nil,
+                    usedPercent: nil,
+                    resetsAt: nil,
+                    updatedAt: now,
+                    pointsBalance: pointsBalance)
+            }
             throw MiniMaxUsageError.parseFailed("Missing coding plan data.")
         }
 
@@ -1613,6 +1624,14 @@ enum MiniMaxUsageParser {
     private static func percentQuotaLimit(boostPermille: Int?) -> Int {
         guard let boostPermille, boostPermille > 0 else { return 100 }
         return max(1, Int((Double(boostPermille) / 10.0).rounded()))
+    }
+
+    private static func isInactiveTokenPlanMessage(_ message: String) -> Bool {
+        message.contains("token plan") &&
+            (message.contains("no active") ||
+                message.contains("not active") ||
+                message.contains("inactive") ||
+                message.contains("subscription"))
     }
 
     private static func shouldRenderQuotaWindow(_ input: ServiceUsageInput) -> Bool {
