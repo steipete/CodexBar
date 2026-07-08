@@ -36,13 +36,14 @@ public enum MistralCookieImporter {
 
     public static func importSession(
         browserDetection: BrowserDetection,
-        preferredBrowsers: [Browser] = [.chrome],
+        preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
         let log: (String) -> Void = { msg in logger?("[mistral-cookie] \(msg)") }
-        let installedBrowsers = preferredBrowsers.isEmpty
-            ? mistralCookieImportOrder.cookieImportCandidates(using: browserDetection)
-            : preferredBrowsers.cookieImportCandidates(using: browserDetection)
+        let order = preferredBrowsers ?? mistralCookieImportOrder
+        let installedBrowsers = order.isEmpty
+            ? Browser.defaultImportOrder.cookieImportCandidates(using: browserDetection)
+            : order.cookieImportCandidates(using: browserDetection)
 
         for browserSource in installedBrowsers {
             do {
@@ -73,7 +74,7 @@ public enum MistralCookieImporter {
 
     public static func hasSession(
         browserDetection: BrowserDetection,
-        preferredBrowsers: [Browser] = [.chrome],
+        preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) -> Bool
     {
         do {

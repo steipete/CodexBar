@@ -20,7 +20,7 @@ public enum MistralProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.mistralCookieImportOrder,
                 dashboardURL: "https://admin.mistral.ai/organization/usage",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.mistral.ai"),
