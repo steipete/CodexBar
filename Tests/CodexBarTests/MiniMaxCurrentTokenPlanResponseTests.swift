@@ -85,7 +85,6 @@ struct MiniMaxCurrentTokenPlanResponseTests {
             "platform.minimaxi.com",
             "platform.minimaxi.com",
             "www.minimaxi.com",
-            "www.minimaxi.com",
         ])
     }
 
