@@ -322,6 +322,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 return true
             case .claudeCLI:
                 if sourceMode == .auto {
+                    if ProviderInteractionContext.current != .userInitiated,
+                       Self.hasMcpOAuthOnlyClaudeKeychainPayload(environment: environment)
+                    {
+                        return false
+                    }
                     return claudeCLIAvailable
                 }
                 return true
@@ -353,6 +358,12 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             return false
         }
         return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
+    }
+
+    private static func hasMcpOAuthOnlyClaudeKeychainPayload(environment: [String: String]) -> Bool {
+        ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+            interaction: ProviderInteractionContext.current,
+            environment: environment)
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {

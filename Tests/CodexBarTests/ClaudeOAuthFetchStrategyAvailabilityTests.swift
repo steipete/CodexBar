@@ -58,6 +58,56 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
                 await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(true) {
                     await strategy.isAvailable(context)
                 }
+        }
+        #expect(available == true)
+    }
+
+    @Test
+    func `auto mode expired CLI creds with MCP-only keychain returns unavailable in background`() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy()
+        let mcpOAuthOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"synthetic"}}}"#.utf8)
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(true) {
+                    await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+                            await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: mcpOAuthOnly,
+                                fingerprint: nil)
+                            {
+                                await ProviderInteractionContext.$current.withValue(.background) {
+                                    await strategy.isAvailable(context)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        #expect(available == false)
+    }
+
+    @Test
+    func `auto mode expired CLI creds with MCP-only keychain remains available for user action`() async {
+        let context = self.makeContext(sourceMode: .auto)
+        let strategy = ClaudeOAuthFetchStrategy()
+        let mcpOAuthOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"synthetic"}}}"#.utf8)
+        let available = await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(true) {
+                    await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+                            await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: mcpOAuthOnly,
+                                fingerprint: nil)
+                            {
+                                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                    await strategy.isAvailable(context)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         #expect(available == true)
     }
