@@ -20,21 +20,31 @@ extension StatusItemController {
         self.menuBarCountdownRefreshTask?.cancel()
         self.menuBarCountdownRefreshTask = nil
 
-        guard self.settings.menuBarShowsBrandIconWithPercent,
-              self.settings.menuBarDisplayMode == .resetTime,
-              self.settings.resetTimeDisplayStyle == .countdown
-        else {
-            return
+        var delays: [TimeInterval] = []
+        let providers = self.menuBarRefreshProviders()
+        if self.settings.menuBarShowsBrandIconWithPercent,
+           self.settings.menuBarDisplayMode == .resetTime,
+           self.settings.resetTimeDisplayStyle == .countdown
+        {
+            let resetDates = providers.compactMap { provider in
+                self.menuBarResetTimeWindow(
+                    for: provider,
+                    snapshot: self.store.snapshot(for: provider))?.resetsAt
+            }
+            if let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDates, now: now) {
+                delays.append(delay)
+            }
         }
 
-        let resetDates = self.menuBarCountdownProviders().compactMap { provider in
-            self.menuBarResetTimeWindow(
-                for: provider,
-                snapshot: self.store.snapshot(for: provider))?.resetsAt
+        if self.menuBarObservesCodexReset(providers: providers) {
+            let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
+            if let resetAt = projection.nextMenuBarStateChangeAt {
+                delays.append(max(
+                    Self.menuBarCountdownRefreshEpsilon,
+                    resetAt.timeIntervalSince(now) + Self.menuBarCountdownRefreshEpsilon))
+            }
         }
-        guard let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDates, now: now) else {
-            return
-        }
+        guard let delay = delays.min() else { return }
 
         self.menuBarCountdownRefreshTask = Task { @MainActor [weak self] in
             do {
@@ -64,11 +74,20 @@ extension StatusItemController {
         }.min()
     }
 
-    private func menuBarCountdownProviders() -> [UsageProvider] {
+    private func menuBarRefreshProviders() -> [UsageProvider] {
         if self.shouldMergeIcons {
             return [self.primaryProviderForUnifiedIcon()]
         }
         return UsageProvider.allCases.filter(self.isVisible)
+    }
+
+    private func menuBarObservesCodexReset(providers: [UsageProvider]) -> Bool {
+        if providers.contains(.codex) { return true }
+        guard self.shouldMergeIcons, self.settings.menuBarShowsHighestUsage else { return false }
+        let activeProviders = self.store.enabledProvidersForDisplay()
+        return self.settings.resolvedMergedOverviewProviders(
+            activeProviders: activeProviders,
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)
     }
 
     #if DEBUG
