@@ -75,29 +75,8 @@ extension UsageStore {
     }
 
     var backgroundWorkSettingsObservationToken: Int {
-        _ = self.settings.refreshFrequency
-        _ = self.settings.statusChecksEnabled
-        _ = self.settings.sessionQuotaNotificationsEnabled
-        _ = self.settings.quotaWarningNotificationsEnabled
-        _ = self.settings.quotaWarningThresholds
-        _ = self.settings.quotaWarningThresholds(.session)
-        _ = self.settings.quotaWarningThresholds(.weekly)
-        _ = self.settings.quotaWarningSoundEnabled
-        _ = self.settings.usageBarsShowUsed
-        _ = self.settings.costUsageEnabled
-        _ = self.settings.costUsageHistoryDays
-        _ = self.settings.randomBlinkEnabled
+        _ = self.settings.backgroundWorkSettingsRevision
         _ = self.settings.configRevision
-        for implementation in ProviderCatalog.all {
-            implementation.observeSettings(self.settings)
-        }
-        _ = self.settings.multiAccountMenuLayout
-        _ = self.settings.tokenAccountsByProvider
-        _ = self.settings.mergeIcons
-        _ = self.settings.debugLoadingPattern
-        _ = self.settings.debugKeepCLISessionsAlive
-        _ = self.settings.historicalTrackingEnabled
-        _ = self.settings.providerStorageFootprintsEnabled
         return 0
     }
 
