@@ -905,10 +905,22 @@ enum MiniMaxUsageParser {
         if let status = baseResponse?.statusCode, status != 0 {
             let message = baseResponse?.statusMessage ?? "status_code \(status)"
             let lower = message.lowercased()
+            let tokenPlanInactiveMessage =
+                lower.contains("token plan") &&
+                (lower.contains("no active") || lower.contains("not active") || lower.contains("inactive") || lower.contains("subscription"))
+            let hasPointsBalance = payload.data.pointsBalance.map { $0 >= 0 } ?? false
             if status == 1004 || lower.contains("cookie") || lower.contains("log in") || lower.contains("login") {
                 throw MiniMaxUsageError.invalidCredentials
             }
-            throw MiniMaxUsageError.apiError(message)
+            // MiniMax may return a non-zero status when token plan subscription is not active,
+            // while still including `points_balance` (credits) that haven't expired.
+            // In that case, treat it as a partial/benign envelope instead of surfacing a
+            // blocking user-facing error.
+            if tokenPlanInactiveMessage, hasPointsBalance {
+                MiniMaxUsageFetcher.log.debug("MiniMax coding plan status ignored: \(status) \(message)")
+            } else {
+                throw MiniMaxUsageError.apiError(message)
+            }
         }
 
         guard !payload.data.modelRemains.isEmpty else {

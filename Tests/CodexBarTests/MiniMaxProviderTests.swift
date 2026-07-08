@@ -778,6 +778,44 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
+    func `does not throw when token plan is inactive but points_balance exists`() throws {
+        let now = Date(timeIntervalSince1970: 1_780_282_340)
+        let json = """
+        {
+          "base_resp": {
+            "status_code": 1001,
+            "status_msg": "no active token plan subscription"
+          },
+          "data": {
+            "current_subscribe_title": "Token Plan Plus",
+            "points_balance": "14000",
+            "model_remains": [
+              {
+                "model_name": "general",
+                "current_interval_total_count": 100,
+                "current_interval_usage_count": 25,
+                "current_interval_remaining_percent": "75",
+                "start_time": 1780279200000,
+                "end_time": 1780297200000,
+                "current_weekly_total_count": 100,
+                "current_weekly_usage_count": 40,
+                "current_weekly_remaining_percent": "60",
+                "weekly_start_time": 1780243200000,
+                "weekly_end_time": 1780848000000
+              }
+            ]
+          }
+        }
+        """
+
+        let snapshot = try MiniMaxUsageParser.parseCodingPlanRemains(
+            data: Data(json.utf8),
+            now: now)
+
+        #expect(snapshot.pointsBalance == 14000)
+    }
+
+    @Test
     func `throws on error in data wrapper`() {
         let json = """
         {
