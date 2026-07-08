@@ -1051,7 +1051,7 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func `web usage fetch still enriches credit and usage summary when billing history disabled`() async throws {
+    func `web usage fetch still attempts credit enrichment when billing history disabled`() async throws {
         let now = try #require(ISO8601DateFormatter().date(from: "2026-05-17T12:00:00Z"))
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -1059,12 +1059,6 @@ struct MiniMaxUsageParserTests {
                 return Self.httpResponse(
                     url: url,
                     body: Self.codingPlanJSON,
-                    contentType: "application/json")
-            }
-            if url.path == "/backend/account/token_plan/usage_summary" {
-                return Self.httpResponse(
-                    url: url,
-                    body: #"{"daily_token_usage":[],"date_model_usage":[],"base_resp":{"status_code":0}}"#,
                     contentType: "application/json")
             }
             if url.path == "/backend/account/token_plan_credit" {
@@ -1093,7 +1087,7 @@ struct MiniMaxUsageParserTests {
         let billingRequests = requests.filter { $0.url?.path == "/account/amount" }
         #expect(billingRequests.isEmpty)
         #expect(requests.contains { $0.url?.path == "/backend/account/token_plan_credit" })
-        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" })
+        #expect(requests.contains { $0.url?.path == "/backend/account/token_plan/usage_summary" } == false)
     }
 
     @Test

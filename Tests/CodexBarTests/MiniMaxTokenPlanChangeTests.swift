@@ -336,7 +336,6 @@ struct MiniMaxTokenPlanChangeTests {
             "platform.minimaxi.com",
             "www.minimaxi.com",
             "www.minimaxi.com",
-            "www.minimaxi.com",
         ])
     }
 
