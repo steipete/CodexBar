@@ -116,6 +116,69 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `codex session celebration ignores transient zero when reset boundary is unchanged`() async {
+        let store = Self.makeStore()
+        let accountLabel = "codex-session-transient-zero@example.com"
+        let recorder = SessionLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let sessionReset = firstDate.addingTimeInterval(5 * 3600)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+
+        func snapshot(sessionUsed: Double, sessionReset: Date, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: sessionUsed,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "pro"))
+        }
+
+        let before = snapshot(
+            sessionUsed: 67,
+            sessionReset: sessionReset,
+            updatedAt: firstDate)
+        let transientZero = snapshot(
+            sessionUsed: 0,
+            sessionReset: sessionReset,
+            updatedAt: firstDate.addingTimeInterval(60))
+        let corrected = snapshot(
+            sessionUsed: 69,
+            sessionReset: sessionReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+        let realReset = snapshot(
+            sessionUsed: 0,
+            sessionReset: sessionReset.addingTimeInterval(5 * 3600),
+            updatedAt: firstDate.addingTimeInterval(180))
+
+        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: transientZero,
+            now: transientZero.updatedAt)
+        #expect(recorder.events.isEmpty)
+
+        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: corrected, now: corrected.updatedAt)
+        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: realReset, now: realReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
     func `weekly quota celebration posts when weekly usage resets to zero`() async {
         let store = Self.makeStore()
         let accountLabel = "reset-zero@example.com"

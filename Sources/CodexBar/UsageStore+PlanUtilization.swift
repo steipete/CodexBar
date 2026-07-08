@@ -36,6 +36,7 @@ extension UsageStore {
         let wasAboveThreshold: Bool
         let lastObservedAt: Date
         let sourceRawValue: String?
+        var resetBoundary: Date?
     }
 
     func supportsPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
@@ -82,6 +83,7 @@ extension UsageStore {
     private struct LimitResetObservation {
         let usedPercent: Double
         let observedAt: Date
+        let resetBoundary: Date?
         let source: SessionQuotaWindowSource?
     }
 
@@ -406,6 +408,7 @@ extension UsageStore {
                 LimitResetObservation(
                     usedPercent: $0.entry.usedPercent,
                     observedAt: $0.entry.capturedAt,
+                    resetBoundary: $0.entry.resetsAt,
                     source: nil)
             }
         } else {
@@ -415,6 +418,7 @@ extension UsageStore {
                     LimitResetObservation(
                         usedPercent: $0,
                         observedAt: context.capturedAt,
+                        resetBoundary: resolved.window.resetsAt,
                         source: resolved.source)
                 }
             }
@@ -431,6 +435,7 @@ extension UsageStore {
             LimitResetObservation(
                 usedPercent: $0.entry.usedPercent,
                 observedAt: $0.entry.capturedAt,
+                resetBoundary: $0.entry.resetsAt,
                 source: nil)
         }
         self.postLimitResetCelebrationIfNeeded(
@@ -485,13 +490,19 @@ extension UsageStore {
         let sourceChanged = descriptor.seriesName == .session
             && previousState?.sourceRawValue != nil
             && previousState?.sourceRawValue != sourceRawValue
+        let resetBoundaryAllowsPost = descriptor.seriesName != .session
+            || Self.limitResetBoundaryAdvanced(
+                previous: previousState?.resetBoundary,
+                current: observation.resetBoundary)
         let shouldPost = !sourceChanged
             && previousState?.wasAboveThreshold == true
             && !wasAboveThreshold
+            && resetBoundaryAllowsPost
         states[detectorKey] = LimitResetDetectorState(
             wasAboveThreshold: wasAboveThreshold,
             lastObservedAt: currentObservedAt,
-            sourceRawValue: sourceRawValue)
+            sourceRawValue: sourceRawValue,
+            resetBoundary: observation.resetBoundary)
         self.persistLimitResetDetectorStates(
             states,
             defaultsKey: descriptor.defaultsKey,
@@ -531,6 +542,11 @@ extension UsageStore {
         default:
             return
         }
+    }
+
+    private nonisolated static func limitResetBoundaryAdvanced(previous: Date?, current: Date?) -> Bool {
+        guard let previous, let current else { return true }
+        return !self.areEquivalentPlanUtilizationResetBoundaries(previous, current) && current > previous
     }
 
     private func planUtilizationSeriesSamples(
