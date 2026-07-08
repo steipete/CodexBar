@@ -298,6 +298,50 @@ struct GeminiStatusProbePlanTests {
     }
 
     @Test
+    func `uses paid tier name for standard tier subscriptions`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: 200,
+                        body: GeminiAPITestHelpers.loadCodeAssistGoogleOneProResponse())
+                }
+                if url.path != "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+                }
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.sampleQuotaResponse())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountPlan == "Gemini Code Assist in Google One AI Pro")
+    }
+
+    @Test
     func `detects free from free tier without hosted domain`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }

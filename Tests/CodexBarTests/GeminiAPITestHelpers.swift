@@ -114,6 +114,13 @@ enum GeminiAPITestHelpers {
         self.loadCodeAssistResponse(tierId: "standard-tier")
     }
 
+    static func loadCodeAssistGoogleOneProResponse(projectId: String? = "cloudaicompanion-123") -> Data {
+        self.loadCodeAssistResponse(
+            tierId: "standard-tier",
+            projectId: projectId,
+            paidTierName: "Gemini Code Assist in Google One AI Pro")
+    }
+
     static func loadCodeAssistLegacyTierResponse() -> Data {
         self.loadCodeAssistResponse(tierId: "legacy-tier")
     }

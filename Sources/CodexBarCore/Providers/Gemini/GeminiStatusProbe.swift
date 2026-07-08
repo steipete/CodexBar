@@ -1136,7 +1136,8 @@ public struct GeminiStatusProbe: Sendable {
 
 extension GeminiStatusProbe {
     /// Plan display strings with tier mapping:
-    /// - standard-tier: Paid subscription (Code Assist Standard/Enterprise, Developer Program Premium)
+    /// - standard-tier + paidTier.name: Paid subscription label from Google (e.g. Google One AI Pro)
+    /// - standard-tier: Paid subscription fallback (Code Assist Standard/Enterprise, Developer Program Premium)
     /// - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
     /// - free-tier + paidTier.name: Consumer subscription (Google AI Pro/Ultra, shown as Plus/Ultra)
     /// - free-tier: Personal free account
@@ -1149,6 +1150,9 @@ extension GeminiStatusProbe {
     {
         switch (tier, hostedDomain) {
         case (.standard, _):
+            if let paidTierName {
+                return paidTierName
+            }
             return "Paid"
         case let (.free, .some(domain)):
             Self.log.info("Workspace account detected", metadata: ["domain": domain])
