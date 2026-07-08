@@ -4,6 +4,8 @@ import Foundation
 public enum MobileAppGroup {
     /// App Group shared between the iOS app and its extensions. Must match the value in every
     /// target's `.entitlements` file and `ios/project.yml`.
+    /// NOTE: local device builds override this to a team-owned group (see ios/README) because
+    /// `group.com.steipete.codexbar.ios` is registered to the upstream team.
     public static let identifier = "group.com.steipete.codexbar.ios"
 
     public static let snapshotFilename = "mobile-snapshot.json"

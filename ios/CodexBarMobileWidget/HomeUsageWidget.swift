@@ -11,7 +11,7 @@ struct HomeUsageWidget: Widget {
         }
         .configurationDisplayName("Provider Usage")
         .description("At-a-glance remaining usage for a CodexBar provider.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
@@ -23,6 +23,7 @@ struct HomeUsageWidgetView: View {
         if let providerEntry = entry.entry {
             switch self.family {
             case .systemMedium: MediumUsageView(entry: providerEntry, metadata: self.entry.metadata)
+            case .systemLarge: LargeUsageView(entry: providerEntry, metadata: self.entry.metadata)
             default: SmallUsageView(entry: providerEntry)
             }
         } else {
@@ -85,6 +86,53 @@ private struct MediumUsageView: View {
                 }
             }
             Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct LargeUsageView: View {
+    let entry: WidgetSnapshot.ProviderEntry
+    let metadata: SyncMetadata?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 10) {
+                ProviderIconView(provider: self.entry.provider, size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(self.entry.provider.displayName).font(.headline)
+                    if let metadata {
+                        Text(UsageFormat.relative(metadata.snapshotGeneratedAt ?? metadata.receivedAt))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer()
+                UsageRing(remainingPercent: self.entry.headlineRemainingPercent, lineWidth: 7)
+                    .frame(width: 58, height: 58)
+            }
+
+            ForEach(self.entry.displayRows.prefix(4)) { row in
+                UsageRowView(row: row)
+            }
+
+            if let credits = entry.creditsRemaining {
+                WidgetValueLine(title: "Credits", value: WidgetDisplay.credits(credits))
+            }
+            if let token = entry.tokenUsage {
+                WidgetValueLine(
+                    title: token.sessionLabel,
+                    value: WidgetDisplay.costAndTokens(
+                        cost: token.sessionCostUSD,
+                        tokens: token.sessionTokens,
+                        currencyCode: token.currencyCode))
+                WidgetValueLine(
+                    title: token.last30DaysLabel,
+                    value: WidgetDisplay.costAndTokens(
+                        cost: token.last30DaysCostUSD,
+                        tokens: token.last30DaysTokens,
+                        currencyCode: token.currencyCode))
+            }
+            HistoryChart(entry: self.entry, height: 64)
         }
     }
 }
