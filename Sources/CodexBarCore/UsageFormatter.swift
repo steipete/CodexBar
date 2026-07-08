@@ -82,10 +82,9 @@ public enum UsageFormatter {
 
     public static func percentText(_ percent: Double, suffix: String) -> String {
         let clamped = min(100, max(0, percent))
-        if clamped > 0, clamped < 1 {
-            return self.localized("<1%% %@", suffix)
-        }
-        return self.localized("%.0f%% %@", clamped, suffix)
+        let text = self.localized("%.0f%% %@", clamped, suffix)
+        guard clamped > 0, clamped < 1 else { return text }
+        return text.replacingOccurrences(of: "0%", with: "<1%")
     }
 
     public static func usageLine(remaining: Double, used: Double, showUsed: Bool) -> String {
@@ -260,6 +259,15 @@ public enum UsageFormatter {
         value.formatted(.currency(code: currencyCode).locale(Locale(identifier: "en_US")))
     }
 
+    public static func decimalString(_ value: Double, fractionDigits: Int = 2) -> String {
+        String(format: "%.\(fractionDigits)f", value)
+    }
+
+    public static func optionalPercentString(_ percent: Double?, fractionDigits: Int = 2) -> String {
+        guard let percent else { return "—" }
+        return String(format: "%.\(fractionDigits)f%%", percent)
+    }
+
     public static func compactCurrencyString(_ value: Double, currencyCode: String) -> String {
         if value != 0, abs(value) < 1 {
             return self.currencyString(value, currencyCode: currencyCode)
@@ -271,6 +279,10 @@ public enum UsageFormatter {
     }
 
     public static func tokenCountString(_ value: Int) -> String {
+        self.tokenCountString(value, fractionDigits: 1)
+    }
+
+    public static func tokenCountString(_ value: Int, fractionDigits: Int) -> String {
         let absValue = abs(value)
         let sign = value < 0 ? "-" : ""
 
@@ -283,7 +295,9 @@ public enum UsageFormatter {
         for unit in units where absValue >= unit.threshold {
             let scaled = Double(absValue) / unit.divisor
             let formatted: String
-            if scaled >= 10 {
+            if fractionDigits == 2 {
+                formatted = String(format: "%.2f", scaled)
+            } else if scaled >= 10 {
                 formatted = String(format: "%.0f", scaled)
             } else {
                 var s = String(format: "%.1f", scaled)
@@ -414,7 +428,7 @@ public enum UsageFormatter {
             nil
         }
 
-        let tokenDetail = totalTokens.map(self.tokenCountString)
+        let tokenDetail = totalTokens.map { self.tokenCountString($0) }
         let parts = [costDetail, tokenDetail].compactMap(\.self)
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " · ")

@@ -2,6 +2,7 @@
 
 " providers" = "провайдерів";
 "(System)" = "(Система)";
+"7d" = "7д";
 "30d" = "30д";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Керований вхід до Codex вже запущено. Перш ніж додавати, зачекайте, поки він закінчиться";
 "API key" = "Ключ API";
@@ -923,6 +924,7 @@
 "Weekly" = "Щотижня";
 "not detected" = "не виявлено";
 "Estimated from local Codex logs for the selected account." = "Оцінено з локальних журналів Codex для вибраного облікового запису.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Оцінено за підсумком використання MiniMax і опублікованими тарифами pay-as-you-go · може відрізнятися від рахунку";
 "minimax_usage_amount_format" = "Використання: %@ / %@";
 "minimax_used_percent_format" = "Використаний %@";
 "minimax_service_text_generation" = "Генерація тексту";

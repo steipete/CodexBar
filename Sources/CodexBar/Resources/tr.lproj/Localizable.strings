@@ -2,6 +2,7 @@
 
 " providers" = " sağlayıcı";
 "(System)" = "(Sistem)";
+"7d" = "7 gün";
 "30d" = "30 gün";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Yönetilen bir Codex girişi zaten çalışıyor. Eklemeden önce bitmesini bekleyin ";
 "API key" = "API anahtarı";
@@ -53,6 +54,26 @@
 "CLI paths" = "CLI yolları";
 "CLI sessions" = "CLI oturumları";
 "Caches" = "Önbellekler";
+"Cache hit: %@" = "Önbellek isabeti: %@";
+"Cache hit" = "Önbellek isabeti";
+"%@ usage" = "%@ kullanımı";
+"Latest usage" = "Son kullanım";
+"7d tokens" = "7g token";
+"Last 7 days: %@ tokens" = "Son 7 gün: %@ token";
+"Last 7 days" = "Son 7 gün";
+"Usage trend" = "Kullanım trendi";
+"MiniMax 7 day token usage trend" = "MiniMax 7 günlük token kullanım trendi";
+"Language models only; data may be delayed" = "Yalnızca dil modelleri; veriler gecikebilir";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ girdi · %@ çıktı · %@ önbellek isabeti";
+"%@ input · %@ output · %@ cache hit" = "%@ girdi · %@ çıktı · %@ önbellek isabeti";
+"Total consumed" = "Toplam tüketim";
+"Daily peak" = "Günlük zirve";
+"Active days" = "Aktif günler";
+"Active days: %@" = "Aktif günler: %@";
+"Streak: %@ days" = "Seri: %@ gün";
+"Usage rank: top %@%%" = "Kullanım sırası: ilk %@%%";
+"Token usage details" = "Token kullanım detayları";
+"Day totals" = "Günlük toplamlar";
 "Cancel" = "İptal";
 "Check for Updates…" = "Güncellemeleri Denetle…";
 "Check for updates automatically" = "Güncellemeleri otomatik denetle";
@@ -124,6 +145,7 @@
 "Enabled" = "Etkin";
 "Error" = "Hata";
 "Error simulation" = "Hata simülasyonu";
+"Expires: %@" = "Sona erer: %@";
 "Expose troubleshooting tools in the Debug tab." = "Sorun giderme araçlarını Hata Ayıklama sekmesinde göster.";
 "Failed" = "Başarısız";
 "False" = "Yanlış";
@@ -762,6 +784,14 @@
 "Top method" = "En çok kullanılan yöntem";
 "30d cash" = "30 günlük nakit";
 "30d billing history from MiniMax web session" = "MiniMax web oturumundan 30 günlük faturalandırma geçmişi";
+"MiniMax web session expired" = "MiniMax web oturumu süresi doldu";
+"MiniMax web session account does not match" = "MiniMax web oturumu API hesabıyla eşleşmiyor";
+"No MiniMax browser session found" = "MiniMax tarayıcı oturumu bulunamadı";
+"MiniMax web data endpoints are unavailable" = "MiniMax web veri uç noktaları kullanılamıyor";
+"MiniMax web session unavailable" = "MiniMax web oturumu kullanılamıyor";
+"Re-import MiniMax session from browser" = "MiniMax oturumunu tarayıcıdan yeniden içe aktar";
+"Open MiniMax login page" = "MiniMax giriş sayfasını aç";
+"MiniMax web session: %@" = "MiniMax web oturumu: %@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer faturalandırması gecikmeli olabilir.";
 "Rate limit: %d / %@" = "Hız limiti: %d / %@";
 "Key remaining" = "Anahtar kalan";
@@ -925,6 +955,7 @@
 "Weekly" = "Haftalık";
 "not detected" = "algılanmadı";
 "Estimated from local Codex logs for the selected account." = "Seçili hesap için yerel Codex günlüklerinden tahmin edildi.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "MiniMax kullanım özetinden ve yayımlanan kullandıkça öde fiyatlarından tahmin edildi · faturadan farklı olabilir";
 "minimax_usage_amount_format" = "Kullanım: %@ / %@";
 "minimax_used_percent_format" = "%@ kullanıldı";
 "minimax_service_text_generation" = "Metin Üretimi";

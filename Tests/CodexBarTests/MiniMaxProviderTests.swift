@@ -1127,8 +1127,9 @@ struct MiniMaxUsageParserTests {
         #expect(!attempt.receivedWebData)
         #expect(!attempt.accountMismatch)
         #expect(attempt.snapshot.currentPrompts == 25)
+        #expect(attempt.snapshot.usageSummary == nil)
         #expect(attempt.snapshot.pointsBalance == nil)
-        #expect(await transport.requests().count == 1)
+        #expect(await transport.requests().count == 2)
     }
 
     @Test
@@ -1175,9 +1176,19 @@ struct MiniMaxUsageParserTests {
     }
 
     @Test
-    func `web enrichment attaches credit when group matches`() async throws {
+    func `web enrichment requires verified group match before attaching summary`() async throws {
+        let summaryBody = """
+        {
+          "daily_token_usage": [100],
+          "date_model_usage": [],
+          "base_resp": { "status_code": 0, "status_msg": "success" }
+        }
+        """
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
+            if url.path.contains("usage_summary") {
+                return Self.httpResponse(url: url, body: summaryBody, contentType: "application/json")
+            }
             let body = """
             {
               "remaining_credits": 20000,
@@ -1209,13 +1220,24 @@ struct MiniMaxUsageParserTests {
             groupID: "verified-group")
 
         #expect(attempt.receivedWebData)
+        #expect(attempt.snapshot.usageSummary?.latestSnapshotTokens == 100)
         #expect(attempt.snapshot.pointsBalance == 20000)
     }
 
     @Test
-    func `web enrichment ignores credit when group does not match`() async throws {
+    func `web enrichment ignores summary when credit group does not match`() async throws {
+        let summaryBody = """
+        {
+          "daily_token_usage": [100],
+          "date_model_usage": [],
+          "base_resp": { "status_code": 0, "status_msg": "success" }
+        }
+        """
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
+            if url.path.contains("usage_summary") {
+                return Self.httpResponse(url: url, body: summaryBody, contentType: "application/json")
+            }
             let body = """
             {
               "remaining_credits": 20000,
@@ -1247,6 +1269,7 @@ struct MiniMaxUsageParserTests {
 
         #expect(attempt.accountMismatch)
         #expect(!attempt.receivedWebData)
+        #expect(attempt.snapshot.usageSummary == nil)
         #expect(attempt.snapshot.pointsBalance == nil)
     }
 
@@ -1454,6 +1477,30 @@ struct MiniMaxAPIRegionTests {
         let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
         #expect(codingPlan.host == "api.minimaxi.com")
         #expect(remains.host == "api.minimaxi.com")
+    }
+
+    @Test
+    func `host override routes usage summary through custom proxy host`() throws {
+        let env = [MiniMaxSettingsReader.hostKey: "proxy.example.test:8443"]
+        let resolved = try MiniMaxUsageSummaryFetcher.resolveUsageSummaryURL(region: .global, environment: env)
+        #expect(resolved?.absoluteString == "https://proxy.example.test:8443/backend/account/token_plan/usage_summary")
+    }
+
+    @Test
+    func `host override maps minimax hosts to www usage summary endpoint`() throws {
+        let chinaEnv = [MiniMaxSettingsReader.hostKey: "platform.minimaxi.com"]
+        let chinaResolved = try MiniMaxUsageSummaryFetcher.resolveUsageSummaryURL(
+            region: .global,
+            environment: chinaEnv)
+        #expect(chinaResolved?.host == "www.minimaxi.com")
+        #expect(chinaResolved?.path == "/backend/account/token_plan/usage_summary")
+
+        let globalEnv = [MiniMaxSettingsReader.hostKey: "platform.minimax.io"]
+        let globalResolved = try MiniMaxUsageSummaryFetcher.resolveUsageSummaryURL(
+            region: .chinaMainland,
+            environment: globalEnv)
+        #expect(globalResolved?.host == "www.minimax.io")
+        #expect(globalResolved?.path == "/backend/account/token_plan/usage_summary")
     }
 
     @Test

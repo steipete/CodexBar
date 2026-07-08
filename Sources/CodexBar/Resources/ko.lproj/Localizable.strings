@@ -2,6 +2,7 @@
 
 " providers" = " 공급자";
 "(System)" = "(시스템)";
+"7d" = "7일";
 "30d" = "30일";
 "A managed Codex login is already running. Wait for it to finish before adding " = "관리되는 Codex 로그인이 이미 실행 중입니다. 추가하기 전에 완료될 때까지 기다리세요. ";
 "API key" = "API 키";
@@ -890,6 +891,7 @@
 "Weekly" = "주간";
 "not detected" = "감지되지 않음";
 "Estimated from local Codex logs for the selected account." = "선택한 계정의 로컬 Codex 로그를 기반으로 추정됨.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "사용 요약 및 공식 종량제 요금 기준 추정 · 청구서와 다를 수 있음";
 "minimax_usage_amount_format" = "사용량: %@ / %@";
 "minimax_used_percent_format" = "%@ 사용됨";
 "minimax_service_text_generation" = "텍스트 생성";

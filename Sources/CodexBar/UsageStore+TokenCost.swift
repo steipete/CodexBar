@@ -25,7 +25,7 @@ extension UsageStore {
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.tokenSnapshots[.codex] == nil else { return }
-            guard let result = await self.costUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            guard let snapshot = await self.costUsageFetcher.loadCachedCodexTokenSnapshot(
                 now: now,
                 codexHomePath: scope.codexHomePath,
                 historyDays: historyDays)
@@ -39,15 +39,8 @@ extension UsageStore {
             else {
                 return
             }
-            self.tokenSnapshots[.codex] = result.snapshot
+            self.tokenSnapshots[.codex] = snapshot
             self.tokenErrors[.codex] = nil
-            if let lastRefreshAt = result.lastRefreshAt,
-               now.timeIntervalSince(lastRefreshAt) >= 0,
-               now.timeIntervalSince(lastRefreshAt) < self.tokenFetchTTL
-            {
-                self.lastTokenFetchAt[.codex] = lastRefreshAt
-                self.lastTokenFetchScope[.codex] = "\(scope.signature)|historyDays=\(historyDays)"
-            }
         }
     }
 
@@ -77,6 +70,9 @@ extension UsageStore {
             snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
         case .mistral:
             snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+        case .minimax:
+            snapshot?.minimaxUsage?.usageSummary?
+                .toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
         default:
             nil
         }
@@ -84,7 +80,7 @@ extension UsageStore {
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .mistral, .openai:
+        case .mistral, .openai, .minimax:
             true
         default:
             false

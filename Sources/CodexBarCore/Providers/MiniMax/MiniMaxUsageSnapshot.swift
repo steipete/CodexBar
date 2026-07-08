@@ -25,6 +25,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
     public let updatedAt: Date
     public let services: [MiniMaxServiceUsage]?
     public let billingSummary: MiniMaxBillingSummary?
+    public let usageSummary: MiniMaxUsageSummary?
     public let pointsBalance: Double?
     public let pointsBalanceExpiresAt: Date?
     public let subscriptionExpiresAt: Date?
@@ -91,6 +92,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
         updatedAt: Date,
         services: [MiniMaxServiceUsage]? = nil,
         billingSummary: MiniMaxBillingSummary? = nil,
+        usageSummary: MiniMaxUsageSummary? = nil,
         pointsBalance: Double? = nil,
         pointsBalanceExpiresAt: Date? = nil,
         subscriptionExpiresAt: Date? = nil,
@@ -107,6 +109,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
         self.services = services
         self.billingSummary = billingSummary
+        self.usageSummary = usageSummary
         self.pointsBalance = pointsBalance
         self.pointsBalanceExpiresAt = pointsBalanceExpiresAt
         self.subscriptionExpiresAt = subscriptionExpiresAt
@@ -126,6 +129,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
@@ -145,6 +149,7 @@ public struct MiniMaxUsageSnapshot: Sendable {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,

@@ -2,6 +2,7 @@
 
 " providers" = " provider";
 "(System)" = "(Sistema)";
+"7d" = "7 g";
 "30d" = "30 g";
 "A managed Codex login is already running. Wait for it to finish before adding " = "È già in corso un accesso gestito a Codex. Attendi che termini prima di aggiungere ";
 "API key" = "Chiave API";
@@ -53,6 +54,26 @@
 "CLI paths" = "Percorsi CLI";
 "CLI sessions" = "Sessioni CLI";
 "Caches" = "Cache";
+"Cache hit: %@" = "Hit della cache: %@";
+"Cache hit" = "Hit della cache";
+"%@ usage" = "Utilizzo %@";
+"Latest usage" = "Ultimo utilizzo";
+"7d tokens" = "Token 7g";
+"Last 7 days: %@ tokens" = "Ultimi 7 giorni: %@ token";
+"Last 7 days" = "Ultimi 7 giorni";
+"Usage trend" = "Andamento utilizzo";
+"MiniMax 7 day token usage trend" = "Trend utilizzo token MiniMax 7 giorni";
+"Language models only; data may be delayed" = "Solo modelli linguistici; i dati possono essere in ritardo";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ input · %@ output · %@ hit cache";
+"%@ input · %@ output · %@ cache hit" = "%@ input · %@ output · %@ hit cache";
+"Total consumed" = "Totale consumato";
+"Daily peak" = "Picco giornaliero";
+"Active days" = "Giorni attivi";
+"Active days: %@" = "Giorni attivi: %@";
+"Streak: %@ days" = "Serie: %@ giorni";
+"Usage rank: top %@%%" = "Classifica utilizzo: top %@%%";
+"Token usage details" = "Dettagli utilizzo token";
+"Day totals" = "Totali giornalieri";
 "Cancel" = "Annulla";
 "Check for Updates…" = "Controlla aggiornamenti…";
 "Check for updates automatically" = "Controlla automaticamente gli aggiornamenti";
@@ -124,6 +145,7 @@
 "Enabled" = "Attivo";
 "Error" = "Errore";
 "Error simulation" = "Simulazione errore";
+"Expires: %@" = "Scade: %@";
 "Expose troubleshooting tools in the Debug tab." = "Espone gli strumenti di risoluzione problemi nella scheda Debug.";
 "Failed" = "Fallito";
 "False" = "Falso";
@@ -766,6 +788,14 @@
 "Top method" = "Metodo principale";
 "30d cash" = "Spesa 30 g";
 "30d billing history from MiniMax web session" = "Cronologia di fatturazione degli ultimi 30 giorni dalla sessione web MiniMax";
+"MiniMax web session expired" = "Sessione web MiniMax scaduta";
+"MiniMax web session account does not match" = "La sessione web MiniMax non corrisponde all'account API";
+"No MiniMax browser session found" = "Nessuna sessione browser MiniMax trovata";
+"MiniMax web data endpoints are unavailable" = "Gli endpoint dati web MiniMax non sono disponibili";
+"MiniMax web session unavailable" = "Sessione web MiniMax non disponibile";
+"Re-import MiniMax session from browser" = "Reimporta la sessione MiniMax dal browser";
+"Open MiniMax login page" = "Apri la pagina di accesso MiniMax";
+"MiniMax web session: %@" = "Sessione web MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "La fatturazione di AWS Cost Explorer può avere ritardi.";
 "Rate limit: %d / %@" = "Limite di richiesta: %d / %@";
 "Key remaining" = "Residuo chiave";
@@ -930,6 +960,7 @@
 "Weekly" = "Settimanale";
 "not detected" = "non rilevato";
 "Estimated from local Codex logs for the selected account." = "Stima basata sui log locali di Codex per l'account selezionato.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Stimato dal riepilogo utilizzo MiniMax e dai prezzi pay-as-you-go pubblicati · può differire dalla fattura";
 "minimax_usage_amount_format" = "Utilizzo: %@ / %@";
 "minimax_used_percent_format" = "Usato %@";
 "minimax_service_text_generation" = "Generazione testo";

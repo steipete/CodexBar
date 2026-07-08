@@ -17,6 +17,7 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,
@@ -36,10 +37,31 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: self.pointsBalance,
             pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: metadata.subscriptionExpiresAt ?? self.subscriptionExpiresAt,
             subscriptionRenewsAt: metadata.subscriptionRenewsAt ?? self.subscriptionRenewsAt,
+            webSessionState: self.webSessionState)
+    }
+
+    func withUsageSummary(_ usageSummary: MiniMaxUsageSummary?) -> MiniMaxUsageSnapshot {
+        MiniMaxUsageSnapshot(
+            planName: self.planName,
+            availablePrompts: self.availablePrompts,
+            currentPrompts: self.currentPrompts,
+            remainingPrompts: self.remainingPrompts,
+            windowMinutes: self.windowMinutes,
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            updatedAt: self.updatedAt,
+            services: self.services,
+            billingSummary: self.billingSummary,
+            usageSummary: usageSummary,
+            pointsBalance: self.pointsBalance,
+            pointsBalanceExpiresAt: self.pointsBalanceExpiresAt,
+            subscriptionExpiresAt: self.subscriptionExpiresAt,
+            subscriptionRenewsAt: self.subscriptionRenewsAt,
             webSessionState: self.webSessionState)
     }
 
@@ -59,6 +81,7 @@ extension MiniMaxUsageSnapshot {
                 updatedAt: self.updatedAt,
                 services: self.services,
                 billingSummary: self.billingSummary,
+                usageSummary: self.usageSummary,
                 pointsBalance: self.pointsBalance,
                 pointsBalanceExpiresAt: expiresAt,
                 subscriptionExpiresAt: self.subscriptionExpiresAt,
@@ -85,6 +108,7 @@ extension MiniMaxUsageSnapshot {
             updatedAt: self.updatedAt,
             services: self.services,
             billingSummary: self.billingSummary,
+            usageSummary: self.usageSummary,
             pointsBalance: pointsBalance,
             pointsBalanceExpiresAt: expiresAt ?? self.pointsBalanceExpiresAt,
             subscriptionExpiresAt: self.subscriptionExpiresAt,

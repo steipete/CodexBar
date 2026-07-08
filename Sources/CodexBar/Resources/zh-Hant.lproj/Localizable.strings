@@ -2,6 +2,7 @@
 
 " providers" = " 提供者";
 "(System)" = "（系統）";
+"7d" = "7 天";
 "30d" = "30 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "託管 Codex 登入已在執行。請等待其完成後再新增 ";
 "API key" = "API 金鑰";
@@ -56,6 +57,26 @@
 "CLI paths" = "CLI 路徑";
 "CLI sessions" = "CLI 工作階段";
 "Caches" = "快取";
+"Cache hit: %@" = "快取命中：%@";
+"Cache hit" = "快取命中";
+"%@ usage" = "%@ 使用量";
+"Latest usage" = "最新使用量";
+"7d tokens" = "近 7 天 token";
+"Last 7 days: %@ tokens" = "近 7 天：%@ token";
+"Last 7 days" = "近 7 天";
+"Usage trend" = "使用量趨勢";
+"MiniMax 7 day token usage trend" = "MiniMax 近 7 天 token 趨勢";
+"Language models only; data may be delayed" = "目前僅統計語言模型，資料可能會有延遲";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ 輸入 · %@ 輸出 · 快取命中 %@";
+"%@ input · %@ output · %@ cache hit" = "%@ 輸入 · %@ 輸出 · 快取命中 %@";
+"Total consumed" = "累計使用量";
+"Daily peak" = "單日峰值";
+"Active days" = "活躍天數";
+"Active days: %@" = "活躍天數：%@";
+"Streak: %@ days" = "連續使用：%@ 天";
+"Usage rank: top %@%%" = "用量排名：前 %@%%";
+"Token usage details" = "Token 用量詳情";
+"Day totals" = "當日彙總";
 "Cancel" = "取消";
 "Check for Updates…" = "檢查更新…";
 "Check for updates automatically" = "自動檢查更新";
@@ -669,6 +690,7 @@
 "macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe 可能會在「系統設定」→「選單列」→「允許顯示在選單列」中封鎖選單列 App。CodexBar 正在執行，但 macOS 可能隱藏了它的圖示。請開啟選單列設定並啟用 CodexBar。";
 "cost_header_estimated" = "費用（估算）";
 "cost_estimate_hint" = "根據本機記錄估算 · 可能與帳單不同";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "根據用量詳情與官方按量定價估算 · 可能與帳單不同";
 "copilot_device_code" = "裝置碼已複製到剪貼簿：%1$@\n\n請到以下網址驗證：%2$@";
 "copilot_waiting_text" = "請在瀏覽器中完成登入。\n登入完成後，此視窗會自動關閉。";
 "vertex_ai_login_instructions" = "要追蹤 Vertex AI 使用量，請透過 Google Cloud 進行認證。\n\n1. 開啟終端\n2. 執行：gcloud auth application-default login\n3. 依照瀏覽器提示登入\n4. 設定你的專案：gcloud config set project PROJECT_ID\n\n要現在開啟終端嗎？";
@@ -774,6 +796,14 @@
 "Top method" = "主要方法";
 "30d cash" = "近 30 天費用";
 "30d billing history from MiniMax web session" = "來自 MiniMax 網頁工作階段的 30 天帳單記錄";
+"MiniMax web session expired" = "MiniMax 網頁工作階段已過期";
+"MiniMax web session account does not match" = "MiniMax 網頁工作階段與 API 帳號不相符";
+"No MiniMax browser session found" = "找不到 MiniMax 瀏覽器工作階段";
+"MiniMax web data endpoints are unavailable" = "MiniMax 網頁資料端點無法使用";
+"MiniMax web session unavailable" = "MiniMax 網頁工作階段無法使用";
+"Re-import MiniMax session from browser" = "從瀏覽器重新匯入 MiniMax 工作階段";
+"Open MiniMax login page" = "開啟 MiniMax 登入頁面";
+"MiniMax web session: %@" = "MiniMax 網頁工作階段：%@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer 帳單資料可能延遲。";
 "Rate limit: %d / %@" = "速率限制：%d / %@";
 "Key remaining" = "金鑰剩餘額度";
@@ -1015,7 +1045,6 @@
 "minimax_service_coding_plan_search" = "Coding Plan 搜尋";
 "Clearing removes old plan-mode files." = "會移除舊的 plan-mode 檔案。";
 "%.0f%% %@" = "%2$@ %1$.0f%%";
-"<1%% %@" = "%1$@ <1%%";
 "%@: %@%% used" = "%@：已使用 %@%%";
 "terminal_app_subtitle" = "「開啟終端」動作使用的終端";
 "Admin API key" = "Admin API 金鑰";

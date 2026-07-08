@@ -445,7 +445,7 @@ public struct MiniMaxDiagnosticDetails: Codable, Sendable {
         self.resetsAt = snapshot.resetsAt
         self.pointsBalance = snapshot.pointsBalance
         self.pointsBalanceExpiresAt = snapshot.pointsBalanceExpiresAt
-        self.usageSummaryPresent = false
+        self.usageSummaryPresent = snapshot.usageSummary != nil
         self.services = snapshot.services?.map { MiniMaxDiagnosticServiceUsage(from: $0) }
         self.billingSummaryPresent = snapshot.billingSummary != nil
     }

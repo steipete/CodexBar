@@ -2,6 +2,7 @@
 
 " providers" = " penyedia";
 "(System)" = "(Sistem)";
+"7d" = "7 hari";
 "30d" = "30 hari";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Login Codex terkelola sudah berjalan. Tunggu hingga selesai sebelum menambahkan ";
 "API key" = "Kunci API";
@@ -53,6 +54,26 @@
 "CLI paths" = "Path CLI";
 "CLI sessions" = "Sesi CLI";
 "Caches" = "Cache";
+"Cache hit: %@" = "Hit cache: %@";
+"Cache hit" = "Hit cache";
+"%@ usage" = "Penggunaan %@";
+"Latest usage" = "Penggunaan terbaru";
+"7d tokens" = "Token 7 hari";
+"Last 7 days: %@ tokens" = "7 hari terakhir: %@ token";
+"Last 7 days" = "7 hari terakhir";
+"Usage trend" = "Tren penggunaan";
+"MiniMax 7 day token usage trend" = "Tren penggunaan token MiniMax 7 hari";
+"Language models only; data may be delayed" = "Hanya model bahasa; data mungkin tertunda";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ input · %@ output · hit cache %@";
+"%@ input · %@ output · %@ cache hit" = "%@ input · %@ output · hit cache %@";
+"Total consumed" = "Total dikonsumsi";
+"Daily peak" = "Puncak harian";
+"Active days" = "Hari aktif";
+"Active days: %@" = "Hari aktif: %@";
+"Streak: %@ days" = "Beruntun: %@ hari";
+"Usage rank: top %@%%" = "Peringkat penggunaan: %@%% teratas";
+"Token usage details" = "Detail penggunaan token";
+"Day totals" = "Total harian";
 "Cancel" = "Batal";
 "Check for Updates…" = "Periksa Pembaruan…";
 "Check for updates automatically" = "Periksa pembaruan secara otomatis";
@@ -124,6 +145,7 @@
 "Enabled" = "Aktif";
 "Error" = "Error";
 "Error simulation" = "Simulasi error";
+"Expires: %@" = "Berlaku hingga: %@";
 "Expose troubleshooting tools in the Debug tab." = "Tampilkan alat pemecahan masalah di tab Debug.";
 "Failed" = "Gagal";
 "False" = "Salah";
@@ -766,6 +788,14 @@
 "Top method" = "Metode teratas";
 "30d cash" = "Kas 30 hari";
 "30d billing history from MiniMax web session" = "Riwayat tagihan 30 hari dari sesi web MiniMax";
+"MiniMax web session expired" = "Sesi web MiniMax kedaluwarsa";
+"MiniMax web session account does not match" = "Sesi web MiniMax tidak cocok dengan akun API";
+"No MiniMax browser session found" = "Tidak ada sesi browser MiniMax ditemukan";
+"MiniMax web data endpoints are unavailable" = "Endpoint data web MiniMax tidak tersedia";
+"MiniMax web session unavailable" = "Sesi web MiniMax tidak tersedia";
+"Re-import MiniMax session from browser" = "Impor ulang sesi MiniMax dari browser";
+"Open MiniMax login page" = "Buka halaman login MiniMax";
+"MiniMax web session: %@" = "Sesi web MiniMax: %@";
 "AWS Cost Explorer billing can lag." = "Tagihan AWS Cost Explorer dapat tertunda.";
 "Rate limit: %d / %@" = "Batas rate: %d / %@";
 "Key remaining" = "Sisa kunci";
@@ -930,6 +960,7 @@
 "Weekly" = "Mingguan";
 "not detected" = "tidak terdeteksi";
 "Estimated from local Codex logs for the selected account." = "Diperkirakan dari log Codex lokal untuk akun yang dipilih.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Diperkirakan dari ringkasan penggunaan MiniMax dan harga pay-as-you-go yang dipublikasikan · dapat berbeda dari tagihan";
 "minimax_usage_amount_format" = "Penggunaan: %@ / %@";
 "minimax_used_percent_format" = "Terpakai %@";
 "minimax_service_text_generation" = "Pembuatan Teks";
@@ -985,7 +1016,7 @@
 "CodexBar could not save the current system account before switching." = "CodexBar tidak dapat menyimpan akun sistem saat ini sebelum beralih.";
 "CodexBar could not update managed account storage." = "CodexBar tidak dapat memperbarui penyimpanan akun terkelola.";
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar menemukan akun terkelola lain yang sudah menggunakan akun sistem saat ini. Selesaikan akun duplikat sebelum beralih.";
-"CodexBar will ask macOS Keychain for \U201c%@\U201d so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk \U201c%@\U201d agar dapat mendekripsi cookie browser dan mengautentikasi akun Anda. Klik OK untuk melanjutkan.";
+"CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk “%@” agar dapat mendekripsi cookie browser dan mengautentikasi akun Anda. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token OAuth Claude Code agar dapat mengambil penggunaan Claude Anda. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie Amp Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie Augment Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";

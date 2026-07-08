@@ -442,8 +442,13 @@ public struct MiniMaxUsageFetcher: Sendable {
             enrichedSnapshot = snapshot
         }
 
-        return try await self.attachingTokenPlanCreditIfAvailable(
+        let summaryEnrichedSnapshot = try await self.attachingUsageSummaryIfAvailable(
             to: enrichedSnapshot,
+            context: context,
+            groupID: groupID)
+
+        return try await self.attachingTokenPlanCreditIfAvailable(
+            to: summaryEnrichedSnapshot,
             context: context,
             groupID: groupID)
     }

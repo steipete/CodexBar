@@ -2,6 +2,7 @@
 
 " providers" = " providers";
 "(System)" = "(System)";
+"7d" = "7d";
 "30d" = "30d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "A managed Codex login is already running. Wait for it to finish before adding ";
 "API key" = "API key";
@@ -53,6 +54,26 @@
 "CLI paths" = "CLI paths";
 "CLI sessions" = "CLI sessions";
 "Caches" = "Caches";
+"Cache hit: %@" = "Cache hit: %@";
+"Cache hit" = "Cache hit";
+"%@ usage" = "%@ usage";
+"Latest usage" = "Latest usage";
+"7d tokens" = "7d tokens";
+"Last 7 days: %@ tokens" = "Last 7 days: %@ tokens";
+"Last 7 days" = "Last 7 days";
+"Usage trend" = "Usage trend";
+"MiniMax 7 day token usage trend" = "MiniMax 7 day token usage trend";
+"Language models only; data may be delayed" = "Language models only; data may be delayed";
+"%@ · %@ input · %@ output · %@ cache hit" = "%@ · %@ input · %@ output · %@ cache hit";
+"%@ input · %@ output · %@ cache hit" = "%@ input · %@ output · %@ cache hit";
+"Total consumed" = "Total consumed";
+"Daily peak" = "Daily peak";
+"Active days" = "Active days";
+"Active days: %@" = "Active days: %@";
+"Streak: %@ days" = "Streak: %@ days";
+"Usage rank: top %@%%" = "Usage rank: top %@%%";
+"Token usage details" = "Token usage details";
+"Day totals" = "Day totals";
 "Cancel" = "Cancel";
 "Check for Updates…" = "Check for Updates…";
 "Check for updates automatically" = "Check for updates automatically";
@@ -124,6 +145,7 @@
 "Enabled" = "Enabled";
 "Error" = "Error";
 "Error simulation" = "Error simulation";
+"Expires: %@" = "Expires: %@";
 "Expose troubleshooting tools in the Debug tab." = "Expose troubleshooting tools in the Debug tab.";
 "Failed" = "Failed";
 "False" = "False";
@@ -764,6 +786,14 @@
 "Top method" = "Top method";
 "30d cash" = "30d cash";
 "30d billing history from MiniMax web session" = "30d billing history from MiniMax web session";
+"MiniMax web session expired" = "MiniMax web session expired";
+"MiniMax web session account does not match" = "MiniMax web session account does not match";
+"No MiniMax browser session found" = "No MiniMax browser session found";
+"MiniMax web data endpoints are unavailable" = "MiniMax web data endpoints are unavailable";
+"MiniMax web session unavailable" = "MiniMax web session unavailable";
+"Re-import MiniMax session from browser" = "Re-import MiniMax session from browser";
+"Open MiniMax login page" = "Open MiniMax login page";
+"MiniMax web session: %@" = "MiniMax web session: %@";
 "AWS Cost Explorer billing can lag." = "AWS Cost Explorer billing can lag.";
 "Rate limit: %d / %@" = "Rate limit: %d / %@";
 "Key remaining" = "Key remaining";
@@ -929,6 +959,7 @@
 "Weekly" = "Weekly";
 "not detected" = "not detected";
 "Estimated from local Codex logs for the selected account." = "Estimated from local Codex logs for the selected account.";
+"Estimated from MiniMax usage summary and published pay-as-you-go pricing." = "Estimated from MiniMax usage summary and published pay-as-you-go pricing.";
 "minimax_usage_amount_format" = "Usage: %@ / %@";
 "minimax_used_percent_format" = "Used %@";
 "minimax_service_text_generation" = "Text Generation";
