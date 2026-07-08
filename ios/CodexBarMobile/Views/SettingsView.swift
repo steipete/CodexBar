@@ -5,11 +5,36 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SettingsKeys.liveActivitiesEnabled, store: UserDefaults(suiteName: MobileAppGroup.identifier))
     private var liveActivitiesEnabled = false
+    @State private var showingPairing = false
 
     var body: some View {
         NavigationStack {
             @Bindable var coordinator = self.coordinator
             Form {
+                Section {
+                    ForEach(self.coordinator.pairedMacs) { mac in
+                        HStack {
+                            Label(mac.name, systemImage: "desktopcomputer")
+                            Spacer()
+                            Text(mac.deviceID.prefix(6))
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for i in indexSet { self.coordinator.unpair(self.coordinator.pairedMacs[i].deviceID) }
+                    }
+                    Button {
+                        self.showingPairing = true
+                    } label: {
+                        Label("Pair a Mac", systemImage: "qrcode.viewfinder")
+                    }
+                } header: {
+                    Text("Paired Macs")
+                } footer: {
+                    Text("Each Mac is paired with an encrypted key from its QR code. Only paired Macs can send usage to this phone, and the data is unreadable to anyone else on the network.")
+                }
+
                 Section {
                     Toggle(isOn: $coordinator.lanEnabled) {
                         Label("Local network (LAN)", systemImage: "wifi")
@@ -69,6 +94,9 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { self.dismiss() }
                 }
+            }
+            .sheet(isPresented: self.$showingPairing) {
+                PairingView().environment(self.coordinator)
             }
         }
     }

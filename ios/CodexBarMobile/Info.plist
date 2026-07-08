@@ -26,8 +26,10 @@
 	<array>
 		<string>_codexbar-sync._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Scan the pairing QR code shown on your Mac to connect it to CodexBar.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>CodexBar finds your Mac on the local network to sync usage instantly.</string>
+	<string>CodexBar finds your paired Mac on the local network to sync usage instantly.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

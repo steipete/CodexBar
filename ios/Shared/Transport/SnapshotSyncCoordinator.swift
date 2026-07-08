@@ -24,6 +24,7 @@ public final class SnapshotSyncCoordinator {
     public private(set) var metadata: SyncMetadata?
     public private(set) var lanStatus: LANStatus = .idle
     public private(set) var iCloudAvailable = false
+    public private(set) var pairedMacs: [PairedMac] = PairingStore.load()
 
     /// User settings (mirrored into UserDefaults so extensions can read them).
     public var lanEnabled: Bool {
@@ -58,14 +59,21 @@ public final class SnapshotSyncCoordinator {
     public func start() {
         guard !self.started else { return }
         self.started = true
+        // Wire the LAN handlers first so any pairing below starts discovery with them in place.
+        self.applyTransportState()
         #if DEBUG
+        // Test hook: pair from a launch arg (`-paircode cbp1.…`) since the simulator has no camera.
+        if let idx = CommandLine.arguments.firstIndex(of: "-paircode"),
+           idx + 1 < CommandLine.arguments.count
+        {
+            try? self.pair(code: CommandLine.arguments[idx + 1])
+        }
         // Seed sample data only for screenshots (`-seed`). Otherwise the app shows the real
         // "Waiting for CodexBar" state until a live snapshot arrives — never fake numbers.
         if self.snapshot == nil, CommandLine.arguments.contains("-seed") {
             self.ingest(SyncEnvelope(senderDeviceName: "Sample Mac", snapshot: SampleData.snapshot()), source: .manual)
         }
         #endif
-        self.applyTransportState()
         Task { await self.refreshCloudKit() }
     }
 
@@ -80,6 +88,27 @@ public final class SnapshotSyncCoordinator {
         await self.refreshCloudKit()
     }
 
+    // MARK: - Pairing
+
+    public var hasPairedMac: Bool { !self.pairedMacs.isEmpty }
+
+    /// Pair with a Mac from a scanned/typed pairing code. Throws `PairingCodeError.invalid`.
+    public func pair(code: String) throws {
+        let mac = try PairingCode.decode(code)
+        self.pairedMacs = PairingStore.upsert(mac)
+        self.lan.setPairings(self.pairedMacs)
+    }
+
+    public func unpair(_ deviceID: String) {
+        self.pairedMacs = PairingStore.remove(deviceID: deviceID)
+        self.lan.setPairings(self.pairedMacs)
+        // If the current snapshot came from that Mac, clear it so the UI returns to the paired-empty state.
+        if self.pairedMacs.isEmpty {
+            self.snapshot = nil
+            self.metadata = nil
+        }
+    }
+
     // MARK: - Transport wiring
 
     private func applyTransportState() {
@@ -87,6 +116,7 @@ public final class SnapshotSyncCoordinator {
         if self.lanEnabled {
             self.lanStatus = .searching
             self.lan.start(
+                pairedMacs: self.pairedMacs,
                 onEnvelope: { [weak self] envelope in
                     Task { @MainActor in self?.ingest(envelope, source: .lan) }
                 },

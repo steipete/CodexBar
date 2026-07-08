@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(SnapshotSyncCoordinator.self) private var coordinator
     @State private var showingSettings = false
+    @State private var showingPairing = false
     @State private var path = NavigationPath()
     @State private var routed = false
     @State private var isRefreshing = false
@@ -15,7 +16,7 @@ struct RootView: View {
         NavigationStack(path: self.$path) {
             Group {
                 if self.entries.isEmpty {
-                    EmptyStateView()
+                    EmptyStateView(onPair: { self.showingPairing = true })
                 } else {
                     self.content
                 }
@@ -50,6 +51,10 @@ struct RootView: View {
             }
             .sheet(isPresented: self.$showingSettings) {
                 SettingsView()
+                    .environment(self.coordinator)
+            }
+            .sheet(isPresented: self.$showingPairing) {
+                PairingView()
                     .environment(self.coordinator)
             }
             .refreshable { await self.coordinator.manualRefresh() }

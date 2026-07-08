@@ -13,6 +13,7 @@
 		0D3AB1F46EFA5A8E2907217F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 04473E13F793B1EDF3EF4280 /* Assets.xcassets */; };
 		0E03385FCC7D60E6D69C6DBE /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5397F1FE42039D5F4C8CD0 /* WidgetSnapshot.swift */; };
 		0E3DE2174F9E4BF9DA7260C5 /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D662C4BCFB8F75021D17EDE3 /* SampleData.swift */; };
+		12BAF1EE463754374F0F7CB9 /* PairingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50C69DEC615D6623F8C55E4 /* PairingModels.swift */; };
 		12C14EDA5266BD074DA0F495 /* UsageActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A2057F5AD88B12379677E45 /* UsageActivityAttributes.swift */; };
 		14B2713FECF8CD38694FB3CF /* SnapshotSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BE7F0F2A722DCB7BCA93BF /* SnapshotSyncCoordinator.swift */; };
 		194B892CA80FAD061566CEAD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9631A9AFB8B112A17A7E724A /* RootView.swift */; };
@@ -24,6 +25,8 @@
 		26861F6347ED6B9FC9F97A43 /* ProviderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280896F7FFA3A5704717857A /* ProviderCardView.swift */; };
 		269C2572A560F49C1A559E3C /* LANSubscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420F35553DF9DC6E614A022F /* LANSubscriber.swift */; };
 		2F25E64EEAF1963781B976C8 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCB5B03C39186CBC42C349F8 /* EmptyStateView.swift */; };
+		38492859E9C7077FD8EAEA32 /* PairingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55B9CF826488B765104AA7F /* PairingStore.swift */; };
+		3AECCFAFDD64799D2DEAB1BD /* SyncCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FCF60C2599ED721F3D5FF5 /* SyncCrypto.swift */; };
 		3CB37F522291C203D7DF8D83 /* SyncEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB62CA717364C76E568C3056 /* SyncEnvelope.swift */; };
 		511FCFD446F9A2E65BEAFB2D /* SyncEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB62CA717364C76E568C3056 /* SyncEnvelope.swift */; };
 		53156A067D79E541995B73E7 /* MobileSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C705B719A124FB30E0990C41 /* MobileSnapshotStore.swift */; };
@@ -37,12 +40,16 @@
 		A33E35B1B2638215FE65FDA9 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4C4DC72008620F93CDCB3C /* Components.swift */; };
 		A47C7B4AA04B0A4AC19B3BDA /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB90AD04850BC7AE7C2979AB /* LiveActivityController.swift */; };
 		A9AE68AEBAA021A80391A6D6 /* HomeUsageWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D72F716E07237E7FA61634 /* HomeUsageWidget.swift */; };
+		AFAAEA8DDE5AC2BF443AB81B /* SyncCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FCF60C2599ED721F3D5FF5 /* SyncCrypto.swift */; };
 		B050FB5BF5817C3844A27F32 /* ProviderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB05AAA074EEE8CC4379BD42 /* ProviderDetailView.swift */; };
 		C1888EB950902B01A022D165 /* MobileSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C705B719A124FB30E0990C41 /* MobileSnapshotStore.swift */; };
+		C23F8414B57F86F127687D85 /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC1060B68727EA6F7B09A81 /* PairingView.swift */; };
 		C3D21B41EA94CE8CA7BF7A5B /* CodexBarMobileWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3F14E8AA4891C2523B0D442A /* CodexBarMobileWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D24825991805BB36BEEE55A9 /* CodexBarMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66ADCC4326C4F294080C297E /* CodexBarMobileApp.swift */; };
+		D3C18F598B19F28CA4A423CF /* PairingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55B9CF826488B765104AA7F /* PairingStore.swift */; };
 		DC569620D6385B9FD2BE406F /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4C4DC72008620F93CDCB3C /* Components.swift */; };
 		DD3DC771A1A5268E47F85D2F /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5397F1FE42039D5F4C8CD0 /* WidgetSnapshot.swift */; };
+		DE7878088988CEFB98637529 /* PairingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50C69DEC615D6623F8C55E4 /* PairingModels.swift */; };
 		DED6BF1C78B2206895B18067 /* UsageActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A2057F5AD88B12379677E45 /* UsageActivityAttributes.swift */; };
 		E96B09E83A5FD6758C89E7D6 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED8BD74F0FD01E3003E96BA8 /* SettingsKeys.swift */; };
 		F558C7D237881ED5DF2AF576 /* UsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13B3FAE3C6655CCE005C1DF /* UsageProvider.swift */; };
@@ -85,6 +92,7 @@
 		64D72F716E07237E7FA61634 /* HomeUsageWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeUsageWidget.swift; sourceTree = "<group>"; };
 		66ADCC4326C4F294080C297E /* CodexBarMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarMobileApp.swift; sourceTree = "<group>"; };
 		673E37A4B6E443AAA7073639 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		74FCF60C2599ED721F3D5FF5 /* SyncCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCrypto.swift; sourceTree = "<group>"; };
 		76888313117A8403AA2BA2F4 /* WidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetProvider.swift; sourceTree = "<group>"; };
 		9631A9AFB8B112A17A7E724A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		9A2057F5AD88B12379677E45 /* UsageActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageActivityAttributes.swift; sourceTree = "<group>"; };
@@ -93,12 +101,15 @@
 		A4E4D1FCB47B144AE88043EC /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		AB62CA717364C76E568C3056 /* SyncEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEnvelope.swift; sourceTree = "<group>"; };
 		C13B3FAE3C6655CCE005C1DF /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
+		C55B9CF826488B765104AA7F /* PairingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingStore.swift; sourceTree = "<group>"; };
 		C705B719A124FB30E0990C41 /* MobileSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSnapshotStore.swift; sourceTree = "<group>"; };
 		CB05AAA074EEE8CC4379BD42 /* ProviderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderDetailView.swift; sourceTree = "<group>"; };
 		CCB5B03C39186CBC42C349F8 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		CD23AC662BA5C3E4D5F512AB /* CodexBarMobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CodexBarMobile.entitlements; sourceTree = "<group>"; };
+		CDC1060B68727EA6F7B09A81 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
 		D094735B11258986C3F6032E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D2D1C9BE3062DD5E46D5D693 /* CodexBarWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetBundle.swift; sourceTree = "<group>"; };
+		D50C69DEC615D6623F8C55E4 /* PairingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingModels.swift; sourceTree = "<group>"; };
 		D662C4BCFB8F75021D17EDE3 /* SampleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleData.swift; sourceTree = "<group>"; };
 		DB90AD04850BC7AE7C2979AB /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
 		DC4C4DC72008620F93CDCB3C /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -177,6 +188,16 @@
 			path = LiveActivity;
 			sourceTree = "<group>";
 		};
+		A9D25FB465C0035E45349459 /* Pairing */ = {
+			isa = PBXGroup;
+			children = (
+				D50C69DEC615D6623F8C55E4 /* PairingModels.swift */,
+				C55B9CF826488B765104AA7F /* PairingStore.swift */,
+				74FCF60C2599ED721F3D5FF5 /* SyncCrypto.swift */,
+			);
+			path = Pairing;
+			sourceTree = "<group>";
+		};
 		AD47C2F13AD827A1D6BDFE95 /* CodexBarMobileWidget */ = {
 			isa = PBXGroup;
 			children = (
@@ -205,6 +226,7 @@
 			isa = PBXGroup;
 			children = (
 				CCB5B03C39186CBC42C349F8 /* EmptyStateView.swift */,
+				CDC1060B68727EA6F7B09A81 /* PairingView.swift */,
 				280896F7FFA3A5704717857A /* ProviderCardView.swift */,
 				CB05AAA074EEE8CC4379BD42 /* ProviderDetailView.swift */,
 				A4CB114A5CFF959DC8BFABC8 /* SettingsView.swift */,
@@ -217,6 +239,7 @@
 			children = (
 				717AB3EB3758BCCB3FE12774 /* LiveActivity */,
 				7D3164F3B922D9C6493D8063 /* Model */,
+				A9D25FB465C0035E45349459 /* Pairing */,
 				578572DB5D446D5A02FC10C4 /* Transport */,
 				FA4307BF200AEB76EBDDD4CE /* UI */,
 			);
@@ -343,6 +366,9 @@
 				1E0A7EAD92733776F36C9AD1 /* LANSubscriber.swift in Sources */,
 				A47C7B4AA04B0A4AC19B3BDA /* LiveActivityController.swift in Sources */,
 				C1888EB950902B01A022D165 /* MobileSnapshotStore.swift in Sources */,
+				12BAF1EE463754374F0F7CB9 /* PairingModels.swift in Sources */,
+				D3C18F598B19F28CA4A423CF /* PairingStore.swift in Sources */,
+				C23F8414B57F86F127687D85 /* PairingView.swift in Sources */,
 				26861F6347ED6B9FC9F97A43 /* ProviderCardView.swift in Sources */,
 				B050FB5BF5817C3844A27F32 /* ProviderDetailView.swift in Sources */,
 				194B892CA80FAD061566CEAD /* RootView.swift in Sources */,
@@ -350,6 +376,7 @@
 				7DA42C769BDED97BA4ADADAB /* SettingsKeys.swift in Sources */,
 				0B6579DE5E3135F0DDF5A120 /* SettingsView.swift in Sources */,
 				A275FC1ACC34EA1E622F6067 /* SnapshotSyncCoordinator.swift in Sources */,
+				3AECCFAFDD64799D2DEAB1BD /* SyncCrypto.swift in Sources */,
 				3CB37F522291C203D7DF8D83 /* SyncEnvelope.swift in Sources */,
 				25ED1C1883CEC99B7BBBD679 /* Theme.swift in Sources */,
 				12C14EDA5266BD074DA0F495 /* UsageActivityAttributes.swift in Sources */,
@@ -369,9 +396,12 @@
 				269C2572A560F49C1A559E3C /* LANSubscriber.swift in Sources */,
 				750F6F41A63C5B3284A1A52D /* LockScreenWidgets.swift in Sources */,
 				53156A067D79E541995B73E7 /* MobileSnapshotStore.swift in Sources */,
+				DE7878088988CEFB98637529 /* PairingModels.swift in Sources */,
+				38492859E9C7077FD8EAEA32 /* PairingStore.swift in Sources */,
 				0E3DE2174F9E4BF9DA7260C5 /* SampleData.swift in Sources */,
 				E96B09E83A5FD6758C89E7D6 /* SettingsKeys.swift in Sources */,
 				14B2713FECF8CD38694FB3CF /* SnapshotSyncCoordinator.swift in Sources */,
+				AFAAEA8DDE5AC2BF443AB81B /* SyncCrypto.swift in Sources */,
 				511FCFD446F9A2E65BEAFB2D /* SyncEnvelope.swift in Sources */,
 				1C34E00BD90819173AC10F36 /* Theme.swift in Sources */,
 				DED6BF1C78B2206895B18067 /* UsageActivityAttributes.swift in Sources */,

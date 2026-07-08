@@ -51,7 +51,8 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSSupportsLiveActivities: true
-        NSLocalNetworkUsageDescription: "CodexBar finds your Mac on the local network to sync usage instantly."
+        NSLocalNetworkUsageDescription: "CodexBar finds your paired Mac on the local network to sync usage instantly."
+        NSCameraUsageDescription: "Scan the pairing QR code shown on your Mac to connect it to CodexBar."
         NSBonjourServices:
           - _codexbar-sync._tcp
         UIBackgroundModes:
