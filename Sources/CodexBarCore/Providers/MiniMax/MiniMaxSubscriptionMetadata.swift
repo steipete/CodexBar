@@ -271,4 +271,34 @@ extension MiniMaxUsageFetcher {
             return snapshot
         }
     }
+
+    static func attachingTokenPlanCreditIfAvailable(
+        to snapshot: MiniMaxUsageSnapshot,
+        context: WebFetchContext,
+        groupID: String?) async throws -> MiniMaxUsageSnapshot
+    {
+        guard snapshot.pointsBalance == nil || snapshot.pointsBalanceExpiresAt == nil,
+              MiniMaxCookieHeader.normalized(from: context.cookie) != nil
+        else {
+            return snapshot
+        }
+
+        let resolvedGroupID = groupID ?? MiniMaxCookieHeader.override(from: context.cookie)?.groupID
+        do {
+            let credit = try await MiniMaxTokenPlanCreditFetcher.fetch(
+                cookieHeader: context.cookie,
+                groupID: resolvedGroupID,
+                region: context.region,
+                environment: context.environment,
+                transport: context.transport)
+            return snapshot.withPointsBalanceIfMissing(credit.balance, expiresAt: credit.expiresAt)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            Self.log.debug("MiniMax token plan credit unavailable: \(error.localizedDescription)")
+            return snapshot
+        }
+    }
 }

@@ -11,12 +11,14 @@ public struct MiniMaxSettingsReader: Sendable {
     public static let hostKey = "MINIMAX_HOST"
     public static let codingPlanURLKey = "MINIMAX_CODING_PLAN_URL"
     public static let remainsURLKey = "MINIMAX_REMAINS_URL"
+    public static let tokenPlanCreditURLKey = "MINIMAX_TOKEN_PLAN_CREDIT_URL"
     public static let billingHistoryURLKey = "MINIMAX_BILLING_HISTORY_URL"
     public static let requireProviderEndpointOverridesKey = "MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES"
     private static let endpointOverrideKeys = [
         Self.hostKey,
         Self.codingPlanURLKey,
         Self.remainsURLKey,
+        Self.tokenPlanCreditURLKey,
         Self.billingHistoryURLKey,
     ]
 
@@ -68,6 +70,14 @@ public struct MiniMaxSettingsReader: Sendable {
     {
         self.endpointValidator.validatedURL(
             self.cleaned(environment[self.remainsURLKey]),
+            policy: self.endpointOverrideHostPolicy(environment: environment))
+    }
+
+    public static func tokenPlanCreditURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
+    {
+        self.endpointValidator.validatedURL(
+            self.cleaned(environment[self.tokenPlanCreditURLKey]),
             policy: self.endpointOverrideHostPolicy(environment: environment))
     }
 

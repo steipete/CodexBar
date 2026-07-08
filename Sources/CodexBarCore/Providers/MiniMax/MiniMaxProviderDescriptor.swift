@@ -21,15 +21,15 @@ public enum MiniMaxProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
-                dashboardURL: "https://platform.minimax.io/user-center/payment/coding-plan?cycle_type=3",
+                dashboardURL: "https://platform.minimax.io/console/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .minimax,
                 iconResourceName: "ProviderIcon-minimax",
                 color: ProviderColor(red: 254 / 255, green: 96 / 255, blue: 60 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "MiniMax cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No priced MiniMax usage summary data yet." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -85,8 +85,63 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
         guard let apiToken = ProviderTokenResolver.minimaxToken(environment: context.env) else {
             throw MiniMaxAPISettingsError.missingToken
         }
-        let region = context.settings?.minimax?.apiRegion ?? .global
-        let usage = try await MiniMaxUsageFetcher.fetchUsage(apiToken: apiToken, region: region)
+        let preferredRegion = context.settings?.minimax?.apiRegion ?? .global
+        let apiResult = try await MiniMaxUsageFetcher.fetchAPITokenUsage(
+            apiToken: apiToken,
+            region: preferredRegion)
+        var usage = apiResult.snapshot
+        let candidates = context.includeOptionalUsage
+            ? MiniMaxWebEnrichmentResolver.apiEnrichmentCandidates(context: context)
+            : []
+        var rejectedCredentials = false
+        var accountMismatch = false
+        for candidate in candidates {
+            let cookieOverride = candidate.override
+            guard let cookie = MiniMaxCookieHeader.normalized(from: cookieOverride.cookieHeader) else { continue }
+            let fetchContext = MiniMaxUsageFetcher.WebFetchContext(
+                cookie: cookie,
+                authorizationToken: cookieOverride.authorizationToken,
+                region: apiResult.resolvedRegion,
+                environment: context.env,
+                transport: ProviderHTTPClient.shared)
+            let attempt = try await MiniMaxUsageFetcher.attemptWebEnrichment(
+                of: usage,
+                context: fetchContext,
+                groupID: cookieOverride.groupID)
+            usage = attempt.snapshot
+            if attempt.accountMismatch {
+                accountMismatch = true
+                if candidate.isCached {
+                    CookieHeaderCache.clear(provider: .minimax)
+                }
+                continue
+            }
+            if attempt.receivedWebData {
+                MiniMaxWebEnrichmentResolver.cacheValidated(candidate)
+                usage = usage.withWebSessionState(.valid(sourceLabel: candidate.sourceLabel))
+                break
+            }
+            if attempt.rejectedCredentials {
+                rejectedCredentials = true
+                if candidate.isCached {
+                    CookieHeaderCache.clear(provider: .minimax)
+                }
+            }
+        }
+        if context.includeOptionalUsage, usage.webSessionState == .notChecked {
+            let state: MiniMaxWebSessionState = if accountMismatch {
+                .accountMismatch
+            } else if rejectedCredentials {
+                .expired
+            } else if KeychainAccessGate.isDisabled {
+                .unavailable(reason: .keychainAccessDisabled)
+            } else if candidates.isEmpty {
+                .unavailable(reason: .noBrowserSession)
+            } else {
+                .unavailable(reason: .endpointsUnavailable)
+            }
+            usage = usage.withWebSessionState(state)
+        }
         return self.makeResult(
             usage: usage.toUsageSnapshot(),
             sourceLabel: "api")
@@ -115,6 +170,9 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             return true
         }
         #if os(macOS)
+        if MiniMaxDesktopCookieImporter.importSession() != nil {
+            return true
+        }
         if let cached = CookieHeaderCache.load(provider: .minimax),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -152,6 +210,30 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         let tokenContext = Self.loadTokenContext(browserDetection: context.browserDetection)
 
         var lastError: Error?
+        if let session = MiniMaxDesktopCookieImporter.importSession() {
+            switch await Self.attemptFetch(
+                cookieHeader: session.cookieHeader,
+                sourceLabel: session.sourceLabel,
+                tokenContext: tokenContext,
+                logLabel: "desktop",
+                fetchContext: fetchContext)
+            {
+            case let .success(snapshot):
+                CookieHeaderCache.store(
+                    provider: .minimax,
+                    cookieHeader: session.cookieHeader,
+                    sourceLabel: session.sourceLabel)
+                return self.makeResult(
+                    usage: snapshot.toUsageSnapshot(),
+                    sourceLabel: "web")
+            case let .failure(error):
+                lastError = error
+                if !Self.shouldTryNextBrowser(for: error) {
+                    throw error
+                }
+            }
+        }
+
         if let cached = CookieHeaderCache.load(provider: .minimax),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
@@ -247,9 +329,10 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveCookieOverride(context: ProviderFetchContext) -> MiniMaxCookieOverride? {
-        if let settings = context.settings?.minimax {
-            guard settings.cookieSource == .manual else { return nil }
-            return MiniMaxCookieHeader.override(from: settings.manualCookieHeader)
+        if let settings = context.settings?.minimax, settings.cookieSource == .manual {
+            if let override = MiniMaxCookieHeader.override(from: settings.manualCookieHeader) {
+                return override
+            }
         }
         guard let raw = ProviderTokenResolver.minimaxCookie(environment: context.env) else {
             return nil
@@ -306,6 +389,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         let normalizedLabel = Self.normalizeStorageLabel(sourceLabel)
         let tokenCandidates = tokenContext.tokensByLabel[normalizedLabel] ?? []
         let groupID = tokenContext.groupIDByLabel[normalizedLabel]
+            ?? MiniMaxCookieHeader.override(from: cookieHeader)?.groupID
         let cookieToken = Self.cookieValue(named: "HERTZ-SESSION", in: cookieHeader)
         var attempts: [String?] = tokenCandidates.map(\.self)
         if let cookieToken, !tokenCandidates.contains(cookieToken) {
