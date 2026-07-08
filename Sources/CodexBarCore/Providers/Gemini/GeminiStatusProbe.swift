@@ -504,94 +504,6 @@ public struct GeminiStatusProbe: Sendable {
         let clientSecret: String
     }
 
-    private static func extractOAuthCredentials() -> OAuthClientCredentials? {
-        if let resolved = GeminiOAuthConfig.environmentClient() {
-            return OAuthClientCredentials(clientId: resolved.clientID, clientSecret: resolved.clientSecret)
-        }
-        if let credentials = Self.discoverOAuthCredentialsFromInstalledCLI() {
-            return OAuthClientCredentials(clientId: credentials.clientID, clientSecret: credentials.clientSecret)
-        }
-        if let path = GeminiOAuthConfig.configuredOAuth2JSPath,
-           let credentials = Self.parseOAuthCredentials(fromFile: path)
-        {
-            return credentials
-        }
-        if let credentials = Self.discoverOAuthCredentialsFromKnownInstallPaths() {
-            return credentials
-        }
-        return nil
-    }
-
-    private static func discoverOAuthCredentialsFromKnownInstallPaths() -> OAuthClientCredentials? {
-        let oauthFile = "dist/src/code_assist/oauth2.js"
-        let nestedOAuthFile =
-            "node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/\(oauthFile)"
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let possiblePaths = [
-            "/opt/homebrew/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
-            "/opt/homebrew/lib/\(nestedOAuthFile)",
-            "/usr/local/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
-            "/usr/local/lib/\(nestedOAuthFile)",
-            "\(home)/.npm-global/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
-            "\(home)/.npm-global/lib/\(nestedOAuthFile)",
-        ]
-
-        for path in possiblePaths {
-            if let credentials = Self.parseOAuthCredentials(fromFile: path) {
-                return credentials
-            }
-        }
-        return nil
-    }
-
-    private static func parseOAuthCredentials(fromFile path: String) -> OAuthClientCredentials? {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
-            return nil
-        }
-        return Self.parseOAuthCredentials(from: content)
-    }
-
-    private static func discoverOAuthCredentialsFromInstalledCLI() -> GeminiOAuthConfig.ClientCredentials? {
-        let env = ProcessInfo.processInfo.environment
-
-        guard let geminiPath = BinaryLocator.resolveGeminiBinary(
-            env: env,
-            loginPATH: LoginShellPathCache.shared.current)
-            ?? TTYCommandRunner.which("gemini")
-        else {
-            return nil
-        }
-
-        let resolvedGeminiPath = URL(fileURLWithPath: geminiPath).resolvingSymlinksInPath().path
-
-        if let credentials = Self.extractOAuthCredentialsFromLegacyPaths(realGeminiPath: resolvedGeminiPath) {
-            return GeminiOAuthConfig.ClientCredentials(
-                clientID: credentials.clientId,
-                clientSecret: credentials.clientSecret)
-        }
-
-        if Self.isLikelyFnmManagedPath(geminiPath) || Self.isLikelyFnmManagedPath(resolvedGeminiPath),
-           let fnmPath = Self.resolveExecutableOnEnvironmentPath(named: "fnm", environment: env)
-           ?? TTYCommandRunner.which("fnm"),
-           let packageRoot = Self.resolveGeminiPackageRootViaFnm(fnmPath: fnmPath, environment: env),
-           let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
-        {
-            return GeminiOAuthConfig.ClientCredentials(
-                clientID: credentials.clientId,
-                clientSecret: credentials.clientSecret)
-        }
-
-        if let packageRoot = Self.findGeminiPackageRoot(startingAt: resolvedGeminiPath),
-           let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
-        {
-            return GeminiOAuthConfig.ClientCredentials(
-                clientID: credentials.clientId,
-                clientSecret: credentials.clientSecret)
-        }
-
-        return nil
-    }
-
     private static func isLikelyFnmManagedPath(_ path: String) -> Bool {
         let normalized = path.replacingOccurrences(of: "\\", with: "/")
         return normalized.contains("/fnm_multishells/")
@@ -1229,6 +1141,96 @@ extension GeminiStatusProbe {
         }
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+extension GeminiStatusProbe {
+    fileprivate static func extractOAuthCredentials() -> OAuthClientCredentials? {
+        if let resolved = GeminiOAuthConfig.environmentClient() {
+            return OAuthClientCredentials(clientId: resolved.clientID, clientSecret: resolved.clientSecret)
+        }
+        if let credentials = Self.discoverOAuthCredentialsFromInstalledCLI() {
+            return OAuthClientCredentials(clientId: credentials.clientID, clientSecret: credentials.clientSecret)
+        }
+        if let path = GeminiOAuthConfig.configuredOAuth2JSPath,
+           let credentials = Self.parseOAuthCredentials(fromFile: path)
+        {
+            return credentials
+        }
+        if let credentials = Self.discoverOAuthCredentialsFromKnownInstallPaths() {
+            return credentials
+        }
+        return nil
+    }
+
+    fileprivate static func discoverOAuthCredentialsFromKnownInstallPaths() -> OAuthClientCredentials? {
+        let oauthFile = "dist/src/code_assist/oauth2.js"
+        let nestedOAuthFile =
+            "node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/\(oauthFile)"
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let possiblePaths = [
+            "/opt/homebrew/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
+            "/opt/homebrew/lib/\(nestedOAuthFile)",
+            "/usr/local/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
+            "/usr/local/lib/\(nestedOAuthFile)",
+            "\(home)/.npm-global/lib/node_modules/@google/gemini-cli-core/\(oauthFile)",
+            "\(home)/.npm-global/lib/\(nestedOAuthFile)",
+        ]
+
+        for path in possiblePaths {
+            if let credentials = Self.parseOAuthCredentials(fromFile: path) {
+                return credentials
+            }
+        }
+        return nil
+    }
+
+    fileprivate static func parseOAuthCredentials(fromFile path: String) -> OAuthClientCredentials? {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return nil
+        }
+        return Self.parseOAuthCredentials(from: content)
+    }
+
+    fileprivate static func discoverOAuthCredentialsFromInstalledCLI() -> GeminiOAuthConfig.ClientCredentials? {
+        let env = ProcessInfo.processInfo.environment
+
+        guard let geminiPath = BinaryLocator.resolveGeminiBinary(
+            env: env,
+            loginPATH: LoginShellPathCache.shared.current)
+            ?? TTYCommandRunner.which("gemini")
+        else {
+            return nil
+        }
+
+        let resolvedGeminiPath = URL(fileURLWithPath: geminiPath).resolvingSymlinksInPath().path
+
+        if let credentials = Self.extractOAuthCredentialsFromLegacyPaths(realGeminiPath: resolvedGeminiPath) {
+            return GeminiOAuthConfig.ClientCredentials(
+                clientID: credentials.clientId,
+                clientSecret: credentials.clientSecret)
+        }
+
+        if Self.isLikelyFnmManagedPath(geminiPath) || Self.isLikelyFnmManagedPath(resolvedGeminiPath),
+           let fnmPath = Self.resolveExecutableOnEnvironmentPath(named: "fnm", environment: env)
+           ?? TTYCommandRunner.which("fnm"),
+           let packageRoot = Self.resolveGeminiPackageRootViaFnm(fnmPath: fnmPath, environment: env),
+           let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
+        {
+            return GeminiOAuthConfig.ClientCredentials(
+                clientID: credentials.clientId,
+                clientSecret: credentials.clientSecret)
+        }
+
+        if let packageRoot = Self.findGeminiPackageRoot(startingAt: resolvedGeminiPath),
+           let credentials = Self.extractOAuthCredentials(fromGeminiPackageRoot: packageRoot)
+        {
+            return GeminiOAuthConfig.ClientCredentials(
+                clientID: credentials.clientId,
+                clientSecret: credentials.clientSecret)
+        }
+
+        return nil
     }
 }
 
