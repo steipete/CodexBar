@@ -85,4 +85,40 @@ struct PlanUtilizationHistoryChartMenuViewTests {
         #expect(model.visibleSeries == ["weekly:10080"])
         #expect(model.selectedSeries == "weekly:10080")
     }
+
+    @Test
+    func `minimax snapshot exposes session and weekly chart series`() {
+        let histories = [
+            PlanUtilizationSeriesHistory(
+                name: .session,
+                windowMinutes: 300,
+                entries: [
+                    PlanUtilizationHistoryEntry(
+                        capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        usedPercent: 12,
+                        resetsAt: nil),
+                ]),
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [
+                    PlanUtilizationHistoryEntry(
+                        capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        usedPercent: 4,
+                        resetsAt: nil),
+                ]),
+        ]
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 4, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: histories,
+            provider: .minimax,
+            snapshot: snapshot)
+
+        #expect(model.visibleSeries == ["session:300", "weekly:10080"])
+        #expect(model.selectedSeries == "session:300")
+    }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -132,5 +133,103 @@ struct MenuBarResetTimeDisplayTests {
             showUsed: false)
 
         #expect(text == "58%")
+    }
+}
+
+@Suite(.serialized)
+@MainActor
+struct MenuBarMiniMaxResetTimeDisplayTests {
+    @Test
+    func `reset time mode shows nearest minimax quota reset`() {
+        let settings = testSettingsStore(suiteName: "MenuBarMiniMaxResetTimeDisplayTests-nearest-reset")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .minimax
+        settings.menuBarDisplayMode = .resetTime
+        settings.resetTimesShowAbsolute = true
+        settings.setMenuBarMetricPreference(.automatic, for: .minimax)
+        if let metadata = ProviderRegistry.shared.metadata[.minimax] {
+            settings.setProviderEnabled(provider: .minimax, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(3 * 24 * 3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: sessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            updatedAt: now)
+
+        let resetWindow = controller.menuBarResetTimeWindow(for: .minimax, snapshot: snapshot)
+        #expect(resetWindow?.resetsAt == sessionReset)
+
+        let displayText = controller.menuBarDisplayText(for: .minimax, snapshot: snapshot)
+
+        #expect(displayText == "↻ \(UsageFormatter.resetDescription(from: sessionReset, now: now))")
+    }
+
+    @Test
+    func `reset time mode honors explicit weekly metric preference`() {
+        let settings = testSettingsStore(suiteName: "MenuBarMiniMaxResetTimeDisplayTests-explicit-weekly")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .minimax
+        settings.menuBarDisplayMode = .resetTime
+        settings.resetTimesShowAbsolute = true
+        settings.setMenuBarMetricPreference(.secondary, for: .minimax)
+        if let metadata = ProviderRegistry.shared.metadata[.minimax] {
+            settings.setProviderEnabled(provider: .minimax, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let now = Date()
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(3 * 24 * 3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: sessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            updatedAt: now)
+
+        let resetWindow = controller.menuBarResetTimeWindow(for: .minimax, snapshot: snapshot)
+        #expect(resetWindow?.resetsAt == weeklyReset)
     }
 }

@@ -1,6 +1,8 @@
 import CodexBarCore
 import Foundation
 
+// swiftlint:disable file_length
+
 extension UsageStore {
     private nonisolated static let limitResetThreshold = 1.0
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
@@ -42,6 +44,9 @@ extension UsageStore {
         switch provider {
         case .codex, .claude:
             true
+        case .minimax:
+            self.planUtilizationHistory[.minimax]?.isEmpty == false
+                || self.miniMaxHasRecordablePlanUtilizationSamples()
         default:
             if self.planUtilizationHistory[provider]?.isEmpty == false {
                 true
@@ -224,7 +229,7 @@ extension UsageStore {
         }
 
         guard !samples.isEmpty else { return }
-        guard self.shouldRecordPlanUtilizationHistory(for: provider) else { return }
+        guard self.shouldRecordPlanUtilizationHistory(for: provider, snapshot: snapshot) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
@@ -261,10 +266,18 @@ extension UsageStore {
         await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
     }
 
-    private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
+    private func shouldRecordPlanUtilizationHistory(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot) -> Bool
+    {
         switch provider {
         case .codex, .claude:
             true
+        case .minimax:
+            !self.planUtilizationSeriesSamples(
+                provider: .minimax,
+                snapshot: snapshot,
+                capturedAt: snapshot.updatedAt).isEmpty
         default:
             self.settings.historicalTrackingEnabled
         }
@@ -533,6 +546,14 @@ extension UsageStore {
         }
     }
 
+    private func miniMaxHasRecordablePlanUtilizationSamples() -> Bool {
+        guard let snapshot = self.snapshots[.minimax] else { return false }
+        return !self.planUtilizationSeriesSamples(
+            provider: .minimax,
+            snapshot: snapshot,
+            capturedAt: snapshot.updatedAt).isEmpty
+    }
+
     private func planUtilizationSeriesSamples(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
@@ -574,6 +595,10 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
+        case .minimax:
+            self.appendMiniMaxPlanUtilizationSamples(
+                snapshot: snapshot,
+                appendWindow: appendWindow)
         case .antigravity:
             let namedWeeklyWindows = snapshot.extraRateWindows?
                 .filter {

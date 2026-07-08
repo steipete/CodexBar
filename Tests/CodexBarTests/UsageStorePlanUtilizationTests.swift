@@ -639,6 +639,112 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `record plan history persists minimax session and weekly series`() async {
+        let store = Self.makeStore()
+        let now = Date()
+        let minimax = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now,
+            services: [
+                MiniMaxServiceUsage(
+                    serviceType: "general",
+                    windowType: "5 hours",
+                    timeRange: "15:00-20:00(UTC+8)",
+                    usage: 12,
+                    limit: 100,
+                    percent: 12,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: "Resets in 1 hour"),
+                MiniMaxServiceUsage(
+                    serviceType: "general",
+                    windowType: "Weekly",
+                    timeRange: "06/01 00:00 - 06/08 00:00(UTC+8)",
+                    usage: 4,
+                    limit: 100,
+                    percent: 4,
+                    resetsAt: now.addingTimeInterval(6 * 24 * 3600),
+                    resetDescription: "Resets in 6 days"),
+            ])
+        let snapshot = minimax.toUsageSnapshot()
+        store._setSnapshotForTesting(snapshot, provider: .minimax)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .minimax,
+            snapshot: snapshot,
+            now: now)
+
+        let histories = store.planUtilizationHistory(for: .minimax)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 12)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 4)
+        #expect(store.supportsPlanUtilizationHistory(for: .minimax))
+        #expect(!store.shouldHidePlanUtilizationMenuItem(for: .minimax))
+    }
+
+    @MainActor
+    @Test
+    func `record plan history labels minimax lanes by window type`() async {
+        let store = Self.makeStore()
+        let now = Date()
+        let minimax = MiniMaxUsageSnapshot(
+            planName: "Plus",
+            availablePrompts: nil,
+            currentPrompts: nil,
+            remainingPrompts: nil,
+            windowMinutes: nil,
+            usedPercent: nil,
+            resetsAt: nil,
+            updatedAt: now,
+            services: [
+                MiniMaxServiceUsage(
+                    serviceType: "general",
+                    windowType: "5 hours",
+                    timeRange: "15:00-20:00(UTC+8)",
+                    usage: 12,
+                    limit: 100,
+                    percent: 12,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: "Resets in 1 hour"),
+                MiniMaxServiceUsage(
+                    serviceType: "general",
+                    windowType: "Today",
+                    timeRange: "00:00-23:59(UTC+8)",
+                    usage: 30,
+                    limit: 100,
+                    percent: 30,
+                    resetsAt: now.addingTimeInterval(12 * 3600),
+                    resetDescription: "Resets tonight"),
+                MiniMaxServiceUsage(
+                    serviceType: "general",
+                    windowType: "Weekly",
+                    timeRange: "06/01 00:00 - 06/08 00:00(UTC+8)",
+                    usage: 4,
+                    limit: 100,
+                    percent: 4,
+                    resetsAt: now.addingTimeInterval(6 * 24 * 3600),
+                    resetDescription: "Resets in 6 days"),
+            ])
+        let snapshot = minimax.toUsageSnapshot()
+        store._setSnapshotForTesting(snapshot, provider: .minimax)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .minimax,
+            snapshot: snapshot,
+            now: now)
+
+        let histories = store.planUtilizationHistory(for: .minimax)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 12)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 4)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 1440) == nil)
+    }
+
+    @MainActor
+    @Test
     func `record plan history skips invalid zero minute windows`() async {
         let store = Self.makeStore()
         let snapshot = UsageSnapshot(

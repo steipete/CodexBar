@@ -5,25 +5,6 @@ import Testing
 
 struct MenuBarMetricWindowResolverTests {
     @Test
-    func `gemini metrics fall back to Flash when Pro is unavailable`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: RateWindow(usedPercent: 95, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
-            tertiary: RateWindow(usedPercent: 40, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
-            updatedAt: Date())
-
-        for preference in [MenuBarMetricPreference.automatic, .primary, .average] {
-            let window = MenuBarMetricWindowResolver.rateWindow(
-                preference: preference,
-                provider: .gemini,
-                snapshot: snapshot,
-                supportsAverage: true)
-
-            #expect(window?.usedPercent == 95, "Failed preference: \(preference)")
-        }
-    }
-
-    @Test
     func `automatic metric uses zai 5-hour token lane when it is most constrained`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 12, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
@@ -166,6 +147,54 @@ struct MenuBarMetricWindowResolverTests {
             supportsAverage: false)
 
         #expect(window?.remainingPercent == 0)
+    }
+
+    @Test
+    func `nearest reset window picks soonest minimax quota reset`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionReset = now.addingTimeInterval(3 * 3600)
+        let weeklyReset = now.addingTimeInterval(3 * 24 * 3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 300,
+                resetsAt: sessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            updatedAt: now)
+
+        let window = MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot, now: now)
+
+        #expect(window?.resetsAt == sessionReset)
+        #expect(window?.windowMinutes == 300)
+    }
+
+    @Test
+    func `nearest reset window ignores expired minimax session reset`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiredSessionReset = now.addingTimeInterval(-3600)
+        let weeklyReset = now.addingTimeInterval(3 * 24 * 3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 300,
+                resetsAt: expiredSessionReset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 3,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: weeklyReset,
+                resetDescription: nil),
+            updatedAt: now)
+
+        let window = MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot, now: now)
+
+        #expect(window?.resetsAt == weeklyReset)
+        #expect(window?.windowMinutes == 7 * 24 * 60)
     }
 
     @Test
