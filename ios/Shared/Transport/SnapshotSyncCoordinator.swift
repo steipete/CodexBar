@@ -59,8 +59,9 @@ public final class SnapshotSyncCoordinator {
         guard !self.started else { return }
         self.started = true
         #if DEBUG
-        // Seed sample data on first launch so the UI renders without a live Mac (simulator/screenshots).
-        if self.snapshot == nil {
+        // Seed sample data only for screenshots (`-seed`). Otherwise the app shows the real
+        // "Waiting for CodexBar" state until a live snapshot arrives — never fake numbers.
+        if self.snapshot == nil, CommandLine.arguments.contains("-seed") {
             self.ingest(SyncEnvelope(senderDeviceName: "Sample Mac", snapshot: SampleData.snapshot()), source: .manual)
         }
         #endif

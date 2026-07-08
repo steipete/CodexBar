@@ -5,6 +5,7 @@ struct RootView: View {
     @State private var showingSettings = false
     @State private var path = NavigationPath()
     @State private var routed = false
+    @State private var isRefreshing = false
 
     private var entries: [WidgetSnapshot.ProviderEntry] {
         self.coordinator.snapshot?.enabledEntries ?? []
@@ -29,6 +30,15 @@ struct RootView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { SyncStatusBadge() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        self.refresh()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .symbolEffect(.rotate, isActive: self.isRefreshing)
+                    }
+                    .accessibilityLabel("Refresh")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         self.showingSettings = true
@@ -62,6 +72,15 @@ struct RootView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+        }
+    }
+
+    private func refresh() {
+        guard !self.isRefreshing else { return }
+        self.isRefreshing = true
+        Task {
+            await self.coordinator.manualRefresh()
+            self.isRefreshing = false
         }
     }
 
