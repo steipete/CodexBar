@@ -4,6 +4,18 @@ import Foundation
 extension StatusItemController {
     private nonisolated static let menuBarCountdownRefreshEpsilon: TimeInterval = 0.05
 
+    func menuBarResetTimeWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
+        if provider == .minimax {
+            let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+            if preference == .automatic {
+                return MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot)
+                    ?? self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+            }
+            return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+        }
+        return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
+    }
+
     func scheduleMenuBarCountdownRefreshIfNeeded(now: Date = .init()) {
         self.menuBarCountdownRefreshTask?.cancel()
         self.menuBarCountdownRefreshTask = nil

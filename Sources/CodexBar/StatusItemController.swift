@@ -351,18 +351,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
     }
 
-    func menuBarResetTimeWindow(for provider: UsageProvider, snapshot: UsageSnapshot?) -> RateWindow? {
-        if provider == .minimax {
-            let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
-            if preference == .automatic {
-                return MenuBarMetricWindowResolver.nearestResetWindow(snapshot: snapshot)
-                    ?? self.menuBarMetricWindow(for: provider, snapshot: snapshot)
-            }
-            return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
-        }
-        return self.menuBarMetricWindow(for: provider, snapshot: snapshot)
-    }
-
     private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?, now: Date) -> RateWindow? {
         guard let snapshot else { return nil }
         return self.store.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
