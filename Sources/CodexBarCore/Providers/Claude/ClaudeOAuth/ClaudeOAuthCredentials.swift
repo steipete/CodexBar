@@ -474,10 +474,11 @@ public enum ClaudeOAuthCredentialsStore {
 
                 var shouldClearKeychainCache = false
                 var shouldSaveFileFingerprint = true
-                if let current {
-                    if let modifiedAtMs = current.modifiedAtMs {
-                        let modifiedAt = Date(timeIntervalSince1970: TimeInterval(Double(modifiedAtMs) / 1000.0))
-                        if ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache {
+                if ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache {
+                    if let current {
+                        if let modifiedAtMs = current.modifiedAtMs {
+                            let modifiedAt = Date(
+                                timeIntervalSince1970: TimeInterval(Double(modifiedAtMs) / 1000.0))
                             switch ClaudeOAuthCredentialsStore.loadCodexBarOAuthKeychainCache() {
                             case let .found(entry):
                                 if entry.storedAt < modifiedAt {
@@ -489,12 +490,14 @@ public enum ClaudeOAuthCredentialsStore {
                                 shouldClearKeychainCache = false
                                 shouldSaveFileFingerprint = false
                             }
+                        } else {
+                            shouldClearKeychainCache = true
                         }
                     } else {
                         shouldClearKeychainCache = true
                     }
                 } else {
-                    shouldClearKeychainCache = true
+                    shouldSaveFileFingerprint = false
                 }
 
                 if shouldClearKeychainCache {
