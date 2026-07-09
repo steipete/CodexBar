@@ -1094,57 +1094,6 @@ public struct GeminiStatusProbe: Sendable {
 }
 
 extension GeminiStatusProbe {
-    /// Plan display strings with tier mapping:
-    /// - paidTier.name: Most-specific paid subscription label from Google, regardless of currentTier
-    /// - standard-tier: Paid subscription fallback (Code Assist Standard/Enterprise, Developer Program Premium)
-    /// - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
-    /// - free-tier: Personal free account
-    /// - legacy-tier: Unknown legacy/grandfathered tier
-    /// - nil (API failed): Leave blank (no display)
-    fileprivate static func resolveAccountPlan(
-        tier: GeminiUserTierId?,
-        hostedDomain: String?,
-        paidTierName: String?) -> String?
-    {
-        // Match Gemini CLI's contract: a named paid tier is the most specific plan signal,
-        // even when currentTier is missing, unknown, or still reports free-tier.
-        if let paidTierName {
-            self.log.info("Paid tier detected", metadata: [
-                "tier": tier?.rawValue ?? "unknown",
-                "plan": paidTierName,
-            ])
-            return paidTierName
-        }
-
-        switch (tier, hostedDomain) {
-        case (.standard, _):
-            return "Paid"
-        case let (.free, .some(domain)):
-            Self.log.info("Workspace account detected", metadata: ["domain": domain])
-            return "Workspace"
-        case (.free, .none):
-            Self.log.info("Personal free account")
-            return "Free"
-        case (.legacy, _):
-            return "Legacy"
-        case (.none, _):
-            self.log.info("Tier detection failed, leaving plan blank")
-            return nil
-        }
-    }
-
-    private static func parsePaidTierName(from json: [String: Any]) -> String? {
-        guard let paidTier = json["paidTier"] as? [String: Any],
-              let rawName = paidTier["name"] as? String
-        else {
-            return nil
-        }
-        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-}
-
-extension GeminiStatusProbe {
     fileprivate static func extractOAuthCredentials() -> OAuthClientCredentials? {
         if let resolved = GeminiOAuthConfig.environmentClient() {
             return OAuthClientCredentials(clientId: resolved.clientID, clientSecret: resolved.clientSecret)
@@ -1295,6 +1244,55 @@ extension GeminiStatusProbe {
         }
 
         return nil
+    }
+
+    /// Plan display strings with tier mapping:
+    /// - paidTier.name: Most-specific paid subscription label from Google, regardless of currentTier
+    /// - standard-tier: Paid subscription fallback (Code Assist Standard/Enterprise, Developer Program Premium)
+    /// - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
+    /// - free-tier: Personal free account
+    /// - legacy-tier: Unknown legacy/grandfathered tier
+    /// - nil (API failed): Leave blank (no display)
+    fileprivate static func resolveAccountPlan(
+        tier: GeminiUserTierId?,
+        hostedDomain: String?,
+        paidTierName: String?) -> String?
+    {
+        // Match Gemini CLI's contract: a named paid tier is the most specific plan signal,
+        // even when currentTier is missing, unknown, or still reports free-tier.
+        if let paidTierName {
+            self.log.info("Paid tier detected", metadata: [
+                "tier": tier?.rawValue ?? "unknown",
+                "plan": paidTierName,
+            ])
+            return paidTierName
+        }
+
+        switch (tier, hostedDomain) {
+        case (.standard, _):
+            return "Paid"
+        case let (.free, .some(domain)):
+            Self.log.info("Workspace account detected", metadata: ["domain": domain])
+            return "Workspace"
+        case (.free, .none):
+            Self.log.info("Personal free account")
+            return "Free"
+        case (.legacy, _):
+            return "Legacy"
+        case (.none, _):
+            self.log.info("Tier detection failed, leaving plan blank")
+            return nil
+        }
+    }
+
+    private static func parsePaidTierName(from json: [String: Any]) -> String? {
+        guard let paidTier = json["paidTier"] as? [String: Any],
+              let rawName = paidTier["name"] as? String
+        else {
+            return nil
+        }
+        let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

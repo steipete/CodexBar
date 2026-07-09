@@ -1,11 +1,6 @@
 import CodexBarCore
 import Foundation
 import Testing
-#if canImport(Darwin)
-import Darwin
-#else
-import Glibc
-#endif
 
 @Suite(.serialized)
 struct GeminiOAuthRecoveryAPITests {
@@ -26,16 +21,6 @@ struct GeminiOAuthRecoveryAPITests {
         """.write(to: oauthURL, atomically: true, encoding: .utf8)
 
         let binURL = try env.writeFakeGeminiCLI(includeOAuth: false)
-        let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
-        setenv("GEMINI_CLI_PATH", binURL.path, 1)
-        defer {
-            if let previousGeminiPath {
-                setenv("GEMINI_CLI_PATH", previousGeminiPath, 1)
-            } else {
-                unsetenv("GEMINI_CLI_PATH")
-            }
-        }
-
         let oauthEnv = GeminiOAuthConfig.EnvironmentValues(oauth2JSPath: oauthURL.path)
         let dataLoader = GeminiAPITestHelpers.dataLoader { request in
             guard let url = request.url, let host = url.host else {
@@ -79,8 +64,10 @@ struct GeminiOAuthRecoveryAPITests {
         }
 
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
-        let snapshot = try await GeminiOAuthConfig.$environmentOverride.withValue(oauthEnv) {
-            try await probe.fetch()
+        let snapshot = try await BinaryLocator.$geminiBinaryPathOverrideForTesting.withValue(binURL.path) {
+            try await GeminiOAuthConfig.$environmentOverride.withValue(oauthEnv) {
+                try await probe.fetch()
+            }
         }
         #expect(snapshot.accountPlan == "Paid")
     }
@@ -96,16 +83,6 @@ struct GeminiOAuthRecoveryAPITests {
             idToken: nil)
 
         let binURL = try env.writeFakeGeminiCLI()
-        let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
-        setenv("GEMINI_CLI_PATH", binURL.path, 1)
-        defer {
-            if let previousGeminiPath {
-                setenv("GEMINI_CLI_PATH", previousGeminiPath, 1)
-            } else {
-                unsetenv("GEMINI_CLI_PATH")
-            }
-        }
-
         let oauthEnv = GeminiOAuthConfig.EnvironmentValues(
             clientID: "env-client-id",
             clientSecret: "env-client-secret")
@@ -151,8 +128,10 @@ struct GeminiOAuthRecoveryAPITests {
         }
 
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
-        _ = try await GeminiOAuthConfig.$environmentOverride.withValue(oauthEnv) {
-            try await probe.fetch()
+        _ = try await BinaryLocator.$geminiBinaryPathOverrideForTesting.withValue(binURL.path) {
+            try await GeminiOAuthConfig.$environmentOverride.withValue(oauthEnv) {
+                try await probe.fetch()
+            }
         }
     }
 
@@ -174,16 +153,6 @@ struct GeminiOAuthRecoveryAPITests {
             under: homebrewPrefix,
             clientID: "cellar-client-id",
             clientSecret: "cellar-client-secret")
-
-        let previousGeminiPath = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
-        setenv("GEMINI_CLI_PATH", binURL.path, 1)
-        defer {
-            if let previousGeminiPath {
-                setenv("GEMINI_CLI_PATH", previousGeminiPath, 1)
-            } else {
-                unsetenv("GEMINI_CLI_PATH")
-            }
-        }
 
         let clearOAuthEnv = GeminiOAuthConfig.EnvironmentValues()
         let dataLoader = GeminiAPITestHelpers.dataLoader { request in
@@ -231,9 +200,11 @@ struct GeminiOAuthRecoveryAPITests {
         }
 
         let probe = GeminiStatusProbe(timeout: 2, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
-        let snapshot = try await GeminiOAuthConfig.$environmentOverride.withValue(clearOAuthEnv) {
-            try await GeminiStatusProbe.$knownInstallPrefixesForTesting.withValue([homebrewPrefix.path]) {
-                try await probe.fetch()
+        let snapshot = try await BinaryLocator.$geminiBinaryPathOverrideForTesting.withValue(binURL.path) {
+            try await GeminiOAuthConfig.$environmentOverride.withValue(clearOAuthEnv) {
+                try await GeminiStatusProbe.$knownInstallPrefixesForTesting.withValue([homebrewPrefix.path]) {
+                    try await probe.fetch()
+                }
             }
         }
         #expect(snapshot.accountPlan == "Paid")
