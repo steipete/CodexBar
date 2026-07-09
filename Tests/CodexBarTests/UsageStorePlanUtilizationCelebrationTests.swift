@@ -150,16 +150,24 @@ extension UsageStorePlanUtilizationTests {
             sessionUsed: 67,
             sessionReset: sessionReset,
             updatedAt: firstDate)
+        let regressedBoundaryHigh = snapshot(
+            sessionUsed: 68,
+            sessionReset: sessionReset.addingTimeInterval(-3600),
+            updatedAt: firstDate.addingTimeInterval(60))
         let transientZero = snapshot(
             sessionUsed: 0,
             sessionReset: sessionReset,
-            updatedAt: firstDate.addingTimeInterval(60))
+            updatedAt: firstDate.addingTimeInterval(120))
         let realReset = snapshot(
             sessionUsed: 0,
             sessionReset: sessionReset.addingTimeInterval(5 * 3600),
-            updatedAt: firstDate.addingTimeInterval(120))
+            updatedAt: firstDate.addingTimeInterval(180))
 
         await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: regressedBoundaryHigh,
+            now: regressedBoundaryHigh.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: transientZero,
@@ -208,16 +216,24 @@ extension UsageStorePlanUtilizationTests {
             sessionUsed: 67,
             sessionReset: sessionReset,
             updatedAt: firstDate)
+        let missingBoundaryHigh = snapshot(
+            sessionUsed: 68,
+            sessionReset: nil,
+            updatedAt: firstDate.addingTimeInterval(60))
         let missingBoundary = snapshot(
             sessionUsed: 0,
             sessionReset: nil,
-            updatedAt: firstDate.addingTimeInterval(60))
+            updatedAt: firstDate.addingTimeInterval(120))
         let realReset = snapshot(
             sessionUsed: 0,
             sessionReset: sessionReset.addingTimeInterval(5 * 3600),
-            updatedAt: firstDate.addingTimeInterval(120))
+            updatedAt: firstDate.addingTimeInterval(180))
 
         await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: missingBoundaryHigh,
+            now: missingBoundaryHigh.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: missingBoundary,

@@ -487,8 +487,7 @@ extension UsageStore {
 
         let previousState = states[detectorKey]
         let sourceRawValue = observation.source?.rawValue
-        let sourceChanged = descriptor.seriesName == .session
-            && previousState?.sourceRawValue != nil
+        let sourceChanged = descriptor.seriesName == .session && previousState?.sourceRawValue != nil
             && previousState?.sourceRawValue != sourceRawValue
         let resetBoundaryAllowsPost = descriptor.seriesName != .session
             || Self.limitResetBoundaryAdvanced(
@@ -496,13 +495,14 @@ extension UsageStore {
                 current: observation.resetBoundary)
         let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
-        let shouldPreserveBaseline = crossedBelowThreshold && !resetBoundaryAllowsPost
+        let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
+        let shouldPreserveBaseline = crossedBelowThreshold && shouldPreserveBoundary
         states[detectorKey] = LimitResetDetectorState(
             // A transient zero must not erase the baseline needed to recognize the real reset that follows.
             wasAboveThreshold: shouldPreserveBaseline ? true : wasAboveThreshold,
             lastObservedAt: currentObservedAt,
             sourceRawValue: sourceRawValue,
-            resetBoundary: shouldPreserveBaseline ? previousState?.resetBoundary : observation.resetBoundary)
+            resetBoundary: shouldPreserveBoundary ? previousState?.resetBoundary : observation.resetBoundary)
         self.persistLimitResetDetectorStates(
             states,
             defaultsKey: descriptor.defaultsKey,
