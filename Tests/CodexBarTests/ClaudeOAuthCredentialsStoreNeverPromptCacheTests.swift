@@ -292,4 +292,74 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
             }
         }
     }
+
+    @Test
+    func `never prompt mode invalidate cache records pending clear for explicit logout`() throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    defer {
+                        ClaudeOAuthCredentialsStore.invalidateCache()
+                        ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    }
+
+                    let tempDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                    let fileURL = tempDir.appendingPathComponent("credentials.json")
+                    let fileData = self.makeCredentialsData(
+                        accessToken: "file-token-new",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    try fileData.write(to: fileURL)
+
+                    let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                    let cacheData = self.makeCredentialsData(
+                        accessToken: "cached-token",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    KeychainCacheStore.store(
+                        key: cacheKey,
+                        entry: ClaudeOAuthCredentialsStore.CacheEntry(data: cacheData, storedAt: Date()))
+                    defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                    try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                            ClaudeOAuthCredentialsStore.invalidateCache()
+                        }
+
+                        switch KeychainCacheStore.load(key: cacheKey, as: ClaudeOAuthCredentialsStore.CacheEntry.self) {
+                        case let .found(entry):
+                            let creds = try ClaudeOAuthCredentials.parse(data: entry.data)
+                            #expect(creds.accessToken == "cached-token")
+                        case .missing, .invalid, .temporarilyUnavailable:
+                            Issue
+                                .record("Expected CodexBar OAuth keychain cache to remain until prompt mode re-enables")
+                        }
+
+                        let creds = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
+                            .onlyOnUserAction)
+                        {
+                            try ProviderInteractionContext.$current.withValue(.background) {
+                                try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                            }
+                        }
+                        #expect(creds.accessToken == "file-token-new")
+
+                        switch KeychainCacheStore.load(key: cacheKey, as: ClaudeOAuthCredentialsStore.CacheEntry.self) {
+                        case let .found(entry):
+                            let cached = try ClaudeOAuthCredentials.parse(data: entry.data)
+                            #expect(cached.accessToken == "file-token-new")
+                        case .missing, .invalid, .temporarilyUnavailable:
+                            Issue.record("Expected load after pending clear to repopulate cache from file")
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

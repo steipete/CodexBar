@@ -36,6 +36,8 @@ public enum ClaudeOAuthCredentialsStore {
     private static let claudeKeychainPromptLock = NSLock()
     private static let claudeKeychainFingerprintKey = "ClaudeOAuthClaudeKeychainFingerprintV2"
     private static let claudeKeychainFingerprintLegacyKey = "ClaudeOAuthClaudeKeychainFingerprintV1"
+    private static let pendingCodexBarOAuthKeychainCacheClearKey =
+        "ClaudeOAuthPendingCodexBarOAuthKeychainCacheClearV1"
     private static let claudeKeychainChangeCheckLock = NSLock()
     private nonisolated(unsafe) static var lastClaudeKeychainChangeCheckAt: Date?
     private static let claudeKeychainChangeCheckMinimumInterval: TimeInterval = 60
@@ -2135,6 +2137,7 @@ public enum ClaudeOAuthCredentialsStore {
         historyOwnerIdentifier: String? = nil)
     {
         guard self.shouldUseCodexBarOAuthKeychainCache else { return }
+        self.clearPendingCodexBarOAuthKeychainCacheClear()
         let entry = CacheEntry(
             data: data,
             storedAt: Date(),
@@ -2144,17 +2147,40 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     private static func clearCacheKeychain() {
-        guard self.shouldUseCodexBarOAuthKeychainCache else { return }
-        KeychainCacheStore.clear(key: self.cacheKey)
+        if self.shouldUseCodexBarOAuthKeychainCache {
+            self.clearPendingCodexBarOAuthKeychainCacheClear()
+            KeychainCacheStore.clear(key: self.cacheKey)
+        } else {
+            self.markPendingCodexBarOAuthKeychainCacheClear()
+        }
     }
 
     private static func loadCodexBarOAuthKeychainCache() -> KeychainCacheStore.LoadResult<CacheEntry> {
         guard self.shouldUseCodexBarOAuthKeychainCache else { return .missing }
+        self.flushPendingCodexBarOAuthKeychainCacheClearIfNeeded()
         return KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self)
     }
 
     private static var shouldUseCodexBarOAuthKeychainCache: Bool {
         ClaudeOAuthKeychainPromptPreference.storedMode() != .never
+    }
+
+    private static func markPendingCodexBarOAuthKeychainCacheClear() {
+        UserDefaults.standard.set(true, forKey: self.pendingCodexBarOAuthKeychainCacheClearKey)
+    }
+
+    private static func clearPendingCodexBarOAuthKeychainCacheClear() {
+        UserDefaults.standard.removeObject(forKey: self.pendingCodexBarOAuthKeychainCacheClearKey)
+    }
+
+    private static var hasPendingCodexBarOAuthKeychainCacheClear: Bool {
+        UserDefaults.standard.bool(forKey: self.pendingCodexBarOAuthKeychainCacheClearKey)
+    }
+
+    private static func flushPendingCodexBarOAuthKeychainCacheClearIfNeeded() {
+        guard self.hasPendingCodexBarOAuthKeychainCacheClear else { return }
+        self.clearPendingCodexBarOAuthKeychainCacheClear()
+        KeychainCacheStore.clear(key: self.cacheKey)
     }
 
     private static var keychainAccessAllowed: Bool {
@@ -2295,6 +2321,7 @@ public enum ClaudeOAuthCredentialsStore {
     static func _resetCredentialsFileTrackingForTesting() {
         if let store = self.taskCredentialsFileFingerprintStoreOverride { store.save(nil); return }
         UserDefaults.standard.removeObject(forKey: self.fileFingerprintKey)
+        self.clearPendingCodexBarOAuthKeychainCacheClear()
     }
 
     static func _resetClaudeKeychainChangeTrackingForTesting() {
