@@ -8,6 +8,9 @@ struct MenuOpenRefreshPlan: Equatable {
         let refreshingProviders: Set<UsageProvider>
         let staleProviders: Set<UsageProvider>
         let missingProviders: Set<UsageProvider>
+        /// Providers whose hover prefetch just completed successfully; the refresh-all pass skips
+        /// them so hover-then-open costs one refresh, not two.
+        var hoverPrefetchedProviders: Set<UsageProvider> = []
     }
 
     enum Scheduling: Equatable {
@@ -22,7 +25,7 @@ struct MenuOpenRefreshPlan: Equatable {
     static func resolve(_ inputs: Inputs) -> Self {
         if inputs.refreshAllOnOpen {
             return Self(
-                providers: inputs.enabledProviders,
+                providers: inputs.enabledProviders.filter { !inputs.hoverPrefetchedProviders.contains($0) },
                 scheduling: .concurrent,
                 refreshCodexDashboard: inputs.enabledProviders.contains(.codex))
         }

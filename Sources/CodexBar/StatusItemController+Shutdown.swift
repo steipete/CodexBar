@@ -22,6 +22,7 @@ extension StatusItemController {
     }
 
     private func cancelShutdownTasks() {
+        self.cancelStatusItemHoverPrefetchTasks()
         self.agentSessions.stop()
         self.blinkTask?.cancel()
         self.blinkTask = nil
@@ -92,6 +93,7 @@ extension StatusItemController {
     }
 
     private func removeShutdownStatusItems() {
+        self.removeAllStatusItemHoverPrefetchTrackers()
         self.statusItem.menu = nil
         self.statusBar.removeStatusItem(self.statusItem)
 

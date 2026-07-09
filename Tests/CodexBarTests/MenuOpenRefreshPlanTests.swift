@@ -19,6 +19,23 @@ struct MenuOpenRefreshPlanTests {
     }
 
     @Test
+    func `refresh all skips providers already refreshed by hover prefetch`() {
+        let plan = MenuOpenRefreshPlan.resolve(.init(
+            refreshAllOnOpen: true,
+            enabledProviders: [.codex, .claude, .factory],
+            visibleProviders: [.codex],
+            refreshingProviders: [],
+            staleProviders: [],
+            missingProviders: [],
+            hoverPrefetchedProviders: [.codex, .factory]))
+
+        #expect(plan.providers == [.claude])
+        #expect(plan.scheduling == .concurrent)
+        // Dashboard deferral tracks codex enablement, not whether its usage fetch was prefetched.
+        #expect(plan.refreshCodexDashboard)
+    }
+
+    @Test
     func `refresh all skips dashboard refresh when codex is disabled`() {
         let plan = MenuOpenRefreshPlan.resolve(.init(
             refreshAllOnOpen: true,

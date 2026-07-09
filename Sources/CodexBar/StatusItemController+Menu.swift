@@ -1152,7 +1152,8 @@ extension StatusItemController {
                 visibleProviders: visibleProviders,
                 refreshingProviders: self.store.refreshingProviders,
                 staleProviders: Set(visibleProviders.filter { self.store.isStale(provider: $0) }),
-                missingProviders: Set(visibleProviders.filter { !self.store.hasSatisfiedUsageFetch(for: $0) })))
+                missingProviders: Set(visibleProviders.filter { !self.store.hasSatisfiedUsageFetch(for: $0) }),
+                hoverPrefetchedProviders: self.recentlyHoverPrefetchedProviders()))
             if plan.refreshCodexDashboard { self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all") }
             let retryProviders = plan.providers
             guard !retryProviders.isEmpty else {

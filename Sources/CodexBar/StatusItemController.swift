@@ -131,6 +131,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let menuRefreshEnabledForController: Bool
     var statusItem: NSStatusItem
     var statusItems: [UsageProvider: NSStatusItem] = [:]
+    var statusItemHoverPrefetch = StatusItemHoverPrefetchState()
     /// App intent survives Tahoe changing `NSStatusItem.isVisible` after Control Center rejects its scene.
     var expectedVisibleStatusItemAutosaveNames: Set<String> = []
     var lastMenuProvider: UsageProvider?
@@ -408,6 +409,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastKnownScreenCount = NSScreen.screens.count
         // Status items for individual providers are now created lazily in updateVisibility()
         super.init()
+        self.installStatusItemHoverPrefetchTracker(on: self.statusItem, provider: nil)
         if !repairedStatusItemVisibilityKeys.isEmpty {
             self.menuLogger.info(
                 "Repaired hidden macOS status-item visibility defaults",
@@ -737,6 +739,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             defaults: self.settings.userDefaults,
             legacyDefaultItemIndex: self.legacyDefaultItemIndex(forNewProvider: provider))
         self.statusItems[provider] = item
+        self.installStatusItemHoverPrefetchTracker(on: item, provider: provider)
         return item
     }
 
@@ -751,6 +754,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             identity: .merged,
             defaults: self.settings.userDefaults,
             legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
+        self.installStatusItemHoverPrefetchTracker(on: self.statusItem, provider: nil)
         for provider in Array(self.statusItems.keys) {
             self.removeProviderStatusItem(for: provider)
         }
@@ -891,6 +895,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.removeMenuLifecycleState(menuID)
         }
 
+        self.removeStatusItemHoverPrefetchTracker(for: provider)
         guard let item = self.statusItems.removeValue(forKey: provider) else { return }
         item.menu = nil
         self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: provider)
