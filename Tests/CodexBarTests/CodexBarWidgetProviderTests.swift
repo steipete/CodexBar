@@ -893,18 +893,18 @@ extension CodexBarWidgetProviderTests {
 
         let todayTitle = WidgetFormat.tokenRowTitle(
             staleToken.sessionLabel,
-            token: staleToken,
+            summary: staleToken,
             entryUpdatedAt: entryUpdatedAt)
         let historyTitle = WidgetFormat.tokenRowTitle(
             staleToken.last30DaysLabel,
-            token: staleToken,
+            summary: staleToken,
             entryUpdatedAt: entryUpdatedAt)
 
         #expect(todayTitle.hasPrefix("Today · "))
         #expect(historyTitle.hasPrefix("30d · "))
         #expect(WidgetFormat.tokenRowTitle(
             freshToken.sessionLabel,
-            token: freshToken,
+            summary: freshToken,
             entryUpdatedAt: entryUpdatedAt) == "Today")
     }
 

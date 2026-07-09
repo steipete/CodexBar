@@ -209,7 +209,7 @@ enum CompactMetricFormatter {
             } ?? "—"
             let detail = entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
             let label = entry.tokenUsage.map {
-                WidgetFormat.tokenRowTitle("\($0.sessionLabel) cost", token: $0, entryUpdatedAt: entry.updatedAt)
+                WidgetFormat.tokenRowTitle("\($0.sessionLabel) cost", summary: $0, entryUpdatedAt: entry.updatedAt)
             } ?? "Today cost"
             return CompactMetricDisplay(value: value, label: label, detail: detail)
         case .last30DaysCost:
@@ -218,7 +218,7 @@ enum CompactMetricFormatter {
             } ?? "—"
             let detail = entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
             let label = entry.tokenUsage.map {
-                WidgetFormat.tokenRowTitle("\($0.last30DaysLabel) cost", token: $0, entryUpdatedAt: entry.updatedAt)
+                WidgetFormat.tokenRowTitle("\($0.last30DaysLabel) cost", summary: $0, entryUpdatedAt: entry.updatedAt)
             } ?? "30d cost"
             return CompactMetricDisplay(value: value, label: label, detail: detail)
         }
@@ -372,7 +372,7 @@ private struct SwitcherSmallUsageView: View {
                 ValueLine(
                     title: WidgetFormat.tokenRowTitle(
                         token.sessionLabel,
-                        token: token,
+                        summary: token,
                         entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
@@ -407,7 +407,7 @@ private struct SwitcherMediumUsageView: View {
                 ValueLine(
                     title: WidgetFormat.tokenRowTitle(
                         token.sessionLabel,
-                        token: token,
+                        summary: token,
                         entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
@@ -446,7 +446,7 @@ private struct SwitcherLargeUsageView: View {
                     ValueLine(
                         title: WidgetFormat.tokenRowTitle(
                             token.sessionLabel,
-                            token: token,
+                            summary: token,
                             entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.sessionCostUSD,
@@ -455,7 +455,7 @@ private struct SwitcherLargeUsageView: View {
                     ValueLine(
                         title: WidgetFormat.tokenRowTitle(
                             token.last30DaysLabel,
-                            token: token,
+                            summary: token,
                             entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
@@ -500,7 +500,7 @@ private struct SmallUsageView: View {
                 ValueLine(
                     title: WidgetFormat.tokenRowTitle(
                         token.sessionLabel,
-                        token: token,
+                        summary: token,
                         entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
@@ -537,7 +537,7 @@ private struct MediumUsageView: View {
                 ValueLine(
                     title: WidgetFormat.tokenRowTitle(
                         token.sessionLabel,
-                        token: token,
+                        summary: token,
                         entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
@@ -578,7 +578,7 @@ private struct LargeUsageView: View {
                     ValueLine(
                         title: WidgetFormat.tokenRowTitle(
                             token.sessionLabel,
-                            token: token,
+                            summary: token,
                             entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.sessionCostUSD,
@@ -587,7 +587,7 @@ private struct LargeUsageView: View {
                     ValueLine(
                         title: WidgetFormat.tokenRowTitle(
                             token.last30DaysLabel,
-                            token: token,
+                            summary: token,
                             entryUpdatedAt: self.entry.updatedAt),
                         value: WidgetFormat.costAndTokens(
                             cost: token.last30DaysCostUSD,
@@ -832,7 +832,7 @@ private struct HistoryView: View {
                 ValueLine(
                     title: WidgetFormat.tokenRowTitle(
                         token.sessionLabel,
-                        token: token,
+                        summary: token,
                         entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.sessionCostUSD,
@@ -841,7 +841,7 @@ private struct HistoryView: View {
                 ValueLine(
                     title: WidgetFormat.tokenRowTitle(
                         token.last30DaysLabel,
-                        token: token,
+                        summary: token,
                         entryUpdatedAt: self.entry.updatedAt),
                     value: WidgetFormat.costAndTokens(
                         cost: token.last30DaysCostUSD,
@@ -1158,10 +1158,10 @@ enum WidgetFormat {
     /// freshness signal past `TokenUsageSummary.staleLagThreshold`.
     static func tokenRowTitle(
         _ base: String,
-        token: WidgetSnapshot.TokenUsageSummary,
+        summary: WidgetSnapshot.TokenUsageSummary,
         entryUpdatedAt: Date) -> String
     {
-        guard token.isStale(comparedTo: entryUpdatedAt), let updatedAt = token.updatedAt else { return base }
+        guard summary.isStale(comparedTo: entryUpdatedAt), let updatedAt = summary.updatedAt else { return base }
         return "\(base) · \(self.relativeDate(updatedAt))"
     }
 }
