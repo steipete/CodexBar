@@ -93,7 +93,7 @@ struct CLIServeTimeoutTests {
             refreshInterval: 60,
             requestTimeout: 0.08)
         {
-            try? await Task.sleep(nanoseconds: 40_000_000)
+            try? await Task.sleep(nanoseconds: 120_000_000)
             return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
         }
         #expect(first.status == .gatewayTimeout)
