@@ -631,6 +631,7 @@ struct UsageStoreCoverageTests {
         settings.mergeIcons = false
         settings.randomBlinkEnabled = false
         settings.usageBarsShowUsed = false
+        settings.showOptionalCreditsAndExtraUsage = false
         try Self.enableOnly(.codex, settings: settings)
 
         let store = Self.makeUsageStore(settings: settings)
@@ -670,6 +671,17 @@ struct UsageStoreCoverageTests {
         settings.multiAccountMenuLayout = .stacked
         try? await Task.sleep(nanoseconds: 50_000_000)
         #expect(layoutDidChange.get() == true)
+
+        let optionalUsageDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.backgroundWorkSettingsObservationToken
+        } onChange: {
+            optionalUsageDidChange.set()
+        }
+
+        settings.showOptionalCreditsAndExtraUsage = true
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(optionalUsageDidChange.get() == true)
     }
 
     @Test

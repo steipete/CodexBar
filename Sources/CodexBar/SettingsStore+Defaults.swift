@@ -491,6 +491,7 @@ extension SettingsStore {
         set {
             self.defaultsState.showOptionalCreditsAndExtraUsage = newValue
             self.userDefaults.set(newValue, forKey: "showOptionalCreditsAndExtraUsage")
+            // This flag also controls ProviderFetchContext.includeOptionalUsage, so it is not display-only.
             self.noteBackgroundWorkSettingsChanged()
         }
     }
