@@ -24,6 +24,8 @@ key for that legacy endpoint to pull your remaining balance and usage.
    - `GET https://kimi-k2.ai/api/user/credits`
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
    - Response headers may include `X-Credits-Remaining`.
+   - A `401` means the key is invalid or revoked. A `403` means insufficient credits or permissions, so CodexBar
+     preserves that response instead of mislabeling the key.
    - JSON payload contains total credits consumed, credits remaining, and optional usage metadata.
      CodexBar scans common keys and falls back to the remaining header when JSON omits it.
 

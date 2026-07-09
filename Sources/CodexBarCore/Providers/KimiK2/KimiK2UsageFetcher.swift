@@ -56,7 +56,7 @@ public enum KimiK2UsageError: LocalizedError, Sendable {
         case .missingCredentials:
             "Missing Kimi K2 API key."
         case .invalidCredentials:
-            "Kimi K2 API key is invalid or expired."
+            "Kimi K2 API key is invalid or revoked."
         case let .networkError(message):
             "Kimi K2 network error: \(message)"
         case let .apiError(message):
@@ -136,7 +136,7 @@ public struct KimiK2UsageFetcher: Sendable {
         case 200:
             break
         case 401:
-            // 401 is an authentication failure: the key is wrong, revoked, or expired.
+            // 401 is an authentication failure: the key is wrong, missing, or revoked.
             throw KimiK2UsageError.invalidCredentials
         default:
             // 403 and other non-200 responses are not necessarily credential

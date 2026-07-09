@@ -39,7 +39,7 @@ struct KimiK2UsageFetcherTests {
             try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
         } throws: { error in
             guard case KimiK2UsageError.invalidCredentials = error else { return false }
-            return error.localizedDescription == "Kimi K2 API key is invalid or expired."
+            return error.localizedDescription == "Kimi K2 API key is invalid or revoked."
         }
     }
 
