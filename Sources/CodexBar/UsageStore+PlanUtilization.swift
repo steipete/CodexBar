@@ -494,8 +494,7 @@ extension UsageStore {
             || Self.limitResetBoundaryAdvanced(
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary)
-        let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true
-            && !wasAboveThreshold
+        let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
         let shouldPreserveBaseline = crossedBelowThreshold && !resetBoundaryAllowsPost
         states[detectorKey] = LimitResetDetectorState(
@@ -546,7 +545,8 @@ extension UsageStore {
     }
 
     private nonisolated static func limitResetBoundaryAdvanced(previous: Date?, current: Date?) -> Bool {
-        guard let previous, let current else { return true }
+        guard let previous else { return true }
+        guard let current else { return false }
         return !self.areEquivalentPlanUtilizationResetBoundaries(previous, current) && current > previous
     }
 
