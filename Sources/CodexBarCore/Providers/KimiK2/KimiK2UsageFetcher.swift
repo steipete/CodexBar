@@ -120,14 +120,14 @@ public struct KimiK2UsageFetcher: Sendable {
         apiKey: String,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiK2UsageSnapshot
     {
-        let token = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
             throw KimiK2UsageError.missingCredentials
         }
 
         var request = URLRequest(url: self.creditsURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let response = try await transport.response(for: request)
