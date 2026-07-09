@@ -357,6 +357,7 @@ extension ClaudeOAuthCredentialsStore {
         guard !keychainAccessDisabled || self.isolatedSecurityCLIKeychainPath(environment: environment) != nil else {
             return false
         }
+        guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return false }
         let payload: Data? = switch readStrategy {
         case .securityFramework:
             self.readRawClaudeKeychainPayloadViaSecurityFrameworkWithoutPrompt()

@@ -225,7 +225,7 @@ public enum ClaudeOAuthCredentialsStore {
                 var expiredRecord: ClaudeOAuthCredentialRecord?
                 var cacheTemporarilyUnavailable = false
 
-                switch KeychainCacheStore.load(key: ClaudeOAuthCredentialsStore.cacheKey, as: CacheEntry.self) {
+                switch ClaudeOAuthCredentialsStore.loadCodexBarOAuthKeychainCache() {
                 case let .found(entry):
                     if let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) {
                         let owner = self.resolvedCacheOwner(entry.owner ?? .claudeCLI)
@@ -254,10 +254,10 @@ public enum ClaudeOAuthCredentialsStore {
                             return record
                         }
                     } else {
-                        KeychainCacheStore.clear(key: ClaudeOAuthCredentialsStore.cacheKey)
+                        ClaudeOAuthCredentialsStore.clearCacheKeychain()
                     }
                 case .invalid:
-                    KeychainCacheStore.clear(key: ClaudeOAuthCredentialsStore.cacheKey)
+                    ClaudeOAuthCredentialsStore.clearCacheKeychain()
                 case .temporarilyUnavailable:
                     cacheTemporarilyUnavailable = true
                 case .missing:
@@ -351,11 +351,9 @@ public enum ClaudeOAuthCredentialsStore {
                         source: .memoryCache,
                         historyOwnerIdentifier: cachedRecord.historyOwnerIdentifier)
                 }
-                if case let .found(entry) = KeychainCacheStore.load(
-                    key: ClaudeOAuthCredentialsStore.cacheKey,
-                    as: CacheEntry.self),
-                    let creds = try? ClaudeOAuthCredentials.parse(data: entry.data),
-                    !creds.isExpired
+                if case let .found(entry) = ClaudeOAuthCredentialsStore.loadCodexBarOAuthKeychainCache(),
+                   let creds = try? ClaudeOAuthCredentials.parse(data: entry.data),
+                   !creds.isExpired
                 {
                     let owner = self.resolvedCacheOwner(entry.owner ?? .claudeCLI)
                     return ClaudeOAuthCredentialRecord(
@@ -460,6 +458,7 @@ public enum ClaudeOAuthCredentialsStore {
 
         private func hasClaudeCLIStorageWithoutPrompt() -> Bool {
             if ClaudeOAuthCredentialsStore.currentFileFingerprint() != nil { return true }
+            guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return false }
             return ClaudeOAuthCredentialsStore.hasClaudeKeychainItemWithoutPrompt()
         }
 
@@ -478,19 +477,18 @@ public enum ClaudeOAuthCredentialsStore {
                 if let current {
                     if let modifiedAtMs = current.modifiedAtMs {
                         let modifiedAt = Date(timeIntervalSince1970: TimeInterval(Double(modifiedAtMs) / 1000.0))
-                        switch KeychainCacheStore.load(
-                            key: ClaudeOAuthCredentialsStore.cacheKey,
-                            as: CacheEntry.self)
-                        {
-                        case let .found(entry):
-                            if entry.storedAt < modifiedAt {
+                        if ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache {
+                            switch ClaudeOAuthCredentialsStore.loadCodexBarOAuthKeychainCache() {
+                            case let .found(entry):
+                                if entry.storedAt < modifiedAt {
+                                    shouldClearKeychainCache = true
+                                }
+                            case .missing, .invalid:
                                 shouldClearKeychainCache = true
+                            case .temporarilyUnavailable:
+                                shouldClearKeychainCache = false
+                                shouldSaveFileFingerprint = false
                             }
-                        case .missing, .invalid:
-                            shouldClearKeychainCache = true
-                        case .temporarilyUnavailable:
-                            shouldClearKeychainCache = false
-                            shouldSaveFileFingerprint = false
                         }
                     } else {
                         shouldClearKeychainCache = true
@@ -552,7 +550,7 @@ public enum ClaudeOAuthCredentialsStore {
                     return true
                 }
 
-                switch KeychainCacheStore.load(key: ClaudeOAuthCredentialsStore.cacheKey, as: CacheEntry.self) {
+                switch ClaudeOAuthCredentialsStore.loadCodexBarOAuthKeychainCache() {
                 case let .found(entry):
                     guard let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) else { return false }
                     let record = ClaudeOAuthCredentialRecord(
@@ -562,7 +560,7 @@ public enum ClaudeOAuthCredentialsStore {
                     return isRefreshableOrValid(record)
                 case .temporarilyUnavailable:
                     return true
-                default:
+                case .missing, .invalid:
                     break
                 }
 
@@ -2133,6 +2131,7 @@ public enum ClaudeOAuthCredentialsStore {
         owner: ClaudeOAuthCredentialOwner? = nil,
         historyOwnerIdentifier: String? = nil)
     {
+        guard self.shouldUseCodexBarOAuthKeychainCache else { return }
         let entry = CacheEntry(
             data: data,
             storedAt: Date(),
@@ -2142,7 +2141,17 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     private static func clearCacheKeychain() {
+        guard self.shouldUseCodexBarOAuthKeychainCache else { return }
         KeychainCacheStore.clear(key: self.cacheKey)
+    }
+
+    private static func loadCodexBarOAuthKeychainCache() -> KeychainCacheStore.LoadResult<CacheEntry> {
+        guard self.shouldUseCodexBarOAuthKeychainCache else { return .missing }
+        return KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self)
+    }
+
+    private static var shouldUseCodexBarOAuthKeychainCache: Bool {
+        ClaudeOAuthKeychainPromptPreference.storedMode() != .never
     }
 
     private static var keychainAccessAllowed: Bool {
