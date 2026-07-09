@@ -249,6 +249,111 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `cleanup grace releases retained key while uncooperative work still runs`() async {
+        let cache = CLIServeResponseCache()
+        let key = "usage:cleanup-grace"
+
+        let response = await CodexBarCLI.cachedServeResponse(
+            key: key,
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 0.05)
+        {
+            await ServeUncooperativeDelay.sleep(seconds: 2)
+            return Self.response("[{\"provider\":\"codex\"}]")
+        }
+
+        #expect(response.status == .gatewayTimeout)
+        try? await Task.sleep(nanoseconds: 70_000_000)
+        #expect(await cache.inFlightKeyCount() == 0)
+    }
+
+    @Test
+    func `queued serve request times out during retained in-flight cleanup`() async {
+        let cache = CLIServeResponseCache()
+        let key = "usage:queued-timeout"
+        let start = Date()
+
+        async let firstResponse = CodexBarCLI.cachedServeResponse(
+            key: key,
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 0.1)
+        {
+            await ServeUncooperativeDelay.sleep(seconds: 2)
+            return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
+        }
+
+        try? await Task.sleep(nanoseconds: 70_000_000)
+
+        let queued = await CodexBarCLI.cachedServeResponse(
+            key: key,
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 0.05)
+        {
+            Self.response("[{\"provider\":\"codex\",\"round\":2}]")
+        }
+        let elapsed = Date().timeIntervalSince(start)
+
+        let first = await firstResponse
+        #expect(first.status == .gatewayTimeout)
+        #expect(queued.status == .gatewayTimeout)
+        #expect(elapsed < 0.5)
+    }
+
+    @Test
+    func `releaseInFlight elects only one waiter to restart fetch`() async {
+        let cache = CLIServeResponseCache()
+        let key = "usage:elect-one"
+        let tracker = ServeActiveWorkTracker()
+        let fetchCounter = ServeTestCounter()
+
+        async let firstResponse = CodexBarCLI.cachedServeResponse(
+            key: key,
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 0.05)
+        {
+            await ServeUncooperativeDelay.sleep(seconds: 0.2)
+            return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
+        }
+
+        try? await Task.sleep(nanoseconds: 70_000_000)
+
+        let responses = await withTaskGroup(of: CLILocalHTTPResponse.self) { group -> [CLILocalHTTPResponse] in
+            for round in 2...4 {
+                group.addTask {
+                    await CodexBarCLI.cachedServeResponse(
+                        key: key,
+                        cache: cache,
+                        refreshInterval: 60,
+                        requestTimeout: 0.2)
+                    {
+                        _ = await fetchCounter.increment()
+                        await tracker.enter()
+                        defer { Task { await tracker.leave() } }
+                        return Self.response("[{\"provider\":\"codex\",\"round\":\(round)}]")
+                    }
+                }
+            }
+
+            var collected: [CLILocalHTTPResponse] = []
+            for await response in group {
+                collected.append(response)
+            }
+            return collected
+        }
+
+        let first = await firstResponse
+        #expect(first.status == .gatewayTimeout)
+        #expect(await fetchCounter.current() == 1)
+        #expect(await tracker.peakCount() == 1)
+        #expect(responses.allSatisfy { $0.status == .ok })
+        #expect(await cache.inFlightKeyCount() == 0)
+    }
+
+    @Test
     func `serve deadline returns before uncooperative work finishes`() async {
         let start = Date()
         let response = await CodexBarCLI.cachedServeResponse(
@@ -1498,9 +1603,11 @@ private enum ServeUncooperativeDelay {
 
 private actor ServeActiveWorkTracker {
     private var active = 0
+    private var peak = 0
 
     func enter() {
         self.active += 1
+        self.peak = max(self.peak, self.active)
     }
 
     func leave() {
@@ -1509,6 +1616,10 @@ private actor ServeActiveWorkTracker {
 
     func activeCount() -> Int {
         self.active
+    }
+
+    func peakCount() -> Int {
+        self.peak
     }
 }
 

@@ -206,7 +206,48 @@ actor CLIServeResponseCache {
     private var lastGood: [String: LastGoodEntry] = [:]
     private var lastGoodUsageItems: [String: [UsageItemKey: LastGoodUsageItem]] = [:]
     private var inFlightKeys: Set<String> = []
-    private var waiters: [String: [CheckedContinuation<CLIServeCacheLookup, Never>]] = [:]
+    private var waiters: [String: [(UUID, CheckedContinuation<CLIServeCacheLookup, Never>)]] = [:]
+
+    private func enqueueWaiter(
+        id: UUID,
+        key: String,
+        continuation: CheckedContinuation<CLIServeCacheLookup, Never>)
+    {
+        self.waiters[key, default: []].append((id, continuation))
+    }
+
+    private func awaitInFlightTurn(id: UUID, key: String) async -> CLIServeCacheLookup {
+        await withCheckedContinuation { continuation in
+            self.enqueueWaiter(id: id, key: key, continuation: continuation)
+        }
+    }
+
+    private func resumeWaiterTimeoutIfPending(id: UUID, key: String) -> CLILocalHTTPResponse? {
+        guard var list = self.waiters[key],
+              let index = list.firstIndex(where: { $0.0 == id }) else { return nil }
+        let (_, continuation) = list.remove(at: index)
+        self.waiters[key] = list.isEmpty ? nil : list
+        let response = CodexBarCLI.serveTimeoutResponse()
+        continuation.resume(returning: .response(response))
+        return response
+    }
+
+    private func waitForInFlightRelease(key: String, requestTimeout: TimeInterval) async -> CLIServeCacheLookup {
+        let waiterID = UUID()
+        let task = Task<CLIServeCacheLookup, Error> {
+            await self.awaitInFlightTurn(id: waiterID, key: key)
+        }
+        let join = BoundedTaskJoin(sourceTask: task)
+        switch await join.value(joinGrace: Duration.seconds(requestTimeout)) {
+        case let .value(lookup):
+            return lookup
+        case .failure, .timedOut:
+            if let response = self.resumeWaiterTimeoutIfPending(id: waiterID, key: key) {
+                return .response(response)
+            }
+            return (try? await task.value) ?? .response(CodexBarCLI.serveTimeoutResponse())
+        }
+    }
 
     private func pruneExpiredEntries(now: Date) {
         self.entries = self.entries.filter { $0.value.expiresAt > now }
@@ -226,16 +267,21 @@ actor CLIServeResponseCache {
         return entry.response
     }
 
-    func responseOrStartFetch(for key: String, now: Date) async -> CLIServeCacheLookup {
+    func responseOrStartFetch(
+        for key: String,
+        requestTimeout: TimeInterval = 0,
+        now: Date) async -> CLIServeCacheLookup
+    {
         self.pruneExpiredEntries(now: now)
         if let cached = self.response(for: key) {
             return .response(cached)
         }
 
         if self.inFlightKeys.contains(key) {
-            return await withCheckedContinuation { continuation in
-                self.waiters[key, default: []].append(continuation)
+            if requestTimeout > 0 {
+                return await self.waitForInFlightRelease(key: key, requestTimeout: requestTimeout)
             }
+            return await self.awaitInFlightTurn(id: UUID(), key: key)
         }
 
         self.inFlightKeys.insert(key)
@@ -279,8 +325,8 @@ actor CLIServeResponseCache {
         if !retainInFlight {
             self.inFlightKeys.remove(key)
         }
-        let waiters = self.waiters.removeValue(forKey: key) ?? []
-        for waiter in waiters {
+        let pendingWaiters = self.waiters.removeValue(forKey: key) ?? []
+        for (_, waiter) in pendingWaiters {
             waiter.resume(returning: .response(delivered))
         }
         return delivered
@@ -288,11 +334,18 @@ actor CLIServeResponseCache {
 
     func releaseInFlight(for key: String) {
         guard self.inFlightKeys.contains(key) else { return }
+        var pending = self.waiters.removeValue(forKey: key) ?? []
         self.inFlightKeys.remove(key)
-        let waiters = self.waiters.removeValue(forKey: key) ?? []
-        for waiter in waiters {
-            waiter.resume(returning: .miss)
+
+        guard let (_, elected) = pending.first else { return }
+        pending.removeFirst()
+
+        self.inFlightKeys.insert(key)
+        if !pending.isEmpty {
+            self.waiters[key] = pending
         }
+
+        elected.resume(returning: .miss)
     }
 
     private func staleResponse(
@@ -459,6 +512,14 @@ private struct CLIServeProviderTimeoutError: LocalizedError {
 extension CodexBarCLI {
     static let defaultServeRequestTimeout: TimeInterval = 30
     private static let maximumServeRequestTimeout: TimeInterval = 86400
+
+    static func clampedServeRequestTimeout(_ requestTimeout: TimeInterval) -> TimeInterval {
+        min(max(requestTimeout, 0), Self.maximumServeRequestTimeout)
+    }
+
+    static func serveTimeoutResponse() -> CLILocalHTTPResponse {
+        Self.serveError(status: .gatewayTimeout, message: "request timed out")
+    }
 
     static func runServe(_ values: ParsedValues) async {
         let output = CLIOutputPreferences(format: .json, jsonOnly: true, pretty: false)
@@ -652,7 +713,7 @@ extension CodexBarCLI {
         requestTimeout: TimeInterval = CodexBarCLI.defaultServeRequestTimeout,
         makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
     {
-        switch await cache.responseOrStartFetch(for: key, now: Date()) {
+        switch await cache.responseOrStartFetch(for: key, requestTimeout: requestTimeout, now: Date()) {
         case let .response(response):
             return response
         case .miss:
@@ -695,19 +756,10 @@ extension CodexBarCLI {
     }
 
     private static func awaitServeWorkCleanup(_ work: Task<Void, Never>, grace: TimeInterval) async {
-        guard grace > 0 else {
-            _ = await work.value
-            return
-        }
+        guard grace > 0 else { return }
         let nanoseconds = max(1, UInt64((grace * 1_000_000_000).rounded(.up)))
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { _ = await work.value }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: nanoseconds)
-            }
-            _ = await group.next()
-            group.cancelAll()
-        }
+        try? await Task.sleep(nanoseconds: nanoseconds)
+        work.cancel()
     }
 
     private static func serveResponseWithDeadline(
