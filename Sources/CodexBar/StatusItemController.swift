@@ -244,6 +244,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
+    var lastWidgetDisplaySettingsSignature = ""
     private var lastAgentSessionsEnabled: Bool
     private var lastAgentSessionsManualHosts: String
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
@@ -414,6 +415,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.lastMenuAdjunctReadinessSignature = self.menuAdjunctReadinessSignature()
         self.lastMenuAdjunctReadinessBaselineVersion = self.menuSession.contentVersion
+        self.lastWidgetDisplaySettingsSignature = self.widgetDisplaySettingsSignature()
         self.wireBindings()
         self.agentSessions.onUpdate = { [weak self] in
             self?.invalidateMenus(refreshOpenMenus: true)
@@ -669,6 +671,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
         self.updateVisibility()
         self.updateIcons()
+        self.persistWidgetSnapshotIfWidgetDisplaySettingsChanged()
         if shouldRefreshOpenMenus {
             self.refreshOpenMenusAllowingParentRebuild(
                 deferParentRebuildDuringTracking: !localizationChanged)

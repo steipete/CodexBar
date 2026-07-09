@@ -13,6 +13,8 @@ struct StatusItemIconObservationSignatureTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.statusChecksEnabled = true
         settings.refreshFrequency = .manual
+        settings.usageBarsShowUsed = false
+        settings.showOptionalCreditsAndExtraUsage = true
         settings.menuBarShowsBrandIconWithPercent = false
         settings.menuBarShowsHighestUsage = false
         settings.mergeIcons = true
@@ -241,6 +243,41 @@ struct StatusItemIconObservationSignatureTests {
         settings.menuBarHidesCritters = true
 
         #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
+    @Test
+    func `display settings persist cached widget snapshot`() async {
+        let (settings, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-widget-display")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        settings.usageBarsShowUsed = true
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        await store.widgetSnapshotPersistTask?.value
+
+        #expect(widgetSnapshots.last?.usageBarsShowUsed == true)
+        #expect(widgetSnapshots.last?.entries.contains(where: { $0.provider == .codex }) == true)
+    }
+
+    @Test
+    func `config only settings do not persist cached widget snapshot`() async {
+        let (settings, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-widget-config-only")
+        defer { controller.releaseStatusItemsForTesting() }
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        settings.zaiAPIToken = "test-token"
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        await store.widgetSnapshotPersistTask?.value
+
+        #expect(widgetSnapshots.isEmpty)
     }
 
     @Test
