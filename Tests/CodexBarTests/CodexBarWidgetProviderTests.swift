@@ -906,6 +906,22 @@ extension CodexBarWidgetProviderTests {
             freshToken.sessionLabel,
             summary: freshToken,
             entryUpdatedAt: entryUpdatedAt) == "Today")
+
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .codex,
+            updatedAt: entryUpdatedAt,
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: staleToken,
+            dailyUsage: [])
+        let todayMetric = CompactMetricFormatter.display(for: entry, metric: .todayCost)
+        let historyMetric = CompactMetricFormatter.display(for: entry, metric: .last30DaysCost)
+
+        #expect(todayMetric.label.hasPrefix("Today cost · "))
+        #expect(historyMetric.label.hasPrefix("30d cost · "))
     }
 
     @Test
