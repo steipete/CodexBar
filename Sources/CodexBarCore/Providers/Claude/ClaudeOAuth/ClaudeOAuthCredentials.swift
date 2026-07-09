@@ -202,7 +202,8 @@ public enum ClaudeOAuthCredentialsStore {
 
                 let recovery = Recovery(context: self.context)
                 let memory = ClaudeOAuthCredentialsStore.readMemoryCache()
-                if let cachedRecord = memory.record,
+                if ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache,
+                   let cachedRecord = memory.record,
                    let timestamp = memory.timestamp,
                    Date().timeIntervalSince(timestamp) < ClaudeOAuthCredentialsStore.memoryCacheValidityDuration,
                    !cachedRecord.credentials.isExpired
@@ -341,7 +342,8 @@ public enum ClaudeOAuthCredentialsStore {
                 defer { ClaudeOAuthCredentialsStore.claudeKeychainPromptLock.unlock() }
 
                 let memory = ClaudeOAuthCredentialsStore.readMemoryCache()
-                if let cachedRecord = memory.record,
+                if ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache,
+                   let cachedRecord = memory.record,
                    let timestamp = memory.timestamp,
                    Date().timeIntervalSince(timestamp) < ClaudeOAuthCredentialsStore.memoryCacheValidityDuration,
                    !cachedRecord.credentials.isExpired
@@ -499,7 +501,7 @@ public enum ClaudeOAuthCredentialsStore {
                         shouldClearKeychainCache = true
                     }
                 } else {
-                    shouldSaveFileFingerprint = false
+                    ClaudeOAuthCredentialsStore.markPendingCodexBarOAuthKeychainCacheClear()
                 }
 
                 if shouldClearKeychainCache {
@@ -547,7 +549,8 @@ public enum ClaudeOAuthCredentialsStore {
                 }
 
                 let memory = ClaudeOAuthCredentialsStore.readMemoryCache()
-                if let timestamp = memory.timestamp,
+                if ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache,
+                   let timestamp = memory.timestamp,
                    let cached = memory.record,
                    Date().timeIntervalSince(timestamp) < ClaudeOAuthCredentialsStore.memoryCacheValidityDuration,
                    isRefreshableOrValid(cached)

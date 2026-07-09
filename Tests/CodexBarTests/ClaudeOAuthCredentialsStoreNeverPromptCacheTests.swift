@@ -167,10 +167,10 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                         }
                         #expect(changed)
 
-                        let stillPending = ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                        let changedAgain = ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
                             ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
                         }
-                        #expect(stillPending)
+                        #expect(!changedAgain)
 
                         switch KeychainCacheStore.load(key: cacheKey, as: ClaudeOAuthCredentialsStore.CacheEntry.self) {
                         case let .found(entry):
@@ -264,19 +264,12 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                             ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
                         }
 
-                        let clearedAfterModeSwitch = ClaudeOAuthKeychainPromptPreference
-                            .withTaskOverrideForTesting(.onlyOnUserAction) {
-                                ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
-                            }
-                        #expect(clearedAfterModeSwitch)
-
                         switch KeychainCacheStore.load(key: cacheKey, as: ClaudeOAuthCredentialsStore.CacheEntry.self) {
-                        case .missing:
-                            break
-                        case .found, .invalid, .temporarilyUnavailable:
-                            Issue
-                                .record(
-                                    "Expected stale CodexBar OAuth keychain cache to clear after leaving never mode")
+                        case let .found(entry):
+                            let stale = try ClaudeOAuthCredentials.parse(data: entry.data)
+                            #expect(stale.accessToken == "cached-token")
+                        case .missing, .invalid, .temporarilyUnavailable:
+                            Issue.record("Expected stale CodexBar OAuth keychain cache to remain under never mode")
                         }
 
                         let creds = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
@@ -287,6 +280,59 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                             }
                         }
                         #expect(creds.accessToken == "file-token-new")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `never prompt mode ignores memory cache populated under prompt mode`() throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    defer {
+                        ClaudeOAuthCredentialsStore.invalidateCache()
+                        ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    }
+
+                    let tempDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                    let fileURL = tempDir.appendingPathComponent("credentials.json")
+                    let fileData = self.makeCredentialsData(
+                        accessToken: "file-token",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    try fileData.write(to: fileURL)
+
+                    let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                    let cacheData = self.makeCredentialsData(
+                        accessToken: "cached-token",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    KeychainCacheStore.store(
+                        key: cacheKey,
+                        entry: ClaudeOAuthCredentialsStore.CacheEntry(data: cacheData, storedAt: Date()))
+                    defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                    try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                        _ = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                            try ProviderInteractionContext.$current.withValue(.background) {
+                                try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                            }
+                        }
+
+                        let creds = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                            try ProviderInteractionContext.$current.withValue(.background) {
+                                try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                            }
+                        }
+                        #expect(creds.accessToken == "file-token")
                     }
                 }
             }
