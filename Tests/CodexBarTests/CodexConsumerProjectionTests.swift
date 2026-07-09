@@ -470,6 +470,102 @@ struct CodexConsumerProjectionTests {
         #expect(session.resetsAt == sessionReset)
     }
 
+    // MARK: - Custom API source (no primary/secondary, optional weekly extra window)
+
+    @Test
+    func `custom api source with remaining balance falls back to credits in menu bar`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-custom-credits-balance")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // No primary/secondary window — the custom usage source emits none.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        store.credits = CreditsSnapshot(
+            remaining: 104.52,
+            events: [],
+            updatedAt: now)
+
+        let projection = store.codexConsumerProjection(surface: .menuBar, now: now)
+
+        #expect(projection.menuBarFallback == .creditsBalance)
+        #expect(projection.credits?.remaining == 104.52)
+        #expect(store.codexMenuBarCreditsRemaining(now: now) == 104.52)
+    }
+
+    @Test
+    func `custom api weekly limit does not steal the menu bar from the balance`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-custom-weekly-extra")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // Weekly limit surfaces as an extraRateWindow, never as a primary/secondary lane,
+        // so the menu bar must stay on the daily-remaining balance.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: CodexCustomUsageMapper.weeklyWindowID,
+                        title: CodexCustomUsageMapper.weeklyWindowTitle,
+                        window: RateWindow(
+                            usedPercent: 25,
+                            windowMinutes: CodexCustomUsageMapper.weeklyWindowMinutes,
+                            resetsAt: nil,
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            provider: .codex)
+        store.credits = CreditsSnapshot(
+            remaining: 50,
+            events: [],
+            updatedAt: now)
+
+        let menuBarProjection = store.codexConsumerProjection(surface: .menuBar, now: now)
+        #expect(menuBarProjection.menuBarFallback == .creditsBalance)
+        #expect(store.codexMenuBarCreditsRemaining(now: now) == 50)
+
+        // The weekly window remains visible in the card-facing projection.
+        let cardProjection = store.codexConsumerProjection(surface: .liveCard, now: now)
+        #expect(cardProjection.menuBarFallback == .creditsBalance)
+        let weekly = store.snapshots[.codex]?.extraRateWindows?.first
+        #expect(weekly?.id == CodexCustomUsageMapper.weeklyWindowID)
+        #expect(weekly?.window.usedPercent == 25)
+    }
+
+    @Test
+    func `custom api source with zero remaining does not fake a credits menu bar`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-custom-exhausted")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        store.credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                title: "Daily limit",
+                used: 100,
+                limit: 100,
+                remainingPercent: 0,
+                resetsAt: now.addingTimeInterval(3600),
+                updatedAt: now))
+
+        let projection = store.codexConsumerProjection(surface: .menuBar, now: now)
+
+        // Exhausted balance (remaining == 0) must not trip the credits-balance fallback.
+        #expect(projection.menuBarFallback == .none)
+        #expect(store.codexMenuBarCreditsRemaining(now: now) == nil)
+    }
+
     private func makeStore(suite: String) -> UsageStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

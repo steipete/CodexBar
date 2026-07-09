@@ -33,7 +33,7 @@ public enum CodexProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web, .cli, .oauth],
+                sourceModes: [.auto, .web, .cli, .oauth, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "codex",
@@ -44,6 +44,7 @@ public enum CodexProviderDescriptor {
         let cli = CodexCLIUsageStrategy()
         let oauth = CodexOAuthFetchStrategy()
         let web = CodexWebDashboardStrategy()
+        let custom = CodexCustomAPIFetchStrategy()
 
         switch context.runtime {
         case .cli:
@@ -55,7 +56,7 @@ public enum CodexProviderDescriptor {
             case .cli:
                 return [cli]
             case .api:
-                return []
+                return [custom]
             case .auto:
                 return [oauth, cli]
             }
@@ -68,7 +69,7 @@ public enum CodexProviderDescriptor {
             case .web:
                 return [web]
             case .api:
-                return []
+                return [custom]
             case .auto:
                 return [oauth, cli]
             }

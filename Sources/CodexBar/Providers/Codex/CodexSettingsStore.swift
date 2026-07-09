@@ -154,6 +154,7 @@ extension SettingsStore {
             case .auto: .auto
             case .oauth: .oauth
             case .cli: .cli
+            case .custom: .api
             }
             self.updateProviderConfig(provider: .codex) { entry in
                 entry.source = source
@@ -702,8 +703,10 @@ extension SettingsStore {
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
         guard let source else { return .auto }
         switch source {
-        case .auto, .web, .api:
+        case .auto, .web:
             return .auto
+        case .api:
+            return .custom
         case .cli:
             return .cli
         case .oauth:

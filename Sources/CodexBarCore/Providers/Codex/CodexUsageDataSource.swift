@@ -4,6 +4,7 @@ public enum CodexUsageDataSource: String, CaseIterable, Identifiable, Sendable {
     case auto
     case oauth
     case cli
+    case custom
 
     public var id: String {
         self.rawValue
@@ -14,6 +15,7 @@ public enum CodexUsageDataSource: String, CaseIterable, Identifiable, Sendable {
         case .auto: "Auto"
         case .oauth: "OAuth API"
         case .cli: "CLI (RPC/PTY)"
+        case .custom: "Custom API"
         }
     }
 
@@ -25,6 +27,8 @@ public enum CodexUsageDataSource: String, CaseIterable, Identifiable, Sendable {
             "oauth"
         case .cli:
             "cli"
+        case .custom:
+            "custom"
         }
     }
 }

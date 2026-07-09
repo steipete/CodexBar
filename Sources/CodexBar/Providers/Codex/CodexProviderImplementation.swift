@@ -50,6 +50,7 @@ struct CodexProviderImplementation: ProviderImplementation {
         case .auto: .auto
         case .oauth: .oauth
         case .cli: .cli
+        case .custom: .api
         }
     }
 

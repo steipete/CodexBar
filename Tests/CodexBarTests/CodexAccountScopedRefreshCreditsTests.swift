@@ -90,4 +90,43 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.lastCreditsError == nil)
         #expect(store.lastCreditsSource == .api)
     }
+
+    @Test
+    func `custom api source refreshes credits using provider host as account identity`() async {
+        // Custom API source has no OAuth account; the provider host (from the resolved
+        // base_url) is carried as the usage snapshot's accountEmail so the credits
+        // pipeline's account-scoped guard resolves and credits are refreshed.
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedRefreshTests-custom-credits")
+        settings.refreshFrequency = .manual
+        settings.codexUsageDataSource = .custom
+        settings._test_liveSystemCodexAccount = nil
+
+        let store = self.makeUsageStore(settings: settings)
+        // Custom usage snapshot carries the provider host as accountEmail and no rate windows.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "example.com",
+                    accountOrganization: "Plus 10x",
+                    loginMethod: "custom-api")),
+            provider: .codex)
+
+        var loaderCalled = false
+        store._test_codexCreditsLoaderOverride = {
+            loaderCalled = true
+            return self.credits(remaining: 77)
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        await store.refreshCreditsIfNeeded()
+
+        #expect(loaderCalled)
+        #expect(store.credits?.remaining == 77)
+        #expect(store.lastCreditsError == nil)
+        #expect(store.lastCreditsSource == .api)
+    }
 }
