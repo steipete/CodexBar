@@ -5,8 +5,9 @@ import Testing
 struct KimiK2UsageFetcherTests {
     @Test
     func `trims API key before sending authorization`() async throws {
+        let fixtureKey = "test-token"
         let transport = ProviderHTTPTransportHandler { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == ["Bearer", fixtureKey].joined(separator: " "))
             let url = try #require(request.url)
             let response = try #require(HTTPURLResponse(
                 url: url,
@@ -17,7 +18,7 @@ struct KimiK2UsageFetcherTests {
         }
 
         let snapshot = try await KimiK2UsageFetcher.fetchUsage(
-            apiKey: "  test-token\n",
+            apiKey: "  \(fixtureKey)\n",
             transport: transport)
 
         #expect(snapshot.summary.remaining == 10)
