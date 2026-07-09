@@ -115,8 +115,14 @@ private struct ServeUsageContext: Sendable {
 
 private struct ServeCostContext: Sendable {
     let config: CodexBarConfig
+    let collection: ServeCostCollectionContext
+}
+
+struct ServeCostCollectionContext: Sendable {
     let configFingerprint: String
-    let providerDeadline: ContinuousClock.Instant?
+    let providerTimeout: TimeInterval?
+    let requestDeadline: ContinuousClock.Instant?
+    let now: @Sendable () -> ContinuousClock.Instant
     let providerOperations: CLIServeOperationCoordinator<CostPayload>
 }
 
@@ -693,9 +699,12 @@ extension CodexBarCLI {
                         provider: provider,
                         context: ServeCostContext(
                             config: snapshot.config,
-                            configFingerprint: snapshot.cacheToken,
-                            providerDeadline: providerDeadline,
-                            providerOperations: runtime.costOperations))
+                            collection: ServeCostCollectionContext(
+                                configFingerprint: snapshot.cacheToken,
+                                providerTimeout: providerTimeout,
+                                requestDeadline: requestDeadline,
+                                now: { ContinuousClock().now },
+                                providerOperations: runtime.costOperations)))
                 })
         }
     }
@@ -908,8 +917,8 @@ extension CodexBarCLI {
             usageCacheKeys: output.payload.map(\.cacheAccountKey))
     }
 
-    /// Per-provider fetch budget for `/usage`. Finite provider work is bounded
-    /// below the outer request deadline so the empty 504 stays a last resort.
+    /// Per-provider fetch budget for `/usage` and `/cost`. Finite provider work
+    /// is bounded below the outer request deadline so the empty 504 stays a last resort.
     /// `nil` preserves the documented disabled serve deadline without changing
     /// provider-specific internal timeouts.
     static func serveProviderTimeout(requestTimeout: TimeInterval) -> TimeInterval? {
@@ -1016,9 +1025,7 @@ extension CodexBarCLI {
         let fetcher = CostUsageFetcher()
         let payload = await Self.serveCollectCostPayloads(
             providers: providers,
-            configFingerprint: context.configFingerprint,
-            deadline: context.providerDeadline,
-            operations: context.providerOperations)
+            context: context.collection)
         { provider in
             do {
                 let snapshot = try await fetcher.loadTokenSnapshot(
@@ -1036,9 +1043,7 @@ extension CodexBarCLI {
 
     static func serveCollectCostPayloads(
         providers: [UsageProvider],
-        configFingerprint: String,
-        deadline: ContinuousClock.Instant?,
-        operations: CLIServeOperationCoordinator<CostPayload>,
+        context: ServeCostCollectionContext,
         fetch: @Sendable @escaping (UsageProvider) async -> CostPayload) async -> [CostPayload]
     {
         // Preserve the established scan order. Each cost scan starts a
@@ -1046,13 +1051,17 @@ extension CodexBarCLI {
         // adjacent work even though the corpus scans themselves are coalesced.
         var payload: [CostPayload] = []
         for provider in providers {
+            let deadline = Self.serveCostProviderDeadline(
+                startedAt: context.now(),
+                providerTimeout: context.providerTimeout,
+                requestDeadline: context.requestDeadline)
             let timeout = Self.makeCostPayload(
                 provider: provider,
                 snapshot: nil,
                 error: CLIServeCostTimeoutError(provider: provider))
-            let item = await operations.value(
+            let item = await context.providerOperations.value(
                 for: provider.rawValue,
-                fingerprint: configFingerprint,
+                fingerprint: context.configFingerprint,
                 deadline: deadline,
                 timeoutValue: timeout)
             {
@@ -1061,6 +1070,19 @@ extension CodexBarCLI {
             payload.append(item)
         }
         return payload
+    }
+
+    /// Gives a sequential cost scan its full provider budget from the point it
+    /// actually starts, without allowing the overall HTTP request to overrun.
+    static func serveCostProviderDeadline(
+        startedAt: ContinuousClock.Instant,
+        providerTimeout: TimeInterval?,
+        requestDeadline: ContinuousClock.Instant?) -> ContinuousClock.Instant?
+    {
+        guard let providerTimeout else { return requestDeadline }
+        let providerDeadline = startedAt.advanced(by: .seconds(max(0, providerTimeout)))
+        guard let requestDeadline else { return providerDeadline }
+        return min(providerDeadline, requestDeadline)
     }
 
     private static func serveProviderSelection(

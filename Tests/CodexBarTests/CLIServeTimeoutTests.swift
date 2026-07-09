@@ -16,6 +16,20 @@ struct CLIServeTimeoutTests {
             requestTimeout: .greatestFiniteMagnitude))
         #expect(startedAt.duration(to: deadline) == .seconds(86400))
         #expect(CodexBarCLI.serveRequestDeadline(startedAt: startedAt, requestTimeout: 0) == nil)
+
+        let requestDeadline = startedAt.advanced(by: .seconds(40))
+        #expect(CodexBarCLI.serveCostProviderDeadline(
+            startedAt: startedAt,
+            providerTimeout: 30,
+            requestDeadline: requestDeadline) == startedAt.advanced(by: .seconds(30)))
+        #expect(CodexBarCLI.serveCostProviderDeadline(
+            startedAt: startedAt.advanced(by: .seconds(20)),
+            providerTimeout: 30,
+            requestDeadline: requestDeadline) == requestDeadline)
+        #expect(CodexBarCLI.serveCostProviderDeadline(
+            startedAt: startedAt,
+            providerTimeout: nil,
+            requestDeadline: nil) == nil)
     }
 
     @Test
@@ -509,14 +523,18 @@ struct CLIServeTimeoutTests {
         let late = CodexBarCLI.makeCostPayload(provider: .claude, snapshot: nil, error: nil)
         let blocked = ServeFetchGate<CostPayload>()
         let operations: CLIServeOperationCoordinator<CostPayload> = self.makeCoordinator(clock: clock)
-        let deadline = clock.now().advanced(by: .seconds(30))
+        let requestDeadline = clock.now().advanced(by: .seconds(40))
+        let firstContext = ServeCostCollectionContext(
+            configFingerprint: "config-a",
+            providerTimeout: 30,
+            requestDeadline: requestDeadline,
+            now: { clock.now() },
+            providerOperations: operations)
 
         let first = Task {
             await CodexBarCLI.serveCollectCostPayloads(
                 providers: [.claude, .codex],
-                configFingerprint: "config-a",
-                deadline: deadline,
-                operations: operations)
+                context: firstContext)
             { provider in
                 if provider == .claude {
                     return await blocked.run(late)
@@ -532,14 +550,18 @@ struct CLIServeTimeoutTests {
 
         #expect(firstPayload.map(\.provider) == ["claude", "codex"])
         #expect(firstPayload[0].error?.message == "claude cost refresh timed out")
-        #expect(firstPayload[1].error?.message == "codex cost refresh timed out")
+        #expect(firstPayload[1].error == nil)
 
+        let overlappingContext = ServeCostCollectionContext(
+            configFingerprint: "config-a",
+            providerTimeout: 30,
+            requestDeadline: requestDeadline.advanced(by: .seconds(20)),
+            now: { clock.now() },
+            providerOperations: operations)
         let overlappingVariant = Task {
             await CodexBarCLI.serveCollectCostPayloads(
                 providers: [.claude],
-                configFingerprint: "config-a",
-                deadline: deadline.advanced(by: .seconds(30)),
-                operations: operations)
+                context: overlappingContext)
             { _ in
                 await blocked.run(late)
             }
