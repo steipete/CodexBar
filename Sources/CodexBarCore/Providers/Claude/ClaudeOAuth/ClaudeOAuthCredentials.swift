@@ -2140,13 +2140,19 @@ public enum ClaudeOAuthCredentialsStore {
         historyOwnerIdentifier: String? = nil)
     {
         guard self.shouldUseCodexBarOAuthKeychainCache else { return }
-        self.clearPendingCodexBarOAuthKeychainCacheClear()
+        if self.hasPendingCodexBarOAuthKeychainCacheClear {
+            self.flushPendingCodexBarOAuthKeychainCacheClearIfNeeded()
+        }
         let entry = CacheEntry(
             data: data,
             storedAt: Date(),
             owner: owner,
             historyOwnerIdentifier: historyOwnerIdentifier)
-        KeychainCacheStore.store(key: self.cacheKey, entry: entry)
+        if KeychainCacheStore.storeResult(key: self.cacheKey, entry: entry) {
+            self.clearPendingCodexBarOAuthKeychainCacheClear()
+        } else {
+            self.markPendingCodexBarOAuthKeychainCacheClear()
+        }
     }
 
     private static func clearCacheKeychain() {

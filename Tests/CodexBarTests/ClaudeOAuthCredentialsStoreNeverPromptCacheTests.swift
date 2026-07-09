@@ -496,4 +496,91 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
             }
         }
     }
+
+    @Test
+    func `save to cache keychain keeps pending clear when replacement store fails`() throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let pendingKey = "ClaudeOAuthPendingCodexBarOAuthKeychainCacheClearV1"
+        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer {
+                    KeychainCacheStore.setTestStoreForTesting(false)
+                    UserDefaults.standard.removeObject(forKey: pendingKey)
+                }
+
+                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    defer {
+                        ClaudeOAuthCredentialsStore.invalidateCache()
+                        ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    }
+
+                    let tempDir = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                    let fileURL = tempDir.appendingPathComponent("credentials.json")
+                    let fileData = self.makeCredentialsData(
+                        accessToken: "file-token-new",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    try fileData.write(to: fileURL)
+
+                    let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                    let cacheData = self.makeCredentialsData(
+                        accessToken: "cached-token",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    KeychainCacheStore.store(
+                        key: cacheKey,
+                        entry: ClaudeOAuthCredentialsStore.CacheEntry(data: cacheData, storedAt: Date()))
+                    defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                    try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                            ClaudeOAuthCredentialsStore.invalidateCache()
+                        }
+                        #expect(UserDefaults.standard.bool(forKey: pendingKey))
+
+                        let syncData = self.makeCredentialsData(
+                            accessToken: "sync-token",
+                            expiresAt: Date(timeIntervalSinceNow: 3600),
+                            refreshToken: "sync-refresh-token")
+                        _ = KeychainCacheStore.withStoreFailureStatusOverrideForTesting(
+                            errSecInteractionNotAllowed)
+                        {
+                            ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                                ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                    data: syncData,
+                                    fingerprint: nil)
+                                {
+                                    ClaudeOAuthCredentialsStore.syncFromClaudeKeychainWithoutPrompt()
+                                }
+                            }
+                        }
+                        #expect(UserDefaults.standard.bool(forKey: pendingKey))
+
+                        switch KeychainCacheStore.load(
+                            key: cacheKey,
+                            as: ClaudeOAuthCredentialsStore.CacheEntry.self)
+                        {
+                        case let .found(entry):
+                            let stale = try ClaudeOAuthCredentials.parse(data: entry.data)
+                            #expect(stale.accessToken == "cached-token")
+                        case .missing, .invalid, .temporarilyUnavailable:
+                            Issue.record("Expected stale cache to remain after failed replacement store")
+                        }
+
+                        let creds = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
+                            .onlyOnUserAction)
+                        {
+                            try ProviderInteractionContext.$current.withValue(.background) {
+                                try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
+                            }
+                        }
+                        #expect(creds.accessToken == "file-token-new")
+                    }
+                }
+            }
+        }
+    }
 }
