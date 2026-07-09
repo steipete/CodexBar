@@ -234,18 +234,23 @@ actor CLIServeResponseCache {
 
     private func waitForInFlightRelease(key: String, requestTimeout: TimeInterval) async -> CLIServeCacheLookup {
         let waiterID = UUID()
-        let task = Task<CLIServeCacheLookup, Error> {
-            await self.awaitInFlightTurn(id: waiterID, key: key)
+        let clampedTimeout = CodexBarCLI.clampedServeRequestTimeout(requestTimeout)
+        guard clampedTimeout > 0 else {
+            return await self.awaitInFlightTurn(id: waiterID, key: key)
         }
-        let join = BoundedTaskJoin(sourceTask: task)
-        switch await join.value(joinGrace: Duration.seconds(requestTimeout)) {
-        case let .value(lookup):
-            return lookup
-        case .failure, .timedOut:
-            if let response = self.resumeWaiterTimeoutIfPending(id: waiterID, key: key) {
-                return .response(response)
+
+        return await withCheckedContinuation { (lookupContinuation: CheckedContinuation<CLIServeCacheLookup, Never>) in
+            self.enqueueWaiter(id: waiterID, key: key, continuation: lookupContinuation)
+
+            let nanoseconds = max(1, UInt64((clampedTimeout * 1_000_000_000).rounded(.up)))
+            Task {
+                do {
+                    try await Task.sleep(nanoseconds: nanoseconds)
+                } catch {
+                    return
+                }
+                _ = await self.resumeWaiterTimeoutIfPending(id: waiterID, key: key)
             }
-            return (try? await task.value) ?? .response(CodexBarCLI.serveTimeoutResponse())
         }
     }
 
@@ -514,11 +519,11 @@ extension CodexBarCLI {
     private static let maximumServeRequestTimeout: TimeInterval = 86400
 
     static func clampedServeRequestTimeout(_ requestTimeout: TimeInterval) -> TimeInterval {
-        min(max(requestTimeout, 0), Self.maximumServeRequestTimeout)
+        min(max(requestTimeout, 0), self.maximumServeRequestTimeout)
     }
 
     static func serveTimeoutResponse() -> CLILocalHTTPResponse {
-        Self.serveError(status: .gatewayTimeout, message: "request timed out")
+        self.serveError(status: .gatewayTimeout, message: "request timed out")
     }
 
     static func runServe(_ values: ParsedValues) async {
@@ -756,10 +761,19 @@ extension CodexBarCLI {
     }
 
     private static func awaitServeWorkCleanup(_ work: Task<Void, Never>, grace: TimeInterval) async {
-        guard grace > 0 else { return }
-        let nanoseconds = max(1, UInt64((grace * 1_000_000_000).rounded(.up)))
-        try? await Task.sleep(nanoseconds: nanoseconds)
-        work.cancel()
+        guard grace > 0 else {
+            work.cancel()
+            return
+        }
+        let join = BoundedTaskJoin(sourceTask: Task<Void, Error> {
+            await work.value
+        })
+        switch await join.value(joinGrace: .seconds(grace)) {
+        case .value:
+            return
+        case .failure, .timedOut:
+            work.cancel()
+        }
     }
 
     private static func serveResponseWithDeadline(
