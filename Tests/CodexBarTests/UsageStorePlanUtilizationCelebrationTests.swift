@@ -154,14 +154,10 @@ extension UsageStorePlanUtilizationTests {
             sessionUsed: 0,
             sessionReset: sessionReset,
             updatedAt: firstDate.addingTimeInterval(60))
-        let corrected = snapshot(
-            sessionUsed: 69,
-            sessionReset: sessionReset,
-            updatedAt: firstDate.addingTimeInterval(120))
         let realReset = snapshot(
             sessionUsed: 0,
             sessionReset: sessionReset.addingTimeInterval(5 * 3600),
-            updatedAt: firstDate.addingTimeInterval(180))
+            updatedAt: firstDate.addingTimeInterval(120))
 
         await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
         await store.recordPlanUtilizationHistorySample(
@@ -170,7 +166,6 @@ extension UsageStorePlanUtilizationTests {
             now: transientZero.updatedAt)
         #expect(recorder.events.isEmpty)
 
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: corrected, now: corrected.updatedAt)
         await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: realReset, now: realReset.updatedAt)
 
         #expect(recorder.events.count == 1)

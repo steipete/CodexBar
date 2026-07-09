@@ -494,15 +494,16 @@ extension UsageStore {
             || Self.limitResetBoundaryAdvanced(
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary)
-        let shouldPost = !sourceChanged
-            && previousState?.wasAboveThreshold == true
+        let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true
             && !wasAboveThreshold
-            && resetBoundaryAllowsPost
+        let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
+        let shouldPreserveBaseline = crossedBelowThreshold && !resetBoundaryAllowsPost
         states[detectorKey] = LimitResetDetectorState(
-            wasAboveThreshold: wasAboveThreshold,
+            // A transient zero must not erase the baseline needed to recognize the real reset that follows.
+            wasAboveThreshold: shouldPreserveBaseline ? true : wasAboveThreshold,
             lastObservedAt: currentObservedAt,
             sourceRawValue: sourceRawValue,
-            resetBoundary: observation.resetBoundary)
+            resetBoundary: shouldPreserveBaseline ? previousState?.resetBoundary : observation.resetBoundary)
         self.persistLimitResetDetectorStates(
             states,
             defaultsKey: descriptor.defaultsKey,

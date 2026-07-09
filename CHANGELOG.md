@@ -6,6 +6,7 @@
 - Agent Sessions: list and focus live local or SSH-discovered Codex and Claude Code sessions from the menu and CLI.
 
 ### Fixed
+- Codex: avoid false session-reset celebrations from transient zero-usage samples until the reset boundary advances. Thanks @kiranmagic7!
 - Ollama: recognize current WorkOS AuthKit sessions during browser-cookie discovery and manual cookie validation. Thanks @joeVenner!
 - Ollama: classify current WorkOS sign-in redirects as expired sessions, enabling cookie-candidate fallback instead of a parser error. Thanks @joeVenner!
 
