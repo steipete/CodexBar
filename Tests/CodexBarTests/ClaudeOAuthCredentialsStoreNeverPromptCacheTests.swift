@@ -411,7 +411,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     }
 
     @Test
-    func `pending codexbar oauth keychain cache clear retries when keychain delete is temporarily unavailable`() throws {
+    func `pending oauth keychain cache clear retries when keychain delete temporarily unavailable`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {
             try KeychainAccessGate.withTaskOverrideForTesting(false) {
