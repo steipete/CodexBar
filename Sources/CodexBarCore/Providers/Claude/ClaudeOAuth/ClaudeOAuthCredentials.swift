@@ -2151,8 +2151,12 @@ public enum ClaudeOAuthCredentialsStore {
 
     private static func clearCacheKeychain() {
         if self.shouldUseCodexBarOAuthKeychainCache {
-            self.clearPendingCodexBarOAuthKeychainCacheClear()
-            KeychainCacheStore.clear(key: self.cacheKey)
+            switch KeychainCacheStore.clearResult(key: self.cacheKey) {
+            case .removed, .missing:
+                self.clearPendingCodexBarOAuthKeychainCacheClear()
+            case .failed:
+                self.markPendingCodexBarOAuthKeychainCacheClear()
+            }
         } else {
             self.markPendingCodexBarOAuthKeychainCacheClear()
         }
@@ -2161,6 +2165,9 @@ public enum ClaudeOAuthCredentialsStore {
     private static func loadCodexBarOAuthKeychainCache() -> KeychainCacheStore.LoadResult<CacheEntry> {
         guard self.shouldUseCodexBarOAuthKeychainCache else { return .missing }
         self.flushPendingCodexBarOAuthKeychainCacheClearIfNeeded()
+        if self.hasPendingCodexBarOAuthKeychainCacheClear {
+            return .temporarilyUnavailable
+        }
         return KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self)
     }
 
@@ -2182,8 +2189,12 @@ public enum ClaudeOAuthCredentialsStore {
 
     private static func flushPendingCodexBarOAuthKeychainCacheClearIfNeeded() {
         guard self.hasPendingCodexBarOAuthKeychainCacheClear else { return }
-        self.clearPendingCodexBarOAuthKeychainCacheClear()
-        KeychainCacheStore.clear(key: self.cacheKey)
+        switch KeychainCacheStore.clearResult(key: self.cacheKey) {
+        case .removed, .missing:
+            self.clearPendingCodexBarOAuthKeychainCacheClear()
+        case .failed:
+            break
+        }
     }
 
     private static var keychainAccessAllowed: Bool {
