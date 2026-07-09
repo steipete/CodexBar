@@ -77,22 +77,22 @@ enum GeminiAPITestHelpers {
     }
 
     static func loadCodeAssistResponse(
-        tierId: String,
+        tierId: String?,
         projectId: String? = nil,
         paidTierName: String? = nil) -> Data
     {
-        var payload: [String: Any] = [
-            "currentTier": [
+        var payload: [String: Any] = [:]
+        if let tierId {
+            payload["currentTier"] = [
                 "id": tierId,
                 "name": tierId.replacingOccurrences(of: "-tier", with: ""),
-            ],
-        ]
+            ]
+        }
         if let projectId {
             payload["cloudaicompanionProject"] = projectId
         }
         if let paidTierName {
             payload["paidTier"] = [
-                "id": tierId,
                 "name": paidTierName,
             ]
         }

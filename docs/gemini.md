@@ -64,10 +64,9 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 
 ## Plan detection
 - Tier from `loadCodeAssist`:
-  - `standard-tier` + `paidTier.name` → paid subscription label from Google (e.g. "Gemini Code Assist in Google One AI Pro")
+  - `paidTier.name` → paid subscription label from Google, preferred whenever present
   - `standard-tier` → "Paid" (fallback when `paidTier.name` is absent)
-  - `free-tier` + `hd` claim → "Workspace"
-  - `free-tier` + `paidTier.name` → consumer subscription label (e.g. "Plus", "Ultra")
+  - `free-tier` + `hd` claim → "Workspace" (fallback when `paidTier.name` is absent)
   - `free-tier` → "Free"
   - `legacy-tier` → "Legacy"
 - Email from `id_token` JWT claims.

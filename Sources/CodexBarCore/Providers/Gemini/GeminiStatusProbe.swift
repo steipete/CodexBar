@@ -1136,10 +1136,9 @@ public struct GeminiStatusProbe: Sendable {
 
 extension GeminiStatusProbe {
     /// Plan display strings with tier mapping:
-    /// - standard-tier + paidTier.name: Paid subscription label from Google (e.g. Google One AI Pro)
+    /// - paidTier.name: Most-specific paid subscription label from Google, regardless of currentTier
     /// - standard-tier: Paid subscription fallback (Code Assist Standard/Enterprise, Developer Program Premium)
     /// - free-tier + hd claim: Workspace account (Gemini included free since Jan 2025)
-    /// - free-tier + paidTier.name: Consumer subscription (Google AI Pro/Ultra, shown as Plus/Ultra)
     /// - free-tier: Personal free account
     /// - legacy-tier: Unknown legacy/grandfathered tier
     /// - nil (API failed): Leave blank (no display)
@@ -1148,20 +1147,23 @@ extension GeminiStatusProbe {
         hostedDomain: String?,
         paidTierName: String?) -> String?
     {
+        // Match Gemini CLI's contract: a named paid tier is the most specific plan signal,
+        // even when currentTier is missing, unknown, or still reports free-tier.
+        if let paidTierName {
+            self.log.info("Paid tier detected", metadata: [
+                "tier": tier?.rawValue ?? "unknown",
+                "plan": paidTierName,
+            ])
+            return paidTierName
+        }
+
         switch (tier, hostedDomain) {
         case (.standard, _):
-            if let paidTierName {
-                return paidTierName
-            }
             return "Paid"
         case let (.free, .some(domain)):
             Self.log.info("Workspace account detected", metadata: ["domain": domain])
             return "Workspace"
         case (.free, .none):
-            if let paidTierName {
-                self.log.info("Consumer paid tier detected", metadata: ["plan": paidTierName])
-                return paidTierName
-            }
             Self.log.info("Personal free account")
             return "Free"
         case (.legacy, _):
@@ -1172,7 +1174,7 @@ extension GeminiStatusProbe {
         }
     }
 
-    fileprivate static func parsePaidTierName(from json: [String: Any]) -> String? {
+    private static func parsePaidTierName(from json: [String: Any]) -> String? {
         guard let paidTier = json["paidTier"] as? [String: Any],
               let rawName = paidTier["name"] as? String
         else {
