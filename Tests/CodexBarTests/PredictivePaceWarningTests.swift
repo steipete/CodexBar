@@ -139,7 +139,7 @@ struct PredictivePaceWarningTests {
             provider: .claude,
             accountDiscriminator: "email:person@example.com",
             window: .session,
-            resetWindowID: "300:1780000000")
+            resetWindow: self.resetWindow(minutes: 300, resetsAt: 1_780_000_000))
         var notifiedKeys: Set<PredictivePaceWarningStateKey> = []
 
         #expect(PredictivePaceWarningNotificationLogic.recordObservation(
@@ -174,18 +174,18 @@ struct PredictivePaceWarningTests {
             provider: .claude,
             accountDiscriminator: "email:person@example.com",
             window: .weekly,
-            resetWindowID: "10080:1780000000")
+            resetWindow: self.resetWindow(minutes: 10080, resetsAt: 1_780_000_000))
         let newKey = PredictivePaceWarningStateKey(
             provider: .claude,
             accountDiscriminator: "email:person@example.com",
             window: .weekly,
-            resetWindowID: "10080:1780604800")
+            resetWindow: self.resetWindow(minutes: 10080, resetsAt: 1_780_604_800))
 
         #expect(PredictivePaceWarningNotificationLogic.recordObservation(
             key: oldKey,
             pace: self.pace(willLastToReset: false, etaSeconds: 60),
             notifiedKeys: &notifiedKeys))
-        PredictivePaceWarningNotificationLogic.pruneSiblingWindowKeys(
+        PredictivePaceWarningNotificationLogic.reconcileSiblingWindowKeys(
             activeKey: newKey,
             notifiedKeys: &notifiedKeys)
         #expect(!notifiedKeys.contains(oldKey))
@@ -202,22 +202,22 @@ struct PredictivePaceWarningTests {
                 provider: .claude,
                 accountDiscriminator: "account-a",
                 window: .session,
-                resetWindowID: "300:1780000000"),
+                resetWindow: self.resetWindow(minutes: 300, resetsAt: 1_780_000_000)),
             PredictivePaceWarningStateKey(
                 provider: .claude,
                 accountDiscriminator: "account-a",
                 window: .weekly,
-                resetWindowID: "10080:1780000000"),
+                resetWindow: self.resetWindow(minutes: 10080, resetsAt: 1_780_000_000)),
             PredictivePaceWarningStateKey(
                 provider: .claude,
                 accountDiscriminator: "account-b",
                 window: .session,
-                resetWindowID: "300:1780000000"),
+                resetWindow: self.resetWindow(minutes: 300, resetsAt: 1_780_000_000)),
             PredictivePaceWarningStateKey(
                 provider: .codex,
                 accountDiscriminator: "account-a",
                 window: .session,
-                resetWindowID: "300:1780000000"),
+                resetWindow: self.resetWindow(minutes: 300, resetsAt: 1_780_000_000)),
         ]
         var notifiedKeys: Set<PredictivePaceWarningStateKey> = []
 
@@ -234,6 +234,43 @@ struct PredictivePaceWarningTests {
                 notifiedKeys: &notifiedKeys))
         }
         #expect(notifiedKeys == Set(keys))
+    }
+
+    @Test
+    func `reset time jitter follows the same risk episode without repeating`() {
+        let firstKey = PredictivePaceWarningStateKey(
+            provider: .codex,
+            accountDiscriminator: "account-a",
+            window: .session,
+            resetWindow: self.resetWindow(minutes: 300, resetsAt: 1_780_000_000))
+        let correctedKey = PredictivePaceWarningStateKey(
+            provider: .codex,
+            accountDiscriminator: "account-a",
+            window: .session,
+            resetWindow: self.resetWindow(minutes: 300, resetsAt: 1_780_000_120))
+        var notifiedKeys: Set<PredictivePaceWarningStateKey> = []
+
+        #expect(PredictivePaceWarningNotificationLogic.recordObservation(
+            key: firstKey,
+            pace: self.pace(willLastToReset: false, etaSeconds: 60),
+            notifiedKeys: &notifiedKeys))
+        PredictivePaceWarningNotificationLogic.reconcileSiblingWindowKeys(
+            activeKey: correctedKey,
+            notifiedKeys: &notifiedKeys)
+        #expect(!PredictivePaceWarningNotificationLogic.recordObservation(
+            key: correctedKey,
+            pace: self.pace(willLastToReset: false, etaSeconds: 60),
+            notifiedKeys: &notifiedKeys))
+        #expect(notifiedKeys == Set([correctedKey]))
+
+        PredictivePaceWarningNotificationLogic.reconcileSiblingWindowKeys(
+            activeKey: correctedKey,
+            notifiedKeys: &notifiedKeys)
+        #expect(!PredictivePaceWarningNotificationLogic.recordObservation(
+            key: correctedKey,
+            pace: self.pace(willLastToReset: true, etaSeconds: nil),
+            notifiedKeys: &notifiedKeys))
+        #expect(notifiedKeys.isEmpty)
     }
 
     @Test
@@ -259,6 +296,14 @@ struct PredictivePaceWarningTests {
         #expect(notifier.predictivePosts.allSatisfy { $0.soundEnabled == false })
         #expect(notifier.predictivePosts.allSatisfy { $0.onScreenAlertEnabled == true })
         #expect(notifier.predictivePosts.allSatisfy { $0.event.accountDisplayName == "person@example.com" })
+
+        let jitteredAtRisk = self.snapshot(
+            now: now.addingTimeInterval(120),
+            sessionUsed: 80,
+            weeklyUsed: 90,
+            accountEmail: "person@example.com")
+        store.handlePredictivePaceWarningTransitions(provider: .claude, snapshot: jitteredAtRisk)
+        #expect(notifier.predictivePosts.map(\.event.window) == [.session, .weekly])
 
         let recovered = self.snapshot(
             now: now,
@@ -644,5 +689,11 @@ struct PredictivePaceWarningTests {
             etaSeconds: etaSeconds,
             willLastToReset: willLastToReset,
             runOutProbability: runOutProbability)
+    }
+
+    private func resetWindow(minutes: Int?, resetsAt: TimeInterval) -> PredictivePaceWarningResetWindow {
+        PredictivePaceWarningResetWindow(
+            windowMinutes: minutes,
+            resetsAt: Date(timeIntervalSince1970: resetsAt))
     }
 }

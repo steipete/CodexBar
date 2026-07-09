@@ -5,7 +5,18 @@ struct PredictivePaceWarningStateKey: Hashable {
     let provider: UsageProvider
     let accountDiscriminator: String
     let window: QuotaWarningWindow
-    let resetWindowID: String
+    let resetWindow: PredictivePaceWarningResetWindow
+}
+
+struct PredictivePaceWarningResetWindow: Hashable {
+    let windowMinutes: Int?
+    let resetsAt: Date
+
+    func belongsToSameCycle(as other: Self) -> Bool {
+        guard self.windowMinutes == other.windowMinutes else { return false }
+        let tolerance = self.windowMinutes.map { max(TimeInterval($0 * 60) / 2, 300) } ?? 300
+        return abs(self.resetsAt.timeIntervalSince(other.resetsAt)) < tolerance
+    }
 }
 
 struct PredictivePaceWarningEvent: Equatable {
@@ -58,15 +69,25 @@ enum PredictivePaceWarningNotificationLogic {
         return true
     }
 
-    static func pruneSiblingWindowKeys(
+    static func reconcileSiblingWindowKeys(
         activeKey: PredictivePaceWarningStateKey,
         notifiedKeys: inout Set<PredictivePaceWarningStateKey>)
     {
-        notifiedKeys = notifiedKeys.filter { key in
-            !(key.provider == activeKey.provider &&
+        let siblingKeys = notifiedKeys.filter { key in
+            key.provider == activeKey.provider &&
                 key.accountDiscriminator == activeKey.accountDiscriminator &&
-                key.window == activeKey.window &&
-                key.resetWindowID != activeKey.resetWindowID)
+                key.window == activeKey.window
+        }
+        guard !siblingKeys.isEmpty else { return }
+
+        let alreadyWarnedThisCycle = siblingKeys.contains { key in
+            key.resetWindow.belongsToSameCycle(as: activeKey.resetWindow)
+        }
+        notifiedKeys.subtract(siblingKeys)
+        if alreadyWarnedThisCycle {
+            // Follow small provider reset-time corrections without re-alerting. Replacing the key
+            // lets successive relative-TTL observations move together instead of accumulating drift.
+            notifiedKeys.insert(activeKey)
         }
     }
 
@@ -100,15 +121,15 @@ extension UsageStore {
 
         let candidates = self.predictivePaceWarningCandidates(provider: provider, snapshot: snapshot)
         for candidate in candidates {
-            guard let resetWindowID = Self.predictivePaceWarningResetWindowID(for: candidate.rateWindow) else {
+            guard let resetWindow = Self.predictivePaceWarningResetWindow(for: candidate.rateWindow) else {
                 continue
             }
             let key = PredictivePaceWarningStateKey(
                 provider: provider,
                 accountDiscriminator: accountDiscriminator,
                 window: candidate.window,
-                resetWindowID: resetWindowID)
-            PredictivePaceWarningNotificationLogic.pruneSiblingWindowKeys(
+                resetWindow: resetWindow)
+            PredictivePaceWarningNotificationLogic.reconcileSiblingWindowKeys(
                 activeKey: key,
                 notifiedKeys: &self.predictivePaceWarningNotifiedKeys)
 
@@ -231,10 +252,12 @@ extension UsageStore {
         return account
     }
 
-    private static func predictivePaceWarningResetWindowID(for window: RateWindow) -> String? {
+    private static func predictivePaceWarningResetWindow(for window: RateWindow)
+        -> PredictivePaceWarningResetWindow?
+    {
         guard let resetsAt = window.resetsAt else { return nil }
-        let resetSeconds = Int(resetsAt.timeIntervalSince1970.rounded())
-        let windowMinutes = window.windowMinutes.map(String.init) ?? "unknown"
-        return "\(windowMinutes):\(resetSeconds)"
+        return PredictivePaceWarningResetWindow(
+            windowMinutes: window.windowMinutes,
+            resetsAt: resetsAt)
     }
 }
