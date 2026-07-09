@@ -203,9 +203,11 @@ struct CLIServeRouterTests {
         #expect(!firstSnapshot.config.enabledProviders().contains(.opencodego))
         #expect(secondSnapshot.config.enabledProviders().contains(.opencodego))
         #expect(firstSnapshot.cacheToken != secondSnapshot.cacheToken)
+        let operationKey = try CodexBarCLI.serveOperationKey(kind: "usage", provider: nil)
+        #expect(try operationKey == (CodexBarCLI.serveOperationKey(kind: "usage", provider: nil)))
         #expect(
-            CodexBarCLI.serveCacheKey(kind: "usage", provider: nil, configToken: firstSnapshot.cacheToken) !=
-                CodexBarCLI.serveCacheKey(kind: "usage", provider: nil, configToken: secondSnapshot.cacheToken))
+            CodexBarCLI.serveCacheKey(operationKey: operationKey, configToken: firstSnapshot.cacheToken) !=
+                CodexBarCLI.serveCacheKey(operationKey: operationKey, configToken: secondSnapshot.cacheToken))
     }
 
     @Test
@@ -246,215 +248,6 @@ struct CLIServeRouterTests {
             requestTimeout: .greatestFiniteMagnitude))
         #expect(abs(oversizedTimeout - 69120) < 1e-9)
         #expect(oversizedTimeout < 86400)
-    }
-
-    @Test
-    func `cleanup grace releases retained key while uncooperative work still runs`() async {
-        let cache = CLIServeResponseCache()
-        let key = "usage:cleanup-grace"
-
-        let response = await CodexBarCLI.cachedServeResponse(
-            key: key,
-            cache: cache,
-            refreshInterval: 60,
-            requestTimeout: 0.05)
-        {
-            await ServeUncooperativeDelay.sleep(seconds: 2)
-            return Self.response("[{\"provider\":\"codex\"}]")
-        }
-
-        #expect(response.status == .gatewayTimeout)
-        try? await Task.sleep(nanoseconds: 70_000_000)
-        #expect(await cache.inFlightKeyCount() == 0)
-    }
-
-    @Test
-    func `queued serve request times out during retained in-flight cleanup`() async {
-        let cache = CLIServeResponseCache()
-        let key = "usage:queued-timeout"
-        let start = Date()
-
-        async let firstResponse = CodexBarCLI.cachedServeResponse(
-            key: key,
-            cache: cache,
-            refreshInterval: 60,
-            requestTimeout: 0.1)
-        {
-            await ServeUncooperativeDelay.sleep(seconds: 2)
-            return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
-        }
-
-        try? await Task.sleep(nanoseconds: 70_000_000)
-
-        let queued = await CodexBarCLI.cachedServeResponse(
-            key: key,
-            cache: cache,
-            refreshInterval: 60,
-            requestTimeout: 0.05)
-        {
-            Self.response("[{\"provider\":\"codex\",\"round\":2}]")
-        }
-        let elapsed = Date().timeIntervalSince(start)
-
-        let first = await firstResponse
-        #expect(first.status == .gatewayTimeout)
-        #expect(queued.status == .gatewayTimeout)
-        #expect(elapsed < 0.5)
-    }
-
-    @Test
-    func `releaseInFlight elects only one waiter to restart fetch`() async {
-        let cache = CLIServeResponseCache()
-        let key = "usage:elect-one"
-        let tracker = ServeActiveWorkTracker()
-        let fetchCounter = ServeTestCounter()
-
-        async let firstResponse = CodexBarCLI.cachedServeResponse(
-            key: key,
-            cache: cache,
-            refreshInterval: 60,
-            requestTimeout: 0.05)
-        {
-            await ServeUncooperativeDelay.sleep(seconds: 0.2)
-            return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
-        }
-
-        try? await Task.sleep(nanoseconds: 70_000_000)
-
-        let responses = await withTaskGroup(of: CLILocalHTTPResponse.self) { group -> [CLILocalHTTPResponse] in
-            for round in 2...4 {
-                group.addTask {
-                    await CodexBarCLI.cachedServeResponse(
-                        key: key,
-                        cache: cache,
-                        refreshInterval: 60,
-                        requestTimeout: 0.2)
-                    {
-                        _ = await fetchCounter.increment()
-                        await tracker.enter()
-                        defer { Task { await tracker.leave() } }
-                        return Self.response("[{\"provider\":\"codex\",\"round\":\(round)}]")
-                    }
-                }
-            }
-
-            var collected: [CLILocalHTTPResponse] = []
-            for await response in group {
-                collected.append(response)
-            }
-            return collected
-        }
-
-        let first = await firstResponse
-        #expect(first.status == .gatewayTimeout)
-        #expect(await fetchCounter.current() == 1)
-        #expect(await tracker.peakCount() == 1)
-        #expect(responses.allSatisfy { $0.status == .ok })
-        #expect(await cache.inFlightKeyCount() == 0)
-    }
-
-    @Test
-    func `serve deadline returns before uncooperative work finishes`() async {
-        let start = Date()
-        let response = await CodexBarCLI.cachedServeResponse(
-            key: "usage:uncooperative",
-            cache: CLIServeResponseCache(),
-            refreshInterval: 60,
-            requestTimeout: 0.1)
-        {
-            await ServeUncooperativeDelay.sleep(seconds: 1)
-            return Self.response("[{\"provider\":\"codex\"}]")
-        }
-        let elapsed = Date().timeIntervalSince(start)
-
-        #expect(response.status == .gatewayTimeout)
-        #expect(elapsed < 0.5)
-    }
-
-    @Test
-    func `serve deadline cancels cooperative in-flight work after timeout`() async {
-        let tracker = ServeActiveWorkTracker()
-
-        let timeout = await CodexBarCLI.cachedServeResponse(
-            key: "usage:deadline-cancel",
-            cache: CLIServeResponseCache(),
-            refreshInterval: 60,
-            requestTimeout: 0.05)
-        {
-            await tracker.enter()
-            defer { Task { await tracker.leave() } }
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            return Self.response("[{\"provider\":\"codex\"}]")
-        }
-
-        #expect(timeout.status == .gatewayTimeout)
-        try? await Task.sleep(nanoseconds: 150_000_000)
-        #expect(await tracker.activeCount() == 0)
-    }
-
-    @Test
-    func `timed out serve retains in-flight until cleanup releases the cache key`() async {
-        let cache = CLIServeResponseCache()
-        let key = "usage:hold-inflight"
-
-        async let firstResponse = CodexBarCLI.cachedServeResponse(
-            key: key,
-            cache: cache,
-            refreshInterval: 60,
-            requestTimeout: 0.05)
-        {
-            await ServeUncooperativeDelay.sleep(seconds: 0.3)
-            return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
-        }
-
-        try? await Task.sleep(nanoseconds: 70_000_000)
-        #expect(await cache.inFlightKeyCount() == 1)
-
-        async let secondResponse = CodexBarCLI.cachedServeResponse(
-            key: key,
-            cache: cache,
-            refreshInterval: 60,
-            requestTimeout: 0.05)
-        {
-            Self.response("[{\"provider\":\"codex\",\"round\":2}]")
-        }
-
-        try? await Task.sleep(nanoseconds: 10_000_000)
-        #expect(await cache.inFlightKeyCount() == 1)
-
-        let first = await firstResponse
-        let second = await secondResponse
-        #expect(first.status == .gatewayTimeout)
-        #expect(second.status == .ok)
-        #expect(Self.bodyString(second).contains("\"round\":2"))
-        #expect(await cache.inFlightKeyCount() == 0)
-    }
-
-    @Test
-    func `sequential serve deadline timeouts on one key do not stack in-flight work`() async {
-        let tracker = ServeActiveWorkTracker()
-        let cache = CLIServeResponseCache()
-        let key = "usage:stack-same"
-
-        for round in 1...3 {
-            let response = await CodexBarCLI.cachedServeResponse(
-                key: key,
-                cache: cache,
-                refreshInterval: 60,
-                requestTimeout: 0.05)
-            {
-                await tracker.enter()
-                defer { Task { await tracker.leave() } }
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                return Self.response("[{\"provider\":\"codex\",\"round\":\(round)}]")
-            }
-
-            #expect(response.status == .gatewayTimeout)
-            #expect(await tracker.activeCount() <= 1)
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            #expect(await tracker.activeCount() == 0)
-            #expect(await cache.inFlightKeyCount() == 0)
-        }
     }
 
     @Test
@@ -664,6 +457,16 @@ struct CLIServeRouterTests {
         #expect(timeout.status == .gatewayTimeout)
         #expect(Self.bodyString(timeout).contains("request timed out"))
 
+        // Timeout delivery can win the actor race just before the canceled
+        // source reports completion. A successor must not start in that gap.
+        for _ in 0..<1000 {
+            if await cache.operations.snapshot().operationCount == 0 {
+                break
+            }
+            await Task.yield()
+        }
+        #expect(await cache.operations.snapshot().operationCount == 0)
+
         let success = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
             cache: cache,
@@ -776,6 +579,95 @@ struct CLIServeRouterTests {
 
         #expect(recovered.status == .ok)
         #expect(Self.bodyString(recovered).contains("\"call\":3"))
+    }
+
+    @Test
+    func `cost refresh timeout serves the last good payload`() async throws {
+        let cache = CLIServeResponseCache()
+        let counter = ServeTestCounter()
+
+        let first = await CodexBarCLI.cachedServeResponse(
+            key: "cost:",
+            cache: cache,
+            refreshInterval: 0.01,
+            requestTimeout: 1)
+        {
+            let call = await counter.increment()
+            return Self.response("[{\"provider\":\"codex\",\"call\":\(call)}]")
+        }
+        try? await Task.sleep(nanoseconds: 30_000_000)
+
+        let timedOut = await CodexBarCLI.cachedServeResponse(
+            key: "cost:",
+            cache: cache,
+            refreshInterval: 0.01,
+            requestTimeout: 0.01)
+        {
+            _ = await counter.increment()
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            return Self.response("[{\"provider\":\"codex\",\"call\":2}]")
+        }
+
+        #expect(timedOut.status == .ok)
+        let firstRows = try Self.jsonRows(first)
+        let timedOutRows = try Self.jsonRows(timedOut)
+        #expect(firstRows.first?["provider"] as? String == "codex")
+        #expect(timedOutRows.first?["provider"] as? String == "codex")
+        #expect(firstRows.first?["call"] as? Int == 1)
+        #expect(timedOutRows.first?["call"] as? Int == 1)
+        #expect(await counter.current() == 2)
+    }
+
+    @Test
+    func `cost refresh keeps fresh providers while replacing timed out rows`() async throws {
+        let cache = CLIServeResponseCache()
+
+        _ = await CodexBarCLI.cachedServeResponse(
+            key: "cost:",
+            cache: cache,
+            refreshInterval: 0.01,
+            requestTimeout: 1)
+        {
+            Self.response("""
+            [
+              {"provider":"codex","call":1},
+              {"provider":"claude","call":1}
+            ]
+            """)
+        }
+        try? await Task.sleep(nanoseconds: 30_000_000)
+
+        let partial = await CodexBarCLI.cachedServeResponse(
+            key: "cost:",
+            cache: cache,
+            refreshInterval: 0.01,
+            requestTimeout: 1)
+        {
+            Self.response("""
+            [
+              {"provider":"codex","call":2},
+              {"provider":"claude","error":{"message":"claude cost refresh timed out"}}
+            ]
+            """)
+        }
+        let partialRows = try Self.jsonRows(partial)
+        #expect(Self.row(partialRows, provider: "codex")?["call"] as? Int == 2)
+        #expect(Self.row(partialRows, provider: "claude")?["call"] as? Int == 1)
+        #expect(partialRows.allSatisfy { $0["error"] == nil })
+
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        let timedOut = await CodexBarCLI.cachedServeResponse(
+            key: "cost:",
+            cache: cache,
+            refreshInterval: 0.01,
+            requestTimeout: 0.01)
+        {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            return Self.response(#"[{"provider":"codex","call":3}]"#)
+        }
+        let timeoutRows = try Self.jsonRows(timedOut)
+        #expect(Self.row(timeoutRows, provider: "codex")?["call"] as? Int == 2)
+        #expect(Self.row(timeoutRows, provider: "claude")?["call"] as? Int == 1)
     }
 
     @Test
@@ -971,7 +863,6 @@ struct CLIServeRouterTests {
         let policy = CLIServeResponseCache.CachePolicy(ttl: 0, staleTTL: 10)
         let startedAt = Date(timeIntervalSince1970: 1000)
 
-        _ = await cache.responseOrStartFetch(for: "usage:", now: startedAt)
         _ = await cache.completeFetch(
             Self.response(
                 """
@@ -986,7 +877,6 @@ struct CLIServeRouterTests {
             shouldCache: true)
 
         let partialAt = startedAt.addingTimeInterval(9)
-        _ = await cache.responseOrStartFetch(for: "usage:", now: partialAt)
         _ = await cache.completeFetch(
             Self.response("""
             [
@@ -1000,7 +890,6 @@ struct CLIServeRouterTests {
             shouldCache: false)
 
         let timeoutAt = startedAt.addingTimeInterval(11)
-        _ = await cache.responseOrStartFetch(for: "usage:", now: timeoutAt)
         let timedOut = await cache.completeFetch(
             Self.response(#"{"error":"request timed out"}"#, status: .gatewayTimeout),
             for: "usage:",
@@ -1440,7 +1329,6 @@ struct CLIServeRouterTests {
             ttl: 0,
             staleTTL: CLIServeResponseCache.maximumStaleTTL)
 
-        _ = await cache.responseOrStartFetch(for: "config:old", now: startedAt)
         _ = await cache.completeFetch(
             Self.response(#"{"status":"ok"}"#),
             for: "config:old",
@@ -1448,7 +1336,6 @@ struct CLIServeRouterTests {
             now: startedAt,
             shouldCache: true)
 
-        _ = await cache.responseOrStartFetch(for: "usage:old", now: startedAt)
         _ = await cache.completeFetch(
             Self.response(
                 #"[{"provider":"codex","call":1}]"#,
@@ -1460,7 +1347,7 @@ struct CLIServeRouterTests {
         #expect(await cache.cachedStaleVariantCount() == 2)
 
         let expiredAt = startedAt.addingTimeInterval(CLIServeResponseCache.maximumStaleTTL + 1)
-        _ = await cache.responseOrStartFetch(for: "config:new", now: expiredAt)
+        _ = await cache.cachedResponse(for: "config:new", now: expiredAt)
         #expect(await cache.cachedStaleVariantCount() == 0)
         _ = await cache.completeFetch(
             Self.response(#"{"status":"ok"}"#),
@@ -1588,38 +1475,6 @@ struct CLIServeRouterTests {
             isLive: true,
             canReauthenticate: true,
             canRemove: false)
-    }
-}
-
-private enum ServeUncooperativeDelay {
-    static func sleep(seconds: TimeInterval) async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) {
-                continuation.resume()
-            }
-        }
-    }
-}
-
-private actor ServeActiveWorkTracker {
-    private var active = 0
-    private var peak = 0
-
-    func enter() {
-        self.active += 1
-        self.peak = max(self.peak, self.active)
-    }
-
-    func leave() {
-        self.active = max(0, self.active - 1)
-    }
-
-    func activeCount() -> Int {
-        self.active
-    }
-
-    func peakCount() -> Int {
-        self.peak
     }
 }
 

@@ -85,91 +85,48 @@ struct CLIServeConfigSnapshot {
 private struct ServeRuntime {
     let configStore: CodexBarConfigStore
     let cache: CLIServeResponseCache
+    let providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>
+    let costOperations: CLIServeOperationCoordinator<CostPayload>
     let refreshInterval: TimeInterval
     let requestTimeout: TimeInterval
     let healthVersion: String?
 }
 
-private struct ServeDeadlineOutcome: Sendable {
+private struct ServeResponseRequest: Sendable {
+    let key: String
+    let configFingerprint: String
+    let refreshInterval: TimeInterval
+    let deadline: ContinuousClock.Instant?
+}
+
+struct CLIServeCoordinatedResponse: Sendable {
     let response: CLILocalHTTPResponse
-    let cleanupWork: Task<Void, Never>?
+    let isCommitted: Bool
 }
 
-private final class CLIServeDeadlineState: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<ServeDeadlineOutcome, Never>?
-    private var workTask: Task<Void, Never>?
-    private var timeoutTask: Task<Void, Never>?
-
-    init(continuation: CheckedContinuation<ServeDeadlineOutcome, Never>) {
-        self.continuation = continuation
-    }
-
-    func setWorkTask(_ task: Task<Void, Never>) {
-        var shouldCancel = false
-        self.lock.lock()
-        if self.continuation == nil {
-            shouldCancel = true
-        } else {
-            self.workTask = task
-        }
-        self.lock.unlock()
-
-        if shouldCancel {
-            task.cancel()
-        }
-    }
-
-    func setTimeoutTask(_ task: Task<Void, Never>) {
-        var shouldCancel = false
-        self.lock.lock()
-        if self.continuation == nil {
-            shouldCancel = true
-        } else {
-            self.timeoutTask = task
-        }
-        self.lock.unlock()
-
-        if shouldCancel {
-            task.cancel()
-        }
-    }
-
-    func finish(_ outcome: ServeDeadlineOutcome, cancelWork: Bool, cancelTimeout: Bool) {
-        let continuation: CheckedContinuation<ServeDeadlineOutcome, Never>?
-        let capturedWorkTask: Task<Void, Never>?
-        let timeoutTask: Task<Void, Never>?
-
-        self.lock.lock()
-        continuation = self.continuation
-        self.continuation = nil
-        capturedWorkTask = self.workTask
-        timeoutTask = cancelTimeout ? self.timeoutTask : nil
-        self.workTask = nil
-        self.timeoutTask = nil
-        self.lock.unlock()
-
-        if cancelWork {
-            capturedWorkTask?.cancel()
-        }
-        timeoutTask?.cancel()
-
-        let resolved: ServeDeadlineOutcome = if cancelWork, let capturedWorkTask {
-            ServeDeadlineOutcome(response: outcome.response, cleanupWork: capturedWorkTask)
-        } else {
-            outcome
-        }
-        continuation?.resume(returning: resolved)
-    }
+private struct ServeUsageContext: Sendable {
+    let config: CodexBarConfig
+    let configFingerprint: String
+    let refreshInterval: TimeInterval
+    let providerTimeout: TimeInterval?
+    let providerDeadline: ContinuousClock.Instant?
+    let providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>
 }
 
-enum CLIServeCacheLookup {
-    case response(CLILocalHTTPResponse)
-    case miss
+private struct ServeCostContext: Sendable {
+    let config: CodexBarConfig
+    let configFingerprint: String
+    let providerDeadline: ContinuousClock.Instant?
+    let providerOperations: CLIServeOperationCoordinator<CostPayload>
 }
 
 actor CLIServeResponseCache {
     static let maximumStaleTTL: TimeInterval = 3600
+    nonisolated let operations: CLIServeOperationCoordinator<CLIServeCoordinatedResponse>
+
+    init(operations: CLIServeOperationCoordinator<CLIServeCoordinatedResponse> = CLIServeOperationCoordinator()) {
+        self.operations = operations
+    }
 
     private struct Entry {
         let expiresAt: Date
@@ -202,57 +159,20 @@ actor CLIServeResponseCache {
         let response: CLILocalHTTPResponse
     }
 
+    private struct LastGoodCostItem {
+        let recordedAt: Date
+        let data: Data
+    }
+
+    private struct CostMergeResult {
+        let response: CLILocalHTTPResponse
+    }
+
     private var entries: [String: Entry] = [:]
     private var lastGood: [String: LastGoodEntry] = [:]
     private var lastGoodUsageItems: [String: [UsageItemKey: LastGoodUsageItem]] = [:]
-    private var inFlightKeys: Set<String> = []
-    private var waiters: [String: [(UUID, CheckedContinuation<CLIServeCacheLookup, Never>)]] = [:]
-
-    private func enqueueWaiter(
-        id: UUID,
-        key: String,
-        continuation: CheckedContinuation<CLIServeCacheLookup, Never>)
-    {
-        self.waiters[key, default: []].append((id, continuation))
-    }
-
-    private func awaitInFlightTurn(id: UUID, key: String) async -> CLIServeCacheLookup {
-        await withCheckedContinuation { continuation in
-            self.enqueueWaiter(id: id, key: key, continuation: continuation)
-        }
-    }
-
-    private func resumeWaiterTimeoutIfPending(id: UUID, key: String) -> CLILocalHTTPResponse? {
-        guard var list = self.waiters[key],
-              let index = list.firstIndex(where: { $0.0 == id }) else { return nil }
-        let (_, continuation) = list.remove(at: index)
-        self.waiters[key] = list.isEmpty ? nil : list
-        let response = CodexBarCLI.serveTimeoutResponse()
-        continuation.resume(returning: .response(response))
-        return response
-    }
-
-    private func waitForInFlightRelease(key: String, requestTimeout: TimeInterval) async -> CLIServeCacheLookup {
-        let waiterID = UUID()
-        let clampedTimeout = CodexBarCLI.clampedServeRequestTimeout(requestTimeout)
-        guard clampedTimeout > 0 else {
-            return await self.awaitInFlightTurn(id: waiterID, key: key)
-        }
-
-        return await withCheckedContinuation { (lookupContinuation: CheckedContinuation<CLIServeCacheLookup, Never>) in
-            self.enqueueWaiter(id: waiterID, key: key, continuation: lookupContinuation)
-
-            let nanoseconds = max(1, UInt64((clampedTimeout * 1_000_000_000).rounded(.up)))
-            Task {
-                do {
-                    try await Task.sleep(nanoseconds: nanoseconds)
-                } catch {
-                    return
-                }
-                _ = await self.resumeWaiterTimeoutIfPending(id: waiterID, key: key)
-            }
-        }
-    }
+    private var lastGoodCostItems: [String: [String: LastGoodCostItem]] = [:]
+    private var lastGoodCostOrder: [String: [String]] = [:]
 
     private func pruneExpiredEntries(now: Date) {
         self.entries = self.entries.filter { $0.value.expiresAt > now }
@@ -265,6 +185,13 @@ actor CLIServeResponseCache {
             }
             return retained.isEmpty ? nil : retained
         }
+        self.lastGoodCostItems = self.lastGoodCostItems.compactMapValues { items in
+            let retained = items.filter {
+                now.timeIntervalSince($0.value.recordedAt) <= Self.maximumStaleTTL
+            }
+            return retained.isEmpty ? nil : retained
+        }
+        self.lastGoodCostOrder = self.lastGoodCostOrder.filter { self.lastGoodCostItems[$0.key] != nil }
     }
 
     private func response(for key: String) -> CLILocalHTTPResponse? {
@@ -272,29 +199,13 @@ actor CLIServeResponseCache {
         return entry.response
     }
 
-    func responseOrStartFetch(
-        for key: String,
-        requestTimeout: TimeInterval = 0,
-        now: Date) async -> CLIServeCacheLookup
-    {
+    func cachedResponse(for key: String, now: Date) -> CLILocalHTTPResponse? {
         self.pruneExpiredEntries(now: now)
-        if let cached = self.response(for: key) {
-            return .response(cached)
-        }
-
-        if self.inFlightKeys.contains(key) {
-            if requestTimeout > 0 {
-                return await self.waitForInFlightRelease(key: key, requestTimeout: requestTimeout)
-            }
-            return await self.awaitInFlightTurn(id: UUID(), key: key)
-        }
-
-        self.inFlightKeys.insert(key)
-        return .miss
+        return self.response(for: key)
     }
 
-    /// Completes an in-flight fetch and returns the response delivered to
-    /// waiters. Successful responses are cached normally. Failed non-usage
+    /// Transforms a fetched response through the cache's stale policy. Successful
+    /// responses are cached normally. Failed non-usage
     /// fetches may use a whole-response fallback within `staleTTL`; usage
     /// responses only replace keyed error rows from the same identified account.
     func completeFetch(
@@ -302,8 +213,7 @@ actor CLIServeResponseCache {
         for key: String,
         policy: CachePolicy,
         now: Date,
-        shouldCache: Bool,
-        retainInFlight: Bool = false) -> CLILocalHTTPResponse
+        shouldCache: Bool) -> CLILocalHTTPResponse
     {
         let delivered: CLILocalHTTPResponse
         let staleResponse = self.staleResponse(for: key, staleTTL: policy.staleTTL, now: now)
@@ -313,9 +223,15 @@ actor CLIServeResponseCache {
             staleTTL: policy.staleTTL,
             now: now,
             replaceCachedItems: shouldCache)
+        let costMerge = self.mergeLastGoodCostItems(
+            into: response,
+            for: key,
+            staleTTL: policy.staleTTL,
+            now: now,
+            replaceCachedItems: shouldCache)
         if shouldCache {
             self.store(response, for: key, ttl: policy.ttl, now: now)
-            if key.hasPrefix("usage:") {
+            if key.hasPrefix("usage:") || key.hasPrefix("cost:") {
                 self.lastGood[key] = nil
             } else {
                 self.lastGood[key] = LastGoodEntry(recordedAt: now, response: response)
@@ -324,33 +240,13 @@ actor CLIServeResponseCache {
         } else if let usageMerge {
             delivered = usageMerge.response
             self.lastGood[key] = nil
+        } else if let costMerge {
+            delivered = costMerge.response
+            self.lastGood[key] = nil
         } else {
             delivered = staleResponse ?? response
         }
-        if !retainInFlight {
-            self.inFlightKeys.remove(key)
-        }
-        let pendingWaiters = self.waiters.removeValue(forKey: key) ?? []
-        for (_, waiter) in pendingWaiters {
-            waiter.resume(returning: .response(delivered))
-        }
         return delivered
-    }
-
-    func releaseInFlight(for key: String) {
-        guard self.inFlightKeys.contains(key) else { return }
-        var pending = self.waiters.removeValue(forKey: key) ?? []
-        self.inFlightKeys.remove(key)
-
-        guard let (_, elected) = pending.first else { return }
-        pending.removeFirst()
-
-        self.inFlightKeys.insert(key)
-        if !pending.isEmpty {
-            self.waiters[key] = pending
-        }
-
-        elected.resume(returning: .miss)
     }
 
     private func staleResponse(
@@ -362,6 +258,9 @@ actor CLIServeResponseCache {
         // A timeout cannot prove which usage account is currently active.
         if key.hasPrefix("usage:") {
             return nil
+        }
+        if key.hasPrefix("cost:") {
+            return self.staleCostResponse(for: key, staleTTL: staleTTL, now: now)
         }
         if let entry = self.lastGood[key],
            now.timeIntervalSince(entry.recordedAt) <= staleTTL
@@ -468,6 +367,84 @@ actor CLIServeResponseCache {
         return !(error is NSNull)
     }
 
+    private func mergeLastGoodCostItems(
+        into response: CLILocalHTTPResponse,
+        for key: String,
+        staleTTL: TimeInterval,
+        now: Date,
+        replaceCachedItems: Bool) -> CostMergeResult?
+    {
+        guard key.hasPrefix("cost:"),
+              response.status == .ok,
+              staleTTL > 0,
+              var items = try? JSONSerialization.jsonObject(with: response.body) as? [[String: Any]]
+        else {
+            return nil
+        }
+
+        let providers = items.compactMap { item -> String? in
+            guard let provider = item["provider"] as? String, !provider.isEmpty else { return nil }
+            return provider
+        }
+        guard providers.count == items.count, Set(providers).count == providers.count else {
+            return CostMergeResult(response: response)
+        }
+
+        var cachedItems = replaceCachedItems ? [:] : self.lastGoodCostItems[key] ?? [:]
+        if !replaceCachedItems {
+            cachedItems = cachedItems.filter { now.timeIntervalSince($0.value.recordedAt) <= staleTTL }
+        }
+        for index in items.indices {
+            let provider = providers[index]
+            if Self.hasError(items[index]) {
+                if let cached = cachedItems[provider],
+                   let cachedItem = try? JSONSerialization.jsonObject(with: cached.data) as? [String: Any]
+                {
+                    items[index] = cachedItem
+                }
+            } else if let data = try? JSONSerialization.data(withJSONObject: items[index], options: [.sortedKeys]) {
+                cachedItems[provider] = LastGoodCostItem(recordedAt: now, data: data)
+            }
+        }
+        self.lastGoodCostItems[key] = cachedItems
+        self.lastGoodCostOrder[key] = providers
+
+        guard let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys]) else {
+            return CostMergeResult(response: response)
+        }
+        return CostMergeResult(response: CLILocalHTTPResponse(
+            status: response.status,
+            body: body,
+            contentType: response.contentType,
+            usageCacheKeys: response.usageCacheKeys))
+    }
+
+    private func staleCostResponse(
+        for key: String,
+        staleTTL: TimeInterval,
+        now: Date) -> CLILocalHTTPResponse?
+    {
+        guard let order = self.lastGoodCostOrder[key], !order.isEmpty,
+              let cachedItems = self.lastGoodCostItems[key]
+        else {
+            return nil
+        }
+        let rows = order.compactMap { provider -> Any? in
+            guard let cached = cachedItems[provider],
+                  now.timeIntervalSince(cached.recordedAt) <= staleTTL
+            else {
+                return nil
+            }
+            return try? JSONSerialization.jsonObject(with: cached.data)
+        }
+        guard rows.count == order.count,
+              let body = try? JSONSerialization.data(withJSONObject: rows, options: [.sortedKeys])
+        else {
+            return nil
+        }
+        return CLILocalHTTPResponse(status: .ok, body: body)
+    }
+
     private func store(_ response: CLILocalHTTPResponse, for key: String, ttl: TimeInterval, now: Date) {
         guard ttl > 0, response.status == .ok else { return }
         self.entries[key] = Entry(expiresAt: now.addingTimeInterval(ttl), response: response)
@@ -477,12 +454,8 @@ actor CLIServeResponseCache {
         self.entries.count
     }
 
-    func inFlightKeyCount() -> Int {
-        self.inFlightKeys.count
-    }
-
     func cachedStaleVariantCount() -> Int {
-        self.lastGood.count + self.lastGoodUsageItems.count
+        self.lastGood.count + self.lastGoodUsageItems.count + self.lastGoodCostItems.count
     }
 }
 
@@ -511,6 +484,14 @@ private struct CLIServeProviderTimeoutError: LocalizedError {
 
     var errorDescription: String? {
         "\(self.provider.rawValue) usage timed out"
+    }
+}
+
+private struct CLIServeCostTimeoutError: LocalizedError {
+    let provider: UsageProvider
+
+    var errorDescription: String? {
+        "\(self.provider.rawValue) cost refresh timed out"
     }
 }
 
@@ -563,6 +544,8 @@ extension CodexBarCLI {
         let runtime = ServeRuntime(
             configStore: CodexBarConfigStore(),
             cache: CLIServeResponseCache(),
+            providerOperations: CLIServeOperationCoordinator(),
+            costOperations: CLIServeOperationCoordinator(),
             refreshInterval: refreshInterval,
             requestTimeout: requestTimeout,
             healthVersion: Self.currentVersion())
@@ -580,13 +563,16 @@ extension CodexBarCLI {
                 Self.writeStderr("CodexBar server listening on http://127.0.0.1:\(port)\n")
             }
         } catch {
-            await Self.shutdownServeSessions()
+            await Self.shutdownServeRuntime(runtime)
             Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .runtime)
         }
-        await Self.shutdownServeSessions()
+        await Self.shutdownServeRuntime(runtime)
     }
 
-    private static func shutdownServeSessions() async {
+    private static func shutdownServeRuntime(_ runtime: ServeRuntime) async {
+        await runtime.cache.operations.shutdown()
+        await runtime.providerOperations.shutdown()
+        await runtime.costOperations.shutdown()
         await ProviderCLISessionLifecycle.shutdownPersistentSessions()
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
     }
@@ -634,6 +620,14 @@ extension CodexBarCLI {
         _ request: CLILocalHTTPRequest,
         runtime: ServeRuntime) async -> CLILocalHTTPResponse
     {
+        let startedAt = ContinuousClock().now
+        let requestDeadline = Self.serveRequestDeadline(
+            startedAt: startedAt,
+            requestTimeout: runtime.requestTimeout)
+        let providerTimeout = Self.serveProviderTimeout(requestTimeout: runtime.requestTimeout)
+        let providerDeadline = Self.serveProviderDeadline(
+            startedAt: startedAt,
+            requestTimeout: runtime.requestTimeout)
         let route: CLIServeRoute
         do {
             route = try CLIServeRouter.route(
@@ -651,38 +645,58 @@ extension CodexBarCLI {
             return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .usage(provider):
             let snapshot: CLIServeConfigSnapshot
+            let operationKey: String
             do {
                 snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
+                operationKey = try Self.serveOperationKey(kind: "usage", provider: provider)
             } catch {
-                return Self.serveError(status: .internalServerError, message: error.localizedDescription)
+                let status: CLIHTTPStatus = error is CLIServeArgumentError ? .badRequest : .internalServerError
+                return Self.serveError(status: status, message: error.localizedDescription)
             }
             return await Self.cachedServeResponse(
-                key: Self.serveCacheKey(kind: "usage", provider: provider, configToken: snapshot.cacheToken),
-                cache: runtime.cache,
-                refreshInterval: runtime.refreshInterval,
-                requestTimeout: runtime.requestTimeout)
-            {
-                await Self.serveUsage(
-                    provider: provider,
-                    config: snapshot.config,
+                request: ServeResponseRequest(
+                    key: operationKey,
+                    configFingerprint: snapshot.cacheToken,
                     refreshInterval: runtime.refreshInterval,
-                    requestTimeout: runtime.requestTimeout)
-            }
+                    deadline: requestDeadline),
+                cache: runtime.cache,
+                makeResponse: {
+                    await Self.serveUsage(
+                        provider: provider,
+                        context: ServeUsageContext(
+                            config: snapshot.config,
+                            configFingerprint: snapshot.cacheToken,
+                            refreshInterval: runtime.refreshInterval,
+                            providerTimeout: providerTimeout,
+                            providerDeadline: providerDeadline,
+                            providerOperations: runtime.providerOperations))
+                })
         case let .cost(provider):
             let snapshot: CLIServeConfigSnapshot
+            let operationKey: String
             do {
                 snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
+                operationKey = try Self.serveOperationKey(kind: "cost", provider: provider)
             } catch {
-                return Self.serveError(status: .internalServerError, message: error.localizedDescription)
+                let status: CLIHTTPStatus = error is CLIServeArgumentError ? .badRequest : .internalServerError
+                return Self.serveError(status: status, message: error.localizedDescription)
             }
             return await Self.cachedServeResponse(
-                key: Self.serveCacheKey(kind: "cost", provider: provider, configToken: snapshot.cacheToken),
+                request: ServeResponseRequest(
+                    key: operationKey,
+                    configFingerprint: snapshot.cacheToken,
+                    refreshInterval: runtime.refreshInterval,
+                    deadline: requestDeadline),
                 cache: runtime.cache,
-                refreshInterval: runtime.refreshInterval,
-                requestTimeout: runtime.requestTimeout)
-            {
-                await Self.serveCost(provider: provider, config: snapshot.config)
-            }
+                makeResponse: {
+                    await Self.serveCost(
+                        provider: provider,
+                        context: ServeCostContext(
+                            config: snapshot.config,
+                            configFingerprint: snapshot.cacheToken,
+                            providerDeadline: providerDeadline,
+                            providerOperations: runtime.costOperations))
+                })
         }
     }
 
@@ -695,8 +709,16 @@ extension CodexBarCLI {
             cacheToken: Self.serveConfigCacheToken(for: config))
     }
 
-    static func serveCacheKey(kind: String, provider: String?, configToken: String) -> String {
-        "\(kind):\(provider ?? ""):\(configToken)"
+    static func serveOperationKey(kind: String, provider: String?) throws -> String {
+        guard let provider else { return "\(kind):default" }
+        guard let selection = ProviderSelection(argument: provider) else {
+            throw CLIServeArgumentError.invalidProvider(provider)
+        }
+        return "\(kind):\(selection.asList.map(\.rawValue).joined(separator: ","))"
+    }
+
+    static func serveCacheKey(operationKey: String, configToken: String) -> String {
+        "\(operationKey):\(configToken)"
     }
 
     static func serveConfigCacheToken(for config: CodexBarConfig) throws -> String {
@@ -718,100 +740,85 @@ extension CodexBarCLI {
         requestTimeout: TimeInterval = CodexBarCLI.defaultServeRequestTimeout,
         makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
     {
-        switch await cache.responseOrStartFetch(for: key, requestTimeout: requestTimeout, now: Date()) {
-        case let .response(response):
-            return response
-        case .miss:
-            let outcome = await Self.serveResponseWithDeadline(seconds: requestTimeout) {
-                await makeResponse()
-            }
-            let policy = CLIServeResponseCache.CachePolicy(
-                ttl: refreshInterval,
-                staleTTL: Self.serveStaleTTL(refreshInterval: refreshInterval))
-            let shouldCache = Self.shouldCacheServeResponse(outcome.response)
-            if let cleanupWork = outcome.cleanupWork {
-                let delivered = await cache.completeFetch(
-                    outcome.response,
-                    for: key,
-                    policy: policy,
-                    now: Date(),
-                    shouldCache: shouldCache,
-                    retainInFlight: true)
-                let cleanupGrace = Self.serveCleanupGrace(requestTimeout: requestTimeout)
-                Task {
-                    await Self.awaitServeWorkCleanup(cleanupWork, grace: cleanupGrace)
-                    await cache.releaseInFlight(for: key)
-                }
-                return delivered
-            }
-            return await cache.completeFetch(
-                outcome.response,
-                for: key,
-                policy: policy,
-                now: Date(),
-                shouldCache: shouldCache)
-        }
+        await self.cachedServeResponse(
+            request: ServeResponseRequest(
+                key: key,
+                configFingerprint: "",
+                refreshInterval: refreshInterval,
+                deadline: self.serveRequestDeadline(
+                    startedAt: ContinuousClock().now,
+                    requestTimeout: requestTimeout)),
+            cache: cache,
+            makeResponse: makeResponse)
     }
 
-    /// How long to keep a cache key in-flight after a timed-out serve response so
-    /// a second fetch cannot stack on canceled but still-running work.
-    static func serveCleanupGrace(requestTimeout: TimeInterval) -> TimeInterval {
-        guard requestTimeout > 0, requestTimeout.isFinite else { return 30 }
-        return min(requestTimeout, self.maximumServeRequestTimeout)
-    }
-
-    private static func awaitServeWorkCleanup(_ work: Task<Void, Never>, grace: TimeInterval) async {
-        guard grace > 0 else {
-            work.cancel()
-            return
-        }
-        let join = BoundedTaskJoin(sourceTask: Task<Void, Error> {
-            await work.value
-        })
-        switch await join.value(joinGrace: .seconds(grace)) {
-        case .value:
-            return
-        case .failure, .timedOut:
-            work.cancel()
-        }
-    }
-
-    private static func serveResponseWithDeadline(
-        seconds timeout: TimeInterval,
-        makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> ServeDeadlineOutcome
+    private static func cachedServeResponse(
+        request: ServeResponseRequest,
+        cache: CLIServeResponseCache,
+        makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
     {
-        let clampedTimeout = min(max(timeout, 0), Self.maximumServeRequestTimeout)
-        guard clampedTimeout > 0 else {
-            return await ServeDeadlineOutcome(response: makeResponse(), cleanupWork: nil)
+        let cacheKey = Self.serveCacheKey(
+            operationKey: request.key,
+            configToken: request.configFingerprint)
+        if let response = await cache.cachedResponse(for: cacheKey, now: Date()) {
+            return response
         }
-        let nanoseconds = max(1, UInt64((clampedTimeout * 1_000_000_000).rounded(.up)))
 
-        return await withCheckedContinuation { continuation in
-            let state = CLIServeDeadlineState(continuation: continuation)
-            let workTask = Task {
-                let response = await makeResponse()
-                state.finish(
-                    ServeDeadlineOutcome(response: response, cleanupWork: nil),
-                    cancelWork: false,
-                    cancelTimeout: true)
-            }
-            state.setWorkTask(workTask)
-
-            let timeoutTask = Task {
-                do {
-                    try await Task.sleep(nanoseconds: nanoseconds)
-                } catch {
-                    return
+        let timeoutResponse = Self.serveTimeoutResponse()
+        let outcome = await cache.operations.value(
+            for: request.key,
+            fingerprint: request.configFingerprint,
+            deadline: request.deadline,
+            timeoutValue: CLIServeCoordinatedResponse(response: timeoutResponse, isCommitted: false),
+            accept: { fetched in
+                let committed = await cache.completeFetch(
+                    fetched.response,
+                    for: cacheKey,
+                    policy: CLIServeResponseCache.CachePolicy(
+                        ttl: request.refreshInterval,
+                        staleTTL: Self.serveStaleTTL(refreshInterval: request.refreshInterval)),
+                    now: Date(),
+                    shouldCache: Self.shouldCacheServeResponse(fetched.response))
+                return CLIServeCoordinatedResponse(response: committed, isCommitted: true)
+            },
+            operation: {
+                if let response = await cache.cachedResponse(for: cacheKey, now: Date()) {
+                    return CLIServeCoordinatedResponse(response: response, isCommitted: false)
                 }
-                state.finish(
-                    ServeDeadlineOutcome(
-                        response: Self.serveError(status: .gatewayTimeout, message: "request timed out"),
-                        cleanupWork: nil),
-                    cancelWork: true,
-                    cancelTimeout: false)
-            }
-            state.setTimeoutTask(timeoutTask)
+                let response = await makeResponse()
+                return CLIServeCoordinatedResponse(response: response, isCommitted: false)
+            })
+        if outcome.isCommitted {
+            return outcome.response
         }
+        // Timeout values are selected while the abandoned source stays owned.
+        // Project them through stale-row policy here; they contain no source
+        // result that could overwrite a newer generation.
+        return await cache.completeFetch(
+            outcome.response,
+            for: cacheKey,
+            policy: CLIServeResponseCache.CachePolicy(
+                ttl: request.refreshInterval,
+                staleTTL: Self.serveStaleTTL(refreshInterval: request.refreshInterval)),
+            now: Date(),
+            shouldCache: Self.shouldCacheServeResponse(outcome.response))
+    }
+
+    static func serveRequestDeadline(
+        startedAt: ContinuousClock.Instant,
+        requestTimeout: TimeInterval) -> ContinuousClock.Instant?
+    {
+        let timeout = Self.clampedServeRequestTimeout(requestTimeout)
+        guard timeout > 0 else { return nil }
+        return startedAt.advanced(by: .seconds(timeout))
+    }
+
+    static func serveProviderDeadline(
+        startedAt: ContinuousClock.Instant,
+        requestTimeout: TimeInterval) -> ContinuousClock.Instant?
+    {
+        guard let timeout = self.serveProviderTimeout(requestTimeout: requestTimeout) else { return nil }
+        return startedAt.advanced(by: .seconds(timeout))
     }
 
     /// How long a last-good response may be served in place of a failed
@@ -840,13 +847,11 @@ extension CodexBarCLI {
 
     private static func serveUsage(
         provider rawProvider: String?,
-        config: CodexBarConfig,
-        refreshInterval: TimeInterval,
-        requestTimeout: TimeInterval) async -> CLILocalHTTPResponse
+        context: ServeUsageContext) async -> CLILocalHTTPResponse
     {
         let selection: ProviderSelection
         do {
-            selection = try Self.serveProviderSelection(rawProvider: rawProvider, config: config)
+            selection = try Self.serveProviderSelection(rawProvider: rawProvider, config: context.config)
         } catch {
             return Self.serveError(status: .badRequest, message: error.localizedDescription)
         }
@@ -855,17 +860,11 @@ extension CodexBarCLI {
         do {
             tokenContext = try TokenAccountCLIContext(
                 selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
-                config: config,
+                config: context.config,
                 verbose: false)
         } catch {
             return Self.serveError(status: .internalServerError, message: error.localizedDescription)
         }
-
-        // For finite request deadlines, bound each provider early enough to
-        // return the healthy rows before the outer deadline discards them all.
-        // A disabled request deadline adds no serve-level provider bound; the
-        // providers' existing internal timeouts still apply.
-        let providerTimeout = Self.serveProviderTimeout(requestTimeout: requestTimeout)
 
         let browserDetection = BrowserDetection()
         let command = UsageCommandContext(
@@ -875,7 +874,7 @@ extension CodexBarCLI {
             antigravityPlanDebug: false,
             augmentDebug: false,
             webDebugDumpHTML: false,
-            webTimeout: providerTimeout ?? 60,
+            webTimeout: context.providerTimeout ?? 60,
             verbose: false,
             useColor: false,
             resetStyle: Self.resetTimeDisplayStyleFromDefaults(),
@@ -886,11 +885,14 @@ extension CodexBarCLI {
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection,
             persistCLISessions: true,
-            persistentCLISessionIdleWindow: Self.serveCLISessionIdleWindow(refreshInterval: refreshInterval))
+            persistentCLISessionIdleWindow: Self.serveCLISessionIdleWindow(
+                refreshInterval: context.refreshInterval))
 
         let output = await Self.serveCollectUsageOutputs(
             providers: selection.asList,
-            providerTimeout: providerTimeout)
+            configFingerprint: context.configFingerprint,
+            deadline: context.providerDeadline,
+            operations: context.providerOperations)
         { provider in
             await ProviderInteractionContext.$current.withValue(.background) {
                 await Self.fetchUsageOutputs(
@@ -919,37 +921,52 @@ extension CodexBarCLI {
         return clampedTimeout * 0.8
     }
 
-    /// Collects usage for each provider concurrently. When `providerTimeout` is
-    /// non-nil, a provider that exceeds its budget contributes a provider error
+    /// Collects usage for each provider concurrently. When `deadline` is non-nil,
+    /// a provider that exceeds its budget contributes a provider error
     /// row instead of blocking the others, so the overall response still renders
     /// every healthy provider. (Per-account error rows that carry a
     /// cache key are merged with last-known-good by `CLIServeResponseCache`; a
     /// timeout row is account-agnostic and is not reconstructed, matching the
     /// existing "a timeout cannot prove the active account" cache rule.) Each
-    /// provider's timeout clock starts when its task is spawned, so a hung
-    /// provider cannot serialize the others' deadlines; results are merged in the
-    /// caller's provider order regardless of completion order.
+    /// deadline is absolute from HTTP request entry. The operation coordinator
+    /// retains timed-out sources until they really exit, preventing a later route
+    /// from stacking work for that provider. Results are merged in caller order.
     static func serveCollectUsageOutputs(
         providers: [UsageProvider],
         providerTimeout: TimeInterval?,
         fetch: @Sendable @escaping (UsageProvider) async -> UsageCommandOutput) async -> UsageCommandOutput
     {
-        let grace = providerTimeout.map { Duration.seconds(max(0, $0)) }
+        let deadline = providerTimeout.map {
+            ContinuousClock().now.advanced(by: .seconds(max(0, $0)))
+        }
+        return await Self.serveCollectUsageOutputs(
+            providers: providers,
+            configFingerprint: "",
+            deadline: deadline,
+            operations: CLIServeOperationCoordinator(),
+            fetch: fetch)
+    }
+
+    static func serveCollectUsageOutputs(
+        providers: [UsageProvider],
+        configFingerprint: String,
+        deadline: ContinuousClock.Instant?,
+        operations: CLIServeOperationCoordinator<UsageCommandOutput>,
+        fetch: @Sendable @escaping (UsageProvider) async -> UsageCommandOutput) async -> UsageCommandOutput
+    {
         let indexed = await withTaskGroup(of: (Int, UsageCommandOutput).self) { group in
             for (index, provider) in providers.enumerated() {
                 group.addTask {
-                    guard let grace else {
-                        let output = await fetch(provider)
-                        return (index, output)
+                    let timeout = Self.serveProviderTimeoutOutput(provider: provider)
+                    let output = await operations.value(
+                        for: provider.rawValue,
+                        fingerprint: configFingerprint,
+                        deadline: deadline,
+                        timeoutValue: timeout)
+                    {
+                        await fetch(provider)
                     }
-                    let task = Task<UsageCommandOutput, Error> { await fetch(provider) }
-                    let join = BoundedTaskJoin(sourceTask: task)
-                    switch await join.value(joinGrace: grace) {
-                    case let .value(output):
-                        return (index, output)
-                    case .failure, .timedOut:
-                        return (index, Self.serveProviderTimeoutOutput(provider: provider))
-                    }
+                    return (index, output)
                 }
             }
             var collected: [(Int, UsageCommandOutput)] = []
@@ -980,10 +997,13 @@ extension CodexBarCLI {
         return output
     }
 
-    private static func serveCost(provider rawProvider: String?, config: CodexBarConfig) async -> CLILocalHTTPResponse {
+    private static func serveCost(
+        provider rawProvider: String?,
+        context: ServeCostContext) async -> CLILocalHTTPResponse
+    {
         let selection: ProviderSelection
         do {
-            selection = try Self.serveProviderSelection(rawProvider: rawProvider, config: config)
+            selection = try Self.serveProviderSelection(rawProvider: rawProvider, config: context.config)
         } catch {
             return Self.serveError(status: .badRequest, message: error.localizedDescription)
         }
@@ -994,19 +1014,53 @@ extension CodexBarCLI {
         }
 
         let fetcher = CostUsageFetcher()
-        var payload: [CostPayload] = []
-        for provider in providers {
+        let payload = await Self.serveCollectCostPayloads(
+            providers: providers,
+            configFingerprint: context.configFingerprint,
+            deadline: context.providerDeadline,
+            operations: context.providerOperations)
+        { provider in
             do {
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
-                    forceRefresh: false)
-                payload.append(Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil))
+                    forceRefresh: false,
+                    refreshPricingInBackground: false)
+                return Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
             } catch {
-                payload.append(Self.makeCostPayload(provider: provider, snapshot: nil, error: error))
+                return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
             }
         }
 
         return Self.serveJSON(payload)
+    }
+
+    static func serveCollectCostPayloads(
+        providers: [UsageProvider],
+        configFingerprint: String,
+        deadline: ContinuousClock.Instant?,
+        operations: CLIServeOperationCoordinator<CostPayload>,
+        fetch: @Sendable @escaping (UsageProvider) async -> CostPayload) async -> [CostPayload]
+    {
+        // Preserve the established scan order. Each cost scan starts a
+        // best-effort pricing refresh, so parallel starts can duplicate that
+        // adjacent work even though the corpus scans themselves are coalesced.
+        var payload: [CostPayload] = []
+        for provider in providers {
+            let timeout = Self.makeCostPayload(
+                provider: provider,
+                snapshot: nil,
+                error: CLIServeCostTimeoutError(provider: provider))
+            let item = await operations.value(
+                for: provider.rawValue,
+                fingerprint: configFingerprint,
+                deadline: deadline,
+                timeoutValue: timeout)
+            {
+                await fetch(provider)
+            }
+            payload.append(item)
+        }
+        return payload
     }
 
     private static func serveProviderSelection(

@@ -351,7 +351,7 @@ struct CostOptions: CommanderParsable {
     var groupBy: String?
 }
 
-struct CostPayload: Encodable {
+struct CostPayload: Encodable, Sendable {
     let provider: String
     let source: String
     let updatedAt: Date?
@@ -397,7 +397,7 @@ struct CostPayload: Encodable {
     }
 }
 
-struct CostDailyEntryPayload: Encodable {
+struct CostDailyEntryPayload: Encodable, Sendable {
     let date: String
     let inputTokens: Int?
     let outputTokens: Int?
@@ -421,7 +421,7 @@ struct CostDailyEntryPayload: Encodable {
     }
 }
 
-struct CostModelBreakdownPayload: Encodable {
+struct CostModelBreakdownPayload: Encodable, Sendable {
     let modelName: String
     let costUSD: Double?
     let totalTokens: Int?
@@ -433,7 +433,7 @@ struct CostModelBreakdownPayload: Encodable {
     }
 }
 
-struct CostProjectPayload: Encodable {
+struct CostProjectPayload: Encodable, Sendable {
     let name: String
     let path: String?
     let totalTokens: Int?
@@ -471,7 +471,7 @@ struct CostProjectPayload: Encodable {
     }
 }
 
-struct CostProjectSourcePayload: Encodable {
+struct CostProjectSourcePayload: Encodable, Sendable {
     let name: String
     let path: String?
     let totalTokens: Int?
@@ -489,7 +489,7 @@ struct CostProjectSourcePayload: Encodable {
     }
 }
 
-struct CostTotalsPayload: Encodable {
+struct CostTotalsPayload: Encodable, Sendable {
     let totalInputTokens: Int?
     let totalOutputTokens: Int?
     let cacheReadTokens: Int?

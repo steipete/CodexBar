@@ -1,14 +1,14 @@
 import CodexBarCore
 import Foundation
 
-enum CLIErrorKind: String, Encodable {
+enum CLIErrorKind: String, Encodable, Sendable {
     case args
     case config
     case provider
     case runtime
 }
 
-struct ProviderErrorPayload: Encodable {
+struct ProviderErrorPayload: Encodable, Sendable {
     let code: Int32
     let message: String
     let kind: CLIErrorKind?

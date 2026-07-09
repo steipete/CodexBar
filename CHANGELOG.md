@@ -10,6 +10,7 @@
 - Quota warnings: add opt-in predictive pace alerts for Codex and Claude session and weekly limits, with one alert per risk episode. Thanks @vincent-peng!
 
 ### Fixed
+- CLI server: retain timed-out route and provider work until it actually exits, preventing repeated requests or config changes from stacking background fetches. Thanks @Yuxin-Qiao!
 - Ollama: validate API keys against an authenticated endpoint instead of the public model catalog while preserving refresh cancellation. Thanks @joeVenner!
 - Claude CLI: resolve yearless and time-only reset timestamps to their nearest occurrence so stale data cannot appear nearly a day or year away. Thanks @fanwenlin!
 - Catalan: complete current strings, align instructional voice, and enforce catalog parity. Thanks @pmontp19!
