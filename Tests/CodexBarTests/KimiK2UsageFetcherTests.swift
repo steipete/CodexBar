@@ -4,6 +4,21 @@ import Testing
 
 struct KimiK2UsageFetcherTests {
     @Test
+    func `provider reports a missing API key instead of a generic unavailable strategy`() async {
+        let context = Self.makeContext(environment: [:])
+
+        let outcome = await KimiK2ProviderDescriptor.descriptor.fetchOutcome(context: context)
+
+        guard case let .failure(error) = outcome.result else {
+            Issue.record("Expected missing credentials failure")
+            return
+        }
+        #expect(error.localizedDescription == "Missing Kimi K2 API key.")
+        #expect(outcome.attempts.count == 1)
+        #expect(outcome.attempts.first?.wasAvailable == true)
+    }
+
+    @Test
     func `trims API key before sending authorization`() async throws {
         let fixtureKey = "test-token"
         let paddedKey = "  \(fixtureKey)\n"
@@ -235,5 +250,34 @@ struct KimiK2UsageFetcherTests {
         #expect(usage.primary == nil)
         #expect(usage.identity?.providerID == .kimik2)
         #expect(usage.identity?.loginMethod == "Credits: 25 left")
+    }
+
+    private static func makeContext(environment: [String: String]) -> ProviderFetchContext {
+        ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .api,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: environment,
+            settings: nil,
+            fetcher: UsageFetcher(environment: environment),
+            claudeFetcher: KimiK2StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+    }
+}
+
+private struct KimiK2StubClaudeFetcher: ClaudeUsageFetching {
+    func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+        throw KimiK2UsageError.missingCredentials
+    }
+
+    func debugRawProbe(model _: String) async -> String {
+        "stub"
+    }
+
+    func detectVersion() -> String? {
+        nil
     }
 }

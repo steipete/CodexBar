@@ -32,6 +32,7 @@ public enum KimiK2ProviderDescriptor {
                 noDataMessage: { "Unofficial Kimi K2 cost summary is not available." }),
             fetchPlan: .apiToken(
                 strategyID: "kimik2.api",
+                reportsMissingCredentials: true,
                 resolveToken: { ProviderTokenResolver.kimiK2Token(environment: $0) },
                 missingCredentialsError: { KimiK2UsageError.missingCredentials },
                 loadUsage: { apiKey, _ in

@@ -9,6 +9,7 @@ public struct APITokenFetchStrategy: ProviderFetchStrategy {
     public let kind: ProviderFetchKind = .apiToken
 
     private let sourceLabel: String
+    private let reportsMissingCredentials: Bool
     private let resolveToken: TokenResolver
     private let missingCredentialsError: MissingCredentialsError
     private let loadUsage: UsageLoader
@@ -16,19 +17,21 @@ public struct APITokenFetchStrategy: ProviderFetchStrategy {
     public init(
         id: String,
         sourceLabel: String = "api",
+        reportsMissingCredentials: Bool = false,
         resolveToken: @escaping TokenResolver,
         missingCredentialsError: @escaping MissingCredentialsError,
         loadUsage: @escaping UsageLoader)
     {
         self.id = id
         self.sourceLabel = sourceLabel
+        self.reportsMissingCredentials = reportsMissingCredentials
         self.resolveToken = resolveToken
         self.missingCredentialsError = missingCredentialsError
         self.loadUsage = loadUsage
     }
 
     public func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        self.resolveToken(context.env) != nil
+        self.reportsMissingCredentials || self.resolveToken(context.env) != nil
     }
 
     public func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -49,6 +52,7 @@ extension ProviderFetchPlan {
     public static func apiToken(
         strategyID: String,
         sourceLabel: String = "api",
+        reportsMissingCredentials: Bool = false,
         resolveToken: @escaping APITokenFetchStrategy.TokenResolver,
         missingCredentialsError: @escaping APITokenFetchStrategy.MissingCredentialsError,
         loadUsage: @escaping APITokenFetchStrategy.UsageLoader) -> ProviderFetchPlan
@@ -59,6 +63,7 @@ extension ProviderFetchPlan {
                 [APITokenFetchStrategy(
                     id: strategyID,
                     sourceLabel: sourceLabel,
+                    reportsMissingCredentials: reportsMissingCredentials,
                     resolveToken: resolveToken,
                     missingCredentialsError: missingCredentialsError,
                     loadUsage: loadUsage)]
