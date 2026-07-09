@@ -249,7 +249,25 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `serve deadline cancels in-flight work before returning timeout`() async {
+    func `serve deadline returns before uncooperative work finishes`() async {
+        let start = Date()
+        let response = await CodexBarCLI.cachedServeResponse(
+            key: "usage:uncooperative",
+            cache: CLIServeResponseCache(),
+            refreshInterval: 60,
+            requestTimeout: 0.1)
+        {
+            await ServeUncooperativeDelay.sleep(seconds: 1)
+            return Self.response("[{\"provider\":\"codex\"}]")
+        }
+        let elapsed = Date().timeIntervalSince(start)
+
+        #expect(response.status == .gatewayTimeout)
+        #expect(elapsed < 0.5)
+    }
+
+    @Test
+    func `serve deadline cancels cooperative in-flight work after timeout`() async {
         let tracker = ServeActiveWorkTracker()
 
         let timeout = await CodexBarCLI.cachedServeResponse(
@@ -265,31 +283,72 @@ struct CLIServeRouterTests {
         }
 
         #expect(timeout.status == .gatewayTimeout)
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        try? await Task.sleep(nanoseconds: 150_000_000)
         #expect(await tracker.activeCount() == 0)
     }
 
     @Test
-    func `sequential serve deadline timeouts do not stack in-flight work`() async {
+    func `timed out serve retains in-flight until cleanup releases the cache key`() async {
+        let cache = CLIServeResponseCache()
+        let key = "usage:hold-inflight"
+
+        async let firstResponse = CodexBarCLI.cachedServeResponse(
+            key: key,
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 0.05)
+        {
+            await ServeUncooperativeDelay.sleep(seconds: 0.3)
+            return Self.response("[{\"provider\":\"codex\",\"round\":1}]")
+        }
+
+        try? await Task.sleep(nanoseconds: 70_000_000)
+        #expect(await cache.inFlightKeyCount() == 1)
+
+        async let secondResponse = CodexBarCLI.cachedServeResponse(
+            key: key,
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 0.05)
+        {
+            Self.response("[{\"provider\":\"codex\",\"round\":2}]")
+        }
+
+        try? await Task.sleep(nanoseconds: 10_000_000)
+        #expect(await cache.inFlightKeyCount() == 1)
+
+        let first = await firstResponse
+        let second = await secondResponse
+        #expect(first.status == .gatewayTimeout)
+        #expect(second.status == .ok)
+        #expect(Self.bodyString(second).contains("\"round\":2"))
+        #expect(await cache.inFlightKeyCount() == 0)
+    }
+
+    @Test
+    func `sequential serve deadline timeouts on one key do not stack in-flight work`() async {
         let tracker = ServeActiveWorkTracker()
         let cache = CLIServeResponseCache()
+        let key = "usage:stack-same"
 
-        for round in 1...5 {
+        for round in 1...3 {
             let response = await CodexBarCLI.cachedServeResponse(
-                key: "usage:stack:\(round)",
+                key: key,
                 cache: cache,
                 refreshInterval: 60,
                 requestTimeout: 0.05)
             {
                 await tracker.enter()
                 defer { Task { await tracker.leave() } }
-                try? await Task.sleep(nanoseconds: 500_000_000)
+                try? await Task.sleep(nanoseconds: 200_000_000)
                 return Self.response("[{\"provider\":\"codex\",\"round\":\(round)}]")
             }
 
             #expect(response.status == .gatewayTimeout)
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            #expect(await tracker.activeCount() <= 1)
+            try? await Task.sleep(nanoseconds: 250_000_000)
             #expect(await tracker.activeCount() == 0)
+            #expect(await cache.inFlightKeyCount() == 0)
         }
     }
 
@@ -1424,6 +1483,16 @@ struct CLIServeRouterTests {
             isLive: true,
             canReauthenticate: true,
             canRemove: false)
+    }
+}
+
+private enum ServeUncooperativeDelay {
+    static func sleep(seconds: TimeInterval) async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) {
+                continuation.resume()
+            }
+        }
     }
 }
 

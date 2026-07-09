@@ -90,6 +90,79 @@ private struct ServeRuntime {
     let healthVersion: String?
 }
 
+private struct ServeDeadlineOutcome: Sendable {
+    let response: CLILocalHTTPResponse
+    let cleanupWork: Task<Void, Never>?
+}
+
+private final class CLIServeDeadlineState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ServeDeadlineOutcome, Never>?
+    private var workTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+
+    init(continuation: CheckedContinuation<ServeDeadlineOutcome, Never>) {
+        self.continuation = continuation
+    }
+
+    func setWorkTask(_ task: Task<Void, Never>) {
+        var shouldCancel = false
+        self.lock.lock()
+        if self.continuation == nil {
+            shouldCancel = true
+        } else {
+            self.workTask = task
+        }
+        self.lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func setTimeoutTask(_ task: Task<Void, Never>) {
+        var shouldCancel = false
+        self.lock.lock()
+        if self.continuation == nil {
+            shouldCancel = true
+        } else {
+            self.timeoutTask = task
+        }
+        self.lock.unlock()
+
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func finish(_ outcome: ServeDeadlineOutcome, cancelWork: Bool, cancelTimeout: Bool) {
+        let continuation: CheckedContinuation<ServeDeadlineOutcome, Never>?
+        let capturedWorkTask: Task<Void, Never>?
+        let timeoutTask: Task<Void, Never>?
+
+        self.lock.lock()
+        continuation = self.continuation
+        self.continuation = nil
+        capturedWorkTask = self.workTask
+        timeoutTask = cancelTimeout ? self.timeoutTask : nil
+        self.workTask = nil
+        self.timeoutTask = nil
+        self.lock.unlock()
+
+        if cancelWork {
+            capturedWorkTask?.cancel()
+        }
+        timeoutTask?.cancel()
+
+        let resolved: ServeDeadlineOutcome = if cancelWork, let capturedWorkTask {
+            ServeDeadlineOutcome(response: outcome.response, cleanupWork: capturedWorkTask)
+        } else {
+            outcome
+        }
+        continuation?.resume(returning: resolved)
+    }
+}
+
 enum CLIServeCacheLookup {
     case response(CLILocalHTTPResponse)
     case miss
@@ -178,7 +251,8 @@ actor CLIServeResponseCache {
         for key: String,
         policy: CachePolicy,
         now: Date,
-        shouldCache: Bool) -> CLILocalHTTPResponse
+        shouldCache: Bool,
+        retainInFlight: Bool = false) -> CLILocalHTTPResponse
     {
         let delivered: CLILocalHTTPResponse
         let staleResponse = self.staleResponse(for: key, staleTTL: policy.staleTTL, now: now)
@@ -202,12 +276,23 @@ actor CLIServeResponseCache {
         } else {
             delivered = staleResponse ?? response
         }
-        self.inFlightKeys.remove(key)
+        if !retainInFlight {
+            self.inFlightKeys.remove(key)
+        }
         let waiters = self.waiters.removeValue(forKey: key) ?? []
         for waiter in waiters {
             waiter.resume(returning: .response(delivered))
         }
         return delivered
+    }
+
+    func releaseInFlight(for key: String) {
+        guard self.inFlightKeys.contains(key) else { return }
+        self.inFlightKeys.remove(key)
+        let waiters = self.waiters.removeValue(forKey: key) ?? []
+        for waiter in waiters {
+            waiter.resume(returning: .miss)
+        }
     }
 
     private func staleResponse(
@@ -332,6 +417,10 @@ actor CLIServeResponseCache {
 
     func cachedEntryCount() -> Int {
         self.entries.count
+    }
+
+    func inFlightKeyCount() -> Int {
+        self.inFlightKeys.count
     }
 
     func cachedStaleVariantCount() -> Int {
@@ -567,47 +656,95 @@ extension CodexBarCLI {
         case let .response(response):
             return response
         case .miss:
-            let response = await Self.serveResponseWithDeadline(seconds: requestTimeout) {
+            let outcome = await Self.serveResponseWithDeadline(seconds: requestTimeout) {
                 await makeResponse()
             }
+            let policy = CLIServeResponseCache.CachePolicy(
+                ttl: refreshInterval,
+                staleTTL: Self.serveStaleTTL(refreshInterval: refreshInterval))
+            let shouldCache = Self.shouldCacheServeResponse(outcome.response)
+            if let cleanupWork = outcome.cleanupWork {
+                let delivered = await cache.completeFetch(
+                    outcome.response,
+                    for: key,
+                    policy: policy,
+                    now: Date(),
+                    shouldCache: shouldCache,
+                    retainInFlight: true)
+                let cleanupGrace = Self.serveCleanupGrace(requestTimeout: requestTimeout)
+                Task {
+                    await Self.awaitServeWorkCleanup(cleanupWork, grace: cleanupGrace)
+                    await cache.releaseInFlight(for: key)
+                }
+                return delivered
+            }
             return await cache.completeFetch(
-                response,
+                outcome.response,
                 for: key,
-                policy: CLIServeResponseCache.CachePolicy(
-                    ttl: refreshInterval,
-                    staleTTL: Self.serveStaleTTL(refreshInterval: refreshInterval)),
+                policy: policy,
                 now: Date(),
-                shouldCache: Self.shouldCacheServeResponse(response))
+                shouldCache: shouldCache)
+        }
+    }
+
+    /// How long to keep a cache key in-flight after a timed-out serve response so
+    /// a second fetch cannot stack on canceled but still-running work.
+    static func serveCleanupGrace(requestTimeout: TimeInterval) -> TimeInterval {
+        guard requestTimeout > 0, requestTimeout.isFinite else { return 30 }
+        return min(requestTimeout, self.maximumServeRequestTimeout)
+    }
+
+    private static func awaitServeWorkCleanup(_ work: Task<Void, Never>, grace: TimeInterval) async {
+        guard grace > 0 else {
+            _ = await work.value
+            return
+        }
+        let nanoseconds = max(1, UInt64((grace * 1_000_000_000).rounded(.up)))
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { _ = await work.value }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            }
+            _ = await group.next()
+            group.cancelAll()
         }
     }
 
     private static func serveResponseWithDeadline(
         seconds timeout: TimeInterval,
-        makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> CLILocalHTTPResponse
+        makeResponse: @Sendable @escaping () async -> CLILocalHTTPResponse) async -> ServeDeadlineOutcome
     {
         let clampedTimeout = min(max(timeout, 0), Self.maximumServeRequestTimeout)
         guard clampedTimeout > 0 else {
-            return await makeResponse()
+            return await ServeDeadlineOutcome(response: makeResponse(), cleanupWork: nil)
         }
         let nanoseconds = max(1, UInt64((clampedTimeout * 1_000_000_000).rounded(.up)))
 
-        return await withTaskGroup(of: CLILocalHTTPResponse.self) { group in
-            group.addTask {
-                await makeResponse()
+        return await withCheckedContinuation { continuation in
+            let state = CLIServeDeadlineState(continuation: continuation)
+            let workTask = Task {
+                let response = await makeResponse()
+                state.finish(
+                    ServeDeadlineOutcome(response: response, cleanupWork: nil),
+                    cancelWork: false,
+                    cancelTimeout: true)
             }
-            group.addTask {
+            state.setWorkTask(workTask)
+
+            let timeoutTask = Task {
                 do {
                     try await Task.sleep(nanoseconds: nanoseconds)
                 } catch {
-                    return Self.serveError(status: .gatewayTimeout, message: "request timed out")
+                    return
                 }
-                return Self.serveError(status: .gatewayTimeout, message: "request timed out")
+                state.finish(
+                    ServeDeadlineOutcome(
+                        response: Self.serveError(status: .gatewayTimeout, message: "request timed out"),
+                        cleanupWork: nil),
+                    cancelWork: true,
+                    cancelTimeout: false)
             }
-
-            let first = await group.next()!
-            group.cancelAll()
-            while await group.next() != nil {}
-            return first
+            state.setTimeoutTask(timeoutTask)
         }
     }
 
