@@ -175,6 +175,40 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `hover re-entry after a fresh completed prefetch does not refresh again`() async throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeHoverPrefetchSettings(refreshAllOnOpen: true)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        var refreshed: [UsageProvider] = []
+        store._test_providerRefreshOverride = { provider in
+            refreshed.append(provider)
+        }
+        defer { store._test_providerRefreshOverride = nil }
+
+        let controller = self.makeHoverPrefetchController(store: store, settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.handleStatusItemHoverPrefetch(for: .codex)
+        let task = try #require(controller.statusItemHoverPrefetch.tasks[.codex])
+        await task.value
+        #expect(refreshed == [.codex])
+
+        // Pointer leaves and re-enters: the completed prefetch is still fresh, so no new task.
+        controller.handleStatusItemHoverPrefetch(for: .codex)
+        #expect(controller.statusItemHoverPrefetch.tasks.isEmpty)
+        #expect(refreshed == [.codex])
+
+        // Once the completion falls outside the freshness window, hovering prefetches again.
+        controller.statusItemHoverPrefetch.completedAt[.codex] = Date()
+            .addingTimeInterval(-StatusItemController.hoverPrefetchFreshnessWindow - 1)
+        controller.handleStatusItemHoverPrefetch(for: .codex)
+        let secondTask = try #require(controller.statusItemHoverPrefetch.tasks[.codex])
+        await secondTask.value
+        #expect(refreshed == [.codex, .codex])
+    }
+
+    @Test
     func `shutdown removes hover trackers and cancels prefetch tasks`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeHoverPrefetchSettings(refreshAllOnOpen: true)

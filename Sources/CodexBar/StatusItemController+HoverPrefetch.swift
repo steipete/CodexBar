@@ -118,7 +118,18 @@ extension StatusItemController {
         }
         // One task per provider (concurrent, mirroring the refresh-all menu-open path) so that in
         // split-icon mode hovering icon B is not suppressed by icon A's still-running prefetch.
-        for provider in providers where self.statusItemHoverPrefetch.tasks[provider] == nil {
+        // Providers with a still-fresh completed prefetch are skipped so pointer re-entry doesn't
+        // repeat the refresh; failed fetches fall outside the fresh set and get their retry.
+        let freshProviders = self.recentlyHoverPrefetchedProviders()
+        for provider in providers {
+            if self.statusItemHoverPrefetch.tasks[provider] != nil || freshProviders.contains(provider) {
+                self.menuLogger.debug(
+                    "hoverPrefetch: skip provider=\(provider.rawValue) " +
+                        "inFlight=\(self.statusItemHoverPrefetch.tasks[provider] != nil) " +
+                        "fresh=\(freshProviders.contains(provider))")
+                continue
+            }
+            self.menuLogger.debug("hoverPrefetch: start provider=\(provider.rawValue)")
             self.statusItemHoverPrefetch.tasks[provider] = Task { @MainActor [weak self] in
                 guard let self else { return }
                 await ProviderInteractionContext.$current.withValue(.background) {
@@ -127,6 +138,7 @@ extension StatusItemController {
                 if !Task.isCancelled {
                     self.statusItemHoverPrefetch.completedAt[provider] = Date()
                     self.statusItemHoverPrefetch.tasks[provider] = nil
+                    self.menuLogger.debug("hoverPrefetch: completed provider=\(provider.rawValue)")
                 }
             }
         }
