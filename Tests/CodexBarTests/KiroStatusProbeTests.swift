@@ -84,6 +84,84 @@ struct KiroStatusProbeTests {
     }
 
     @Test
+    func `fetch supports kiro cli that only completes through pipes`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ -t 1 ]; then
+              sleep 30
+              exit 1
+            fi
+
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == "person@example.com")
+    }
+
+    @Test
+    func `fetch falls back to PTY for older kiro cli`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ ! -t 1 ]; then
+              sleep 30
+              exit 1
+            fi
+
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let probe = KiroStatusProbe(
+            cliBinaryResolver: { cliURL.path },
+            pipeTimeoutCap: 0.2)
+        let snapshot = try await probe.fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+        #expect(snapshot.creditsUsed == 12.50)
+        #expect(snapshot.accountEmail == "person@example.com")
+    }
+
+    @Test
     func `fetch rejects account markers from failed whoami`() async throws {
         let cliURL = try self.makeCLI(
             """
