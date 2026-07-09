@@ -249,6 +249,51 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `serve deadline cancels in-flight work before returning timeout`() async {
+        let tracker = ServeActiveWorkTracker()
+
+        let timeout = await CodexBarCLI.cachedServeResponse(
+            key: "usage:deadline-cancel",
+            cache: CLIServeResponseCache(),
+            refreshInterval: 60,
+            requestTimeout: 0.05)
+        {
+            await tracker.enter()
+            defer { Task { await tracker.leave() } }
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            return Self.response("[{\"provider\":\"codex\"}]")
+        }
+
+        #expect(timeout.status == .gatewayTimeout)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        #expect(await tracker.activeCount() == 0)
+    }
+
+    @Test
+    func `sequential serve deadline timeouts do not stack in-flight work`() async {
+        let tracker = ServeActiveWorkTracker()
+        let cache = CLIServeResponseCache()
+
+        for round in 1...5 {
+            let response = await CodexBarCLI.cachedServeResponse(
+                key: "usage:stack:\(round)",
+                cache: cache,
+                refreshInterval: 60,
+                requestTimeout: 0.05)
+            {
+                await tracker.enter()
+                defer { Task { await tracker.leave() } }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                return Self.response("[{\"provider\":\"codex\",\"round\":\(round)}]")
+            }
+
+            #expect(response.status == .gatewayTimeout)
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            #expect(await tracker.activeCount() == 0)
+        }
+    }
+
+    @Test
     func `serve usage collection bounds a hung provider without blocking others`() async {
         let providers: [UsageProvider] = [.codex, .claude, .gemini]
         let start = Date()
@@ -1379,6 +1424,22 @@ struct CLIServeRouterTests {
             isLive: true,
             canReauthenticate: true,
             canRemove: false)
+    }
+}
+
+private actor ServeActiveWorkTracker {
+    private var active = 0
+
+    func enter() {
+        self.active += 1
+    }
+
+    func leave() {
+        self.active = max(0, self.active - 1)
+    }
+
+    func activeCount() -> Int {
+        self.active
     }
 }
 

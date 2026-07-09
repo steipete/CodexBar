@@ -90,66 +90,6 @@ private struct ServeRuntime {
     let healthVersion: String?
 }
 
-private final class CLIServeDeadlineState: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<CLILocalHTTPResponse, Never>?
-    private var workTask: Task<Void, Never>?
-    private var timeoutTask: Task<Void, Never>?
-
-    init(continuation: CheckedContinuation<CLILocalHTTPResponse, Never>) {
-        self.continuation = continuation
-    }
-
-    func setWorkTask(_ task: Task<Void, Never>) {
-        var shouldCancel = false
-        self.lock.lock()
-        if self.continuation == nil {
-            shouldCancel = true
-        } else {
-            self.workTask = task
-        }
-        self.lock.unlock()
-
-        if shouldCancel {
-            task.cancel()
-        }
-    }
-
-    func setTimeoutTask(_ task: Task<Void, Never>) {
-        var shouldCancel = false
-        self.lock.lock()
-        if self.continuation == nil {
-            shouldCancel = true
-        } else {
-            self.timeoutTask = task
-        }
-        self.lock.unlock()
-
-        if shouldCancel {
-            task.cancel()
-        }
-    }
-
-    func finish(_ response: CLILocalHTTPResponse, cancelWork: Bool, cancelTimeout: Bool) {
-        let continuation: CheckedContinuation<CLILocalHTTPResponse, Never>?
-        let workTask: Task<Void, Never>?
-        let timeoutTask: Task<Void, Never>?
-
-        self.lock.lock()
-        continuation = self.continuation
-        self.continuation = nil
-        workTask = cancelWork ? self.workTask : nil
-        timeoutTask = cancelTimeout ? self.timeoutTask : nil
-        self.workTask = nil
-        self.timeoutTask = nil
-        self.lock.unlock()
-
-        workTask?.cancel()
-        timeoutTask?.cancel()
-        continuation?.resume(returning: response)
-    }
-}
-
 enum CLIServeCacheLookup {
     case response(CLILocalHTTPResponse)
     case miss
@@ -651,26 +591,23 @@ extension CodexBarCLI {
         }
         let nanoseconds = max(1, UInt64((clampedTimeout * 1_000_000_000).rounded(.up)))
 
-        return await withCheckedContinuation { continuation in
-            let state = CLIServeDeadlineState(continuation: continuation)
-            let workTask = Task {
-                let response = await makeResponse()
-                state.finish(response, cancelWork: false, cancelTimeout: true)
+        return await withTaskGroup(of: CLILocalHTTPResponse.self) { group in
+            group.addTask {
+                await makeResponse()
             }
-            state.setWorkTask(workTask)
-
-            let timeoutTask = Task {
+            group.addTask {
                 do {
                     try await Task.sleep(nanoseconds: nanoseconds)
                 } catch {
-                    return
+                    return Self.serveError(status: .gatewayTimeout, message: "request timed out")
                 }
-                state.finish(
-                    Self.serveError(status: .gatewayTimeout, message: "request timed out"),
-                    cancelWork: true,
-                    cancelTimeout: false)
+                return Self.serveError(status: .gatewayTimeout, message: "request timed out")
             }
-            state.setTimeoutTask(timeoutTask)
+
+            let first = await group.next()!
+            group.cancelAll()
+            while await group.next() != nil {}
+            return first
         }
     }
 
