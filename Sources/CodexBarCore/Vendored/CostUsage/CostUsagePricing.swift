@@ -525,14 +525,22 @@ enum CostUsagePricing {
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
         {
+            // Prefer models.dev rates; fall back to bundled long-context / cache-write fields so a
+            // partial catalog (e.g. short-context only) cannot arm the 272K threshold without rates.
+            let bundled = self.codex[key]
             return self.codexCostUSD(
                 pricing: lookup.pricing,
-                thresholdTokens: self.codex[key]?.thresholdTokens,
-                // Prefer models.dev cache-write rates; fall back to bundled GPT-5.6-style rates.
+                thresholdTokens: bundled?.thresholdTokens,
+                inputCostPerTokenAboveThreshold: lookup.pricing.inputCostPerTokenAboveThreshold
+                    ?? bundled?.inputCostPerTokenAboveThreshold,
+                outputCostPerTokenAboveThreshold: lookup.pricing.outputCostPerTokenAboveThreshold
+                    ?? bundled?.outputCostPerTokenAboveThreshold,
+                cacheReadInputCostPerTokenAboveThreshold: lookup.pricing.cacheReadInputCostPerTokenAboveThreshold
+                    ?? bundled?.cacheReadInputCostPerTokenAboveThreshold,
                 cacheWriteInputCostPerToken: lookup.pricing.cacheCreationInputCostPerToken
-                    ?? self.codex[key]?.cacheWriteInputCostPerToken,
+                    ?? bundled?.cacheWriteInputCostPerToken,
                 cacheWriteInputCostPerTokenAboveThreshold: lookup.pricing.cacheCreationInputCostPerTokenAboveThreshold
-                    ?? self.codex[key]?.cacheWriteInputCostPerTokenAboveThreshold,
+                    ?? bundled?.cacheWriteInputCostPerTokenAboveThreshold,
                 inputTokens: inputTokens,
                 cachedInputTokens: cachedInputTokens,
                 cacheWriteInputTokens: cacheWriteInputTokens,
@@ -627,6 +635,9 @@ enum CostUsagePricing {
     private static func codexCostUSD(
         pricing: ModelsDevPricingInfo,
         thresholdTokens: Int? = nil,
+        inputCostPerTokenAboveThreshold: Double? = nil,
+        outputCostPerTokenAboveThreshold: Double? = nil,
+        cacheReadInputCostPerTokenAboveThreshold: Double? = nil,
         cacheWriteInputCostPerToken: Double? = nil,
         cacheWriteInputCostPerTokenAboveThreshold: Double? = nil,
         inputTokens: Int,
@@ -643,9 +654,12 @@ enum CostUsagePricing {
                 cacheWriteInputCostPerToken: cacheWriteInputCostPerToken
                     ?? pricing.cacheCreationInputCostPerToken,
                 thresholdTokens: thresholdTokens ?? pricing.thresholdTokens,
-                inputCostPerTokenAboveThreshold: pricing.inputCostPerTokenAboveThreshold,
-                outputCostPerTokenAboveThreshold: pricing.outputCostPerTokenAboveThreshold,
-                cacheReadInputCostPerTokenAboveThreshold: pricing.cacheReadInputCostPerTokenAboveThreshold,
+                inputCostPerTokenAboveThreshold: inputCostPerTokenAboveThreshold
+                    ?? pricing.inputCostPerTokenAboveThreshold,
+                outputCostPerTokenAboveThreshold: outputCostPerTokenAboveThreshold
+                    ?? pricing.outputCostPerTokenAboveThreshold,
+                cacheReadInputCostPerTokenAboveThreshold: cacheReadInputCostPerTokenAboveThreshold
+                    ?? pricing.cacheReadInputCostPerTokenAboveThreshold,
                 cacheWriteInputCostPerTokenAboveThreshold: cacheWriteInputCostPerTokenAboveThreshold
                     ?? pricing.cacheCreationInputCostPerTokenAboveThreshold),
             inputTokens: inputTokens,

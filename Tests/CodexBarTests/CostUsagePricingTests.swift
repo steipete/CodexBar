@@ -428,11 +428,43 @@ struct CostUsagePricingTests {
             outputTokens: 10,
             modelsDevCacheRoot: root)
 
-        // Input (300K) is above the 272K Codex long-context threshold and no cache-read price is
-        // defined, so cached tokens fall back to the above-threshold input rate (10e-6), not the
-        // base input rate. Both the 100K non-cached and 200K cached input bill at 10e-6.
-        let expected = (100_000.0 * 10e-6) + (200_000.0 * 10e-6) + (10.0 * 45e-6)
+        // Catalog omits long-context cache_read; fall back to bundled GPT-5.5 long-context cache
+        // rate ($1/1M), not the full long-context input rate.
+        let expected = (100_000.0 * 10e-6) + (200_000.0 * 1e-6) + (10.0 * 45e-6)
         #expect(cost == expected)
+    }
+
+    @Test
+    func `codex models dev falls back bundled long context rates when catalog omits them`() throws {
+        // Catalog has short-context rates only; bundled table supplies the 272K threshold + rates.
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": {
+                  "input": 5,
+                  "output": 30,
+                  "cache_read": 0.5
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        // Without bundled above-threshold fallback this would bill short rates ($5/$30) despite
+        // entering long-context mode via the bundled threshold.
+        #expect(cost == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
     }
 
     @Test
