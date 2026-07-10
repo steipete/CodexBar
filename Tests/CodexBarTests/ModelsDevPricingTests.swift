@@ -177,13 +177,13 @@ extension ModelsDevPricingTests {
         let transport = TrackingTransport(result: .success((refreshed, Self.response(status: 200))))
         let client = ModelsDevClient(transport: transport)
 
-        let didRefresh = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+        let outcome = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
             providerID: "openai",
             modelIDs: ["gpt-new"],
             now: now,
             cacheRoot: root,
             client: client)
-        #expect(didRefresh)
+        #expect(outcome == .pricingAvailable)
         #expect(transport.calls == 1)
         #expect(ModelsDevPricingPipeline.lookup(
             providerID: "openai",
@@ -214,9 +214,94 @@ extension ModelsDevPricingTests {
             cacheRoot: root,
             client: client)
 
-        #expect(first)
-        #expect(!second)
+        #expect(first == .unavailable)
+        #expect(second == .unavailable)
         #expect(transport.calls == 1)
+    }
+
+    @Test
+    func `pricing added by a completed background refresh requests a rescan`() async throws {
+        let root = try Self.cacheRoot()
+        let now = Date(timeIntervalSince1970: 30000)
+        let refreshed = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "gpt-new": { "id": "gpt-new", "cost": { "input": 2, "output": 8 } } }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": { "claude-new": { "id": "claude-new", "cost": { "input": 3, "output": 15 } } }
+          }
+        }
+        """.utf8)
+        let refreshedCatalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: refreshed)
+        try ModelsDevCache.save(catalog: refreshedCatalog, fetchedAt: now, cacheRoot: root)
+        let transport = TrackingTransport(result: .failure(MockError.failed))
+
+        let outcome = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["gpt-new"],
+            now: now,
+            cacheRoot: root,
+            client: ModelsDevClient(transport: transport))
+
+        #expect(outcome == .pricingAvailable)
+        #expect(transport.calls == 0)
+    }
+
+    @Test
+    func `ttl and unknown model refreshes share one download`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        let now = Date(timeIntervalSince1970: 40000)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+        let transport = try TrackingTransport(
+            result: .success((JSONEncoder().encode(Self.fixtureCatalog()), Self.response(status: 200))),
+            delayNanoseconds: 100_000_000)
+        let client = ModelsDevClient(transport: transport)
+
+        async let ttl: Void = ModelsDevPricingPipeline.refreshIfNeeded(
+            now: now,
+            cacheRoot: root,
+            client: client)
+        async let unknown = ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["still-unknown"],
+            now: now,
+            cacheRoot: root,
+            client: client)
+        _ = await (ttl, unknown)
+
+        #expect(transport.calls == 1)
+    }
+
+    @Test
+    func `failed cache save does not report pricing available`() async {
+        let root = URL(fileURLWithPath: "/dev/null", isDirectory: true)
+        let now = Date(timeIntervalSince1970: 50000)
+        let refreshed = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "gpt-new": { "id": "gpt-new", "cost": { "input": 2, "output": 8 } } }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": { "claude-new": { "id": "claude-new", "cost": { "input": 3, "output": 15 } } }
+          }
+        }
+        """.utf8)
+
+        let outcome = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["gpt-new"],
+            now: now,
+            cacheRoot: root,
+            client: ModelsDevClient(transport: MockTransport(
+                result: .success((refreshed, Self.response(status: 200))))))
+
+        #expect(outcome == .unavailable)
     }
 
     @Test
@@ -1110,15 +1195,25 @@ private struct MockTransport: ModelsDevHTTPTransport {
 }
 
 private final class TrackingTransport: ModelsDevHTTPTransport, @unchecked Sendable {
-    private(set) var calls = 0
+    private let lock = NSLock()
+    private var callCount = 0
     let result: Result<(Data, URLResponse), Error>
+    let delayNanoseconds: UInt64
 
-    init(result: Result<(Data, URLResponse), Error>) {
+    var calls: Int {
+        self.lock.withLock { self.callCount }
+    }
+
+    init(result: Result<(Data, URLResponse), Error>, delayNanoseconds: UInt64 = 0) {
         self.result = result
+        self.delayNanoseconds = delayNanoseconds
     }
 
     func data(for _: URLRequest) async throws -> (Data, URLResponse) {
-        self.calls += 1
+        self.lock.withLock { self.callCount += 1 }
+        if self.delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: self.delayNanoseconds)
+        }
         return try self.result.get()
     }
 }

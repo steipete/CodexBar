@@ -499,22 +499,24 @@ enum ModelsDevCache {
         }
     }
 
-    static func save(catalog: ModelsDevCatalog, fetchedAt: Date = Date(), cacheRoot: URL? = nil) {
+    @discardableResult
+    static func save(catalog: ModelsDevCatalog, fetchedAt: Date = Date(), cacheRoot: URL? = nil) -> Bool {
         let artifact = ModelsDevCacheArtifact(
             version: Self.artifactVersion,
             fetchedAt: fetchedAt,
             catalog: catalog)
-        self.save(artifact: artifact, cacheRoot: cacheRoot)
+        return self.save(artifact: artifact, cacheRoot: cacheRoot)
     }
 
-    static func save(artifact: ModelsDevCacheArtifact, cacheRoot: URL? = nil) {
+    @discardableResult
+    static func save(artifact: ModelsDevCacheArtifact, cacheRoot: URL? = nil) -> Bool {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(artifact) else { return }
+        guard let data = try? encoder.encode(artifact) else { return false }
 
         let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         do {
@@ -526,8 +528,10 @@ enum ModelsDevCache {
             }
             // The on-disk catalog changed; drop the memo so the next load decodes the fresh file.
             Self.memo.invalidate(path: url.path)
+            return true
         } catch {
             try? FileManager.default.removeItem(at: tmp)
+            return false
         }
     }
 }
@@ -542,7 +546,7 @@ struct URLSessionModelsDevTransport: ModelsDevHTTPTransport {
     }
 }
 
-struct ModelsDevClient {
+struct ModelsDevClient: Sendable {
     enum Error: Swift.Error, Equatable {
         case invalidResponse
         case httpStatus(Int)
@@ -577,8 +581,13 @@ struct ModelsDevClient {
     }
 }
 
+enum ModelsDevUnknownModelRefreshOutcome: Equatable {
+    case pricingAvailable
+    case unavailable
+}
+
 enum ModelsDevPricingPipeline {
-    private static let unknownModelRefreshGate = ModelsDevUnknownModelRefreshGate()
+    private static let refreshCoordinator = ModelsDevRefreshCoordinator()
 
     static func lookup(
         providerID: String,
@@ -600,14 +609,13 @@ enum ModelsDevPricingPipeline {
         let load = ModelsDevCache.load(now: now, cacheRoot: cacheRoot)
         guard load.isStale else { return }
 
-        do {
-            let catalog = try await client.fetchCatalog()
-            let oldCatalog = load.artifact?.catalog
-            guard catalog.isPlausibleRefresh() else { return }
-            let refreshedCatalog = oldCatalog.map { catalog.mergingFallbackPricing(from: $0) } ?? catalog
-            ModelsDevCache.save(catalog: refreshedCatalog, fetchedAt: now, cacheRoot: cacheRoot)
-        } catch {
-            // Best-effort refresh only. Future scanner integration should keep using the last valid cache.
+        let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
+        _ = await self.refreshCoordinator.refresh(
+            cachePath: cachePath,
+            reason: .ttl,
+            now: now)
+        {
+            await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
         }
     }
 
@@ -616,47 +624,93 @@ enum ModelsDevPricingPipeline {
         modelIDs: Set<String>,
         now: Date = Date(),
         cacheRoot: URL? = nil,
-        client: ModelsDevClient = ModelsDevClient()) async -> Bool
+        client: ModelsDevClient = ModelsDevClient()) async -> ModelsDevUnknownModelRefreshOutcome
     {
+        guard !modelIDs.isEmpty else { return .unavailable }
         let load = ModelsDevCache.load(now: now, cacheRoot: cacheRoot)
         let unknownModelIDs = modelIDs.filter {
             load.artifact?.catalog.pricing(providerID: providerID, modelID: $0) == nil
         }
-        guard !unknownModelIDs.isEmpty else { return false }
+        guard !unknownModelIDs.isEmpty else { return .pricingAvailable }
 
-        let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).path
-        let shouldRefresh = await self.unknownModelRefreshGate.reserve(
-            providerID: providerID,
+        let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
+        _ = await self.refreshCoordinator.refresh(
             cachePath: cachePath,
+            reason: .unknownModel,
             now: now)
-        guard shouldRefresh else { return false }
+        {
+            await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
+        }
 
+        let refreshedCatalog = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
+        let pricingBecameAvailable = modelIDs.contains {
+            refreshedCatalog?.pricing(providerID: providerID, modelID: $0) != nil
+        }
+        return pricingBecameAvailable ? .pricingAvailable : .unavailable
+    }
+
+    private static func performRefresh(
+        now: Date,
+        cacheRoot: URL?,
+        client: ModelsDevClient) async -> Bool
+    {
         do {
             let catalog = try await client.fetchCatalog()
             guard catalog.isPlausibleRefresh() else { return false }
-            let refreshedCatalog = load.artifact.map {
-                catalog.mergingFallbackPricing(from: $0.catalog)
-            } ?? catalog
-            ModelsDevCache.save(catalog: refreshedCatalog, fetchedAt: now, cacheRoot: cacheRoot)
-            return true
+            let oldCatalog = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
+            let refreshedCatalog = oldCatalog.map { catalog.mergingFallbackPricing(from: $0) } ?? catalog
+            return ModelsDevCache.save(catalog: refreshedCatalog, fetchedAt: now, cacheRoot: cacheRoot)
         } catch {
             return false
         }
     }
 }
 
-private actor ModelsDevUnknownModelRefreshGate {
-    private static let retryInterval: TimeInterval = 15 * 60
-    private var lastAttemptByKey: [String: Date] = [:]
+private actor ModelsDevRefreshCoordinator {
+    private struct InFlightRefresh {
+        let id: UUID
+        let task: Task<Bool, Never>
+    }
 
-    func reserve(providerID: String, cachePath: String, now: Date) -> Bool {
-        let key = "\(cachePath)|\(providerID)"
-        if let lastAttempt = self.lastAttemptByKey[key],
+    enum Reason: Sendable, Equatable {
+        case ttl
+        case unknownModel
+    }
+
+    private static let retryInterval: TimeInterval = 15 * 60
+    private var inFlightByCachePath: [String: InFlightRefresh] = [:]
+    private var lastUnknownAttemptByCachePath: [String: Date] = [:]
+
+    func refresh(
+        cachePath: String,
+        reason: Reason,
+        now: Date,
+        operation: @escaping @Sendable () async -> Bool) async -> Bool
+    {
+        if let inFlight = self.inFlightByCachePath[cachePath] {
+            if reason == .unknownModel {
+                self.lastUnknownAttemptByCachePath[cachePath] = now
+            }
+            return await inFlight.task.value
+        }
+        if reason == .unknownModel,
+           let lastAttempt = self.lastUnknownAttemptByCachePath[cachePath],
            now.timeIntervalSince(lastAttempt) < Self.retryInterval
         {
             return false
         }
-        self.lastAttemptByKey[key] = now
-        return true
+        if reason == .unknownModel {
+            self.lastUnknownAttemptByCachePath[cachePath] = now
+        }
+
+        let inFlight = InFlightRefresh(
+            id: UUID(),
+            task: Task { await operation() })
+        self.inFlightByCachePath[cachePath] = inFlight
+        let result = await inFlight.task.value
+        if self.inFlightByCachePath[cachePath]?.id == inFlight.id {
+            self.inFlightByCachePath[cachePath] = nil
+        }
+        return result
     }
 }
