@@ -1104,6 +1104,40 @@ extension StatusItemController {
         return (session, weekly)
     }
 
+    /// Reset dates for every lane whose menu-bar text is currently rendered as a reset time, so the
+    /// countdown scheduler can refresh each of them. Reset-time mode drives a single window, but the
+    /// smart "reset time when exhausted" option can surface reset text for BOTH combined session/weekly
+    /// lanes at once (percent mode) — schedule against every exhausted lane rather than only the single
+    /// icon-metric window, otherwise a lane that resets later can freeze once the earlier one elapses.
+    func menuBarDisplayedResetDates(for provider: UsageProvider, now: Date) -> [Date] {
+        let snapshot = self.store.snapshot(for: provider)
+        let mode = self.settings.menuBarDisplayMode
+
+        // The combined Session + Weekly percent metric renders each exhausted lane's reset text
+        // independently, so collect both lanes' reset dates (elapsed ones are dropped downstream).
+        if mode == .percent {
+            let projection = self.store.codexConsumerProjectionIfNeeded(
+                for: provider,
+                surface: .menuBar,
+                snapshotOverride: snapshot,
+                now: now)
+            if let lanes = self.combinedSessionWeeklyLanes(
+                for: provider, snapshot: snapshot, projection: projection)
+            {
+                return [lanes.session, lanes.weekly]
+                    .compactMap(\.self)
+                    .filter { $0.remainingPercent <= 0 }
+                    .compactMap(\.resetsAt)
+            }
+        }
+
+        guard let window = self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now)
+        else { return [] }
+        // Outside reset-time mode the reset text is only visible once the quota is exhausted.
+        if mode != .resetTime, window.remainingPercent > 0 { return [] }
+        return window.resetsAt.map { [$0] } ?? []
+    }
+
     /// The combined metric's session (5h) lane. Codex resolves it through the consumer projection; other
     /// providers classify by window cadence. A 5-hour lane the provider only synthesized to stand in for an
     /// absent session — Claude web's null `five_hour` placeholder, flagged at the boundary — is dropped so a

@@ -15,19 +15,10 @@ extension StatusItemController {
             && self.settings.menuBarShowsResetTimeWhenExhausted
             && displayMode != .resetTime
 
-        /// Reset dates for the windows whose menu-bar text is currently driven by reset timing: every
-        /// window in reset-time mode, or just the exhausted ones when the smart option is showing the
-        /// reset time in place of a 0% value.
+        /// Reset dates for every lane whose menu-bar text is currently a reset time — including both
+        /// combined session/weekly lanes when the smart option surfaces reset text for each of them.
         func resetDrivenResetDates() -> [Date] {
-            providers.compactMap { provider -> Date? in
-                guard let window = self.menuBarMetricWindow(
-                    for: provider,
-                    snapshot: self.store.snapshot(for: provider),
-                    now: now) else { return nil }
-                // Outside reset-time mode the reset text is only visible once the quota is exhausted.
-                if displayMode != .resetTime, window.remainingPercent > 0 { return nil }
-                return window.resetsAt
-            }
+            providers.flatMap { self.menuBarDisplayedResetDates(for: $0, now: now) }
         }
 
         if self.settings.menuBarShowsBrandIconWithPercent,

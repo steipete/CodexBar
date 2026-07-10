@@ -154,10 +154,9 @@ struct MenuBarCountdownRefreshTests {
 
     @Test
     func `absolute clock smart mode schedules the exhausted reset boundary`() {
-        let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "MenuBarCountdownRefreshTests-absolute-smart"),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        // Isolated defaults: this test enables the smart option, which must not leak into `.standard`
+        // and flip other suites' exhausted-lane expectations.
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-absolute-smart")
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.menuBarShowsBrandIconWithPercent = true
@@ -227,6 +226,67 @@ struct MenuBarCountdownRefreshTests {
             provider: .codex)
         controller.updateIcons()
         #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    @Test
+    func `combined metric schedules both exhausted session and weekly lanes`() {
+        // Isolated defaults: enabling the smart option must not leak into `.standard`.
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-combined-lanes")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .percent
+        settings.menuBarShowsResetTimeWhenExhausted = true
+        settings.resetTimesShowAbsolute = false
+        settings.mergeIcons = false
+        settings.selectedMenuProvider = .claude
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+        if let metadata = ProviderRegistry.shared.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date()
+        // Both combined lanes exhausted: the session (5h) reset has already elapsed, the weekly (7d)
+        // reset is still ahead. The scheduler must consider the weekly lane, not just the icon-metric
+        // lane, so the still-displayed weekly countdown keeps refreshing.
+        let sessionReset = now.addingTimeInterval(-60)
+        let weeklyReset = now.addingTimeInterval(3600)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .claude)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.updateIcons()
+
+        let dates = controller.menuBarDisplayedResetDates(for: .claude, now: now)
+        #expect(dates.contains(sessionReset))
+        #expect(dates.contains(weeklyReset))
+        // The future weekly boundary must keep a refresh scheduled even though the session lane elapsed.
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
     }
 
     @Test
