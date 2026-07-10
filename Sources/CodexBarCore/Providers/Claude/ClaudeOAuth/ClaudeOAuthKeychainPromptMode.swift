@@ -103,16 +103,15 @@ public enum ClaudeOAuthKeychainPromptPreference {
         var visitedPaths = Set<String>()
         for candidate in candidates {
             var current = candidate.standardizedFileURL.resolvingSymlinksInPath()
-            while true {
+            let ancestorCount = current.pathComponents.count
+            for _ in 0..<ancestorCount {
                 if current.pathExtension == "app",
                    visitedPaths.insert(current.path).inserted,
                    let domain = self.defaultsDomain(forBundleIdentifier: bundleIdentifierForApp(current))
                 {
                     return domain
                 }
-                let parent = current.deletingLastPathComponent()
-                guard parent.path != current.path else { break }
-                current = parent
+                current.deleteLastPathComponent()
             }
         }
         return self.releaseApplicationDefaultsDomain

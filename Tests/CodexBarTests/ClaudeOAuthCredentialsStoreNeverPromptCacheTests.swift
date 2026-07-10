@@ -469,6 +469,14 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
             executableURL: URL(fileURLWithPath: "/usr/local/bin/codexbar"),
             invocationURL: nil)
         #expect(standaloneDomain == ClaudeOAuthKeychainPromptPreference.releaseApplicationDefaultsDomain)
+
+        let testProcessDomain = ClaudeOAuthKeychainPromptPreference.resolveApplicationDefaultsDomain(
+            bundleIdentifier: nil,
+            bundleURL: Bundle.main.bundleURL,
+            executableURL: Bundle.main.executableURL,
+            invocationURL: CommandLine.arguments.first.map(URL.init(fileURLWithPath:)),
+            bundleIdentifierForApp: { _ in nil })
+        #expect(testProcessDomain == ClaudeOAuthKeychainPromptPreference.releaseApplicationDefaultsDomain)
     }
 
     @Test
