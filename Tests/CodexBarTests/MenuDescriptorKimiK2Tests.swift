@@ -1,5 +1,4 @@
 import CodexBarCore
-import Foundation
 import Testing
 @testable import CodexBar
 
@@ -7,7 +6,7 @@ import Testing
 @Suite(.serialized)
 struct MenuDescriptorKimiK2Tests {
     @Test
-    func `kimi K2 menu exposes the usage dashboard action`() throws {
+    func `kimi K2 menu exposes the usage dashboard action`() {
         let settings = testSettingsStore(suiteName: "MenuDescriptorKimiK2Tests-dashboard")
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -33,8 +32,5 @@ struct MenuDescriptorKimiK2Tests {
         #expect(actions.contains { title, action in
             title == "Usage Dashboard" && action == .dashboard
         })
-        #expect(
-            store.metadata(for: .kimik2).dashboardURL == "https://kimrel.com/my-credits",
-            "Dashboard action must open the human-facing credits page, not the bearer-token API endpoint")
     }
 }

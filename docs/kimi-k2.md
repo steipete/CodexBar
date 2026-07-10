@@ -31,6 +31,7 @@ key for that legacy endpoint to pull your remaining balance and usage.
 
 - Credits are the billing unit; CodexBar computes used percent as `consumed / (consumed + remaining)`.
 - There is no explicit reset timestamp in the API, so the snapshot has no reset time.
+- The menu's Usage Dashboard action opens the legacy service's human-facing credits page at `https://kimrel.com/my-credits`.
 - Environment variables take precedence over config.
 
 ## Key files

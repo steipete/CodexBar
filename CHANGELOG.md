@@ -4,6 +4,7 @@
 
 ### Added
 - Agent Sessions: list and focus live local or SSH-discovered Codex and Claude Code sessions from the menu and CLI.
+- Kimi K2: add a Usage Dashboard shortcut to the human-facing legacy credits page. Thanks @joeVenner!
 - Codex: add a provider option to hide Spark quota rows without hiding credits or other extra usage (#2013). Thanks @intellectronica!
 - Wayfinder: add opt-in local gateway health, routing, savings, and latency usage with configurable loopback URL support. Thanks @tcballard!
 - Claude CLI: surface model-scoped weekly limits alongside all-model usage without duplicating matching web limits. Thanks @janpollak!
