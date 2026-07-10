@@ -457,6 +457,21 @@ extension StatusItemController {
         }
         self.parentMenuRebuildPendingAfterHostedSubviewClose = false
         self.refreshOpenMenusIfNeeded(allowsParentRebuild: true)
+        self.resumeParentMenuRebuildsDeferredForNativeHighlightAfterHostedSubviewClose()
+    }
+
+    private func resumeParentMenuRebuildsDeferredForNativeHighlightAfterHostedSubviewClose() {
+        guard !self.hasOpenHostedSubviewMenu() else { return }
+        let deferredParents = self.openMenus.values.filter { menu in
+            let key = ObjectIdentifier(menu)
+            return !self.isHostedSubviewMenu(menu) &&
+                self.nativeHighlightDeferredMenuRebuilds[key] != nil
+        }
+        // Schedule the saved explicit request after the generic dirty-menu pass, even when the native
+        // highlight is still active. The scheduled rebuild will defer again, preserving its provider.
+        for menu in deferredParents {
+            self.resumeMenuRebuildDeferredForNativeHighlightIfNeeded(menu)
+        }
     }
 
     func completeParentMenuRebuildAfterHostedSubviewCloseIfNeeded() {

@@ -178,6 +178,145 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `hosted submenu close resumes deferred explicit rebuild on fresh parent`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+
+        let parent = controller.makeMenu()
+        controller.populateMenu(parent, provider: .codex)
+        controller.markMenuFresh(parent)
+        let parentKey = ObjectIdentifier(parent)
+        controller.openMenus[parentKey] = parent
+        defer { controller.menuDidClose(parent) }
+
+        let nativeItem = NSMenuItem(title: "Plan Usage", action: nil, keyEquivalent: "")
+        nativeItem.isEnabled = true
+        parent.addItem(nativeItem)
+        controller.menu(parent, willHighlight: nativeItem)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { menu in
+            if menu === parent {
+                rebuildCount += 1
+            }
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+        controller.scheduleOpenMenuRebuildIfStillVisible(parent, provider: .claude)
+        for _ in 0..<20 where controller.nativeHighlightDeferredMenuRebuilds[parentKey] == nil {
+            await Task.yield()
+        }
+
+        #expect(rebuildCount == 0)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds[parentKey]?.provider == .claude)
+        #expect(!controller.menuNeedsRefresh(parent))
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .codex)
+        let submenuKey = ObjectIdentifier(submenu)
+        controller.openMenus[submenuKey] = submenu
+        controller.menu(parent, willHighlight: nil)
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+
+        #expect(rebuildCount == 0)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds[parentKey]?.provider == .claude)
+        #expect(!controller.menuNeedsRefresh(parent))
+
+        controller.menuDidClose(submenu)
+        for _ in 0..<40 where rebuildCount == 0 {
+            await Task.yield()
+        }
+
+        #expect(controller.openMenus[submenuKey] == nil)
+        #expect(rebuildCount == 1)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds[parentKey] == nil)
+        #expect(!controller.menuNeedsRefresh(parent))
+    }
+
+    @Test
+    func `hosted submenu close keeps explicit rebuild ahead of dirty parent refresh`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+
+        let parent = controller.makeMenu()
+        controller.populateMenu(parent, provider: .codex)
+        controller.markMenuFresh(parent)
+        let parentKey = ObjectIdentifier(parent)
+        controller.openMenus[parentKey] = parent
+        defer { controller.menuDidClose(parent) }
+
+        let nativeItem = NSMenuItem(title: "Plan Usage", action: nil, keyEquivalent: "")
+        nativeItem.isEnabled = true
+        parent.addItem(nativeItem)
+        controller.menu(parent, willHighlight: nativeItem)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { menu in
+            if menu === parent {
+                rebuildCount += 1
+            }
+        }
+        defer { controller._test_openMenuRebuildObserver = nil }
+        controller.scheduleOpenMenuRebuildIfStillVisible(parent, provider: .claude)
+        for _ in 0..<20 where controller.nativeHighlightDeferredMenuRebuilds[parentKey] == nil {
+            await Task.yield()
+        }
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.costHistoryChartID,
+            provider: .codex)
+        controller.openMenus[ObjectIdentifier(submenu)] = submenu
+        controller.menuSession.invalidate(allowsStaleContent: false, requiresRebuild: true)
+        #expect(controller.menuNeedsRefresh(parent))
+
+        controller.menuDidClose(submenu)
+        for _ in 0..<40 {
+            await Task.yield()
+        }
+
+        #expect(rebuildCount == 0)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds[parentKey]?.provider == .claude)
+        #expect(controller.menuNeedsRefresh(parent))
+
+        controller.menu(parent, willHighlight: nil)
+        for _ in 0..<40 where rebuildCount == 0 {
+            await Task.yield()
+        }
+
+        #expect(rebuildCount == 1)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds[parentKey] == nil)
+        #expect(!controller.menuNeedsRefresh(parent))
+    }
+
+    @Test
     func `hosted submenu close preserves pending parent baseline resync`() async {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
@@ -212,7 +351,9 @@ extension StatusMenuTests {
         controller.menuSession.invalidate(allowsStaleContent: false, requiresRebuild: true)
         var rebuildCount = 0
         controller._test_openMenuRebuildObserver = { menu in
-            if menu === parent { rebuildCount += 1 }
+            if menu === parent {
+                rebuildCount += 1
+            }
         }
         defer { controller._test_openMenuRebuildObserver = nil }
 
@@ -334,7 +475,9 @@ extension StatusMenuTests {
         ]
         var rebuildCount = 0
         controller._test_openMenuRebuildObserver = { menu in
-            if menu === submenu { rebuildCount += 1 }
+            if menu === submenu {
+                rebuildCount += 1
+            }
         }
         defer { controller._test_openMenuRebuildObserver = nil }
 
