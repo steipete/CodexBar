@@ -523,12 +523,17 @@ enum CostUsagePricing {
         modelsDevCacheRoot: URL? = nil) -> Double?
     {
         let key = self.normalizeCodexModel(model)
-        if let lookup = self.modelsDevLookup(
+        let modelsDevLookup = self.modelsDevLookup(
             providerID: self.codexModelsDevProviderID,
             model: model,
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
-        {
+            ?? (model == key ? nil : self.modelsDevLookup(
+                providerID: self.codexModelsDevProviderID,
+                model: key,
+                catalog: modelsDevCatalog,
+                cacheRoot: modelsDevCacheRoot))
+        if let lookup = modelsDevLookup {
             let bundled = self.codex[key]
             // A missing catalog context block means models.dev has no long-context opinion, so use
             // the bundled tuple. Once the block exists, preserve its omissions and normal fallback

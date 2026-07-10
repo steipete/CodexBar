@@ -117,6 +117,99 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex models dev falls back from gpt56 alias to canonical sol pricing`() throws {
+        let canonicalOnlyRoot = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 7, "output": 31 }
+              }
+            }
+          }
+        }
+        """)
+        let aliasAndCanonicalRoot = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6": {
+                "id": "gpt-5.6",
+                "cost": { "input": 3, "output": 13 }
+              },
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 7, "output": 31 }
+              }
+            }
+          }
+        }
+        """)
+
+        let canonicalFallback = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6",
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 0,
+            modelsDevCacheRoot: canonicalOnlyRoot)
+        let exactAlias = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6",
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 0,
+            modelsDevCacheRoot: aliasAndCanonicalRoot)
+
+        #expect(canonicalFallback == 100.0 * 7e-6)
+        #expect(exactAlias == 100.0 * 3e-6)
+    }
+
+    @Test
+    func `codex pricing key distinguishes an empty long context block from no block`() throws {
+        let withoutLongContext = try Self.modelsDevArtifact("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 5, "output": 30 }
+              }
+            }
+          }
+        }
+        """)
+        let withEmptyLongContext = try Self.modelsDevArtifact("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": {
+                  "input": 5,
+                  "output": 30,
+                  "context_over_200k": {}
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let withoutKey = CostUsagePricingKey.codex(
+            modelsDevArtifact: withoutLongContext,
+            formulaVersion: 1)
+        let withEmptyKey = CostUsagePricingKey.codex(
+            modelsDevArtifact: withEmptyLongContext,
+            formulaVersion: 1)
+
+        #expect(withoutKey != withEmptyKey)
+    }
+
+    @Test
     func `codex cost applies gpt56 long context rates`() throws {
         let root = try Self.cacheRoot()
         let sol = CostUsagePricing.codexCostUSD(
@@ -977,6 +1070,14 @@ extension CostUsagePricingTests {
         let catalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
         ModelsDevCache.save(catalog: catalog, fetchedAt: Date(), cacheRoot: root)
         return root
+    }
+
+    private static func modelsDevArtifact(_ json: String) throws -> ModelsDevCacheArtifact {
+        let catalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
+        return ModelsDevCacheArtifact(
+            version: ModelsDevCache.artifactVersion,
+            fetchedAt: Date(timeIntervalSince1970: 0),
+            catalog: catalog)
     }
 
     private static func cacheRoot() throws -> URL {

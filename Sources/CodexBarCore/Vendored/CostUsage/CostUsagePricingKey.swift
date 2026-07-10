@@ -9,7 +9,8 @@ enum CostUsagePricingKey {
     static func codex(
         modelsDevArtifact: ModelsDevCacheArtifact?,
         formulaVersion: Int,
-        parserHash: String? = nil) -> String
+        parserHash: String? = nil,
+        modelsDevProviderIDs: Set<String> = ["openai"]) -> String
     {
         var parts = [
             "costFormulaVersion=\(formulaVersion)",
@@ -22,7 +23,10 @@ enum CostUsagePricingKey {
         let prefix: String
         if let modelsDevArtifact {
             prefix = "models-dev-v\(modelsDevArtifact.version)"
-            parts.append("modelsDevPricing:\n\(self.modelsDevPricingFingerprint(modelsDevArtifact.catalog))")
+            let modelsDevPricing = self.modelsDevPricingFingerprint(
+                modelsDevArtifact.catalog,
+                providerIDs: modelsDevProviderIDs)
+            parts.append("modelsDevPricing:\n\(modelsDevPricing)")
         } else {
             prefix = "builtin"
             parts.append("modelsDevPricing:none")
@@ -30,27 +34,31 @@ enum CostUsagePricingKey {
         return "\(prefix)-\(self.sha256Hex(Data(parts.joined(separator: "\n").utf8)))"
     }
 
-    private static func modelsDevPricingFingerprint(_ catalog: ModelsDevCatalog) -> String {
+    private static func modelsDevPricingFingerprint(
+        _ catalog: ModelsDevCatalog,
+        providerIDs: Set<String>) -> String
+    {
         var parts: [String] = []
-        for providerID in catalog.providers.keys.sorted() {
+        let normalizedProviderIDs = Set(providerIDs.map(ModelsDevProvider.normalizeProviderID))
+        for providerID in normalizedProviderIDs.sorted() {
             guard let provider = catalog.providers[providerID] else { continue }
-            parts.append("provider=\(providerID)|\(provider.id ?? "")")
             for modelKey in provider.models.keys.sorted() {
-                guard let model = provider.models[modelKey] else { continue }
+                guard let model = provider.models[modelKey], model.isPriceable else { continue }
                 let cost = model.cost
                 let contextOver200K = cost?.contextOver200K
                 parts.append([
+                    "provider=\(providerID)",
                     "model=\(modelKey)",
                     model.id,
                     self.optionalDoubleFingerprint(cost?.input),
                     self.optionalDoubleFingerprint(cost?.output),
                     self.optionalDoubleFingerprint(cost?.cacheRead),
                     self.optionalDoubleFingerprint(cost?.cacheWrite),
+                    contextOver200K == nil ? "contextOver200K=absent" : "contextOver200K=present",
                     self.optionalDoubleFingerprint(contextOver200K?.input),
                     self.optionalDoubleFingerprint(contextOver200K?.output),
                     self.optionalDoubleFingerprint(contextOver200K?.cacheRead),
                     self.optionalDoubleFingerprint(contextOver200K?.cacheWrite),
-                    model.limit?.context.map(String.init) ?? "nil",
                 ].joined(separator: "|"))
             }
         }
