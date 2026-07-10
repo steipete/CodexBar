@@ -118,9 +118,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let store: UsageStore
     let settings: SettingsStore
     let agentSessions: AgentSessionsStore
-    lazy var menuCardRefreshMonitor = MenuCardRefreshMonitor { [weak self] provider in
-        self?.menuCardModel(for: provider)
-    }
+    lazy var menuCardRefreshMonitor = MenuCardRefreshMonitor(
+        resolveModel: { [weak self] provider in
+            self?.menuCardModel(for: provider)
+        },
+        isProviderRefreshActive: { [weak self] provider in
+            self?.store.refreshingProviders.contains(provider) == true
+        })
 
     let account: AccountInfo
     let updater: UpdaterProviding

@@ -155,15 +155,13 @@ extension UsageStore {
     }
 
     func shouldShowRefreshingMenuCard(for provider: UsageProvider) -> Bool {
-        let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
-        return isRefreshing
+        self.refreshingProviders.contains(provider)
             && self.snapshots[provider] == nil
             && self.error(for: provider) == nil
     }
 
     func shouldShowRefreshingMenuCardIndicator(for provider: UsageProvider) -> Bool {
-        let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
-        return isRefreshing && self.error(for: provider) == nil
+        self.refreshingProviders.contains(provider) && self.error(for: provider) == nil
     }
 
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
