@@ -3,7 +3,7 @@
 ## 0.41.1 — Unreleased
 
 ### Added
-- Menu bar: new "Show reset time when quota runs out" display option — Percent, Pace, and Both modes swap the exhausted value for the time until reset (e.g. ↻ 2h 14m), then flip back after the reset.
+- Menu bar: new "Show reset time when quota runs out" display option — Percent, Pace, and Both modes swap the exhausted value for the time until reset (e.g. ↻ 2h 14m), then flip back after the reset (#2028, #2027). Thanks @brahimhamichan!
 - Agent Sessions: list and focus live local or SSH-discovered Codex and Claude Code sessions from the menu and CLI.
 - Kimi K2: add a Usage Dashboard shortcut to the human-facing legacy credits page. Thanks @joeVenner!
 - Codex: add GPT-5.6 Sol, Terra, and Luna pricing, including long-context, Priority, cache-write, alias, and automatic Pi cache repricing when rates change (#2023). Thanks @0xSMW!

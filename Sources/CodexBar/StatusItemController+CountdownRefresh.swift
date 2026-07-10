@@ -31,14 +31,11 @@ extension StatusItemController {
                 delays.append(delay)
             }
         } else if smartExhaustedActive, self.settings.resetTimeDisplayStyle == .absolute {
-            // Absolute clocks don't tick, so the per-minute scheduler above is skipped — but a smart
-            // exhausted lane still needs one refresh at the reset boundary to fall back to the percentage
-            // once the reset passes (otherwise a slow/manual provider refresh leaves a stale past clock).
-            for resetsAt in resetDrivenResetDates() {
-                let remaining = resetsAt.timeIntervalSince(now)
-                if remaining > 0 {
-                    delays.append(remaining + Self.menuBarCountdownRefreshEpsilon)
-                }
+            // Absolute clocks don't tick each minute, but their human-friendly date label can change at
+            // local midnight (for example, "tomorrow" becomes a same-day time). Wake at that boundary or
+            // the reset itself, whichever comes first; the next icon update schedules any later boundary.
+            if let delay = Self.menuBarAbsoluteRefreshDelay(resetDates: resetDrivenResetDates(), now: now) {
+                delays.append(delay)
             }
         }
 
@@ -80,6 +77,23 @@ extension StatusItemController {
         }.min()
     }
 
+    nonisolated static func menuBarAbsoluteRefreshDelay(
+        resetDates: [Date],
+        now: Date,
+        calendar: Calendar = .current)
+        -> TimeInterval?
+    {
+        guard let nextDayStart = calendar.dateInterval(of: .day, for: now)?.end else { return nil }
+
+        return resetDates.compactMap { resetDate -> TimeInterval? in
+            guard resetDate > now else { return nil }
+            let nextTextChange = min(resetDate, nextDayStart)
+            return max(
+                self.menuBarCountdownRefreshEpsilon,
+                nextTextChange.timeIntervalSince(now) + self.menuBarCountdownRefreshEpsilon)
+        }.min()
+    }
+
     private func menuBarRefreshProviders() -> [UsageProvider] {
         if self.shouldMergeIcons {
             return [self.primaryProviderForUnifiedIcon()]
@@ -88,8 +102,12 @@ extension StatusItemController {
     }
 
     private func menuBarObservesCodexReset(providers: [UsageProvider]) -> Bool {
-        if providers.contains(.codex) { return true }
-        guard self.shouldMergeIcons, self.settings.menuBarShowsHighestUsage else { return false }
+        if providers.contains(.codex) {
+            return true
+        }
+        guard self.shouldMergeIcons, self.settings.menuBarShowsHighestUsage else {
+            return false
+        }
         let activeProviders = self.store.enabledProvidersForDisplay()
         return self.settings.resolvedMergedOverviewProviders(
             activeProviders: activeProviders,

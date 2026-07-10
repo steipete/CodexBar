@@ -1105,32 +1105,39 @@ extension StatusItemController {
     }
 
     /// Reset dates for every lane whose menu-bar text is currently rendered as a reset time, so the
-    /// countdown scheduler can refresh each of them. Reset-time mode drives a single window, but the
-    /// smart "reset time when exhausted" option can surface reset text for BOTH combined session/weekly
-    /// lanes at once (percent mode) — schedule against every exhausted lane rather than only the single
-    /// icon-metric window, otherwise a lane that resets later can freeze once the earlier one elapses.
+    /// countdown scheduler can refresh each of them. Reset-time mode drives a single window. The smart
+    /// "reset time when exhausted" option can surface BOTH combined session/weekly lanes in percent mode,
+    /// while pace/both render the one lane chosen by `combinedDisplayPercentWindow` — mirror that presentation
+    /// here rather than scheduling whichever lane happened to drive the icon.
     func menuBarDisplayedResetDates(for provider: UsageProvider, now: Date) -> [Date] {
         let snapshot = self.store.snapshot(for: provider)
         let mode = self.settings.menuBarDisplayMode
 
-        // Combined Session + Weekly metric: percent mode renders each exhausted lane's reset text, and
-        // pace/both surface an exhausted lane through `combinedDisplayPercentWindow`. Collect every
-        // exhausted lane so the scheduler always covers whichever lane the display actually shows — an
-        // extra boundary for a lane that isn't currently displayed just triggers a harmless recompute.
-        // Reset-time mode shows a single window, handled below.
-        if mode != .resetTime {
-            let projection = self.store.codexConsumerProjectionIfNeeded(
-                for: provider,
-                surface: .menuBar,
-                snapshotOverride: snapshot,
-                now: now)
-            if let lanes = self.combinedSessionWeeklyLanes(
-                for: provider, snapshot: snapshot, projection: projection)
-            {
+        let projection = self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)
+        if let lanes = self.combinedSessionWeeklyLanes(
+            for: provider, snapshot: snapshot, projection: projection)
+        {
+            switch mode {
+            case .percent:
+                // Percent renders both lanes independently, so schedule every exhausted reset.
                 return [lanes.session, lanes.weekly]
                     .compactMap(\.self)
                     .filter { $0.remainingPercent <= 0 }
                     .compactMap(\.resetsAt)
+            case .pace, .both:
+                // Pace/both render one usage lane alongside the weekly pace. Use that exact lane rather
+                // than `menuBarMetricWindow`, whose tie-breaking can select the other exhausted window.
+                let window = Self.combinedDisplayPercentWindow(
+                    lanes: lanes,
+                    fallback: self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now))
+                guard let window, window.remainingPercent <= 0 else { return [] }
+                return window.resetsAt.map { [$0] } ?? []
+            case .resetTime:
+                break
             }
         }
 
