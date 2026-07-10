@@ -3,7 +3,7 @@ import Foundation
 /// Replay-only candidate used to test whether stat-only coding activity can close the accepted
 /// "active work is never slower than five minutes" gap. It is not a production policy approval.
 public struct CodingActivityAdaptivePolicy: ReplayPolicy, Sendable {
-    public let name = "adaptive-activity-cap"
+    public let name = "adaptive-activity"
     public let advancesOnInteraction = true
 
     private let base = MirroredAdaptivePolicy()

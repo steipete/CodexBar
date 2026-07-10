@@ -22,6 +22,7 @@ struct CodingActivityReplayPolicyTests {
     func `active coding caps idle and long-idle decisions at five minutes`() {
         let policy = CodingActivityAdaptivePolicy()
 
+        #expect(policy.name == "adaptive-activity")
         #expect(policy.decide(self.input(menuAge: 2 * 3600, activityAge: 10)).delaySeconds == 300)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: 10)).delaySeconds == 300)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: 10)).reason == "codingActivity")
