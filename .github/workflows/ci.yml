@@ -128,6 +128,7 @@ jobs:
         run: |
           CODEXBAR_TEST_GROUP_SIZE=4 \
             CODEXBAR_TEST_SUITE_TIMEOUT=120 \
+            CODEXBAR_TEST_RETRY_NON_TIMEOUT_FAILURES=0 \
             CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }} \
             CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
             ./Scripts/test.sh
@@ -141,12 +142,13 @@ jobs:
           RUNS_LINT_MACOS: ${{ matrix.shard-index == 0 }}
         run: |
           set -euo pipefail
+          display_shard_index=$((SHARD_INDEX + 1))
           xcode_version="$(/usr/bin/xcodebuild -version 2>/dev/null | tr '\n' ' ' || true)"
           {
             printf '### macOS Swift shard\n\n'
             printf '| Field | Value |\n'
             printf '| --- | --- |\n'
-            printf '| Shard | `%s / %s` |\n' "$SHARD_INDEX" "$SHARD_COUNT"
+            printf '| Shard | `%s / %s` |\n' "$display_shard_index" "$SHARD_COUNT"
             printf '| Runner | `%s` |\n' "${RUNNER_NAME:-unknown}"
             printf '| Xcode | `%s` |\n' "${xcode_version:-unknown}"
             printf '| Runs lint-macos | `%s` |\n' "$RUNS_LINT_MACOS"
