@@ -247,34 +247,28 @@ public struct CostUsageFetcher: Sendable {
             return (daily: daily, projects: projects)
         }
 
-        if retryUnknownPricing, provider == .codex || provider == .claude {
-            let unknownModelIDs = Set(scanResult.daily.data.flatMap { entry in
-                entry.modelBreakdowns?.compactMap { breakdown in
-                    breakdown.costUSD == nil ? breakdown.modelName : nil
-                } ?? []
-            })
-            let providerID = provider == .codex ? "openai" : "anthropic"
-            if await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
-                providerID: providerID,
-                modelIDs: unknownModelIDs,
+        if retryUnknownPricing,
+           let request = Self.unknownPricingRefreshRequest(
+               provider: provider,
+               daily: scanResult.daily,
+               now: now,
+               cacheRoot: options.cacheRoot,
+               client: modelsDevClient),
+           await Self.refreshUnknownPricingIfNeeded(request, inBackground: refreshPricingInBackground)
+        {
+            return try await self.loadTokenSnapshot(
+                provider: provider,
+                environment: environment,
                 now: now,
-                cacheRoot: options.cacheRoot,
-                client: modelsDevClient) == .pricingAvailable
-            {
-                return try await self.loadTokenSnapshot(
-                    provider: provider,
-                    environment: environment,
-                    now: now,
-                    forceRefresh: forceRefresh,
-                    allowVertexClaudeFallback: allowVertexClaudeFallback,
-                    codexHomePath: codexHomePath,
-                    historyDays: historyDays,
-                    refreshPricingInBackground: false,
-                    scannerOptions: options,
-                    piScannerOptions: piOptions,
-                    modelsDevClient: modelsDevClient,
-                    retryUnknownPricing: false)
-            }
+                forceRefresh: forceRefresh,
+                allowVertexClaudeFallback: allowVertexClaudeFallback,
+                codexHomePath: codexHomePath,
+                historyDays: historyDays,
+                refreshPricingInBackground: false,
+                scannerOptions: options,
+                piScannerOptions: piOptions,
+                modelsDevClient: modelsDevClient,
+                retryUnknownPricing: false)
         }
 
         return Self.tokenSnapshot(
@@ -282,6 +276,60 @@ public struct CostUsageFetcher: Sendable {
             now: now,
             historyDays: clampedHistoryDays,
             projects: scanResult.projects)
+    }
+
+    private struct UnknownPricingRefreshRequest: Sendable {
+        let providerID: String
+        let modelIDs: Set<String>
+        let now: Date
+        let cacheRoot: URL?
+        let client: ModelsDevClient
+    }
+
+    private static func unknownPricingRefreshRequest(
+        provider: UsageProvider,
+        daily: CostUsageDailyReport,
+        now: Date,
+        cacheRoot: URL?,
+        client: ModelsDevClient) -> UnknownPricingRefreshRequest?
+    {
+        guard provider == .codex || provider == .claude else { return nil }
+        let unknownModelIDs = Set(daily.data.flatMap { entry in
+            entry.modelBreakdowns?.compactMap { breakdown in
+                breakdown.costUSD == nil ? breakdown.modelName : nil
+            } ?? []
+        })
+        guard !unknownModelIDs.isEmpty else { return nil }
+
+        return UnknownPricingRefreshRequest(
+            providerID: provider == .codex ? "openai" : "anthropic",
+            modelIDs: unknownModelIDs,
+            now: now,
+            cacheRoot: cacheRoot,
+            client: client)
+    }
+
+    private static func refreshUnknownPricingIfNeeded(
+        _ request: UnknownPricingRefreshRequest,
+        inBackground: Bool) async -> Bool
+    {
+        if inBackground {
+            Task.detached(priority: .utility) {
+                _ = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+                    providerID: request.providerID,
+                    modelIDs: request.modelIDs,
+                    now: request.now,
+                    cacheRoot: request.cacheRoot,
+                    client: request.client)
+            }
+            return false
+        }
+        return await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: request.providerID,
+            modelIDs: request.modelIDs,
+            now: request.now,
+            cacheRoot: request.cacheRoot,
+            client: request.client) == .pricingAvailable
     }
 
     static func loadCachedCodexTokenSnapshot(

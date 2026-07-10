@@ -586,7 +586,7 @@ enum ModelsDevUnknownModelRefreshOutcome: Equatable {
     case unavailable
 }
 
-private let modelsDevUnknownModelRetryInterval: TimeInterval = 15 * 60
+private let modelsDevCatalogRetryInterval: TimeInterval = 15 * 60
 
 enum ModelsDevPricingPipeline {
     private static let refreshCoordinator = ModelsDevRefreshCoordinator()
@@ -614,10 +614,9 @@ enum ModelsDevPricingPipeline {
         let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
         _ = await self.refreshCoordinator.refresh(
             cachePath: cachePath,
-            reason: .ttl,
             now: now)
         {
-            await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
+            await self.refreshStaleCache(now: now, cacheRoot: cacheRoot, client: client)
         }
     }
 
@@ -635,7 +634,7 @@ enum ModelsDevPricingPipeline {
         }
         guard !unknownModelIDs.isEmpty else { return .pricingAvailable }
         if let fetchedAt = load.artifact?.fetchedAt,
-           now.timeIntervalSince(fetchedAt) < modelsDevUnknownModelRetryInterval
+           now.timeIntervalSince(fetchedAt) < modelsDevCatalogRetryInterval
         {
             return .unavailable
         }
@@ -643,14 +642,13 @@ enum ModelsDevPricingPipeline {
         let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
         _ = await self.refreshCoordinator.refresh(
             cachePath: cachePath,
-            reason: .unknownModel,
             now: now)
         {
             await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
         }
 
         let refreshedCatalog = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
-        let pricingBecameAvailable = modelIDs.contains {
+        let pricingBecameAvailable = unknownModelIDs.contains {
             refreshedCatalog?.pricing(providerID: providerID, modelID: $0) != nil
         }
         return pricingBecameAvailable ? .pricingAvailable : .unavailable
@@ -671,6 +669,15 @@ enum ModelsDevPricingPipeline {
             return false
         }
     }
+
+    static func refreshStaleCache(
+        now: Date,
+        cacheRoot: URL?,
+        client: ModelsDevClient) async -> Bool
+    {
+        guard ModelsDevCache.load(now: now, cacheRoot: cacheRoot).isStale else { return true }
+        return await self.performRefresh(now: now, cacheRoot: cacheRoot, client: client)
+    }
 }
 
 private actor ModelsDevRefreshCoordinator {
@@ -679,26 +686,19 @@ private actor ModelsDevRefreshCoordinator {
         let task: Task<Bool, Never>
     }
 
-    enum Reason: Sendable, Equatable {
-        case ttl
-        case unknownModel
-    }
-
     private var inFlightByCachePath: [String: InFlightRefresh] = [:]
     private var lastCatalogAttemptByCachePath: [String: Date] = [:]
 
     func refresh(
         cachePath: String,
-        reason: Reason,
         now: Date,
         operation: @escaping @Sendable () async -> Bool) async -> Bool
     {
         if let inFlight = self.inFlightByCachePath[cachePath] {
             return await inFlight.task.value
         }
-        if reason == .unknownModel,
-           let lastAttempt = self.lastCatalogAttemptByCachePath[cachePath],
-           now.timeIntervalSince(lastAttempt) < modelsDevUnknownModelRetryInterval
+        if let lastAttempt = self.lastCatalogAttemptByCachePath[cachePath],
+           now.timeIntervalSince(lastAttempt) < modelsDevCatalogRetryInterval
         {
             return false
         }
