@@ -15,6 +15,9 @@ struct CostUsagePricingTests {
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.5-pro-2026-04-23") == "gpt-5.5-pro")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-2026-03-05") == "gpt-5.3-codex")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-spark") == "gpt-5.3-codex-spark")
+        #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-sol") == "gpt-5.6-sol")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-terra-2026-06-26") == "gpt-5.6-terra")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-luna-2026-06-26") == "gpt-5.6-luna")
     }
 
     @Test
@@ -68,6 +71,37 @@ struct CostUsagePricingTests {
         // billed at the input rate; the 10 cached tokens are billed at the cache rate.
         let expected = (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5)
         #expect(cost == expected)
+    }
+
+    @Test
+    func `codex cost supports gpt56 sol terra luna bundled fallback`() throws {
+        // Empty models.dev cache root forces the built-in table for preview GPT-5.6 tiers.
+        let root = try Self.cacheRoot()
+
+        let sol = CostUsagePricing.codexCostUSD(
+            model: "openai/gpt-5.6-sol",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+        let terra = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra-2026-06-26",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+        let luna = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-luna",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        // Preview rates per token: Sol $5/$30 per 1M, Terra $2.50/$15, Luna $1/$6;
+        // cache read is 10% of input. Non-cached input is 90 tokens.
+        #expect(sol == (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5))
+        #expect(terra == (90.0 * 2.5e-6) + (10.0 * 2.5e-7) + (5.0 * 1.5e-5))
+        #expect(luna == (90.0 * 1e-6) + (10.0 * 1e-7) + (5.0 * 6e-6))
     }
 
     @Test
