@@ -10,6 +10,7 @@ enum ProviderChoice: String, AppEnum {
     case alibaba
     case alibabatokenplan
     case antigravity
+    case cursor
     case zai
     case copilot
     case devin
@@ -29,6 +30,7 @@ enum ProviderChoice: String, AppEnum {
         .alibaba: DisplayRepresentation(title: "Alibaba"),
         .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
+        .cursor: DisplayRepresentation(title: "Cursor"),
         .zai: DisplayRepresentation(title: "z.ai"),
         .copilot: DisplayRepresentation(title: "Copilot"),
         .devin: DisplayRepresentation(title: "Devin"),
@@ -48,6 +50,7 @@ enum ProviderChoice: String, AppEnum {
         case .alibaba: .alibaba
         case .alibabatokenplan: .alibabatokenplan
         case .antigravity: .antigravity
+        case .cursor: .cursor
         case .zai: .zai
         case .copilot: .copilot
         case .devin: .devin
@@ -71,7 +74,7 @@ enum ProviderChoice: String, AppEnum {
         case .alibaba: self = .alibaba
         case .alibabatokenplan: self = .alibabatokenplan
         case .antigravity: self = .antigravity
-        case .cursor: return nil // Cursor not yet supported in widgets
+        case .cursor: self = .cursor
         case .opencode: self = .opencode
         case .opencodego: self = .opencodego
         case .zai: self = .zai
@@ -123,6 +126,26 @@ enum ProviderChoice: String, AppEnum {
         case .zed: return nil // Zed not yet supported in widgets
         }
     }
+
+    static func enabledChoices(from snapshot: WidgetSnapshot?) -> [ProviderChoice] {
+        guard let snapshot else { return Array(allCases) }
+        let enabled = snapshot.enabledProviders.compactMap(Self.init(provider:))
+        return enabled.isEmpty ? [.codex] : enabled
+    }
+}
+
+struct EnabledProviderOptionsProvider: DynamicOptionsProvider {
+    func results() async throws -> [ProviderChoice] {
+        Self.currentChoices()
+    }
+
+    func defaultResult() async -> ProviderChoice? {
+        Self.currentChoices().first
+    }
+
+    static func currentChoices() -> [ProviderChoice] {
+        ProviderChoice.enabledChoices(from: WidgetSnapshotStore.load())
+    }
 }
 
 enum CompactMetric: String, AppEnum {
@@ -143,11 +166,11 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider"
     static let description = IntentDescription("Select the provider to display in the widget.")
 
-    @Parameter(title: "Provider", default: .codex)
+    @Parameter(title: "Provider", optionsProvider: EnabledProviderOptionsProvider())
     var provider: ProviderChoice
 
     init() {
-        self.provider = .codex
+        self.provider = EnabledProviderOptionsProvider.currentChoices().first ?? .codex
     }
 }
 
@@ -175,14 +198,14 @@ struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider + Metric"
     static let description = IntentDescription("Select the provider and metric to display.")
 
-    @Parameter(title: "Provider", default: .codex)
+    @Parameter(title: "Provider", optionsProvider: EnabledProviderOptionsProvider())
     var provider: ProviderChoice
 
     @Parameter(title: "Metric", default: .credits)
     var metric: CompactMetric
 
     init() {
-        self.provider = .codex
+        self.provider = EnabledProviderOptionsProvider.currentChoices().first ?? .codex
         self.metric = .credits
     }
 }

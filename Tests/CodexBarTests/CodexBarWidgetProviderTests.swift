@@ -876,6 +876,58 @@ struct CodexBarWidgetProviderTests {
 
 extension CodexBarWidgetProviderTests {
     @Test
+    func `provider choice supports Cursor`() {
+        #expect(ProviderChoice(provider: .cursor) == .cursor)
+        #expect(ProviderChoice.cursor.provider == .cursor)
+    }
+
+    @Test
+    func `enabled choices keep supported settings providers in order`() {
+        let snapshot = WidgetSnapshot(
+            entries: [],
+            enabledProviders: [.cursor, .chutes, .claude],
+            generatedAt: Date())
+
+        #expect(ProviderChoice.enabledChoices(from: snapshot) == [.cursor, .claude])
+    }
+
+    @Test
+    func `enabled choices expose all supported providers before a snapshot exists`() {
+        let choices = ProviderChoice.enabledChoices(from: nil)
+
+        #expect(choices == Array(ProviderChoice.allCases))
+        #expect(choices.contains(.cursor))
+    }
+
+    @Test
+    func `enabled choices fall back to codex when no enabled provider supports widgets`() {
+        let snapshot = WidgetSnapshot(
+            entries: [],
+            enabledProviders: [.chutes],
+            generatedAt: Date())
+
+        #expect(ProviderChoice.enabledChoices(from: snapshot) == [.codex])
+    }
+
+    @Test
+    func `supported providers keep Cursor when it is the only enabled provider`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .cursor,
+            updatedAt: now,
+            primary: RateWindow(usedPercent: 25, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.cursor], generatedAt: now)
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.cursor])
+    }
+
+    @Test
     func `widget token titles disclose stale age for today and history rows`() {
         let entryUpdatedAt = Date()
         let staleToken = WidgetSnapshot.TokenUsageSummary(
