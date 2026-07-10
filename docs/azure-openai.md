@@ -56,11 +56,12 @@ Accept: application/json
 Content-Type: application/json
 ```
 
-The request body contains one `ping` message and `max_tokens: 1`. A successful response is parsed only for the returned
-`model` field so the menu can show deployment detail.
+For dated API versions, the request body contains one `ping` message and `max_tokens: 1`. A successful response is
+parsed only for the returned `model` field so the menu can show deployment detail.
 
 Set `AZURE_OPENAI_API_VERSION` to override the API version. When it is set to `v1`, CodexBar uses Azure's
-OpenAI-compatible v1 path and includes the deployment name as the request `model`:
+OpenAI-compatible v1 path, includes the deployment name as the request `model`, and uses
+`max_completion_tokens: 1`:
 
 ```http
 POST https://resource.openai.azure.com/openai/v1/chat/completions
@@ -72,12 +73,16 @@ POST https://resource.openai.azure.com/openai/v1/chat/completions
 HTTPS. CodexBar rejects explicit `http://` endpoints, user info, and encoded host-delimiter tricks before attaching the
 `api-key` header.
 
-Endpoint paths are preserved. If the endpoint already ends with `/openai` or `/openai/v1`, CodexBar avoids duplicating
-those path components when building the validation URL.
+Endpoint paths are preserved. CodexBar avoids duplicating a trailing `/openai` for dated API versions or a trailing
+`/openai/v1` for the v1 API when building the validation URL.
+
+Each refresh with complete, valid configuration sends this real inference request and can consume billable input and
+output tokens for the configured deployment.
 
 ## Display
 
-- The provider uses the `api` source label.
+- Settings shows the provider's static `api` label before a fetch. After a successful fetch, Settings' Source row and
+  the CLI report `deployment`.
 - The menu shows the Azure OpenAI resource host as organization context.
 - The primary detail line shows `Deployment: <name>` and includes `Model: <model>` when the validation response returns
   one.
