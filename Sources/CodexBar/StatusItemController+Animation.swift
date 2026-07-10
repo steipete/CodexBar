@@ -1113,9 +1113,12 @@ extension StatusItemController {
         let snapshot = self.store.snapshot(for: provider)
         let mode = self.settings.menuBarDisplayMode
 
-        // The combined Session + Weekly percent metric renders each exhausted lane's reset text
-        // independently, so collect both lanes' reset dates (elapsed ones are dropped downstream).
-        if mode == .percent {
+        // Combined Session + Weekly metric: percent mode renders each exhausted lane's reset text, and
+        // pace/both surface an exhausted lane through `combinedDisplayPercentWindow`. Collect every
+        // exhausted lane so the scheduler always covers whichever lane the display actually shows — an
+        // extra boundary for a lane that isn't currently displayed just triggers a harmless recompute.
+        // Reset-time mode shows a single window, handled below.
+        if mode != .resetTime {
             let projection = self.store.codexConsumerProjectionIfNeeded(
                 for: provider,
                 surface: .menuBar,

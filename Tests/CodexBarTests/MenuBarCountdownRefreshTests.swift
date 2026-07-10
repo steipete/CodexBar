@@ -228,14 +228,14 @@ struct MenuBarCountdownRefreshTests {
         #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
     }
 
-    @Test
-    func `combined metric schedules both exhausted session and weekly lanes`() {
+    @Test(arguments: [MenuBarDisplayMode.percent, .both, .pace])
+    func `combined metric schedules both exhausted session and weekly lanes`(_ mode: MenuBarDisplayMode) {
         // Isolated defaults: enabling the smart option must not leak into `.standard`.
         let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-combined-lanes")
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.menuBarShowsBrandIconWithPercent = true
-        settings.menuBarDisplayMode = .percent
+        settings.menuBarDisplayMode = mode
         settings.menuBarShowsResetTimeWhenExhausted = true
         settings.resetTimesShowAbsolute = false
         settings.mergeIcons = false
