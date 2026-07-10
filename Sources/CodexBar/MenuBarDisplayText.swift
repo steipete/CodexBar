@@ -85,13 +85,22 @@ enum MenuBarDisplayText {
         now: Date = .init()) -> String?
     {
         if mode != .resetTime,
-           let resetText = self.exhaustedResetText(
-               window: percentWindow,
-               enabled: showsResetTimeWhenExhausted,
-               style: resetTimeDisplayStyle,
-               now: now)
+           showsResetTimeWhenExhausted,
+           let percentWindow,
+           percentWindow.remainingPercent <= 0
         {
-            return resetText
+            if let resetText = self.exhaustedResetText(
+                window: percentWindow,
+                enabled: true,
+                style: resetTimeDisplayStyle,
+                now: now)
+            {
+                return resetText
+            }
+            // Smart mode cannot replace an exhausted percentage unless the reset is concrete, future,
+            // and schedulable. Preserve the quota signal in pace/both modes too; a pace from another
+            // combined lane must not hide that this displayed lane is already exhausted.
+            return self.percentText(window: percentWindow, showUsed: showUsed)
         }
         switch mode {
         case .percent:

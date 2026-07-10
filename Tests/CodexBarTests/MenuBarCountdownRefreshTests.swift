@@ -115,7 +115,12 @@ struct MenuBarCountdownRefreshTests {
 
         settings.resetTimesShowAbsolute = true
         controller.updateIcons()
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.menuBarShowsBrandIconWithPercent = false
+        controller.updateIcons()
         #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+        settings.menuBarShowsBrandIconWithPercent = true
 
         let now = Date()
         store._setSnapshotForTesting(
@@ -150,7 +155,9 @@ struct MenuBarCountdownRefreshTests {
                 updatedAt: now),
             provider: .codex)
         controller.updateIcons()
-        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+        // The elapsed weekly cap falls out of the projection; absolute reset-time mode now observes the
+        // still-future session reset instead of leaving its label stale.
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
 
         store._setSnapshotForTesting(
             UsageSnapshot(
@@ -338,6 +345,97 @@ struct MenuBarCountdownRefreshTests {
             #expect(controller._test_isMenuBarCountdownRefreshScheduled())
             controller.releaseStatusItemsForTesting()
         }
+    }
+
+    @Test
+    func `combined metric falls through to a nonstandard exhausted fallback lane`() {
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-combined-fallback")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .percent
+        settings.menuBarShowsResetTimeWhenExhausted = true
+        settings.resetTimesShowAbsolute = false
+        settings.mergeIcons = false
+        settings.selectedMenuProvider = .claude
+        settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
+        if let metadata = ProviderRegistry.shared.metadata[.claude] {
+            settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date()
+        let reset = now.addingTimeInterval(3600)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 60,
+                resetsAt: reset,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(controller.menuBarDisplayText(for: .claude, snapshot: snapshot, now: now) == "↻ in 1h")
+        #expect(controller.menuBarDisplayedResetDates(for: .claude, now: now) == [reset])
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    @Test
+    func `time environment change reschedules an absolute reset label`() {
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-time-environment")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .resetTime
+        settings.resetTimesShowAbsolute = true
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 42,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+
+        controller.handleMenuBarTimeEnvironmentChange()
+
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
     }
 
     @Test

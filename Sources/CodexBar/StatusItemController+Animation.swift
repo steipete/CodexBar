@@ -1119,7 +1119,8 @@ extension StatusItemController {
             snapshotOverride: snapshot,
             now: now)
         if let lanes = self.combinedSessionWeeklyLanes(
-            for: provider, snapshot: snapshot, projection: projection)
+            for: provider, snapshot: snapshot, projection: projection),
+            lanes.session != nil || lanes.weekly != nil
         {
             switch mode {
             case .percent:

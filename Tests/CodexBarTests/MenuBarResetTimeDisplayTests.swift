@@ -274,6 +274,33 @@ struct MenuBarResetTimeDisplayTests {
         #expect(text == "0%")
     }
 
+    @Test(arguments: [MenuBarDisplayMode.pace, .both])
+    func `smart reset keeps exhausted percent when pace exists but reset is unusable`(_ mode: MenuBarDisplayMode) {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(-60),
+            resetDescription: nil)
+        let pace = UsagePace(
+            stage: .ahead,
+            deltaPercent: 12,
+            expectedUsedPercent: 40,
+            actualUsedPercent: 52,
+            etaSeconds: nil,
+            willLastToReset: true)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: mode,
+            percentWindow: window,
+            pace: pace,
+            showUsed: false,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "0%")
+    }
+
     @Test
     func `smart reset does not alter reset time mode`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)

@@ -30,7 +30,10 @@ extension StatusItemController {
             if let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDrivenResetDates(), now: now) {
                 delays.append(delay)
             }
-        } else if smartExhaustedActive, self.settings.resetTimeDisplayStyle == .absolute {
+        } else if self.settings.menuBarShowsBrandIconWithPercent,
+                  self.settings.resetTimeDisplayStyle == .absolute,
+                  displayMode == .resetTime || smartExhaustedActive
+        {
             // Absolute clocks don't tick each minute, but their human-friendly date label can change at
             // local midnight (for example, "tomorrow" becomes a same-day time). Wake at that boundary or
             // the reset itself, whichever comes first; the next icon update schedules any later boundary.
@@ -112,6 +115,31 @@ extension StatusItemController {
         return self.settings.resolvedMergedOverviewProviders(
             activeProviders: activeProviders,
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)
+    }
+
+    func observeMenuBarTimeEnvironmentChanges() {
+        for name in [
+            Notification.Name.NSSystemClockDidChange,
+            .NSSystemTimeZoneDidChange,
+            .NSCalendarDayChanged,
+        ] {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handleMenuBarTimeEnvironmentDidChange),
+                name: name,
+                object: nil)
+        }
+    }
+
+    @objc nonisolated func handleMenuBarTimeEnvironmentDidChange() {
+        Task { @MainActor [weak self] in
+            guard let self, !self.hasPreparedForAppShutdown else { return }
+            self.handleMenuBarTimeEnvironmentChange()
+        }
+    }
+
+    func handleMenuBarTimeEnvironmentChange() {
+        self.updateIcons()
     }
 
     #if DEBUG

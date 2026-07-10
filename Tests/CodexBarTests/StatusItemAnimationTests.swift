@@ -1208,6 +1208,7 @@ struct StatusItemAnimationTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.menuBarDisplayMode = .both
+        settings.menuBarShowsResetTimeWhenExhausted = false
         settings.usageBarsShowUsed = false
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
 
@@ -1380,6 +1381,7 @@ struct StatusItemAnimationTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .claude
         settings.menuBarDisplayMode = .both
+        settings.menuBarShowsResetTimeWhenExhausted = false
         settings.usageBarsShowUsed = false
         settings.setMenuBarMetricPreference(.primaryAndSecondary, for: .claude)
 
