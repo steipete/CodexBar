@@ -127,7 +127,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
     }
 
     @Test
-    func `user initiated claude keychain read shows pre alert even when preflight allows`() throws {
+    func `user initiated claude keychain reads respect pre alert acknowledgement cooldown`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {
             try KeychainAccessGate.withTaskOverrideForTesting(false) {
@@ -158,7 +158,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                         let promptHandler: (KeychainPromptContext) -> Void = { _ in
                             preAlertHits += 1
                         }
-                        let creds = try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(
+                        let credentials = try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(
                             preflightOverride,
                             operation: {
                                 try KeychainPromptHandler.withHandlerForTesting(promptHandler, operation: {
@@ -170,17 +170,23 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                                                 data: keychainData,
                                                 fingerprint: nil)
                                             {
-                                                try ClaudeOAuthCredentialsStore.load(
+                                                let first = try ClaudeOAuthCredentialsStore.load(
                                                     environment: [:],
                                                     allowKeychainPrompt: true)
+                                                ClaudeOAuthCredentialsStore.invalidateCache()
+                                                let second = try ClaudeOAuthCredentialsStore.load(
+                                                    environment: [:],
+                                                    allowKeychainPrompt: true)
+                                                return (first, second)
                                             }
                                         }
                                     }
                                 })
                             })
 
-                        #expect(creds.accessToken == "keychain-token")
-                        #expect(preAlertHits >= 1)
+                        #expect(credentials.0.accessToken == "keychain-token")
+                        #expect(credentials.1.accessToken == "keychain-token")
+                        #expect(preAlertHits == 1)
                     }
                 }
             }
@@ -241,9 +247,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                             })
 
                         #expect(creds.accessToken == "keychain-token")
-                        // TODO: tighten this to `== 1` once keychain pre-alert delivery is deduplicated/scoped.
-                        // This path can currently emit more than one pre-alert during a single load attempt.
-                        #expect(preAlertHits >= 1)
+                        #expect(preAlertHits == 1)
                     }
                 }
             }
@@ -304,9 +308,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                             })
 
                         #expect(creds.accessToken == "keychain-token")
-                        // TODO: tighten this to `== 1` once keychain pre-alert delivery is deduplicated/scoped.
-                        // This path can currently emit more than one pre-alert during a single load attempt.
-                        #expect(preAlertHits >= 1)
+                        #expect(preAlertHits == 1)
                     }
                 }
             }
@@ -434,7 +436,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                             })
 
                         #expect(creds.accessToken == "fallback-token")
-                        #expect(preAlertHits >= 1)
+                        #expect(preAlertHits == 1)
                     }
                 }
             }
@@ -725,7 +727,7 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
                             })
 
                         #expect(creds.accessToken == "fallback-token")
-                        #expect(preAlertHits >= 1)
+                        #expect(preAlertHits == 1)
                     }
                 }
             }
