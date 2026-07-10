@@ -154,6 +154,72 @@ struct ModelsDevPricingTests {
 
 extension ModelsDevPricingTests {
     @Test
+    func `unknown model refresh makes newly published pricing available`() async throws {
+        let root = try Self.cacheRoot()
+        let now = Date(timeIntervalSince1970: 10000)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: now, cacheRoot: root)
+        let refreshed = Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-new": { "id": "gpt-new", "cost": { "input": 2, "output": 8 } }
+            }
+          },
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-new": { "id": "claude-new", "cost": { "input": 3, "output": 15 } }
+            }
+          }
+        }
+        """.utf8)
+        let transport = TrackingTransport(result: .success((refreshed, Self.response(status: 200))))
+        let client = ModelsDevClient(transport: transport)
+
+        let didRefresh = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["gpt-new"],
+            now: now,
+            cacheRoot: root,
+            client: client)
+        #expect(didRefresh)
+        #expect(transport.calls == 1)
+        #expect(ModelsDevPricingPipeline.lookup(
+            providerID: "openai",
+            modelID: "gpt-new",
+            cacheRoot: root) != nil)
+    }
+
+    @Test
+    func `unknown model refresh is bounded per provider cache`() async throws {
+        let root = try Self.cacheRoot()
+        let now = Date(timeIntervalSince1970: 20000)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: now, cacheRoot: root)
+        let transport = try TrackingTransport(result: .success((
+            JSONEncoder().encode(Self.fixtureCatalog()),
+            Self.response(status: 200))))
+        let client = ModelsDevClient(transport: transport)
+
+        let first = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["still-unknown"],
+            now: now,
+            cacheRoot: root,
+            client: client)
+        let second = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["another-unknown-model"],
+            now: now.addingTimeInterval(60),
+            cacheRoot: root,
+            client: client)
+
+        #expect(first)
+        #expect(!second)
+        #expect(transport.calls == 1)
+    }
+
+    @Test
     func `refresh accepts model churn and preserves removed pricing as fallback`() async throws {
         let root = try Self.cacheRoot()
         let old = Date(timeIntervalSince1970: 1)

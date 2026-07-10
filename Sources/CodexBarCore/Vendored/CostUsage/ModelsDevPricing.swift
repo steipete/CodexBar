@@ -578,6 +578,8 @@ struct ModelsDevClient {
 }
 
 enum ModelsDevPricingPipeline {
+    private static let unknownModelRefreshGate = ModelsDevUnknownModelRefreshGate()
+
     static func lookup(
         providerID: String,
         modelID: String,
@@ -607,5 +609,54 @@ enum ModelsDevPricingPipeline {
         } catch {
             // Best-effort refresh only. Future scanner integration should keep using the last valid cache.
         }
+    }
+
+    static func refreshForUnknownModelsIfNeeded(
+        providerID: String,
+        modelIDs: Set<String>,
+        now: Date = Date(),
+        cacheRoot: URL? = nil,
+        client: ModelsDevClient = ModelsDevClient()) async -> Bool
+    {
+        let load = ModelsDevCache.load(now: now, cacheRoot: cacheRoot)
+        let unknownModelIDs = modelIDs.filter {
+            load.artifact?.catalog.pricing(providerID: providerID, modelID: $0) == nil
+        }
+        guard !unknownModelIDs.isEmpty else { return false }
+
+        let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).path
+        let shouldRefresh = await self.unknownModelRefreshGate.reserve(
+            providerID: providerID,
+            cachePath: cachePath,
+            now: now)
+        guard shouldRefresh else { return false }
+
+        do {
+            let catalog = try await client.fetchCatalog()
+            guard catalog.isPlausibleRefresh() else { return false }
+            let refreshedCatalog = load.artifact.map {
+                catalog.mergingFallbackPricing(from: $0.catalog)
+            } ?? catalog
+            ModelsDevCache.save(catalog: refreshedCatalog, fetchedAt: now, cacheRoot: cacheRoot)
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
+private actor ModelsDevUnknownModelRefreshGate {
+    private static let retryInterval: TimeInterval = 15 * 60
+    private var lastAttemptByKey: [String: Date] = [:]
+
+    func reserve(providerID: String, cachePath: String, now: Date) -> Bool {
+        let key = "\(cachePath)|\(providerID)"
+        if let lastAttempt = self.lastAttemptByKey[key],
+           now.timeIntervalSince(lastAttempt) < Self.retryInterval
+        {
+            return false
+        }
+        self.lastAttemptByKey[key] = now
+        return true
     }
 }

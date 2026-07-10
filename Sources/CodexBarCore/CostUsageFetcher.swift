@@ -239,6 +239,33 @@ public struct CostUsageFetcher: Sendable {
             return (daily: daily, projects: projects)
         }
 
+        if provider == .codex || provider == .claude {
+            let unknownModelIDs = Set(scanResult.daily.data.flatMap { entry in
+                entry.modelBreakdowns?.compactMap { breakdown in
+                    breakdown.costUSD == nil ? breakdown.modelName : nil
+                } ?? []
+            })
+            let providerID = provider == .codex ? "openai" : "anthropic"
+            if await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+                providerID: providerID,
+                modelIDs: unknownModelIDs,
+                now: now,
+                cacheRoot: options.cacheRoot)
+            {
+                return try await self.loadTokenSnapshot(
+                    provider: provider,
+                    environment: environment,
+                    now: now,
+                    forceRefresh: forceRefresh,
+                    allowVertexClaudeFallback: allowVertexClaudeFallback,
+                    codexHomePath: codexHomePath,
+                    historyDays: historyDays,
+                    refreshPricingInBackground: false,
+                    scannerOptions: options,
+                    piScannerOptions: piOptions)
+            }
+        }
+
         return Self.tokenSnapshot(
             from: scanResult.daily,
             now: now,
