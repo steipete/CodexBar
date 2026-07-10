@@ -11,6 +11,7 @@
 - Quota warnings: add opt-in predictive pace alerts for Codex and Claude session and weekly limits, with one alert per risk episode. Thanks @vincent-peng!
 
 ### Fixed
+- Claude OAuth: honor the app's never-prompt policy in the bundled CLI and defer stale cache cleanup without touching Keychain until access is re-enabled. Thanks @Yuxin-Qiao!
 - CLI server: retain timed-out route and provider work until it actually exits, preventing repeated requests or config changes from stacking background fetches. Thanks @Yuxin-Qiao!
 - Token costs: coalesce bounded pricing-catalog refreshes when a newly observed model is still unpriced, preserving its exact usage until pricing arrives. Thanks @iam-brain!
 - Ollama: validate API keys against an authenticated endpoint instead of the public model catalog while preserving refresh cancellation. Thanks @joeVenner!

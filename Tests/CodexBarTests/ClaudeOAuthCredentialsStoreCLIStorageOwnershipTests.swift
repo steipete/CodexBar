@@ -508,52 +508,52 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
-            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
-            defer { ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting() }
-
             let tempDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
             let fileURL = tempDir.appendingPathComponent("credentials.json")
-            try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
-                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
-                    try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-                        ClaudeOAuthCredentialsStore.invalidateCache()
-                        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
-                        defer { KeychainCacheStore.clear(key: cacheKey) }
+            let pendingStore = ClaudeOAuthCredentialsStore.PendingCacheClearMemoryStore()
+            try ClaudeOAuthCredentialsStore.withPendingCacheClearStoreOverrideForTesting(pendingStore) {
+                try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                    try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                        try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                            let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                            defer { KeychainCacheStore.clear(key: cacheKey) }
 
-                        let cachedData = self.makeCredentialsData(
-                            accessToken: "codexbar-cache",
-                            expiresAt: Date(timeIntervalSinceNow: 3600),
-                            refreshToken: "cached-refresh-token")
-                        KeychainCacheStore.store(
-                            key: cacheKey,
-                            entry: ClaudeOAuthCredentialsStore.CacheEntry(
-                                data: cachedData,
-                                storedAt: Date(),
-                                owner: .codexbar))
+                            let cachedData = self.makeCredentialsData(
+                                accessToken: "codexbar-cache",
+                                expiresAt: Date(timeIntervalSinceNow: 3600),
+                                refreshToken: "cached-refresh-token")
+                            KeychainCacheStore.store(
+                                key: cacheKey,
+                                entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                    data: cachedData,
+                                    storedAt: Date(),
+                                    owner: .codexbar))
 
-                        do {
-                            _ = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                    data: self.makeCredentialsData(
-                                        accessToken: "claude-keychain",
-                                        expiresAt: Date(timeIntervalSinceNow: 3600),
-                                        refreshToken: "keychain-refresh-token"),
-                                    fingerprint: nil)
-                                {
-                                    try ClaudeOAuthCredentialsStore.loadRecord(
-                                        environment: [:],
-                                        allowKeychainPrompt: false,
-                                        respectKeychainPromptCooldown: true,
-                                        allowClaudeKeychainRepairWithoutPrompt: false)
+                            do {
+                                _ = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                        data: self.makeCredentialsData(
+                                            accessToken: "claude-keychain",
+                                            expiresAt: Date(timeIntervalSinceNow: 3600),
+                                            refreshToken: "keychain-refresh-token"),
+                                        fingerprint: nil)
+                                    {
+                                        try ClaudeOAuthCredentialsStore.loadRecord(
+                                            environment: [:],
+                                            allowKeychainPrompt: false,
+                                            respectKeychainPromptCooldown: true,
+                                            allowClaudeKeychainRepairWithoutPrompt: false)
+                                    }
                                 }
-                            }
-                            Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
-                        } catch let error as ClaudeOAuthCredentialsError {
-                            guard case .notFound = error else {
-                                Issue.record("Expected .notFound, got \(error)")
-                                return
+                                Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
+                            } catch let error as ClaudeOAuthCredentialsError {
+                                guard case .notFound = error else {
+                                    Issue.record("Expected .notFound, got \(error)")
+                                    return
+                                }
                             }
                         }
                     }
