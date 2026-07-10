@@ -670,6 +670,8 @@
 "display_mode_pace_desc" = "Mostra indicatore andamento (es. +5%)";
 "display_mode_both_desc" = "Mostra percentuale e andamento (es. 45% · +5%)";
 "display_mode_reset_time_desc" = "Mostra l'ora di reimpostazione per la metrica selezionata (es. ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Mostra l'ora di ripristino quando la quota si esaurisce";
+"menu_bar_reset_when_exhausted_subtitle" = "Allo 0% rimanente, mostra il tempo al ripristino invece della percentuale";
 
 /* Provider status */
 "status_operational" = "Operativo";

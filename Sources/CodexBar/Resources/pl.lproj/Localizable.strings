@@ -670,6 +670,8 @@
 "display_mode_pace_desc" = "Pokaż wskaźnik tempa (np. +5%)";
 "display_mode_both_desc" = "Pokaż jednocześnie procent i tempo (np. 45% · +5%)";
 "display_mode_reset_time_desc" = "Pokaż godzinę resetu dla wybranej metryki (np. ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Pokaż czas resetu, gdy limit się wyczerpie";
+"menu_bar_reset_when_exhausted_subtitle" = "Przy 0% pozostałych pokazuje czas do resetu zamiast wartości procentowej";
 
 /* Provider status */
 "status_operational" = "Operacyjne";

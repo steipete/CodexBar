@@ -660,6 +660,8 @@
 "display_mode_pace_desc" = "Mostrar el indicador de ritmo (p. ej. +5 %)";
 "display_mode_both_desc" = "Mostrar porcentaje y ritmo (p. ej. 45 % · +5 %)";
 "display_mode_reset_time_desc" = "Mostrar el tiempo de restablecimiento de la métrica seleccionada (p. ej. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Mostrar la hora de restablecimiento cuando se agote la cuota";
+"menu_bar_reset_when_exhausted_subtitle" = "Con un 0% restante, muestra el tiempo hasta el restablecimiento en lugar del porcentaje";
 
 /* Provider status */
 "status_operational" = "Operativo";

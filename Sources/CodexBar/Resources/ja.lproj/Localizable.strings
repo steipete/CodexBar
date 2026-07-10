@@ -664,6 +664,8 @@
 "display_mode_pace_desc" = "ペースインジケータを表示（例: +5%）";
 "display_mode_both_desc" = "パーセンテージとペースの両方を表示（例: 45% · +5%）";
 "display_mode_reset_time_desc" = "選択した指標のリセット時刻を表示（例: ↻ 15:56）";
+"menu_bar_reset_when_exhausted_title" = "クォータを使い切ったらリセット時刻を表示";
+"menu_bar_reset_when_exhausted_subtitle" = "残り0%のとき、パーセントの代わりにリセットまでの時間を表示します";
 
 /* Provider status */
 "status_operational" = "正常稼働中";

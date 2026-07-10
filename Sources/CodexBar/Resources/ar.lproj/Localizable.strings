@@ -668,6 +668,8 @@
 "display_mode_pace_desc" = "مؤشر السرعة (مثلا +5%)";
 "display_mode_both_desc" = "أظهر كل من النسبة المئوية والسرعة (مثلا 45% · +5%)";
 "display_mode_reset_time_desc" = "عرض وقت إعادة الضبط للمقياس المحدد (مثلا ↻ 3:56 مساء)";
+"menu_bar_reset_when_exhausted_title" = "عرض وقت إعادة التعيين عند نفاد الحصة";
+"menu_bar_reset_when_exhausted_subtitle" = "عند تبقّي 0%، اعرض الوقت حتى إعادة التعيين بدلًا من النسبة المئوية";
 
 /* Provider status */
 "status_operational" = "التشغيل";

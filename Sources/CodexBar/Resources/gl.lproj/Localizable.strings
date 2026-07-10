@@ -645,6 +645,8 @@
 "display_mode_pace_desc" = "Amosa o indicador de ritmo (ex. +5 %)";
 "display_mode_both_desc" = "Amosa a porcentaxe e o ritmo (ex. 45 % · +5 %)";
 "display_mode_reset_time_desc" = "Amosa o tempo de restablecemento da métrica seleccionada (p. ex. ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Mostrar a hora de restablecemento cando se esgote a cota";
+"menu_bar_reset_when_exhausted_subtitle" = "Cun 0% restante, mostra o tempo ata o restablecemento en lugar da porcentaxe";
 
 /* Provider status */
 "status_operational" = "Operativo";

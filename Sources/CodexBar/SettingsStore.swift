@@ -413,6 +413,8 @@ extension SettingsStore {
         let menuBarHidesCritters = userDefaults.object(forKey: "menuBarHidesCritters") as? Bool ?? false
         let menuBarDisplayModeRaw = userDefaults.string(forKey: "menuBarDisplayMode")
             ?? MenuBarDisplayMode.percent.rawValue
+        let menuBarShowsResetTimeWhenExhausted = userDefaults.object(
+            forKey: "menuBarShowsResetTimeWhenExhausted") as? Bool ?? false
         let kiroMenuBarDisplayModeRaw = userDefaults.string(forKey: "kiroMenuBarDisplayMode")
             ?? KiroMenuBarDisplayMode.automatic.rawValue
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
@@ -503,6 +505,7 @@ extension SettingsStore {
             menuBarShowsBrandIconWithPercent: menuBarShowsBrandIconWithPercent,
             menuBarHidesCritters: menuBarHidesCritters,
             menuBarDisplayModeRaw: menuBarDisplayModeRaw,
+            menuBarShowsResetTimeWhenExhausted: menuBarShowsResetTimeWhenExhausted,
             kiroMenuBarDisplayModeRaw: kiroMenuBarDisplayModeRaw,
             historicalTrackingEnabled: historicalTrackingEnabled,
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,

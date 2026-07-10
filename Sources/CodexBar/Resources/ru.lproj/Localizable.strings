@@ -668,6 +668,8 @@
 "display_mode_pace_desc" = "Показывать индикатор темпа (например, +5%)";
 "display_mode_both_desc" = "Показывать и процент, и темп (например, 45% · +5%)";
 "display_mode_reset_time_desc" = "Показывать время сброса для выбранного показателя (например, ↻ 15:56).";
+"menu_bar_reset_when_exhausted_title" = "Показывать время сброса, когда квота исчерпана";
+"menu_bar_reset_when_exhausted_subtitle" = "При 0% остатка показывает время до сброса вместо процента";
 
 /* Provider status */
 "status_operational" = "Работает";

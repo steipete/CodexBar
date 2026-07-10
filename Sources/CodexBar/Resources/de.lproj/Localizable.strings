@@ -665,6 +665,8 @@
 "display_mode_pace_desc" = "Tempoanzeige anzeigen (z. B. +5%)";
 "display_mode_both_desc" = "Zeigen Sie sowohl Prozentsatz als auch Tempo an (z. B. 45 % · +5 %)";
 "display_mode_reset_time_desc" = "Zurücksetzungszeit der ausgewählten Metrik anzeigen (z. B. ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Zurücksetzungszeit anzeigen, wenn das Kontingent aufgebraucht ist";
+"menu_bar_reset_when_exhausted_subtitle" = "Bei 0 % Rest die Zeit bis zur Zurücksetzung statt des Prozentwerts anzeigen";
 
 /* Provider status */
 "status_operational" = "Betriebsbereit";

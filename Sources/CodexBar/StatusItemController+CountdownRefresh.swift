@@ -10,15 +10,19 @@ extension StatusItemController {
 
         var delays: [TimeInterval] = []
         let providers = self.menuBarRefreshProviders()
+        let displayMode = self.settings.menuBarDisplayMode
         if self.settings.menuBarShowsBrandIconWithPercent,
-           self.settings.menuBarDisplayMode == .resetTime,
-           self.settings.resetTimeDisplayStyle == .countdown
+           self.settings.resetTimeDisplayStyle == .countdown,
+           displayMode == .resetTime || self.settings.menuBarShowsResetTimeWhenExhausted
         {
-            let resetDates = providers.compactMap { provider in
-                self.menuBarMetricWindow(
+            let resetDates = providers.compactMap { provider -> Date? in
+                guard let window = self.menuBarMetricWindow(
                     for: provider,
                     snapshot: self.store.snapshot(for: provider),
-                    now: now)?.resetsAt
+                    now: now) else { return nil }
+                // Outside reset-time mode the countdown is only visible once the quota is exhausted.
+                if displayMode != .resetTime, window.remainingPercent > 0 { return nil }
+                return window.resetsAt
             }
             if let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDates, now: now) {
                 delays.append(delay)

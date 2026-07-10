@@ -652,6 +652,8 @@
 "display_mode_pace_desc" = "Mostreu l'indicador de ritme (p. ex. +5%)";
 "display_mode_both_desc" = "Mostreu el percentatge i el ritme (p. ex. 45% · +5%)";
 "display_mode_reset_time_desc" = "Mostreu l'hora de reinici de la mètrica seleccionada (p. ex. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Mostra l'hora de restabliment quan s'esgoti la quota";
+"menu_bar_reset_when_exhausted_subtitle" = "Amb un 0% restant, mostra el temps fins al restabliment en lloc del percentatge";
 
 /* Provider status */
 "status_operational" = "Operatiu";

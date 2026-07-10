@@ -670,6 +670,8 @@
 "display_mode_pace_desc" = "Tampilkan indikator pace (mis. +5%)";
 "display_mode_both_desc" = "Tampilkan persentase dan pace (mis. 45% · +5%)";
 "display_mode_reset_time_desc" = "Tampilkan waktu reset untuk metrik yang dipilih (mis. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Tampilkan waktu reset saat kuota habis";
+"menu_bar_reset_when_exhausted_subtitle" = "Saat tersisa 0%, tampilkan waktu hingga reset alih-alih persentase";
 
 /* Provider status */
 "status_operational" = "Operasional";

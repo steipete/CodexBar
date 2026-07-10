@@ -299,6 +299,14 @@ extension SettingsStore {
         set { self.menuBarDisplayModeRaw = newValue.rawValue }
     }
 
+    var menuBarShowsResetTimeWhenExhausted: Bool {
+        get { self.defaultsState.menuBarShowsResetTimeWhenExhausted }
+        set {
+            self.defaultsState.menuBarShowsResetTimeWhenExhausted = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsResetTimeWhenExhausted")
+        }
+    }
+
     private var kiroMenuBarDisplayModeRaw: String? {
         get { self.defaultsState.kiroMenuBarDisplayModeRaw }
         set {

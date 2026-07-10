@@ -667,6 +667,8 @@
 "display_mode_pace_desc" = "Показати індикатор темпу (наприклад, +5%)";
 "display_mode_both_desc" = "Показати відсоток і темп (наприклад, 45% · +5%)";
 "display_mode_reset_time_desc" = "Показувати час скидання для вибраного показника (наприклад, ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Показувати час скидання, коли квоту вичерпано";
+"menu_bar_reset_when_exhausted_subtitle" = "За залишку 0% показує час до скидання замість відсотка";
 
 /* Provider status */
 "status_operational" = "Працює";

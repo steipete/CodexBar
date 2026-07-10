@@ -666,6 +666,8 @@
 "display_mode_pace_desc" = "Visa taktindikator (t.ex. +5 %)";
 "display_mode_both_desc" = "Visa både procent och takt (t.ex. 45 % · +5 %)";
 "display_mode_reset_time_desc" = "Visa återställningstiden för valt mått (t.ex. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Visa återställningstid när kvoten tar slut";
+"menu_bar_reset_when_exhausted_subtitle" = "Vid 0 % kvar visas tiden till återställning i stället för procenttalet";
 
 /* Provider status */
 "status_operational" = "Fungerar normalt";

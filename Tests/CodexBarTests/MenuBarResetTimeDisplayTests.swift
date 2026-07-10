@@ -133,4 +133,143 @@ struct MenuBarResetTimeDisplayTests {
 
         #expect(text == "58%")
     }
+
+    @Test(arguments: [MenuBarDisplayMode.percent, .pace, .both])
+    func `smart reset shows countdown when the quota is exhausted`(_ mode: MenuBarDisplayMode) {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(2 * 3600 + 15 * 60),
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: mode,
+            percentWindow: window,
+            showUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "↻ in 2h 15m")
+    }
+
+    @Test
+    func `smart reset honors the absolute clock preference`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let resetsAt = now.addingTimeInterval(2 * 3600)
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .percent,
+            percentWindow: window,
+            showUsed: false,
+            resetTimeDisplayStyle: .absolute,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "↻ \(UsageFormatter.resetDescription(from: resetsAt, now: now))")
+    }
+
+    @Test
+    func `smart reset leaves a non-exhausted quota untouched`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let window = RateWindow(
+            usedPercent: 42,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(3600),
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .percent,
+            percentWindow: window,
+            showUsed: false,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "58%")
+    }
+
+    @Test
+    func `smart reset disabled keeps the exhausted percent`() {
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: Date(timeIntervalSince1970: 1_800_000_000),
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .percent,
+            percentWindow: window,
+            showUsed: false)
+
+        #expect(text == "0%")
+    }
+
+    @Test
+    func `smart reset falls back to percent without reset metadata`() {
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: nil,
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .percent,
+            percentWindow: window,
+            showUsed: false,
+            showsResetTimeWhenExhausted: true)
+
+        #expect(text == "0%")
+    }
+
+    @Test
+    func `smart reset does not alter reset time mode`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let resetsAt = now.addingTimeInterval(3600)
+        let window = RateWindow(
+            usedPercent: 42,
+            windowMinutes: 300,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .resetTime,
+            percentWindow: window,
+            showUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "↻ in 1h")
+    }
+
+    @Test
+    func `smart reset replaces only the exhausted lane in combined text`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let session = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(2 * 3600 + 15 * 60),
+            resetDescription: nil)
+        let weekly = RateWindow(
+            usedPercent: 55,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(3 * 86400),
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.combinedSessionWeeklyPercentText(
+            sessionWindow: session,
+            weeklyWindow: weekly,
+            showUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "5h ↻ in 2h 15m · W 45%")
+    }
 }

@@ -646,6 +646,8 @@
 "display_mode_pace_desc" = "사용 속도 표시기 표시(예: +5%)";
 "display_mode_both_desc" = "백분율과 사용 속도 모두 표시(예: 45% · +5%)";
 "display_mode_reset_time_desc" = "선택한 지표의 재설정 시간 표시(예: ↻ 오후 3:56)";
+"menu_bar_reset_when_exhausted_title" = "할당량 소진 시 재설정 시간 표시";
+"menu_bar_reset_when_exhausted_subtitle" = "남은 양이 0%일 때 백분율 대신 재설정까지의 시간을 표시합니다";
 "status_operational" = "정상 작동";
 "status_degraded" = "성능 저하";
 "status_partial_outage" = "부분 장애";

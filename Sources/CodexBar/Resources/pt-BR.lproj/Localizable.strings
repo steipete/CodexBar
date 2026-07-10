@@ -664,6 +664,8 @@
 "display_mode_pace_desc" = "Mostra o indicador de ritmo (ex.: +5%)";
 "display_mode_both_desc" = "Mostra porcentagem e ritmo (ex.: 45% · +5%)";
 "display_mode_reset_time_desc" = "Mostra o tempo de redefinição da métrica selecionada (ex.: ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Mostrar horário de redefinição quando a cota acabar";
+"menu_bar_reset_when_exhausted_subtitle" = "Com 0% restante, mostra o tempo até a redefinição em vez da porcentagem";
 
 /* Provider status */
 "status_operational" = "Operacional";

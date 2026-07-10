@@ -663,6 +663,8 @@
 "display_mode_pace_desc" = "Hiển thị chỉ báo tốc độ (ví dụ: +5%)";
 "display_mode_both_desc" = "Hiển thị cả phần trăm và tốc độ (ví dụ: 45% · +5%)";
 "display_mode_reset_time_desc" = "Hiển thị thời gian đặt lại của chỉ số đã chọn (ví dụ: ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Hiển thị thời gian đặt lại khi hết hạn mức";
+"menu_bar_reset_when_exhausted_subtitle" = "Khi còn 0%, hiển thị thời gian đến lúc đặt lại thay vì phần trăm";
 
 /* Provider status */
 "status_operational" = "Hoạt động";

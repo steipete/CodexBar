@@ -656,6 +656,8 @@
 "display_mode_pace_desc" = "顯示進度指示器（例如 +5%）";
 "display_mode_both_desc" = "同時顯示百分比和進度（例如 45% · +5%）";
 "display_mode_reset_time_desc" = "顯示所選指標的重置時間（例如 ↻ 3:56 PM）";
+"menu_bar_reset_when_exhausted_title" = "配額用盡時顯示重設時間";
+"menu_bar_reset_when_exhausted_subtitle" = "剩餘 0% 時，顯示距重設的時間而非百分比";
 "status_operational" = "運作正常";
 "status_degraded" = "效能下降";
 "status_partial_outage" = "部分服務中斷";

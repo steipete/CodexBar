@@ -668,6 +668,8 @@
 "display_mode_pace_desc" = "แสดงตัวบ่งชี้อัตราการก้าว (เช่น +5%)";
 "display_mode_both_desc" = "แสดงทั้งเปอร์เซ็นต์และความเร็ว (เช่น 45% · +5%)";
 "display_mode_reset_time_desc" = "แสดงเวลารีเซ็ตสําหรับเมตริกที่เลือก (เช่น ↻ 15:56 น.)";
+"menu_bar_reset_when_exhausted_title" = "แสดงเวลารีเซ็ตเมื่อโควตาหมด";
+"menu_bar_reset_when_exhausted_subtitle" = "เมื่อเหลือ 0% จะแสดงเวลาจนถึงการรีเซ็ตแทนเปอร์เซ็นต์";
 
 /* Provider status */
 "status_operational" = "การดําเนินงาน";

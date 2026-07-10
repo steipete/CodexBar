@@ -53,6 +53,15 @@ struct DisplayPane: View {
                         Text(mode.label)
                     })
                     .disabled(!self.settings.menuBarShowsBrandIconWithPercent)
+
+                Toggle(isOn: self.$settings.menuBarShowsResetTimeWhenExhausted) {
+                    SettingsRowLabel(
+                        L("menu_bar_reset_when_exhausted_title"),
+                        subtitle: L("menu_bar_reset_when_exhausted_subtitle"))
+                }
+                .disabled(
+                    !self.settings.menuBarShowsBrandIconWithPercent
+                        || self.settings.menuBarDisplayMode == .resetTime)
             } header: {
                 Text(L("section_menu_bar"))
             }

@@ -846,7 +846,10 @@ extension StatusItemController {
             if let combinedText = MenuBarDisplayText.combinedSessionWeeklyPercentText(
                 sessionWindow: combinedLanes.session,
                 weeklyWindow: combinedLanes.weekly,
-                showUsed: self.settings.usageBarsShowUsed)
+                showUsed: self.settings.usageBarsShowUsed,
+                resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+                showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
+                now: now)
             {
                 return combinedText
             }
@@ -861,7 +864,10 @@ extension StatusItemController {
             mode: mode,
             percentWindow: displayPercentWindow,
             pace: pace,
-            showUsed: self.settings.usageBarsShowUsed)
+            showUsed: self.settings.usageBarsShowUsed,
+            resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
+            showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
+            now: now)
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
