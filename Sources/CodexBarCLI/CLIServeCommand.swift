@@ -503,6 +503,7 @@ private struct CLIServeCostTimeoutError: LocalizedError {
 
 extension CodexBarCLI {
     static let defaultServeRequestTimeout: TimeInterval = 30
+    static let serveCostRefreshesPricingInBackground = true
     private static let maximumServeRequestTimeout: TimeInterval = 86400
 
     static func clampedServeRequestTimeout(_ requestTimeout: TimeInterval) -> TimeInterval {
@@ -1031,7 +1032,7 @@ extension CodexBarCLI {
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
                     forceRefresh: false,
-                    refreshPricingInBackground: false)
+                    refreshPricingInBackground: Self.serveCostRefreshesPricingInBackground)
                 return Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
             } catch {
                 return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
@@ -1046,9 +1047,9 @@ extension CodexBarCLI {
         context: ServeCostCollectionContext,
         fetch: @Sendable @escaping (UsageProvider) async -> CostPayload) async -> [CostPayload]
     {
-        // Preserve the established scan order. Each cost scan starts a
-        // best-effort pricing refresh, so parallel starts can duplicate that
-        // adjacent work even though the corpus scans themselves are coalesced.
+        // Preserve the established scan order. Pricing refresh stays best-effort
+        // background work so network latency never consumes a provider deadline;
+        // consecutive scans can still overlap that bounded adjacent work.
         var payload: [CostPayload] = []
         for provider in providers {
             let deadline = Self.serveCostProviderDeadline(

@@ -5,6 +5,11 @@ import Testing
 
 struct CLIServeTimeoutTests {
     @Test
+    func `serve cost keeps pricing refresh outside the request deadline`() {
+        #expect(CodexBarCLI.serveCostRefreshesPricingInBackground)
+    }
+
+    @Test
     func `serve deadlines clamp once from request entry`() throws {
         #expect(CodexBarCLI.clampedServeRequestTimeout(.greatestFiniteMagnitude) == 86400)
         #expect(CodexBarCLI.clampedServeRequestTimeout(1e308) == 86400)
