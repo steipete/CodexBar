@@ -136,6 +136,12 @@ enum MenuBarDisplayText {
 
     /// Smart-mode replacement: when enabled and the quota is exhausted (0% remaining, regardless of
     /// whether the display shows used or remaining), surface the reset time instead of a dead percent.
+    ///
+    /// Requires a concrete, still-future `resetsAt`. The smart option only replaces the percent when it
+    /// has a reset time it can both render as a live countdown/clock AND hand to the refresh scheduler,
+    /// so the lane keeps ticking and flips back to the percentage once the reset passes. Windows with
+    /// only textual reset metadata (`resetDescription`, no `resetsAt`) or an already-elapsed reset can't
+    /// be scheduled, so they keep showing the percent instead of freezing on stale reset text.
     private static func exhaustedResetText(
         window: RateWindow?,
         enabled: Bool,
@@ -143,12 +149,7 @@ enum MenuBarDisplayText {
         now: Date) -> String?
     {
         guard enabled, let window, window.remainingPercent <= 0 else { return nil }
-        // Only replace the percent while the reset is still ahead of us. A snapshot can linger at 0%
-        // with an already-elapsed `resetsAt` (the countdown fires right after reset, or refresh is
-        // manual); rendering "↻ now"/a past clock there would be stale, and since the countdown
-        // scheduler ignores elapsed resets nothing would refresh it back to the percentage. Fall back
-        // to the percent in that window instead of getting stuck on reset text.
-        if let resetsAt = window.resetsAt, resetsAt <= now { return nil }
+        guard let resetsAt = window.resetsAt, resetsAt > now else { return nil }
         return self.resetTimeText(window: window, style: style, now: now)
     }
 

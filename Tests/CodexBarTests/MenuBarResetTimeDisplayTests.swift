@@ -233,6 +233,31 @@ struct MenuBarResetTimeDisplayTests {
     }
 
     @Test
+    func `smart reset ignores textual reset metadata without a concrete reset time`() {
+        // Provider supplies only a textual resetDescription (no resetsAt). The smart option can't hand
+        // that to the refresh scheduler, so it keeps the percent rather than freezing on "↻ in 2h".
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: nil,
+            resetDescription: "in 2h")
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .percent,
+            percentWindow: window,
+            showUsed: false,
+            showsResetTimeWhenExhausted: true)
+
+        #expect(text == "0%")
+        // Reset-time mode still surfaces the textual metadata (unchanged behavior).
+        let resetTimeText = MenuBarDisplayText.displayText(
+            mode: .resetTime,
+            percentWindow: window,
+            showUsed: false)
+        #expect(resetTimeText == "↻ in 2h")
+    }
+
+    @Test
     func `smart reset falls back to percent without reset metadata`() {
         let window = RateWindow(
             usedPercent: 100,
