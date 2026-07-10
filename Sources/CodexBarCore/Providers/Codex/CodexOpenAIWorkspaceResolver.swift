@@ -36,10 +36,13 @@ public enum CodexOpenAIWorkspaceResolver {
 
     private static let accountsURL = URL(string: "https://chatgpt.com/backend-api/accounts")!
 
+    public static func resolve(credentials: CodexOAuthCredentials) async throws -> CodexOpenAIWorkspaceIdentity? {
+        try await self.resolve(credentials: credentials, session: CodexAuthenticatedHTTPTransport.current)
+    }
+
     public static func resolve(
         credentials: CodexOAuthCredentials,
-        session transport: any ProviderHTTPTransport = ProviderHTTPClient
-            .shared) async throws -> CodexOpenAIWorkspaceIdentity?
+        session transport: any ProviderHTTPTransport) async throws -> CodexOpenAIWorkspaceIdentity?
     {
         guard let workspaceAccountID = normalizeWorkspaceAccountID(credentials.accountId) else {
             return nil
@@ -56,13 +59,20 @@ public enum CodexOpenAIWorkspaceResolver {
     }
 
     public static func listWorkspaces(
-        credentials: CodexOAuthCredentials,
-        session transport: any ProviderHTTPTransport = ProviderHTTPClient
-            .shared) async throws -> [CodexOpenAIWorkspaceIdentity]
+        credentials: CodexOAuthCredentials) async throws -> [CodexOpenAIWorkspaceIdentity]
     {
-        var request = URLRequest(url: self.accountsURL)
+        try await self.listWorkspaces(credentials: credentials, session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func listWorkspaces(
+        credentials: CodexOAuthCredentials,
+        session transport: any ProviderHTTPTransport) async throws -> [CodexOpenAIWorkspaceIdentity]
+    {
+        var request = URLRequest(
+            url: self.accountsURL,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 20)
         request.httpMethod = "GET"
-        request.timeoutInterval = 20
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("codex-cli", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")

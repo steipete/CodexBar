@@ -349,8 +349,20 @@ public enum CodexOAuthUsageFetcher {
     public static func fetchUsage(
         accessToken: String,
         accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexUsageResponse
+    {
+        try await self.fetchUsage(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func fetchUsage(
+        accessToken: String,
+        accountId: String?,
         env: [String: String] = ProcessInfo.processInfo.environment,
-        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CodexUsageResponse
+        session transport: any ProviderHTTPTransport) async throws -> CodexUsageResponse
     {
         var request = URLRequest(
             url: Self.resolveUsageURL(env: env),
@@ -398,8 +410,22 @@ public enum CodexOAuthUsageFetcher {
         accessToken: String,
         accountId: String?,
         env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 4) async throws -> CodexRateLimitResetCreditsSnapshot
+    {
+        try await self.fetchRateLimitResetCredits(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            timeout: timeout,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func fetchRateLimitResetCredits(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment,
         timeout: TimeInterval = 4,
-        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        session transport: any ProviderHTTPTransport) async throws
         -> CodexRateLimitResetCreditsSnapshot
     {
         var request = URLRequest(

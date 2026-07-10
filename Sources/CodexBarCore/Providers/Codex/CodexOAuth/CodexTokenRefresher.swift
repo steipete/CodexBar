@@ -31,13 +31,22 @@ public enum CodexTokenRefresher {
     }
 
     public static func refresh(_ credentials: CodexOAuthCredentials) async throws -> CodexOAuthCredentials {
+        try await self.refresh(credentials, session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    static func refresh(
+        _ credentials: CodexOAuthCredentials,
+        session transport: any ProviderHTTPTransport) async throws -> CodexOAuthCredentials
+    {
         guard !credentials.refreshToken.isEmpty else {
             return credentials
         }
 
-        var request = URLRequest(url: Self.refreshEndpoint)
+        var request = URLRequest(
+            url: Self.refreshEndpoint,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 30)
         request.httpMethod = "POST"
-        request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: [String: String] = [
@@ -49,7 +58,7 @@ public enum CodexTokenRefresher {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             let data = response.data
             guard response.statusCode == 200 else {
                 throw Self.refreshFailureError(statusCode: response.statusCode, data: data)

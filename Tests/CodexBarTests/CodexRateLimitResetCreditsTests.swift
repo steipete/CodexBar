@@ -33,11 +33,12 @@ struct CodexRateLimitResetCreditsTests {
             return (Data(#"{"credits":[],"available_count":0}"#.utf8), response)
         }
 
-        let snapshot = try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
-            accessToken: "test-token",
-            accountId: "account-123",
-            env: ["CODEX_HOME": "/tmp/codexbar-reset-credit-request-test"],
-            session: transport)
+        let snapshot = try await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+            try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                accessToken: "test-token",
+                accountId: "account-123",
+                env: ["CODEX_HOME": "/tmp/codexbar-reset-credit-request-test"])
+        }
 
         #expect(snapshot.availableCount == 0)
         #expect(await transport.requests().count == 1)

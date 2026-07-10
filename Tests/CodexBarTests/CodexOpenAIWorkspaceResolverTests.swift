@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 @Suite(.serialized)
 struct CodexOpenAIWorkspaceResolverTests {
@@ -51,6 +51,33 @@ struct CodexOpenAIWorkspaceResolverTests {
             == "account-live")
         #expect(CodexOpenAIWorkspaceStubURLProtocol.requests.first?.value(forHTTPHeaderField: "User-Agent")
             == "codex-cli")
+    }
+
+    @Test
+    func `resolver default uses isolated authenticated transport`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Cache-Control": "public, max-age=300"]))
+            return (Data(#"{"items":[{"id":"account-live","name":"Team Alpha"}]}"#.utf8), response)
+        }
+        let credentials = CodexOAuthCredentials(
+            accessToken: "test-a",
+            refreshToken: "test-r",
+            idToken: nil,
+            accountId: "account-live",
+            lastRefresh: nil)
+
+        let identity = try await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+            try await CodexOpenAIWorkspaceResolver.resolve(credentials: credentials)
+        }
+
+        #expect(identity?.workspaceLabel == "Team Alpha")
+        #expect(await transport.requests().count == 1)
     }
 
     @Test

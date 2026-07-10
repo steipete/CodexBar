@@ -12,6 +12,7 @@
 - Quota warnings: add opt-in predictive pace alerts for Codex and Claude session and weekly limits, with one alert per risk episode. Thanks @vincent-peng!
 
 ### Fixed
+- Codex accounts: isolate authenticated OAuth and browser-cookie requests from shared URL caches and cookie stores, preventing one account's cached quota or identity response from appearing under another account and triggering false reset alerts (#1987, #2019). Thanks @harjothkhara!
 - CLI server: retain timed-out route and provider work until it actually exits, preventing repeated requests or config changes from stacking background fetches. Thanks @Yuxin-Qiao!
 - Token costs: coalesce bounded pricing-catalog refreshes when a newly observed model is still unpriced, preserving its exact usage until pricing arrives. Thanks @iam-brain!
 - Cost history: keep model breakdown menus steady while hovering, preserve compact rows, and make overflowing histories scrollable. Thanks @iam-brain!

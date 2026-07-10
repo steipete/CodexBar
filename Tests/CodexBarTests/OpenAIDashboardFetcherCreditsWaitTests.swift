@@ -268,6 +268,7 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         #expect(request.value(forHTTPHeaderField: "Cookie") == "a=b")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
         #expect(request.value(forHTTPHeaderField: "Accept-Language") == "en-US,en;q=0.9")
+        #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
     }
 
     @Test
@@ -279,6 +280,7 @@ struct OpenAIDashboardFetcherCreditsWaitTests {
         #expect(request.value(forHTTPHeaderField: "Cookie") == "a=b")
         #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
         #expect(request.value(forHTTPHeaderField: "Accept-Language") == "en-US,en;q=0.9")
+        #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
     }
 
     @Test
