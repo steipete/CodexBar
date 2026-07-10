@@ -8,14 +8,25 @@ CLI="${CODEXBAR_CLI:-/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI}"
 APP_BUNDLE="${CODEXBAR_APP:-/Applications/CodexBar.app}"
 HANG_SECONDS="${HANG_SECONDS:-12}"
 MODE="${1:-all}"
+APP_DEFAULTS_DOMAIN="com.steipete.codexbar"
+CLI_DEFAULTS_DOMAIN="CodexBarCLI"
+PROMPT_MODE_KEY="claudeOAuthKeychainPromptMode"
+BROWSER_COOKIE_KEY="browserCookieAccessDeniedUntil"
 
 CREDS_BACKUP=""
 CREDS_CREATED=0
-PROMPT_MODE_BACKUP=""
+PROMPT_MODE_APP_BACKUP=""
+PROMPT_MODE_CLI_BACKUP=""
+PROMPT_MODE_APP_HAD=0
+PROMPT_MODE_CLI_HAD=0
 PROMPT_MODE_CHANGED=0
 CACHE_BACKUP=""
 CACHE_HAD_ITEM=0
 CACHE_SEEDED=0
+BROWSER_COOKIE_BACKUP=""
+BROWSER_COOKIE_HAD=0
+BROWSER_COOKIE_TOUCHED=0
+REPRO_FAILED=0
 
 log() { printf '[repro-keychain] %s\n' "$*"; }
 die() { log "ERROR: $*"; exit 1; }
@@ -25,14 +36,70 @@ require_cli() {
 }
 
 backup_prompt_mode() {
-  if defaults read com.steipete.codexbar claudeOAuthKeychainPromptMode &>/dev/null; then
-    PROMPT_MODE_BACKUP="$(defaults read com.steipete.codexbar claudeOAuthKeychainPromptMode)"
+  if defaults read "$APP_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" &>/dev/null; then
+    PROMPT_MODE_APP_BACKUP="$(defaults read "$APP_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY")"
+    PROMPT_MODE_APP_HAD=1
+  fi
+  if defaults read "$CLI_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" &>/dev/null; then
+    PROMPT_MODE_CLI_BACKUP="$(defaults read "$CLI_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY")"
+    PROMPT_MODE_CLI_HAD=1
   fi
 }
 
 set_prompt_mode() {
-  defaults write com.steipete.codexbar claudeOAuthKeychainPromptMode "$1"
+  defaults write "$APP_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" "$1"
+  defaults write "$CLI_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" "$1"
   PROMPT_MODE_CHANGED=1
+}
+
+restore_prompt_mode() {
+  [[ $PROMPT_MODE_CHANGED -eq 1 ]] || return 0
+  if [[ $PROMPT_MODE_APP_HAD -eq 1 ]]; then
+    defaults write "$APP_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" "$PROMPT_MODE_APP_BACKUP"
+  else
+    defaults delete "$APP_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" 2>/dev/null || true
+  fi
+  if [[ $PROMPT_MODE_CLI_HAD -eq 1 ]]; then
+    defaults write "$CLI_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" "$PROMPT_MODE_CLI_BACKUP"
+  else
+    defaults delete "$CLI_DEFAULTS_DOMAIN" "$PROMPT_MODE_KEY" 2>/dev/null || true
+  fi
+}
+
+backup_browser_cookie_cooldown() {
+  local plist="${HOME}/Library/Preferences/${CLI_DEFAULTS_DOMAIN}.plist"
+  if [[ ! -f "$plist" ]] || ! defaults read "$CLI_DEFAULTS_DOMAIN" "$BROWSER_COOKIE_KEY" &>/dev/null; then
+    return 0
+  fi
+  BROWSER_COOKIE_BACKUP="$(mktemp "${TMPDIR:-/tmp}/codexbar-browser-cookie-backup.XXXXXX.plist")"
+  python3 - "$CLI_DEFAULTS_DOMAIN" "$BROWSER_COOKIE_KEY" "$BROWSER_COOKIE_BACKUP" <<'PY'
+import plistlib
+import pathlib
+import sys
+
+domain, key, out_path = sys.argv[1:4]
+plist_path = pathlib.Path.home() / "Library/Preferences" / f"{domain}.plist"
+data = plistlib.load(plist_path.open("rb"))
+with open(out_path, "wb") as handle:
+    plistlib.dump({key: data[key]}, handle)
+PY
+  BROWSER_COOKIE_HAD=1
+}
+
+clear_browser_cookie_cooldown_for_repro() {
+  defaults delete "$CLI_DEFAULTS_DOMAIN" "$BROWSER_COOKIE_KEY" 2>/dev/null || true
+  BROWSER_COOKIE_TOUCHED=1
+}
+
+restore_browser_cookie_cooldown() {
+  [[ $BROWSER_COOKIE_TOUCHED -eq 1 ]] || return 0
+  if [[ $BROWSER_COOKIE_HAD -eq 1 && -n "$BROWSER_COOKIE_BACKUP" && -f "$BROWSER_COOKIE_BACKUP" ]]; then
+    defaults import "$CLI_DEFAULTS_DOMAIN" "$BROWSER_COOKIE_BACKUP"
+  else
+    defaults delete "$CLI_DEFAULTS_DOMAIN" "$BROWSER_COOKIE_KEY" 2>/dev/null || true
+  fi
+  rm -f "$BROWSER_COOKIE_BACKUP"
+  BROWSER_COOKIE_BACKUP=""
 }
 
 backup_oauth_cache() {
@@ -53,7 +120,10 @@ restore_oauth_cache() {
       -s "com.steipete.codexbar.cache" \
       -a "oauth.claude" \
       -l "CodexBar Cache" \
-      -w "$(cat "$CACHE_BACKUP")" 2>/dev/null || true
+      -w "$(cat "$CACHE_BACKUP")" \
+      -T "${APP_BUNDLE}/Contents/MacOS/CodexBar" \
+      -T "${APP_BUNDLE}/Contents/Helpers/CodexBarCLI" \
+      2>/dev/null || true
   fi
   rm -f "$CACHE_BACKUP"
   CACHE_BACKUP=""
@@ -152,13 +222,8 @@ cleanup() {
     rm -f "${HOME}/.claude/.credentials.json"
   fi
 
-  if [[ $PROMPT_MODE_CHANGED -eq 1 ]]; then
-    if [[ -n "$PROMPT_MODE_BACKUP" ]]; then
-      defaults write com.steipete.codexbar claudeOAuthKeychainPromptMode "$PROMPT_MODE_BACKUP"
-    else
-      defaults delete com.steipete.codexbar claudeOAuthKeychainPromptMode 2>/dev/null || true
-    fi
-  fi
+  restore_prompt_mode
+  restore_browser_cookie_cooldown
 
   if [[ $CACHE_SEEDED -eq 1 || $CACHE_HAD_ITEM -eq 1 ]]; then
     restore_oauth_cache
@@ -198,22 +263,29 @@ EOF
 
 repro_2024() {
   log "=== #2024: browser Safe Storage via Claude web cookie import ==="
-  defaults delete com.steipete.codexbar browserCookieAccessDeniedUntil 2>/dev/null || true
+  backup_browser_cookie_cooldown
+  clear_browser_cookie_cooldown_for_repro
   pkill -x CodexBar 2>/dev/null || true
   sleep 1
   wait_for_hang "CodexBarCLI claude web" \
     "$CLI" usage --provider claude --source web --json-output --log-level debug
 }
 
+run_repro() {
+  if ! "$@"; then
+    REPRO_FAILED=1
+  fi
+}
+
 main() {
   require_cli
   trap cleanup EXIT
   case "$MODE" in
-    2025) repro_2025 ;;
-    2024) repro_2024 ;;
+    2025) run_repro repro_2025 ;;
+    2024) run_repro repro_2024 ;;
     all)
-      repro_2025 || true
-      repro_2024 || true
+      run_repro repro_2025
+      run_repro repro_2024
       ;;
     *)
       die "usage: $0 [2025|2024|all]"
@@ -221,6 +293,8 @@ main() {
   esac
   cleanup
   trap - EXIT
+  return "$REPRO_FAILED"
 }
 
 main "$@"
+exit $?
