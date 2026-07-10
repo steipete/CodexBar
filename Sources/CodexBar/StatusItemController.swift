@@ -170,7 +170,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
     /// Open-menu rebuilds paused so AppKit's native selection background cannot retain stale geometry.
     var nativeHighlightDeferredMenuRebuilds: Set<ObjectIdentifier> = []
-    var nativeHighlightDeferredMenuBaselineResyncs: Set<ObjectIdentifier> = []
+    /// Baseline resync intent survives rebuild coalescing and any native-row or hosted-submenu deferral.
+    var pendingMenuBaselineResyncs: Set<ObjectIdentifier> = []
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var providerSwitcherPointerInteractionMenuID: ObjectIdentifier?
