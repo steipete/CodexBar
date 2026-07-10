@@ -43,8 +43,28 @@ struct KimiK2UsageFetcherTests {
         #expect(snapshot.summary.remaining == 10)
     }
 
-    @Test(arguments: [401, 403, 500])
-    func `preserves non-success responses as API errors`(statusCode: Int) async throws {
+    @Test
+    func `maps rejected API key to invalid credentials`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{\"error\":\"fixture_unauthorized\"}"#.utf8), response)
+        }
+
+        await #expect {
+            try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
+        } throws: { error in
+            guard case KimiK2UsageError.invalidCredentials = error else { return false }
+            return error.localizedDescription == "Kimi K2 API key is invalid or expired."
+        }
+    }
+
+    @Test(arguments: [403, 500])
+    func `preserves non-credential responses as API errors`(statusCode: Int) async throws {
         let transport = ProviderHTTPTransportHandler { request in
             let url = try #require(request.url)
             let response = try #require(HTTPURLResponse(
