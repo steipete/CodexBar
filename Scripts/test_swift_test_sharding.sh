@@ -33,6 +33,7 @@ fi
 EOF
 
 export FAKE_SWIFT_LOG="${TEMP_DIR}/swift.log"
+export GITHUB_STEP_SUMMARY="${TEMP_DIR}/step-summary.md"
 
 python3 "${ROOT_DIR}/Scripts/ci_swift_test_by_suite.py" \
   --group-size 4 \
@@ -43,6 +44,9 @@ python3 "${ROOT_DIR}/Scripts/ci_swift_test_by_suite.py" \
   --swift-command-arg=fake-swift \
   >"${TEMP_DIR}/retry.log"
 grep -Fq "failed with exit code 1; retrying shard once" "${TEMP_DIR}/retry.log"
+grep -Fq "Swift test timing summary:" "${TEMP_DIR}/retry.log"
+grep -Fq "| Group size | \`4\` |" "${GITHUB_STEP_SUMMARY}"
+grep -Fq "| Retried groups | \`1\` |" "${GITHUB_STEP_SUMMARY}"
 grep -Fq "CodexBarTests\\.Alpha" "${FAKE_SWIFT_LOG}"
 grep -Fq "CodexBarTests\\.Beta" "${FAKE_SWIFT_LOG}"
 grep -Fq "CodexBarTests\\..*top\\ level\\ works" "${FAKE_SWIFT_LOG}"
