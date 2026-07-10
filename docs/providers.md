@@ -100,6 +100,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Validates the configured deployment with a minimal chat-completions request; it does not expose Azure spend or quota history.
 - Use `AZURE_OPENAI_API_VERSION` to override the API version. Set it to `v1` for Azure's OpenAI-compatible v1 API path.
 - Status: Azure status page link.
+- Details: `docs/azure-openai.md`.
 
 ## Claude
 - Admin API: `sk-ant-admin...` key in Settings/config, token accounts, or `ANTHROPIC_ADMIN_KEY`.

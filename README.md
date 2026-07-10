@@ -78,6 +78,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 
 - [Codex](docs/codex.md) — OAuth API or local Codex CLI, plus optional OpenAI web dashboard extras.
 - [OpenAI](docs/openai.md) — Admin API key usage/cost graphs with legacy credit-balance fallback.
+- [Azure OpenAI](docs/azure-openai.md) — API key, endpoint, and deployment validation probe.
 - [Claude](docs/claude.md) — OAuth API, browser cookies, or CLI PTY fallback; session and weekly usage where available.
 - [Cursor](docs/cursor.md) — Browser session cookies for plan + usage + billing resets.
 - [OpenCode](docs/opencode.md) — Browser cookies for workspace subscription usage.
@@ -106,6 +107,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Warp](docs/warp.md) — API token for GraphQL request limits and monthly credits.
 - [ElevenLabs](docs/elevenlabs.md) — API key for character credits and voice slot usage.
 - [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
+- [CrossModel](docs/crossmodel.md) — API key wallet balance with daily, weekly, and monthly spend.
 - [Windsurf](docs/windsurf.md) — Browser localStorage session import or local SQLite cache for plan usage.
 - [Zed](docs/zed.md) — Zed editor Keychain session for plan, edit-prediction quota, billing cycle, and overdue invoices.
 - [Perplexity](docs/perplexity.md) — Account usage credits from Perplexity usage data.
