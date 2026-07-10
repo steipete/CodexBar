@@ -97,6 +97,27 @@ run_harness() {
     --swift-command-arg=fake-swift
 }
 
+python3 - "${ROOT_DIR}/.github/workflows/ci.yml" <<'PY'
+import pathlib
+import re
+import sys
+
+workflow = pathlib.Path(sys.argv[1]).read_text()
+job_match = re.search(r"(?ms)^  swift-test-macos:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:|\Z)", workflow)
+if not job_match:
+    raise SystemExit("swift-test-macos job not found in CI workflow")
+
+job = job_match.group("body")
+if not re.search(r"(?m)^\s+shard-index:\s+\[0,\s*1\]\s*$", job):
+    raise SystemExit("swift-test-macos must run exactly two shard indexes: [0, 1]")
+if not re.search(r"(?m)^\s+shard-count:\s+\[2\]\s*$", job):
+    raise SystemExit("swift-test-macos shard-count must be [2]")
+if "CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }}" not in job:
+    raise SystemExit("swift-test-macos must pass matrix.shard-index to Scripts/test.sh")
+if "CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }}" not in job:
+    raise SystemExit("swift-test-macos must pass matrix.shard-count to Scripts/test.sh")
+PY
+
 reset_case retry
 export FAKE_SWIFT_MODE=group_fail_once
 run_harness --group-size 4 --timeout 10 > "${TEMP_DIR}/retry.log"
