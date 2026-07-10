@@ -3,9 +3,12 @@ import Testing
 @testable import CodexBarCore
 
 struct KimiK2UsageFetcherTests {
-    @Test
-    func `provider reports a missing API key instead of a generic unavailable strategy`() async {
-        let context = Self.makeContext(environment: [:])
+    @Test(arguments: [nil, "  \n"] as [String?])
+    func `provider reports a missing or blank API key instead of a generic unavailable strategy`(
+        apiKey: String?) async
+    {
+        let environment = apiKey.map { ["KIMI_K2_API_KEY": $0] } ?? [:]
+        let context = Self.makeContext(environment: environment)
 
         let outcome = await KimiK2ProviderDescriptor.descriptor.fetchOutcome(context: context)
 
@@ -40,43 +43,23 @@ struct KimiK2UsageFetcherTests {
         #expect(snapshot.summary.remaining == 10)
     }
 
-    @Test
-    func `maps 401 to invalid credentials`() async throws {
+    @Test(arguments: [401, 403, 500])
+    func `preserves non-success responses as API errors`(statusCode: Int) async throws {
         let transport = ProviderHTTPTransportHandler { request in
             let url = try #require(request.url)
             let response = try #require(HTTPURLResponse(
                 url: url,
-                statusCode: 401,
+                statusCode: statusCode,
                 httpVersion: nil,
                 headerFields: nil))
-            return (Data(#"{"error":"Unauthorized"}"#.utf8), response)
-        }
-
-        await #expect {
-            try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
-        } throws: { error in
-            guard case KimiK2UsageError.invalidCredentials = error else { return false }
-            return error.localizedDescription == "Kimi K2 API key is invalid or revoked."
-        }
-    }
-
-    @Test
-    func `maps 403 insufficient credits to a body preserving api error`() async throws {
-        let transport = ProviderHTTPTransportHandler { request in
-            let url = try #require(request.url)
-            let response = try #require(HTTPURLResponse(
-                url: url,
-                statusCode: 403,
-                httpVersion: nil,
-                headerFields: nil))
-            return (Data(#"{"error":"insufficient_credits"}"#.utf8), response)
+            return (Data(#"{"error":"fixture_failure"}"#.utf8), response)
         }
 
         await #expect {
             try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
         } throws: { error in
             guard case let KimiK2UsageError.apiError(message) = error else { return false }
-            return message.contains("insufficient_credits")
+            return message.contains("fixture_failure")
         }
     }
 

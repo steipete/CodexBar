@@ -20,12 +20,11 @@ key for that legacy endpoint to pull your remaining balance and usage.
 
 1) **API key** stored in `~/.codexbar/config.json` or supplied via `KIMI_K2_API_KEY` / `KIMI_API_KEY` / `KIMI_KEY`.
    CodexBar stores the key in config after you paste it in Preferences → Providers → Kimi K2 (unofficial).
+   Surrounding whitespace is ignored before the key is sent.
 2) **Credit endpoint**
    - `GET https://kimi-k2.ai/api/user/credits`
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
    - Response headers may include `X-Credits-Remaining`.
-   - A `401` means the key is invalid or revoked. A `403` means insufficient credits or permissions, so CodexBar
-     preserves that response instead of mislabeling the key.
    - JSON payload contains total credits consumed, credits remaining, and optional usage metadata.
      CodexBar scans common keys and falls back to the remaining header when JSON omits it.
 
