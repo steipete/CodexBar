@@ -86,15 +86,23 @@ extension StatusMenuTests {
         controller.menu(menu, willHighlight: planUsage)
         #expect(controller.highlightedMenuItems[key] === planUsage)
         #expect(controller.isNativeMenuItemHighlighted(in: menu))
+        controller.lastMenuAdjunctReadinessSignature = "stale-baseline"
         controller.menuSession.invalidate(allowsStaleContent: false, requiresRebuild: true)
 
         var rebuildCount = 0
         controller._test_openMenuRebuildObserver = { _ in rebuildCount += 1 }
         defer { controller._test_openMenuRebuildObserver = nil }
-        controller.rebuildOpenMenuIfStillVisible(menu, provider: .codex)
+        controller.scheduleOpenMenuRebuildIfStillVisible(
+            menu,
+            provider: .codex,
+            resyncReadinessBaselineAfterRebuild: true)
+        for _ in 0..<20 where !controller.nativeHighlightDeferredMenuRebuilds.contains(key) {
+            await Task.yield()
+        }
 
         #expect(rebuildCount == 0)
         #expect(controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+        #expect(controller.nativeHighlightDeferredMenuBaselineResyncs.contains(key))
         #expect(controller.menuNeedsRefresh(menu))
 
         controller.menu(menu, willHighlight: cost)
@@ -111,7 +119,9 @@ extension StatusMenuTests {
 
         #expect(rebuildCount == 1)
         #expect(!controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+        #expect(!controller.nativeHighlightDeferredMenuBaselineResyncs.contains(key))
         #expect(!controller.menuNeedsRefresh(menu))
+        #expect(controller.lastMenuAdjunctReadinessSignature == controller.menuAdjunctReadinessSignature())
     }
 
     @Test

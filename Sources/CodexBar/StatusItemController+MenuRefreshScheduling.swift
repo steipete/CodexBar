@@ -344,8 +344,14 @@ extension StatusItemController {
         if request.shouldCloseHostedSubviewMenus {
             self.closeHostedSubviewMenusForParentSwitch()
         }
-        self.rebuildOpenMenuIfStillVisible(menu, provider: request.provider)
-        if request.resyncReadinessBaselineAfterRebuild, !self.menuNeedsRefresh(menu) {
+        self.rebuildOpenMenuIfStillVisible(
+            menu,
+            provider: request.provider,
+            resyncReadinessBaselineAfterRebuild: request.resyncReadinessBaselineAfterRebuild)
+        let shouldResyncReadinessBaseline = request.resyncReadinessBaselineAfterRebuild ||
+            self.nativeHighlightDeferredMenuBaselineResyncs.contains(key)
+        if shouldResyncReadinessBaseline, !self.menuNeedsRefresh(menu) {
+            self.nativeHighlightDeferredMenuBaselineResyncs.remove(key)
             self.resyncMenuAdjunctReadinessBaseline()
         }
     }
