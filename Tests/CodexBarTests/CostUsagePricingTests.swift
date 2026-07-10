@@ -339,6 +339,21 @@ struct CostUsagePricingTests {
             inputTokens: 272_001,
             cachedInputTokens: 0,
             outputTokens: 10)
+        let gpt56Sol = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+        let gpt56Terra = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10)
+        let gpt56Luna = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-luna",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10)
         let gpt54Mini = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.4-mini",
             inputTokens: 272_001,
@@ -346,6 +361,9 @@ struct CostUsagePricingTests {
             outputTokens: 10)
 
         #expect(gpt55 == nil)
+        #expect(gpt56Sol == nil)
+        #expect(gpt56Terra == nil)
+        #expect(gpt56Luna == nil)
         #expect(gpt54Mini == nil)
     }
 
@@ -543,6 +561,48 @@ extension CostUsagePricingTests {
         // Without bundled above-threshold fallback this would bill short rates ($5/$30) despite
         // entering long-context mode via the bundled threshold.
         #expect(cost == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
+    }
+
+    @Test
+    func `codex models dev overrides every gpt56 long context token bucket`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": {
+                  "input": 1,
+                  "output": 2,
+                  "cache_read": 0.1,
+                  "cache_write": 1.25,
+                  "context_over_200k": {
+                    "input": 11,
+                    "output": 22,
+                    "cache_read": 1.1,
+                    "cache_write": 13.75
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 272_001,
+            cachedInputTokens: 100_000,
+            outputTokens: 10,
+            cacheWriteInputTokens: 50000,
+            modelsDevCacheRoot: root)
+
+        let expected = (122_001.0 * 11e-6)
+            + (100_000.0 * 1.1e-6)
+            + (50000.0 * 13.75e-6)
+            + (10.0 * 22e-6)
+        #expect(cost == expected)
     }
 
     @Test

@@ -586,6 +586,8 @@ enum CostUsagePricing {
               let priorityInputCostPerToken = pricing.priorityInputCostPerToken,
               let priorityOutputCostPerToken = pricing.priorityOutputCostPerToken
         else { return nil }
+        // OpenAI does not support Priority processing for long-context requests. Do not combine
+        // the independent Standard long-context and Priority short-context rate tables.
         if max(0, inputTokens) > self.codexPriorityInputTokenLimit {
             return nil
         }
