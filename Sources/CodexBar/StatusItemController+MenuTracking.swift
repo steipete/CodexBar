@@ -137,7 +137,7 @@ extension StatusItemController {
         if let highlightedView = self.highlightedMenuItems.removeValue(forKey: key)?.view {
             (highlightedView as? MenuCardHighlighting)?.setHighlighted(false)
         }
-        self.nativeHighlightDeferredMenuRebuilds.remove(key)
+        self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
     }
 
     func removeMenuLifecycleState(_ key: ObjectIdentifier) {
@@ -399,10 +399,10 @@ extension StatusItemController {
         let isHostedSubviewMenu = self.isHostedSubviewMenu(menu)
         guard isHostedSubviewMenu || !self.hasOpenHostedSubviewMenu() else { return }
         guard !self.isNativeMenuItemHighlighted(in: menu) else {
-            self.nativeHighlightDeferredMenuRebuilds.insert(key)
+            self.nativeHighlightDeferredMenuRebuilds[key] = NativeHighlightDeferredMenuRebuild(provider: provider)
             return
         }
-        self.nativeHighlightDeferredMenuRebuilds.remove(key)
+        self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
         if isHostedSubviewMenu {
             self.refreshHostedSubviewMenu(menu)
         } else {
@@ -424,25 +424,18 @@ extension StatusItemController {
 
     func resumeMenuRebuildDeferredForNativeHighlightIfNeeded(_ menu: NSMenu) {
         let key = ObjectIdentifier(menu)
-        guard self.nativeHighlightDeferredMenuRebuilds.contains(key) else { return }
+        guard let deferredRebuild = self.nativeHighlightDeferredMenuRebuilds[key] else { return }
         guard self.openMenus[key] === menu else {
-            self.nativeHighlightDeferredMenuRebuilds.remove(key)
+            self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
             self.pendingMenuBaselineResyncs.remove(key)
             return
         }
         let isHostedSubviewMenu = self.isHostedSubviewMenu(menu)
-        guard isHostedSubviewMenu || self.menuNeedsRefresh(menu) else {
-            self.nativeHighlightDeferredMenuRebuilds.remove(key)
-            if self.pendingMenuBaselineResyncs.remove(key) != nil {
-                self.resyncMenuAdjunctReadinessBaseline()
-            }
-            return
-        }
         guard isHostedSubviewMenu || !self.hasOpenHostedSubviewMenu() else { return }
-        self.nativeHighlightDeferredMenuRebuilds.remove(key)
+        self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
         self.scheduleOpenMenuRebuildIfStillVisible(
             menu,
-            provider: self.menuProvider(for: menu))
+            provider: deferredRebuild.provider)
     }
 
     func refreshOpenMenusIfNeeded() {

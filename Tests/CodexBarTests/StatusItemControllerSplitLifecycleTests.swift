@@ -148,7 +148,7 @@ struct StatusItemControllerSplitLifecycleTests {
             _ = controller.openMenuRebuildRequests.replaceRequest(for: key)
             controller.openMenuRebuildsClosingHostedSubviewMenus.insert(key)
             controller.highlightedMenuItems[key] = NSMenuItem(title: "Highlighted", action: nil, keyEquivalent: "")
-            controller.nativeHighlightDeferredMenuRebuilds.insert(key)
+            controller.nativeHighlightDeferredMenuRebuilds[key] = .init(provider: .codex)
             controller.pendingMenuBaselineResyncs.insert(key)
         }
 
@@ -170,7 +170,7 @@ struct StatusItemControllerSplitLifecycleTests {
             #expect(controller.openMenuRebuildRequests.tokens[key] == nil)
             #expect(!controller.openMenuRebuildsClosingHostedSubviewMenus.contains(key))
             #expect(controller.highlightedMenuItems[key] == nil)
-            #expect(!controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+            #expect(controller.nativeHighlightDeferredMenuRebuilds[key] == nil)
             #expect(!controller.pendingMenuBaselineResyncs.contains(key))
         }
     }

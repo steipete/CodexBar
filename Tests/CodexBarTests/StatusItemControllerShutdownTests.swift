@@ -43,7 +43,7 @@ struct StatusItemControllerShutdownTests {
         controller.menuRefreshTasks[key] = Task { try? await Task.sleep(for: .seconds(30)) }
         controller.menuReadinessSignatures[key] = "readiness"
         controller.menuIdentitySignatures[key] = "identity"
-        controller.nativeHighlightDeferredMenuRebuilds.insert(key)
+        controller.nativeHighlightDeferredMenuRebuilds[key] = .init(provider: .codex)
         controller.pendingMenuBaselineResyncs.insert(key)
 
         #expect(controller.openMenus[key] === menu)
