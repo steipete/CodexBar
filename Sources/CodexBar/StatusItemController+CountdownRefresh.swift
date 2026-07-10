@@ -11,21 +11,43 @@ extension StatusItemController {
         var delays: [TimeInterval] = []
         let providers = self.menuBarRefreshProviders()
         let displayMode = self.settings.menuBarDisplayMode
-        if self.settings.menuBarShowsBrandIconWithPercent,
-           self.settings.resetTimeDisplayStyle == .countdown,
-           displayMode == .resetTime || self.settings.menuBarShowsResetTimeWhenExhausted
-        {
-            let resetDates = providers.compactMap { provider -> Date? in
+        let smartExhaustedActive = self.settings.menuBarShowsBrandIconWithPercent
+            && self.settings.menuBarShowsResetTimeWhenExhausted
+            && displayMode != .resetTime
+
+        /// Reset dates for the windows whose menu-bar text is currently driven by reset timing: every
+        /// window in reset-time mode, or just the exhausted ones when the smart option is showing the
+        /// reset time in place of a 0% value.
+        func resetDrivenResetDates() -> [Date] {
+            providers.compactMap { provider -> Date? in
                 guard let window = self.menuBarMetricWindow(
                     for: provider,
                     snapshot: self.store.snapshot(for: provider),
                     now: now) else { return nil }
-                // Outside reset-time mode the countdown is only visible once the quota is exhausted.
+                // Outside reset-time mode the reset text is only visible once the quota is exhausted.
                 if displayMode != .resetTime, window.remainingPercent > 0 { return nil }
                 return window.resetsAt
             }
-            if let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDates, now: now) {
+        }
+
+        if self.settings.menuBarShowsBrandIconWithPercent,
+           self.settings.resetTimeDisplayStyle == .countdown,
+           displayMode == .resetTime || smartExhaustedActive
+        {
+            // Countdown text ticks every minute; refresh on each displayed-minute boundary (the last of
+            // which lands at the reset, flipping a smart-exhausted lane back to the percentage).
+            if let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDrivenResetDates(), now: now) {
                 delays.append(delay)
+            }
+        } else if smartExhaustedActive, self.settings.resetTimeDisplayStyle == .absolute {
+            // Absolute clocks don't tick, so the per-minute scheduler above is skipped — but a smart
+            // exhausted lane still needs one refresh at the reset boundary to fall back to the percentage
+            // once the reset passes (otherwise a slow/manual provider refresh leaves a stale past clock).
+            for resetsAt in resetDrivenResetDates() {
+                let remaining = resetsAt.timeIntervalSince(now)
+                if remaining > 0 {
+                    delays.append(remaining + Self.menuBarCountdownRefreshEpsilon)
+                }
             }
         }
 

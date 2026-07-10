@@ -153,6 +153,83 @@ struct MenuBarCountdownRefreshTests {
     }
 
     @Test
+    func `absolute clock smart mode schedules the exhausted reset boundary`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "MenuBarCountdownRefreshTests-absolute-smart"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarDisplayMode = .percent
+        settings.menuBarShowsResetTimeWhenExhausted = true
+        // Absolute clock style: the per-minute countdown scheduler is skipped, but a smart-exhausted
+        // lane still needs a boundary refresh so it falls back to the percentage once the reset passes.
+        settings.resetTimesShowAbsolute = true
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        }
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date()
+
+        // Exhausted lane with a future reset → schedule a boundary refresh even in absolute mode.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(90),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        // Elapsed reset → nothing to schedule (the lane already falls back to the percentage).
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(-1),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        controller.updateIcons()
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+
+        // Healthy quota → smart replacement inactive, so no boundary refresh.
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 40,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(90),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now),
+            provider: .codex)
+        controller.updateIcons()
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    @Test
     func `merged highest usage observes reset for noncurrent Codex candidate`() throws {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "MenuBarCountdownRefreshTests-merged-highest"),
