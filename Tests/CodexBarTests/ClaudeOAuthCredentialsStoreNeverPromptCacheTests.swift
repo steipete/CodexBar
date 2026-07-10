@@ -498,6 +498,49 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     }
 
     @Test
+    func `has cached credentials ignores stale oauth cache when pending clear flush fails`() throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+                try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                    ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    defer {
+                        ClaudeOAuthCredentialsStore.invalidateCache()
+                        ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+                    }
+
+                    let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                    let cacheData = self.makeCredentialsData(
+                        accessToken: "cached-token",
+                        expiresAt: Date(timeIntervalSinceNow: 3600))
+                    KeychainCacheStore.store(
+                        key: cacheKey,
+                        entry: ClaudeOAuthCredentialsStore.CacheEntry(data: cacheData, storedAt: Date()))
+                    defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                    ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                        ClaudeOAuthCredentialsStore.invalidateCache()
+                    }
+
+                    let hasCached = KeychainCacheStore
+                        .withClearFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                            ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                                ProviderInteractionContext.$current.withValue(.background) {
+                                    ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: [:])
+                                }
+                            }
+                        }
+                    #expect(!hasCached)
+                }
+            }
+        }
+    }
+
+    @Test
     func `save to cache keychain keeps pending clear when replacement store fails`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         let pendingKey = "ClaudeOAuthPendingCodexBarOAuthKeychainCacheClearV1"

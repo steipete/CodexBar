@@ -567,6 +567,9 @@ public enum ClaudeOAuthCredentialsStore {
                         source: .cacheKeychain)
                     return isRefreshableOrValid(record)
                 case .temporarilyUnavailable:
+                    if ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClear {
+                        break
+                    }
                     return true
                 case .missing, .invalid:
                     break
