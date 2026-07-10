@@ -49,6 +49,7 @@ enum PiSessionCostScanner {
     private struct ModelsDevPricingContext {
         let catalog: ModelsDevCatalog?
         let cacheRoot: URL?
+        let pricingKey: String
     }
 
     private struct ScanContext {
@@ -59,6 +60,8 @@ enum PiSessionCostScanner {
     }
 
     private static let costScale = 1_000_000_000.0
+    /// Bump for Pi-only cost formula changes not represented by the parser or pricing fingerprints.
+    private static let costFormulaVersion = 1
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let maxSafeRoundedInt = Double(Int.max) - 1
     private static let sessionStartFilenameRegex = try? NSRegularExpression(
@@ -98,12 +101,12 @@ enum PiSessionCostScanner {
         var cache = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
-        let pricingContext = ModelsDevPricingContext(
-            catalog: CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot),
-            cacheRoot: options.cacheRoot)
+        let pricingContext = self.pricingContext(now: now, cacheRoot: options.cacheRoot)
         let windowExpanded = self.requestedWindowExpandsCache(range: range, cache: cache)
+        let pricingChanged = cache.pricingKey != pricingContext.pricingKey
         let shouldRefresh = options.forceRescan
             || windowExpanded
+            || pricingChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
@@ -121,7 +124,7 @@ enum PiSessionCostScanner {
                     cache: &cache,
                     context: ScanContext(
                         range: range,
-                        forceRescan: options.forceRescan || windowExpanded,
+                        forceRescan: options.forceRescan || windowExpanded || pricingChanged,
                         pricingContext: pricingContext,
                         checkCancellation: checkCancellation))
             }
@@ -139,6 +142,7 @@ enum PiSessionCostScanner {
 
             cache.scanSinceKey = range.scanSinceKey
             cache.scanUntilKey = range.scanUntilKey
+            cache.pricingKey = pricingContext.pricingKey
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
             PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot)
@@ -185,9 +189,8 @@ enum PiSessionCostScanner {
         guard !cache.daysByProvider.isEmpty else { return nil }
         guard !self.requestedWindowExpandsCache(range: range, cache: cache) else { return nil }
 
-        let pricingContext = ModelsDevPricingContext(
-            catalog: CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: cacheRoot),
-            cacheRoot: cacheRoot)
+        let pricingContext = self.pricingContext(now: now, cacheRoot: cacheRoot)
+        guard cache.pricingKey == pricingContext.pricingKey else { return nil }
         let report = self.buildReport(
             provider: provider,
             cache: cache,
@@ -198,6 +201,17 @@ enum PiSessionCostScanner {
             ? Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
             : nil
         return CachedDailyReportResult(report: report, lastScanAt: lastScanAt)
+    }
+
+    private static func pricingContext(now: Date, cacheRoot: URL?) -> ModelsDevPricingContext {
+        let modelsDevArtifact = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact
+        return ModelsDevPricingContext(
+            catalog: modelsDevArtifact?.catalog,
+            cacheRoot: cacheRoot,
+            pricingKey: CostUsagePricingKey.codex(
+                modelsDevArtifact: modelsDevArtifact,
+                formulaVersion: Self.costFormulaVersion,
+                parserHash: CodexParserHash.value))
     }
 
     private static func requestedWindowExpandsCache(
@@ -645,12 +659,14 @@ enum PiSessionCostScanner {
         switch provider {
         case .codex:
             // Pi records input, cache reads, and cache writes as disjoint counts. Codex pricing
-            // expects cached input to be a subset of total input, so reconstruct that total here.
+            // expects cached/write tokens to be subsets of total input, so reconstruct that total
+            // here and pass writes separately (1.25x input for GPT-5.6 when rates are known).
             CostUsagePricing.codexCostUSD(
                 model: modelName,
                 inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
                 cachedInputTokens: usage.cacheReadTokens,
                 outputTokens: usage.outputTokens,
+                cacheWriteInputTokens: usage.cacheWriteTokens,
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
         case .claude:

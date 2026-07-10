@@ -593,6 +593,46 @@ struct CostUsageScannerPriorityTests {
     }
 
     @Test
+    func `codex gpt56 long context rows keep base cost in priority bucket`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let entries: [[String: Any]] = [
+            ["type": "turn_context", "timestamp": iso0, "payload": ["model": "gpt-5.6-sol"]],
+            ["type": "event_msg", "timestamp": iso1, "payload": ["type": "task_started", "turn_id": "priority-turn"]],
+            self.tokenCount(timestamp: iso1, input: 272_001, cached: 100_000, output: 5),
+        ]
+        _ = try env.writeCodexSessionFile(day: day, filename: "session.jsonl", contents: env.jsonl(entries))
+
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try CostUsageScannerCodexPriorityTests.createTestLogsDatabase(at: dbURL)
+        try self.insertPriorityTrace(dbURL: dbURL, timestamp: iso1, model: "gpt-5.6-sol")
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: dbURL)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let expected = (172_001.0 * 1e-5) + (100_000.0 * 1e-6) + (5.0 * 4.5e-5)
+
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
+        let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
+        #expect(abs((breakdown.priorityCostUSD ?? 0) - expected) < 0.000_000_001)
+        #expect(breakdown.standardCostUSD == nil)
+        #expect(breakdown.priorityTokens == 272_006)
+    }
+
+    @Test
     func `codex pricing applies priority surcharge when cached reads exceed limit but input stays under it`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

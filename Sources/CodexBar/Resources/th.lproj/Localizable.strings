@@ -1164,3 +1164,4 @@
 "section_links" = "ลิงก์";
 "Show Codex Spark usage" = "แสดงการใช้งาน Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "แสดงแถวโควตา Codex Spark ในเมนูและตัวอย่างผู้ให้บริการ ต้องเปิดใช้ “แสดงเครดิต + การใช้งานเพิ่มเติม” ในการตั้งค่าการแสดงผล";
+"Scroll to see more models" = "เลื่อนเพื่อดูโมเดลเพิ่มเติม";

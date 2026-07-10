@@ -1193,3 +1193,4 @@
 "section_links" = "連結";
 "Show Codex Spark usage" = "顯示 Codex Spark 使用量";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "在選單和提供者預覽中顯示 Codex Spark 配額列。需要在「顯示」設定中啟用「顯示額度 + 額外使用量」。";
+"Scroll to see more models" = "捲動查看更多模型";

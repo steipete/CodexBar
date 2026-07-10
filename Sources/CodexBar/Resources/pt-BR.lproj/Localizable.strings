@@ -1158,3 +1158,4 @@
 "section_links" = "Links";
 "Show Codex Spark usage" = "Mostrar uso do Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Mostra as linhas de cota do Codex Spark no menu e na prévia do provedor. Requer ativar “Mostrar créditos + uso extra” nos ajustes de Exibição.";
+"Scroll to see more models" = "Role para ver mais modelos";

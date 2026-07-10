@@ -19,6 +19,7 @@ struct CodexRateLimitResetCreditsTests {
             #expect(request.url?.absoluteString == "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")
             #expect(request.httpMethod == "GET")
             #expect(request.timeoutInterval == 4)
+            #expect(request.cachePolicy == .reloadIgnoringLocalCacheData)
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
             #expect(request.value(forHTTPHeaderField: "ChatGPT-Account-ID") == "account-123")
             #expect(request.value(forHTTPHeaderField: "OpenAI-Beta") == "codex-1")
@@ -32,11 +33,12 @@ struct CodexRateLimitResetCreditsTests {
             return (Data(#"{"credits":[],"available_count":0}"#.utf8), response)
         }
 
-        let snapshot = try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
-            accessToken: "test-token",
-            accountId: "account-123",
-            env: ["CODEX_HOME": "/tmp/codexbar-reset-credit-request-test"],
-            session: transport)
+        let snapshot = try await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+            try await CodexOAuthUsageFetcher.fetchRateLimitResetCredits(
+                accessToken: "test-token",
+                accountId: "account-123",
+                env: ["CODEX_HOME": "/tmp/codexbar-reset-credit-request-test"])
+        }
 
         #expect(snapshot.availableCount == 0)
         #expect(await transport.requests().count == 1)

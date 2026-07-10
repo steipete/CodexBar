@@ -760,7 +760,7 @@ public struct OpenAIDashboardFetcher {
         return await self.fetchDashboardUsageAPI(cookieHeader: cookieHeader, deadline: nil, logger: logger)
     }
 
-    private static func fetchDashboardUsageAPI(
+    static func fetchDashboardUsageAPI(
         cookieHeader: String,
         deadline: Date?,
         logger: @escaping (String) -> Void) async -> DashboardAPIData?
@@ -770,7 +770,7 @@ public struct OpenAIDashboardFetcher {
         guard remaining > 0 else { return nil }
 
         do {
-            let (data, response) = try await ProviderHTTPClient.shared.data(
+            let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
                 for: self.dashboardUsageAPIRequest(cookieHeader: cookieHeader, timeout: min(4, remaining)))
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             logger("usage api status=\(status)")
@@ -787,7 +787,7 @@ public struct OpenAIDashboardFetcher {
         }
     }
 
-    private static func fetchSignedInEmailFromAPI(
+    static func fetchSignedInEmailFromAPI(
         cookieHeader: String,
         deadline: Date?,
         logger: @escaping (String) -> Void) async -> String?
@@ -803,7 +803,7 @@ public struct OpenAIDashboardFetcher {
             let remaining = deadline.map { self.remainingTimeout(until: $0) } ?? 2
             guard remaining > 0 else { return nil }
             do {
-                let (data, response) = try await ProviderHTTPClient.shared.data(
+                let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(
                     for: self.dashboardIdentityAPIRequest(
                         url: url,
                         cookieHeader: cookieHeader,
@@ -1004,9 +1004,11 @@ extension OpenAIDashboardFetcher {
         cookieHeader: String,
         timeout: TimeInterval = 4) -> URLRequest
     {
-        var request = URLRequest(url: Self.dashboardUsageAPIURL)
+        var request = URLRequest(
+            url: Self.dashboardUsageAPIURL,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
         request.httpMethod = "GET"
-        request.timeoutInterval = timeout
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")
@@ -1019,9 +1021,11 @@ extension OpenAIDashboardFetcher {
         cookieHeader: String,
         timeout: TimeInterval = 2) -> URLRequest
     {
-        var request = URLRequest(url: url)
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
         request.httpMethod = "GET"
-        request.timeoutInterval = timeout
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.dashboardAcceptLanguage, forHTTPHeaderField: "Accept-Language")

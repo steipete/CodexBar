@@ -4,6 +4,8 @@
 
 ### Added
 - Agent Sessions: list and focus live local or SSH-discovered Codex and Claude Code sessions from the menu and CLI.
+- Kimi K2: add a Usage Dashboard shortcut to the human-facing legacy credits page. Thanks @joeVenner!
+- Codex: add GPT-5.6 Sol, Terra, and Luna pricing, including long-context, Priority, cache-write, alias, and automatic Pi cache repricing when rates change (#2023). Thanks @0xSMW!
 - Codex: add a provider option to hide Spark quota rows without hiding credits or other extra usage (#2013). Thanks @intellectronica!
 - Wayfinder: add opt-in local gateway health, routing, savings, and latency usage with configurable loopback URL support. Thanks @tcballard!
 - Claude CLI: surface model-scoped weekly limits alongside all-model usage without duplicating matching web limits. Thanks @janpollak!
@@ -11,9 +13,11 @@
 - Quota warnings: add opt-in predictive pace alerts for Codex and Claude session and weekly limits, with one alert per risk episode. Thanks @vincent-peng!
 
 ### Fixed
+- Codex accounts: isolate authenticated OAuth and browser-cookie requests from shared URL caches and cookie stores, preventing one account's cached quota or identity response from appearing under another account and triggering false reset alerts (#1987, #2019). Thanks @harjothkhara!
 - Claude OAuth: honor the app's never-prompt policy in the bundled CLI and defer stale cache cleanup without touching Keychain until access is re-enabled. Thanks @Yuxin-Qiao!
 - CLI server: retain timed-out route and provider work until it actually exits, preventing repeated requests or config changes from stacking background fetches. Thanks @Yuxin-Qiao!
 - Token costs: coalesce bounded pricing-catalog refreshes when a newly observed model is still unpriced, preserving its exact usage until pricing arrives. Thanks @iam-brain!
+- Cost history: keep model breakdown menus steady while hovering, preserve compact rows, and make overflowing histories scrollable. Thanks @iam-brain!
 - Ollama: validate API keys against an authenticated endpoint instead of the public model catalog while preserving refresh cancellation. Thanks @joeVenner!
 - Claude CLI: resolve yearless and time-only reset timestamps against their quota window and exact calendar occurrence, keeping recently stale resets current without moving future, leap-day, or repeated-hour resets into the past. Thanks @fanwenlin!
 - Catalan: complete current strings, align instructional voice, and enforce catalog parity. Thanks @pmontp19!

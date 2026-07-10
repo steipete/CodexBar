@@ -26,6 +26,8 @@ struct CostHistoryChartMenuViewTests {
         ])
         #expect(CostHistoryChartMenuView.detailViewportRowCount(itemCount: ordered.count) == 4)
         #expect(CostHistoryChartMenuView.detailRowsNeedScrolling(itemCount: ordered.count))
+        #expect(CostHistoryChartMenuView.detailOverflowHint(itemCount: ordered.count) == "Scroll to see more models")
+        #expect(CostHistoryChartMenuView.detailOverflowHint(itemCount: 4) == nil)
     }
 
     @Test
@@ -70,21 +72,47 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `cost history detail height follows visible rows and caps at viewport limit`() {
-        let singleRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(modeSubtitlePresence: [false])
-        let twoRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(modeSubtitlePresence: [false, true])
-        let fourRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(
-            modeSubtitlePresence: [false, false, false, false])
-        let fiveRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(
-            modeSubtitlePresence: [false, false, false, false, true])
+    func `cost history sizes its viewport to the largest breakdown in the range`() {
+        let threeRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 1), Self.entry(date: "2026-06-08", modelCount: 3)])
+        let cappedRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 6)])
+        let mixedRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 6), Self.entry(date: "2026-06-08", modelCount: 1)])
+        let noRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 0)])
 
-        #expect(singleRowHeight < twoRowHeight)
-        #expect(twoRowHeight < fourRowHeight)
-        #expect(fiveRowHeight == fourRowHeight)
+        #expect(threeRows.rowCount == 3)
+        #expect(!threeRows.hasOverflow)
+        #expect(threeRows.rowHeight == 36)
+        #expect(cappedRows.rowCount == 4)
+        #expect(cappedRows.hasOverflow)
+        #expect(mixedRows.rowCount == 4)
+        #expect(mixedRows.hasOverflow)
+        #expect(noRows.rowCount == 0)
+        #expect(!noRows.hasOverflow)
+    }
 
-        let emptyBlockHeight = CostHistoryChartMenuView._detailBlockHeightForTesting(modeSubtitlePresence: [])
-        let populatedBlockHeight = CostHistoryChartMenuView._detailBlockHeightForTesting(modeSubtitlePresence: [false])
-        #expect(emptyBlockHeight < populatedBlockHeight)
+    @Test
+    @MainActor
+    func `cost history expands every row only when the range contains mode details`() {
+        let compact = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 2)])
+        let expanded = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [
+                Self.entry(date: "2026-06-07", modelCount: 2),
+                Self.entry(date: "2026-06-08", modelCount: 1, hasModeDetails: true),
+            ])
+
+        #expect(compact.rowHeight == 36)
+        #expect(expanded.rowHeight == 44)
+        #expect(compact.rowCount == expanded.rowCount)
     }
 
     @Test
@@ -202,34 +230,50 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `cost history total card height grows with rows and the total line`() {
-        let oneRow = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: false)
-        let threeRows = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false, false, false],
-            hasTotal: false)
-        #expect(oneRow < threeRows)
+    func `cost history fitting height stays stable across compact overflow and mode selections`() {
+        let compactLatestHasOneModel = [
+            Self.entry(date: "2026-06-07", modelCount: 3),
+            Self.entry(date: "2026-06-08", modelCount: 1),
+        ]
+        let compactLatestHasThreeModels = [
+            Self.entry(date: "2026-06-07", modelCount: 1),
+            Self.entry(date: "2026-06-08", modelCount: 3),
+        ]
+        let overflowLatestHasFourModels = [
+            Self.entry(date: "2026-06-07", modelCount: 6),
+            Self.entry(date: "2026-06-08", modelCount: 4),
+        ]
+        let overflowLatestHasSixModels = [
+            Self.entry(date: "2026-06-07", modelCount: 4),
+            Self.entry(date: "2026-06-08", modelCount: 6),
+        ]
+        let modeLatestHasOneModel = [
+            Self.entry(date: "2026-06-07", modelCount: 6),
+            Self.entry(date: "2026-06-08", modelCount: 1, hasModeDetails: true),
+        ]
+        let modeLatestHasSixModels = [
+            Self.entry(date: "2026-06-07", modelCount: 1, hasModeDetails: true),
+            Self.entry(date: "2026-06-08", modelCount: 6),
+        ]
 
-        let withoutTotal = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: false)
-        let withTotal = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: true)
-        #expect(withTotal > withoutTotal)
+        let compactHeight = Self.renderedHeight(daily: compactLatestHasOneModel)
+        let overflowHeight = Self.renderedHeight(daily: overflowLatestHasFourModels)
+        let modeHeight = Self.renderedHeight(daily: modeLatestHasOneModel)
 
-        let withProjects = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: true,
-            projectCount: 3)
-        #expect(withProjects > withTotal)
+        #expect(compactHeight == Self.renderedHeight(daily: compactLatestHasThreeModels))
+        #expect(overflowHeight == Self.renderedHeight(daily: overflowLatestHasSixModels))
+        #expect(modeHeight == Self.renderedHeight(daily: modeLatestHasSixModels))
+        #expect(compactHeight < overflowHeight)
+        #expect(overflowHeight < modeHeight)
+    }
 
-        let withProjectSources = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: true,
-            projectSourceCounts: [3])
-        #expect(withProjectSources > withProjects)
+    @Test
+    @MainActor
+    func `cost history without model breakdown stays compact`() {
+        let noBreakdown = [Self.entry(date: "2026-06-07", modelCount: 0)]
+        let withBreakdown = [Self.entry(date: "2026-06-07", modelCount: 1)]
+
+        #expect(Self.renderedHeight(daily: noBreakdown) < Self.renderedHeight(daily: withBreakdown))
     }
 
     @Test
@@ -259,5 +303,40 @@ struct CostHistoryChartMenuViewTests {
                     daily: [],
                     modelBreakdowns: nil),
             ])
+    }
+
+    @MainActor
+    private static func renderedHeight(daily: [CostUsageDailyReport.Entry]) -> CGFloat {
+        let hosting = MenuHostingView(rootView: CostHistoryChartMenuView(
+            provider: .codex,
+            daily: daily,
+            totalCostUSD: nil,
+            width: 320))
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 1)
+        hosting.layoutSubtreeIfNeeded()
+        return ceil(hosting.fittingSize.height)
+    }
+
+    private static func entry(
+        date: String,
+        modelCount: Int,
+        hasModeDetails: Bool = false) -> CostUsageDailyReport.Entry
+    {
+        CostUsageDailyReport.Entry(
+            date: date,
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            costUSD: 1,
+            modelsUsed: modelCount > 0 ? (0..<modelCount).map { "model-\($0)" } : nil,
+            modelBreakdowns: modelCount > 0
+                ? (0..<modelCount).map {
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: "model-\($0)",
+                        costUSD: Double($0 + 1),
+                        totalTokens: ($0 + 1) * 100,
+                        standardCostUSD: hasModeDetails ? Double($0 + 1) * 0.75 : nil)
+                }
+                : nil)
     }
 }

@@ -422,12 +422,6 @@ extension StatusItemController {
             return true
         }
 
-        // The SwiftUI view needs the callback at init, but the hosting view doesn't exist yet.
-        // A relay breaks the cycle: the closure captures relay strongly, relay holds the view weakly.
-        final class HostingRelay {
-            weak var hosting: MenuHostingView<CostHistoryChartMenuView>?
-        }
-        let relay = HostingRelay()
         let chartView = CostHistoryChartMenuView(
             provider: provider,
             daily: tokenSnapshot.daily,
@@ -436,18 +430,14 @@ extension StatusItemController {
             historyDays: tokenSnapshot.historyDays,
             windowLabel: tokenSnapshot.historyLabel,
             projects: provider == .codex ? tokenSnapshot.projects : [],
-            onHeightChange: { height in
-                relay.hosting?.applyMeasuredHeight(width: width, height: height)
-            },
             width: width)
-        let resolvedHosting = MenuHostingView(rootView: chartView)
-        relay.hosting = resolvedHosting
-        resolvedHosting.applyMeasuredHeight(
+        let hosting = MenuHostingView(rootView: chartView)
+        hosting.applyMeasuredHeight(
             width: width,
-            height: self.hostedSubviewFittingHeight(for: resolvedHosting, width: width))
+            height: self.hostedSubviewFittingHeight(for: hosting, width: width))
 
         let chartItem = NSMenuItem()
-        chartItem.view = resolvedHosting
+        chartItem.view = hosting
         chartItem.isEnabled = true
         chartItem.representedObject = Self.costHistoryChartID
         chartItem.toolTip = provider.rawValue
