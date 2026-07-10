@@ -691,10 +691,116 @@ struct PiSessionCostScannerTests {
         #expect(FileManager.default.fileExists(atPath: newCacheURL.path))
         let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
         let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
-        #expect(newCacheURL.lastPathComponent == "pi-sessions-v4.json")
-        #expect(newCache.version == 4)
+        #expect(newCacheURL.lastPathComponent == "pi-sessions-v5.json")
+        #expect(newCache.version == 5)
         #expect(rebuilt?.usageSampleCount == 1)
         #expect(rebuilt?.costSampleCount == 1)
+        #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
+    }
+
+    @Test
+    func `pi scanner ignores v4 cache with stale gpt56 cache write pricing`() throws {
+        // v4 stored complete costNanos before cache-write rates existed; v5 must reprice.
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let model = "gpt-5.6-sol"
+        let assistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": model,
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 70,
+                    "cacheRead": 10,
+                    "cacheWrite": 20,
+                    "output": 5,
+                    "totalTokens": 105,
+                ],
+            ],
+        ]
+
+        let fileURL = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_cache-write.jsonl",
+            contents: env.jsonl([assistant]))
+        let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let mtime = try #require(attrs[.modificationDate] as? Date)
+        let size = try #require((attrs[.size] as? NSNumber)?.int64Value)
+
+        let expectedCost = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        // Stale: writes folded into uncached input at 1× (pre-v5 behavior).
+        let staleCost = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        #expect(abs(expectedCost - staleCost) > 0.000001)
+
+        let stalePacked = PiPackedUsage(
+            inputTokens: 70,
+            cacheReadTokens: 10,
+            cacheWriteTokens: 20,
+            outputTokens: 5,
+            totalTokens: 105,
+            costNanos: Int64((staleCost * 1_000_000_000).rounded()),
+            costSampleCount: 1,
+            usageSampleCount: 1)
+        let dayKey = "2026-07-10"
+        let contributions = [
+            UsageProvider.codex.rawValue: [
+                dayKey: [
+                    model: stalePacked,
+                ],
+            ],
+        ]
+        let oldFileUsage = PiSessionFileUsage(
+            mtimeUnixMs: Int64(mtime.timeIntervalSince1970 * 1000),
+            size: size,
+            parsedBytes: size,
+            lastModelContext: nil,
+            contributions: contributions)
+        var oldCache = PiSessionCostCache(version: 4)
+        oldCache.lastScanUnixMs = Int64(day.timeIntervalSince1970 * 1000)
+        oldCache.scanSinceKey = dayKey
+        oldCache.scanUntilKey = dayKey
+        oldCache.daysByProvider = contributions
+        oldCache.files = [fileURL.path: oldFileUsage]
+        let oldCacheURL = env.cacheRoot
+            .appendingPathComponent("cost-usage", isDirectory: true)
+            .appendingPathComponent("pi-sessions-v4.json", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: oldCacheURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try JSONEncoder().encode(oldCache).write(to: oldCacheURL)
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 3600))
+
+        #expect(report.data.count == 1)
+        #expect(abs((report.data.first?.costUSD ?? 0) - expectedCost) < 0.000001)
+        #expect(abs((report.data.first?.costUSD ?? 0) - staleCost) > 0.000001)
+
+        let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
+        #expect(newCache.version == 5)
         #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
     }
 

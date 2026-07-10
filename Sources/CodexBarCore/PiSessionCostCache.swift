@@ -1,7 +1,8 @@
 import Foundation
 
 enum PiSessionCostCacheIO {
-    private static let artifactVersion = 4
+    /// Bumped when stored `costNanos` must be recomputed (e.g. GPT-5.6 cache-write rates).
+    private static let artifactVersion = 5
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -54,7 +55,7 @@ struct PiSessionCostCache: Codable {
     var daysByProvider: [String: [String: [String: PiPackedUsage]]] = [:]
     var files: [String: PiSessionFileUsage] = [:]
 
-    init(version: Int = 4) {
+    init(version: Int = 5) {
         self.version = version
     }
 }

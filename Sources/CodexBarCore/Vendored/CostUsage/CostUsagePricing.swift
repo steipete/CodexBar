@@ -564,13 +564,19 @@ enum CostUsagePricing {
             return nil
         }
 
-        // Priority tables do not publish a separate cache-write multiplier; bill writes at the
-        // priority input rate when callers pass them (same folding semantics as standard).
+        // GPT-5.6 Priority cache writes are 1.25× Priority input (OpenAI pricing page). When the
+        // base model has a cache-write rate, apply the same 1.25× multiplier to Priority input.
+        let priorityCacheWriteCostPerToken: Double? = if pricing.cacheWriteInputCostPerToken != nil {
+            priorityInputCostPerToken * 1.25
+        } else {
+            nil
+        }
         let priorityPricing = CodexPricing(
             inputCostPerToken: priorityInputCostPerToken,
             outputCostPerToken: priorityOutputCostPerToken,
             cacheReadInputCostPerToken: pricing.priorityCacheReadInputCostPerToken,
-            displayLabel: nil)
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: priorityCacheWriteCostPerToken)
         return self.codexCostUSD(
             pricing: priorityPricing,
             inputTokens: inputTokens,

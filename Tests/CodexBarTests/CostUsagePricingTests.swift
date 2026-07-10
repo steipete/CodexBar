@@ -183,6 +183,21 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex priority cost bills gpt56 cache writes at one point two five x priority input`() {
+        // Total 100: 70 uncached + 20 cache-write + 10 cache-read at Priority rates.
+        let sol = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            cacheWriteInputTokens: 20,
+            outputTokens: 5)
+
+        // Priority Sol: input $10/1M, cache read $1/1M, cache write $12.50/1M, output $60/1M.
+        let expected = (70.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (5.0 * 6e-5)
+        #expect(sol == expected)
+    }
+
+    @Test
     func `codex cost applies gpt54 and gpt55 long context rates to full session`() throws {
         let root = try Self.cacheRoot()
         let gpt54 = CostUsagePricing.codexCostUSD(
