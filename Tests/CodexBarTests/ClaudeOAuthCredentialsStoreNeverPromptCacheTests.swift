@@ -204,6 +204,34 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     }
 
     @Test
+    func `has cached credentials ignores stale oauth cache when pending clear fails`() throws {
+        try self.withTestState { state in
+            try self.withCredentialsFile(data: nil) { _ in
+                self.seedCache(state, accessToken: "cached-token")
+                ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    ClaudeOAuthCredentialsStore.invalidateCache()
+                }
+
+                let hasCached = KeychainCacheStore.withClearFailureStatusOverrideForTesting(
+                    errSecInteractionNotAllowed)
+                {
+                    ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                        ProviderInteractionContext.$current.withValue(.background) {
+                            ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: [:])
+                        }
+                    }
+                }
+
+                #expect(!hasCached)
+                #expect(state.pendingStore.isPending)
+                #expect(state.recorder.operations == [.clear])
+                let cachedToken = try self.cachedToken(state)
+                #expect(cachedToken == "cached-token")
+            }
+        }
+    }
+
+    @Test
     func `leaving never mode clears stale oauth cache before repopulating from file`() throws {
         try self.withTestState { state in
             let fileData = self.makeCredentialsData(
