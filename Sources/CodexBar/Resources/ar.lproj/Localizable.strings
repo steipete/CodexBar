@@ -467,6 +467,7 @@
 "quota_warning_sound" = "تشغيل صوت الإشعار";
 "quota_warning_onscreen_alert" = "إظهار تنبيه نصي على الشاشة";
 "quota_warning_provider_inherits" = "يستخدم إعدادات تحذير الحصص العامة إلا إذا تم تخصيص نافذة هنا.";
+"quota_warning_provider_disabled" = "تم تعطيل تحذيرات الحصة على مستوى التطبيق. تم الاحتفاظ بإعدادات موفّر الخدمة.";
 "quota_warning_global" = "عام";
 "quota_warning_customize_thresholds" = "تخصيص عتبات %@";
 "quota_warning_enable_warnings" = "تفعيل تحذيرات %@";

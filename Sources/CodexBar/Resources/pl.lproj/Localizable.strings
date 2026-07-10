@@ -469,6 +469,7 @@
 "quota_warning_sound" = "Odtwarzaj dźwięk powiadomienia";
 "quota_warning_onscreen_alert" = "Pokaż alert tekstowy na ekranie";
 "quota_warning_provider_inherits" = "Używa globalnych ustawień ostrzeżeń limitu, chyba że to okno jest tutaj dostosowane.";
+"quota_warning_provider_disabled" = "Ostrzeżenia o limicie są globalnie wyłączone. Ustawienia dostawcy są zachowane.";
 "quota_warning_global" = "Globalne";
 "quota_warning_customize_thresholds" = "Dostosuj progi dla %@";
 "quota_warning_enable_warnings" = "Włącz ostrzeżenia dla %@";

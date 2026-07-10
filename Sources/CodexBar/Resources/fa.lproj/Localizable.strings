@@ -467,6 +467,7 @@
 "quota_warning_sound" = "صدای اعلان پخش کن";
 "quota_warning_onscreen_alert" = "نمایش هشدار متنی روی صفحه";
 "quota_warning_provider_inherits" = "از تنظیمات هشدار سهمیه جهانی استفاده می کند مگر اینکه پنجره ای اینجا سفارشی شده باشد.";
+"quota_warning_provider_disabled" = "هشدارهای سهمیه در سطح سراسری غیرفعال هستند. تنظیمات ارائه‌دهنده حفظ می‌شوند.";
 "quota_warning_global" = "سراسری";
 "quota_warning_customize_thresholds" = "آستانه های %@ شخصی سازی کنید";
 "quota_warning_enable_warnings" = "فعال کردن هشدارهای %@";

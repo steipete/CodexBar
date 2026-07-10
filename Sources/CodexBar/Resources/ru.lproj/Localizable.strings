@@ -467,6 +467,7 @@
 "quota_warning_sound" = "Воспроизвести звук уведомления";
 "quota_warning_onscreen_alert" = "Показывать текстовое оповещение на экране";
 "quota_warning_provider_inherits" = "Использует глобальные настройки предупреждений о квоте, если окно не настроено отдельно.";
+"quota_warning_provider_disabled" = "Предупреждения о квоте отключены глобально. Настройки провайдера сохранены.";
 "quota_warning_global" = "Глобально";
 "quota_warning_customize_thresholds" = "Настроить пороги %@";
 "quota_warning_enable_warnings" = "Включить предупреждения %@";

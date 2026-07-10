@@ -471,6 +471,7 @@
 "quota_warning_sound" = "播放通知音效";
 "quota_warning_onscreen_alert" = "顯示螢幕文字提醒";
 "quota_warning_provider_inherits" = "預設使用全域配額提醒設定，除非在此自訂時段。";
+"quota_warning_provider_disabled" = "配額提醒已全域關閉。提供者設定會保留。";
 "quota_warning_global" = "全域";
 "quota_warning_customize_thresholds" = "自訂 %@ 門檻";
 "quota_warning_enable_warnings" = "啟用 %@ 提醒";

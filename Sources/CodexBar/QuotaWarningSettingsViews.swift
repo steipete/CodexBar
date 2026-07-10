@@ -70,12 +70,24 @@ struct ProviderQuotaWarningSettingsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .listRowSeparator(.hidden)
+            .disabled(!self.controlsEnabled)
+            .opacity(self.controlsEnabled ? 1 : 0.45)
         } header: {
             Text(L("quota_warnings_title"))
         } footer: {
-            Text(L("quota_warning_provider_inherits"))
+            Text(self.footerText)
         }
         .background(FocusResigningBackground())
+    }
+
+    var controlsEnabled: Bool {
+        self.settings.quotaWarningNotificationsEnabled
+    }
+
+    var footerText: String {
+        self.controlsEnabled
+            ? L("quota_warning_provider_inherits")
+            : L("quota_warning_provider_disabled")
     }
 
     private func windowRow(_ window: QuotaWarningWindow) -> some View {

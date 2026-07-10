@@ -241,6 +241,46 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `disabled global quota warnings preserve and disable provider settings`() {
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-provider-quota-warning-disabled")
+        settings.quotaWarningNotificationsEnabled = true
+        settings.setQuotaWarningOverride(provider: .codex, window: .session, thresholds: [70, 30], enabled: true)
+        settings.setQuotaWarningOverride(provider: .codex, window: .weekly, thresholds: [60, 10], enabled: false)
+
+        let view = ProviderQuotaWarningSettingsView(provider: .codex, settings: settings)
+        let inheritedView = ProviderQuotaWarningSettingsView(provider: .claude, settings: settings)
+        #expect(view.controlsEnabled)
+        #expect(view.overrideMode(for: .session) == .custom)
+        #expect(view.overrideMode(for: .weekly) == .off)
+        #expect(inheritedView.overrideMode(for: .session) == .global)
+        #expect(inheritedView.overrideMode(for: .weekly) == .global)
+
+        settings.quotaWarningNotificationsEnabled = false
+
+        #expect(!view.controlsEnabled)
+        #expect(!inheritedView.controlsEnabled)
+        #expect(view.overrideMode(for: .session) == .custom)
+        #expect(view.overrideMode(for: .weekly) == .off)
+        #expect(inheritedView.overrideMode(for: .session) == .global)
+        #expect(inheritedView.overrideMode(for: .weekly) == .global)
+        #expect(settings.explicitQuotaWarningThresholds(provider: .codex, window: .session) == [70, 30])
+        #expect(settings.explicitQuotaWarningThresholds(provider: .codex, window: .weekly) == [60, 10])
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(view.footerText == "Quota warnings are disabled globally. Provider settings are preserved.")
+        }
+
+        settings.quotaWarningNotificationsEnabled = true
+
+        #expect(view.controlsEnabled)
+        #expect(inheritedView.controlsEnabled)
+        #expect(view.overrideMode(for: .session) == .custom)
+        #expect(view.overrideMode(for: .weekly) == .off)
+        #expect(inheritedView.overrideMode(for: .session) == .global)
+        #expect(inheritedView.overrideMode(for: .weekly) == .global)
+    }
+
+    @Test
     func `provider quota warning mode binding applies global custom and off transitions`() {
         let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-provider-quota-warning-mode-binding")
         settings.quotaWarningNotificationsEnabled = true

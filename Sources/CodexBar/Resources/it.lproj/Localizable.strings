@@ -469,6 +469,7 @@
 "quota_warning_sound" = "Riproduci suono di notifica";
 "quota_warning_onscreen_alert" = "Mostra avviso di testo sullo schermo";
 "quota_warning_provider_inherits" = "Usa le impostazioni globali di avviso quota, salvo personalizzazione di una finestra qui.";
+"quota_warning_provider_disabled" = "Gli avvisi quota sono disattivati globalmente. Le impostazioni del provider vengono conservate.";
 "quota_warning_global" = "Globale";
 "quota_warning_customize_thresholds" = "Personalizza soglie %@";
 "quota_warning_enable_warnings" = "Abilita avvisi %@";

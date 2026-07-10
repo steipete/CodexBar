@@ -466,6 +466,7 @@
 "quota_warning_sound" = "Lire un son de notification";
 "quota_warning_onscreen_alert" = "Afficher une alerte textuelle à l’écran";
 "quota_warning_provider_inherits" = "Utilise les réglages globaux d'alerte de quota, sauf personnalisation de cette fenêtre.";
+"quota_warning_provider_disabled" = "Les alertes de quota sont désactivées globalement. Les réglages du fournisseur sont conservés.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personnaliser les seuils %@";
 "quota_warning_enable_warnings" = "Activer les alertes %@";

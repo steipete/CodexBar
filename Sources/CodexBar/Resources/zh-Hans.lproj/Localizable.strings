@@ -458,6 +458,7 @@
 "quota_warning_sound" = "播放通知声音";
 "quota_warning_onscreen_alert" = "显示屏幕文字提醒";
 "quota_warning_provider_inherits" = "默认使用全局配额预警设置，除非在这里自定义窗口。";
+"quota_warning_provider_disabled" = "配额预警已全局关闭。提供商设置会保留。";
 "quota_warning_global" = "全局";
 "quota_warning_customize_thresholds" = "自定义 %@ 阈值";
 "quota_warning_enable_warnings" = "启用 %@ 预警";

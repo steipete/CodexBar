@@ -462,6 +462,7 @@
 "quota_warning_sound" = "Phát âm thanh thông báo";
 "quota_warning_onscreen_alert" = "Hiển thị cảnh báo văn bản trên màn hình";
 "quota_warning_provider_inherits" = "Sử dụng cảnh báo Hạn mức toàn cầu Cài đặt trừ khi một cửa sổ được tùy chỉnh tại đây.";
+"quota_warning_provider_disabled" = "Cảnh báo hạn mức đã bị tắt trên toàn ứng dụng. Cài đặt nhà cung cấp vẫn được giữ nguyên.";
 "quota_warning_global" = "Toàn cục";
 "quota_warning_customize_thresholds" = "Tùy chỉnh %@ ngưỡng";
 "quota_warning_enable_warnings" = "Bật %@ cảnh báo";
