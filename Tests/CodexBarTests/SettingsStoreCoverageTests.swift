@@ -124,6 +124,24 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `agent sessions default off and persist explicit opt in`() throws {
+        let suite = "SettingsStoreCoverageTests-agent-sessions"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(initial.agentSessionsEnabled == false)
+        #expect(defaults.object(forKey: "agentSessionsEnabled") == nil)
+
+        initial.agentSessionsEnabled = true
+        #expect(defaults.object(forKey: "agentSessionsEnabled") as? Bool == true)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.agentSessionsEnabled)
+    }
+
+    @Test
     func `multi account menu layout persists and bridges legacy show all token accounts`() throws {
         let suite = "SettingsStoreCoverageTests-multi-account-layout"
         let defaults = try #require(UserDefaults(suiteName: suite))

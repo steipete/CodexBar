@@ -6,6 +6,40 @@ import Testing
 @MainActor
 struct AgentSessionMenuDescriptorTests {
     @Test
+    func `fresh settings omit agent sessions until explicitly enabled`() {
+        let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-default-off")
+        settings.statusChecksEnabled = false
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let session = Self.session(id: "local", host: "local-mac", activity: Date())
+
+        let buildDescriptor = {
+            MenuDescriptor.build(
+                provider: .codex,
+                store: store,
+                settings: settings,
+                account: AccountInfo(email: nil, plan: nil),
+                updateReady: false,
+                agentSessionsEnabled: settings.agentSessionsEnabled,
+                localAgentSessions: [session])
+        }
+
+        let disabledEntries = buildDescriptor().sections.flatMap(\.entries)
+        #expect(!Self.containsAgentSessions(in: disabledEntries))
+
+        settings.agentSessionsEnabled = true
+
+        let enabledEntries = buildDescriptor().sections.flatMap(\.entries)
+        #expect(Self.containsAgentSessions(in: enabledEntries))
+        #expect(enabledEntries.contains { entry in
+            guard case .action(_, .focusAgentSession) = entry else { return false }
+            return true
+        })
+    }
+
+    @Test
     func `session section counts groups and renders unreachable hosts`() {
         let now = Date(timeIntervalSince1970: 1000)
         let local = Self.session(id: "local", host: "local-mac", activity: now.addingTimeInterval(-60))
@@ -86,5 +120,12 @@ struct AgentSessionMenuDescriptorTests {
             lastActivityAt: activity,
             transcriptPath: nil,
             host: host)
+    }
+
+    private static func containsAgentSessions(in entries: [MenuDescriptor.Entry]) -> Bool {
+        entries.contains { entry in
+            guard case let .text(title, .headline) = entry else { return false }
+            return title.hasPrefix("Agent Sessions (")
+        }
     }
 }
