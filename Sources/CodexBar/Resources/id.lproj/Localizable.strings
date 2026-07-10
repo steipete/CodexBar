@@ -470,6 +470,7 @@
 "quota_warning_onscreen_alert" = "Tampilkan peringatan teks di layar";
 "quota_warning_provider_inherits" = "Menggunakan pengaturan peringatan kuota global kecuali jendela dikustomisasi di sini.";
 "quota_warning_provider_disabled" = "Peringatan kuota dinonaktifkan secara global. Pengaturan penyedia tetap disimpan.";
+"quota_warning_provider_markers_only" = "Notifikasi peringatan kuota dinonaktifkan secara global. Pengaturan ini tetap mengontrol penanda bilah penggunaan.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Kustomisasi ambang batas %@";
 "quota_warning_enable_warnings" = "Aktifkan peringatan %@";

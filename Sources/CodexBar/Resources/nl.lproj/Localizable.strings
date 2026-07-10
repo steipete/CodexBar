@@ -467,6 +467,7 @@
 "quota_warning_onscreen_alert" = "Tekstwaarschuwing op het scherm tonen";
 "quota_warning_provider_inherits" = "Gebruikt de algemene instellingen voor quotawaarschuwingen, tenzij hier een venster wordt aangepast.";
 "quota_warning_provider_disabled" = "Quotawaarschuwingen zijn globaal uitgeschakeld. Providerinstellingen blijven bewaard.";
+"quota_warning_provider_markers_only" = "Meldingen voor quotawaarschuwingen zijn globaal uitgeschakeld. Deze instellingen bepalen nog steeds de markeringen op gebruiksbalken.";
 "quota_warning_global" = "Globaal";
 "quota_warning_customize_thresholds" = "Pas %@ drempels aan";
 "quota_warning_enable_warnings" = "Schakel %@ waarschuwingen in";

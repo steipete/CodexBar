@@ -468,6 +468,7 @@
 "quota_warning_onscreen_alert" = "แสดงการแจ้งเตือนข้อความบนหน้าจอ";
 "quota_warning_provider_inherits" = "ใช้การตั้งค่าคําเตือนโควต้าส่วนกลาง เว้นแต่จะมีการกําหนดหน้าต่างเองที่นี่";
 "quota_warning_provider_disabled" = "คำเตือนโควตาถูกปิดใช้งานทั่วทั้งแอป การตั้งค่าผู้ให้บริการจะยังคงอยู่";
+"quota_warning_provider_markers_only" = "การแจ้งเตือนคำเตือนโควตาถูกปิดใช้งานทั่วทั้งแอป การตั้งค่าเหล่านี้ยังคงควบคุมเครื่องหมายบนแถบการใช้งาน";
 "quota_warning_global" = "ส่วนกลาง";
 "quota_warning_customize_thresholds" = "ปรับแต่งเกณฑ์ %@";
 "quota_warning_enable_warnings" = "เปิดใช้งานคําเตือน %@";

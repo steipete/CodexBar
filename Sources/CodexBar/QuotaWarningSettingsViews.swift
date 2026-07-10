@@ -81,13 +81,17 @@ struct ProviderQuotaWarningSettingsView: View {
     }
 
     var controlsEnabled: Bool {
-        self.settings.quotaWarningNotificationsEnabled
+        self.settings.quotaWarningNotificationsEnabled || self.settings.quotaWarningMarkersVisible
     }
 
     var footerText: String {
-        self.controlsEnabled
-            ? L("quota_warning_provider_inherits")
-            : L("quota_warning_provider_disabled")
+        if self.settings.quotaWarningNotificationsEnabled {
+            return L("quota_warning_provider_inherits")
+        }
+        if self.settings.quotaWarningMarkersVisible {
+            return L("quota_warning_provider_markers_only")
+        }
+        return L("quota_warning_provider_disabled")
     }
 
     private func windowRow(_ window: QuotaWarningWindow) -> some View {

@@ -454,6 +454,7 @@
 "quota_warning_onscreen_alert" = "Mostra una alerta de text a la pantalla";
 "quota_warning_provider_inherits" = "Fa servir la configuració global d'avís de quota llevat que es personalitzi una finestra aquí.";
 "quota_warning_provider_disabled" = "Els avisos de quota estan desactivats globalment. La configuració del proveïdor es conserva.";
+"quota_warning_provider_markers_only" = "Les notificacions d'avís de quota estan desactivades globalment. Aquesta configuració encara controla els marcadors de les barres d'ús.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personalitza els llindars de %@";
 "quota_warning_enable_warnings" = "Activeu els avisos de %@";

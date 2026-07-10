@@ -465,6 +465,7 @@
 "quota_warning_onscreen_alert" = "Bildschirm-Textwarnung anzeigen";
 "quota_warning_provider_inherits" = "Verwendet die globalen Einstellungen für Kontingentwarnungen, es sei denn, hier wird ein Fenster angepasst.";
 "quota_warning_provider_disabled" = "Kontingentwarnungen sind global deaktiviert. Die Anbietereinstellungen bleiben erhalten.";
+"quota_warning_provider_markers_only" = "Kontingentwarnungsmitteilungen sind global deaktiviert. Diese Einstellungen steuern weiterhin die Markierungen in den Nutzungsleisten.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Passen Sie die Schwellenwerte für %@ an";
 "quota_warning_enable_warnings" = "Aktivieren Sie %@-Warnungen";

@@ -468,6 +468,7 @@
 "quota_warning_onscreen_alert" = "Ekranda metin uyarısı göster";
 "quota_warning_provider_inherits" = "Bir pencere burada özelleştirilmediği sürece genel kota uyarı ayarlarını kullanır.";
 "quota_warning_provider_disabled" = "Kota uyarıları uygulama genelinde devre dışı. Sağlayıcı ayarları korunur.";
+"quota_warning_provider_markers_only" = "Kota uyarısı bildirimleri uygulama genelinde devre dışı. Bu ayarlar kullanım çubuğu işaretlerini kontrol etmeye devam eder.";
 "quota_warning_global" = "Genel";
 "quota_warning_customize_thresholds" = "%@ eşiklerini özelleştir";
 "quota_warning_enable_warnings" = "%@ uyarılarını etkinleştir";

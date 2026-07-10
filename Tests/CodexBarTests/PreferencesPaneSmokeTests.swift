@@ -241,9 +241,10 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
-    func `disabled global quota warnings preserve and disable provider settings`() {
+    func `provider quota warning controls follow notification and marker visibility`() {
         let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-provider-quota-warning-disabled")
         settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningMarkersVisible = true
         settings.setQuotaWarningOverride(provider: .codex, window: .session, thresholds: [70, 30], enabled: true)
         settings.setQuotaWarningOverride(provider: .codex, window: .weekly, thresholds: [60, 10], enabled: false)
 
@@ -257,14 +258,24 @@ struct PreferencesPaneSmokeTests {
 
         settings.quotaWarningNotificationsEnabled = false
 
-        #expect(!view.controlsEnabled)
-        #expect(!inheritedView.controlsEnabled)
+        #expect(view.controlsEnabled)
+        #expect(inheritedView.controlsEnabled)
         #expect(view.overrideMode(for: .session) == .custom)
         #expect(view.overrideMode(for: .weekly) == .off)
         #expect(inheritedView.overrideMode(for: .session) == .global)
         #expect(inheritedView.overrideMode(for: .weekly) == .global)
         #expect(settings.explicitQuotaWarningThresholds(provider: .codex, window: .session) == [70, 30])
         #expect(settings.explicitQuotaWarningThresholds(provider: .codex, window: .weekly) == [60, 10])
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(view.footerText == "Quota warning notifications are disabled globally. " +
+                "These settings still control usage-bar markers.")
+        }
+
+        settings.quotaWarningMarkersVisible = false
+
+        #expect(!view.controlsEnabled)
+        #expect(!inheritedView.controlsEnabled)
 
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             #expect(view.footerText == "Quota warnings are disabled globally. Provider settings are preserved.")

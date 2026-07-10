@@ -467,6 +467,7 @@
 "quota_warning_onscreen_alert" = "Показувати текстове сповіщення на екрані";
 "quota_warning_provider_inherits" = "Використовує глобальні параметри попередження про квоту, якщо тут не налаштовано вікно.";
 "quota_warning_provider_disabled" = "Попередження про квоту вимкнено глобально. Налаштування постачальника збережено.";
+"quota_warning_provider_markers_only" = "Сповіщення про попередження квоти вимкнено глобально. Ці налаштування й надалі керують позначками на панелях використання.";
 "quota_warning_global" = "Глобально";
 "quota_warning_customize_thresholds" = "Налаштувати порогові значення %@";
 "quota_warning_enable_warnings" = "Увімкнути %@ попереджень";
