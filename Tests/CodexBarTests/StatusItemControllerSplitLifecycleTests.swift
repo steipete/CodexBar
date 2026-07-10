@@ -148,6 +148,7 @@ struct StatusItemControllerSplitLifecycleTests {
             _ = controller.openMenuRebuildRequests.replaceRequest(for: key)
             controller.openMenuRebuildsClosingHostedSubviewMenus.insert(key)
             controller.highlightedMenuItems[key] = NSMenuItem(title: "Highlighted", action: nil, keyEquivalent: "")
+            controller.nativeHighlightDeferredMenuRebuilds.insert(key)
         }
 
         settings.mergeIcons = true
@@ -168,6 +169,7 @@ struct StatusItemControllerSplitLifecycleTests {
             #expect(controller.openMenuRebuildRequests.tokens[key] == nil)
             #expect(!controller.openMenuRebuildsClosingHostedSubviewMenus.contains(key))
             #expect(controller.highlightedMenuItems[key] == nil)
+            #expect(!controller.nativeHighlightDeferredMenuRebuilds.contains(key))
         }
     }
 

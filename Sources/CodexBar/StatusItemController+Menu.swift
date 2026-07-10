@@ -202,6 +202,7 @@ extension StatusItemController {
         let key = ObjectIdentifier(menu)
         let previous = self.highlightedMenuItems[key]
         guard previous !== item else { return }
+        let previousWasNative = self.isNativeMenuItemHighlighted(in: menu)
 
         if let previous {
             (previous.view as? MenuCardHighlighting)?.setHighlighted(false)
@@ -215,6 +216,10 @@ extension StatusItemController {
             (item.view as? MenuCardHighlighting)?.setHighlighted(true)
         } else {
             self.highlightedMenuItems.removeValue(forKey: key)
+        }
+
+        if previousWasNative, !self.isNativeMenuItemHighlighted(in: menu) {
+            self.resumeMenuRebuildDeferredForNativeHighlightIfNeeded(menu)
         }
     }
 

@@ -52,4 +52,105 @@ extension StatusMenuTests {
         #expect(secondView.states == [true])
         #expect(thirdView.states.isEmpty)
     }
+
+    @Test
+    func `native highlight defers open menu rebuild until pointer leaves native rows`() async {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+        let key = ObjectIdentifier(menu)
+        controller.cancelMenuWork(key)
+        controller.openMenus[key] = menu
+        let planUsage = NSMenuItem(title: "Plan Usage", action: nil, keyEquivalent: "")
+        planUsage.isEnabled = true
+        let cost = NSMenuItem(title: "Cost", action: nil, keyEquivalent: "")
+        cost.isEnabled = true
+        menu.addItem(planUsage)
+        menu.addItem(cost)
+
+        controller.menu(menu, willHighlight: planUsage)
+        #expect(controller.highlightedMenuItems[key] === planUsage)
+        #expect(controller.isNativeMenuItemHighlighted(in: menu))
+        controller.menuSession.invalidate(allowsStaleContent: false, requiresRebuild: true)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in rebuildCount += 1 }
+        defer { controller._test_openMenuRebuildObserver = nil }
+        controller.rebuildOpenMenuIfStillVisible(menu, provider: .codex)
+
+        #expect(rebuildCount == 0)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+        #expect(controller.menuNeedsRefresh(menu))
+
+        controller.menu(menu, willHighlight: cost)
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+        #expect(rebuildCount == 0)
+        #expect(controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+
+        controller.menu(menu, willHighlight: nil)
+        for _ in 0..<20 where rebuildCount == 0 {
+            await Task.yield()
+        }
+
+        #expect(rebuildCount == 1)
+        #expect(!controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+        #expect(!controller.menuNeedsRefresh(menu))
+    }
+
+    @Test
+    func `custom highlight does not defer open menu rebuild`() {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+        let key = ObjectIdentifier(menu)
+        controller.cancelMenuWork(key)
+        controller.openMenus[key] = menu
+        let customItem = NSMenuItem()
+        customItem.view = HighlightProbeView()
+        customItem.isEnabled = true
+        menu.addItem(customItem)
+        controller.menu(menu, willHighlight: customItem)
+        controller.menuSession.invalidate(allowsStaleContent: false, requiresRebuild: true)
+
+        var rebuildCount = 0
+        controller._test_openMenuRebuildObserver = { _ in rebuildCount += 1 }
+        defer { controller._test_openMenuRebuildObserver = nil }
+        controller.rebuildOpenMenuIfStillVisible(menu, provider: .codex)
+
+        #expect(rebuildCount == 1)
+        #expect(!controller.nativeHighlightDeferredMenuRebuilds.contains(key))
+        #expect(!controller.menuNeedsRefresh(menu))
+    }
 }

@@ -168,6 +168,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredOpenAIDashboardRefreshReason: String?
     var deferredMenuInteractionRefreshTask: Task<Void, Never>?
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
+    /// Open-menu rebuilds paused so AppKit's native selection background cannot retain stale geometry.
+    var nativeHighlightDeferredMenuRebuilds: Set<ObjectIdentifier> = []
     var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
     var providerSwitcherShortcutMenuID: ObjectIdentifier?
     var providerSwitcherPointerInteractionMenuID: ObjectIdentifier?

@@ -136,6 +136,7 @@ extension StatusItemController {
         if let highlightedView = self.highlightedMenuItems.removeValue(forKey: key)?.view {
             (highlightedView as? MenuCardHighlighting)?.setHighlighted(false)
         }
+        self.nativeHighlightDeferredMenuRebuilds.remove(key)
     }
 
     func removeMenuLifecycleState(_ key: ObjectIdentifier) {
@@ -395,6 +396,11 @@ extension StatusItemController {
         let key = ObjectIdentifier(menu)
         guard self.openMenus[key] != nil else { return }
         guard self.isHostedSubviewMenu(menu) || !self.hasOpenHostedSubviewMenu() else { return }
+        guard !self.isNativeMenuItemHighlighted(in: menu) else {
+            self.nativeHighlightDeferredMenuRebuilds.insert(key)
+            return
+        }
+        self.nativeHighlightDeferredMenuRebuilds.remove(key)
         self.populateMenu(menu, provider: provider)
         self.markMenuFresh(menu)
         self.menuSession.clearParentRebuildDeferral(key)
@@ -402,6 +408,20 @@ extension StatusItemController {
         #if DEBUG
         self._test_openMenuRebuildObserver?(menu)
         #endif
+    }
+
+    func isNativeMenuItemHighlighted(in menu: NSMenu) -> Bool {
+        let key = ObjectIdentifier(menu)
+        guard let item = self.highlightedMenuItems[key], item.menu === menu else { return false }
+        return item.isEnabled && item.view == nil
+    }
+
+    func resumeMenuRebuildDeferredForNativeHighlightIfNeeded(_ menu: NSMenu) {
+        let key = ObjectIdentifier(menu)
+        guard self.nativeHighlightDeferredMenuRebuilds.remove(key) != nil else { return }
+        guard self.openMenus[key] === menu, self.menuNeedsRefresh(menu) else { return }
+        guard !self.hasOpenHostedSubviewMenu() else { return }
+        self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: self.menuProvider(for: menu))
     }
 
     func refreshOpenMenusIfNeeded() {
