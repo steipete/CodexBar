@@ -143,6 +143,12 @@ enum MenuBarDisplayText {
         now: Date) -> String?
     {
         guard enabled, let window, window.remainingPercent <= 0 else { return nil }
+        // Only replace the percent while the reset is still ahead of us. A snapshot can linger at 0%
+        // with an already-elapsed `resetsAt` (the countdown fires right after reset, or refresh is
+        // manual); rendering "↻ now"/a past clock there would be stale, and since the countdown
+        // scheduler ignores elapsed resets nothing would refresh it back to the percentage. Fall back
+        // to the percent in that window instead of getting stuck on reset text.
+        if let resetsAt = window.resetsAt, resetsAt <= now { return nil }
         return self.resetTimeText(window: window, style: style, now: now)
     }
 

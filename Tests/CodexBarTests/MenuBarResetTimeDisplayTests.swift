@@ -211,6 +211,28 @@ struct MenuBarResetTimeDisplayTests {
     }
 
     @Test
+    func `smart reset falls back to percent once the reset has elapsed`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // Exhausted window whose reset moment is already in the past (e.g. snapshot lingering at 100%
+        // before the next provider refresh). Showing "↻ now" here would be stale and could stick.
+        let window = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(-60),
+            resetDescription: nil)
+
+        let text = MenuBarDisplayText.displayText(
+            mode: .percent,
+            percentWindow: window,
+            showUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            showsResetTimeWhenExhausted: true,
+            now: now)
+
+        #expect(text == "0%")
+    }
+
+    @Test
     func `smart reset falls back to percent without reset metadata`() {
         let window = RateWindow(
             usedPercent: 100,
