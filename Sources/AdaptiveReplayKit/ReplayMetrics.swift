@@ -16,6 +16,21 @@ public struct StalenessStats: Sendable, Equatable {
         self.p95 = p95
         self.sampleCount = sampleCount
     }
+
+    init?(samples: [Double]) {
+        guard !samples.isEmpty else { return nil }
+        let sorted = samples.sorted()
+        self.init(
+            mean: sorted.reduce(0, +) / Double(sorted.count),
+            median: Self.percentile(sorted, fraction: 0.5),
+            p95: Self.percentile(sorted, fraction: 0.95),
+            sampleCount: sorted.count)
+    }
+
+    private static func percentile(_ sorted: [Double], fraction: Double) -> Double {
+        let rank = Int((fraction * Double(sorted.count)).rounded(.up))
+        return sorted[max(0, min(sorted.count - 1, rank - 1))]
+    }
 }
 
 /// Whether a policy honored the "never refresh faster than 30 minutes while constrained (low
@@ -47,6 +62,16 @@ public struct ReplayMetrics: Sendable, Equatable {
     /// `ReplayEngine.run` took the `advancesOnInteraction` branch for this policy. Always `0` for
     /// policies that report `advancesOnInteraction == false` (see `ReplayPolicy`).
     public let interactionAdvanceCount: Int
+    /// Unconstrained replayed decisions with a known transcript-write observation under five minutes old.
+    public let codingActiveDecisionCount: Int
+    /// Unconstrained active decisions whose selected delay exceeded the five-minute acceptance cap.
+    public let codingActiveDelayViolationCount: Int
+    /// Number of independently simulated awake/run segments contributing to these metrics.
+    public let segmentCount: Int
+    /// Wall-clock time excluded after an expected timer deadline because the app was unobserved.
+    public let excludedGapSeconds: TimeInterval
+    /// Menu opens before a segment's first recorded refresh, excluded equally for every policy.
+    public let boundaryCensoredMenuOpenCount: Int
 
     public init(
         policyName: String,
@@ -55,7 +80,12 @@ public struct ReplayMetrics: Sendable, Equatable {
         refreshCountPer24h: Double,
         stalenessAtMenuOpen: StalenessStats?,
         constrainedCompliance: ConstrainedCompliance,
-        interactionAdvanceCount: Int = 0)
+        interactionAdvanceCount: Int = 0,
+        codingActiveDecisionCount: Int = 0,
+        codingActiveDelayViolationCount: Int = 0,
+        segmentCount: Int = 1,
+        excludedGapSeconds: TimeInterval = 0,
+        boundaryCensoredMenuOpenCount: Int = 0)
     {
         self.policyName = policyName
         self.simulatedSpanSeconds = simulatedSpanSeconds
@@ -64,5 +94,15 @@ public struct ReplayMetrics: Sendable, Equatable {
         self.stalenessAtMenuOpen = stalenessAtMenuOpen
         self.constrainedCompliance = constrainedCompliance
         self.interactionAdvanceCount = interactionAdvanceCount
+        self.codingActiveDecisionCount = codingActiveDecisionCount
+        self.codingActiveDelayViolationCount = codingActiveDelayViolationCount
+        self.segmentCount = segmentCount
+        self.excludedGapSeconds = excludedGapSeconds
+        self.boundaryCensoredMenuOpenCount = boundaryCensoredMenuOpenCount
     }
+}
+
+struct ReplayRun: Sendable {
+    let metrics: ReplayMetrics
+    let stalenessSamples: [Double]
 }

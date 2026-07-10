@@ -101,7 +101,7 @@ extension UsageStore {
             thermalState: thermalState)
         store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
         store.logAdaptiveRefreshDecision(decision)
-        // Fork-only replay-harness trace (never upstreamed); no-op unless explicitly enabled.
+        // Opt-in replay-harness trace; no-op unless explicitly enabled.
         // The activity probe is sampled only when tracing is on, so it costs nothing otherwise —
         // it is record-only telemetry and never feeds back into `decision` above.
         let activitySample = AdaptiveRefreshTraceRecording.isEnabled

@@ -28,7 +28,7 @@ let package = Package(
         var products: [Product] = [
             .library(name: "CodexBarCore", targets: ["CodexBarCore"]),
             .executable(name: "CodexBarCLI", targets: ["CodexBarCLI"]),
-            // Fork-only (phase 1 of the offline adaptive-refresh replay harness): never upstreamed.
+            // Offline adaptive-refresh replay harness.
             .library(name: "AdaptiveReplayKit", targets: ["AdaptiveReplayKit"]),
             .executable(name: "AdaptiveReplayCLI", targets: ["AdaptiveReplayCLI"]),
         ]
@@ -85,7 +85,7 @@ let package = Package(
                     .enableUpcomingFeature("StrictConcurrency"),
                 ],
                 linkerSettings: sqlite3LinkerSettings),
-            // Fork-only (phase 1 of the offline adaptive-refresh replay harness): pure Foundation,
+            // Offline adaptive-refresh replay harness: pure Foundation,
             // no CodexBar/CodexBarCore dependency, so it builds anywhere CodexBarCore does.
             .target(
                 name: "AdaptiveReplayKit",
@@ -132,7 +132,7 @@ let package = Package(
                     .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                     .product(name: "Vortex", package: "Vortex"),
                     "CodexBarCore",
-                    // Fork-only: adaptive-refresh trace recording (never upstreamed).
+                    // Opt-in adaptive-refresh trace recording.
                     "AdaptiveReplayKit",
                 ],
                 path: "Sources/CodexBar",

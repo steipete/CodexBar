@@ -5,13 +5,8 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-/// Anchors the fork-only replay harness's four app-side recorder call sites (see
-/// `AdaptiveRefreshTraceRecording`): `StatusItemController.menuWillOpen` ->
-/// `recordMenuOpen()`, `UsageStore.nextAdaptiveTimerSleepDuration(for:)` -> `recordDecision(...)`,
-/// `UsageStore.runRefresh(...)` -> `recordRefreshCompleted()`, and
-/// `UsageStore.noteMenuOpened(at:)` -> `recordTimerAdvanced(...)`. Deleting any one of those lines
-/// makes exactly one test below fail red — each call site has no other observable effect, so a
-/// trace-content assertion is the only way to catch its regression.
+/// Anchors the replay harness's app-side recorder call sites. Trace-content assertions
+/// are the only observable coverage for these otherwise diagnostic-only calls.
 ///
 /// Tracing defaults to off (the same `UserDefaults.standard.bool(forKey:)` gate as
 /// `debugDisableKeychainAccess`), so every test explicitly flips
@@ -248,14 +243,8 @@ struct AdaptiveRefreshTraceRecordingTests {
         }
     }
 
-    /// Anchors `UsageStore.swift`'s `recordTimerAdvanced(...)` call inside `noteMenuOpened(at:)` —
-    /// the one new call site this task's trace schema exists for. Follows the exact
-    /// `restartTimerWithSleepOverrideForTesting` / `waitUntil` setup `AdaptiveRefreshTimerTests`'
-    /// `menu open advances a long idle timer during refresh without postponing an earlier tick`
-    /// uses to make the real advance deterministic, then asserts on the recorded trace line instead
-    /// of (only) the in-memory `adaptiveRefreshScheduledAt`.
     @Test
-    func `noteMenuOpened records a timerAdvanced line only when the schedule actually moves earlier`() async throws {
+    func `noteMenuOpened records every evaluation and only accepted advances`() async throws {
         try await self.withTracingEnabled { url in
             let settings = Self.makeSettingsStore(
                 suite: "AdaptiveRefreshTraceRecordingTests-advance",
@@ -274,7 +263,10 @@ struct AdaptiveRefreshTraceRecordingTests {
 
             let records = try await self.waitForRecords(at: url) { $0.contains { $0.kind == .timerAdvanced } }
             let advancedRecords = records.filter { $0.kind == .timerAdvanced }
+            let evaluations = records.filter { $0.kind == .timerAdvanceEvaluated }
             #expect(advancedRecords.count == 1)
+            #expect(evaluations.count == 1)
+            #expect(evaluations.first?.timerAdvanceAccepted == true)
             let advanced = try #require(advancedRecords.first)
             // ISO 8601 encoding (AdaptiveRefreshTraceWriter's wire format) is whole-second
             // resolution, so compare with a sub-second tolerance rather than exact equality.
@@ -292,6 +284,9 @@ struct AdaptiveRefreshTraceRecordingTests {
             try await Task.sleep(for: .milliseconds(300))
             let finalRecords = try AdaptiveRefreshTraceParser.parse(contentsOf: url)
             #expect(finalRecords.count(where: { $0.kind == .timerAdvanced }) == 1)
+            let finalEvaluations = finalRecords.filter { $0.kind == .timerAdvanceEvaluated }
+            #expect(finalEvaluations.count == 2)
+            #expect(finalEvaluations.last?.timerAdvanceAccepted == false)
         }
     }
 }

@@ -6,15 +6,23 @@ import Foundation
 /// Serializes writes onto a private queue so calls from multiple call sites (decision, menu-open,
 /// refresh-completed) never interleave partial lines.
 public final class AdaptiveRefreshTraceWriter: @unchecked Sendable {
+    public static let defaultMaxBytes: UInt64 = 10 * 1024 * 1024
+
     private let queue = DispatchQueue(label: "com.steipete.codexbar.adaptivereplay.tracewriter", qos: .utility)
     private let fileManager: FileManager
     private let encoder: JSONEncoder
+    private let maxBytes: UInt64
     private var fileURL: URL
     private var fileHandle: FileHandle?
 
-    public init(fileURL: URL, fileManager: FileManager = .default) {
+    public init(
+        fileURL: URL,
+        fileManager: FileManager = .default,
+        maxBytes: UInt64 = AdaptiveRefreshTraceWriter.defaultMaxBytes)
+    {
         self.fileURL = fileURL
         self.fileManager = fileManager
+        self.maxBytes = maxBytes
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         self.encoder = encoder
@@ -27,9 +35,16 @@ public final class AdaptiveRefreshTraceWriter: @unchecked Sendable {
     public func append(_ record: AdaptiveRefreshTraceRecord) {
         self.queue.async {
             guard let data = try? self.encoder.encode(record) else { return }
+            var line = data
+            line.append(0x0A)
+            let byteCount = UInt64(line.count)
+            guard byteCount <= self.maxBytes else { return }
             guard let handle = self.openHandleIfNeeded() else { return }
-            handle.write(data)
-            handle.write(Data([0x0A])) // newline
+            guard let offset = try? handle.offset(),
+                  offset <= self.maxBytes,
+                  byteCount <= self.maxBytes - offset
+            else { return }
+            handle.write(line)
         }
     }
 

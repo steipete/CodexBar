@@ -1,6 +1,6 @@
 import Foundation
 
-/// Fork-only local coding-activity signal for the adaptive refresh replay harness (never upstreamed).
+/// Local coding-activity signal for the opt-in adaptive refresh replay harness.
 ///
 /// Reports how many seconds ago the newest Codex / Claude Code session transcript was written, as a
 /// privacy-safe proxy for "a coding turn just happened, so provider quota is being spent right now".

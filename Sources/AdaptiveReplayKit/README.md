@@ -1,6 +1,6 @@
 # AdaptiveReplayKit
 
-Fork-only adaptive-refresh replay harness (never upstreamed). It lets the fork answer
+Adaptive-refresh replay harness. It lets CodexBar answer
 "how would a different refresh-timing policy have behaved on this machine's real
 usage history" without touching the live app or any provider.
 
@@ -9,16 +9,28 @@ usage history" without touching the live app or any provider.
 - **Trace recording** (`Sources/CodexBar/AdaptiveRefreshTraceRecording.swift`, app target):
   OFF by default, gated on the `adaptiveRefreshTraceEnabled` defaults key. When enabled,
   it appends one JSONL line per `AdaptiveRefreshTraceRecord` (`AdaptiveRefreshTrace.swift`)
-  to `adaptive-refresh-trace.jsonl` for four event kinds: `decision`, `menuOpen`,
-  `refreshCompleted`, `timerAdvanced`.
+  to `adaptive-refresh-trace.jsonl`. `timerAdvanceEvaluated` records every accepted/rejected
+  live schedule comparison; `timerAdvanced` remains the accepted subset. The writer stops
+  appending at 10 MiB so an unattended diagnostic trace cannot grow without bound.
 - **Parsing** (`AdaptiveRefreshTraceParser.swift`): strict by default — a malformed line
   fails the whole parse, since a trace is acceptance evidence for replay metrics.
-- **Replay** (`ReplayEngine.swift`, `ReplayPolicy.swift`, `BaselinePolicies.swift`): simulates
+- **Replay** (`ReplayEngine.swift`, `ReplayPolicy.swift`, `BaselinePolicies.swift`): heuristically
+  splits legacy deadline-overrun/unobserved gaps after the last recorded timer deadline, then simulates
   a candidate policy's tick schedule against a trace's ground-truth `menuOpen`/signal events
   and reports `ReplayMetrics.swift` (refresh count, staleness at menu-open, constrained-tier
   compliance).
 - **CLI** (`Sources/AdaptiveReplayCLI`): thin wrapper — parses a trace file, runs one or more
-  policies through `ReplayEngine`, prints the table/JSON.
+  policies through `ReplayEngine`, prints the table/JSON, and audits recorded schedule events.
+  JSON output is a report object containing `policies`, `activityCoverage`,
+  `recordedScheduleAudit` (including `isValid` and every mismatch count), and the exact
+  `segmentation` mode/grace used for the run.
+
+`interactionAdvanceCount` is a simulated/counterfactual count. It must not be compared directly
+with recorded `timerAdvanced` count: replay assumes a zero-duration refresh, while the live loop
+waits for real provider work and can encounter an already in-flight refresh. Recorded schedule
+events are checked independently by `RecordedScheduleAuditor`.
+The legacy gap heuristic cannot distinguish sleep/reboot from a long refresh or event-loop stall;
+its excluded time is reported explicitly and is not a causal classification.
 
 ## Coding-activity shadow-mode signal (A/B layers)
 
@@ -28,10 +40,13 @@ plus three per-CLI intensity fields read from the same stat call ("B layer") —
 duration (mtime − creationDate), transcript byte size, and a count of transcripts modified in
 the last 5 minutes (concurrent-session intensity). All of it is **stat-only**: modification
 time, creation time, file size — never file contents, paths, project names, or account data.
-It is **record-only telemetry**: sampled only while tracing is enabled, and never fed into
-`AdaptiveRefreshPolicy` or any replay policy's decision logic. Every field is optional and
-independent, so old trace lines (written before a given field existed) keep decoding with
-that field `nil`.
+It is sampled only while tracing is enabled and is never fed into the production
+`AdaptiveRefreshPolicy`. The replay-only `CodingActivityAdaptivePolicy` uses the A-layer signal in
+offline replay to cap unconstrained active decisions at five minutes; B-layer fields remain
+descriptive only. Every field is optional and independent, so old trace lines keep decoding.
+
+Trace writing is serialized within one process. Do not enable the recorder in multiple CodexBar
+instances that share the same Application Support directory; cross-process writing is unsupported.
 
 ## Deferred: token-level probe (C layer)
 

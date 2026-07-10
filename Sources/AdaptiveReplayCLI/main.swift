@@ -15,12 +15,21 @@ enum AdaptiveReplayCLI {
         case let .invalid(message):
             FileHandle.standardError.write(Data("error: \(message)\n\n\(Self.helpText)\n".utf8))
             exit(EXIT_FAILURE)
-        case let .run(tracePath, policyNames, jsonOutput):
-            Self.run(tracePath: tracePath, policyNames: policyNames, jsonOutput: jsonOutput)
+        case let .run(tracePath, policyNames, jsonOutput, gapGraceSeconds):
+            Self.run(
+                tracePath: tracePath,
+                policyNames: policyNames,
+                jsonOutput: jsonOutput,
+                gapGraceSeconds: gapGraceSeconds)
         }
     }
 
-    private static func run(tracePath: String, policyNames: [String], jsonOutput: Bool) {
+    private static func run(
+        tracePath: String,
+        policyNames: [String],
+        jsonOutput: Bool,
+        gapGraceSeconds: TimeInterval?)
+    {
         let records: [AdaptiveRefreshTraceRecord]
         do {
             records = try AdaptiveRefreshTraceParser.parse(contentsOf: URL(fileURLWithPath: tracePath))
@@ -37,17 +46,45 @@ enum AdaptiveReplayCLI {
             exit(EXIT_FAILURE)
         }
 
-        let results = policies.map { ReplayEngine.run(trace: records, policy: $0) }
+        let results = policies.map { policy in
+            gapGraceSeconds.map {
+                ReplayEngine.runSegmented(trace: records, policy: policy, graceSeconds: $0)
+            } ?? ReplayEngine.run(trace: records, policy: policy)
+        }
+        let activityCoverage = ActivityCoverageStats.compute(from: records)
+        let recordedScheduleAudit = RecordedScheduleAuditor.audit(records)
 
         if jsonOutput {
-            print(Self.renderJSON(results))
+            print(Self.renderJSON(
+                results,
+                activityCoverage: activityCoverage,
+                recordedScheduleAudit: recordedScheduleAudit,
+                gapGraceSeconds: gapGraceSeconds))
         } else {
             print(Self.renderTable(results))
-            print(Self.renderActivityCoverage(ActivityCoverageStats.compute(from: records)))
+            print(Self.renderActivityCoverage(activityCoverage))
+            print(Self.renderRecordedScheduleAudit(recordedScheduleAudit))
+            if let gapGraceSeconds, let first = results.first {
+                print(String(
+                    format: "segmentation: %d segments, %.2fh excluded (legacy heuristic, %.0fs grace)",
+                    first.segmentCount,
+                    first.excludedGapSeconds / 3600,
+                    gapGraceSeconds))
+            } else {
+                print("segmentation: disabled (raw wall clock)")
+            }
         }
     }
 
-    /// Fork-only shadow-mode telemetry line (never fed into any policy): how much of the trace
+    private static func renderRecordedScheduleAudit(_ audit: RecordedScheduleAudit) -> String {
+        "recorded schedule: \(audit.recordedAdvanceCount) advances, "
+            + "\(audit.acceptedEvaluationCount)/\(audit.evaluatedCount) evaluations accepted, "
+            + "payload=\(audit.payloadMismatchCount) decision=\(audit.decisionMismatchCount) "
+            + "menu-link=\(audit.menuLinkMismatchCount) mismatches, "
+            + "ambiguous=\(audit.ambiguousComparisonCount)"
+    }
+
+    /// Shadow-mode telemetry line (never fed into any production policy): how much of the trace
     /// carries the `CodingActivityProbe` signal, and how much of that looked like active coding.
     private static func renderActivityCoverage(_ stats: ActivityCoverageStats) -> String {
         guard stats.decisionCount > 0 else {
@@ -67,8 +104,15 @@ enum AdaptiveReplayCLI {
     }
 
     private static func policy(named name: String) throws -> any ReplayPolicy {
-        if name == "adaptive" { return MirroredAdaptivePolicy() }
-        if name == "manual" { return ManualPolicy() }
+        if name == "adaptive" {
+            return MirroredAdaptivePolicy()
+        }
+        if name == "adaptive-activity" {
+            return CodingActivityAdaptivePolicy()
+        }
+        if name == "manual" {
+            return ManualPolicy()
+        }
         if name.hasPrefix("fixed-"), name.hasSuffix("m"),
            let minutes = Int(name.dropFirst("fixed-".count).dropLast())
         {
@@ -80,7 +124,8 @@ enum AdaptiveReplayCLI {
     private static func renderTable(_ results: [ReplayMetrics]) -> String {
         var lines: [String] = []
         let header = [
-            "policy", "refreshes", "per24h", "advances", "staleness p50", "staleness p95", "constrained ok",
+            "policy", "refreshes", "per24h", "sim advances", "active >5m", "staleness p50",
+            "staleness p95", "constrained ok",
         ]
         lines.append(header.joined(separator: "\t"))
         for metrics in results {
@@ -90,6 +135,7 @@ enum AdaptiveReplayCLI {
                 String(metrics.totalRefreshCount),
                 String(format: "%.2f", metrics.refreshCountPer24h),
                 String(metrics.interactionAdvanceCount),
+                "\(metrics.codingActiveDelayViolationCount)/\(metrics.codingActiveDecisionCount)",
                 staleness.map { String(format: "%.0fs", $0.median) } ?? "n/a",
                 staleness.map { String(format: "%.0fs", $0.p95) } ?? "n/a",
                 metrics.constrainedCompliance
@@ -99,14 +145,24 @@ enum AdaptiveReplayCLI {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderJSON(_ results: [ReplayMetrics]) -> String {
-        let payload = results.map { metrics -> [String: Any] in
+    private static func renderJSON(
+        _ results: [ReplayMetrics],
+        activityCoverage: ActivityCoverageStats,
+        recordedScheduleAudit: RecordedScheduleAudit,
+        gapGraceSeconds: TimeInterval?) -> String
+    {
+        let policies = results.map { metrics -> [String: Any] in
             var dict: [String: Any] = [
                 "policy": metrics.policyName,
                 "simulatedSpanSeconds": metrics.simulatedSpanSeconds,
                 "totalRefreshCount": metrics.totalRefreshCount,
                 "refreshCountPer24h": metrics.refreshCountPer24h,
                 "interactionAdvanceCount": metrics.interactionAdvanceCount,
+                "codingActiveDecisionCount": metrics.codingActiveDecisionCount,
+                "codingActiveDelayViolationCount": metrics.codingActiveDelayViolationCount,
+                "segmentCount": metrics.segmentCount,
+                "excludedGapSeconds": metrics.excludedGapSeconds,
+                "boundaryCensoredMenuOpenCount": metrics.boundaryCensoredMenuOpenCount,
                 "constrainedDecisionCount": metrics.constrainedCompliance.constrainedDecisionCount,
                 "constrainedViolationCount": metrics.constrainedCompliance.violationCount,
                 "constrainedCompliant": metrics.constrainedCompliance.isCompliant,
@@ -119,38 +175,66 @@ enum AdaptiveReplayCLI {
             }
             return dict
         }
+        let segmentation: [String: Any] = [
+            "mode": gapGraceSeconds == nil ? "rawWallClock" : "legacyGapHeuristic",
+            "gapGraceSeconds": gapGraceSeconds.map { $0 as Any } ?? NSNull(),
+        ]
+        let payload: [String: Any] = [
+            "policies": policies,
+            "activityCoverage": [
+                "decisionCount": activityCoverage.decisionCount,
+                "sampledCount": activityCoverage.sampledCount,
+                "activeCount": activityCoverage.activeCount,
+                "sampledFraction": activityCoverage.sampledFraction,
+                "activeFraction": activityCoverage.activeFraction,
+            ],
+            "recordedScheduleAudit": [
+                "recordedAdvanceCount": recordedScheduleAudit.recordedAdvanceCount,
+                "evaluatedCount": recordedScheduleAudit.evaluatedCount,
+                "acceptedEvaluationCount": recordedScheduleAudit.acceptedEvaluationCount,
+                "rejectedEvaluationCount": recordedScheduleAudit.rejectedEvaluationCount,
+                "payloadMismatchCount": recordedScheduleAudit.payloadMismatchCount,
+                "decisionMismatchCount": recordedScheduleAudit.decisionMismatchCount,
+                "menuLinkMismatchCount": recordedScheduleAudit.menuLinkMismatchCount,
+                "ambiguousComparisonCount": recordedScheduleAudit.ambiguousComparisonCount,
+                "isValid": recordedScheduleAudit.isValid,
+            ],
+            "segmentation": segmentation,
+        ]
         guard let data = try? JSONSerialization.data(
             withJSONObject: payload,
             options: [.prettyPrinted, .sortedKeys]),
             let text = String(data: data, encoding: .utf8)
         else {
-            return "[]"
+            return "{}"
         }
         return text
     }
 
     private static let helpText = """
-    Usage: adaptive-replay-cli <trace.jsonl> [--policy <name>]... [--json]
+    Usage: adaptive-replay-cli <trace.jsonl> [--policy <name>]... [--gap-grace <seconds>] [--raw-wall-clock] [--json]
 
     Replays a JSONL adaptive-refresh trace against one or more refresh-timing policies and prints
-    per-policy metrics: total refresh count, refresh count per 24h, how many of those refreshes were
-    pulled forward by a menu-open interaction, staleness at menu-open (median/p95 seconds since the
-    last simulated refresh), and constrained-tier compliance.
+    per-policy metrics over automatically segmented observed time. Simulated advances are
+    counterfactual policy events; recorded live schedule evaluations are audited separately.
 
     Policies:
       adaptive       The current adaptive table, mirrored from AdaptiveRefreshPolicy. Advances on
                      menu-open interactions, same as UsageStore.noteMenuOpened(at:).
+      adaptive-activity  Experimental adaptive table capped at 5m after observed coding activity.
       fixed-2m       Fixed 2 minute cadence. Unaffected by menu-open interactions.
       fixed-5m       Fixed 5 minute cadence.
       fixed-15m      Fixed 15 minute cadence.
       fixed-30m      Fixed 30 minute cadence.
       manual         Never refreshes (degenerate floor).
 
-    Defaults to comparing all six policies when --policy is omitted.
+    Defaults to comparing all seven policies when --policy is omitted.
 
     Options:
       --policy <name>   Restrict to one policy; repeat to compare a specific subset.
-      --json            Print machine-readable JSON instead of a table.
+      --gap-grace <s>   Split legacy gaps this many seconds after the last timer deadline (default 300).
+      --raw-wall-clock  Disable gap segmentation; useful only for auditing the old behavior.
+      --json            Print a machine-readable report including replay, activity, and audit data.
       -h, --help        Print this help text.
     """
 }
@@ -161,17 +245,19 @@ private enum CLIError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case let .unknownPolicy(name):
-            "unknown policy '\(name)' (expected: adaptive, manual, fixed-<N>m)"
+            "unknown policy '\(name)' (expected: adaptive, adaptive-activity, manual, fixed-<N>m)"
         }
     }
 }
 
 private enum CLIArguments {
-    case run(tracePath: String, policyNames: [String], jsonOutput: Bool)
+    case run(tracePath: String, policyNames: [String], jsonOutput: Bool, gapGraceSeconds: TimeInterval?)
     case help(exitCode: Int32)
     case invalid(message: String)
 
-    static let allPolicyNames = ["adaptive", "fixed-2m", "fixed-5m", "fixed-15m", "fixed-30m", "manual"]
+    static let allPolicyNames = [
+        "adaptive", "adaptive-activity", "fixed-2m", "fixed-5m", "fixed-15m", "fixed-30m", "manual",
+    ]
 
     static func parse(_ arguments: [String]) -> Self {
         if arguments.contains("-h") || arguments.contains("--help") {
@@ -181,12 +267,23 @@ private enum CLIArguments {
         var tracePath: String?
         var policyNames: [String] = []
         var jsonOutput = false
+        var gapGraceSeconds: TimeInterval? = ReplayTraceSegmenter.defaultGraceSeconds
         var index = 0
         while index < arguments.count {
             let argument = arguments[index]
             switch argument {
             case "--json":
                 jsonOutput = true
+            case "--raw-wall-clock":
+                gapGraceSeconds = nil
+            case "--gap-grace":
+                index += 1
+                guard index < arguments.count,
+                      let seconds = TimeInterval(arguments[index]),
+                      seconds >= 0,
+                      seconds.isFinite
+                else { return .invalid(message: "--gap-grace requires non-negative finite seconds") }
+                gapGraceSeconds = seconds
             case "--policy":
                 index += 1
                 guard index < arguments.count else { return .invalid(message: "--policy requires a value") }
@@ -206,7 +303,8 @@ private enum CLIArguments {
         return .run(
             tracePath: tracePath,
             policyNames: policyNames.isEmpty ? self.allPolicyNames : policyNames,
-            jsonOutput: jsonOutput)
+            jsonOutput: jsonOutput,
+            gapGraceSeconds: gapGraceSeconds)
     }
 }
 

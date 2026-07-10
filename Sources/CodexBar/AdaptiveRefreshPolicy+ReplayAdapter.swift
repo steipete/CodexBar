@@ -1,7 +1,7 @@
 import AdaptiveReplayKit
 import Foundation
 
-/// Fork-only adapter (never upstreamed) letting the real, upstream-owned `AdaptiveRefreshPolicy`
+/// Adapter letting the production `AdaptiveRefreshPolicy`
 /// conform to `ReplayPolicy`. `AdaptiveReplayKit` cannot import this app target, so it ships a
 /// hand-mirrored copy of the policy table (`MirroredAdaptivePolicy`) for the standalone CLI to
 /// use; this adapter is the other half of that story — it lets in-app tooling (phase 2: comparing

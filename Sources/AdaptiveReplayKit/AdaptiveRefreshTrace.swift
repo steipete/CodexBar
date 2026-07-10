@@ -1,6 +1,6 @@
 import Foundation
 
-/// The four event kinds a trace records. `decision` events capture a full policy tick (the
+/// The event kinds a trace records. `decision` events capture a full policy tick (the
 /// signals it saw plus what it chose). `menuOpen` and `refreshCompleted` capture the two
 /// ground-truth events the replay engine anchors a simulation to, independent of any candidate
 /// policy. `timerAdvanced` captures the one place live behavior *isn't* a plain tick loop: when
@@ -13,13 +13,16 @@ public enum AdaptiveRefreshTraceEventKind: String, Sendable, Codable {
     case menuOpen
     case refreshCompleted
     case timerAdvanced
+    /// Every live advance comparison, including the cases correctly rejected because the current
+    /// timer was already earlier. This is distinct from counterfactual replay advances.
+    case timerAdvanceEvaluated
 }
 
 /// One line of a JSONL adaptive-refresh trace. Field presence depends on `kind`: `decision`
 /// records populate `menuAgeSeconds`, `lowPowerModeEnabled`, `thermalState`, `reason`, and
 /// `delaySeconds`, plus the shadow-mode `CodingActivityProbe` signals when tracing sampled them
 /// (`codexActivitySeconds`/`claudeActivitySeconds`, the "A layer" seconds-since-newest-transcript,
-/// and the "B layer" per-file intensity fields alongside them); `timerAdvanced` records populate
+/// and the "B layer" per-file intensity fields alongside them); timer advance records populate
 /// `previousScheduledAt`, `candidateScheduledAt`, `reason`, and `delaySeconds`; `menuOpen` and
 /// `refreshCompleted` carry only `kind` and `timestamp`.
 public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
@@ -30,13 +33,21 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
     public let thermalState: ReplayThermalState?
     public let reason: String?
     public let delaySeconds: TimeInterval?
-    /// `timerAdvanced` only: the adaptive timer's scheduled refresh time before the advance, or
-    /// `nil` when no refresh had been scheduled yet (matches
+    /// Timer advance records only: the adaptive timer's scheduled refresh time before the
+    /// comparison, or `nil` when no refresh had been scheduled yet (matches
     /// `UsageStore.shouldAdvanceAdaptiveTimer`'s "always advance when nothing is scheduled" rule).
     public let previousScheduledAt: Date?
-    /// `timerAdvanced` only: the refresh time the timer advanced to, i.e. the menu-open timestamp
-    /// plus the freshly computed decision's delay.
+    /// Timer advance records only: the candidate refresh time, i.e. the menu-open timestamp plus
+    /// the freshly computed decision's delay.
     public let candidateScheduledAt: Date?
+    /// `timerAdvanceEvaluated` only: whether the live schedule comparison accepted the candidate.
+    public let timerAdvanceAccepted: Bool?
+    /// `timerAdvanceEvaluated` only: `previousScheduledAt - candidateScheduledAt`, captured before
+    /// whole-second ISO-8601 serialization. Positive means the candidate was earlier. Optional for
+    /// compatibility with traces recorded before exact comparison deltas were added.
+    public let scheduleLeadSeconds: TimeInterval?
+    /// `timerAdvanceEvaluated` only: whether another refresh was in flight at comparison time.
+    public let refreshInFlight: Bool?
     /// `decision` only, and only while the `CodingActivityProbe` shadow-mode signal is being
     /// recorded: seconds since the newest local Codex session transcript was modified, or `nil`
     /// when unavailable. Record-only telemetry — never fed into `AdaptiveRefreshPolicy`. Optional
@@ -73,6 +84,9 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         delaySeconds: TimeInterval? = nil,
         previousScheduledAt: Date? = nil,
         candidateScheduledAt: Date? = nil,
+        timerAdvanceAccepted: Bool? = nil,
+        scheduleLeadSeconds: TimeInterval? = nil,
+        refreshInFlight: Bool? = nil,
         codexActivitySeconds: TimeInterval? = nil,
         claudeActivitySeconds: TimeInterval? = nil,
         codexSessionDurationSeconds: TimeInterval? = nil,
@@ -91,6 +105,9 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
         self.delaySeconds = delaySeconds
         self.previousScheduledAt = previousScheduledAt
         self.candidateScheduledAt = candidateScheduledAt
+        self.timerAdvanceAccepted = timerAdvanceAccepted
+        self.scheduleLeadSeconds = scheduleLeadSeconds
+        self.refreshInFlight = refreshInFlight
         self.codexActivitySeconds = codexActivitySeconds
         self.claudeActivitySeconds = claudeActivitySeconds
         self.codexSessionDurationSeconds = codexSessionDurationSeconds
@@ -164,5 +181,27 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
             delaySeconds: delaySeconds,
             previousScheduledAt: previousScheduledAt,
             candidateScheduledAt: candidateScheduledAt)
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    public static func timerAdvanceEvaluated(
+        timestamp: Date,
+        previousScheduledAt: Date?,
+        candidateScheduledAt: Date,
+        reason: String,
+        delaySeconds: TimeInterval,
+        accepted: Bool,
+        refreshInFlight: Bool) -> Self
+    {
+        Self(
+            kind: .timerAdvanceEvaluated,
+            timestamp: timestamp,
+            reason: reason,
+            delaySeconds: delaySeconds,
+            previousScheduledAt: previousScheduledAt,
+            candidateScheduledAt: candidateScheduledAt,
+            timerAdvanceAccepted: accepted,
+            scheduleLeadSeconds: previousScheduledAt.map { $0.timeIntervalSince(candidateScheduledAt) },
+            refreshInFlight: refreshInFlight)
     }
 }

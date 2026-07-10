@@ -1,6 +1,6 @@
 import Foundation
 
-// Fork-only replay harness (phase 1) for the adaptive refresh policy shipped in the `CodexBar`
+// Replay harness for the adaptive refresh policy shipped in the `CodexBar`
 // app target. This library never imports `CodexBar` — `AdaptiveRefreshPolicy` lives in an
 // executable target that a library cannot depend on — so every type here is self-contained and
 // re-expressed independently of the app's types. See `AdaptiveRefreshPolicy+ReplayAdapter.swift`
@@ -28,12 +28,22 @@ public enum ReplayThermalState: String, Sendable, Codable, CaseIterable {
 public struct ReplayPolicyInput: Sendable, Equatable {
     public let now: Date
     public let lastMenuOpenAt: Date?
+    /// Most recent transcript write reconstructed from the latest activity observation available
+    /// at or before `now`. This is nil when that observation could not see either CLI.
+    public let lastCodingActivityAt: Date?
     public let lowPowerModeEnabled: Bool
     public let thermalState: ReplayThermalState
 
-    public init(now: Date, lastMenuOpenAt: Date?, lowPowerModeEnabled: Bool, thermalState: ReplayThermalState) {
+    public init(
+        now: Date,
+        lastMenuOpenAt: Date?,
+        lastCodingActivityAt: Date? = nil,
+        lowPowerModeEnabled: Bool,
+        thermalState: ReplayThermalState)
+    {
         self.now = now
         self.lastMenuOpenAt = lastMenuOpenAt
+        self.lastCodingActivityAt = lastCodingActivityAt
         self.lowPowerModeEnabled = lowPowerModeEnabled
         self.thermalState = thermalState
     }
@@ -43,6 +53,10 @@ public struct ReplayPolicyInput: Sendable, Equatable {
     /// depending on any single policy's own notion of "constrained".
     public var isConstrained: Bool {
         self.lowPowerModeEnabled || self.thermalState.isConstrained
+    }
+
+    public var codingActivityAgeSeconds: TimeInterval? {
+        self.lastCodingActivityAt.map { max(0, self.now.timeIntervalSince($0)) }
     }
 }
 

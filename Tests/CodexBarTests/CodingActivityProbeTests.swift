@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-/// `CodingActivityProbe` is fork-only shadow-mode telemetry (never upstreamed, never fed into
+/// `CodingActivityProbe` is opt-in shadow-mode telemetry (never fed into
 /// `AdaptiveRefreshPolicy`). These tests build a throwaway fake home directory so they never touch
 /// the real `~/.codex` or `~/.claude` trees, and control `now`/mtimes explicitly for deterministic
 /// seconds-since assertions.

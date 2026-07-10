@@ -8,9 +8,9 @@ read_when:
 
 # Adaptive refresh decision record
 
-- **Status:** Accepted design; not implemented
+- **Status:** Accepted and implemented as an opt-in mode in [#1861](https://github.com/steipete/CodexBar/pull/1861)
 - **Decision owner:** Maintainer
-- **Runtime impact:** None until separately implemented
+- **Runtime impact:** Bounded opt-in 2–30-minute provider-batch cadence
 
 ## Decision
 
@@ -19,8 +19,8 @@ CodexBar may offer an opt-in `Adaptive` refresh frequency that adjusts the exist
 per-account prediction, persistent interaction history, learned ranking, or menu prewarming proposed in the original
 RFC.
 
-This approval covers the bounded design only. Runtime implementation, tests, localization, and packaged proof remain a
-separate change.
+This approval covers the bounded design only. Runtime implementation, tests, localization, and packaged proof were
+delivered separately by #1861; changing the default or adding new signals still requires new evidence and review.
 
 ## Options considered
 
@@ -219,10 +219,12 @@ Use stubs and test stores. Do not run live providers, browser-cookie imports, or
 
 ## Acceptance and rollback
 
-Before changing the default, a separate proposal must provide measured evidence. Minimum evidence:
+Before changing the default, a separate PR updating this decision record must provide measured evidence. Minimum
+evidence:
 
 - deterministic replay tests show fewer scheduled batches than the 5-minute baseline during idle traces;
-- active traces never schedule slower than the existing 5-minute default;
+- unconstrained active decisions never schedule slower than the existing 5-minute default; Low Power Mode and
+  serious/critical thermal state retain the 30-minute safety override;
 - no regression in menu-open responsiveness or prompt safety;
 - packaged opt-in use shows understandable reason logs and no timer overlap.
 
@@ -243,3 +245,48 @@ Approval of this document does not approve:
 - new telemetry collection or external analytics.
 
 Any of those requires its own evidence and product/privacy review.
+
+## Local replay follow-up (2026-07-10, evidence only)
+
+This is not approval to change the default or add coding activity to the production policy. An opt-in trace/replay
+harness evaluated a local 1,780-record snapshot (SHA-256 `b1e4aa33180b7c177293eb9ed16b45e24e026d259600fba2b1b67b931b904f0b`).
+The raw trace remains local; only aggregate results belong in review material.
+
+### Proposed opt-in diagnostic storage boundary
+
+Merging this follow-up would approve only the hidden, local diagnostic described here. It would not approve persistent
+history as a production input or any external telemetry:
+
+- recording remains off by default and requires the `adaptiveRefreshTraceEnabled` defaults key;
+- records are stored at `~/Library/Application Support/CodexBar/adaptive-refresh-trace.jsonl`;
+- fields are limited to policy inputs/outputs, menu and refresh timestamps, timer-advance comparisons, and stat-only
+  coding-activity metadata; transcript contents, paths, project/account identity, credentials, provider responses, and
+  menu content are excluded;
+- the writer stops before the file would exceed 10 MiB; it does not rotate, truncate, migrate, or upload the trace;
+- only one traced CodexBar process may write this file at a time; concurrent traced instances are unsupported;
+- disabling and deleting the diagnostic requires no app migration:
+  `defaults delete com.steipete.codexbar adaptiveRefreshTraceEnabled` followed by
+  `rm "$HOME/Library/Application Support/CodexBar/adaptive-refresh-trace.jsonl"`.
+
+This is the privacy and storage decision requested by the draft. Until it is accepted, the recorder/probe portion is not
+approved by the earlier experiment's state contract.
+
+The replay splits legacy deadline-overrun gaps five minutes after the most recent recorded timer deadline. It found 28
+observed segments and excluded 26.10 hours of unobserved wall time. The heuristic cannot distinguish sleep or reboot from
+a long refresh or event-loop stall, so the excluded time is not a causal classification.
+
+| Policy | Simulated refreshes | Per observed 24h | Simulated advances | Unconstrained active over 5m | Menu staleness p50 / p95 |
+|---|---:|---:|---:|---:|---:|
+| Current adaptive | 694 | 143.47 | 53 | 4 / 145 | 142s / 1093s |
+| Activity-cap candidate | 696 | 143.88 | 53 | 0 / 145 | 139s / 1093s |
+| Fixed 5m | 1383 | 285.90 | 0 | 0 / 99 | 150s / 281s |
+
+The stat-only candidate caps an otherwise slower adaptive decision at five minutes when the newest observed Codex or
+Claude transcript write is under five minutes old. It adds two simulated refreshes and removes the four active-delay
+violations in this snapshot, but does not improve p95 menu staleness. The sample is one machine and the candidate changes
+only a small number of decisions, so this is motivation for continued shadow replay, not sufficient evidence for a
+production or default change.
+
+Replay advances are counterfactual events on a zero-service-time policy clock. They are intentionally not compared by
+count with live `timerAdvanced` events, whose schedule includes real refresh duration and in-flight coalescing. The
+recorder now logs every accepted and rejected live schedule comparison separately for future exact reconciliation.

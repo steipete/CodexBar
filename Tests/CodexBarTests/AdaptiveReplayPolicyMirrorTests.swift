@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-/// Guards the fork-only replay harness's two stand-ins for the real `AdaptiveRefreshPolicy`:
+/// Guards the replay harness's two stand-ins for the real `AdaptiveRefreshPolicy`:
 /// `MirroredAdaptivePolicy` (a hand-copied table `AdaptiveReplayKit` uses because it cannot import
 /// the app target) and the `ReplayPolicy` adapter on `AdaptiveRefreshPolicy` itself (used by
 /// future in-app tooling). Both must agree with the real policy at every boundary the existing

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Simulates the live timer loop (`decide` → sleep → refresh → `decide` → ...) over a trace's
-/// wall-clock span for a given `ReplayPolicy`, pure and deterministic: the same trace and policy
+/// observed span for a given `ReplayPolicy`, pure and deterministic: the same trace and policy
 /// always produce the same `ReplayMetrics`, since every input the policy sees comes from the
 /// trace, never from a live clock.
 ///
@@ -22,8 +22,9 @@ import Foundation
 /// is independently re-evaluated: if `policy.advancesOnInteraction` and the decision computed as of
 /// that menu open would land earlier than the already-scheduled next tick, the schedule advances to
 /// that earlier time, exactly like `startTimer(preservingResetBoundaryRefresh: true)` replacing a
-/// pending sleep with a shorter one. `AdaptiveRefreshTraceRecordingTests` (app target) proves the
-/// recorded `timerAdvanced` ground truth agrees with what this recomputation independently derives.
+/// pending sleep with a shorter one. Recorded `timerAdvanced` events are audited separately: their
+/// count is not expected to equal
+/// this counterfactual schedule because live refresh work has non-zero duration and can coalesce.
 public enum ReplayEngine {
     /// Safety valve against a pathological policy (e.g. a zero-or-negative delay bug) turning a
     /// long trace into an unbounded loop.
@@ -35,18 +36,33 @@ public enum ReplayEngine {
     private struct TraceSignals {
         let menuOpenTimestamps: [Date]
         let signalSamples: [(timestamp: Date, lowPower: Bool, thermal: ReplayThermalState)]
+        let activitySamples: [ActivityObservation]
+    }
+
+    private struct ActivityObservation {
+        let timestamp: Date
+        let lastCodingActivityAt: Date?
     }
 
     public static func run(trace: [AdaptiveRefreshTraceRecord], policy: some ReplayPolicy) -> ReplayMetrics {
+        self.runDetailed(trace: trace, policy: policy).metrics
+    }
+
+    static func runDetailed(
+        trace: [AdaptiveRefreshTraceRecord],
+        policy: some ReplayPolicy,
+        stalenessStartAt: Date? = nil) -> ReplayRun
+    {
         guard let start = trace.map(\.timestamp).min(), let end = trace.map(\.timestamp).max() else {
-            return ReplayMetrics(
-                policyName: policy.name,
-                simulatedSpanSeconds: 0,
-                totalRefreshCount: 0,
-                refreshCountPer24h: 0,
-                stalenessAtMenuOpen: nil,
-                constrainedCompliance: ConstrainedCompliance(constrainedDecisionCount: 0, violationCount: 0),
-                interactionAdvanceCount: 0)
+            return ReplayRun(
+                metrics: ReplayMetrics(
+                    policyName: policy.name,
+                    simulatedSpanSeconds: 0,
+                    totalRefreshCount: 0,
+                    refreshCountPer24h: 0,
+                    stalenessAtMenuOpen: nil,
+                    constrainedCompliance: ConstrainedCompliance(constrainedDecisionCount: 0, violationCount: 0)),
+                stalenessSamples: [])
         }
 
         let menuOpenTimestamps = trace
@@ -64,6 +80,17 @@ public enum ReplayEngine {
                     }
                     return (record.timestamp, lowPower, thermal)
                 }
+                .sorted { $0.timestamp < $1.timestamp },
+            activitySamples: trace
+                .filter { $0.kind == .decision }
+                .map { record in
+                    let activityDates = [record.codexActivitySeconds, record.claudeActivitySeconds]
+                        .compactMap(\.self)
+                        .map { record.timestamp.addingTimeInterval(-max(0, $0)) }
+                    return ActivityObservation(
+                        timestamp: record.timestamp,
+                        lastCodingActivityAt: activityDates.max())
+                }
                 .sorted { $0.timestamp < $1.timestamp })
 
         var cursor = start
@@ -71,6 +98,8 @@ public enum ReplayEngine {
         var constrainedDecisionCount = 0
         var violationCount = 0
         var interactionAdvanceCount = 0
+        var codingActiveDecisionCount = 0
+        var codingActiveDelayViolationCount = 0
         var iterations = 0
         // Monotonic pointer into `menuOpenTimestamps`: the scan below considers each menu open for
         // an advance at most once, in the single tick window (cursor, next] it falls into.
@@ -82,6 +111,7 @@ public enum ReplayEngine {
             let input = ReplayPolicyInput(
                 now: cursor,
                 lastMenuOpenAt: self.lastValue(menuOpenTimestamps, atOrBefore: cursor),
+                lastCodingActivityAt: self.lastActivity(signals.activitySamples, at: cursor),
                 lowPowerModeEnabled: lowPower,
                 thermalState: thermal)
             let decision = policy.decide(input)
@@ -90,6 +120,16 @@ public enum ReplayEngine {
                 constrainedDecisionCount += 1
                 if let delay = decision.delaySeconds, delay < 1800 {
                     violationCount += 1
+                }
+            }
+
+            if !input.isConstrained,
+               let activityAge = input.codingActivityAgeSeconds,
+               activityAge < 5 * 60
+            {
+                codingActiveDecisionCount += 1
+                if decision.delaySeconds.map({ $0 <= 0 || $0 > 5 * 60 }) ?? true {
+                    codingActiveDelayViolationCount += 1
                 }
             }
 
@@ -115,21 +155,28 @@ public enum ReplayEngine {
         let span = end.timeIntervalSince(start)
         let refreshCountPer24h = span > 0 ? Double(refreshTimestamps.count) * 86400 / span : 0
 
-        let staleness = menuOpenTimestamps.isEmpty ? nil : self.stalenessStats(
-            menuOpenTimestamps: menuOpenTimestamps,
+        let stalenessMenuTimestamps = stalenessStartAt.map { start in
+            menuOpenTimestamps.filter { $0 >= start }
+        } ?? menuOpenTimestamps
+        let stalenessSamples = stalenessMenuTimestamps.isEmpty ? [] : self.stalenessSamples(
+            menuOpenTimestamps: stalenessMenuTimestamps,
             refreshTimestamps: refreshTimestamps,
             traceStart: start)
 
-        return ReplayMetrics(
-            policyName: policy.name,
-            simulatedSpanSeconds: span,
-            totalRefreshCount: refreshTimestamps.count,
-            refreshCountPer24h: refreshCountPer24h,
-            stalenessAtMenuOpen: staleness,
-            constrainedCompliance: ConstrainedCompliance(
-                constrainedDecisionCount: constrainedDecisionCount,
-                violationCount: violationCount),
-            interactionAdvanceCount: interactionAdvanceCount)
+        return ReplayRun(
+            metrics: ReplayMetrics(
+                policyName: policy.name,
+                simulatedSpanSeconds: span,
+                totalRefreshCount: refreshTimestamps.count,
+                refreshCountPer24h: refreshCountPer24h,
+                stalenessAtMenuOpen: StalenessStats(samples: stalenessSamples),
+                constrainedCompliance: ConstrainedCompliance(
+                    constrainedDecisionCount: constrainedDecisionCount,
+                    violationCount: violationCount),
+                interactionAdvanceCount: interactionAdvanceCount,
+                codingActiveDecisionCount: codingActiveDecisionCount,
+                codingActiveDelayViolationCount: codingActiveDelayViolationCount),
+            stalenessSamples: stalenessSamples)
     }
 
     /// Re-evaluates every not-yet-scanned menu open that falls in `(windowStart, scheduledAt]`
@@ -162,6 +209,7 @@ public enum ReplayEngine {
             let advanceDecision = policy.decide(ReplayPolicyInput(
                 now: menuOpenAt,
                 lastMenuOpenAt: menuOpenAt,
+                lastCodingActivityAt: self.lastActivity(signals.activitySamples, at: menuOpenAt),
                 lowPowerModeEnabled: lowPower,
                 thermalState: thermal))
             scanIndex += 1
@@ -176,31 +224,23 @@ public enum ReplayEngine {
         return (next, advanceCount)
     }
 
-    private static func stalenessStats(
+    private static func stalenessSamples(
         menuOpenTimestamps: [Date],
         refreshTimestamps: [Date],
-        traceStart: Date) -> StalenessStats
+        traceStart: Date) -> [Double]
     {
-        let samples: [Double] = menuOpenTimestamps.map { menuOpenAt in
+        menuOpenTimestamps.map { menuOpenAt in
             if let lastRefresh = self.lastValue(refreshTimestamps, atOrBefore: menuOpenAt) {
                 menuOpenAt.timeIntervalSince(lastRefresh)
             } else {
                 menuOpenAt.timeIntervalSince(traceStart)
             }
         }
-        let sorted = samples.sorted()
-        let mean = sorted.reduce(0, +) / Double(sorted.count)
-        let median = Self.percentile(sorted, fraction: 0.5)
-        let p95 = Self.percentile(sorted, fraction: 0.95)
-        return StalenessStats(mean: mean, median: median, p95: p95, sampleCount: sorted.count)
     }
 
-    /// Nearest-rank percentile over an already-sorted array.
-    private static func percentile(_ sorted: [Double], fraction: Double) -> Double {
-        guard !sorted.isEmpty else { return 0 }
-        let rank = Int((fraction * Double(sorted.count)).rounded(.up))
-        let index = max(0, min(sorted.count - 1, rank - 1))
-        return sorted[index]
+    private static func lastActivity(_ samples: [ActivityObservation], at time: Date) -> Date? {
+        guard let index = self.lastIndex(samples.map(\.timestamp), atOrBefore: time) else { return nil }
+        return samples[index].lastCodingActivityAt
     }
 
     /// Binds the most recent power/thermal sample at or before `time` (hold-last), falling back

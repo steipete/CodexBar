@@ -2,7 +2,7 @@ import AdaptiveReplayKit
 import CodexBarCore
 import Foundation
 
-/// Fork-only trace recorder for the adaptive refresh replay harness (never upstreamed). OFF by
+/// Opt-in trace recorder for the adaptive refresh replay harness. OFF by
 /// default — gated on the `adaptiveRefreshTraceEnabled` defaults key, the same lightweight
 /// `UserDefaults.standard.bool(forKey:)` pattern `debugDisableKeychainAccess` and
 /// `debugMainThreadHangWatchdog` use for opt-in diagnostics, so enabling it is
@@ -104,6 +104,26 @@ enum AdaptiveRefreshTraceRecording {
             candidateScheduledAt: candidateScheduledAt,
             reason: decision.reason.rawValue,
             delaySeconds: TimeInterval(decision.delay.components.seconds)))
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    static func recordTimerAdvanceEvaluation(
+        at date: Date,
+        previousScheduledAt: Date?,
+        candidateScheduledAt: Date,
+        decision: AdaptiveRefreshPolicy.Decision,
+        accepted: Bool,
+        refreshInFlight: Bool)
+    {
+        guard self.isEnabled else { return }
+        self.activeWriter.append(.timerAdvanceEvaluated(
+            timestamp: date,
+            previousScheduledAt: previousScheduledAt,
+            candidateScheduledAt: candidateScheduledAt,
+            reason: decision.reason.rawValue,
+            delaySeconds: TimeInterval(decision.delay.components.seconds),
+            accepted: accepted,
+            refreshInFlight: refreshInFlight))
     }
 
     private static func replayThermalState(for state: ProcessInfo.ThermalState) -> ReplayThermalState {
