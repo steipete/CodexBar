@@ -586,6 +586,8 @@ enum ModelsDevUnknownModelRefreshOutcome: Equatable {
     case unavailable
 }
 
+private let modelsDevUnknownModelRetryInterval: TimeInterval = 15 * 60
+
 enum ModelsDevPricingPipeline {
     private static let refreshCoordinator = ModelsDevRefreshCoordinator()
 
@@ -632,6 +634,11 @@ enum ModelsDevPricingPipeline {
             load.artifact?.catalog.pricing(providerID: providerID, modelID: $0) == nil
         }
         guard !unknownModelIDs.isEmpty else { return .pricingAvailable }
+        if let fetchedAt = load.artifact?.fetchedAt,
+           now.timeIntervalSince(fetchedAt) < modelsDevUnknownModelRetryInterval
+        {
+            return .unavailable
+        }
 
         let cachePath = ModelsDevCache.cacheFileURL(cacheRoot: cacheRoot).standardizedFileURL.path
         _ = await self.refreshCoordinator.refresh(
@@ -677,9 +684,8 @@ private actor ModelsDevRefreshCoordinator {
         case unknownModel
     }
 
-    private static let retryInterval: TimeInterval = 15 * 60
     private var inFlightByCachePath: [String: InFlightRefresh] = [:]
-    private var lastUnknownAttemptByCachePath: [String: Date] = [:]
+    private var lastCatalogAttemptByCachePath: [String: Date] = [:]
 
     func refresh(
         cachePath: String,
@@ -688,20 +694,15 @@ private actor ModelsDevRefreshCoordinator {
         operation: @escaping @Sendable () async -> Bool) async -> Bool
     {
         if let inFlight = self.inFlightByCachePath[cachePath] {
-            if reason == .unknownModel {
-                self.lastUnknownAttemptByCachePath[cachePath] = now
-            }
             return await inFlight.task.value
         }
         if reason == .unknownModel,
-           let lastAttempt = self.lastUnknownAttemptByCachePath[cachePath],
-           now.timeIntervalSince(lastAttempt) < Self.retryInterval
+           let lastAttempt = self.lastCatalogAttemptByCachePath[cachePath],
+           now.timeIntervalSince(lastAttempt) < modelsDevUnknownModelRetryInterval
         {
             return false
         }
-        if reason == .unknownModel {
-            self.lastUnknownAttemptByCachePath[cachePath] = now
-        }
+        self.lastCatalogAttemptByCachePath[cachePath] = now
 
         let inFlight = InFlightRefresh(
             id: UUID(),

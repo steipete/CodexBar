@@ -157,7 +157,10 @@ extension ModelsDevPricingTests {
     func `unknown model refresh makes newly published pricing available`() async throws {
         let root = try Self.cacheRoot()
         let now = Date(timeIntervalSince1970: 10000)
-        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: now, cacheRoot: root)
+        try ModelsDevCache.save(
+            catalog: Self.fixtureCatalog(),
+            fetchedAt: now.addingTimeInterval(-901),
+            cacheRoot: root)
         let refreshed = Data("""
         {
           "openai": {
@@ -195,7 +198,10 @@ extension ModelsDevPricingTests {
     func `unknown model refresh is bounded per provider cache`() async throws {
         let root = try Self.cacheRoot()
         let now = Date(timeIntervalSince1970: 20000)
-        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: now, cacheRoot: root)
+        try ModelsDevCache.save(
+            catalog: Self.fixtureCatalog(),
+            fetchedAt: now.addingTimeInterval(-901),
+            cacheRoot: root)
         let transport = try TrackingTransport(result: .success((
             JSONEncoder().encode(Self.fixtureCatalog()),
             Self.response(status: 200))))
@@ -273,6 +279,56 @@ extension ModelsDevPricingTests {
             client: client)
         _ = await (ttl, unknown)
 
+        #expect(transport.calls == 1)
+    }
+
+    @Test
+    func `completed ttl refresh bounds a following unknown model refresh`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        let now = Date(timeIntervalSince1970: 45000)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+        let transport = try TrackingTransport(result: .success((
+            JSONEncoder().encode(Self.fixtureCatalog()),
+            Self.response(status: 200))))
+        let client = ModelsDevClient(transport: transport)
+
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: now,
+            cacheRoot: root,
+            client: client)
+        let outcome = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["still-unknown"],
+            now: now,
+            cacheRoot: root,
+            client: client)
+
+        #expect(outcome == .unavailable)
+        #expect(transport.calls == 1)
+    }
+
+    @Test
+    func `failed ttl refresh bounds a following unknown model refresh in process`() async throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        let now = Date(timeIntervalSince1970: 46000)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+        let transport = TrackingTransport(result: .failure(MockError.failed))
+        let client = ModelsDevClient(transport: transport)
+
+        await ModelsDevPricingPipeline.refreshIfNeeded(
+            now: now,
+            cacheRoot: root,
+            client: client)
+        let outcome = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "openai",
+            modelIDs: ["still-unknown"],
+            now: now,
+            cacheRoot: root,
+            client: client)
+
+        #expect(outcome == .unavailable)
         #expect(transport.calls == 1)
     }
 

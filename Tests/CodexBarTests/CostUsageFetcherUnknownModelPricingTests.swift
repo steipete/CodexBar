@@ -24,7 +24,10 @@ struct CostUsageFetcherUnknownModelPricingTests {
           }
         }
         """.utf8))
-        try ModelsDevCache.save(catalog: oldCatalog, fetchedAt: day, cacheRoot: env.cacheRoot)
+        try ModelsDevCache.save(
+            catalog: oldCatalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: env.cacheRoot)
 
         let refreshedCatalog = Data("""
         {
