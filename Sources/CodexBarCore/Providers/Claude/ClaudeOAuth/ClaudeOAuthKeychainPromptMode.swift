@@ -7,8 +7,17 @@ public enum ClaudeOAuthKeychainPromptMode: String, Sendable, Codable, CaseIterab
 }
 
 public enum ClaudeOAuthKeychainPromptPreference {
-    static let applicationDefaultsDomain = "com.steipete.codexbar"
+    static let releaseApplicationDefaultsDomain = "com.steipete.codexbar"
+    static let debugApplicationDefaultsDomain = "com.steipete.codexbar.debug"
     private static let userDefaultsKey = "claudeOAuthKeychainPromptMode"
+
+    static var applicationDefaultsDomain: String {
+        self.resolveApplicationDefaultsDomain(
+            bundleIdentifier: Bundle.main.bundleIdentifier,
+            bundleURL: Bundle.main.bundleURL,
+            executableURL: Bundle.main.executableURL,
+            invocationURL: CommandLine.arguments.first.map(URL.init(fileURLWithPath:)))
+    }
 
     #if DEBUG
     private final class UserDefaultsBox: @unchecked Sendable {
@@ -77,6 +86,52 @@ public enum ClaudeOAuthKeychainPromptPreference {
         }
         #endif
         return UserDefaults(suiteName: self.applicationDefaultsDomain) ?? .standard
+    }
+
+    static func resolveApplicationDefaultsDomain(
+        bundleIdentifier: String?,
+        bundleURL: URL?,
+        executableURL: URL?,
+        invocationURL: URL?,
+        bundleIdentifierForApp: (URL) -> String? = { Bundle(url: $0)?.bundleIdentifier }) -> String
+    {
+        if let domain = self.defaultsDomain(forBundleIdentifier: bundleIdentifier) {
+            return domain
+        }
+
+        let candidates = [bundleURL, executableURL, invocationURL].compactMap(\.self)
+        var visitedPaths = Set<String>()
+        for candidate in candidates {
+            var current = candidate.standardizedFileURL.resolvingSymlinksInPath()
+            while true {
+                if current.pathExtension == "app",
+                   visitedPaths.insert(current.path).inserted,
+                   let domain = self.defaultsDomain(forBundleIdentifier: bundleIdentifierForApp(current))
+                {
+                    return domain
+                }
+                let parent = current.deletingLastPathComponent()
+                guard parent.path != current.path else { break }
+                current = parent
+            }
+        }
+        return self.releaseApplicationDefaultsDomain
+    }
+
+    private static func defaultsDomain(forBundleIdentifier bundleIdentifier: String?) -> String? {
+        guard let bundleIdentifier else { return nil }
+        // Check debug first because its identifier is a child of the release identifier.
+        if bundleIdentifier == self.debugApplicationDefaultsDomain
+            || bundleIdentifier.hasPrefix("\(self.debugApplicationDefaultsDomain).")
+        {
+            return self.debugApplicationDefaultsDomain
+        }
+        if bundleIdentifier == self.releaseApplicationDefaultsDomain
+            || bundleIdentifier.hasPrefix("\(self.releaseApplicationDefaultsDomain).")
+        {
+            return self.releaseApplicationDefaultsDomain
+        }
+        return nil
     }
 
     #if DEBUG

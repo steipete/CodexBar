@@ -40,8 +40,8 @@ public enum ClaudeOAuthCredentialsStore {
         "ClaudeOAuthPendingCodexBarOAuthKeychainCacheClearV1"
     private static let pendingCodexBarOAuthKeychainCacheClearStore: ClaudeOAuthPendingCacheClearStore =
         ClaudeOAuthPendingCacheClearUserDefaultsStore(
-            userDefaults: UserDefaults(suiteName: ClaudeOAuthKeychainPromptPreference.applicationDefaultsDomain)
-                ?? .standard,
+            // The cache service is shared by release/debug apps and their CLIs, so its tombstone is shared too.
+            domain: "com.steipete.codexbar",
             key: ClaudeOAuthCredentialsStore.pendingCodexBarOAuthKeychainCacheClearKey)
     private static let claudeKeychainChangeCheckLock = NSLock()
     private nonisolated(unsafe) static var lastClaudeKeychainChangeCheckAt: Date?
@@ -2208,35 +2208,37 @@ public enum ClaudeOAuthCredentialsStore {
         owner: ClaudeOAuthCredentialOwner? = nil,
         historyOwnerIdentifier: String? = nil)
     {
-        guard self.shouldUseCodexBarOAuthKeychainCache else { return }
-        if self.hasPendingCodexBarOAuthKeychainCacheClear {
-            self.flushPendingCodexBarOAuthKeychainCacheClearIfNeeded()
+        guard self.shouldUseCodexBarOAuthKeychainCache else {
+            self.markPendingCodexBarOAuthKeychainCacheClear()
+            return
         }
         let entry = CacheEntry(
             data: data,
             storedAt: Date(),
             owner: owner,
             historyOwnerIdentifier: historyOwnerIdentifier)
-        #if DEBUG
-        self.taskOAuthCacheOperationRecorder?.record(.store)
-        #endif
-        if KeychainCacheStore.storeResult(key: self.cacheKey, entry: entry) {
-            self.clearPendingCodexBarOAuthKeychainCacheClear()
-        } else {
-            self.markPendingCodexBarOAuthKeychainCacheClear()
+        self.currentPendingCodexBarOAuthKeychainCacheClearStore.withCacheTransaction { pending in
+            if pending {
+                switch KeychainCacheStore.clearResult(key: self.cacheKey) {
+                case .removed, .missing:
+                    pending = false
+                case .failed:
+                    break
+                }
+            }
+            pending = !KeychainCacheStore.storeResult(key: self.cacheKey, entry: entry)
         }
     }
 
     private static func clearCacheKeychain() {
         if self.shouldUseCodexBarOAuthKeychainCache {
-            #if DEBUG
-            self.taskOAuthCacheOperationRecorder?.record(.clear)
-            #endif
-            switch KeychainCacheStore.clearResult(key: self.cacheKey) {
-            case .removed, .missing:
-                self.clearPendingCodexBarOAuthKeychainCacheClear()
-            case .failed:
-                self.markPendingCodexBarOAuthKeychainCacheClear()
+            self.currentPendingCodexBarOAuthKeychainCacheClearStore.withCacheTransaction { pending in
+                switch KeychainCacheStore.clearResult(key: self.cacheKey) {
+                case .removed, .missing:
+                    pending = false
+                case .failed:
+                    pending = true
+                }
             }
         } else {
             self.markPendingCodexBarOAuthKeychainCacheClear()
@@ -2245,14 +2247,19 @@ public enum ClaudeOAuthCredentialsStore {
 
     private static func loadCodexBarOAuthKeychainCache() -> KeychainCacheStore.LoadResult<CacheEntry> {
         guard self.shouldUseCodexBarOAuthKeychainCache else { return .missing }
-        self.flushPendingCodexBarOAuthKeychainCacheClearIfNeeded()
-        if self.hasPendingCodexBarOAuthKeychainCacheClear {
-            return .temporarilyUnavailable
+        var result: KeychainCacheStore.LoadResult<CacheEntry> = .temporarilyUnavailable
+        self.currentPendingCodexBarOAuthKeychainCacheClearStore.withCacheTransaction { pending in
+            if pending {
+                switch KeychainCacheStore.clearResult(key: self.cacheKey) {
+                case .removed, .missing:
+                    pending = false
+                case .failed:
+                    return
+                }
+            }
+            result = KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self)
         }
-        #if DEBUG
-        self.taskOAuthCacheOperationRecorder?.record(.load)
-        #endif
-        return KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self)
+        return result
     }
 
     private static var shouldUseCodexBarOAuthKeychainCache: Bool {
@@ -2260,11 +2267,7 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     private static func markPendingCodexBarOAuthKeychainCacheClear() {
-        self.currentPendingCodexBarOAuthKeychainCacheClearStore.setPending(true)
-    }
-
-    private static func clearPendingCodexBarOAuthKeychainCacheClear() {
-        self.currentPendingCodexBarOAuthKeychainCacheClearStore.setPending(false)
+        self.currentPendingCodexBarOAuthKeychainCacheClearStore.markPending()
     }
 
     private static var hasPendingCodexBarOAuthKeychainCacheClear: Bool {
@@ -2278,19 +2281,6 @@ public enum ClaudeOAuthCredentialsStore {
         }
         #endif
         return self.pendingCodexBarOAuthKeychainCacheClearStore
-    }
-
-    private static func flushPendingCodexBarOAuthKeychainCacheClearIfNeeded() {
-        guard self.hasPendingCodexBarOAuthKeychainCacheClear else { return }
-        #if DEBUG
-        self.taskOAuthCacheOperationRecorder?.record(.clear)
-        #endif
-        switch KeychainCacheStore.clearResult(key: self.cacheKey) {
-        case .removed, .missing:
-            self.clearPendingCodexBarOAuthKeychainCacheClear()
-        case .failed:
-            break
-        }
     }
 
     private static var keychainAccessAllowed: Bool {
@@ -2451,7 +2441,9 @@ public enum ClaudeOAuthCredentialsStore {
             UserDefaults.standard.removeObject(forKey: self.fileFingerprintKey)
         }
         if self.taskPendingCacheClearStoreOverride != nil {
-            self.clearPendingCodexBarOAuthKeychainCacheClear()
+            self.currentPendingCodexBarOAuthKeychainCacheClearStore.withCacheTransaction { pending in
+                pending = false
+            }
         }
     }
 

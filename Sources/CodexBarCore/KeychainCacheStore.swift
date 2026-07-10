@@ -43,6 +43,30 @@ public enum KeychainCacheStore {
     private static let cacheLabel = "CodexBar Cache"
     private nonisolated(unsafe) static var globalServiceOverride: String?
     @TaskLocal private static var serviceOverride: String?
+    #if DEBUG
+    @TaskLocal private static var operationRecorder: OperationRecorder?
+
+    enum Operation: Equatable, Sendable {
+        case load
+        case store
+        case clear
+    }
+
+    final class OperationRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var recordedOperations: [Operation] = []
+
+        var operations: [Operation] {
+            self.lock.withLock { self.recordedOperations }
+        }
+
+        func record(_ operation: Operation) {
+            self.lock.withLock {
+                self.recordedOperations.append(operation)
+            }
+        }
+    }
+    #endif
     #if DEBUG && os(macOS)
     @TaskLocal private static var loadFailureStatusOverride: OSStatus?
     @TaskLocal private static var storeFailureStatusOverride: OSStatus?
@@ -63,6 +87,9 @@ public enum KeychainCacheStore {
         key: Key,
         as type: Entry.Type = Entry.self) -> LoadResult<Entry>
     {
+        #if DEBUG
+        self.operationRecorder?.record(.load)
+        #endif
         #if DEBUG && os(macOS)
         if let status = self.loadFailureStatusOverride {
             return self.loadResultForKeychainReadFailure(status: status, key: key)
@@ -110,6 +137,9 @@ public enum KeychainCacheStore {
 
     @discardableResult
     public static func storeResult(key: Key, entry: some Codable) -> Bool {
+        #if DEBUG
+        self.operationRecorder?.record(.store)
+        #endif
         #if DEBUG && os(macOS)
         if let status = self.storeFailureStatusOverride {
             self.log.error("Keychain cache store failed (\(key.account)): \(status)")
@@ -169,6 +199,9 @@ public enum KeychainCacheStore {
     }
 
     public static func clearResult(key: Key) -> ClearResult {
+        #if DEBUG
+        self.operationRecorder?.record(.clear)
+        #endif
         #if DEBUG && os(macOS)
         if let status = self.clearFailureStatusOverride {
             return self.clearResultForKeychainDeleteStatus(status, key: key)
@@ -261,6 +294,30 @@ public enum KeychainCacheStore {
     public static var currentServiceOverrideForTesting: String? {
         self.serviceOverride
     }
+
+    #if DEBUG
+    static func withOperationRecorderForTesting<T>(
+        _ recorder: OperationRecorder?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$operationRecorder.withValue(recorder) {
+            try operation()
+        }
+    }
+
+    static func withOperationRecorderForTesting<T>(
+        _ recorder: OperationRecorder?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$operationRecorder.withValue(recorder) {
+            try await operation()
+        }
+    }
+
+    static var currentOperationRecorderForTesting: OperationRecorder? {
+        self.operationRecorder
+    }
+    #endif
 
     static var canUseRealKeychainForTesting: Bool {
         self.canUseRealKeychain

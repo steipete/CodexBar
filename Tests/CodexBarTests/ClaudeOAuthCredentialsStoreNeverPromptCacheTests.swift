@@ -85,25 +85,42 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
         let data = self.makeCredentialsData(
             accessToken: accessToken,
             expiresAt: Date(timeIntervalSinceNow: 3600))
-        let stored = KeychainCacheStore.storeResult(
-            key: state.cacheKey,
-            entry: ClaudeOAuthCredentialsStore.CacheEntry(data: data, storedAt: storedAt))
+        let stored = ClaudeOAuthCredentialsStore.withOAuthCacheOperationRecorderForTesting(nil) {
+            KeychainCacheStore.storeResult(
+                key: state.cacheKey,
+                entry: ClaudeOAuthCredentialsStore.CacheEntry(data: data, storedAt: storedAt))
+        }
         #expect(stored)
     }
 
     private func cachedToken(_ state: TestState) throws -> String? {
-        switch KeychainCacheStore.load(
-            key: state.cacheKey,
-            as: ClaudeOAuthCredentialsStore.CacheEntry.self)
-        {
-        case let .found(entry):
-            return try ClaudeOAuthCredentials.parse(data: entry.data).accessToken
-        case .missing:
-            return nil
-        case .invalid, .temporarilyUnavailable:
-            Issue.record("Expected a valid or missing test cache entry")
-            return nil
+        try ClaudeOAuthCredentialsStore.withOAuthCacheOperationRecorderForTesting(nil) {
+            switch KeychainCacheStore.load(
+                key: state.cacheKey,
+                as: ClaudeOAuthCredentialsStore.CacheEntry.self)
+            {
+            case let .found(entry):
+                return try ClaudeOAuthCredentials.parse(data: entry.data).accessToken
+            case .missing:
+                return nil
+            case .invalid, .temporarilyUnavailable:
+                Issue.record("Expected a valid or missing test cache entry")
+                return nil
+            }
         }
+    }
+
+    private func runDefaults(_ arguments: [String]) throws -> (status: Int32, output: String) {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        process.arguments = arguments
+        process.standardOutput = output
+        process.standardError = output
+        try process.run()
+        process.waitUntilExit()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 
     @Test
@@ -374,46 +391,185 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     }
 
     @Test
-    func `bundled CLI reads app prompt policy and app shared tombstone`() throws {
-        let appDomain = "ClaudeOAuthAppDomainTests.\(UUID().uuidString)"
-        let cliDomain = "ClaudeOAuthCLIDomainTests.\(UUID().uuidString)"
-        let appDefaults = try #require(UserDefaults(suiteName: appDomain))
-        let cliDefaults = try #require(UserDefaults(suiteName: cliDomain))
+    func `bundled CLI resolves the owning app prompt policy domain`() throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let appURL = tempDirectory.appendingPathComponent("CodexBar.app", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        let helpersURL = contentsURL.appendingPathComponent("Helpers", isDirectory: true)
+        let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
+        let binURL = tempDirectory.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: helpersURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: macOSURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: binURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let info: [String: Any] = [
+            "CFBundleExecutable": "CodexBar",
+            "CFBundleIdentifier": ClaudeOAuthKeychainPromptPreference.debugApplicationDefaultsDomain,
+            "CFBundlePackageType": "APPL",
+        ]
+        let infoData = try PropertyListSerialization.data(
+            fromPropertyList: info,
+            format: .xml,
+            options: 0)
+        try infoData.write(to: contentsURL.appendingPathComponent("Info.plist"))
+        try Data().write(to: macOSURL.appendingPathComponent("CodexBar"))
+
+        let helperURL = helpersURL.appendingPathComponent("CodexBarCLI")
+        try Data().write(to: helperURL)
+        let symlinkURL = binURL.appendingPathComponent("codexbar")
+        try FileManager.default.createSymbolicLink(at: symlinkURL, withDestinationURL: helperURL)
+
+        let bundledCLIDomain = ClaudeOAuthKeychainPromptPreference.resolveApplicationDefaultsDomain(
+            bundleIdentifier: nil,
+            bundleURL: nil,
+            executableURL: nil,
+            invocationURL: symlinkURL)
+        #expect(bundledCLIDomain == ClaudeOAuthKeychainPromptPreference.debugApplicationDefaultsDomain)
+
+        let debugWidgetDomain = ClaudeOAuthKeychainPromptPreference.resolveApplicationDefaultsDomain(
+            bundleIdentifier: "com.steipete.codexbar.debug.widget",
+            bundleURL: nil,
+            executableURL: nil,
+            invocationURL: nil)
+        #expect(debugWidgetDomain == ClaudeOAuthKeychainPromptPreference.debugApplicationDefaultsDomain)
+
+        let standaloneDomain = ClaudeOAuthKeychainPromptPreference.resolveApplicationDefaultsDomain(
+            bundleIdentifier: nil,
+            bundleURL: nil,
+            executableURL: URL(fileURLWithPath: "/usr/local/bin/codexbar"),
+            invocationURL: nil)
+        #expect(standaloneDomain == ClaudeOAuthKeychainPromptPreference.releaseApplicationDefaultsDomain)
+    }
+
+    @Test
+    func `shared tombstone propagates across process boundaries`() throws {
+        let domain = "ClaudeOAuthPendingCacheTests.\(UUID().uuidString)"
+        let key = "pending"
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let lockURL = tempDirectory.appendingPathComponent("cache.lock")
+        let userDefaults = try #require(UserDefaults(suiteName: domain))
         defer {
-            appDefaults.removePersistentDomain(forName: appDomain)
-            cliDefaults.removePersistentDomain(forName: cliDomain)
+            userDefaults.removePersistentDomain(forName: domain)
+            userDefaults.synchronize()
+            try? FileManager.default.removeItem(at: tempDirectory)
         }
 
-        appDefaults.set(ClaudeOAuthKeychainPromptMode.never.rawValue, forKey: "claudeOAuthKeychainPromptMode")
-        cliDefaults.set(ClaudeOAuthKeychainPromptMode.always.rawValue, forKey: "claudeOAuthKeychainPromptMode")
+        let store = ClaudeOAuthPendingCacheClearUserDefaultsStore(
+            domain: domain,
+            key: key,
+            lockURL: lockURL)
+        store.markPending()
 
-        let resolved = ClaudeOAuthKeychainPromptPreference.withApplicationUserDefaultsOverrideForTesting(
-            appDefaults)
-        {
-            ClaudeOAuthKeychainPromptPreference.storedMode()
+        let childRead = try self.runDefaults(["read", domain, key])
+        #expect(childRead.status == 0)
+        #expect(!childRead.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        let childDelete = try self.runDefaults(["delete", domain, key])
+        #expect(childDelete.status == 0)
+        #expect(!store.isPending)
+
+        let childWrite = try self.runDefaults(["write", domain, key, UUID().uuidString])
+        #expect(childWrite.status == 0)
+        #expect(store.isPending)
+
+        store.withCacheTransaction { pending in
+            pending = false
         }
-        #expect(resolved == .never)
-        #expect(ClaudeOAuthKeychainPromptPreference.storedMode(userDefaults: cliDefaults) == .always)
+        let childReadAfterResolution = try self.runDefaults(["read", domain, key])
+        #expect(childReadAfterResolution.status != 0)
+    }
 
-        let taskOverride = ClaudeOAuthKeychainPromptPreference.withApplicationUserDefaultsOverrideForTesting(
-            appDefaults)
-        {
-            ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                ClaudeOAuthKeychainPromptPreference.storedMode()
-            }
+    @Test
+    func `newer tombstone survives an older cache transaction`() throws {
+        let domain = "ClaudeOAuthPendingCacheRaceTests.\(UUID().uuidString)"
+        let key = "pending"
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let lockURL = tempDirectory.appendingPathComponent("cache.lock")
+        let userDefaults = try #require(UserDefaults(suiteName: domain))
+        defer {
+            userDefaults.removePersistentDomain(forName: domain)
+            userDefaults.synchronize()
+            try? FileManager.default.removeItem(at: tempDirectory)
         }
-        #expect(taskOverride == .always)
 
-        let appStore = ClaudeOAuthPendingCacheClearUserDefaultsStore(
-            userDefaults: appDefaults,
-            key: "pending")
-        let cliViewOfAppStore = try ClaudeOAuthPendingCacheClearUserDefaultsStore(
-            userDefaults: #require(UserDefaults(suiteName: appDomain)),
-            key: "pending")
-        appStore.setPending(true)
-        #expect(cliViewOfAppStore.isPending)
-        cliViewOfAppStore.setPending(false)
-        #expect(!appStore.isPending)
+        let store = ClaudeOAuthPendingCacheClearUserDefaultsStore(
+            domain: domain,
+            key: key,
+            lockURL: lockURL)
+        store.markPending()
+
+        let newerGeneration = UUID().uuidString
+        var childWriteStatus: Int32?
+        store.withCacheTransaction { pending in
+            childWriteStatus = try? self.runDefaults(["write", domain, key, newerGeneration]).status
+            pending = false
+        }
+        userDefaults.synchronize()
+
+        #expect(childWriteStatus == 0)
+        #expect(userDefaults.string(forKey: key) == newerGeneration)
+        #expect(store.isPending)
+    }
+
+    @Test
+    func `legacy boolean tombstone remains pending until cache resolution`() throws {
+        let domain = "ClaudeOAuthPendingCacheLegacyTests.\(UUID().uuidString)"
+        let key = "pending"
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let userDefaults = try #require(UserDefaults(suiteName: domain))
+        defer {
+            userDefaults.removePersistentDomain(forName: domain)
+            userDefaults.synchronize()
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+        userDefaults.set(true, forKey: key)
+        userDefaults.synchronize()
+
+        let store = ClaudeOAuthPendingCacheClearUserDefaultsStore(
+            domain: domain,
+            key: key,
+            lockURL: tempDirectory.appendingPathComponent("cache.lock"))
+        #expect(store.isPending)
+        store.withCacheTransaction { pending in
+            pending = false
+        }
+        #expect(!store.isPending)
+    }
+
+    @Test
+    func `cache transaction fails closed when its lock is unavailable`() throws {
+        let domain = "ClaudeOAuthPendingCacheLockFailureTests.\(UUID().uuidString)"
+        let key = "pending"
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        let nonDirectoryURL = tempDirectory.appendingPathComponent("not-a-directory")
+        try Data().write(to: nonDirectoryURL)
+        let userDefaults = try #require(UserDefaults(suiteName: domain))
+        defer {
+            userDefaults.removePersistentDomain(forName: domain)
+            userDefaults.synchronize()
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let store = ClaudeOAuthPendingCacheClearUserDefaultsStore(
+            domain: domain,
+            key: key,
+            lockURL: nonDirectoryURL.appendingPathComponent("cache.lock"))
+        var operationCalled = false
+        store.withCacheTransaction { _ in
+            operationCalled = true
+        }
+        userDefaults.synchronize()
+
+        #expect(!operationCalled)
+        #expect(userDefaults.string(forKey: key) != nil)
+        #expect(store.isPending)
     }
 
     @Test
@@ -442,8 +598,43 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
 
                 #expect(credentials.accessToken == "security-cli-token")
                 #expect(state.recorder.operations.isEmpty)
+                #expect(state.pendingStore.isPending)
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == "cached-token")
+
+                do {
+                    _ = try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                        try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                            .securityCLIExperimental)
+                        {
+                            try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                                try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(nil)) {
+                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                        data: Data(),
+                                        fingerprint: nil)
+                                    {
+                                        try ProviderInteractionContext.$current.withValue(.background) {
+                                            try ClaudeOAuthCredentialsStore.load(
+                                                environment: [:],
+                                                allowKeychainPrompt: false)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
+                } catch let error as ClaudeOAuthCredentialsError {
+                    guard case .notFound = error else {
+                        Issue.record("Expected .notFound, got \(error)")
+                        return
+                    }
+                }
+
+                #expect(!state.pendingStore.isPending)
+                #expect(state.recorder.operations == [.clear, .load])
+                let clearedToken = try self.cachedToken(state)
+                #expect(clearedToken == nil)
 
                 let mcpOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"synthetic"}}}"#.utf8)
                 let isMcpOnly = ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
