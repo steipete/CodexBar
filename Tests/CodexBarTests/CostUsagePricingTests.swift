@@ -18,6 +18,8 @@ struct CostUsagePricingTests {
         #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-sol") == "gpt-5.6-sol")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-terra-2026-06-26") == "gpt-5.6-terra")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-luna-2026-06-26") == "gpt-5.6-luna")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6") == "gpt-5.6-sol")
+        #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-2026-06-26") == "gpt-5.6-sol")
     }
 
     @Test
@@ -75,7 +77,7 @@ struct CostUsagePricingTests {
 
     @Test
     func `codex cost supports gpt56 sol terra luna bundled fallback`() throws {
-        // Empty models.dev cache root forces the built-in table for preview GPT-5.6 tiers.
+        // Empty models.dev cache root forces the built-in table for GPT-5.6 tiers.
         let root = try Self.cacheRoot()
 
         let sol = CostUsagePricing.codexCostUSD(
@@ -96,12 +98,88 @@ struct CostUsagePricingTests {
             cachedInputTokens: 10,
             outputTokens: 5,
             modelsDevCacheRoot: root)
+        let alias = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
 
-        // Preview rates per token: Sol $5/$30 per 1M, Terra $2.50/$15, Luna $1/$6;
+        // Rates per token: Sol $5/$30 per 1M, Terra $2.50/$15, Luna $1/$6;
         // cache read is 10% of input. Non-cached input is 90 tokens.
         #expect(sol == (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5))
         #expect(terra == (90.0 * 2.5e-6) + (10.0 * 2.5e-7) + (5.0 * 1.5e-5))
         #expect(luna == (90.0 * 1e-6) + (10.0 * 1e-7) + (5.0 * 6e-6))
+        // Unsuffixed gpt-5.6 alias routes to Sol.
+        #expect(alias == sol)
+    }
+
+    @Test
+    func `codex cost applies gpt56 long context rates`() throws {
+        let root = try Self.cacheRoot()
+        let sol = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+        let terra = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+        let luna = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-luna",
+            inputTokens: 272_001,
+            cachedInputTokens: 0,
+            outputTokens: 10,
+            modelsDevCacheRoot: root)
+
+        // Long-context (>272K): 2x input, 1.5x output for the full request.
+        #expect(sol == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
+        #expect(terra == (272_001.0 * 5e-6) + (10.0 * 2.25e-5))
+        #expect(luna == (272_001.0 * 2e-6) + (10.0 * 9e-6))
+    }
+
+    @Test
+    func `codex cost bills gpt56 cache writes at one point two five x input`() throws {
+        let root = try Self.cacheRoot()
+        // Total prompt 100: 70 uncached + 20 cache-write + 10 cache-read.
+        let sol = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+
+        let expected = (70.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (5.0 * 3e-5)
+        #expect(sol == expected)
+    }
+
+    @Test
+    func `codex priority cost supports gpt56 tiers`() {
+        let sol = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10)
+        let terra = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10)
+        let luna = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-luna",
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10)
+
+        // Priority is 2x short-context rates (Sol input $10/1M, etc.).
+        #expect(sol == (80.0 * 1e-5) + (20.0 * 1e-6) + (10.0 * 6e-5))
+        #expect(terra == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
+        #expect(luna == (80.0 * 2e-6) + (20.0 * 2e-7) + (10.0 * 1.2e-5))
     }
 
     @Test
