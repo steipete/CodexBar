@@ -208,7 +208,7 @@ def filter_for(suites: list[TestSelection]) -> str:
 
 def run_group(suites: list[TestSelection], timeout: int, swift_command: list[str]) -> int:
     return run_command(
-        [*swift_command, "test", "--no-parallel", "--filter", filter_for(suites)],
+        [*swift_command, "test", "--skip-build", "--no-parallel", "--filter", filter_for(suites)],
         timeout=timeout,
     )
 
