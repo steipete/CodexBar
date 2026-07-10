@@ -93,6 +93,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Two shards amortize SwiftPM's per-shard discovery/cold build.
+        # Each shard remains within the 50-minute Swift Test timeout.
         shard-index: [0, 1]
         shard-count: [2]
     steps:
