@@ -2,6 +2,16 @@ import CodexBarCore
 import Foundation
 
 extension StatusItemController {
+    func makeMenuCardRefreshMonitor() -> MenuCardRefreshMonitor {
+        MenuCardRefreshMonitor(
+            resolveModel: { [weak self] provider in
+                self?.menuCardModel(for: provider)
+            },
+            isProviderRefreshActive: { [weak self] provider in
+                self?.store.refreshingProviders.contains(provider) == true
+            })
+    }
+
     func menuCardModel(
         for provider: UsageProvider?,
         snapshotOverride: UsageSnapshot? = nil,

@@ -339,103 +339,6 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
-    func `global manual refresh only marks active provider cards as refreshing`() {
-        let settings = self.makeSettings()
-        let controller = self.makeController(settings: settings)
-        let monitor = controller.menuCardRefreshMonitor
-        let fallback = MenuCardLiveSubtitle(text: "Idle", style: .info)
-
-        monitor.beginManualRefresh(frozenModels: [:], provider: nil)
-        defer { monitor.endManualRefresh() }
-
-        controller.store.refreshingProviders.insert(.claude)
-        #expect(monitor.isManualRefreshInFlight)
-        #expect(!monitor.isManualRefreshInFlight(for: .codex))
-        #expect(monitor.isManualRefreshInFlight(for: .claude))
-        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .info)
-        #expect(monitor.subtitle(for: .claude, fallback: fallback).style == .loading)
-
-        controller.store.refreshingProviders.remove(.claude)
-        #expect(!monitor.isManualRefreshInFlight(for: .claude))
-        #expect(monitor.subtitle(for: .claude, fallback: fallback).style == .info)
-    }
-
-    @Test
-    func `completed provider cards stop refreshing while another provider is still running`() async {
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.costUsageEnabled = false
-        settings.openAIWebAccessEnabled = false
-        settings.codexCookieSource = .off
-        self.enableOnly([.claude, .codex], settings: settings)
-        let controller = self.makeController(settings: settings)
-        let claudeStarted = ManualRefreshGate()
-        let releaseClaude = ManualRefreshGate()
-        let monitor = controller.menuCardRefreshMonitor
-        let fallback = MenuCardLiveSubtitle(text: "Idle", style: .info)
-
-        controller.store._test_providerRefreshOverride = { provider in
-            guard provider == .claude else { return }
-            claudeStarted.resume()
-            await releaseClaude.wait()
-        }
-        defer { controller.store._test_providerRefreshOverride = nil }
-
-        controller.refreshNow()
-        await claudeStarted.wait()
-        for _ in 0..<20 where controller.store.refreshingProviders != [.claude] {
-            await Task.yield()
-        }
-
-        #expect(controller.store.refreshingProviders == [.claude])
-        #expect(!monitor.isManualRefreshInFlight(for: .codex))
-        #expect(monitor.isManualRefreshInFlight(for: .claude))
-        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .info)
-        #expect(monitor.subtitle(for: .claude, fallback: fallback).style == .loading)
-
-        releaseClaude.resume()
-        await controller.manualRefreshTasks[.global]?.value
-    }
-
-    @Test
-    func `token-cost tail does not keep completed provider card refreshing`() async {
-        let settings = self.makeSettings()
-        settings.statusChecksEnabled = false
-        settings.costUsageEnabled = true
-        settings.openAIWebAccessEnabled = false
-        settings.codexCookieSource = .off
-        self.enableOnly([.codex], settings: settings)
-        let controller = self.makeController(settings: settings)
-        let tokenRefreshStarted = ManualRefreshGate()
-        let releaseTokenRefresh = ManualRefreshGate()
-        let monitor = controller.menuCardRefreshMonitor
-        let fallback = MenuCardLiveSubtitle(text: "Idle", style: .info)
-
-        controller.store._test_providerRefreshOverride = { _ in }
-        controller.store._test_tokenUsageRefreshOverride = { _, _ in
-            tokenRefreshStarted.resume()
-            await releaseTokenRefresh.wait()
-        }
-        defer {
-            controller.store._test_providerRefreshOverride = nil
-            controller.store._test_tokenUsageRefreshOverride = nil
-        }
-
-        controller.refreshNow()
-        await tokenRefreshStarted.wait()
-
-        #expect(controller.store.isRefreshing)
-        #expect(controller.store.refreshingProviders.isEmpty)
-        #expect(monitor.isManualRefreshInFlight)
-        #expect(!monitor.isManualRefreshInFlight(for: .codex))
-        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .info)
-
-        releaseTokenRefresh.resume()
-        await controller.manualRefreshTasks[.global]?.value
-        #expect(!monitor.isManualRefreshInFlight)
-    }
-
-    @Test
     func `scoped refresh monitor leaves unrelated providers unchanged`() throws {
         let settings = self.makeSettings()
         let controller = self.makeController(settings: settings)
@@ -1213,6 +1116,104 @@ extension StatusMenuPersistentRefreshTests {
 }
 
 extension StatusMenuPersistentRefreshTests {
+    @Test
+    func `global manual refresh only marks active provider cards as refreshing`() {
+        let settings = self.makeSettings()
+        let controller = self.makeController(settings: settings)
+        let monitor = controller.menuCardRefreshMonitor
+        let fallback = MenuCardLiveSubtitle(text: "Idle", style: .info)
+
+        monitor.beginManualRefresh(frozenModels: [:], provider: nil)
+        defer { monitor.endManualRefresh() }
+
+        controller.store.refreshingProviders.insert(.claude)
+        #expect(monitor.isManualRefreshInFlight)
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        #expect(monitor.isManualRefreshInFlight(for: .claude))
+        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .info)
+        #expect(monitor.subtitle(for: .claude, fallback: fallback).style == .loading)
+
+        controller.store.refreshingProviders.remove(.claude)
+        #expect(monitor.isManualRefreshInFlight)
+        #expect(!monitor.isManualRefreshInFlight(for: .claude))
+        #expect(monitor.subtitle(for: .claude, fallback: fallback).style == .info)
+    }
+
+    @Test
+    func `completed provider cards stop refreshing while another provider is still running`() async {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.costUsageEnabled = false
+        settings.openAIWebAccessEnabled = false
+        settings.codexCookieSource = .off
+        self.enableOnly([.claude, .codex], settings: settings)
+        let controller = self.makeController(settings: settings)
+        let claudeStarted = ManualRefreshGate()
+        let releaseClaude = ManualRefreshGate()
+        let monitor = controller.menuCardRefreshMonitor
+        let fallback = MenuCardLiveSubtitle(text: "Idle", style: .info)
+
+        controller.store._test_providerRefreshOverride = { provider in
+            guard provider == .claude else { return }
+            claudeStarted.resume()
+            await releaseClaude.wait()
+        }
+        defer { controller.store._test_providerRefreshOverride = nil }
+
+        controller.refreshNow()
+        await claudeStarted.wait()
+        for _ in 0..<20 where controller.store.refreshingProviders != [.claude] {
+            await Task.yield()
+        }
+
+        #expect(controller.store.refreshingProviders == [.claude])
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        #expect(monitor.isManualRefreshInFlight(for: .claude))
+        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .info)
+        #expect(monitor.subtitle(for: .claude, fallback: fallback).style == .loading)
+
+        releaseClaude.resume()
+        await controller.manualRefreshTasks[.global]?.value
+    }
+
+    @Test
+    func `token-cost tail does not keep completed provider card refreshing`() async {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.costUsageEnabled = true
+        settings.openAIWebAccessEnabled = false
+        settings.codexCookieSource = .off
+        self.enableOnly([.codex], settings: settings)
+        let controller = self.makeController(settings: settings)
+        let tokenRefreshStarted = ManualRefreshGate()
+        let releaseTokenRefresh = ManualRefreshGate()
+        let monitor = controller.menuCardRefreshMonitor
+        let fallback = MenuCardLiveSubtitle(text: "Idle", style: .info)
+
+        controller.store._test_providerRefreshOverride = { _ in }
+        controller.store._test_tokenUsageRefreshOverride = { _, _ in
+            tokenRefreshStarted.resume()
+            await releaseTokenRefresh.wait()
+        }
+        defer {
+            controller.store._test_providerRefreshOverride = nil
+            controller.store._test_tokenUsageRefreshOverride = nil
+        }
+
+        controller.refreshNow()
+        await tokenRefreshStarted.wait()
+
+        #expect(controller.store.isRefreshing)
+        #expect(controller.store.refreshingProviders.isEmpty)
+        #expect(monitor.isManualRefreshInFlight)
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        #expect(monitor.subtitle(for: .codex, fallback: fallback).style == .info)
+
+        releaseTokenRefresh.resume()
+        await controller.manualRefreshTasks[.global]?.value
+        #expect(!monitor.isManualRefreshInFlight)
+    }
+
     @Test
     func `concurrent manual refreshes keep each provider's frozen card`() throws {
         let settings = self.makeSettings()
