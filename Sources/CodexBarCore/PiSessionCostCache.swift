@@ -1,7 +1,7 @@
 import Foundation
 
 enum PiSessionCostCacheIO {
-    /// Bumped when stored `costNanos` must be recomputed (e.g. GPT-5.6 cache-write rates).
+    /// Artifact schema version. Pricing changes are tracked separately by `pricingKey`.
     private static let artifactVersion = 5
 
     private static func defaultCacheRoot() -> URL {
@@ -52,6 +52,7 @@ struct PiSessionCostCache: Codable {
     var lastScanUnixMs: Int64 = 0
     var scanSinceKey: String?
     var scanUntilKey: String?
+    var pricingKey: String?
     var daysByProvider: [String: [String: [String: PiPackedUsage]]] = [:]
     var files: [String: PiSessionFileUsage] = [:]
 

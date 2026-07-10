@@ -16,10 +16,9 @@ struct CostUsagePricingTests {
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-2026-03-05") == "gpt-5.3-codex")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.3-codex-spark") == "gpt-5.3-codex-spark")
         #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-sol") == "gpt-5.6-sol")
-        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-terra-2026-06-26") == "gpt-5.6-terra")
-        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-luna-2026-06-26") == "gpt-5.6-luna")
+        #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-terra") == "gpt-5.6-terra")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-luna") == "gpt-5.6-luna")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6") == "gpt-5.6-sol")
-        #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-2026-06-26") == "gpt-5.6-sol")
     }
 
     @Test
@@ -87,7 +86,7 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
         let terra = CostUsagePricing.codexCostUSD(
-            model: "gpt-5.6-terra-2026-06-26",
+            model: "gpt-5.6-terra",
             inputTokens: 100,
             cachedInputTokens: 10,
             outputTokens: 5,
@@ -120,26 +119,30 @@ struct CostUsagePricingTests {
         let sol = CostUsagePricing.codexCostUSD(
             model: "gpt-5.6-sol",
             inputTokens: 272_001,
-            cachedInputTokens: 0,
+            cachedInputTokens: 10,
             outputTokens: 10,
+            cacheWriteInputTokens: 20,
             modelsDevCacheRoot: root)
         let terra = CostUsagePricing.codexCostUSD(
             model: "gpt-5.6-terra",
             inputTokens: 272_001,
-            cachedInputTokens: 0,
+            cachedInputTokens: 10,
             outputTokens: 10,
+            cacheWriteInputTokens: 20,
             modelsDevCacheRoot: root)
         let luna = CostUsagePricing.codexCostUSD(
             model: "gpt-5.6-luna",
             inputTokens: 272_001,
-            cachedInputTokens: 0,
+            cachedInputTokens: 10,
             outputTokens: 10,
+            cacheWriteInputTokens: 20,
             modelsDevCacheRoot: root)
 
-        // Long-context (>272K): 2x input, 1.5x output for the full request.
-        #expect(sol == (272_001.0 * 1e-5) + (10.0 * 4.5e-5))
-        #expect(terra == (272_001.0 * 5e-6) + (10.0 * 2.25e-5))
-        #expect(luna == (272_001.0 * 2e-6) + (10.0 * 9e-6))
+        // Long-context (>272K) rates apply to the entire request. Total input contains 10 cached,
+        // 20 cache-write, and 271,971 ordinary input tokens.
+        #expect(sol == (271_971.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (10.0 * 4.5e-5))
+        #expect(terra == (271_971.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (10.0 * 2.25e-5))
+        #expect(luna == (271_971.0 * 2e-6) + (10.0 * 2e-7) + (20.0 * 2.5e-6) + (10.0 * 9e-6))
     }
 
     @Test
@@ -183,18 +186,39 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost bills gpt56 cache writes at one point two five x priority input`() {
-        // Total 100: 70 uncached + 20 cache-write + 10 cache-read at Priority rates.
+    func `codex priority cost uses explicit cache write rates`() {
         let sol = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-sol",
             inputTokens: 100,
             cachedInputTokens: 10,
             cacheWriteInputTokens: 20,
             outputTokens: 5)
+        let terra = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            cacheWriteInputTokens: 20,
+            outputTokens: 5)
+        let luna = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-luna",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            cacheWriteInputTokens: 20,
+            outputTokens: 5)
+        let modelWithoutCacheWriteSupport = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.5",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            cacheWriteInputTokens: 20,
+            outputTokens: 5)
 
-        // Priority Sol: input $10/1M, cache read $1/1M, cache write $12.50/1M, output $60/1M.
-        let expected = (70.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (5.0 * 6e-5)
-        #expect(sol == expected)
+        #expect(sol == (70.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (5.0 * 6e-5))
+        #expect(terra == (70.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (5.0 * 3e-5))
+        #expect(luna == (70.0 * 2e-6) + (10.0 * 2e-7) + (20.0 * 2.5e-6) + (5.0 * 1.2e-5))
+        // A model without an explicit Priority cache-write price keeps the legacy input-rate fold.
+        #expect(
+            modelWithoutCacheWriteSupport ==
+                (90.0 * 1.25e-5) + (10.0 * 1.25e-6) + (5.0 * 7.5e-5))
     }
 
     @Test
@@ -428,10 +452,61 @@ struct CostUsagePricingTests {
             outputTokens: 10,
             modelsDevCacheRoot: root)
 
-        // Catalog omits long-context cache_read; fall back to bundled GPT-5.5 long-context cache
-        // rate ($1/1M), not the full long-context input rate.
-        let expected = (100_000.0 * 10e-6) + (200_000.0 * 1e-6) + (10.0 * 45e-6)
+        // The catalog has a long-context block but omits cache_read, so preserve its omission
+        // semantics: cached tokens fall back to the long-context input rate rather than mixing in
+        // one field from the bundled table.
+        let expected = (100_000.0 * 10e-6) + (200_000.0 * 10e-6) + (10.0 * 45e-6)
         #expect(cost == expected)
+    }
+}
+
+extension CostUsagePricingTests {
+    @Test
+    func `codex models dev uses bundled short cache rates only when catalog omits them`() throws {
+        let missingRoot = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 5, "output": 30 }
+              }
+            }
+          }
+        }
+        """)
+        let explicitZeroRoot = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 5, "output": 30, "cache_read": 0, "cache_write": 0 }
+              }
+            }
+          }
+        }
+        """)
+
+        let missing = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 0,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: missingRoot)
+        let explicitZero = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 0,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: explicitZeroRoot)
+
+        #expect(missing == (70.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6))
+        #expect(explicitZero == 70.0 * 5e-6)
     }
 
     @Test

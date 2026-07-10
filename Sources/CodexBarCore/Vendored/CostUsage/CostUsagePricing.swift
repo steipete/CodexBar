@@ -20,6 +20,7 @@ enum CostUsagePricing {
         let priorityInputCostPerToken: Double?
         let priorityOutputCostPerToken: Double?
         let priorityCacheReadInputCostPerToken: Double?
+        let priorityCacheWriteInputCostPerToken: Double?
 
         init(
             inputCostPerToken: Double,
@@ -34,7 +35,8 @@ enum CostUsagePricing {
             cacheWriteInputCostPerTokenAboveThreshold: Double? = nil,
             priorityInputCostPerToken: Double? = nil,
             priorityOutputCostPerToken: Double? = nil,
-            priorityCacheReadInputCostPerToken: Double? = nil)
+            priorityCacheReadInputCostPerToken: Double? = nil,
+            priorityCacheWriteInputCostPerToken: Double? = nil)
         {
             self.inputCostPerToken = inputCostPerToken
             self.outputCostPerToken = outputCostPerToken
@@ -49,6 +51,7 @@ enum CostUsagePricing {
             self.priorityInputCostPerToken = priorityInputCostPerToken
             self.priorityOutputCostPerToken = priorityOutputCostPerToken
             self.priorityCacheReadInputCostPerToken = priorityCacheReadInputCostPerToken
+            self.priorityCacheWriteInputCostPerToken = priorityCacheWriteInputCostPerToken
         }
     }
 
@@ -193,8 +196,8 @@ enum CostUsagePricing {
             displayLabel: nil),
         // GPT-5.6 Sol/Terra/Luna (OpenAI pricing page + model cards).
         // Long context: prompts with >272K input tokens are 2x input / 1.5x output for the full
-        // request. Cache writes: 1.25x uncached input. Priority: 2x short-context rates (input
-        // confirmed on the Priority tab; output/cache follow the GPT-5.4 2x pattern).
+        // request. Cache writes: 1.25x uncached input. Priority rates are explicit because support
+        // and multipliers are provider contracts, not properties that can be inferred from Standard.
         "gpt-5.6-sol": CodexPricing(
             inputCostPerToken: 5e-6,
             outputCostPerToken: 3e-5,
@@ -208,7 +211,8 @@ enum CostUsagePricing {
             cacheWriteInputCostPerTokenAboveThreshold: 1.25e-5,
             priorityInputCostPerToken: 1e-5,
             priorityOutputCostPerToken: 6e-5,
-            priorityCacheReadInputCostPerToken: 1e-6),
+            priorityCacheReadInputCostPerToken: 1e-6,
+            priorityCacheWriteInputCostPerToken: 1.25e-5),
         "gpt-5.6-terra": CodexPricing(
             inputCostPerToken: 2.5e-6,
             outputCostPerToken: 1.5e-5,
@@ -222,7 +226,8 @@ enum CostUsagePricing {
             cacheWriteInputCostPerTokenAboveThreshold: 6.25e-6,
             priorityInputCostPerToken: 5e-6,
             priorityOutputCostPerToken: 3e-5,
-            priorityCacheReadInputCostPerToken: 5e-7),
+            priorityCacheReadInputCostPerToken: 5e-7,
+            priorityCacheWriteInputCostPerToken: 6.25e-6),
         "gpt-5.6-luna": CodexPricing(
             inputCostPerToken: 1e-6,
             outputCostPerToken: 6e-6,
@@ -236,7 +241,8 @@ enum CostUsagePricing {
             cacheWriteInputCostPerTokenAboveThreshold: 2.5e-6,
             priorityInputCostPerToken: 2e-6,
             priorityOutputCostPerToken: 1.2e-5,
-            priorityCacheReadInputCostPerToken: 2e-7),
+            priorityCacheReadInputCostPerToken: 2e-7,
+            priorityCacheWriteInputCostPerToken: 2.5e-6),
     ]
 
     static func codexBuiltInPricingFingerprint() -> String {
@@ -258,6 +264,7 @@ enum CostUsagePricing {
                 self.optionalPricingFingerprint(pricing.priorityInputCostPerToken),
                 self.optionalPricingFingerprint(pricing.priorityOutputCostPerToken),
                 self.optionalPricingFingerprint(pricing.priorityCacheReadInputCostPerToken),
+                self.optionalPricingFingerprint(pricing.priorityCacheWriteInputCostPerToken),
             ].joined(separator: "|"))
         }
         return parts.joined(separator: "\n")
@@ -465,9 +472,6 @@ enum CostUsagePricing {
 
         if let datedSuffix = trimmed.range(of: #"-\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) {
             let base = String(trimmed[..<datedSuffix.lowerBound])
-            if base == "gpt-5.6" {
-                return "gpt-5.6-sol"
-            }
             if self.codex[base] != nil {
                 return base
             }
@@ -525,22 +529,36 @@ enum CostUsagePricing {
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
         {
-            // Prefer models.dev rates; fall back to bundled long-context / cache-write fields so a
-            // partial catalog (e.g. short-context only) cannot arm the 272K threshold without rates.
             let bundled = self.codex[key]
+            // A missing catalog context block means models.dev has no long-context opinion, so use
+            // the bundled tuple. Once the block exists, preserve its omissions and normal fallback
+            // semantics instead of filling individual fields from a different pricing source.
+            let bundledLongContext = lookup.pricing.thresholdTokens == nil ? bundled : nil
+            let cacheReadAboveThreshold = lookup.pricing.cacheReadInputCostPerTokenAboveThreshold
+                ?? (lookup.pricing.thresholdTokens != nil
+                    ? lookup.pricing.cacheReadInputCostPerToken
+                    ?? lookup.pricing.inputCostPerTokenAboveThreshold
+                    ?? lookup.pricing.inputCostPerToken
+                    : bundledLongContext?.cacheReadInputCostPerTokenAboveThreshold)
+            let cacheWriteAboveThreshold = lookup.pricing.cacheCreationInputCostPerTokenAboveThreshold
+                ?? (lookup.pricing.thresholdTokens != nil
+                    ? lookup.pricing.cacheCreationInputCostPerToken
+                    ?? lookup.pricing.inputCostPerTokenAboveThreshold
+                    ?? lookup.pricing.inputCostPerToken
+                    : bundledLongContext?.cacheWriteInputCostPerTokenAboveThreshold)
             return self.codexCostUSD(
                 pricing: lookup.pricing,
-                thresholdTokens: bundled?.thresholdTokens,
+                thresholdTokens: bundled?.thresholdTokens ?? lookup.pricing.thresholdTokens,
                 inputCostPerTokenAboveThreshold: lookup.pricing.inputCostPerTokenAboveThreshold
-                    ?? bundled?.inputCostPerTokenAboveThreshold,
+                    ?? bundledLongContext?.inputCostPerTokenAboveThreshold,
                 outputCostPerTokenAboveThreshold: lookup.pricing.outputCostPerTokenAboveThreshold
-                    ?? bundled?.outputCostPerTokenAboveThreshold,
-                cacheReadInputCostPerTokenAboveThreshold: lookup.pricing.cacheReadInputCostPerTokenAboveThreshold
-                    ?? bundled?.cacheReadInputCostPerTokenAboveThreshold,
+                    ?? bundledLongContext?.outputCostPerTokenAboveThreshold,
+                cacheReadInputCostPerToken: lookup.pricing.cacheReadInputCostPerToken
+                    ?? bundled?.cacheReadInputCostPerToken,
+                cacheReadInputCostPerTokenAboveThreshold: cacheReadAboveThreshold,
                 cacheWriteInputCostPerToken: lookup.pricing.cacheCreationInputCostPerToken
                     ?? bundled?.cacheWriteInputCostPerToken,
-                cacheWriteInputCostPerTokenAboveThreshold: lookup.pricing.cacheCreationInputCostPerTokenAboveThreshold
-                    ?? bundled?.cacheWriteInputCostPerTokenAboveThreshold,
+                cacheWriteInputCostPerTokenAboveThreshold: cacheWriteAboveThreshold,
                 inputTokens: inputTokens,
                 cachedInputTokens: cachedInputTokens,
                 cacheWriteInputTokens: cacheWriteInputTokens,
@@ -572,19 +590,12 @@ enum CostUsagePricing {
             return nil
         }
 
-        // GPT-5.6 Priority cache writes are 1.25× Priority input (OpenAI pricing page). When the
-        // base model has a cache-write rate, apply the same 1.25× multiplier to Priority input.
-        let priorityCacheWriteCostPerToken: Double? = if pricing.cacheWriteInputCostPerToken != nil {
-            priorityInputCostPerToken * 1.25
-        } else {
-            nil
-        }
         let priorityPricing = CodexPricing(
             inputCostPerToken: priorityInputCostPerToken,
             outputCostPerToken: priorityOutputCostPerToken,
             cacheReadInputCostPerToken: pricing.priorityCacheReadInputCostPerToken,
             displayLabel: nil,
-            cacheWriteInputCostPerToken: priorityCacheWriteCostPerToken)
+            cacheWriteInputCostPerToken: pricing.priorityCacheWriteInputCostPerToken)
         return self.codexCostUSD(
             pricing: priorityPricing,
             inputTokens: inputTokens,
@@ -637,6 +648,7 @@ enum CostUsagePricing {
         thresholdTokens: Int? = nil,
         inputCostPerTokenAboveThreshold: Double? = nil,
         outputCostPerTokenAboveThreshold: Double? = nil,
+        cacheReadInputCostPerToken: Double? = nil,
         cacheReadInputCostPerTokenAboveThreshold: Double? = nil,
         cacheWriteInputCostPerToken: Double? = nil,
         cacheWriteInputCostPerTokenAboveThreshold: Double? = nil,
@@ -649,7 +661,8 @@ enum CostUsagePricing {
             pricing: CodexPricing(
                 inputCostPerToken: pricing.inputCostPerToken,
                 outputCostPerToken: pricing.outputCostPerToken,
-                cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken,
+                cacheReadInputCostPerToken: cacheReadInputCostPerToken
+                    ?? pricing.cacheReadInputCostPerToken,
                 displayLabel: nil,
                 cacheWriteInputCostPerToken: cacheWriteInputCostPerToken
                     ?? pricing.cacheCreationInputCostPerToken,
