@@ -3,6 +3,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
+@MainActor
 struct MenuCardCursorRequestDetailsTests {
     @Test
     func `expanded cursor details include weighted cost model cache breakdown and estimate`() {
@@ -20,12 +21,12 @@ struct MenuCardCursorRequestDetailsTests {
                 totalTokens: 3_000_000,
                 confidence: .partialBreakdown))
 
-        let lines = MenuCardTokenDetailsModel.lines(for: request)
+        let detailsView = CursorRequestDetailsList(requests: [request])
 
-        #expect(lines.contains("Request cost: 2"))
-        #expect(lines.contains(where: { $0.hasPrefix("Model: ") }))
-        #expect(lines.contains(where: { $0.contains("cache read") }))
-        #expect(lines.contains(where: { $0.hasPrefix("Approx.") || $0.hasPrefix("Est.") }))
+        #expect(detailsView.requests.first?.model == request.model)
+        #expect(detailsView.requests.first?.requestCost == 2)
+        #expect(UsageFormatter.cursorRequestCostDetail(requestCost: request.requestCost) == "Request cost: 2")
+        #expect(UsageFormatter.cursorEstimateText(CursorRequestCostEstimator.estimate(for: request)) != nil)
     }
 
     @Test

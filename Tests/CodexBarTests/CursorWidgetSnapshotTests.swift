@@ -48,7 +48,7 @@ struct CursorWidgetSnapshotTests {
         await store.widgetSnapshotPersistTask?.value
         let entry = try #require(captured?.entries.first { $0.provider == .cursor })
 
-        #expect(entry.tokenUsage?.sessionCostText == "Approx. $4.10+")
+        #expect(Self.encodedSnapshot(captured).contains("\"sessionCostText\":\"Approx. $4.10+\""))
         #expect(entry.cursorRequestRange?.label == "Cycle")
         #expect(entry.cursorRequestRange?.start == range.start)
         #expect(entry.cursorRequestRange?.end == range.end)
@@ -116,5 +116,12 @@ struct CursorWidgetSnapshotTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing)
+    }
+
+    private static func encodedSnapshot(_ snapshot: WidgetSnapshot?) -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = (try? encoder.encode(snapshot)) ?? Data()
+        return String(decoding: data, as: UTF8.self)
     }
 }
