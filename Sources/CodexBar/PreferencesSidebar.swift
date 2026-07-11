@@ -33,7 +33,9 @@ struct SettingsSidebarView: View {
     private var appPanesSection: some View {
         Section {
             SettingsSidebarPaneRow(pane: .general, systemImage: "gearshape.fill", color: .gray)
-            SettingsSidebarPaneRow(pane: .display, systemImage: "menubar.rectangle", color: .blue)
+            SettingsSidebarPaneRow(pane: .notifications, systemImage: "bell.badge.fill", color: .red)
+            SettingsSidebarPaneRow(pane: .menuBar, systemImage: "menubar.rectangle", color: .blue)
+            SettingsSidebarPaneRow(pane: .menu, systemImage: "filemenu.and.selection", color: .teal)
             SettingsSidebarPaneRow(pane: .advanced, systemImage: "slider.horizontal.3", color: .purple)
             SettingsSidebarAboutRow()
             if self.settings.debugMenuEnabled {

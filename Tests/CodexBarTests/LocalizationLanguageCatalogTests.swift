@@ -471,6 +471,7 @@ struct LocalizationLanguageCatalogTests {
             "link_github",
             "ory_session_…=…; csrftoken=…",
             "section_privacy",
+            "tab_menu",
         ]
         let unchanged = Set(english.keys.filter { italian[$0] == english[$0] })
         #expect(unchanged == intentionallyUnchanged)

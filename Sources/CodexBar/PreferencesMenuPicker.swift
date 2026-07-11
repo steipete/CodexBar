@@ -63,11 +63,18 @@ enum GeneralSettingsMenuOptions {
     }
 }
 
-enum DisplaySettingsMenuOptions {
+enum MenuBarSettingsMenuOptions {
     static let displayModes = MenuBarDisplayMode.allCases
+    static let iconStyles = MenuBarIconStyle.allCases
+    static let switcherRows = SwitcherRowsOption.allCases
+}
+
+enum MenuSettingsMenuOptions {
     static let weeklyProgressWorkDays: [Int?] = [nil, 4, 5, 7]
     static let multiAccountLayouts = MultiAccountMenuLayout.allCases
-    static let costSummaryDisplayStyles = CostSummaryDisplayStyle.allCases
+    static let usageBarsFill = UsageBarsFillOption.allCases
+    static let resetTimes = ResetTimesOption.allCases
+    static let costSummaries = CostSummaryOption.allCases
 
     static func weeklyProgressWorkDaysLabel(_ workDays: Int?) -> String {
         switch workDays {
@@ -78,4 +85,8 @@ enum DisplaySettingsMenuOptions {
         case let workDays?: L("%d days", workDays)
         }
     }
+}
+
+enum NotificationsSettingsMenuOptions {
+    static let confettiCelebrations = ConfettiCelebrationOption.allCases
 }

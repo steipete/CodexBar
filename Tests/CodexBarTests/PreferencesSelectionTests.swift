@@ -7,12 +7,26 @@ import Testing
 struct PreferencesSelectionTests {
     @Test
     func `pane persistence tokens round-trip`() {
-        let panes: [SettingsPane] = [.general, .display, .advanced, .about, .debug, .provider(.claude)]
+        let panes: [SettingsPane] = [
+            .general,
+            .notifications,
+            .menuBar,
+            .menu,
+            .advanced,
+            .about,
+            .debug,
+            .provider(.claude),
+        ]
         for pane in panes {
             #expect(SettingsPane(persistenceToken: pane.persistenceToken) == pane)
         }
         #expect(SettingsPane(persistenceToken: "provider:definitely-not-a-provider") == nil)
         #expect(SettingsPane(persistenceToken: "") == nil)
+    }
+
+    @Test
+    func `legacy display token restores the menu bar pane`() {
+        #expect(SettingsPane(persistenceToken: "display") == .menuBar)
     }
 
     @Test
