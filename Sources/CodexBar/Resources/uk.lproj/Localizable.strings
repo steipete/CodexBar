@@ -393,7 +393,14 @@
 /* General Pane */
 "section_system" = "Система";
 "section_usage" = "Використання";
-"section_automation" = "Автоматизація";
+"section_refreshing" = "Оновлення";
+"section_alerts" = "Сповіщення";
+"section_celebrations" = "Святкування";
+"section_icon" = "Значок";
+"section_combined_icon" = "Об’єднаний значок";
+"section_animation" = "Анімація";
+"section_content" = "Вміст";
+"section_agent_sessions" = "Сеанси агентів";
 "language_title" = "Мова";
 "language_subtitle" = "Змінює мову інтерфейсу. Для повного застосування потрібно перезапустити застосунок.";
 "language_system" = "Система";
@@ -418,7 +425,6 @@
 "language_polish" = "Польська";
 "start_at_login_title" = "Почніть із входу";
 "start_at_login_subtitle" = "Автоматично відкриває CodexBar під час запуску Mac.";
-"show_cost_summary" = "Показати підсумок витрат";
 "show_cost_summary_subtitle" = "Читає локальні журнали використання. Показує сьогодні + вибране вікно історії в меню.";
 "cost_summary_style_title" = "Стиль відображення";
 "cost_summary_style_inline" = "Лише вбудовано";
@@ -433,17 +439,16 @@
 "cost_auto_refresh_info" = "Автоматичне оновлення: щогодини · Час очікування: 10 хв";
 "cost_comparison_periods_title" = "Показувати коротші періоди порівняння";
 "cost_comparison_periods_subtitle" = "Додає підсумки за 7, 30 і 90 днів, якщо вони входять у вибране вікно історії. Для цих підсумків використовується те саме локальне сканування.";
-"refresh_cadence_title" = "Оновити каденцію";
-"refresh_cadence_subtitle" = "Як часто CodexBar опитує постачальників у фоновому режимі.";
+"refresh_interval_title" = "Інтервал оновлення";
 "manual_refresh_hint" = "Автооновлення вимкнено; скористайтеся командою меню «Оновити».";
 "refresh_on_open_title" = "Оновлювати при відкритті меню";
 "refresh_on_open_subtitle" = "Отримує найновіші дані про використання для кожного провайдера щоразу, коли ви відкриваєте меню.";
 "check_provider_status_title" = "Перевірте статус провайдера";
 "check_provider_status_subtitle" = "Опитує сторінки статусу OpenAI/Claude і Google Workspace для Gemini/Antigravity, виявляючи інциденти в значку та меню.";
-"session_quota_notifications_title" = "Сповіщення про квоту сеансу";
 "session_quota_notifications_subtitle" = "Повідомляє, коли 5-годинна квота сеансу досягає 0% і коли вона знову стає доступною.";
-"quota_warning_notifications_title" = "Попередження про квоту";
+"quota_depleted_title" = "Вичерпання та відновлення квоти";
 "quota_warning_notifications_subtitle" = "Попереджає, коли залишок сеансу або тижневої квоти перевищує налаштовані порогові значення.";
+"threshold_warnings_title" = "Попередження про порогові значення";
 "quota_warnings_title" = "Попередження про квоту";
 "quota_warning_session" = "сесії";
 "quota_warning_session_capitalized" = "Сесія";
@@ -454,6 +459,12 @@
 "quota_warning_notification_body_with_account" = "Рахунок %1$@. Залишилося %2$@. Досягнуто %3$d%% %4$@ порогового значення попередження.";
 "predictive_pace_warnings_title" = "Прогнозні попередження про темп";
 "predictive_pace_warnings_subtitle" = "Попереджає для Codex і Claude, коли темп сеансу або тижня може вичерпати квоту до скидання.";
+"confetti_on_reset_title" = "Конфеті під час скидання";
+"confetti_on_reset_subtitle" = "Показувати повноекранне конфеті під час скидання показників використання.";
+"confetti_option_off" = "Вимкнено";
+"confetti_option_session" = "Скидання сеансу";
+"confetti_option_weekly" = "Щотижневі скидання";
+"confetti_option_both" = "Обидва варіанти";
 "predictive_pace_warning_notification_title" = "%1$@: попередження про темп (%2$@)";
 "predictive_pace_warning_notification_body" = "За поточного темпу ця квота може вичерпатися за %1$@, до скидання.";
 "predictive_pace_warning_notification_body_with_account" = "Обліковий запис %1$@. За поточного темпу ця квота може вичерпатися за %2$@, до скидання.";
@@ -483,7 +494,9 @@
 /* Tab titles */
 "tab_general" = "Загальні";
 "tab_providers" = "Провайдери";
-"tab_display" = "Відображення";
+"tab_notifications" = "Сповіщення";
+"tab_menu_bar" = "Рядок меню";
+"tab_menu" = "Меню";
 "tab_advanced" = "Розширені";
 "tab_about" = "Про програму";
 "tab_debug" = "Налагодження";
@@ -514,34 +527,36 @@
 "primary_api_key_limit" = "Основний (обмеження ключа API)";
 
 /* Display Pane */
-"section_menu_bar" = "Рядок меню";
+"menu_bar_style_title" = "Стиль рядка меню";
+"menu_bar_style_subtitle" = "Визначає вигляд елемента рядка меню.";
+"menu_bar_style_critters" = "Тварини";
+"menu_bar_style_bars" = "Смуги-індикатори";
+"menu_bar_style_icon_percent" = "Значок і відсоток";
+"switcher_rows_title" = "Рядки перемикача";
+"switcher_rows_icons" = "Значки провайдерів";
+"switcher_rows_progress" = "Тижневий прогрес";
+"usage_bars_fill_title" = "Заповнення смуг використання";
+"usage_bars_fill_remaining" = "За залишком";
+"usage_bars_fill_used" = "За використанням";
+"reset_times_title" = "Час скидання";
+"reset_times_countdown" = "Зворотний відлік";
+"reset_times_clock" = "Час на годиннику";
+"cost_summary_title" = "Підсумок витрат";
+"cost_summary_off" = "Вимкнено";
 "merge_icons_title" = "Злиття значків";
 "merge_icons_subtitle" = "Використовуйте одну піктограму панелі меню з перемикачем провайдерів.";
-"switcher_shows_icons_title" = "Перемикач показує значки";
-"switcher_shows_icons_subtitle" = "Показувати піктограми постачальників у комутаторі (інакше показувати щотижневий рядок прогресу).";
 "show_most_used_provider_title" = "Показати постачальника, який найчастіше використовується";
 "show_most_used_provider_subtitle" = "Рядок меню автоматично показує постачальника, який найближче до ліміту.";
-"menu_bar_shows_percent_title" = "Рядок меню показує відсотки";
-"menu_bar_shows_percent_subtitle" = "Замініть смужки тварин на значки бренду постачальника та відсоток.";
-"hide_critters_title" = "Сховати тварин";
-"hide_critters_subtitle" = "Показувати прості смужки вимірювання без обличчя та оздоблення.";
 "display_mode_title" = "Режим відображення";
 "display_mode_subtitle" = "Виберіть, що відображати на панелі меню (Pace показує використання порівняно з очікуваним).";
-"section_menu_content" = "Зміст меню";
-"show_usage_as_used_title" = "Показати використання як використане";
-"show_usage_as_used_subtitle" = "Індикатори прогресу заповнюються, коли ви витрачаєте квоту (замість відображення залишку).";
 "show_quota_warning_markers_title" = "Показати маркери попередження про квоти";
 "show_quota_warning_markers_subtitle" = "Малюйте порогові позначки на панелях використання, коли налаштовано попередження про квоту.";
 "weekly_progress_work_days_title" = "Щотижневі робочі дні";
 "weekly_progress_work_days_subtitle" = "Задайте робочі дні для позначок на смугах тижневого використання та розрахунків темпу.";
-"show_reset_time_as_clock_title" = "Показувати час скидання як годинник";
-"show_reset_time_as_clock_subtitle" = "Відображення часу скидання як абсолютних значень годинника замість зворотного відліку.";
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на примітки до випуску для підтримуваних постачальників, що підтримують CLI.";
 "show_credits_extra_usage_title" = "Показати кредити + додаткове використання";
 "show_credits_extra_usage_subtitle" = "Показати в меню розділи використання кредитів Codex і Claude Extra.";
-"show_all_token_accounts_title" = "Показати всі облікові записи маркерів";
-"show_all_token_accounts_subtitle" = "Облікові записи маркерів стека в меню (інакше відображати панель перемикання облікових записів).";
 "multi_account_layout_title" = "Макет кількох облікових записів";
 "multi_account_layout_subtitle" = "Виберіть сегментоване перемикання облікових записів або складені картки облікових записів.";
 "multi_account_layout_segmented" = "Сегментований";
@@ -552,6 +567,10 @@
 "overview_no_providers_hint" = "Немає активованих постачальників, доступних для огляду.";
 "overview_rows_follow_order" = "Оглядові рядки завжди відповідають порядку постачальника.";
 "overview_no_providers_selected" = "Не вибрано жодного постачальника";
+"agent_sessions_title" = "Сеанси агентів";
+"agent_sessions_subtitle" = "Показувати в меню локальні й виявлені через SSH сеанси Codex і Claude Code.";
+"agent_sessions_hosts_title" = "Додаткові хости SSH";
+"agent_sessions_footer" = "Комп’ютери Mac у вашій мережі tailnet виявляються автоматично. Локальні сеанси оновлюються кожні 30 секунд; віддалені хости — кожні 60 секунд і під час відкриття меню.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Комбінація клавіш";
@@ -565,10 +584,6 @@
 "show_debug_settings_subtitle" = "Розкрийте інструменти усунення несправностей на вкладці Debug.";
 "surprise_me_title" = "Здивуйте мене";
 "surprise_me_subtitle" = "Перевірте, чи подобається вам, що ваші агенти розважаються там.";
-"session_limit_confetti_title" = "Конфеті для ліміту сесії";
-"session_limit_confetti_subtitle" = "Показувати конфеті на весь екран, коли використання сесії скидається.";
-"weekly_limit_confetti_title" = "Щотижневий ліміт конфетті";
-"weekly_limit_confetti_subtitle" = "Відтворення конфетті на весь екран, коли тижневе використання скидається.";
 "hide_personal_info_title" = "Приховати особисту інформацію";
 "hide_personal_info_subtitle" = "Незрозумілі адреси електронної пошти на панелі меню та інтерфейсі меню.";
 "show_provider_storage_usage_title" = "Показати використання сховища постачальника";

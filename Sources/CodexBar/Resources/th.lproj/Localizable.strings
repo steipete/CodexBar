@@ -396,7 +396,14 @@
 /* General Pane */
 "section_system" = "ระบบ";
 "section_usage" = "การใช้";
-"section_automation" = "ระบบอัตโนมัติ";
+"section_refreshing" = "การรีเฟรช";
+"section_alerts" = "การแจ้งเตือน";
+"section_celebrations" = "การเฉลิมฉลอง";
+"section_icon" = "ไอคอน";
+"section_combined_icon" = "ไอคอนรวม";
+"section_animation" = "ภาพเคลื่อนไหว";
+"section_content" = "เนื้อหา";
+"section_agent_sessions" = "เซสชันเอเจนต์";
 "language_title" = "ภาษา";
 "language_subtitle" = "เปลี่ยนภาษาที่แสดง ต้องรีสตาร์ทแอปเพื่อให้มีผลเต็มที่";
 "language_system" = "ระบบ";
@@ -419,7 +426,6 @@
 "language_polish" = "Polski";
 "start_at_login_title" = "เริ่มต้นที่เข้าสู่ระบบ";
 "start_at_login_subtitle" = "เปิด CodexBar โดยอัตโนมัติเมื่อคุณเริ่มต้นระบบ Mac";
-"show_cost_summary" = "แสดงสรุปค่าใช้จ่าย";
 "show_cost_summary_subtitle" = "อ่านบันทึกการใช้งานในเครื่อง แสดงวันนี้ + หน้าต่างประวัติที่เลือกในเมนู";
 "cost_summary_style_title" = "รูปแบบการแสดงผล";
 "cost_summary_style_inline" = "อินไลน์เท่านั้น";
@@ -434,17 +440,16 @@
 "cost_comparison_periods_title" = "แสดงช่วงเปรียบเทียบที่สั้นกว่า";
 "cost_comparison_periods_subtitle" = "เพิ่มยอดรวม 7, 30 และ 90 วันเมื่ออยู่ภายในกรอบเวลาประวัติที่เลือก โดยใช้การสแกนในเครื่องเดียวกัน";
 "cost_auto_refresh_info" = "รีเฟรชอัตโนมัติ: รายชั่วโมง · หมดเวลา: 10m";
-"refresh_cadence_title" = "จังหวะการรีเฟรช";
-"refresh_cadence_subtitle" = "ความถี่ในการ CodexBar ผู้ให้บริการโพลในเบื้องหลัง";
+"refresh_interval_title" = "ช่วงเวลาการรีเฟรช";
 "manual_refresh_hint" = "การรีเฟรชอัตโนมัติปิดอยู่ ใช้คําสั่งรีเฟรชของเมนู";
 "refresh_on_open_title" = "รีเฟรชเมื่อเปิดเมนู";
 "refresh_on_open_subtitle" = "ดึงข้อมูลการใช้งานล่าสุดของผู้ให้บริการทุกรายทุกครั้งที่คุณเปิดเมนู";
 "check_provider_status_title" = "ตรวจสอบสถานะผู้ให้บริการ";
 "check_provider_status_subtitle" = "โพล OpenAI/Claude หน้าสถานะและ Google Workspace for Gemini/Antigravity โดยแสดงเหตุการณ์ในไอคอนและเมนู";
-"session_quota_notifications_title" = "การแจ้งเตือนโควต้าเซสชัน";
 "session_quota_notifications_subtitle" = "แจ้งเตือนเมื่อโควตาเซสชัน 5 ชั่วโมงเหลือ 0% และเมื่อกลับมาใช้งานได้อีกครั้ง";
-"quota_warning_notifications_title" = "การแจ้งเตือนคําเตือนโควต้า";
+"quota_depleted_title" = "โควต้าหมดและกลับมาใช้งานได้";
 "quota_warning_notifications_subtitle" = "เตือนเมื่อเซสชันหรือโควต้ารายสัปดาห์ที่เหลืออยู่ข้ามเกณฑ์ที่กําหนดค่าไว้";
+"threshold_warnings_title" = "คำเตือนตามเกณฑ์";
 "quota_warnings_title" = "คําเตือนโควต้า";
 "quota_warning_session" = "เซสชั่น";
 "quota_warning_session_capitalized" = "เซสชั่น";
@@ -455,6 +460,12 @@
 "quota_warning_notification_body_with_account" = "บัญชี %1$@ เหลือ %2$@ ถึงเกณฑ์การเตือน %3$d%% สำหรับโควตา%4$@แล้ว";
 "predictive_pace_warnings_title" = "คำเตือนความเร็วการใช้เชิงคาดการณ์";
 "predictive_pace_warnings_subtitle" = "เตือนสำหรับ Codex และ Claude เมื่อความเร็วการใช้โควตาเซสชันหรือรายสัปดาห์อาจทำให้หมดก่อนรีเซ็ต";
+"confetti_on_reset_title" = "คอนเฟตตีเมื่อรีเซ็ต";
+"confetti_on_reset_subtitle" = "แสดงคอนเฟตตีเต็มหน้าจอเมื่อรีเซ็ตการใช้งาน";
+"confetti_option_off" = "ปิด";
+"confetti_option_session" = "การรีเซ็ตเซสชัน";
+"confetti_option_weekly" = "การรีเซ็ตรายสัปดาห์";
+"confetti_option_both" = "ทั้งสอง";
 "predictive_pace_warning_notification_title" = "%1$@ คำเตือนความเร็วการใช้%2$@";
 "predictive_pace_warning_notification_body" = "ด้วยความเร็วการใช้ปัจจุบัน โควตานี้อาจหมดใน %1$@ ก่อนที่จะรีเซ็ต";
 "predictive_pace_warning_notification_body_with_account" = "บัญชี %1$@ ด้วยความเร็วการใช้ปัจจุบัน โควตานี้อาจหมดใน %2$@ ก่อนที่จะรีเซ็ต";
@@ -484,7 +495,9 @@
 /* Tab titles */
 "tab_general" = "ทั่วไป";
 "tab_providers" = "ผู้ให้บริการ";
-"tab_display" = "แสดง";
+"tab_notifications" = "การแจ้งเตือน";
+"tab_menu_bar" = "แถบเมนู";
+"tab_menu" = "เมนู";
 "tab_advanced" = "ขั้นสูง";
 "tab_about" = "เกี่ยวกับ";
 "tab_debug" = "แก้ไขข้อบกพร่อง";
@@ -515,34 +528,36 @@
 "primary_api_key_limit" = "หลัก (จํากัดคีย์ API)";
 
 /* Display Pane */
-"section_menu_bar" = "แถบเมนู";
+"menu_bar_style_title" = "รูปแบบแถบเมนู";
+"menu_bar_style_subtitle" = "รูปแบบการแสดงรายการในแถบเมนู";
+"menu_bar_style_critters" = "ตัวการ์ตูน";
+"menu_bar_style_bars" = "แถบวัด";
+"menu_bar_style_icon_percent" = "ไอคอนและเปอร์เซ็นต์";
+"switcher_rows_title" = "แถวในตัวสลับ";
+"switcher_rows_icons" = "ไอคอนผู้ให้บริการ";
+"switcher_rows_progress" = "ความคืบหน้ารายสัปดาห์";
+"usage_bars_fill_title" = "รูปแบบการเติมแถบการใช้งาน";
+"usage_bars_fill_remaining" = "ตามปริมาณคงเหลือ";
+"usage_bars_fill_used" = "ตามปริมาณที่ใช้ไป";
+"reset_times_title" = "เวลารีเซ็ต";
+"reset_times_countdown" = "นับถอยหลัง";
+"reset_times_clock" = "เวลาตามนาฬิกา";
+"cost_summary_title" = "สรุปค่าใช้จ่าย";
+"cost_summary_off" = "ปิด";
 "merge_icons_title" = "ผสานไอคอน";
 "merge_icons_subtitle" = "ใช้ไอคอนแถบเมนูเดียวกับตัวสลับผู้ให้บริการ";
-"switcher_shows_icons_title" = "ตัวสลับแสดงไอคอน";
-"switcher_shows_icons_subtitle" = "แสดงไอคอนผู้ให้บริการในตัวสลับ (มิฉะนั้นให้แสดงรายการความคืบหน้ารายสัปดาห์)";
 "show_most_used_provider_title" = "แสดงผู้ให้บริการที่ใช้บ่อยที่สุด";
 "show_most_used_provider_subtitle" = "แถบเมนูจะแสดงผู้ให้บริการที่ใกล้เคียงกับขีดจํากัดอัตรามากที่สุดโดยอัตโนมัติ";
-"menu_bar_shows_percent_title" = "แถบเมนูแสดงเปอร์เซ็นต์";
-"menu_bar_shows_percent_subtitle" = "แทนที่แถบสัตว์ด้วยไอคอนการสร้างแบรนด์ของผู้ให้บริการและเปอร์เซ็นต์";
-"hide_critters_title" = "ซ่อนตัวการ์ตูน";
-"hide_critters_subtitle" = "แสดงแถบวัดแบบเรียบโดยไม่มีหน้าและการตกแต่ง";
 "display_mode_title" = "โหมดการแสดงผล";
 "display_mode_subtitle" = "เลือกสิ่งที่จะแสดงในแถบเมนู (อัตราก้าวแสดงการใช้งานเทียบกับที่คาดไว้)";
-"section_menu_content" = "เนื้อหาเมนู";
-"show_usage_as_used_title" = "แสดงการใช้งานตามที่ใช้";
-"show_usage_as_used_subtitle" = "แถบความคืบหน้าจะเต็มเมื่อคุณใช้โควต้า (แทนที่จะแสดงปริมาณที่เหลืออยู่)";
 "show_quota_warning_markers_title" = "แสดงเครื่องหมายเตือนโควต้า";
 "show_quota_warning_markers_subtitle" = "วาดเครื่องหมายถูกเกณฑ์บนแถบการใช้งานเมื่อมีการกําหนดค่าคําเตือนโควต้า";
 "weekly_progress_work_days_title" = "วันทํางานความคืบหน้ารายสัปดาห์";
 "weekly_progress_work_days_subtitle" = "กําหนดวันทํางานสําหรับเครื่องหมายแถบการใช้งานรายสัปดาห์และการคํานวณความเร็ว";
-"show_reset_time_as_clock_title" = "แสดงเวลารีเซ็ตเป็นนาฬิกา";
-"show_reset_time_as_clock_subtitle" = "แสดงเวลารีเซ็ตเป็นค่านาฬิกาสัมบูรณ์แทนการนับถอยหลัง";
 "show_provider_changelog_links_title" = "แสดงลิงก์บันทึกการเปลี่ยนแปลงของผู้ให้บริการ";
 "show_provider_changelog_links_subtitle" = "เพิ่มลิงก์บันทึกประจํารุ่นสําหรับผู้ให้บริการที่ได้รับการสนับสนุน CLI ในเมนู";
 "show_credits_extra_usage_title" = "แสดงเครดิต + การใช้งานเพิ่มเติม";
 "show_credits_extra_usage_subtitle" = "แสดงส่วนเครดิต Codex และการใช้งานเพิ่มเติม Claude ในเมนู";
-"show_all_token_accounts_title" = "แสดงบัญชีโทเค็นทั้งหมด";
-"show_all_token_accounts_subtitle" = "สแต็คบัญชีโทเค็นในเมนู (มิฉะนั้นจะแสดงแถบตัวสลับบัญชี)";
 "multi_account_layout_title" = "รูปแบบหลายบัญชี";
 "multi_account_layout_subtitle" = "เลือกการสลับบัญชีแบบแบ่งกลุ่มหรือบัตรบัญชีแบบเรียงซ้อน";
 "multi_account_layout_segmented" = "แบ่งกลุ่ม";
@@ -553,6 +568,10 @@
 "overview_no_providers_hint" = "ไม่มีผู้ให้บริการที่เปิดใช้งานสําหรับภาพรวม";
 "overview_rows_follow_order" = "แถวภาพรวมจะเป็นไปตามลําดับของผู้ให้บริการเสมอ";
 "overview_no_providers_selected" = "ไม่มีผู้ให้บริการที่เลือก";
+"agent_sessions_title" = "เซสชันเอเจนต์";
+"agent_sessions_subtitle" = "แสดงเซสชัน Codex และ Claude Code ที่ค้นพบในเครื่องและผ่าน SSH ในเมนู";
+"agent_sessions_hosts_title" = "โฮสต์ SSH เพิ่มเติม";
+"agent_sessions_footer" = "ระบบจะค้นหา Mac บน tailnet ของคุณโดยอัตโนมัติ เซสชันในเครื่องจะรีเฟรชทุก 30 วินาที ส่วนโฮสต์ระยะไกลจะรีเฟรชทุก 60 วินาทีและเมื่อเปิดเมนู";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "แป้นพิมพ์ลัด";
@@ -566,10 +585,6 @@
 "show_debug_settings_subtitle" = "แสดงเครื่องมือการแก้ไขปัญหาในแท็บ แก้ไขข้อบกพร่อง";
 "surprise_me_title" = "ทําให้ฉันประหลาดใจ";
 "surprise_me_subtitle" = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
-"session_limit_confetti_title" = "คอนเฟตตีขีดจำกัดเซสชัน";
-"session_limit_confetti_subtitle" = "แสดงคอนเฟตตีเต็มหน้าจอเมื่อการใช้งานเซสชันถูกรีเซ็ต";
-"weekly_limit_confetti_title" = "ลูกปาจํากัดรายสัปดาห์";
-"weekly_limit_confetti_subtitle" = "เล่นลูกปาแบบเต็มหน้าจอเมื่อรีเซ็ตการใช้งานรายสัปดาห์";
 "hide_personal_info_title" = "ซ่อนข้อมูลส่วนบุคคล";
 "hide_personal_info_subtitle" = "ปิดบังที่อยู่อีเมลในแถบเมนูและ UI เมนู";
 "show_provider_storage_usage_title" = "แสดงการใช้พื้นที่เก็บข้อมูลของผู้ให้บริการ";

@@ -395,7 +395,14 @@
 /* General Pane */
 "section_system" = "Sistema";
 "section_usage" = "Ús";
-"section_automation" = "Automatització";
+"section_refreshing" = "Actualització";
+"section_alerts" = "Avisos";
+"section_celebrations" = "Celebracions";
+"section_icon" = "Icona";
+"section_combined_icon" = "Icona combinada";
+"section_animation" = "Animació";
+"section_content" = "Contingut";
+"section_agent_sessions" = "Sessions d'agents";
 "language_title" = "Idioma";
 "language_subtitle" = "Canvia l'idioma de la interfície. Cal reiniciar l'app perquè s'apliqui completament.";
 "language_system" = "Sistema";
@@ -417,7 +424,6 @@
 "language_polish" = "Polski";
 "start_at_login_title" = "Obrir en iniciar la sessió";
 "start_at_login_subtitle" = "Obre el CodexBar automàticament en iniciar el Mac.";
-"show_cost_summary" = "Mostreu el resum de cost";
 "show_cost_summary_subtitle" = "Llegeix els registres d'ús locals. Mostra el cost d'avui + la finestra d'historial seleccionada al menú.";
 "cost_summary_style_title" = "Estil de visualització";
 "cost_summary_style_inline" = "Només integrat";
@@ -432,17 +438,16 @@
 "cost_auto_refresh_info" = "Actualització automàtica: cada hora · Temps d'espera: 10 min";
 "cost_comparison_periods_title" = "Mostra períodes de comparació més curts";
 "cost_comparison_periods_subtitle" = "Afegeix totals de 7, 30 i 90 dies quan càpiguen dins l'interval d'historial seleccionat. Aquests totals reutilitzen la mateixa exploració local.";
-"refresh_cadence_title" = "Freqüència d'actualització";
-"refresh_cadence_subtitle" = "Amb quina freqüència el CodexBar consulta els proveïdors en segon pla.";
+"refresh_interval_title" = "Interval d'actualització";
 "manual_refresh_hint" = "L'actualització automàtica està desactivada; feu servir l'ordre Actualitza del menú.";
 "refresh_on_open_title" = "Actualitza en obrir el menú";
 "refresh_on_open_subtitle" = "Obté l'ús més recent de cada proveïdor cada vegada que obriu el menú.";
 "check_provider_status_title" = "Comproveu l'estat del proveïdor";
 "check_provider_status_subtitle" = "Consulta les pàgines d'estat d'OpenAI/Claude i Google Workspace per a Gemini/Antigravity, mostrant incidències a la icona i al menú.";
-"session_quota_notifications_title" = "Notificacions de quota de sessió";
 "session_quota_notifications_subtitle" = "Avisa quan la quota de sessió de 5 hores arriba al 0% i quan torna a estar disponible.";
-"quota_warning_notifications_title" = "Notificacions d'avís de quota";
+"quota_depleted_title" = "Quota esgotada i restablerta";
 "quota_warning_notifications_subtitle" = "Avisa quan la quota restant de sessió o setmanal baixa per sota dels llindars configurats.";
+"threshold_warnings_title" = "Avisos de llindar";
 "quota_warnings_title" = "Avisos de quota";
 "quota_warning_session" = "sessió";
 "quota_warning_session_capitalized" = "Sessió";
@@ -470,7 +475,9 @@
 /* Tab titles */
 "tab_general" = "General";
 "tab_providers" = "Proveïdors";
-"tab_display" = "Pantalla";
+"tab_notifications" = "Notificacions";
+"tab_menu_bar" = "Barra de menús";
+"tab_menu" = "Menú";
 "tab_advanced" = "Avançat";
 "tab_about" = "Quant a";
 "tab_debug" = "Depuració";
@@ -499,34 +506,36 @@
 "primary_api_key_limit" = "Principal (límit de la clau d'API)";
 
 /* Display Pane */
-"section_menu_bar" = "Barra de menús";
+"menu_bar_style_title" = "Estil de la barra de menús";
+"menu_bar_style_subtitle" = "Com es dibuixa l'element de la barra de menús.";
+"menu_bar_style_critters" = "Bestioles";
+"menu_bar_style_bars" = "Barres de mesura";
+"menu_bar_style_icon_percent" = "Icona i percentatge";
+"switcher_rows_title" = "Files del selector";
+"switcher_rows_icons" = "Icones de proveïdor";
+"switcher_rows_progress" = "Progrés setmanal";
+"usage_bars_fill_title" = "Ompliment de les barres d'ús";
+"usage_bars_fill_remaining" = "Com a restant";
+"usage_bars_fill_used" = "Com a consumit";
+"reset_times_title" = "Hores de reinici";
+"reset_times_countdown" = "Compte enrere";
+"reset_times_clock" = "Hora del rellotge";
+"cost_summary_title" = "Resum de cost";
+"cost_summary_off" = "Desactivat";
 "merge_icons_title" = "Combina les icones";
 "merge_icons_subtitle" = "Feu servir una sola icona a la barra de menús amb un selector de proveïdor.";
-"switcher_shows_icons_title" = "El selector mostra icones";
-"switcher_shows_icons_subtitle" = "Mostreu les icones de proveïdor al selector (si no, mostreu una línia de progrés setmanal).";
 "show_most_used_provider_title" = "Mostreu el proveïdor més utilitzat";
 "show_most_used_provider_subtitle" = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
-"menu_bar_shows_percent_title" = "La barra de menús mostra el percentatge";
-"menu_bar_shows_percent_subtitle" = "Substitueix les barres de bestioles per icones de marca del proveïdor i un percentatge.";
-"hide_critters_title" = "Amaga les bestioles";
-"hide_critters_subtitle" = "Mostra barres de mesura simples sense la cara ni les decoracions.";
 "display_mode_title" = "Mode de visualització";
 "display_mode_subtitle" = "Trieu què es mostra a la barra de menús (Ritme mostra l'ús respecte al previst).";
-"section_menu_content" = "Contingut del menú";
-"show_usage_as_used_title" = "Mostreu l'ús com a consumit";
-"show_usage_as_used_subtitle" = "Les barres de progrés s'omplen a mesura que consumiu la quota (en comptes de mostrar el que queda).";
 "show_quota_warning_markers_title" = "Mostreu els marcadors d'avís de quota";
 "show_quota_warning_markers_subtitle" = "Dibuixa marques de llindar a les barres d'ús quan hi ha avisos de quota configurats.";
 "weekly_progress_work_days_title" = "Dies laborables del progrés setmanal";
 "weekly_progress_work_days_subtitle" = "Definiu els dies laborables per als marcadors de les barres d'ús setmanal i els càlculs de ritme.";
-"show_reset_time_as_clock_title" = "Mostreu l'hora de reinici com a rellotge";
-"show_reset_time_as_clock_subtitle" = "Mostreu les hores de reinici com a valors de rellotge absoluts en comptes de comptes enrere.";
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";
 "show_credits_extra_usage_subtitle" = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
-"show_all_token_accounts_title" = "Mostreu tots els comptes amb token";
-"show_all_token_accounts_subtitle" = "Apileu els comptes amb token al menú (si no, mostreu una barra de canvi de compte).";
 "multi_account_layout_title" = "Disposició multicompte";
 "multi_account_layout_subtitle" = "Trieu el canvi de compte segmentat o targetes de compte apilades.";
 "multi_account_layout_segmented" = "Segmentat";
@@ -537,6 +546,10 @@
 "overview_no_providers_hint" = "No hi ha proveïdors activats disponibles per al Resum.";
 "overview_rows_follow_order" = "Les files del Resum sempre segueixen l'ordre dels proveïdors.";
 "overview_no_providers_selected" = "No hi ha cap proveïdor seleccionat";
+"agent_sessions_title" = "Sessions d'agents";
+"agent_sessions_subtitle" = "Mostreu al menú les sessions locals i descobertes per SSH de Codex i Claude Code.";
+"agent_sessions_hosts_title" = "Amfitrions SSH addicionals";
+"agent_sessions_footer" = "Els Mac de la vostra tailnet es descobreixen automàticament. Les sessions locals s'actualitzen cada 30 segons; els amfitrions remots, cada 60 segons i quan s'obre el menú.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Drecera de teclat";
@@ -550,10 +563,6 @@
 "show_debug_settings_subtitle" = "Mostreu eines de diagnòstic a la pestanya Depuració.";
 "surprise_me_title" = "Sorprèn-me";
 "surprise_me_subtitle" = "Activeu-ho si us agrada que els vostres agents es diverteixin allà dalt.";
-"session_limit_confetti_title" = "Confeti del límit de sessió";
-"session_limit_confetti_subtitle" = "Mostra confeti a pantalla completa quan es restableixi l'ús de la sessió.";
-"weekly_limit_confetti_title" = "Confeti del límit setmanal";
-"weekly_limit_confetti_subtitle" = "Mostreu confeti a pantalla completa quan es reinicia l'ús setmanal.";
 "hide_personal_info_title" = "Amagueu la informació personal";
 "hide_personal_info_subtitle" = "Amagueu les adreces de correu a la barra de menús i a la interfície del menú.";
 "show_provider_storage_usage_title" = "Mostreu l'ús d'emmagatzematge del proveïdor";
@@ -1105,6 +1114,12 @@
 "quota_warning_notification_body_with_account" = "Compte %1$@. Queda un %2$@. Heu assolit el llindar d'avís del %3$d%% (%4$@).";
 "predictive_pace_warnings_title" = "Alertes predictives de ritme";
 "predictive_pace_warnings_subtitle" = "Avisa per Codex i Claude quan el ritme de sessió o setmanal pot esgotar la quota abans del reinici.";
+"confetti_on_reset_title" = "Confeti en reiniciar";
+"confetti_on_reset_subtitle" = "Mostra confeti a pantalla completa quan es reinicia l'ús.";
+"confetti_option_off" = "Desactivat";
+"confetti_option_session" = "Reinicis de sessió";
+"confetti_option_weekly" = "Reinicis setmanals";
+"confetti_option_both" = "Tots dos";
 "predictive_pace_warning_notification_title" = "%1$@: alerta de ritme %2$@";
 "predictive_pace_warning_notification_body" = "Al ritme actual, aquesta quota podria esgotar-se en %1$@, abans de reiniciar-se.";
 "predictive_pace_warning_notification_body_with_account" = "Compte %1$@. Al ritme actual, aquesta quota podria esgotar-se en %2$@, abans de reiniciar-se.";

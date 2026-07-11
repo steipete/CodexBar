@@ -396,7 +396,14 @@
 /* General Pane */
 "section_system" = "سیستم";
 "section_usage" = "کاربرد";
-"section_automation" = "اتوماسیون";
+"section_refreshing" = "تازه‌سازی";
+"section_alerts" = "هشدارها";
+"section_celebrations" = "جشن‌ها";
+"section_icon" = "آیکون";
+"section_combined_icon" = "آیکون ترکیبی";
+"section_animation" = "پویانمایی";
+"section_content" = "محتوا";
+"section_agent_sessions" = "جلسات عامل‌ها";
 "language_title" = "زبان";
 "language_subtitle" = "زبان نمایش را تغییر دهید. برای اجرایی شدن کامل برنامه نیاز به ریستارت دارد.";
 "language_system" = "سیستم";
@@ -419,7 +426,6 @@
 "language_polish" = "پولسکی";
 "start_at_login_title" = "شروع از ورود";
 "start_at_login_subtitle" = "وقتی مک را روشن می کنید، CodexBar به طور خودکار باز می شود.";
-"show_cost_summary" = "خلاصه هزینه نمایش";
 "show_cost_summary_subtitle" = "گزارش های استفاده محلی را می خواند. امروز نمایش داده می شود + پنجره تاریخچه انتخاب شده در منو.";
 "cost_summary_style_title" = "سبک نمایش";
 "cost_summary_style_inline" = "فقط درون‌خطی";
@@ -434,17 +440,16 @@
 "cost_comparison_periods_title" = "نمایش دوره‌های مقایسه کوتاه‌تر";
 "cost_comparison_periods_subtitle" = "وقتی در پنجره تاریخچه انتخاب‌شده جا می‌گیرند، مجموع‌های ۷، ۳۰ و ۹۰ روزه را اضافه کنید. این مجموع‌ها از همان اسکن محلی استفاده می‌کنند.";
 "cost_auto_refresh_info" = "تازه سازی خودکار: ساعتی · زمان استراحت: 10m";
-"refresh_cadence_title" = "کادانس تازه سازی";
-"refresh_cadence_subtitle" = "چند وقت یکبار CodexBar ارائه دهندگان نظرسنجی در پس زمینه انجام می دهند.";
+"refresh_interval_title" = "فاصله تازه‌سازی";
 "manual_refresh_hint" = "تازه سازی خودکار خاموش است؛ از فرمان تازه سازی منو استفاده کنید.";
 "refresh_on_open_title" = "بازخوانی هنگام باز کردن منو";
 "refresh_on_open_subtitle" = "هر بار که منو را باز می‌کنید، آخرین میزان مصرف هر ارائه‌دهنده دریافت می‌شود.";
 "check_provider_status_title" = "وضعیت ارائه دهنده را بررسی کنید";
 "check_provider_status_subtitle" = "نظرسنجی ها OpenAI/Claude صفحات وضعیت و Google Workspace برای Gemini/Antigravity که حوادث را در آیکون و منو نمایش می دهد.";
-"session_quota_notifications_title" = "اعلان های سهمیه نشست";
 "session_quota_notifications_subtitle" = "هنگامی که سهمیه جلسه پنج‌ساعته به 0% می‌رسد و دوباره در دسترس قرار می‌گیرد، اطلاع می‌دهد.";
-"quota_warning_notifications_title" = "هشدارهای هشدار سهمیه";
+"quota_depleted_title" = "اتمام و بازیابی سهمیه";
 "quota_warning_notifications_subtitle" = "هشدار می دهد وقتی سهمیه نشست یا هفتگی باقی مانده از آستانه های پیکربندی شده عبور کند.";
+"threshold_warnings_title" = "هشدارهای آستانه";
 "quota_warnings_title" = "هشدارهای سهمیه";
 "quota_warning_session" = "جلسه";
 "quota_warning_session_capitalized" = "جلسه";
@@ -455,6 +460,12 @@
 "quota_warning_notification_body_with_account" = "حساب %1$@. %2$@ باقی مانده است. آستانه هشدار %3$d%% برای سهمیه %4$@ شما فعال شد.";
 "predictive_pace_warnings_title" = "هشدارهای پیش‌بینی روند مصرف";
 "predictive_pace_warnings_subtitle" = "برای Codex و Claude هشدار می‌دهد وقتی روند مصرف جلسه یا هفتگی ممکن است پیش از بازنشانی سهمیه را تمام کند.";
+"confetti_on_reset_title" = "کنفتی هنگام بازنشانی";
+"confetti_on_reset_subtitle" = "هنگام بازنشانی استفاده، کنفتی تمام‌صفحه پخش کنید.";
+"confetti_option_off" = "خاموش";
+"confetti_option_session" = "بازنشانی‌های جلسه";
+"confetti_option_weekly" = "بازنشانی‌های هفتگی";
+"confetti_option_both" = "هر دو";
 "predictive_pace_warning_notification_title" = "%1$@ هشدار روند مصرف %2$@";
 "predictive_pace_warning_notification_body" = "با روند فعلی، این سهمیه ممکن است تا %1$@ دیگر، پیش از بازنشانی، تمام شود.";
 "predictive_pace_warning_notification_body_with_account" = "حساب %1$@. با روند فعلی، این سهمیه ممکن است تا %2$@ دیگر، پیش از بازنشانی، تمام شود.";
@@ -484,7 +495,9 @@
 /* Tab titles */
 "tab_general" = "عمومی";
 "tab_providers" = "ارائه دهندگان";
-"tab_display" = "نمایش";
+"tab_notifications" = "اعلان‌ها";
+"tab_menu_bar" = "نوار منو";
+"tab_menu" = "منو";
 "tab_advanced" = "پیشرفته";
 "tab_about" = "درباره";
 "tab_debug" = "اشکال زدایی";
@@ -515,34 +528,36 @@
 "primary_api_key_limit" = "کلید اصلی (API حد کلید)";
 
 /* Display Pane */
-"section_menu_bar" = "نوار منو";
+"menu_bar_style_title" = "سبک نوار منو";
+"menu_bar_style_subtitle" = "نحوه نمایش آیتم نوار منو.";
+"menu_bar_style_critters" = "موجودات";
+"menu_bar_style_bars" = "نوارهای اندازه‌گیری";
+"menu_bar_style_icon_percent" = "آیکون و درصد";
+"switcher_rows_title" = "ردیف‌های سوئیچر";
+"switcher_rows_icons" = "آیکون‌های ارائه‌دهنده";
+"switcher_rows_progress" = "پیشرفت هفتگی";
+"usage_bars_fill_title" = "پرشدن نوارهای استفاده";
+"usage_bars_fill_remaining" = "بر اساس باقی‌مانده";
+"usage_bars_fill_used" = "بر اساس استفاده‌شده";
+"reset_times_title" = "زمان‌های بازنشانی";
+"reset_times_countdown" = "شمارش معکوس";
+"reset_times_clock" = "ساعت";
+"cost_summary_title" = "خلاصه هزینه";
+"cost_summary_off" = "خاموش";
 "merge_icons_title" = "آیکون های ادغام";
 "merge_icons_subtitle" = "از یک آیکون نوار منو با یک تغییر دهنده ارائه دهنده استفاده کنید.";
-"switcher_shows_icons_title" = "سوئیچر آیکون ها را نشان می دهد";
-"switcher_shows_icons_subtitle" = "آیکون های ارائه دهنده را در سوئیچر نشان دهید (در غیر این صورت یک خط پیشرفت هفتگی نمایش دهید).";
 "show_most_used_provider_title" = "نمایش ارائه دهنده پرکاربرد";
 "show_most_used_provider_subtitle" = "نوار منو به طور خودکار ارائه دهنده ای را نشان می دهد که به محدودیت نرخ خود نزدیک تر است.";
-"menu_bar_shows_percent_title" = "نوار منو درصد را نشان می دهد";
-"menu_bar_shows_percent_subtitle" = "بارهای کریتر را با آیکون های برندینگ ارائه دهنده و درصدی جایگزین کنید.";
-"hide_critters_title" = "پنهان کردن موجودات";
-"hide_critters_subtitle" = "نمایش نوارهای ساده بدون چهره و تزئینات.";
 "display_mode_title" = "حالت نمایش";
 "display_mode_subtitle" = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
-"section_menu_content" = "محتوای منو";
-"show_usage_as_used_title" = "کاربرد نمایش همان طور که استفاده می شود";
-"show_usage_as_used_subtitle" = "نوارهای پیشرفت هنگام مصرف سهمیه پر می شوند (به جای اینکه باقی مانده را نشان دهند).";
 "show_quota_warning_markers_title" = "نشانگرهای هشدار سهمیه را نشان دهید";
 "show_quota_warning_markers_subtitle" = "علامت تیک آستانه را روی نوارهای استفاده هنگام پیکربندی هشدارهای سهمیه رسم کنید.";
 "weekly_progress_work_days_title" = "روزهای کاری پیشرفت هفتگی";
 "weekly_progress_work_days_subtitle" = "روزهای کاری را برای نشانگرهای نوار مصرف هفتگی و محاسبات سرعت تعیین کنید.";
-"show_reset_time_as_clock_title" = "نمایش زمان بازنشانی به صورت ساعت";
-"show_reset_time_as_clock_subtitle" = "زمان بازنشانی را به جای شمارش معکوس، به صورت مقادیر مطلق ساعت نمایش دهید.";
 "show_provider_changelog_links_title" = "لینک های تغییرات ارائه دهنده را نمایش دهید";
 "show_provider_changelog_links_subtitle" = "لینک های یادداشت های انتشار برای ارائه دهندگان پشتیبانی شده با پشتیبانی CLI به منو اضافه می شود.";
 "show_credits_extra_usage_title" = "نمایش اعتبارها + استفاده اضافی";
 "show_credits_extra_usage_subtitle" = "بخش های Codex اعتبارها و Claude استفاده اضافی را در منو نمایش دهید.";
-"show_all_token_accounts_title" = "نمایش همه حساب های توکن";
-"show_all_token_accounts_subtitle" = "حساب های توکن را در منو انباشته کنید (در غیر این صورت نوار تعویض حساب نمایش داده شود).";
 "multi_account_layout_title" = "چیدمان چندحسابی";
 "multi_account_layout_subtitle" = "کارت های حساب سوئیچینگ تقسیم شده یا کارت های حساب انباشته را انتخاب کنید.";
 "multi_account_layout_segmented" = "بخش بندی شده";
@@ -553,6 +568,10 @@
 "overview_no_providers_hint" = "هیچ ارائه دهنده فعالی برای مرور کلی در دسترس نیست.";
 "overview_rows_follow_order" = "ردیف های نمای کلی همیشه مطابق با ترتیب ارائه دهنده انجام می شوند.";
 "overview_no_providers_selected" = "هیچ ارائه دهنده ای انتخاب نشده است";
+"agent_sessions_title" = "جلسات عامل‌ها";
+"agent_sessions_subtitle" = "جلسات محلی و جلسات Codex و Claude Code یافته‌شده از طریق SSH را در منو نمایش دهید.";
+"agent_sessions_hosts_title" = "میزبان‌های SSH اضافی";
+"agent_sessions_footer" = "مک‌های موجود در tailnet شما به‌طور خودکار شناسایی می‌شوند. جلسات محلی هر ۳۰ ثانیه و میزبان‌های راه دور هر ۶۰ ثانیه و هنگام باز شدن منو تازه‌سازی می‌شوند.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "میانبر کیبورد";
@@ -566,10 +585,6 @@
 "show_debug_settings_subtitle" = "ابزارهای عیب یابی را در تب اشکال زدایی آشکار کنید.";
 "surprise_me_title" = "سورپرایزم کن";
 "surprise_me_subtitle" = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
-"session_limit_confetti_title" = "کاغذرنگی حد جلسه";
-"session_limit_confetti_subtitle" = "وقتی میزان استفادهٔ جلسه بازنشانی می‌شود، کاغذرنگی تمام‌صفحه نمایش بده.";
-"weekly_limit_confetti_title" = "کنفتی محدود هفتگی";
-"weekly_limit_confetti_subtitle" = "وقتی استفاده هفتگی ریست می شود، کنفتی تمام صفحه را پخش کنید.";
 "hide_personal_info_title" = "مخفی کردن اطلاعات شخصی";
 "hide_personal_info_subtitle" = "آدرس های ایمیل مبهم در نوار منو و رابط کاربری منو.";
 "show_provider_storage_usage_title" = "استفاده از ذخیره سازی ارائه دهنده را نمایش دهید";

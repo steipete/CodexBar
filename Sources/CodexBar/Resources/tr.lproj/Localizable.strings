@@ -394,7 +394,14 @@
 /* General Pane */
 "section_system" = "Sistem";
 "section_usage" = "Kullanım";
-"section_automation" = "Otomasyon";
+"section_refreshing" = "Yenileme";
+"section_alerts" = "Uyarılar";
+"section_celebrations" = "Kutlamalar";
+"section_icon" = "Simge";
+"section_combined_icon" = "Birleşik simge";
+"section_animation" = "Animasyon";
+"section_content" = "İçerik";
+"section_agent_sessions" = "Ajan oturumları";
 "language_title" = "Dil";
 "language_subtitle" = "Görüntüleme dilini değiştirin. Tam olarak geçerli olması için uygulamanın yeniden başlatılması gerekir.";
 "language_system" = "Sistem";
@@ -419,7 +426,6 @@
 "language_polish" = "Lehçe";
 "start_at_login_title" = "Girişte Başlat";
 "start_at_login_subtitle" = "Mac'inizi başlattığınızda CodexBar'ı otomatik olarak açar.";
-"show_cost_summary" = "Maliyet özetini göster";
 "show_cost_summary_subtitle" = "Yerel kullanım günlüklerini okur. Menüde bugün + seçilen geçmiş penceresini gösterir.";
 "cost_summary_style_title" = "Görüntüleme stili";
 "cost_summary_style_inline" = "Yalnızca satır içi";
@@ -434,17 +440,16 @@
 "cost_comparison_periods_title" = "Daha kısa karşılaştırma dönemlerini göster";
 "cost_comparison_periods_subtitle" = "Seçilen geçmiş aralığına sığdığında 7, 30 ve 90 günlük toplamları ekler. Bu toplamlar aynı yerel taramayı yeniden kullanır.";
 "cost_auto_refresh_info" = "Otomatik yenileme: saatlik · Zaman aşımı: 10 dk";
-"refresh_cadence_title" = "Yenileme sıklığı";
-"refresh_cadence_subtitle" = "CodexBar'ın arka planda sağlayıcıları ne sıklıkla sorgulayacağı.";
+"refresh_interval_title" = "Yenileme aralığı";
 "manual_refresh_hint" = "Otomatik yenileme kapalı; menüdeki Yenile komutunu kullanın.";
 "refresh_on_open_title" = "Menü açıldığında yenile";
 "refresh_on_open_subtitle" = "Menüyü her açtığınızda her sağlayıcının en güncel kullanımını getirir.";
 "check_provider_status_title" = "Sağlayıcı durumunu denetle";
 "check_provider_status_subtitle" = "OpenAI/Claude durum sayfalarını ve Google Workspace'i (Gemini/Antigravity) sorgular, olayları simge ve menüde gösterir.";
-"session_quota_notifications_title" = "Oturum kota bildirimleri";
 "session_quota_notifications_subtitle" = "5 saatlik oturum kotası %0'a ulaştığında ve tekrar kullanılabilir olduğunda bildirir.";
-"quota_warning_notifications_title" = "Kota uyarı bildirimleri";
+"quota_depleted_title" = "Kota tükenmesi ve yenilenmesi";
 "quota_warning_notifications_subtitle" = "Oturum veya haftalık kalan kota yapılandırılan eşikleri geçtiğinde uyarır.";
+"threshold_warnings_title" = "Eşik uyarıları";
 "quota_warnings_title" = "Kota uyarıları";
 "quota_warning_session" = "oturum";
 "quota_warning_session_capitalized" = "Oturum";
@@ -455,6 +460,12 @@
 "quota_warning_notification_body_with_account" = "Hesap %1$@. %2$@ kaldı. %3$d%% %4$@ uyarı eşiğinize ulaşıldı.";
 "predictive_pace_warnings_title" = "Öngörülü tempo uyarıları";
 "predictive_pace_warnings_subtitle" = "Codex ve Claude için oturum veya haftalık kullanım temposu kotayı sıfırlanmadan önce tüketebilecekse uyarır.";
+"confetti_on_reset_title" = "Sıfırlamada konfeti";
+"confetti_on_reset_subtitle" = "Kullanım sıfırlandığında tam ekran konfeti göster.";
+"confetti_option_off" = "Kapalı";
+"confetti_option_session" = "Oturum sıfırlamaları";
+"confetti_option_weekly" = "Haftalık sıfırlamalar";
+"confetti_option_both" = "İkisi de";
 "predictive_pace_warning_notification_title" = "%1$@ %2$@ tempo uyarısı";
 "predictive_pace_warning_notification_body" = "Mevcut tempoda bu kota sıfırlanmadan önce %1$@ içinde tükenebilir.";
 "predictive_pace_warning_notification_body_with_account" = "Hesap %1$@. Mevcut tempoda bu kota sıfırlanmadan önce %2$@ içinde tükenebilir.";
@@ -484,7 +495,9 @@
 /* Tab titles */
 "tab_general" = "Genel";
 "tab_providers" = "Sağlayıcılar";
-"tab_display" = "Görünüm";
+"tab_notifications" = "Bildirimler";
+"tab_menu_bar" = "Menü çubuğu";
+"tab_menu" = "Menü";
 "tab_advanced" = "Gelişmiş";
 "tab_about" = "Hakkında";
 "tab_debug" = "Hata Ayıklama";
@@ -515,34 +528,36 @@
 "primary_api_key_limit" = "Birincil (API anahtarı limiti)";
 
 /* Display Pane */
-"section_menu_bar" = "Menü çubuğu";
+"menu_bar_style_title" = "Menü çubuğu stili";
+"menu_bar_style_subtitle" = "Menü çubuğu öğesinin nasıl çizileceğini belirler.";
+"menu_bar_style_critters" = "Canavarlar";
+"menu_bar_style_bars" = "Ölçüm çubukları";
+"menu_bar_style_icon_percent" = "Simge ve yüzde";
+"switcher_rows_title" = "Değiştirici satırları";
+"switcher_rows_icons" = "Sağlayıcı simgeleri";
+"switcher_rows_progress" = "Haftalık ilerleme";
+"usage_bars_fill_title" = "Kullanım çubuklarının dolumu";
+"usage_bars_fill_remaining" = "Kalan miktara göre";
+"usage_bars_fill_used" = "Harcanan miktara göre";
+"reset_times_title" = "Sıfırlama zamanları";
+"reset_times_countdown" = "Geri sayım";
+"reset_times_clock" = "Saat";
+"cost_summary_title" = "Maliyet özeti";
+"cost_summary_off" = "Kapalı";
 "merge_icons_title" = "Simgeleri Birleştir";
 "merge_icons_subtitle" = "Sağlayıcı değiştiricisiyle tek bir menü çubuğu simgesi kullan.";
-"switcher_shows_icons_title" = "Değiştirici simgeleri gösterir";
-"switcher_shows_icons_subtitle" = "Değiştiricide sağlayıcı simgelerini göster (aksi takdirde haftalık ilerleme çizgisi göster).";
 "show_most_used_provider_title" = "En çok kullanılan sağlayıcıyı göster";
 "show_most_used_provider_subtitle" = "Menü çubuğu, hız limitine en yakın sağlayıcıyı otomatik gösterir.";
-"menu_bar_shows_percent_title" = "Menü çubuğu yüzde gösterir";
-"menu_bar_shows_percent_subtitle" = "Canavar çubuklarını sağlayıcı marka simgeleri ve yüzde ile değiştir.";
-"hide_critters_title" = "Canavarları gizle";
-"hide_critters_subtitle" = "Yüz ve süslemeler olmadan düz ölçüm çubukları göster.";
 "display_mode_title" = "Görünüm modu";
 "display_mode_subtitle" = "Menü çubuğunda ne gösterileceğini seçin (Hız, kullanımı beklentiyle karşılaştırır).";
-"section_menu_content" = "Menü içeriği";
-"show_usage_as_used_title" = "Kullanımı harcanan olarak göster";
-"show_usage_as_used_subtitle" = "İlerleme çubukları kota tükettikçe dolar (kalanı göstermek yerine).";
 "show_quota_warning_markers_title" = "Kota uyarı işaretlerini göster";
 "show_quota_warning_markers_subtitle" = "Kota uyarıları yapılandırıldığında kullanım çubuklarına eşik çizgileri çizer.";
 "weekly_progress_work_days_title" = "Haftalık ilerleme iş günleri";
 "weekly_progress_work_days_subtitle" = "Haftalık kullanım çubuğu işaretleri ve tempo hesaplamaları için iş günlerini ayarlar.";
-"show_reset_time_as_clock_title" = "Sıfırlama süresini saat olarak göster";
-"show_reset_time_as_clock_subtitle" = "Sıfırlama sürelerini geri sayım yerine mutlak saat değerleri olarak göster.";
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
 "show_provider_changelog_links_subtitle" = "Desteklenen CLI destekli sağlayıcılar için menüye sürüm notları bağlantıları ekler.";
 "show_credits_extra_usage_title" = "Krediler + ekstra kullanımı göster";
 "show_credits_extra_usage_subtitle" = "Menüde Codex Kredileri ve Claude Ekstra kullanım bölümlerini göster.";
-"show_all_token_accounts_title" = "Tüm jeton hesaplarını göster";
-"show_all_token_accounts_subtitle" = "Menüde jeton hesaplarını yığınla göster (aksi takdirde hesap değiştirici çubuk göster).";
 "multi_account_layout_title" = "Çoklu hesap düzeni";
 "multi_account_layout_subtitle" = "Bölümlü hesap değiştirme veya yığınlı hesap kartları seçin.";
 "multi_account_layout_segmented" = "Bölümlü";
@@ -553,6 +568,10 @@
 "overview_no_providers_hint" = "Genel Bakış için kullanılabilir etkin sağlayıcı yok.";
 "overview_rows_follow_order" = "Genel Bakış satırları her zaman sağlayıcı sırasını takip eder.";
 "overview_no_providers_selected" = "Sağlayıcı seçilmedi";
+"agent_sessions_title" = "Ajan oturumları";
+"agent_sessions_subtitle" = "Menüde yerel ve SSH ile keşfedilen Codex ve Claude Code oturumlarını göster.";
+"agent_sessions_hosts_title" = "Ek SSH sunucuları";
+"agent_sessions_footer" = "Tailnet'inizdeki Mac'ler otomatik olarak keşfedilir. Yerel oturumlar 30 saniyede bir; uzak sunucular 60 saniyede bir ve menü açıldığında yenilenir.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Klavye kısayolu";
@@ -566,10 +585,6 @@
 "show_debug_settings_subtitle" = "Sorun giderme araçlarını Hata Ayıklama sekmesinde göster.";
 "surprise_me_title" = "Beni şaşırt";
 "surprise_me_subtitle" = "Ajanlarınızın yukarıda biraz eğlenmesini istiyorsanız işaretleyin.";
-"session_limit_confetti_title" = "Oturum sınırı konfeti";
-"session_limit_confetti_subtitle" = "Oturum kullanımı sıfırlandığında tam ekran konfeti göster.";
-"weekly_limit_confetti_title" = "Haftalık limit konfetisi";
-"weekly_limit_confetti_subtitle" = "Haftalık kullanım sıfırlandığında tam ekran konfeti oynat.";
 "hide_personal_info_title" = "Kişisel bilgileri gizle";
 "hide_personal_info_subtitle" = "Menü çubuğu ve menü arayüzünde e-posta adreslerini gizle.";
 "show_provider_storage_usage_title" = "Sağlayıcı depolama kullanımını göster";

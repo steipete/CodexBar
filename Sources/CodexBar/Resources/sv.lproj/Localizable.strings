@@ -394,7 +394,14 @@
 /* General Pane */
 "section_system" = "System";
 "section_usage" = "Användning";
-"section_automation" = "Automatisering";
+"section_refreshing" = "Uppdatering";
+"section_alerts" = "Aviseringar";
+"section_celebrations" = "Firanden";
+"section_icon" = "Ikon";
+"section_combined_icon" = "Kombinerad ikon";
+"section_animation" = "Animering";
+"section_content" = "Innehåll";
+"section_agent_sessions" = "Agentsessioner";
 "language_title" = "Språk";
 "language_subtitle" = "Byt visningsspråk. Appen behöver startas om för att ändringen ska slå igenom helt.";
 "language_system" = "System";
@@ -418,7 +425,6 @@
 "language_polish" = "Polski";
 "start_at_login_title" = "Starta vid inloggning";
 "start_at_login_subtitle" = "Öppnar CodexBar automatiskt när du startar din Mac.";
-"show_cost_summary" = "Visa kostnadssammanfattning";
 "show_cost_summary_subtitle" = "Läser lokala användningsloggar. Visar idag och valt historikfönster i menyn.";
 "cost_summary_style_title" = "Visningsstil";
 "cost_summary_style_inline" = "Endast inbäddad";
@@ -433,17 +439,16 @@
 "cost_auto_refresh_info" = "Automatisk uppdatering: varje timme · Timeout: 10 min";
 "cost_comparison_periods_title" = "Visa kortare jämförelseperioder";
 "cost_comparison_periods_subtitle" = "Lägger till summor för 7, 30 och 90 dagar när de ryms i det valda historikfönstret. Summorna återanvänder samma lokala genomsökning.";
-"refresh_cadence_title" = "Uppdateringsintervall";
-"refresh_cadence_subtitle" = "Hur ofta CodexBar kontrollerar leverantörer i bakgrunden.";
+"refresh_interval_title" = "Uppdateringsintervall";
 "manual_refresh_hint" = "Automatisk uppdatering är avstängd. Använd Uppdatera i menyn.";
 "refresh_on_open_title" = "Uppdatera när menyn öppnas";
 "refresh_on_open_subtitle" = "Hämtar den senaste användningen för varje leverantör varje gång du öppnar menyn.";
 "check_provider_status_title" = "Kontrollera leverantörsstatus";
 "check_provider_status_subtitle" = "Kontrollerar OpenAI/Claude-statussidor och Google Workspace för Gemini/Antigravity och visar incidenter i ikonen och menyn.";
-"session_quota_notifications_title" = "Aviseringar för sessionskvot";
 "session_quota_notifications_subtitle" = "Aviserar när femtimmarssessionens kvot når 0 % och när den blir tillgänglig igen.";
-"quota_warning_notifications_title" = "Kvotvarningsaviseringar";
+"quota_depleted_title" = "Kvoten tar slut och återställs";
 "quota_warning_notifications_subtitle" = "Varnar när återstående sessions- eller veckokvot passerar inställda trösklar.";
+"threshold_warnings_title" = "Tröskelvarningar";
 "quota_warnings_title" = "Kvotvarningar";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
@@ -454,6 +459,12 @@
 "quota_warning_notification_body_with_account" = "Konto %1$@. %2$@ kvar. Din varningströskel på %3$d %% för %4$@ har nåtts.";
 "predictive_pace_warnings_title" = "Förutsägande taktvarningar";
 "predictive_pace_warnings_subtitle" = "Varnar för Codex och Claude när sessions- eller veckotakten kan tömma kvoten före återställning.";
+"confetti_on_reset_title" = "Konfetti vid återställning";
+"confetti_on_reset_subtitle" = "Spela konfetti i helskärm när användningen återställs.";
+"confetti_option_off" = "Av";
+"confetti_option_session" = "Sessionsåterställningar";
+"confetti_option_weekly" = "Veckoåterställningar";
+"confetti_option_both" = "Båda";
 "predictive_pace_warning_notification_title" = "%1$@ %2$@-taktvarning";
 "predictive_pace_warning_notification_body" = "I nuvarande takt kan den här kvoten ta slut om %1$@, innan den återställs.";
 "predictive_pace_warning_notification_body_with_account" = "Konto %1$@. I nuvarande takt kan den här kvoten ta slut om %2$@, innan den återställs.";
@@ -483,7 +494,9 @@
 /* Tab titles */
 "tab_general" = "Allmänt";
 "tab_providers" = "Leverantörer";
-"tab_display" = "Visning";
+"tab_notifications" = "Aviseringar";
+"tab_menu_bar" = "Menyrad";
+"tab_menu" = "Meny";
 "tab_advanced" = "Avancerat";
 "tab_about" = "Om";
 "tab_debug" = "Felsök";
@@ -513,34 +526,36 @@
 "primary_api_key_limit" = "Primär (API-nyckelgräns)";
 
 /* Display Pane */
-"section_menu_bar" = "Menyrad";
+"menu_bar_style_title" = "Menyradsstil";
+"menu_bar_style_subtitle" = "Hur menyradsobjektet visas.";
+"menu_bar_style_critters" = "Figurer";
+"menu_bar_style_bars" = "Mätarstaplar";
+"menu_bar_style_icon_percent" = "Ikon och procent";
+"switcher_rows_title" = "Växlarrader";
+"switcher_rows_icons" = "Leverantörsikoner";
+"switcher_rows_progress" = "Veckoförlopp";
+"usage_bars_fill_title" = "Fyllning av användningsstaplar";
+"usage_bars_fill_remaining" = "Återstående";
+"usage_bars_fill_used" = "Förbrukat";
+"reset_times_title" = "Återställningstider";
+"reset_times_countdown" = "Nedräkning";
+"reset_times_clock" = "Klockslag";
+"cost_summary_title" = "Kostnadssammanfattning";
+"cost_summary_off" = "Av";
 "merge_icons_title" = "Slå ihop ikoner";
 "merge_icons_subtitle" = "Använd en enda menyradsikon med leverantörsväxlare.";
-"switcher_shows_icons_title" = "Växlaren visar ikoner";
-"switcher_shows_icons_subtitle" = "Visa leverantörsikoner i växlaren (annars visas en veckoförloppslinje).";
 "show_most_used_provider_title" = "Visa mest använda leverantör";
 "show_most_used_provider_subtitle" = "Menyraden visar automatiskt leverantören som ligger närmast sin gräns.";
-"menu_bar_shows_percent_title" = "Menyraden visar procent";
-"menu_bar_shows_percent_subtitle" = "Ersätt figurstaplar med leverantörsikoner och ett procenttal.";
-"hide_critters_title" = "Dölj figurer";
-"hide_critters_subtitle" = "Visa enkla mätarstaplar utan ansikte och dekorationer.";
 "display_mode_title" = "Visningsläge";
 "display_mode_subtitle" = "Välj vad som ska visas i menyraden (takt visar användning mot förväntat).";
-"section_menu_content" = "Menyinnehåll";
-"show_usage_as_used_title" = "Visa användning som förbrukad";
-"show_usage_as_used_subtitle" = "Förloppsstaplar fylls när du förbrukar kvot i stället för att visa återstående.";
 "show_quota_warning_markers_title" = "Visa kvotvarningsmarkörer";
 "show_quota_warning_markers_subtitle" = "Rita tröskelmarkeringar på användningsstaplar när kvotvarningar är konfigurerade.";
 "weekly_progress_work_days_title" = "Arbetsdagar i veckoförlopp";
 "weekly_progress_work_days_subtitle" = "Ställ in arbetsdagar för markeringar i veckostaplar och tempoberäkningar.";
-"show_reset_time_as_clock_title" = "Visa återställningstid som klockslag";
-"show_reset_time_as_clock_subtitle" = "Visa återställningstider som klockslag i stället för nedräkningar.";
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";
 "show_provider_changelog_links_subtitle" = "Lägger till länkar till utgåvekommentarer för stödda CLI-baserade leverantörer i menyn.";
 "show_credits_extra_usage_title" = "Visa krediter och extra användning";
 "show_credits_extra_usage_subtitle" = "Visa avsnitt för Codex-krediter och Claude Extra-användning i menyn.";
-"show_all_token_accounts_title" = "Visa alla tokenkonton";
-"show_all_token_accounts_subtitle" = "Stapla tokenkonton i menyn (annars visas en kontoväxlare).";
 "multi_account_layout_title" = "Layout för flera konton";
 "multi_account_layout_subtitle" = "Välj segmenterad kontoväxling eller staplade kontokort.";
 "multi_account_layout_segmented" = "Segmenterad";
@@ -551,6 +566,10 @@
 "overview_no_providers_hint" = "Inga aktiverade leverantörer är tillgängliga för översikten.";
 "overview_rows_follow_order" = "Översiktsrader följer alltid leverantörsordningen.";
 "overview_no_providers_selected" = "Inga leverantörer valda";
+"agent_sessions_title" = "Agentsessioner";
+"agent_sessions_subtitle" = "Visa lokala och via SSH upptäckta Codex- och Claude Code-sessioner i menyn.";
+"agent_sessions_hosts_title" = "Ytterligare SSH-värdar";
+"agent_sessions_footer" = "Mac-datorer på ditt tailnet upptäcks automatiskt. Lokala sessioner uppdateras var 30:e sekund, fjärrvärdar var 60:e sekund och när menyn öppnas.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Kortkommando";
@@ -564,10 +583,6 @@
 "show_debug_settings_subtitle" = "Visa felsökningsverktyg på fliken Felsök.";
 "surprise_me_title" = "Överraska mig";
 "surprise_me_subtitle" = "Kontrollera om du vill att agenterna ska få leka lite där uppe.";
-"session_limit_confetti_title" = "Konfetti för sessionsgräns";
-"session_limit_confetti_subtitle" = "Visa konfetti i helskärm när sessionsanvändningen återställs.";
-"weekly_limit_confetti_title" = "Veckogränskonfetti";
-"weekly_limit_confetti_subtitle" = "Spela konfetti i helskärm när veckoförbrukningen återställs.";
 "hide_personal_info_title" = "Dölj personuppgifter";
 "hide_personal_info_subtitle" = "Maskera e-postadresser i menyraden och menygränssnittet.";
 "show_provider_storage_usage_title" = "Visa leverantörers lagringsanvändning";

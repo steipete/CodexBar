@@ -393,7 +393,14 @@
 /* General Pane */
 "section_system" = "Systeem";
 "section_usage" = "Gebruik";
-"section_automation" = "Automatisering";
+"section_refreshing" = "Vernieuwen";
+"section_alerts" = "Waarschuwingen";
+"section_celebrations" = "Vieringen";
+"section_icon" = "Pictogram";
+"section_combined_icon" = "Gecombineerd pictogram";
+"section_animation" = "Animatie";
+"section_content" = "Inhoud";
+"section_agent_sessions" = "Agentsessies";
 "language_title" = "Taal";
 "language_subtitle" = "Wijzig de weergavetaal. Vereist een herstart van de app om volledig effect te krijgen.";
 "language_system" = "Systeem";
@@ -418,7 +425,6 @@
 "language_polish" = "Pools";
 "start_at_login_title" = "Begin bij Inloggen";
 "start_at_login_subtitle" = "Opent automatisch CodexBar wanneer u uw Mac start.";
-"show_cost_summary" = "Kostenoverzicht weergeven";
 "show_cost_summary_subtitle" = "Leest lokale gebruikslogboeken. Toont vandaag + het geselecteerde geschiedenisvenster in het menu.";
 "cost_summary_style_title" = "Weergavestijl";
 "cost_summary_style_inline" = "Alleen inline";
@@ -433,17 +439,16 @@
 "cost_auto_refresh_info" = "Automatisch vernieuwen: elk uur · Time-out: 10m";
 "cost_comparison_periods_title" = "Kortere vergelijkingsperioden tonen";
 "cost_comparison_periods_subtitle" = "Voegt totalen voor 7, 30 en 90 dagen toe wanneer ze binnen het geselecteerde geschiedenisvenster vallen. Deze totalen gebruiken dezelfde lokale scan.";
-"refresh_cadence_title" = "Cadans vernieuwen";
-"refresh_cadence_subtitle" = "Hoe vaak CodexBar providers op de achtergrond ondervraagt.";
+"refresh_interval_title" = "Vernieuwingsinterval";
 "manual_refresh_hint" = "Automatisch vernieuwen is uitgeschakeld; gebruik de opdracht Vernieuwen van het menu.";
 "refresh_on_open_title" = "Vernieuwen bij openen van menu";
 "refresh_on_open_subtitle" = "Haalt bij elke keer dat je het menu opent het meest recente gebruik van elke provider op.";
 "check_provider_status_title" = "Controleer de status van de provider";
 "check_provider_status_subtitle" = "Polls van OpenAI/Claude-statuspagina's en Google Workspace voor Gemini/Antigravity, waarbij incidenten in het pictogram en het menu worden weergegeven.";
-"session_quota_notifications_title" = "Meldingen over sessiequota";
 "session_quota_notifications_subtitle" = "Geeft een melding wanneer het sessiequotum van 5 uur 0% bereikt en wanneer het weer beschikbaar komt.";
-"quota_warning_notifications_title" = "Quotumwaarschuwingsmeldingen";
+"quota_depleted_title" = "Quotum uitgeput en hersteld";
 "quota_warning_notifications_subtitle" = "Waarschuwt wanneer het resterende sessie- of wekelijkse quotum de geconfigureerde drempels overschrijdt.";
+"threshold_warnings_title" = "Drempelwaarschuwingen";
 "quota_warnings_title" = "Quotumwaarschuwingen";
 "quota_warning_session" = "sessie";
 "quota_warning_session_capitalized" = "Sessie";
@@ -454,6 +459,12 @@
 "quota_warning_notification_body_with_account" = "Rekening %1$@. %2$@ over. Je waarschuwingsdrempel van %3$d%% %4$@ is bereikt.";
 "predictive_pace_warnings_title" = "Voorspellende tempowaarschuwingen";
 "predictive_pace_warnings_subtitle" = "Waarschuwt voor Codex en Claude wanneer het sessie- of wekelijkse tempo het quotum vóór de reset kan opgebruiken.";
+"confetti_on_reset_title" = "Confetti bij reset";
+"confetti_on_reset_subtitle" = "Speel confetti op volledig scherm af wanneer het gebruik wordt gereset.";
+"confetti_option_off" = "Uit";
+"confetti_option_session" = "Sessieresets";
+"confetti_option_weekly" = "Wekelijkse resets";
+"confetti_option_both" = "Beide";
 "predictive_pace_warning_notification_title" = "%1$@ %2$@-tempowaarschuwing";
 "predictive_pace_warning_notification_body" = "Bij het huidige tempo kan dit quotum over %1$@ opraken, voordat het wordt gereset.";
 "predictive_pace_warning_notification_body_with_account" = "Account %1$@. Bij het huidige tempo kan dit quotum over %2$@ opraken, voordat het wordt gereset.";
@@ -483,7 +494,9 @@
 /* Tab titles */
 "tab_general" = "Algemeen";
 "tab_providers" = "Aanbieders";
-"tab_display" = "Weergave";
+"tab_notifications" = "Meldingen";
+"tab_menu_bar" = "Menubalk";
+"tab_menu" = "Menu";
 "tab_advanced" = "Geavanceerd";
 "tab_about" = "Over";
 "tab_debug" = "Foutopsporing";
@@ -514,34 +527,36 @@
 "primary_api_key_limit" = "Primair (API-sleutellimiet)";
 
 /* Display Pane */
-"section_menu_bar" = "Menubalk";
+"menu_bar_style_title" = "Menubalkstijl";
+"menu_bar_style_subtitle" = "Hoe het menubalkitem wordt weergegeven.";
+"menu_bar_style_critters" = "Critters";
+"menu_bar_style_bars" = "Meterbalken";
+"menu_bar_style_icon_percent" = "Pictogram en percentage";
+"switcher_rows_title" = "Switcher-rijen";
+"switcher_rows_icons" = "Providerpictogrammen";
+"switcher_rows_progress" = "Wekelijkse voortgang";
+"usage_bars_fill_title" = "Vulling gebruiksbalken";
+"usage_bars_fill_remaining" = "Als resterend";
+"usage_bars_fill_used" = "Als gebruikt";
+"reset_times_title" = "Resettijden";
+"reset_times_countdown" = "Aftellen";
+"reset_times_clock" = "Kloktijd";
+"cost_summary_title" = "Kostenoverzicht";
+"cost_summary_off" = "Uit";
 "merge_icons_title" = "Pictogrammen samenvoegen";
 "merge_icons_subtitle" = "Gebruik één menubalkpictogram met een providerwisselaar.";
-"switcher_shows_icons_title" = "Switcher toont pictogrammen";
-"switcher_shows_icons_subtitle" = "Toon providerpictogrammen in de switcher (toon anders een wekelijkse voortgangslijn).";
 "show_most_used_provider_title" = "Toon meest gebruikte provider";
 "show_most_used_provider_subtitle" = "De menubalk toont automatisch de aanbieder die het dichtst bij de tarieflimiet zit.";
-"menu_bar_shows_percent_title" = "Menubalk toont percentage";
-"menu_bar_shows_percent_subtitle" = "Vervang critterbalken door brandingpictogrammen van de provider en een percentage.";
-"hide_critters_title" = "Critters verbergen";
-"hide_critters_subtitle" = "Toon eenvoudige meterbalken zonder gezicht en versieringen.";
 "display_mode_title" = "Weergavemodus";
 "display_mode_subtitle" = "Kies wat u wilt weergeven in de menubalk (Tempo toont gebruik vs. verwacht).";
-"section_menu_content" = "Menu-inhoud";
-"show_usage_as_used_title" = "Toon gebruik zoals gebruikt";
-"show_usage_as_used_subtitle" = "Voortgangsbalken worden gevuld naarmate u uw quotum verbruikt (in plaats van de resterende hoeveelheid weer te geven).";
 "show_quota_warning_markers_title" = "Toon waarschuwingsmarkeringen voor quota";
 "show_quota_warning_markers_subtitle" = "Teken drempelmarkeringen op gebruiksbalken wanneer quotawaarschuwingen zijn geconfigureerd.";
 "weekly_progress_work_days_title" = "Wekelijkse voortgang werkdagen";
 "weekly_progress_work_days_subtitle" = "Stel werkdagen in voor markeringen op wekelijkse gebruiksbalken en tempoberekeningen.";
-"show_reset_time_as_clock_title" = "Toon resettijd als klok";
-"show_reset_time_as_clock_subtitle" = "Geef resettijden weer als absolute klokwaarden in plaats van aftellingen.";
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
 "show_provider_changelog_links_subtitle" = "Voegt koppelingen naar release-opmerkingen voor ondersteunde CLI-ondersteunde providers toe aan het menu.";
 "show_credits_extra_usage_title" = "Toon credits + extra gebruik";
 "show_credits_extra_usage_subtitle" = "Toon Codex Credits en Claude Extra gebruikssecties in het menu.";
-"show_all_token_accounts_title" = "Toon alle tokenaccounts";
-"show_all_token_accounts_subtitle" = "Stapel token-accounts in het menu (laat anders een accountwisselbalk zien).";
 "multi_account_layout_title" = "Indeling voor meerdere accounts";
 "multi_account_layout_subtitle" = "Kies voor gesegmenteerd wisselen tussen accounts of gestapelde accountkaarten.";
 "multi_account_layout_segmented" = "Gesegmenteerd";
@@ -552,6 +567,10 @@
 "overview_no_providers_hint" = "Er zijn geen ingeschakelde providers beschikbaar voor Overzicht.";
 "overview_rows_follow_order" = "Overzichtsrijen volgen altijd de volgorde van de provider.";
 "overview_no_providers_selected" = "Geen aanbieders geselecteerd";
+"agent_sessions_title" = "Agentsessies";
+"agent_sessions_subtitle" = "Toon lokale en via SSH gevonden Codex- en Claude Code-sessies in het menu.";
+"agent_sessions_hosts_title" = "Aanvullende SSH-hosts";
+"agent_sessions_footer" = "Macs op uw tailnet worden automatisch gevonden. Lokale sessies worden elke 30 seconden vernieuwd; externe hosts elke 60 seconden en wanneer het menu wordt geopend.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Sneltoets";
@@ -565,10 +584,6 @@
 "show_debug_settings_subtitle" = "Geef hulpprogramma's voor probleemoplossing weer op het tabblad Foutopsporing.";
 "surprise_me_title" = "Verras mij";
 "surprise_me_subtitle" = "Controleer of je het leuk vindt dat je agenten daar plezier hebben.";
-"session_limit_confetti_title" = "Confetti bij sessielimiet";
-"session_limit_confetti_subtitle" = "Speel confetti op volledig scherm af wanneer het sessiegebruik wordt gereset.";
-"weekly_limit_confetti_title" = "Wekelijkse limiet confetti";
-"weekly_limit_confetti_subtitle" = "Speel confetti op volledig scherm af wanneer het wekelijkse gebruik wordt gereset.";
 "hide_personal_info_title" = "Verberg persoonlijke informatie";
 "hide_personal_info_subtitle" = "Onduidelijke e-mailadressen in de menubalk en menu-UI.";
 "show_provider_storage_usage_title" = "Toon het opslaggebruik van de provider";

@@ -396,7 +396,14 @@
 /* General Pane */
 "section_system" = "Sistema";
 "section_usage" = "Utilizzo";
-"section_automation" = "Automazione";
+"section_refreshing" = "Aggiornamento";
+"section_alerts" = "Avvisi";
+"section_celebrations" = "Celebrazioni";
+"section_icon" = "Icona";
+"section_combined_icon" = "Icona combinata";
+"section_animation" = "Animazione";
+"section_content" = "Contenuto";
+"section_agent_sessions" = "Sessioni degli agenti";
 "language_title" = "Lingua";
 "language_subtitle" = "Cambia la lingua dell'interfaccia. Richiede il riavvio dell'app per applicare completamente la modifica.";
 "language_system" = "Sistema";
@@ -421,7 +428,6 @@
 "language_indonesian" = "Indonesiano";
 "start_at_login_title" = "Avvia all'accesso";
 "start_at_login_subtitle" = "Apre automaticamente CodexBar quando avvii il Mac.";
-"show_cost_summary" = "Mostra riepilogo costi";
 "show_cost_summary_subtitle" = "Legge i log di utilizzo locali. Mostra oggi + la finestra storica selezionata nel menu.";
 "cost_summary_style_title" = "Stile di visualizzazione";
 "cost_summary_style_inline" = "Solo in linea";
@@ -436,17 +442,16 @@
 "cost_comparison_periods_title" = "Mostra periodi di confronto più brevi";
 "cost_comparison_periods_subtitle" = "Aggiungi i totali di 7, 30 e 90 giorni quando rientrano nell'intervallo di cronologia selezionato. Questi totali riutilizzano la stessa scansione locale.";
 "cost_auto_refresh_info" = "Aggiornamento automatico: ogni ora · Timeout: 10 min";
-"refresh_cadence_title" = "Frequenza aggiornamento";
-"refresh_cadence_subtitle" = "Con quale frequenza CodexBar interroga i provider in background.";
+"refresh_interval_title" = "Intervallo di aggiornamento";
 "manual_refresh_hint" = "Aggiornamento automatico disattivato; usa il comando Aggiorna nel menu.";
 "refresh_on_open_title" = "Aggiorna all'apertura del menu";
 "refresh_on_open_subtitle" = "Recupera l'utilizzo più recente di ogni provider ogni volta che apri il menu.";
 "check_provider_status_title" = "Controlla stato provider";
 "check_provider_status_subtitle" = "Controlla le pagine di stato OpenAI/Claude e Google Workspace per Gemini/Antigravity, mostrando incidenti in icona e menu.";
-"session_quota_notifications_title" = "Notifiche quota sessione";
 "session_quota_notifications_subtitle" = "Notifica quando la quota sessione di 5 ore arriva allo 0% e quando torna disponibile.";
-"quota_warning_notifications_title" = "Notifiche avviso quota";
+"quota_depleted_title" = "Quota esaurita e ripristinata";
 "quota_warning_notifications_subtitle" = "Avvisa quando la quota residua di sessione o settimanale scende sotto le soglie configurate.";
+"threshold_warnings_title" = "Avvisi di soglia";
 "quota_warnings_title" = "Avvisi quota";
 "quota_warning_session" = "sessione";
 "quota_warning_session_capitalized" = "Sessione";
@@ -457,6 +462,12 @@
 "quota_warning_notification_body_with_account" = "Account %1$@. Rimane %2$@. Hai raggiunto la soglia di avviso del %3$d%% per la quota %4$@.";
 "predictive_pace_warnings_title" = "Avvisi predittivi sul ritmo";
 "predictive_pace_warnings_subtitle" = "Avvisa per Codex e Claude quando il ritmo della sessione o della settimana potrebbe esaurire la quota prima del reset.";
+"confetti_on_reset_title" = "Coriandoli al reset";
+"confetti_on_reset_subtitle" = "Mostra coriandoli a schermo intero quando l'utilizzo si resetta.";
+"confetti_option_off" = "Disattivato";
+"confetti_option_session" = "Reset della sessione";
+"confetti_option_weekly" = "Reset settimanali";
+"confetti_option_both" = "Entrambi";
 "predictive_pace_warning_notification_title" = "%1$@: avviso ritmo %2$@";
 "predictive_pace_warning_notification_body" = "Al ritmo attuale, questa quota potrebbe esaurirsi tra %1$@, prima del reset.";
 "predictive_pace_warning_notification_body_with_account" = "Account %1$@. Al ritmo attuale, questa quota potrebbe esaurirsi tra %2$@, prima del reset.";
@@ -486,7 +497,9 @@
 /* Tab titles */
 "tab_general" = "Generale";
 "tab_providers" = "Provider";
-"tab_display" = "Aspetto";
+"tab_notifications" = "Notifiche";
+"tab_menu_bar" = "Barra menu";
+"tab_menu" = "Menu";
 "tab_advanced" = "Avanzate";
 "tab_about" = "Informazioni";
 "tab_debug" = "Diagnostica";
@@ -517,34 +530,36 @@
 "primary_api_key_limit" = "Principale (limite chiave API)";
 
 /* Display Pane */
-"section_menu_bar" = "Barra menu";
+"menu_bar_style_title" = "Stile barra menu";
+"menu_bar_style_subtitle" = "Come viene rappresentato l'elemento della barra menu.";
+"menu_bar_style_critters" = "Creature";
+"menu_bar_style_bars" = "Barre di livello";
+"menu_bar_style_icon_percent" = "Icona + percentuale";
+"switcher_rows_title" = "Righe selettore";
+"switcher_rows_icons" = "Icone provider";
+"switcher_rows_progress" = "Progresso settimanale";
+"usage_bars_fill_title" = "Riempimento delle barre di utilizzo";
+"usage_bars_fill_remaining" = "In base al residuo";
+"usage_bars_fill_used" = "In base all'utilizzo";
+"reset_times_title" = "Orari di reset";
+"reset_times_countdown" = "Conto alla rovescia";
+"reset_times_clock" = "Orario";
+"cost_summary_title" = "Riepilogo costi";
+"cost_summary_off" = "Disattivato";
 "merge_icons_title" = "Unisci icone";
 "merge_icons_subtitle" = "Usa un'unica icona nella barra menu con selettore provider.";
-"switcher_shows_icons_title" = "Selettore con icone";
-"switcher_shows_icons_subtitle" = "Mostra le icone provider nel selettore (altrimenti mostra una linea di progresso settimanale).";
 "show_most_used_provider_title" = "Mostra provider più usato";
 "show_most_used_provider_subtitle" = "La barra menu mostra automaticamente il provider più vicino al limite.";
-"menu_bar_shows_percent_title" = "Mostra percentuale nella barra menu";
-"menu_bar_shows_percent_subtitle" = "Sostituisce le barre con icone provider e percentuale.";
-"hide_critters_title" = "Nascondi creature";
-"hide_critters_subtitle" = "Mostra barre semplici senza volto e decorazioni.";
 "display_mode_title" = "Modalità visualizzazione";
 "display_mode_subtitle" = "Scegli cosa mostrare nella barra menu (Andamento confronta utilizzo e atteso).";
-"section_menu_content" = "Contenuto menu";
-"show_usage_as_used_title" = "Mostra utilizzo come consumato";
-"show_usage_as_used_subtitle" = "Le barre si riempiono man mano che consumi quota (anziché mostrare il residuo).";
 "show_quota_warning_markers_title" = "Mostra indicatori avviso quota";
 "show_quota_warning_markers_subtitle" = "Disegna tacche soglia sulle barre quando gli avvisi quota sono configurati.";
 "weekly_progress_work_days_title" = "Giorni lavorativi progresso settimanale";
 "weekly_progress_work_days_subtitle" = "Disegna i confini giornalieri sulle barre settimanali.";
-"show_reset_time_as_clock_title" = "Mostra reset come orario";
-"show_reset_time_as_clock_subtitle" = "Mostra i reset come orari assoluti invece del conto alla rovescia.";
 "show_provider_changelog_links_title" = "Mostra link changelog provider";
 "show_provider_changelog_links_subtitle" = "Aggiunge link alle note di rilascio per i provider CLI supportati.";
 "show_credits_extra_usage_title" = "Mostra crediti + uso extra";
 "show_credits_extra_usage_subtitle" = "Mostra nel menu le sezioni Crediti Codex e Uso extra Claude.";
-"show_all_token_accounts_title" = "Mostra tutti gli account token";
-"show_all_token_accounts_subtitle" = "Impila gli account token nel menu (altrimenti mostra una barra di cambio account).";
 "multi_account_layout_title" = "Layout multi-account";
 "multi_account_layout_subtitle" = "Scegli tra selezione segmentata o schede account impilate.";
 "multi_account_layout_segmented" = "Segmentato";
@@ -555,6 +570,10 @@
 "overview_no_providers_hint" = "Nessun provider attivo disponibile per Panoramica.";
 "overview_rows_follow_order" = "Le righe Panoramica seguono sempre l'ordine dei provider.";
 "overview_no_providers_selected" = "Nessun provider selezionato";
+"agent_sessions_title" = "Sessioni degli agenti";
+"agent_sessions_subtitle" = "Mostra nel menu le sessioni Codex e Claude Code locali e rilevate tramite SSH.";
+"agent_sessions_hosts_title" = "Host SSH aggiuntivi";
+"agent_sessions_footer" = "I Mac sulla tua tailnet vengono rilevati automaticamente. Le sessioni locali si aggiornano ogni 30 secondi; gli host remoti ogni 60 secondi e all'apertura del menu.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Scorciatoia tastiera";
@@ -568,10 +587,6 @@
 "show_debug_settings_subtitle" = "Espone strumenti di diagnosi nella scheda Debug.";
 "surprise_me_title" = "Sorprendimi";
 "surprise_me_subtitle" = "Per chi apprezza un po' di personalità dagli agenti.";
-"session_limit_confetti_title" = "Coriandoli limite sessione";
-"session_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota di sessione si resetta.";
-"weekly_limit_confetti_title" = "Coriandoli limite settimanale";
-"weekly_limit_confetti_subtitle" = "Mostra coriandoli a schermo intero quando la quota settimanale si resetta.";
 "hide_personal_info_title" = "Nascondi informazioni personali";
 "hide_personal_info_subtitle" = "Oscura gli indirizzi email nella barra menu e nell'interfaccia menu.";
 "show_provider_storage_usage_title" = "Mostra spazio usato dai provider";
