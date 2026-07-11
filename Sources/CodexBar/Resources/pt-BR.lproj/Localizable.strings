@@ -463,7 +463,7 @@
 "quota_warning_sound" = "Reproduzir som de notificação";
 "quota_warning_onscreen_alert" = "Mostrar alerta de texto na tela";
 "quota_warning_provider_inherits" = "Usa as configurações globais de alerta de cota, a menos que uma janela seja personalizada aqui.";
-"quota_warning_provider_disabled" = "Os alertas de cota estão desativados globalmente. As configurações do provedor são preservadas.";
+"quota_warning_provider_disabled" = "As notificações de alerta de cota e os marcadores das barras de uso estão desativados. Ative uma das duas opções para editar estas configurações salvas.";
 "quota_warning_provider_markers_only" = "As notificações de alerta de cota estão desativadas globalmente. Estas configurações ainda controlam os marcadores das barras de uso.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personalizar limites de %@";

@@ -448,7 +448,7 @@
 "quota_warning_global_threshold_subtitle" = "Porcentaxes restantes para as xanelas de sesión e semanal, a menos que un provedor as substitúa.";
 "quota_warning_sound" = "Reproducir o son de notificación";
 "quota_warning_provider_inherits" = "Usa a configuración global de aviso de cota a menos que se personalice unha xanela aquí.";
-"quota_warning_provider_disabled" = "Os avisos de cota están desactivados globalmente. A configuración do provedor consérvase.";
+"quota_warning_provider_disabled" = "As notificacións de aviso de cota e os marcadores das barras de uso están desactivados. Activa unha das dúas opcións para editar estes axustes gardados.";
 "quota_warning_provider_markers_only" = "As notificacións de aviso de cota están desactivadas globalmente. Esta configuración segue controlando os marcadores das barras de uso.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personalizar os limiares de %@";

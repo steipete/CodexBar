@@ -467,7 +467,7 @@
 "quota_warning_sound" = "Play notification sound";
 "quota_warning_onscreen_alert" = "Show on-screen text alert";
 "quota_warning_provider_inherits" = "Uses the global quota warning settings unless a window is customized here.";
-"quota_warning_provider_disabled" = "Quota warnings are disabled globally. Provider settings are preserved.";
+"quota_warning_provider_disabled" = "Quota warning notifications and usage-bar markers are disabled. Enable either to edit these saved settings.";
 "quota_warning_provider_markers_only" = "Quota warning notifications are disabled globally. These settings still control usage-bar markers.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Customize %@ thresholds";

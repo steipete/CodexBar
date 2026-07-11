@@ -460,7 +460,7 @@
 "quota_warning_sound" = "Reproducir sonido de notificación";
 "quota_warning_onscreen_alert" = "Mostrar alerta de texto en pantalla";
 "quota_warning_provider_inherits" = "Usa los ajustes globales de aviso de cuota salvo que se personalice una ventana aquí.";
-"quota_warning_provider_disabled" = "Los avisos de cuota están desactivados globalmente. Se conserva la configuración del proveedor.";
+"quota_warning_provider_disabled" = "Las notificaciones de aviso de cuota y los marcadores de las barras de uso están desactivados. Activa una de las dos opciones para editar estos ajustes guardados.";
 "quota_warning_provider_markers_only" = "Las notificaciones de aviso de cuota están desactivadas globalmente. Estos ajustes siguen controlando los marcadores de las barras de uso.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personalizar umbrales de %@";

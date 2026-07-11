@@ -466,7 +466,7 @@
 "quota_warning_sound" = "Spela aviseringsljud";
 "quota_warning_onscreen_alert" = "Visa textavisering på skärmen";
 "quota_warning_provider_inherits" = "Använder de globala kvotvarningsinställningarna om inte ett fönster anpassas här.";
-"quota_warning_provider_disabled" = "Kvotvarningar är inaktiverade globalt. Leverantörsinställningarna behålls.";
+"quota_warning_provider_disabled" = "Aviseringar om kvotvarningar och markörer på användningsstaplar är inaktiverade. Aktivera ett av alternativen för att redigera de sparade inställningarna.";
 "quota_warning_provider_markers_only" = "Aviseringar om kvotvarningar är inaktiverade globalt. De här inställningarna styr fortfarande markörerna på användningsstaplarna.";
 "quota_warning_global" = "Globalt";
 "quota_warning_customize_thresholds" = "Anpassa trösklar för %@";

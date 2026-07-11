@@ -462,7 +462,7 @@
 "quota_warning_sound" = "Phát âm thanh thông báo";
 "quota_warning_onscreen_alert" = "Hiển thị cảnh báo văn bản trên màn hình";
 "quota_warning_provider_inherits" = "Sử dụng cảnh báo Hạn mức toàn cầu Cài đặt trừ khi một cửa sổ được tùy chỉnh tại đây.";
-"quota_warning_provider_disabled" = "Cảnh báo hạn mức đã bị tắt trên toàn ứng dụng. Cài đặt nhà cung cấp vẫn được giữ nguyên.";
+"quota_warning_provider_disabled" = "Thông báo cảnh báo hạn mức và các dấu trên thanh mức sử dụng đều đang tắt. Bật một trong hai để chỉnh sửa các cài đặt đã lưu này.";
 "quota_warning_provider_markers_only" = "Thông báo cảnh báo hạn mức đã bị tắt trên toàn ứng dụng. Các cài đặt này vẫn kiểm soát dấu trên thanh mức sử dụng.";
 "quota_warning_global" = "Toàn cục";
 "quota_warning_customize_thresholds" = "Tùy chỉnh %@ ngưỡng";

@@ -463,7 +463,7 @@
 "quota_warning_sound" = "通知音を再生";
 "quota_warning_onscreen_alert" = "画面上にテキストアラートを表示";
 "quota_warning_provider_inherits" = "ここでウインドウをカスタマイズしない限り、グローバルのクォータ警告設定を使用します。";
-"quota_warning_provider_disabled" = "クォータ警告はグローバルでオフです。プロバイダ設定は保持されます。";
+"quota_warning_provider_disabled" = "クォータ警告通知と使用量バーのマーカーはオフです。保存済みの設定を編集するには、どちらかをオンにしてください。";
 "quota_warning_provider_markers_only" = "クォータ警告通知はグローバルでオフです。これらの設定は引き続き使用量バーのマーカーを制御します。";
 "quota_warning_global" = "グローバル";
 "quota_warning_customize_thresholds" = "%@ のしきい値をカスタマイズ";

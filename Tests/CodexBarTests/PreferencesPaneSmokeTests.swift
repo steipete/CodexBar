@@ -256,6 +256,10 @@ struct PreferencesPaneSmokeTests {
         #expect(inheritedView.overrideMode(for: .session) == .global)
         #expect(inheritedView.overrideMode(for: .weekly) == .global)
 
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(view.footerText == "Uses the global quota warning settings unless a window is customized here.")
+        }
+
         settings.quotaWarningNotificationsEnabled = false
 
         #expect(view.controlsEnabled)
@@ -273,12 +277,14 @@ struct PreferencesPaneSmokeTests {
         }
 
         settings.quotaWarningMarkersVisible = false
+        settings.predictivePaceWarningNotificationsEnabled = true
 
         #expect(!view.controlsEnabled)
         #expect(!inheritedView.controlsEnabled)
 
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
-            #expect(view.footerText == "Quota warnings are disabled globally. Provider settings are preserved.")
+            #expect(view.footerText == "Quota warning notifications and usage-bar markers are disabled. " +
+                "Enable either to edit these saved settings.")
         }
 
         settings.quotaWarningNotificationsEnabled = true
@@ -289,6 +295,10 @@ struct PreferencesPaneSmokeTests {
         #expect(view.overrideMode(for: .weekly) == .off)
         #expect(inheritedView.overrideMode(for: .session) == .global)
         #expect(inheritedView.overrideMode(for: .weekly) == .global)
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(view.footerText == "Uses the global quota warning settings unless a window is customized here.")
+        }
     }
 
     @Test
