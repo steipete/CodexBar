@@ -166,7 +166,7 @@
 "MCP details" = "MCP-Details";
 "Managed Codex accounts unavailable" = "Verwaltete Codex-Konten nicht verfügbar";
 "Managed account storage is unreadable. Live account access is still available, " = "Der verwaltete Kontospeicher ist nicht lesbar. Der Live-Kontozugriff ist weiterhin verfügbar.";
-"Manual" = "Handbuch";
+"Manual" = "Manuell";
 "May your tokens never run out—keep agent limits in view." = "Mögen Ihre Token nie ausgehen – behalten Sie die Agentenlimits im Blick.";
 "Menu bar" = "Menüleiste";
 "Menu bar auto-shows the provider closest to its rate limit." = "In der Menüleiste wird automatisch der Anbieter angezeigt, der seinem Tariflimit am nächsten kommt.";
@@ -696,7 +696,7 @@
 "status_unknown" = "Status unbekannt";
 
 /* Refresh frequency */
-"refresh_manual" = "Handbuch";
+"refresh_manual" = "Manuell";
 "refresh_1min" = "1 Minute";
 "refresh_2min" = "2 Min";
 "refresh_5min" = "5 Min";
