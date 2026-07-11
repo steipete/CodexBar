@@ -1009,7 +1009,7 @@ enum CostUsageScanner {
         return String(filename[matchRange])
     }
 
-    struct CodexSessionMetadata {
+    private struct CodexSessionMetadata {
         let sessionId: String?
         let forkedFromId: String?
         let forkTimestamp: String?
@@ -1315,7 +1315,7 @@ enum CostUsageScanner {
         }
     }
 
-    private static func parseCodexSessionIdentifier(
+    static func parseCodexSessionIdentifier(
         fileURL: URL,
         checkCancellation: CancellationCheck? = nil) throws -> String?
     {
@@ -1324,7 +1324,7 @@ enum CostUsageScanner {
 
     static let codexSessionMetadataMaxLineBytes = 256 * 1024
 
-    static func parseCodexSessionMetadata(
+    private static func parseCodexSessionMetadata(
         fileURL: URL,
         checkCancellation: CancellationCheck? = nil) throws -> CodexSessionMetadata?
     {
@@ -1341,7 +1341,6 @@ enum CostUsageScanner {
 
         var buffer = Data()
         var discardingOversizedLine = false
-        let newline = Data([0x0A])
 
         func parseSessionMetadata(from lineData: Data) -> CodexSessionMetadata? {
             guard !lineData.isEmpty else { return nil }
@@ -1368,32 +1367,47 @@ enum CostUsageScanner {
         }
 
         do {
-            while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
-                try checkCancellation?()
-
-                if discardingOversizedLine {
-                    guard let newlineRange = chunk.range(of: newline) else { continue }
-                    buffer = Data(chunk[newlineRange.upperBound...])
-                    discardingOversizedLine = false
-                } else {
-                    buffer.append(chunk)
-                }
-
-                while let newlineRange = buffer.range(of: newline) {
-                    let lineLength = newlineRange.lowerBound
-                    let lineData = lineLength <= Self.codexSessionMetadataMaxLineBytes
-                        ? buffer.subdata(in: 0..<lineLength)
-                        : Data()
-                    buffer.removeSubrange(0..<newlineRange.upperBound)
-                    if let metadata = parseSessionMetadata(from: lineData) {
-                        return metadata
+            var matchedMetadata: CodexSessionMetadata?
+            while true {
+                let reachedEOF = try autoreleasepool { () throws -> Bool in
+                    guard let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty else {
+                        return true
                     }
-                }
+                    try checkCancellation?()
 
-                if buffer.count > Self.codexSessionMetadataMaxLineBytes {
-                    buffer.removeAll(keepingCapacity: true)
-                    discardingOversizedLine = true
+                    var segmentStart = chunk.startIndex
+                    while segmentStart < chunk.endIndex {
+                        let newlineIndex = chunk[segmentStart...].firstIndex(of: 0x0A)
+                        let segmentEnd = newlineIndex ?? chunk.endIndex
+
+                        if !discardingOversizedLine {
+                            let segmentCount = chunk.distance(from: segmentStart, to: segmentEnd)
+                            let remainingBytes = Self.codexSessionMetadataMaxLineBytes - buffer.count
+                            if segmentCount <= remainingBytes {
+                                buffer.append(contentsOf: chunk[segmentStart..<segmentEnd])
+                            } else {
+                                // Release the retained prefix immediately. The buffer never exceeds the line limit.
+                                buffer.removeAll(keepingCapacity: false)
+                                discardingOversizedLine = true
+                            }
+                        }
+
+                        guard let newlineIndex else { break }
+                        if !discardingOversizedLine,
+                           let metadata = parseSessionMetadata(from: buffer)
+                        {
+                            matchedMetadata = metadata
+                            break
+                        }
+                        buffer.removeAll(keepingCapacity: true)
+                        discardingOversizedLine = false
+                        segmentStart = chunk.index(after: newlineIndex)
+                    }
+
+                    return false
                 }
+                if let matchedMetadata { return matchedMetadata }
+                if reachedEOF { break }
             }
         } catch is CancellationError {
             throw CancellationError()

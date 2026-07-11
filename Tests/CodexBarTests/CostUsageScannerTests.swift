@@ -8,19 +8,46 @@ struct CostUsageScannerTests {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
-        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
-        let oversizedLine = #"{"type":"session_meta","payload":{"id":"too-large","padding":"#
-            + String(repeating: "x", count: CostUsageScanner.codexSessionMetadataMaxLineBytes)
-            + #""}}"#
-        let expectedLine = #"{"type":"session_meta","payload":{"id":"expected-session"}}"#
-        let fileURL = try env.writeCodexSessionFile(
-            day: day,
-            filename: "oversized-session-meta.jsonl",
-            contents: oversizedLine + "\n" + expectedLine + "\n")
+        let fileURL = env.root.appendingPathComponent("oversized-session-meta.jsonl")
+        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: fileURL)
+        defer { try? handle.close() }
 
-        let metadata = try CostUsageScanner.parseCodexSessionMetadata(fileURL: fileURL)
-        #expect(metadata?.sessionId == "expected-session")
-        #expect(metadata?.forkedFromId == nil)
+        let oversizedPrefix = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"too-large\",\"padding\":\""
+        try handle.write(contentsOf: Data(oversizedPrefix.utf8))
+        let chunk = Data(repeating: 0x78, count: 64 * 1024)
+        for _ in 0..<128 {
+            try handle.write(contentsOf: chunk)
+        }
+        let expectedLine = #"{"type":"session_meta","payload":{"id":"expected-session"}}"#
+        try handle.write(contentsOf: Data((#""}}"# + "\n" + expectedLine).utf8))
+        try handle.close()
+
+        let sessionID = try CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL)
+        #expect(sessionID == "expected-session")
+    }
+
+    @Test
+    func `codex session metadata accepts a line exactly at the byte limit`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let prefix = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"limit-session\",\"padding\":\""
+        let suffix = "\"}}"
+        let paddingCount = CostUsageScanner.codexSessionMetadataMaxLineBytes
+            - prefix.utf8.count
+            - suffix.utf8.count
+        var line = Data(prefix.utf8)
+        line.append(Data(repeating: 0x78, count: paddingCount))
+        line.append(contentsOf: suffix.utf8)
+        #expect(line.count == CostUsageScanner.codexSessionMetadataMaxLineBytes)
+
+        let fileURL = env.root.appendingPathComponent("max-size-session-meta.jsonl")
+        try line.write(to: fileURL)
+        #expect(try (JSONSerialization.jsonObject(with: line)) is [String: Any])
+
+        let sessionID = try CostUsageScanner.parseCodexSessionIdentifier(fileURL: fileURL)
+        #expect(sessionID == "limit-session")
     }
 
     @Test
