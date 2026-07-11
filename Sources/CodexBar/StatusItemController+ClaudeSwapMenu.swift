@@ -58,7 +58,7 @@ extension StatusItemController {
         let accountID = account.id
         return { [weak self, weak menu] in
             guard let self else { return }
-            self.advanceMenuContentSelection(for: menu)
+            self.advanceMenuInteraction(for: menu)
             self.store.switchClaudeSwapAccount(accountID)
         }
     }

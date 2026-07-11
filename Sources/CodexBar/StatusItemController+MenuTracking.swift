@@ -4,7 +4,7 @@ import CodexBarCore
 extension StatusItemController {
     func beginMenuTrackingSession(for menu: NSMenu) {
         if menu.supermenu != nil, !self.isHostedSubviewMenu(menu) {
-            self.advanceMenuContentSelection(for: self.rootMenu(for: menu))
+            self.advanceMenuInteraction(for: self.rootMenu(for: menu))
         }
         let menuID = ObjectIdentifier(menu)
         let generation = self.menuSession.beginTrackingSession(menuID)

@@ -215,7 +215,7 @@ extension StatusItemController {
         return item.isEnabled
     }
 
-    func advanceMenuContentSelection(for menu: NSMenu?) {
+    func advanceMenuInteraction(for menu: NSMenu?) {
         guard let menu else { return }
         let key = ObjectIdentifier(menu)
         guard self.openMenus[key] === menu,

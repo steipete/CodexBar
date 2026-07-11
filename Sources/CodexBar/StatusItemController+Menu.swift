@@ -1017,7 +1017,7 @@ extension StatusItemController {
                 guard let self, let menu else { return nil }
                 guard display.accounts.indices.contains(index) else { return nil }
                 let selectedAccount = display.accounts[index]
-                self.advanceMenuContentSelection(for: menu)
+                self.advanceMenuInteraction(for: menu)
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
                 self.store.activateCachedTokenAccountSnapshot(
                     provider: display.provider,
@@ -1061,7 +1061,7 @@ extension StatusItemController {
     @discardableResult
     private func handleCodexVisibleAccountSelection(_ account: CodexVisibleAccount, menu: NSMenu?) -> Bool {
         let visibleAccountID = account.id
-        self.advanceMenuContentSelection(for: menu)
+        self.advanceMenuInteraction(for: menu)
         self.settings.selectDisplayedCodexVisibleAccount(account)
         if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)

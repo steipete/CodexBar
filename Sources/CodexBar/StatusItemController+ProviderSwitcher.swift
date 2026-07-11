@@ -239,9 +239,10 @@ extension StatusItemController {
 
         self.removeProviderSwitcherShortcutMonitor()
         self.resetOverviewScrollAccumulation()
-        let eventMask: NSEvent.EventTypeMask = hasProviderSwitcher
-            ? [.keyDown, .keyUp, .scrollWheel]
-            : [.keyDown, .keyUp]
+        // Every tracked menu observes wheel events so a manual scroll made after Refresh
+        // invalidates that refresh's pending viewport restore. Unhandled wheel events remain
+        // queued for AppKit's native menu scroller.
+        let eventMask: NSEvent.EventTypeMask = [.keyDown, .keyUp, .scrollWheel]
         let monitor = ProviderSwitcherShortcutEventMonitor(
             events: eventMask)
         { [weak self, weak menu] event in
@@ -268,6 +269,9 @@ extension StatusItemController {
 
     @discardableResult
     func handleMenuTrackingShortcutEvent(_ event: NSEvent, menu: NSMenu) -> Bool {
+        if event.type == .scrollWheel {
+            self.advanceMenuInteraction(for: menu)
+        }
         if StatusItemMenu.isPersistentRefreshShortcut(for: event),
            menu.items.contains(where: self.isPersistentRefreshItem)
         {

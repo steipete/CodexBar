@@ -9,7 +9,7 @@ extension StatusItemController {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
-        self.advanceMenuContentSelection(for: self.mergedMenu)
+        self.advanceMenuInteraction(for: self.mergedMenu)
         self.invalidateMenus(refreshOpenMenus: refreshOpenMenus)
         if deferRendering {
             self.scheduleProviderSelectionUIRefresh()

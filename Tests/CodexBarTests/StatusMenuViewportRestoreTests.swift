@@ -639,6 +639,79 @@ struct StatusMenuViewportRestoreTests {
     }
 
     @Test
+    func `scroll during refresh invalidates parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        let gate = ViewportRefreshGate()
+        var scheduledCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        let initialGeneration = try #require(controller.menuSession
+            .menuInteractionGeneration(for: ObjectIdentifier(menu)))
+
+        let scroll = try self.scrollEvent()
+        #expect(!controller.handleMenuTrackingShortcutEvent(scroll, menu: menu))
+        #expect(controller.menuSession.menuInteractionGeneration(for: ObjectIdentifier(menu)) == initialGeneration + 1)
+
+        gate.resume()
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `scroll before delivery invalidates parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        let scroll = try self.scrollEvent()
+        #expect(!controller.handleMenuTrackingShortcutEvent(scroll, menu: menu))
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
     func `non-manual invalidation never schedules a viewport restore`() {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
@@ -1119,6 +1192,17 @@ extension StatusMenuViewportRestoreTests {
             charactersIgnoringModifiers: characters,
             isARepeat: false,
             keyCode: keyCode))
+    }
+
+    private func scrollEvent() throws -> NSEvent {
+        let event = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 1,
+            wheel1: 30,
+            wheel2: 0,
+            wheel3: 0)
+        return try #require(event.flatMap(NSEvent.init(cgEvent:)))
     }
 
     private func enableOnly(_ providers: Set<UsageProvider>, settings: SettingsStore) {
