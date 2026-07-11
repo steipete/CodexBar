@@ -28,6 +28,12 @@ private final class ViewportRefreshGate {
     }
 }
 
+private final class FlippedViewportDocumentView: NSView {
+    override var isFlipped: Bool {
+        true
+    }
+}
+
 @MainActor
 @Suite(.serialized)
 struct StatusMenuViewportRestoreTests {
@@ -110,6 +116,194 @@ struct StatusMenuViewportRestoreTests {
             clipHeight: 950,
             currentOffset: 0) == 750)
     }
+}
+
+extension StatusMenuViewportRestoreTests {
+    @Test
+    func `settled viewport geometry distinguishes layout from movement`() {
+        let document = NSView()
+        let clipView = NSClipView()
+        let initial = MenuViewportGeometry(
+            documentID: ObjectIdentifier(document),
+            clipID: ObjectIdentifier(clipView),
+            documentSize: CGSize(width: 200, height: 600),
+            documentIsFlipped: false,
+            clipSize: CGSize(width: 200, height: 100),
+            clipOrigin: CGPoint(x: 0, y: 200))
+
+        #expect(StatusItemController.menuViewportGeometryTransition(
+            from: initial,
+            to: MenuViewportGeometry(
+                documentID: ObjectIdentifier(document),
+                clipID: initial.clipID,
+                documentSize: initial.documentSize,
+                documentIsFlipped: false,
+                clipSize: initial.clipSize,
+                clipOrigin: CGPoint(x: 0, y: 200.5))) == .unchanged)
+        #expect(StatusItemController.menuViewportGeometryTransition(
+            from: initial,
+            to: MenuViewportGeometry(
+                documentID: ObjectIdentifier(document),
+                clipID: initial.clipID,
+                documentSize: initial.documentSize,
+                documentIsFlipped: false,
+                clipSize: initial.clipSize,
+                clipOrigin: CGPoint(x: 0, y: 210))) == .movement)
+        #expect(StatusItemController.menuViewportGeometryTransition(
+            from: initial,
+            to: MenuViewportGeometry(
+                documentID: ObjectIdentifier(document),
+                clipID: initial.clipID,
+                documentSize: CGSize(width: 200, height: 500),
+                documentIsFlipped: false,
+                clipSize: initial.clipSize,
+                clipOrigin: .zero)) == .layout)
+    }
+
+    @Test
+    func `viewport movement tracker settles layout then accumulates fractional scrolling`() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+        scrollView.documentView = documentView
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 100))
+        let originalBoundsNotifications = scrollView.contentView.postsBoundsChangedNotifications
+        let originalClipFrameNotifications = scrollView.contentView.postsFrameChangedNotifications
+        let originalDocumentFrameNotifications = documentView.postsFrameChangedNotifications
+
+        let tracker = ManualRefreshViewportMovementTracker(scrollView: scrollView)
+        #expect(scrollView.contentView.postsBoundsChangedNotifications)
+        #expect(scrollView.contentView.postsFrameChangedNotifications)
+        #expect(documentView.postsFrameChangedNotifications)
+
+        // AppKit can publish the origin reset before exposing the new document height. The
+        // coalesced sample must see the settled geometry and classify the batch as layout.
+        scrollView.contentView.scroll(to: .zero)
+        NotificationCenter.default.post(
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView)
+        documentView.frame.size.height = 600
+        tracker.settlePendingGeometryChanges()
+        #expect(!tracker.observedMovement)
+
+        for offset in [0.4, 0.8] {
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: offset))
+            tracker.settlePendingGeometryChanges()
+            #expect(!tracker.observedMovement)
+        }
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 1.2))
+        tracker.settlePendingGeometryChanges()
+        #expect(tracker.observedMovement)
+
+        tracker.stop()
+        #expect(scrollView.contentView.postsBoundsChangedNotifications == originalBoundsNotifications)
+        #expect(scrollView.contentView.postsFrameChangedNotifications == originalClipFrameNotifications)
+        #expect(documentView.postsFrameChangedNotifications == originalDocumentFrameNotifications)
+    }
+
+    @Test
+    func `refresh completion waits for settled AppKit geometry before rebasing`() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+        scrollView.documentView = documentView
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 100))
+
+        let tracker = ManualRefreshViewportMovementTracker(scrollView: scrollView)
+        defer { tracker.stop() }
+
+        // macOS 27 can publish this reset while the document still reports its old height.
+        scrollView.contentView.scroll(to: .zero)
+        NotificationCenter.default.post(
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView)
+        var completionRan = false
+        tracker.afterPendingGeometrySettles {
+            tracker.rebaseAfterRefreshLayout()
+            completionRan = true
+        }
+        #expect(!completionRan)
+
+        documentView.frame.size.height = 600
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+
+        #expect(completionRan)
+        #expect(!tracker.observedMovement)
+    }
+
+    @Test
+    func `viewport tracker absorbs a delayed origin correction after layout settles`() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        let documentView = FlippedViewportDocumentView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+        scrollView.documentView = documentView
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 100))
+
+        let tracker = ManualRefreshViewportMovementTracker(scrollView: scrollView)
+        defer { tracker.stop() }
+
+        documentView.frame.size.height = 600
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+        #expect(!tracker.observedMovement)
+
+        // AppKit may correct the origin on the following pass, after geometry already settled.
+        scrollView.contentView.scroll(to: .zero)
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+        #expect(!tracker.observedMovement)
+
+        // A further stable-geometry edge tick is user movement and remains sticky.
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 20))
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+        #expect(tracker.observedMovement)
+    }
+
+    @Test
+    func `viewport observer records move away and return within one settled batch`() {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+        scrollView.documentView = documentView
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 100))
+
+        let tracker = ManualRefreshViewportMovementTracker(scrollView: scrollView)
+        defer { tracker.stop() }
+
+        for offset in [120.0, 100.0] {
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: offset))
+            NotificationCenter.default.post(
+                name: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView)
+        }
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+
+        #expect(tracker.observedMovement)
+    }
+
+    @Test
+    func `stale completion preserves movement owned by a newer refresh`() {
+        let menu = NSMenu()
+        let key = ObjectIdentifier(menu)
+        let newerScrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        newerScrollView.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+        newerScrollView.contentView.scroll(to: NSPoint(x: 0, y: 100))
+        let staleScrollView = NSScrollView(frame: newerScrollView.frame)
+        staleScrollView.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+
+        let state = ManualRefreshViewportRestoreState()
+        defer { state.stopAllMovementTracking() }
+        state.startMovementTracking(for: key, generation: 2, scrollView: newerScrollView)
+        newerScrollView.contentView.scroll(to: NSPoint(x: 0, y: 120))
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+        #expect(state.observedMovement(for: key, generation: 2))
+
+        var completionCount = 0
+        state.prepareForCompletedRefreshLayout(
+            for: key,
+            generation: 1,
+            scrollView: staleScrollView)
+        {
+            completionCount += 1
+        }
+
+        #expect(completionCount == 1)
+        #expect(state.observedMovement(for: key, generation: 2))
+    }
 
     @Test
     func `manual refresh restores originating dirty menu without rebuilding tracked parent`() async throws {
@@ -183,6 +377,44 @@ struct StatusMenuViewportRestoreTests {
         await task.value
 
         #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `viewport becoming attachable during refresh schedules one restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        #expect(StatusItemController.attachedMenuScrollView(in: menu) == nil)
+
+        let gate = ViewportRefreshGate()
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        _ = self.attachScrollableViewport(to: menu)
+
+        gate.resume()
+        await task.value
+
+        #expect(scheduled.count == 1)
+        scheduled.removeFirst()()
+        #expect(restoreCount == 1)
         #expect(controller.menuSession.pendingViewportRestores.isEmpty)
     }
 
@@ -639,6 +871,41 @@ struct StatusMenuViewportRestoreTests {
     }
 
     @Test
+    func `clip movement during refresh invalidates parent viewport restore without a wheel event`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        let scrollView = self.attachScrollableViewport(to: menu)
+
+        let gate = ViewportRefreshGate()
+        var scheduledCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 120))
+        gate.resume()
+        await task.value
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+
+        #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
     func `scroll during refresh invalidates parent viewport restore`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
@@ -673,6 +940,42 @@ struct StatusMenuViewportRestoreTests {
         await task.value
 
         #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `clip movement before delivery invalidates parent viewport restore without a wheel event`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        let scrollView = self.attachScrollableViewport(to: menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 120))
+        scheduled.removeFirst()()
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+
+        #expect(restoreCount == 0)
         #expect(controller.menuSession.pendingViewportRestores.isEmpty)
     }
 
@@ -1203,6 +1506,20 @@ extension StatusMenuViewportRestoreTests {
             wheel2: 0,
             wheel3: 0)
         return try #require(event.flatMap(NSEvent.init(cgEvent:)))
+    }
+
+    private func attachScrollableViewport(to menu: NSMenu) -> NSScrollView {
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 200, height: 100))
+        let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 500))
+        let hostedItemView = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 20))
+        let item = NSMenuItem()
+        item.view = hostedItemView
+        menu.addItem(item)
+        scrollView.documentView = documentView
+        documentView.addSubview(hostedItemView)
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 100))
+        #expect(StatusItemController.attachedMenuScrollView(in: menu) === scrollView)
+        return scrollView
     }
 
     private func enableOnly(_ providers: Set<UsageProvider>, settings: SettingsStore) {
