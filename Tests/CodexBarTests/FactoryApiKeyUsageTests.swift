@@ -265,6 +265,103 @@ struct FactoryApiKeyProbeFetchTests {
     }
 
     @Test
+    func `preserves api host 401 over app host 404 for unauthorized mapping`() async {
+        let transport = FactoryAPIKeyStubTransport()
+        transport.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "api.factory.ai", url.path == "/api/app/auth/me" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+            }
+            if url.host == "app.factory.ai", url.path == "/api/app/auth/me" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let probe = FactoryStatusProbe(
+            timeout: 1.0,
+            browserDetection: BrowserDetection(
+                homeDirectory: "/tmp/codexbar-empty-browser-home",
+                cacheTTL: 0,
+                fileExists: { _ in false },
+                directoryContents: { _ in nil }),
+            transport: transport)
+
+        do {
+            _ = try await probe.fetch(apiKey: "fk-bad")
+            Issue.record("Expected notLoggedIn")
+        } catch let error as FactoryStatusProbeError {
+            #expect(error == .notLoggedIn)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `preserves api host 403 over app host 404 for unauthorized mapping`() async {
+        let transport = FactoryAPIKeyStubTransport()
+        transport.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "api.factory.ai", url.path == "/api/app/auth/me" {
+                return Self.makeResponse(url: url, body: #"{"detail":"forbidden"}"#, statusCode: 403)
+            }
+            if url.host == "app.factory.ai", url.path == "/api/app/auth/me" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let probe = FactoryStatusProbe(
+            timeout: 1.0,
+            browserDetection: BrowserDetection(
+                homeDirectory: "/tmp/codexbar-empty-browser-home",
+                cacheTTL: 0,
+                fileExists: { _ in false },
+                directoryContents: { _ in nil }),
+            transport: transport)
+
+        do {
+            _ = try await probe.fetch(apiKey: "fk-bad")
+            Issue.record("Expected networkError HTTP 403")
+        } catch let error as FactoryStatusProbeError {
+            switch error {
+            case let .networkError(message):
+                #expect(message.contains("HTTP 403"))
+            default:
+                Issue.record("Expected networkError, got \(error)")
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `api strategy does not fall back on network errors in auto mode`() {
+        let strategy = FactoryApiFetchStrategy()
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+        #expect(!strategy.shouldFallback(
+            on: FactoryStatusProbeError.networkError("HTTP 500"),
+            context: context))
+        #expect(!strategy.shouldFallback(
+            on: FactoryStatusProbeError.parseFailed("bad json"),
+            context: context))
+        #expect(strategy.shouldFallback(
+            on: FactoryStatusProbeError.unauthorizedAPIKey,
+            context: context))
+    }
+
+    @Test
     func `empty api key throws missingAPIKey`() async {
         let probe = FactoryStatusProbe(
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -276,6 +373,20 @@ struct FactoryApiKeyProbeFetchTests {
             #expect(error == .missingAPIKey)
         } catch {
             Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    private struct StubClaudeFetcher: ClaudeUsageFetching {
+        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+            throw ClaudeUsageError.parseFailed("stub")
+        }
+
+        func debugRawProbe(model _: String) async -> String {
+            "stub"
+        }
+
+        func detectVersion() -> String? {
+            nil
         }
     }
 

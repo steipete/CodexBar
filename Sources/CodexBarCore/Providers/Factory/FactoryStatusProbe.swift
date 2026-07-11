@@ -1012,7 +1012,7 @@ public struct FactoryStatusProbe: Sendable {
         cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
-    private func fetchWithCookieHeader(
+    func fetchWithCookieHeader(
         _ cookieHeader: String,
         bearerToken: String?,
         baseURL: URL) async throws -> FactoryStatusSnapshot
@@ -1239,29 +1239,6 @@ public struct FactoryStatusProbe: Sendable {
             return legacySession
         }
         return accessToken ?? sessionToken
-    }
-
-    func fetchWithBearerToken(
-        _ bearerToken: String,
-        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
-    {
-        let candidates = [Self.apiBaseURL, self.baseURL]
-        var lastError: Error?
-        for baseURL in candidates {
-            if baseURL != Self.apiBaseURL {
-                logger("Trying Factory bearer base URL: \(baseURL.host ?? baseURL.absoluteString)")
-            }
-            do {
-                return try await self.fetchWithCookieHeader(
-                    "",
-                    bearerToken: bearerToken,
-                    baseURL: baseURL)
-            } catch {
-                lastError = error
-            }
-        }
-        if let lastError { throw lastError }
-        throw FactoryStatusProbeError.notLoggedIn
     }
 
     private func fetchWorkOSAccessToken(
