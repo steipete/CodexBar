@@ -107,7 +107,7 @@ extension UsageStore {
         // Visible-account rows carry their own owner and are reconciled against the current projection.
         // Clearing selected-account state must not discard valid sibling rows.
         self.failureGates[.codex]?.reset()
-        Self.clearSessionQuotaTransitionState(store: self, provider: .codex)
+        self.clearSessionQuotaTransitionState(provider: .codex)
         self.lastKnownResetSnapshots.removeValue(forKey: .codex)
         self.lastCodexUsagePublicationGuard = nil
     }

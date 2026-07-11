@@ -859,7 +859,7 @@ final class UsageStore {
             if provider == .commandcode, snapshot.commandCodeSubscriptionEnrichmentUnavailable {
                 return
             }
-            Self.clearSessionQuotaTransitionState(store: self, provider: provider)
+            self.clearSessionQuotaTransitionState(provider: provider)
             return
         }
         let currentRemaining = sessionWindow.window.remainingPercent
@@ -875,24 +875,22 @@ final class UsageStore {
             self.sessionQuotaLogger.debug(
                 "session window source changed: provider=\(providerText) prevSource=\(previousSource.rawValue) " +
                     "currSource=\(currentSource.rawValue) curr=\(currentRemaining)")
-            self.lastKnownSessionRemaining[provider] = currentRemaining
-            self.lastKnownSessionWindowSource[provider] = currentSource
-            Self.updateSessionResetBoundary(
-                store: self,
+            self.recordSessionQuotaTransitionState(
                 provider: provider,
+                remaining: currentRemaining,
+                source: currentSource,
                 resetBoundary: currentResetBoundary)
             return
         }
 
         defer {
             if !preserveDepletedBaseline {
-                self.lastKnownSessionRemaining[provider] = currentRemaining
-                Self.updateSessionResetBoundary(
-                    store: self,
+                self.recordSessionQuotaTransitionState(
                     provider: provider,
+                    remaining: currentRemaining,
+                    source: currentSource,
                     resetBoundary: currentResetBoundary)
             }
-            self.lastKnownSessionWindowSource[provider] = currentSource
         }
 
         guard self.settings.sessionQuotaNotificationsEnabled else {

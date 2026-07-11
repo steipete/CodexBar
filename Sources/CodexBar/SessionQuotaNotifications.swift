@@ -41,7 +41,6 @@ struct QuotaWarningEvent: Equatable {
 
 enum SessionQuotaNotificationLogic {
     static let depletedThreshold: Double = 0.0001
-    static let resetBoundaryEquivalenceToleranceSeconds: TimeInterval = 2 * 60
 
     static func isDepleted(_ remaining: Double?) -> Bool {
         guard let remaining else { return false }
@@ -55,12 +54,15 @@ enum SessionQuotaNotificationLogic {
         let wasDepleted = previousRemaining <= Self.depletedThreshold
         let isDepleted = currentRemaining <= Self.depletedThreshold
 
-        if !wasDepleted, isDepleted { return .depleted }
-        if wasDepleted, !isDepleted { return .restored }
+        if !wasDepleted, isDepleted {
+            return .depleted
+        }
+        if wasDepleted, !isDepleted {
+            return .restored
+        }
         return .none
     }
 
-    /// Mirrors the session lane guard from issue #2054 confetti detection.
     static func sessionResetBoundaryAllowsRestore(
         previousResetBoundary: Date?,
         currentResetBoundary: Date?,
@@ -72,12 +74,9 @@ enum SessionQuotaNotificationLogic {
             // previously known boundary has elapsed.
             return evaluationTime >= previousResetBoundary
         }
-        return !Self.areEquivalentResetBoundaries(previousResetBoundary, currentResetBoundary)
-            && currentResetBoundary > previousResetBoundary
-    }
-
-    private static func areEquivalentResetBoundaries(_ lhs: Date, _ rhs: Date) -> Bool {
-        abs(lhs.timeIntervalSince(rhs)) < self.resetBoundaryEquivalenceToleranceSeconds
+        return UsageStore.limitResetBoundaryAdvanced(
+            previous: previousResetBoundary,
+            current: currentResetBoundary)
     }
 
     static func notificationCopy(
@@ -201,22 +200,25 @@ extension UsageStore {
         return minutes <= 6 * 60
     }
 
-    static func updateSessionResetBoundary(
-        store: UsageStore,
+    func recordSessionQuotaTransitionState(
         provider: UsageProvider,
+        remaining: Double,
+        source: SessionQuotaWindowSource,
         resetBoundary: Date?)
     {
+        self.lastKnownSessionRemaining[provider] = remaining
+        self.lastKnownSessionWindowSource[provider] = source
         if let resetBoundary {
-            store.lastKnownSessionResetBoundary[provider] = resetBoundary
+            self.lastKnownSessionResetBoundary[provider] = resetBoundary
         } else {
-            store.lastKnownSessionResetBoundary.removeValue(forKey: provider)
+            self.lastKnownSessionResetBoundary.removeValue(forKey: provider)
         }
     }
 
-    static func clearSessionQuotaTransitionState(store: UsageStore, provider: UsageProvider) {
-        store.lastKnownSessionRemaining.removeValue(forKey: provider)
-        store.lastKnownSessionWindowSource.removeValue(forKey: provider)
-        store.lastKnownSessionResetBoundary.removeValue(forKey: provider)
+    func clearSessionQuotaTransitionState(provider: UsageProvider) {
+        self.lastKnownSessionRemaining.removeValue(forKey: provider)
+        self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+        self.lastKnownSessionResetBoundary.removeValue(forKey: provider)
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
