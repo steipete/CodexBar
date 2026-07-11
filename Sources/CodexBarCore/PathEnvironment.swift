@@ -742,10 +742,20 @@ public enum ShellCommandLocator {
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
+        // Preserve the caller's foreground process group before spawning.
+        // Interactive shells (for PATH capture) can temporarily move terminal fg,
+        // and restoring it here prevents parent shells like `watch` from getting
+        // stranded after command completion.
+        let originalForegroundProcessGroup = Self.foregroundProcessGroup(for: STDIN_FILENO)
+
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
         // via posix_spawn_file_actions_addopen below.
         var stdoutFds: (read: Int32, write: Int32) = (-1, -1)
         var stderrFds: (read: Int32, write: Int32) = (-1, -1)
+
+        defer {
+            Self.restoreForegroundProcessGroup(for: STDIN_FILENO, original: originalForegroundProcessGroup)
+        }
         guard withUnsafeMutablePointer(to: &stdoutFds, {
             $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
         }) else { return nil }
@@ -918,6 +928,34 @@ public enum ShellCommandLocator {
             if stderrDone.fire() { drainGroup.leave() }
         }
         return stdoutCollector.drain()
+    }
+
+    private static func foregroundProcessGroup(for fd: Int32) -> pid_t? {
+        guard isatty(fd) == 1 else { return nil }
+        let processGroup = tcgetpgrp(fd)
+        return processGroup > 0 ? processGroup : nil
+    }
+
+    private static func restoreForegroundProcessGroup(for fd: Int32, original: pid_t?) {
+        guard let original else { return }
+        guard isatty(fd) == 1 else { return }
+
+        let current = tcgetpgrp(fd)
+        guard current != original else { return }
+
+        // At this point the terminal's foreground group is not ours, so this
+        // process is in a background process group. A bare tcsetpgrp from a
+        // background group raises SIGTTOU against our own group, whose default
+        // action stops the process — the exact hang this restore guards against.
+        // Block SIGTTOU on this thread across the call so the restore proceeds
+        // without a signal, then put the previous mask back.
+        var blockTTOU = sigset_t()
+        sigemptyset(&blockTTOU)
+        sigaddset(&blockTTOU, SIGTTOU)
+        var previousMask = sigset_t()
+        pthread_sigmask(SIG_BLOCK, &blockTTOU, &previousMask)
+        _ = tcsetpgrp(fd, original)
+        pthread_sigmask(SIG_SETMASK, &previousMask, nil)
     }
 
     // swiftlint:enable cyclomatic_complexity
