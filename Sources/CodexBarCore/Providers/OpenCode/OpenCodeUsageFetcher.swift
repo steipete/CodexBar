@@ -105,28 +105,28 @@ public struct OpenCodeUsageFetcher: Sendable {
         return try self.parseSubscription(text: subscriptionText, now: now)
     }
 
-    private static func fetchWorkspaceID(
+    public static func discoverWorkspaces(
         cookieHeader: String,
         timeout: TimeInterval,
-        session: URLSession) async throws -> String
+        session: URLSession) async throws -> [OpenCodeDiscoveredWorkspace]
     {
+        guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
+            throw OpenCodeUsageError.invalidCredentials
+        }
         let text = try await self.fetchServerText(
             request: ServerRequest(
                 serverID: self.workspacesServerID,
                 args: nil,
                 method: "GET",
                 referer: self.baseURL),
-            cookieHeader: cookieHeader,
+            cookieHeader: requestCookieHeader,
             timeout: timeout,
             session: session)
         if self.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
-        var ids = self.parseWorkspaceIDs(text: text)
-        if ids.isEmpty {
-            ids = self.parseWorkspaceIDsFromJSON(text: text)
-        }
-        if ids.isEmpty {
+        var workspaces = self.parseWorkspaces(text: text)
+        if workspaces.isEmpty {
             Self.log.error("OpenCode workspace ids missing after GET; retrying with POST.")
             let fallback = try await self.fetchServerText(
                 request: ServerRequest(
@@ -134,23 +134,31 @@ public struct OpenCodeUsageFetcher: Sendable {
                     args: [],
                     method: "POST",
                     referer: self.baseURL),
-                cookieHeader: cookieHeader,
+                cookieHeader: requestCookieHeader,
                 timeout: timeout,
                 session: session)
             if self.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
             }
-            ids = self.parseWorkspaceIDs(text: fallback)
-            if ids.isEmpty {
-                ids = self.parseWorkspaceIDsFromJSON(text: fallback)
-            }
-            if ids.isEmpty {
+            workspaces = self.parseWorkspaces(text: fallback)
+            if workspaces.isEmpty {
                 self.logParseSummary(text: fallback)
                 throw OpenCodeUsageError.parseFailed("Missing workspace id.")
             }
-            return ids[0]
         }
-        return ids[0]
+        return workspaces
+    }
+
+    private static func fetchWorkspaceID(
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        let workspaces = try await self.discoverWorkspaces(
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            session: session)
+        return workspaces[0].workspaceID
     }
 
     private static func fetchSubscriptionInfo(
@@ -223,26 +231,7 @@ public struct OpenCodeUsageFetcher: Sendable {
     }
 
     private static func normalizeWorkspaceID(_ raw: String?) -> String? {
-        guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("wrk_"), trimmed.count > 4 {
-            return trimmed
-        }
-        if let url = URL(string: trimmed) {
-            let parts = url.pathComponents
-            if let index = parts.firstIndex(of: "workspace"),
-               parts.count > index + 1
-            {
-                let candidate = parts[index + 1]
-                if candidate.hasPrefix("wrk_"), candidate.count > 4 {
-                    return candidate
-                }
-            }
-        }
-        if let match = trimmed.range(of: #"wrk_[A-Za-z0-9]+"#, options: .regularExpression) {
-            return String(trimmed[match])
-        }
-        return nil
+        OpenCodeWorkspaceAccount.normalizeWorkspaceID(raw)
     }
 
     private static func fetchServerText(
@@ -346,6 +335,87 @@ public struct OpenCodeUsageFetcher: Sendable {
         }
 
         self.logParseSummary(object: object)
+        return nil
+    }
+
+    static func parseWorkspaces(text: String) -> [OpenCodeDiscoveredWorkspace] {
+        if let data = text.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data, options: [])
+        {
+            var workspaces: [OpenCodeDiscoveredWorkspace] = []
+            self.collectWorkspaces(object: object, out: &workspaces)
+            if !workspaces.isEmpty {
+                return workspaces
+            }
+        }
+
+        let pattern = #"id\s*:\s*["'](wrk_[^"']+)["'][^}]{0,300}?(?:name|label|displayName|title)\s*:\s*["']([^"']+)["']"#
+        var workspaces: [OpenCodeDiscoveredWorkspace] = []
+        var seen: Set<String> = []
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
+            for match in regex.matches(in: text, options: [], range: nsrange) {
+                guard let idRange = Range(match.range(at: 1), in: text),
+                      let labelRange = Range(match.range(at: 2), in: text)
+                else {
+                    continue
+                }
+                let workspaceID = String(text[idRange])
+                guard seen.insert(workspaceID).inserted else { continue }
+                workspaces.append(OpenCodeDiscoveredWorkspace(
+                    workspaceID: workspaceID,
+                    label: String(text[labelRange])))
+            }
+        }
+        for workspaceID in self.parseWorkspaceIDs(text: text) where seen.insert(workspaceID).inserted {
+            workspaces.append(OpenCodeDiscoveredWorkspace(
+                workspaceID: workspaceID,
+                label: workspaceID))
+        }
+        return workspaces
+    }
+
+    private static func collectWorkspaces(object: Any, out: inout [OpenCodeDiscoveredWorkspace]) {
+        if let dict = object as? [String: Any] {
+            if let rawID = dict["id"] as? String,
+               let workspaceID = OpenCodeWorkspaceAccount.normalizeWorkspaceID(rawID),
+               !out.contains(where: { $0.workspaceID == workspaceID })
+            {
+                let label = self.firstString(
+                    keys: ["name", "label", "displayName", "title", "slug"],
+                    in: dict) ?? workspaceID
+                let ownerLabel: String? = if let owner = dict["owner"] as? [String: Any] {
+                    self.firstString(keys: ["name", "label", "displayName", "email", "login"], in: owner)
+                } else if let owner = dict["owner"] as? String {
+                    owner
+                } else {
+                    self.firstString(keys: ["ownerName", "ownerLabel"], in: dict)
+                }
+                out.append(OpenCodeDiscoveredWorkspace(
+                    workspaceID: workspaceID,
+                    label: label,
+                    ownerLabel: ownerLabel))
+            }
+            for value in dict.values {
+                self.collectWorkspaces(object: value, out: &out)
+            }
+            return
+        }
+        if let array = object as? [Any] {
+            for value in array {
+                self.collectWorkspaces(object: value, out: &out)
+            }
+        }
+    }
+
+    private static func firstString(keys: [String], in dict: [String: Any]) -> String? {
+        for key in keys {
+            guard let value = dict[key] as? String else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
         return nil
     }
 

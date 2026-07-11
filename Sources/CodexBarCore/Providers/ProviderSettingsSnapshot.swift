@@ -108,11 +108,18 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualCookieHeader: String?
         public let workspaceID: String?
+        public let workspaceAccountID: String?
 
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?, workspaceID: String?) {
+        public init(
+            cookieSource: ProviderCookieSource,
+            manualCookieHeader: String?,
+            workspaceID: String?,
+            workspaceAccountID: String? = nil)
+        {
             self.cookieSource = cookieSource
             self.manualCookieHeader = manualCookieHeader
             self.workspaceID = workspaceID
+            self.workspaceAccountID = workspaceAccountID
         }
     }
 

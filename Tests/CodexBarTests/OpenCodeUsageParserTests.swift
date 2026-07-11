@@ -4,6 +4,16 @@ import Testing
 
 struct OpenCodeUsageParserTests {
     @Test
+    func parsesTypedWorkspaceMetadataFromJSON() throws {
+        let text = #"{"workspaces":[{"id":"wrk_ALPHA","name":"Alpha","owner":{"name":"Alice"}}]}"#
+
+        let workspaces = OpenCodeUsageFetcher.parseWorkspaces(text: text)
+
+        #expect(workspaces == [
+            OpenCodeDiscoveredWorkspace(workspaceID: "wrk_ALPHA", label: "Alpha", ownerLabel: "Alice"),
+        ])
+    }
+    @Test
     func `parses workspace I ds`() {
         let text = ";0x00000089;((self.$R=self.$R||{})[\"codexbar\"]=[]," +
             "($R=>$R[0]=[$R[1]={id:\"wrk_01K6AR1ZET89H8NB691FQ2C2VB\",name:\"Default\",slug:null}])" +
