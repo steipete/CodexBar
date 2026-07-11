@@ -1,0 +1,5 @@
+# 2026-07-11 Cursor and OpenCode parity
+
+- Plan approval: Codex Review Loop approved the revised implementation plan after four rounds.
+- Task 1 baseline: the focused Cursor, widget, and OpenCode parser suites passed before characterization changes.
+- Regression contracts added: selected Cursor range/date persistence, approximate totals, weighted request diagnostics, and backward-compatible snapshot decoding.

@@ -29,6 +29,7 @@ struct WidgetSnapshotTests {
 
         #expect(snapshot.entries.first?.cursorRequestRange == nil)
         #expect(snapshot.entries.first?.cursorRequestDetails == nil)
+        #expect(snapshot.entries.first?.tokenUsage?.sessionCostText == nil)
     }
 
     @Test
@@ -46,7 +47,8 @@ struct WidgetSnapshotTests {
                 sessionCostUSD: nil,
                 sessionTokens: 1000,
                 last30DaysCostUSD: nil,
-                last30DaysTokens: 1000),
+                last30DaysTokens: 1000,
+                sessionCostText: "Approx. $4.10+"),
             cursorRequestRange: WidgetSnapshot.CursorRequestRange(
                 start: timestamp.addingTimeInterval(-3600),
                 end: timestamp,
