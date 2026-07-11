@@ -15,6 +15,7 @@
 
 ### Changed
 - Settings: reorganize into General, Notifications, Menu Bar, Menu, Advanced, and About panes; merge icon-style, cost-summary, switcher, usage-bar, reset-time, and confetti checkboxes into pickers; consistent sentence-case naming and localized Agent Sessions strings.
+- Settings: adopt the macOS Golden Gate simplified sidebar design — the sidebar now runs edge-to-edge with a hairline separator instead of floating as a rounded, shadowed card.
 
 ### Fixed
 - Refresh: keep all-provider manual refresh responsive while forced cost, credit, and dashboard enrichment finishes in a serialized background tail, and keep fixed intervals anchored to scheduled ticks. Thanks @Yuxin-Qiao!

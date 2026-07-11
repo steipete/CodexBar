@@ -135,6 +135,21 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
+    func `settings window extends content behind the titlebar for the edge-to-edge sidebar`() {
+        let bridge = SettingsWindowAppearanceView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+
+        window.contentView = bridge
+
+        #expect(window.styleMask.contains(.fullSizeContentView))
+        #expect(window.titlebarAppearsTransparent)
+    }
+
+    @Test
     func `repeated theme updates cannot leave an explicit appearance`() {
         let resetCapture = ResetCapture()
         let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }
