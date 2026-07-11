@@ -67,4 +67,11 @@ struct AdaptiveReplayPolicyTests {
         #expect(!FixedIntervalPolicy(minutes: 5).advancesOnInteraction)
         #expect(!ManualPolicy().advancesOnInteraction)
     }
+
+    @Test
+    func `fixed interval conversion cannot overflow integer multiplication`() {
+        let decision = FixedIntervalPolicy(minutes: Int.max).decide(self.input(ageSeconds: 0))
+        #expect(decision.delaySeconds == TimeInterval(Int.max) * 60)
+        #expect(decision.delaySeconds?.isFinite == true)
+    }
 }

@@ -1,14 +1,47 @@
 import AdaptiveReplayKit
 import Foundation
 
+enum ReplayPolicyName: String, CaseIterable, Sendable {
+    case adaptive
+    case adaptiveActivity = "adaptive-activity"
+    case fixed2Minutes = "fixed-2m"
+    case fixed5Minutes = "fixed-5m"
+    case fixed15Minutes = "fixed-15m"
+    case fixed30Minutes = "fixed-30m"
+    case manual
+
+    var policy: any ReplayPolicy {
+        switch self {
+        case .adaptive:
+            AdaptiveReplayPolicy()
+        case .adaptiveActivity:
+            CodingActivityAdaptivePolicy()
+        case .fixed2Minutes:
+            FixedIntervalPolicy(minutes: 2)
+        case .fixed5Minutes:
+            FixedIntervalPolicy(minutes: 5)
+        case .fixed15Minutes:
+            FixedIntervalPolicy(minutes: 15)
+        case .fixed30Minutes:
+            FixedIntervalPolicy(minutes: 30)
+        case .manual:
+            ManualPolicy()
+        }
+    }
+
+    static var expectedValues: String {
+        allCases.map(\.rawValue).joined(separator: ", ")
+    }
+}
+
 enum CLIArguments {
-    case run(tracePath: String, policyNames: [String], jsonOutput: Bool, gapGraceSeconds: TimeInterval?)
+    case run(
+        tracePath: String,
+        policyNames: [ReplayPolicyName],
+        jsonOutput: Bool,
+        gapGraceSeconds: TimeInterval?)
     case help(exitCode: Int32)
     case invalid(message: String)
-
-    private static let allPolicyNames = [
-        "adaptive", "adaptive-activity", "fixed-2m", "fixed-5m", "fixed-15m", "fixed-30m", "manual",
-    ]
 
     static func parse(_ arguments: [String]) -> Self {
         if arguments.contains("-h") || arguments.contains("--help") {
@@ -16,7 +49,7 @@ enum CLIArguments {
         }
 
         var tracePath: String?
-        var policyNames: [String] = []
+        var policyNames: [ReplayPolicyName] = []
         var jsonOutput = false
         var gapGraceSeconds: TimeInterval? = ReplayTraceSegmenter.defaultGraceSeconds
         var index = 0
@@ -38,7 +71,12 @@ enum CLIArguments {
             case "--policy":
                 index += 1
                 guard index < arguments.count else { return .invalid(message: "--policy requires a value") }
-                policyNames.append(arguments[index])
+                let rawPolicyName = arguments[index]
+                guard let policyName = ReplayPolicyName(rawValue: rawPolicyName) else {
+                    return .invalid(
+                        message: "unknown policy '\(rawPolicyName)' (expected: \(ReplayPolicyName.expectedValues))")
+                }
+                policyNames.append(policyName)
             default:
                 guard tracePath == nil else {
                     return .invalid(message: "unexpected argument '\(argument)'")
@@ -53,7 +91,7 @@ enum CLIArguments {
         }
         return .run(
             tracePath: tracePath,
-            policyNames: policyNames.isEmpty ? Self.allPolicyNames : policyNames,
+            policyNames: policyNames.isEmpty ? ReplayPolicyName.allCases : policyNames,
             jsonOutput: jsonOutput,
             gapGraceSeconds: gapGraceSeconds)
     }

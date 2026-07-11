@@ -111,6 +111,14 @@ let package = Package(
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),
             .testTarget(
+                name: "AdaptiveReplayCLITests",
+                dependencies: ["AdaptiveReplayCLI", "AdaptiveReplayKit"],
+                path: "Tests/AdaptiveReplayCLITests",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                    .enableExperimentalFeature("SwiftTesting"),
+                ]),
+            .testTarget(
                 name: "AdaptiveReplayKitTests",
                 dependencies: ["AdaptiveRefreshCore", "AdaptiveReplayKit"],
                 path: "Tests/AdaptiveReplayKitTests",
@@ -179,7 +187,7 @@ let package = Package(
             name: "CodexBarTests",
             dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget"],
             path: "Tests",
-            exclude: ["AdaptiveReplayKitTests"],
+            exclude: ["AdaptiveReplayCLITests", "AdaptiveReplayKitTests"],
             resources: [
                 .copy("CodexBarTests/Fixtures"),
             ],

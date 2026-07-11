@@ -35,7 +35,7 @@ public struct FixedIntervalPolicy: ReplayPolicy, Sendable {
 
     public init(minutes: Int) {
         self.name = "fixed-\(minutes)m"
-        self.intervalSeconds = TimeInterval(minutes * 60)
+        self.intervalSeconds = TimeInterval(minutes) * 60
     }
 
     public func decide(_: ReplayPolicyInput) -> ReplayPolicyDecision {

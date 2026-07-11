@@ -26,7 +26,7 @@ enum AdaptiveReplayCLI {
 
     private static func run(
         tracePath: String,
-        policyNames: [String],
+        policyNames: [ReplayPolicyName],
         jsonOutput: Bool,
         gapGraceSeconds: TimeInterval?)
     {
@@ -38,13 +38,7 @@ enum AdaptiveReplayCLI {
             exit(EXIT_FAILURE)
         }
 
-        let policies: [any ReplayPolicy]
-        do {
-            policies = try policyNames.map { try Self.policy(named: $0) }
-        } catch {
-            FileHandle.standardError.write(Data("error: \(error)\n".utf8))
-            exit(EXIT_FAILURE)
-        }
+        let policies = policyNames.map(\.policy)
 
         let results = policies.map { policy in
             gapGraceSeconds.map {
@@ -100,24 +94,6 @@ enum AdaptiveReplayCLI {
             stats.sampledCount,
             stats.activeFraction * 100)
         return "activity telemetry: \(sampledSummary), \(activeSummary)"
-    }
-
-    private static func policy(named name: String) throws -> any ReplayPolicy {
-        if name == "adaptive" {
-            return AdaptiveReplayPolicy()
-        }
-        if name == "adaptive-activity" {
-            return CodingActivityAdaptivePolicy()
-        }
-        if name == "manual" {
-            return ManualPolicy()
-        }
-        if name.hasPrefix("fixed-"), name.hasSuffix("m"),
-           let minutes = Int(name.dropFirst("fixed-".count).dropLast())
-        {
-            return FixedIntervalPolicy(minutes: minutes)
-        }
-        throw CLIError.unknownPolicy(name)
     }
 
     private static func renderTable(_ results: [ReplayMetrics]) -> String {
@@ -230,23 +206,12 @@ enum AdaptiveReplayCLI {
     Defaults to comparing all seven policies when --policy is omitted.
 
     Options:
-      --policy <name>   Restrict to one policy; repeat to compare a specific subset.
+      --policy <name>   Restrict to one listed policy; repeat to compare a specific subset.
       --gap-grace <s>   Split legacy gaps this many seconds after the last timer deadline (default 300).
       --raw-wall-clock  Disable gap segmentation; useful only for auditing the old behavior.
       --json            Print a machine-readable report including replay, activity, and audit data.
       -h, --help        Print this help text.
     """
-}
-
-private enum CLIError: Error, CustomStringConvertible {
-    case unknownPolicy(String)
-
-    var description: String {
-        switch self {
-        case let .unknownPolicy(name):
-            "unknown policy '\(name)' (expected: adaptive, adaptive-activity, manual, fixed-<N>m)"
-        }
-    }
 }
 
 AdaptiveReplayCLI.main()
