@@ -104,6 +104,23 @@ struct AmpUsageParserTests {
     }
 
     @Test
+    func `daily amp usage rejects cached rolling reset`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let legacy = try AmpUsageParser.parse(
+            displayText: "Signed in as user@example.com\nAmp Free: $6/$10 remaining (replenishes +$0.5/hour)",
+            now: now).toUsageSnapshot(now: now)
+        let daily = try AmpUsageParser.parse(
+            displayText: "Signed in as user@example.com\nAmp Free: 61% remaining today (resets daily)",
+            now: now).toUsageSnapshot(now: now)
+
+        let published = daily.backfillingResetTimes(from: legacy, now: now)
+
+        #expect(legacy.primary?.resetsAt == now.addingTimeInterval(8 * 3600))
+        #expect(published.primary?.resetsAt == nil)
+        #expect(published.primary?.resetDescription == "daily")
+    }
+
+    @Test
     func `parses individual credits without free tier usage`() throws {
         let output = """
         Signed in as paid@example.com

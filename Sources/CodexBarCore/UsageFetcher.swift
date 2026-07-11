@@ -73,6 +73,9 @@ public struct RateWindow: Codable, Equatable, Sendable {
 
     public func backfillingResetTime(from cached: RateWindow?, now: Date = .init()) -> RateWindow {
         if self.resetsAt != nil { return self }
+        // A changed textual reset schedule is fresh provider authority. Reusing the prior exact timestamp would
+        // attach a stale reset boundary to a different quota cadence (for example, rolling Amp usage becoming daily).
+        if self.resetDescription != nil, self.resetDescription != cached?.resetDescription { return self }
         guard let cachedReset = cached?.resetsAt, cachedReset > now else { return self }
         let windowMinutes = if let windowMinutes = self.windowMinutes, windowMinutes > 0 {
             windowMinutes
