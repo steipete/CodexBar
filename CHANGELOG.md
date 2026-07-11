@@ -7,6 +7,7 @@
 
 ### Fixed
 - German localization: label manual cookie-source and refresh options as “Manuell” instead of the handbook noun “Handbuch.” Thanks @fbrettnich!
+- Amp: parse the current percentage-based daily Amp Free usage output while preserving individual and workspace balances. Thanks @3kh0!
 - Codex notifications: suppress false session-restored alerts while the reset boundary is unchanged, without hiding a real reset after the known boundary passes. Thanks @Yuxin-Qiao!
 - Codex cost history: keep opening and refreshing the submenu fast as project history grows by comparing only the content it renders. Thanks @Yuxin-Qiao!
 - Codex cost history: keep model-less token events explicitly unpriced and unattributed instead of pricing them as GPT-5 while preserving current turn model attribution. Thanks @hhh2210!
