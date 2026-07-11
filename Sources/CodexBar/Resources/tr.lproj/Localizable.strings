@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "İzlenecek IDE'yi seçin";
 "Session quota notifications" = "Oturum kota bildirimleri";
 "Session tokens" = "Oturum jetonları";
-"Settings" = "Ayarlar";
+"provider_section_connection" = "Bağlantı";
+"provider_section_menu_bar" = "Menü çubuğu";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Menüde Codex Kredileri ve Claude Ekstra kullanım bölümlerini göster.";
 "Show Debug Settings" = "Hata Ayıklama Ayarlarını Göster";
 "Show all token accounts" = "Tüm jeton hesaplarını göster";

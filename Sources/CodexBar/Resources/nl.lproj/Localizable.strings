@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "Selecteer de IDE die u wilt monitoren";
 "Session quota notifications" = "Meldingen over sessiequota";
 "Session tokens" = "Sessietokens";
-"Settings" = "Instellingen";
+"provider_section_connection" = "Verbinding";
+"provider_section_menu_bar" = "Menubalk";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Toon Codex Credits en Claude Extra gebruikssecties in het menu.";
 "Show Debug Settings" = "Toon foutopsporingsinstellingen";
 "Show all token accounts" = "Toon alle tokenaccounts";

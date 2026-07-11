@@ -104,6 +104,14 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         return (label: L("Balance"), value: rawPlan)
     }
 
+    private var menuBarSettingsPickers: [ProviderSettingsPickerDescriptor] {
+        self.settingsPickers.filter { $0.placement == .menuBar }
+    }
+
+    private var connectionSettingsPickers: [ProviderSettingsPickerDescriptor] {
+        self.settingsPickers.filter { $0.placement == .connection }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -143,16 +151,26 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 }
             }
 
-            if !self.settingsPickers.isEmpty || !self.settingsActions.isEmpty {
+            if !self.menuBarSettingsPickers.isEmpty {
                 Section {
-                    ForEach(self.settingsPickers) { picker in
+                    ForEach(self.menuBarSettingsPickers) { picker in
+                        ProviderSettingsPickerRowView(picker: picker)
+                    }
+                } header: {
+                    Text(L("provider_section_menu_bar"))
+                }
+            }
+
+            if !self.connectionSettingsPickers.isEmpty || !self.settingsActions.isEmpty {
+                Section {
+                    ForEach(self.connectionSettingsPickers) { picker in
                         ProviderSettingsPickerRowView(picker: picker)
                     }
                     ForEach(self.settingsActions) { descriptor in
                         ProviderSettingsActionsRowView(descriptor: descriptor)
                     }
                 } header: {
-                    Text(L("Settings"))
+                    Text(L("provider_section_connection"))
                 }
             }
 

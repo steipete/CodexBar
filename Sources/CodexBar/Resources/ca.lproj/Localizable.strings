@@ -271,7 +271,8 @@
 "Select the IDE to monitor" = "Seleccioneu l'IDE que cal monitorar";
 "Session quota notifications" = "Notificacions de quota de sessió";
 "Session tokens" = "Tokens de sessió";
-"Settings" = "Configuració";
+"provider_section_connection" = "Connexió";
+"provider_section_menu_bar" = "Barra de menús";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
 "Show Debug Settings" = "Mostreu la configuració de depuració";
 "Show all token accounts" = "Mostreu tots els comptes amb token";

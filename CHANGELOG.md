@@ -14,6 +14,7 @@
 - Quota warnings: add opt-in predictive pace alerts for Codex and Claude session and weekly limits, with one alert per risk episode. Thanks @vincent-peng!
 
 ### Changed
+- Settings: split provider pane "Settings" sections into "Menu bar" and "Connection" so metric pickers and auth/cookie/source controls are grouped by topic.
 - Settings: reorganize into General, Notifications, Menu Bar, Menu, Advanced, and About panes; merge icon-style, cost-summary, switcher, usage-bar, reset-time, and confetti checkboxes into pickers; consistent sentence-case naming and localized Agent Sessions strings.
 
 ### Fixed

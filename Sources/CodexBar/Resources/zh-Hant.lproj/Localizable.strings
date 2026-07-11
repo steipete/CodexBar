@@ -277,7 +277,8 @@
 "Session" = "工作階段";
 "Session quota notifications" = "工作階段配額通知";
 "Session tokens" = "工作階段 token";
-"Settings" = "設定";
+"provider_section_connection" = "連線";
+"provider_section_menu_bar" = "選單列";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "在選單中顯示 Codex 額度和 Claude 額外使用量部分。";
 "Show Debug Settings" = "顯示除錯設定";
 "Show all token accounts" = "顯示所有 token 帳號";

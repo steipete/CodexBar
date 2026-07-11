@@ -269,7 +269,8 @@
 "Select the IDE to monitor" = "Välj IDE att övervaka";
 "Session quota notifications" = "Aviseringar för sessionskvot";
 "Session tokens" = "Sessionstoken";
-"Settings" = "Inställningar";
+"provider_section_connection" = "Anslutning";
+"provider_section_menu_bar" = "Menyrad";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Visa avsnitt för Codex-krediter och Claude Extra-användning i menyn.";
 "Show Debug Settings" = "Visa felsökningsinställningar";
 "Show all token accounts" = "Visa alla tokenkonton";
