@@ -306,7 +306,7 @@ extension StatusItemController {
         guard let snapshot = self.tokenSnapshotForCostHistorySubmenu(provider: provider) else {
             return .text("none")
         }
-        return .costHistory(CostHistoryChartMenuView.renderFingerprint(from: snapshot))
+        return .costHistory(CostHistoryChartMenuView.renderFingerprint(from: snapshot, provider: provider))
     }
 
     private func usageHistoryRenderSignature(for provider: UsageProvider) -> String {
