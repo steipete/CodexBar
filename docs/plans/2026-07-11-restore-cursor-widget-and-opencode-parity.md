@@ -15,7 +15,7 @@
 Included:
 
 - Cursor widget: selected-range total, approximate-total text, request date range, and per-request cost labels.
-- Cursor model costs: `extra-high` normalization, complete/partial/total-only pricing behavior, and truthful exact-versus-approximate text.
+- Cursor model costs: preserve the existing `extra-high` normalization while restoring complete/partial/total-only presentation and truthful exact-versus-approximate text.
 - Cursor request details: weighted request-cost display and expanded diagnostic details while retaining scroll behavior.
 - OpenCode: saved workspace identities, discovery/import, provider settings, menu switching, and widget switching.
 
@@ -32,6 +32,7 @@ The implementation must retain the existing upstream Cursor enterprise usage par
 **Files:**
 
 - Inspect: `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`
+- Inspect: `Sources/CodexBarCore/Providers/Cursor/CursorTokenUsage.swift`
 - Inspect: `Sources/CodexBar/UsageStore+WidgetSnapshot.swift`
 - Inspect: `Sources/CodexBarCore/WidgetSnapshot.swift`
 - Inspect: `Sources/CodexBar/Providers/OpenCode/OpenCodeProviderImplementation.swift`
@@ -39,6 +40,8 @@ The implementation must retain the existing upstream Cursor enterprise usage par
 - Test: `Tests/CodexBarTests/CursorStatusProbeTests.swift`
 - Test: `Tests/CodexBarTests/WidgetSnapshotTests.swift`
 - Test: `Tests/CodexBarTests/OpenCodeUsageParserTests.swift`
+- Create: `Tests/CodexBarTests/CursorWidgetSnapshotTests.swift`
+- Create: `Tests/CodexBarTests/MenuCardCursorRequestDetailsTests.swift`
 
 **Step 1: Confirm branch and worktree isolation**
 
@@ -51,17 +54,27 @@ git worktree list --porcelain
 
 Expected: work is performed only in `/Users/valsaraj/.codex/worktrees/cursor-upstream-replay`; do not stage or edit the dirty custom workspace.
 
-**Step 2: Run the focused baseline**
+**Step 2: Confirm the existing Cursor range-summary contract**
+
+Confirm `Sources/CodexBarCore/Providers/Cursor/CursorTokenUsage.swift` contains:
+
+- `CursorUsageRangeKind` with only `.billingCycle` and `.last30Days`;
+- `CursorRangeUsageSummary` with `range`, `tokens`, `weightedRequestCost`, `requestCostSummary`, and `recentRequests`;
+- backward-compatible Codable decoding for the weighted request cost.
+
+If this existing replay contract is absent or incompatible, stop and reconcile the replay before starting widget work; do not create a competing range-summary model in this plan.
+
+**Step 3: Run the focused baseline**
 
 Run:
 
 ```bash
-swift test --filter CursorRequestCostReplayTests --filter CursorStatusProbeTests --filter WidgetSnapshotTests --filter OpenCodeUsageParserTests
+swift test --filter 'CursorRequestCostReplayTests|CursorStatusProbeTests|WidgetSnapshotTests|OpenCodeUsageParserTests'
 ```
 
 Expected: current tests pass before changes. If the known post-test snapshot-write hang recurs after all test cases report success, record it separately; do not treat it as a test assertion failure.
 
-**Step 3: Add characterization tests for the missing presentation contract**
+**Step 4: Add characterization tests for the missing presentation contract**
 
 Add focused tests that prove the current behavior is insufficient:
 
@@ -72,7 +85,7 @@ func `cursor widget preserves approximate selected range total and calendar rang
     let entry = UsageStore.makeWidgetEntry(/* Cursor snapshot selecting .billingCycle */)
 
     #expect(entry.tokenUsage?.sessionCostText == "Approx. $…+")
-    #expect(entry.tokenUsage?.sessionLabel == "Cycle")
+    #expect(entry.cursorRequestRange?.label == "Cycle")
     #expect(entry.cursorRequestRange?.start == summary.range.start)
     #expect(entry.cursorRequestRange?.end == summary.range.end)
 }
@@ -80,24 +93,24 @@ func `cursor widget preserves approximate selected range total and calendar rang
 
 Add tests for a weighted `requestsCosts: 2` row and for a widget snapshot missing the new fields so schema decoding remains backward-compatible.
 
-**Step 4: Run the new tests RED**
+**Step 5: Run the new tests RED**
 
 Run:
 
 ```bash
-swift test --filter CursorWidgetSnapshotTests --filter WidgetSnapshotTests --filter MenuCardCursorRequestDetailsTests
+swift test --filter 'CursorWidgetSnapshotTests|WidgetSnapshotTests|MenuCardCursorRequestDetailsTests'
 ```
 
 Expected: failures identify missing approximate-total text, calendar range rendering, and weighted request detail behavior.
 
-**Step 5: Commit the test-only baseline**
+**Step 6: Commit the test-only baseline**
 
 ```bash
 git add Tests/CodexBarTests/CursorWidgetSnapshotTests.swift Tests/CodexBarTests/WidgetSnapshotTests.swift Tests/CodexBarTests/MenuCardCursorRequestDetailsTests.swift
 git commit -m "test(cursor): characterize custom diagnostic parity"
 ```
 
-### Task 2: Restore Cursor model normalization and honest cost estimates
+### Task 2: Restore honest Cursor cost estimates without regressing model normalization
 
 **Files:**
 
@@ -107,10 +120,11 @@ git commit -m "test(cursor): characterize custom diagnostic parity"
 - Modify: `Sources/CodexBarCore/UsageFormatter.swift`
 - Test: `Tests/CodexBarTests/CursorRequestCostReplayTests.swift`
 - Create: `Tests/CodexBarTests/CursorRequestCostEstimatorTests.swift`
+- Create: `Tests/CodexBarTests/CursorModelNormalizerTests.swift`
 - Test: `Tests/CodexBarTests/CostUsagePricingTests.swift`
 - Update: `docs/cursor.md`
 
-**Step 1: Write model and estimate tests first**
+**Step 1: Characterize the existing normalizer and add missing estimate tests**
 
 Cover these inputs without adding unverified prices:
 
@@ -130,22 +144,22 @@ func `total only priced GPT produces a conservative lower bound`() {
 }
 ```
 
-Add exact OpenAI, Anthropic, and Composer fixtures that prove cache fields are counted according to the documented pricing contract. Add partial and missing-breakdown cases that must remain visibly approximate or unavailable rather than fabricated exact values.
+This existing behavior must pass before the implementation work begins; it is a regression guard, not a RED test. Add new exact OpenAI, Anthropic, and Composer fixtures that prove cache fields are counted according to the documented pricing contract. Add partial and missing-breakdown aggregate cases that must remain visibly approximate or unavailable rather than fabricated exact values.
 
 **Step 2: Run pricing tests RED**
 
 Run:
 
 ```bash
-swift test --filter CursorRequestCostReplayTests --filter CursorRequestCostEstimatorTests --filter CostUsagePricingTests
+swift test --filter 'CursorRequestCostReplayTests|CursorRequestCostEstimatorTests|CostUsagePricingTests'
 ```
 
-Expected: `extra-high` and the custom fallback/summary cases fail before the implementation is restored.
+Expected: the existing `extra-high` regression passes; only the new aggregate formatter and missing presentation cases fail before the implementation is restored.
 
 **Step 3: Restore the minimal normalizer and estimator behavior**
 
-- Treat `extra-high` as one effort suffix, never as part of the price key.
 - Reuse `CostUsagePricing` for all OpenAI/Anthropic rates; verify every added rate against its official provider source and record the date in `docs/cursor.md`.
+- Preserve `extra-high` as one effort suffix rather than changing its already working pricing-key behavior.
 - Price exact rows only when the published rate and required token components are known.
 - For total-only/partial rows, preserve the custom conservative range or lower-bound behavior and use `Approx.` / `Partial`, never `Est.`.
 - Keep Composer cache-token treatment and its caveat explicit.
@@ -169,7 +183,7 @@ Unknown/unpriced rows remain `nil`; they must not suppress valid contributions f
 Run:
 
 ```bash
-swift test --filter CursorModelNormalizerTests --filter CursorRequestCostReplayTests --filter CursorRequestCostEstimatorTests --filter CostUsagePricingTests
+swift test --filter 'CursorModelNormalizerTests|CursorRequestCostReplayTests|CursorRequestCostEstimatorTests|CostUsagePricingTests'
 ```
 
 Then commit:
@@ -195,7 +209,6 @@ git commit -m "fix(cursor): restore honest model cost estimates"
 
 Assert that a selected `Cycle` and a selected `30d` range each persist:
 
-- `sessionLabel` (`Cycle` or `30d`),
 - exact cost or approximate cost text,
 - total tokens,
 - the selected range start/end,
@@ -208,7 +221,7 @@ Also decode a pre-change fixture to ensure optional additions do not drop old pr
 Run:
 
 ```bash
-swift test --filter CursorWidgetSnapshotTests --filter CodexBarWidgetProviderTests --filter WidgetSnapshotTests
+swift test --filter 'CursorWidgetSnapshotTests|CodexBarWidgetProviderTests|WidgetSnapshotTests'
 ```
 
 Expected: selected-range labels, approximate totals, or calendar-period assertions fail.
@@ -219,11 +232,9 @@ Add optional fields only:
 
 ```swift
 public let sessionCostText: String?
-public let sessionLabel: String?
-public let last30DaysLabel: String?
 ```
 
-Keep existing numeric cost/token fields and `CursorRequestRange` decoding intact. Do not alter old snapshot defaults or change the app-group storage key.
+Add `sessionCostText` to `WidgetSnapshot.TokenUsageSummary`, not `ProviderEntry`. Keep existing numeric cost/token fields and `CursorRequestRange` decoding intact; `cursorRequestRange.label` remains the sole `Cycle` / `30d` label. Do not alter old snapshot defaults or change the app-group storage key.
 
 **Step 4: Build the Cursor-specific snapshot path**
 
@@ -251,7 +262,7 @@ In `CodexBarWidgetViews.swift`:
 Run:
 
 ```bash
-swift test --filter CursorWidgetSnapshotTests --filter CodexBarWidgetProviderTests --filter WidgetSnapshotTests
+swift test --filter 'CursorWidgetSnapshotTests|CodexBarWidgetProviderTests|WidgetSnapshotTests'
 ```
 
 Then commit:
@@ -286,14 +297,14 @@ Cover a request row with a weighted `requestCost` and token breakdown. Assert th
 #expect(lines.contains(where: { $0.hasPrefix("Approx.") || $0.hasPrefix("Est.") }))
 ```
 
-Also assert the compact row keeps the semantic count `Req 1`; weighted cost belongs only in its explicit diagnostic line.
+Also assert the compact row keeps the semantic count `Req 1`; weighted cost belongs only in its explicit diagnostic line. The existing list already renders `cursorRequestCostDetail`; the expanded view must reuse it rather than duplicate or reinterpret the count.
 
 **Step 2: Run menu-model tests RED**
 
 Run:
 
 ```bash
-swift test --filter MenuCardCursorRequestDetailsTests --filter MenuCardModelTests --filter MenuCardInteractionPolicyTests
+swift test --filter 'MenuCardCursorRequestDetailsTests|MenuCardModelTests|MenuCardInteractionPolicyTests'
 ```
 
 Expected: the tests fail until the custom detail model and interaction policy are present.
@@ -313,7 +324,7 @@ Verify that rows beyond the existing cap/visible height remain scrollable both b
 Run:
 
 ```bash
-swift test --filter MenuCardCursorRequestDetailsTests --filter MenuCardModelTests --filter MenuCardInteractionPolicyTests
+swift test --filter 'MenuCardCursorRequestDetailsTests|MenuCardModelTests|MenuCardInteractionPolicyTests'
 ```
 
 Then commit:
@@ -350,7 +361,7 @@ Define a workspace account as one reusable OpenCode credential plus a stable wor
 Run:
 
 ```bash
-swift test --filter OpenCodeWorkspaceAccountsTests --filter OpenCodeWorkspaceDiscoveryTests
+swift test --filter 'OpenCodeWorkspaceAccountsTests|OpenCodeWorkspaceDiscoveryTests'
 ```
 
 Expected: types and discovery contract do not yet exist.
@@ -367,7 +378,7 @@ Expected: types and discovery contract do not yet exist.
 Run:
 
 ```bash
-swift test --filter OpenCodeWorkspaceAccountsTests --filter OpenCodeWorkspaceDiscoveryTests --filter OpenCodeUsageParserTests
+swift test --filter 'OpenCodeWorkspaceAccountsTests|OpenCodeWorkspaceDiscoveryTests|OpenCodeUsageParserTests'
 ```
 
 Then commit:
@@ -407,7 +418,7 @@ Test these user-facing outcomes:
 Run:
 
 ```bash
-swift test --filter SettingsStoreCoverageTests --filter ProvidersPaneCoverageTests --filter OpenCodeMenuCardTests --filter OpenCodeStatusMenuTests
+swift test --filter 'SettingsStoreCoverageTests|ProvidersPaneCoverageTests|OpenCodeMenuCardTests|OpenCodeStatusMenuTests'
 ```
 
 Expected: tests fail until the workspace-account settings and menu integration exist.
@@ -430,7 +441,7 @@ Expected: tests fail until the workspace-account settings and menu integration e
 Run:
 
 ```bash
-swift test --filter SettingsStoreCoverageTests --filter ProvidersPaneCoverageTests --filter OpenCodeMenuCardTests --filter OpenCodeStatusMenuTests
+swift test --filter 'SettingsStoreCoverageTests|ProvidersPaneCoverageTests|OpenCodeMenuCardTests|OpenCodeStatusMenuTests'
 ```
 
 Then commit:
@@ -462,7 +473,7 @@ Test that the snapshot has account ID/label for OpenCode entries and that switch
 Run:
 
 ```bash
-swift test --filter CodexBarWidgetProviderTests --filter OpenCodeWidgetSnapshotTests --filter WidgetSnapshotTests
+swift test --filter 'CodexBarWidgetProviderTests|OpenCodeWidgetSnapshotTests|WidgetSnapshotTests'
 ```
 
 Expected: account identity and intent behavior fail before the widget wiring is added.
@@ -482,7 +493,7 @@ Add optional `accountID` and `accountLabel` to `WidgetSnapshot.ProviderEntry`. F
 Run:
 
 ```bash
-swift test --filter CodexBarWidgetProviderTests --filter OpenCodeWidgetSnapshotTests --filter WidgetSnapshotTests
+swift test --filter 'CodexBarWidgetProviderTests|OpenCodeWidgetSnapshotTests|WidgetSnapshotTests'
 ```
 
 Then commit:
@@ -515,7 +526,7 @@ Run:
 swiftformat Sources Tests
 swiftlint --strict
 pnpm check
-swift test --filter CursorModelNormalizerTests --filter CursorRequestCostReplayTests --filter CursorRequestCostEstimatorTests --filter CursorStatusProbeTests --filter CursorWidgetSnapshotTests --filter MenuCardCursorRequestDetailsTests --filter MenuCardInteractionPolicyTests --filter OpenCodeWorkspaceAccountsTests --filter OpenCodeWorkspaceDiscoveryTests --filter OpenCodeMenuCardTests --filter OpenCodeStatusMenuTests --filter OpenCodeWidgetSnapshotTests --filter CodexBarWidgetProviderTests --filter WidgetSnapshotTests
+swift test --filter 'CursorModelNormalizerTests|CursorRequestCostReplayTests|CursorRequestCostEstimatorTests|CostUsagePricingTests|CursorStatusProbeTests|CursorWidgetSnapshotTests|MenuCardCursorRequestDetailsTests|MenuCardInteractionPolicyTests|MenuCardModelTests|OpenCodeWorkspaceAccountsTests|OpenCodeWorkspaceDiscoveryTests|OpenCodeUsageParserTests|OpenCodeMenuCardTests|OpenCodeStatusMenuTests|OpenCodeWidgetSnapshotTests|SettingsStoreCoverageTests|ProvidersPaneCoverageTests|CodexBarWidgetProviderTests|WidgetSnapshotTests'
 git diff --check
 ```
 
@@ -548,4 +559,3 @@ Before the commit, print the required documentation marker:
 ```text
 [DOCS UPDATED: docs/cursor.md, docs/widgets.md, docs/opencode.md, docs/plans/2026-07-11-restore-cursor-widget-and-opencode-parity.md]
 ```
-
