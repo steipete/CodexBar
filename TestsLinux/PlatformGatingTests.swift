@@ -19,18 +19,16 @@ struct PlatformGatingTests {
     @Test
     func claudeAutoPipeline_skipsUnsupportedWebAndUsesCLI() async throws {
         #if os(Linux)
-        let context = self.makeClaudeAutoContext()
         let binaryURL = try Self.makeClaudeCLI(loggedIn: true)
         defer { try? FileManager.default.removeItem(at: binaryURL) }
+        let context = self.makeClaudeAutoContext(env: ["CLAUDE_CLI_PATH": binaryURL.path])
         let cliFetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in
             Self.makeClaudeStatus()
         }
-        let outcome = await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(binaryURL.path) {
-            await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
-                await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
-                    context: context,
-                    provider: .claude)
-            }
+        let outcome = await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
+            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                context: context,
+                provider: .claude)
         }
         let result = try outcome.result.get()
 
