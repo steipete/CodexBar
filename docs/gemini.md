@@ -29,8 +29,8 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 ## OAuth client ID/secret extraction
 - Resolution order:
   1. `GEMINI_OAUTH_CLIENT_ID` + `GEMINI_OAUTH_CLIENT_SECRET` environment override.
-  2. Installed Gemini CLI package (`oauth2.js` / bundle regex extraction).
-  3. `GEMINI_OAUTH2_JS_PATH` pointing at a readable `oauth2.js` file.
+  2. `GEMINI_OAUTH2_JS_PATH` pointing at a readable `oauth2.js` file.
+  3. Installed Gemini CLI package (`oauth2.js` / bundle regex extraction).
   4. Known global Gemini CLI install paths (Homebrew npm prefix layouts, then
      Homebrew Cellar/`opt` `libexec` package roots when the GUI cannot resolve
      the `gemini` binary).

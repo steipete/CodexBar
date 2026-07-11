@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct GeminiOAuthRecoveryAPITests {
     @Test
-    func `refreshes using oauth2 js path when gemini cli omits oauth config`() async throws {
+    func `explicit oauth2 js path overrides installed gemini cli`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }
         try env.writeCredentials(
@@ -20,7 +20,7 @@ struct GeminiOAuthRecoveryAPITests {
         const OAUTH_CLIENT_SECRET = 'path-client-secret';
         """.write(to: oauthURL, atomically: true, encoding: .utf8)
 
-        let binURL = try env.writeFakeGeminiCLI(includeOAuth: false)
+        let binURL = try env.writeFakeGeminiCLI()
         let oauthEnv = GeminiOAuthConfig.EnvironmentValues(oauth2JSPath: oauthURL.path)
         let dataLoader = GeminiAPITestHelpers.dataLoader { request in
             guard let url = request.url, let host = url.host else {

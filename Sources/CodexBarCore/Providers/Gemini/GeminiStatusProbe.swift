@@ -1098,13 +1098,13 @@ extension GeminiStatusProbe {
         if let resolved = GeminiOAuthConfig.environmentClient() {
             return OAuthClientCredentials(clientId: resolved.clientID, clientSecret: resolved.clientSecret)
         }
-        if let credentials = Self.discoverOAuthCredentialsFromInstalledCLI() {
-            return OAuthClientCredentials(clientId: credentials.clientID, clientSecret: credentials.clientSecret)
-        }
         if let path = GeminiOAuthConfig.configuredOAuth2JSPath,
            let credentials = Self.parseOAuthCredentials(fromFile: path)
         {
             return credentials
+        }
+        if let credentials = Self.discoverOAuthCredentialsFromInstalledCLI() {
+            return OAuthClientCredentials(clientId: credentials.clientID, clientSecret: credentials.clientSecret)
         }
         if let credentials = Self.discoverOAuthCredentialsFromKnownInstallPaths() {
             return credentials
