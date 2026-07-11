@@ -78,7 +78,7 @@ extension UsageStore {
         let snapshot: UsageSnapshot
         let accountKey: String?
         let capturedAt: Date
-        let codexVisibleAccount: CodexVisibleAccount?
+        let codexLimitResetOwnerKey: CodexLimitResetOwnerKey?
     }
 
     private struct LimitResetObservation {
@@ -183,7 +183,7 @@ extension UsageStore {
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
         shouldAdoptUnscopedHistory: Bool = true,
-        codexVisibleAccount: CodexVisibleAccount? = nil,
+        codexLimitResetOwnerKey: CodexLimitResetOwnerKey? = nil,
         now: Date = Date())
         async
     {
@@ -213,18 +213,13 @@ extension UsageStore {
             // Persisting without a high-entropy owner would merge unrelated OAuth accounts into `unscoped`.
             return
         }
-        let effectiveCodexVisibleAccount: CodexVisibleAccount? = if provider == .codex {
-            codexVisibleAccount ?? self.activeCodexVisibleAccountForLimitResetDetection()
-        } else {
-            nil
-        }
         let detectorContext = LimitResetDetectionContext(
             provider: provider,
             account: account,
             snapshot: snapshot,
             accountKey: detectorAccountKey,
             capturedAt: now,
-            codexVisibleAccount: effectiveCodexVisibleAccount)
+            codexLimitResetOwnerKey: codexLimitResetOwnerKey)
         await MainActor.run {
             self.postLimitResetCelebrationsIfNeeded(
                 context: detectorContext,
@@ -474,12 +469,15 @@ extension UsageStore {
     {
         guard let observation else { return }
 
-        let accountIdentifier = self.limitResetAccountIdentifier(
+        guard let accountIdentifier = self.limitResetAccountIdentifier(
             provider: context.provider,
             account: context.account,
             snapshot: context.snapshot,
             accountKey: context.accountKey,
-            codexVisibleAccount: context.codexVisibleAccount)
+            codexLimitResetOwnerKey: context.codexLimitResetOwnerKey)
+        else {
+            return
+        }
         let detectorKey = Self.limitResetDetectorStateKey(
             provider: context.provider,
             accountIdentifier: accountIdentifier)
@@ -878,17 +876,6 @@ extension UsageStore {
 
     private func shouldDeferClaudePlanUtilizationHistory(provider: UsageProvider) -> Bool {
         provider == .claude && self.shouldHidePlanUtilizationMenuItem(for: .claude)
-    }
-
-    private func limitResetAccountLabel(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        snapshot: UsageSnapshot) -> String?
-    {
-        let identity = snapshot.identity(for: provider)
-        return account?.label
-            ?? identity?.accountEmail
-            ?? identity?.accountOrganization
     }
 
     private nonisolated static func limitResetDetectorStateKey(

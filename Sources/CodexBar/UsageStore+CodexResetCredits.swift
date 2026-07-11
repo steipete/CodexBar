@@ -107,7 +107,7 @@ extension UsageStore {
 }
 
 extension ProviderFetchOutcome {
-    fileprivate func replacingUsage(_ usage: UsageSnapshot) -> ProviderFetchOutcome {
+    func replacingUsage(_ usage: UsageSnapshot) -> ProviderFetchOutcome {
         guard case let .success(result) = self.result else { return self }
         return ProviderFetchOutcome(
             result: .success(ProviderFetchResult(

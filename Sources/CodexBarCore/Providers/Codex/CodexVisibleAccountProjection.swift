@@ -105,17 +105,24 @@ extension CodexVisibleAccountProjection {
 
         for storedAccount in snapshot.storedAccounts {
             let normalizedEmail = snapshot.runtimeEmail(for: storedAccount)
+            let runtimeIdentity = snapshot.runtimeIdentity(for: storedAccount)
+            let runtimeWorkspaceAccountID: String? = switch runtimeIdentity {
+            case let .providerAccount(id):
+                ManagedCodexAccount.normalizeWorkspaceAccountID(id)
+            case .emailOnly, .unresolved:
+                nil
+            }
             drafts.append(VisibleAccountDraft(
                 email: normalizedEmail,
                 workspaceLabel: Self.normalizeWorkspaceLabel(storedAccount.workspaceLabel),
-                workspaceAccountID: storedAccount.workspaceAccountID,
+                workspaceAccountID: storedAccount.workspaceAccountID ?? runtimeWorkspaceAccountID,
                 authFingerprint: storedAccount.authFingerprint,
                 storedAccountID: storedAccount.id,
                 selectionSource: .managedAccount(id: storedAccount.id),
                 isLive: false,
                 canReauthenticate: true,
                 canRemove: true,
-                identity: snapshot.runtimeIdentity(for: storedAccount)))
+                identity: runtimeIdentity))
         }
 
         if let liveSystemAccount = snapshot.liveSystemAccount {
