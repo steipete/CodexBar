@@ -57,7 +57,8 @@ enum AmpUsageParser {
                 quota: quota,
                 used: max(0, quota - remaining),
                 hourlyReplenishment: hourlyReplenishment,
-                windowHours: windowHours)
+                windowHours: windowHours,
+                resetDescription: nil)
         }()
         let freePercentUsage: FreeTierUsage? = {
             guard let remainingText = self.captures(in: text, pattern: freePercentPattern)?.first,
@@ -68,7 +69,8 @@ enum AmpUsageParser {
                 quota: 100,
                 used: 100 - clampedRemaining,
                 hourlyReplenishment: 0,
-                windowHours: 24)
+                windowHours: 24,
+                resetDescription: "daily")
         }()
         let resolvedFreeUsage = freeUsage ?? freePercentUsage
         guard resolvedFreeUsage != nil || individualCredits != nil || !workspaceBalances.isEmpty else {
@@ -85,7 +87,7 @@ enum AmpUsageParser {
             accountEmail: self.nonEmpty(identity?[0]),
             accountOrganization: self.nonEmpty(identity?[1]),
             updatedAt: now,
-            freeResetDescription: freePercentUsage == nil ? nil : "daily")
+            freeResetDescription: resolvedFreeUsage?.resetDescription)
     }
 
     private struct FreeTierUsage {
@@ -93,6 +95,7 @@ enum AmpUsageParser {
         let used: Double
         let hourlyReplenishment: Double
         let windowHours: Double?
+        let resetDescription: String?
     }
 
     private static func parseFreeTierUsage(_ html: String) -> FreeTierUsage? {
@@ -118,7 +121,8 @@ enum AmpUsageParser {
             quota: quota,
             used: used,
             hourlyReplenishment: hourly,
-            windowHours: windowHours)
+            windowHours: windowHours,
+            resetDescription: nil)
     }
 
     private static func extractObject(named token: String, in text: String) -> String? {
