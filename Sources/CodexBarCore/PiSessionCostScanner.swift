@@ -575,12 +575,12 @@ enum PiSessionCostScanner {
         let keys = [
             "turnId",
             "turn_id",
-            "taskId",
-            "task_id",
             "requestId",
             "request_id",
             "messageId",
             "message_id",
+            "taskId",
+            "task_id",
             "id",
         ]
         for key in keys {

@@ -909,6 +909,59 @@ extension PiSessionCostScannerTests {
     }
 
     @Test
+    func `pi scanner keeps unique requests additive under shared task id`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
+
+        func assistant(step: Int) -> [String: Any] {
+            let timestamp = day.addingTimeInterval(TimeInterval(step))
+            let input = step * 1_000_000
+            let cacheRead = step * 100_000
+            let output = step * 1000
+            return [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "gpt-5.6-sol",
+                    "taskId": "shared-pi-task",
+                    "requestId": "request-\(step)",
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": input,
+                        "cacheRead": cacheRead,
+                        "output": output,
+                        "totalTokens": input + cacheRead + output,
+                    ],
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-11T10-00-00-000Z_shared-task-unique-requests.jsonl",
+            contents: env.jsonl((1...6).map(assistant(step:))))
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.inputTokens == 21_000_000)
+        #expect(report.data.first?.cacheReadTokens == 2_100_000)
+        #expect(report.data.first?.outputTokens == 21000)
+        #expect(report.data.first?.totalTokens == 23_121_000)
+    }
+
+    @Test
     func `pi scanner keeps rows without lineage raw even when large and monotonic`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
