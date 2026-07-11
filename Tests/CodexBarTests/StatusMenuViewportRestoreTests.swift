@@ -522,6 +522,123 @@ struct StatusMenuViewportRestoreTests {
     }
 
     @Test
+    func `custom highlight blocks parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        let overviewItem = NSMenuItem()
+        overviewItem.view = NSView()
+        overviewItem.isEnabled = true
+        menu.addItem(overviewItem)
+        controller.menu(menu, willHighlight: overviewItem)
+
+        var scheduledCount = 0
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.menuSession.invalidate(allowsStaleContent: false, requiresRebuild: true)
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `custom highlight before delivery invalidates parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        let overviewItem = NSMenuItem()
+        overviewItem.view = NSView()
+        overviewItem.isEnabled = true
+        menu.addItem(overviewItem)
+        controller.menu(menu, willHighlight: overviewItem)
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `refresh row highlight clears while its action is in flight`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        let refreshItem = try #require(menu.items.first(where: controller.isPersistentRefreshItem))
+        let refreshView = try #require(refreshItem.view as? PersistentRefreshMenuView)
+        controller.menu(menu, willHighlight: refreshItem)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        let gate = ViewportRefreshGate()
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+
+        #expect(refreshView.accessibilityPerformPress())
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] == nil)
+        #expect(!refreshItem.isEnabled)
+
+        gate.resume()
+        await task.value
+        #expect(refreshItem.isEnabled)
+        #expect(scheduled.count == 1)
+
+        scheduled.removeFirst()()
+        #expect(restoreCount == 1)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
     func `non-manual invalidation never schedules a viewport restore`() {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual

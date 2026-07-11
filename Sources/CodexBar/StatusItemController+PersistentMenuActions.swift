@@ -10,6 +10,10 @@ extension StatusItemController {
             }
             guard let menu = item.menu else { continue }
             let enabled = !self.isRefreshActionInFlight(for: menu)
+            if !enabled, self.highlightedMenuItems[ObjectIdentifier(menu)] === item {
+                (item.view as? MenuCardHighlighting)?.setHighlighted(false)
+                self.highlightedMenuItems.removeValue(forKey: ObjectIdentifier(menu))
+            }
             item.isEnabled = enabled
             (item.view as? PersistentRefreshMenuView)?.setEnabled(enabled)
         }

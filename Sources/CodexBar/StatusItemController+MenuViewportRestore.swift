@@ -86,7 +86,7 @@ extension StatusItemController {
                 self.manualRefreshViewportRestoreState.deferredUntilRebuild[key] = request
                 continue
             }
-            guard !self.isNativeMenuItemHighlighted(in: menu) else {
+            guard !self.hasMenuItemHighlightedForViewportRestore(in: menu) else {
                 self.cancelManualRefreshViewportRestoreRequest(request, for: key)
                 continue
             }
@@ -104,7 +104,7 @@ extension StatusItemController {
               self.openMenus[key] === menu,
               !self.hasOpenNonHostedChildMenu(),
               !self.hasOpenHostedSubviewMenu(),
-              !self.isNativeMenuItemHighlighted(in: menu),
+              !self.hasMenuItemHighlightedForViewportRestore(in: menu),
               request.switcherSelection == self.viewportRestoreSwitcherSelection(for: menu)
         else {
             self.cancelManualRefreshViewportRestoreRequest(request, for: key)
@@ -151,7 +151,7 @@ extension StatusItemController {
                 self.manualRefreshViewportRestoreState.deferredUntilRebuild[key] = request
                 return
             }
-            guard !self.isNativeMenuItemHighlighted(in: menu) else {
+            guard !self.hasMenuItemHighlightedForViewportRestore(in: menu) else {
                 self.cancelManualRefreshViewportRestoreRequest(request, for: key)
                 return
             }
@@ -207,6 +207,12 @@ extension StatusItemController {
     {
         self.menuSession.isCurrentViewportRestore(request.generation, for: key) &&
             self.menuSession.isCurrentMenuInteraction(request.menuInteractionGeneration, for: key)
+    }
+
+    private func hasMenuItemHighlightedForViewportRestore(in menu: NSMenu) -> Bool {
+        let key = ObjectIdentifier(menu)
+        guard let item = self.highlightedMenuItems[key], item.menu === menu else { return false }
+        return item.isEnabled
     }
 
     func advanceMenuContentSelection(for menu: NSMenu?) {
