@@ -10,15 +10,40 @@ struct ClaudeOAuthKeychainPreAlertGateTests {
         let store = ClaudeOAuthKeychainPreAlertGate.StateStore()
         ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(store) {
             let now = Date(timeIntervalSince1970: 1000)
-            #expect(ClaudeOAuthKeychainPreAlertGate.beginPresentation(now: now))
-            ClaudeOAuthKeychainPreAlertGate.finishPresentation(wasPresented: true, now: now)
+            #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(now: now, completedAt: now) { true })
 
             #expect(
-                ClaudeOAuthKeychainPreAlertGate.beginPresentation(
-                    now: now.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval - 1)) == false)
+                ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(
+                    now: now.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval - 1),
+                    completedAt: now,
+                    present: { true }) == false)
             #expect(
-                ClaudeOAuthKeychainPreAlertGate.beginPresentation(
-                    now: now.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval + 1)))
+                ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(
+                    now: now.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval + 1),
+                    completedAt: now,
+                    present: { true }))
+        }
+    }
+
+    @Test
+    func `cooldown starts when presentation completes`() {
+        let store = ClaudeOAuthKeychainPreAlertGate.StateStore()
+        ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(store) {
+            let startedAt = Date(timeIntervalSince1970: 1000)
+            let completedAt = Date(timeIntervalSince1970: 2000)
+            #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(
+                now: startedAt,
+                completedAt: completedAt,
+                present: { true }))
+
+            #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(
+                now: startedAt.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval + 1),
+                completedAt: completedAt,
+                present: { true }) == false)
+            #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(
+                now: completedAt.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval + 1),
+                completedAt: completedAt,
+                present: { true }))
         }
     }
 
@@ -27,9 +52,8 @@ struct ClaudeOAuthKeychainPreAlertGateTests {
         let store = ClaudeOAuthKeychainPreAlertGate.StateStore()
         ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(store) {
             let now = Date(timeIntervalSince1970: 2000)
-            #expect(ClaudeOAuthKeychainPreAlertGate.beginPresentation(now: now))
-            ClaudeOAuthKeychainPreAlertGate.finishPresentation(wasPresented: false, now: now)
-            #expect(ClaudeOAuthKeychainPreAlertGate.beginPresentation(now: now))
+            #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(now: now, completedAt: now) { false } == false)
+            #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(now: now, completedAt: now) { true })
         }
     }
 
@@ -38,9 +62,18 @@ struct ClaudeOAuthKeychainPreAlertGateTests {
         let store = ClaudeOAuthKeychainPreAlertGate.StateStore()
         ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(store) {
             let now = Date(timeIntervalSince1970: 3000)
-            #expect(ClaudeOAuthKeychainPreAlertGate.beginPresentation(now: now))
-            #expect(ClaudeOAuthKeychainPreAlertGate.beginPresentation(now: now) == false)
-            ClaudeOAuthKeychainPreAlertGate.finishPresentation(wasPresented: true, now: now)
+            var nestedPresentationRan = false
+            var nestedResult: Bool?
+            let outerResult = ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(now: now, completedAt: now) {
+                nestedResult = ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(now: now) {
+                    nestedPresentationRan = true
+                    return true
+                }
+                return true
+            }
+            #expect(outerResult)
+            #expect(nestedResult == false)
+            #expect(nestedPresentationRan == false)
         }
     }
 
@@ -50,13 +83,14 @@ struct ClaudeOAuthKeychainPreAlertGateTests {
         defer { ClaudeOAuthKeychainPreAlertGate.resetForTesting() }
 
         let now = Date(timeIntervalSince1970: 4000)
-        #expect(ClaudeOAuthKeychainPreAlertGate.beginPresentation(now: now))
-        ClaudeOAuthKeychainPreAlertGate.finishPresentation(wasPresented: true, now: now)
+        #expect(ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(now: now, completedAt: now) { true })
         ClaudeOAuthKeychainPreAlertGate.resetInMemoryForTesting()
 
         #expect(
-            ClaudeOAuthKeychainPreAlertGate.beginPresentation(
-                now: now.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval - 1)) == false)
+            ClaudeOAuthKeychainPreAlertGate.presentIfNeeded(
+                now: now.addingTimeInterval(ClaudeOAuthKeychainPreAlertGate.cooldownInterval - 1),
+                completedAt: now,
+                present: { true }) == false)
     }
 }
 #endif

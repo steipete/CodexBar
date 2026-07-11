@@ -4,7 +4,7 @@ import Foundation
 import os.lock
 
 enum ClaudeOAuthKeychainPreAlertGate {
-    private struct State {
+    fileprivate struct State {
         var loaded = false
         var acknowledgedUntil: Date?
         var presentationInFlight = false
@@ -16,56 +16,53 @@ enum ClaudeOAuthKeychainPreAlertGate {
 
     #if DEBUG
     final class StateStore: @unchecked Sendable {
-        var acknowledgedUntil: Date?
-        var presentationInFlight = false
+        fileprivate let lock = OSAllocatedUnfairLock<State>(initialState: State(loaded: true))
     }
 
     @TaskLocal private static var taskStateStoreOverrideForTesting: StateStore?
     #endif
 
-    /// Reserves presentation so concurrent credential reads cannot show duplicate explanatory alerts.
-    static func beginPresentation(now: Date = Date()) -> Bool {
+    /// Presents at most one explanatory alert and starts the cooldown only when it reaches a handler.
+    @discardableResult
+    static func presentIfNeeded(
+        now: Date = Date(),
+        completedAt: Date? = nil,
+        present: () -> Bool) -> Bool
+    {
+        guard self.beginPresentation(now: now) else { return false }
+        let wasPresented = present()
+        self.finishPresentation(wasPresented: wasPresented, now: completedAt ?? Date())
+        return wasPresented
+    }
+
+    private static func beginPresentation(now: Date) -> Bool {
         #if DEBUG
         if let store = self.taskStateStoreOverrideForTesting {
-            guard !store.presentationInFlight else { return false }
-            if let acknowledgedUntil = store.acknowledgedUntil, acknowledgedUntil > now {
-                return false
+            return store.lock.withLock { state in
+                self.reservePresentation(state: &state, now: now)
             }
-            store.acknowledgedUntil = nil
-            store.presentationInFlight = true
-            return true
         }
         #endif
         return self.lock.withLock { state in
             self.loadIfNeeded(&state)
-            guard !state.presentationInFlight else { return false }
-            if let acknowledgedUntil = state.acknowledgedUntil, acknowledgedUntil > now {
-                return false
-            }
-            state.acknowledgedUntil = nil
-            state.presentationInFlight = true
+            guard self.reservePresentation(state: &state, now: now) else { return false }
             self.persist(state)
             return true
         }
     }
 
-    /// Completes a reservation. Only a prompt that reached an installed handler starts the cooldown.
-    static func finishPresentation(wasPresented: Bool, now: Date = Date()) {
+    private static func finishPresentation(wasPresented: Bool, now: Date) {
         #if DEBUG
         if let store = self.taskStateStoreOverrideForTesting {
-            store.presentationInFlight = false
-            if wasPresented {
-                store.acknowledgedUntil = now.addingTimeInterval(self.cooldownInterval)
+            store.lock.withLock { state in
+                self.completePresentation(state: &state, wasPresented: wasPresented, now: now)
             }
             return
         }
         #endif
         self.lock.withLock { state in
             self.loadIfNeeded(&state)
-            state.presentationInFlight = false
-            if wasPresented {
-                state.acknowledgedUntil = now.addingTimeInterval(self.cooldownInterval)
-            }
+            self.completePresentation(state: &state, wasPresented: wasPresented, now: now)
             self.persist(state)
         }
     }
@@ -111,6 +108,23 @@ enum ClaudeOAuthKeychainPreAlertGate {
         }
     }
 
+    private static func reservePresentation(state: inout State, now: Date) -> Bool {
+        guard !state.presentationInFlight else { return false }
+        if let acknowledgedUntil = state.acknowledgedUntil, acknowledgedUntil > now {
+            return false
+        }
+        state.acknowledgedUntil = nil
+        state.presentationInFlight = true
+        return true
+    }
+
+    private static func completePresentation(state: inout State, wasPresented: Bool, now: Date) {
+        state.presentationInFlight = false
+        if wasPresented {
+            state.acknowledgedUntil = now.addingTimeInterval(self.cooldownInterval)
+        }
+    }
+
     private static func persist(_ state: State) {
         if let acknowledgedUntil = state.acknowledgedUntil {
             UserDefaults.standard.set(acknowledgedUntil.timeIntervalSince1970, forKey: self.defaultsKey)
@@ -127,11 +141,14 @@ enum ClaudeOAuthKeychainPreAlertGate {
     final class StateStore: @unchecked Sendable {}
     #endif
 
-    static func beginPresentation(now _: Date = Date()) -> Bool {
+    @discardableResult
+    static func presentIfNeeded(
+        now _: Date = Date(),
+        completedAt _: Date? = nil,
+        present _: () -> Bool) -> Bool
+    {
         false
     }
-
-    static func finishPresentation(wasPresented _: Bool, now _: Date = Date()) {}
 
     #if DEBUG
     static func withStateStoreOverrideForTesting<T>(
