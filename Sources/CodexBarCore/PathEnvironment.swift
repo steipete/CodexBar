@@ -639,45 +639,33 @@ public enum CodexLaunchPreflight {
     #endif
 }
 
-final class TerminalForegroundCoordinator: @unchecked Sendable {
-    struct Lease: Sendable {
-        fileprivate let originalProcessGroup: pid_t?
-        fileprivate let isActive: Bool
-    }
-
+final class TerminalForegroundProbeCoordinator: @unchecked Sendable {
     private let lock = NSLock()
 
-    func acquire(isTerminal: Bool, capture: () -> pid_t?) -> Lease {
-        guard isTerminal else { return Lease(originalProcessGroup: nil, isActive: false) }
+    func lockProbe() {
         self.lock.lock()
-        return Lease(originalProcessGroup: capture(), isActive: true)
     }
 
-    func release(_ lease: Lease, restore: (pid_t?) -> Void) {
-        guard lease.isActive else { return }
+    func unlockProbe() {
+        self.lock.unlock()
+    }
+
+    func withLock<T>(_ operation: () throws -> T) rethrows -> T {
+        self.lock.lock()
         defer { self.lock.unlock() }
-        restore(lease.originalProcessGroup)
-    }
-
-    static func shouldRestore(
-        original: pid_t?,
-        expectedCurrent: pid_t?,
-        current: pid_t?,
-        currentIsAlive: Bool) -> Bool
-    {
-        guard let original, let expectedCurrent, let current else { return false }
-        guard current != original else { return false }
-        return current == expectedCurrent || !currentIsAlive
+        return try operation()
     }
 }
 
 public enum ShellCommandLocator {
-    private struct ControllingTerminal {
-        let fileDescriptor: Int32
-        let shouldClose: Bool
+    private struct TerminalForegroundLease {
+        let fd: Int32
+        let originalProcessGroup: pid_t?
+        let holdsLock: Bool
+        let ownsFileDescriptor: Bool
     }
 
-    private static let terminalForegroundCoordinator = TerminalForegroundCoordinator()
+    private static let terminalForegroundProbeCoordinator = TerminalForegroundProbeCoordinator()
 
     static func test_runShellCommand(
         shell: String,
@@ -685,6 +673,14 @@ public enum ShellCommandLocator {
         timeout: TimeInterval) -> Data?
     {
         self.runShellCommand(shell: shell, arguments: arguments, timeout: timeout)
+    }
+
+    static func test_terminalForegroundRestoreTarget(
+        original: pid_t?,
+        probe: pid_t?,
+        current: pid_t?) -> pid_t?
+    {
+        self.terminalForegroundRestoreTarget(original: original, probe: probe, current: current)
     }
 
     public static func commandV(
@@ -783,39 +779,18 @@ public enum ShellCommandLocator {
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
-        // Interactive shells can temporarily move terminal foreground ownership.
-        // Coordinate the complete capture/probe/restore sequence so overlapping
-        // probes cannot snapshot and later restore one another's short-lived group.
-        let controllingTerminal = Self.controllingTerminal()
-        defer {
-            if controllingTerminal?.shouldClose == true,
-               let fileDescriptor = controllingTerminal?.fileDescriptor
-            {
-                close(fileDescriptor)
-            }
-        }
-        let foregroundLease = Self.terminalForegroundCoordinator.acquire(
-            isTerminal: controllingTerminal != nil,
-            capture: {
-                guard let fileDescriptor = controllingTerminal?.fileDescriptor else { return nil }
-                return Self.foregroundProcessGroup(for: fileDescriptor)
-            })
+        // TTY ownership is process-global. Keep interactive probes serialized so
+        // one invocation cannot snapshot another probe's temporary process group.
+        let terminalLease = Self.beginTerminalForegroundLease(fallbackFD: STDIN_FILENO)
         var spawnedProcessGroup: pid_t?
+        defer {
+            Self.endTerminalForegroundLease(terminalLease, probeProcessGroup: spawnedProcessGroup)
+        }
 
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
         // via posix_spawn_file_actions_addopen below.
         var stdoutFds: (read: Int32, write: Int32) = (-1, -1)
         var stderrFds: (read: Int32, write: Int32) = (-1, -1)
-
-        defer {
-            Self.terminalForegroundCoordinator.release(foregroundLease) { original in
-                guard let fileDescriptor = controllingTerminal?.fileDescriptor else { return }
-                Self.restoreForegroundProcessGroup(
-                    for: fileDescriptor,
-                    original: original,
-                    expectedCurrent: spawnedProcessGroup)
-            }
-        }
         guard withUnsafeMutablePointer(to: &stdoutFds, {
             $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
         }) else { return nil }
@@ -862,8 +837,13 @@ public enum ShellCommandLocator {
             return nil
         }
         defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
-        posix_spawnattr_setpgroup(&attr, 0) // 0 = child becomes its own pgid leader
+        guard posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP)) == 0,
+              posix_spawnattr_setpgroup(&attr, 0) == 0 // 0 = child becomes its own pgid leader
+        else {
+            close(stdoutFds.read); close(stdoutFds.write)
+            close(stderrFds.read); close(stderrFds.write)
+            return nil
+        }
 
         // Build argv (argv[0] is conventionally the executable path).
         var cArgs: [UnsafeMutablePointer<CChar>?] = []
@@ -1003,63 +983,73 @@ public enum ShellCommandLocator {
         return stdoutCollector.drain()
     }
 
-    private static func foregroundProcessGroup(for fd: Int32) -> pid_t? {
-        guard isatty(fd) == 1 else { return nil }
+    private static func beginTerminalForegroundLease(fallbackFD: Int32) -> TerminalForegroundLease {
+        let controllingTerminalFD = open("/dev/tty", O_RDWR | O_CLOEXEC)
+        let fd: Int32
+        let ownsFileDescriptor: Bool
+        if controllingTerminalFD >= 0 {
+            fd = controllingTerminalFD
+            ownsFileDescriptor = true
+        } else if isatty(fallbackFD) == 1 {
+            fd = fallbackFD
+            ownsFileDescriptor = false
+        } else {
+            return TerminalForegroundLease(
+                fd: fallbackFD,
+                originalProcessGroup: nil,
+                holdsLock: false,
+                ownsFileDescriptor: false)
+        }
+
+        self.terminalForegroundProbeCoordinator.lockProbe()
         let processGroup = tcgetpgrp(fd)
-        return processGroup > 0 ? processGroup : nil
+        return TerminalForegroundLease(
+            fd: fd,
+            originalProcessGroup: processGroup > 0 ? processGroup : nil,
+            holdsLock: true,
+            ownsFileDescriptor: ownsFileDescriptor)
     }
 
-    private static func controllingTerminal() -> ControllingTerminal? {
-        if isatty(STDIN_FILENO) == 1 {
-            return ControllingTerminal(fileDescriptor: STDIN_FILENO, shouldClose: false)
-        }
-
-        let fileDescriptor = open("/dev/tty", O_RDWR | O_CLOEXEC)
-        guard fileDescriptor >= 0 else { return nil }
-        guard isatty(fileDescriptor) == 1 else {
-            close(fileDescriptor)
-            return nil
-        }
-        return ControllingTerminal(fileDescriptor: fileDescriptor, shouldClose: true)
-    }
-
-    private static func restoreForegroundProcessGroup(
-        for fd: Int32,
-        original: pid_t?,
-        expectedCurrent: pid_t?)
+    private static func endTerminalForegroundLease(
+        _ lease: TerminalForegroundLease,
+        probeProcessGroup: pid_t?)
     {
-        guard isatty(fd) == 1 else { return }
+        defer {
+            if lease.ownsFileDescriptor {
+                close(lease.fd)
+            }
+            if lease.holdsLock {
+                self.terminalForegroundProbeCoordinator.unlockProbe()
+            }
+        }
+        guard lease.holdsLock, isatty(lease.fd) == 1 else { return }
 
-        let currentProcessGroup = tcgetpgrp(fd)
-        let currentIsAlive = currentProcessGroup > 0
-            ? Self.processGroupIsAlive(currentProcessGroup)
-            : false
-        guard TerminalForegroundCoordinator.shouldRestore(
-            original: original,
-            expectedCurrent: expectedCurrent,
-            current: currentProcessGroup > 0 ? currentProcessGroup : nil,
-            currentIsAlive: currentIsAlive)
+        let currentProcessGroup = tcgetpgrp(lease.fd)
+        let current = currentProcessGroup > 0 ? currentProcessGroup : nil
+        guard let target = self.terminalForegroundRestoreTarget(
+            original: lease.originalProcessGroup,
+            probe: probeProcessGroup,
+            current: current)
         else { return }
-        guard let original else { return }
 
-        // At this point the terminal's foreground group is not ours, so this
-        // process is in a background process group. A bare tcsetpgrp from a
-        // background group raises SIGTTOU against our own group, whose default
-        // action stops the process — the exact hang this restore guards against.
-        // Block SIGTTOU on this thread across the call so the restore proceeds
-        // without a signal, then put the previous mask back.
+        // The probe still owns the foreground, so this process is in a background
+        // group. Block SIGTTOU on this thread while restoring the prior owner.
         var blockTTOU = sigset_t()
         sigemptyset(&blockTTOU)
         sigaddset(&blockTTOU, SIGTTOU)
         var previousMask = sigset_t()
         guard pthread_sigmask(SIG_BLOCK, &blockTTOU, &previousMask) == 0 else { return }
         defer { _ = pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
-        _ = tcsetpgrp(fd, original)
+        _ = tcsetpgrp(lease.fd, target)
     }
 
-    private static func processGroupIsAlive(_ processGroup: pid_t) -> Bool {
-        guard kill(-processGroup, 0) != 0 else { return true }
-        return errno != ESRCH
+    private static func terminalForegroundRestoreTarget(
+        original: pid_t?,
+        probe: pid_t?,
+        current: pid_t?) -> pid_t?
+    {
+        guard let original, let probe, current == probe, original != probe else { return nil }
+        return original
     }
 
     // swiftlint:enable cyclomatic_complexity function_body_length
