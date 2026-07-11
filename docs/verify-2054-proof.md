@@ -23,13 +23,13 @@ Optional: build the packaged app from this branch before fetching:
 CODEXBAR_SKIP_PACKAGE=0 ./Scripts/verify_2054_live.sh
 ```
 
-## Redacted live proof (2026-07-11T09:42Z)
+## Redacted live proof (2026-07-11T10:01Z)
 
 ```text
-[verify-2054-proof] PROOF_LIVE_FETCH weeklyUsed=20.0 weeklyResetsAt=2026-07-18T07:36:22Z loginMethod=plus account=<redacted-email>
-[verify-2054-proof] PROOF_SUPPRESSED_TRANSIENT_ZERO events=0 weeklyResetsAt=2026-07-18T07:36:22Z
+[verify-2054-proof] PROOF_LIVE_FETCH weeklyUsed=2.0 weeklyResetsAt=2026-07-18T07:56:55Z loginMethod=plus account=<redacted-email>
+[verify-2054-proof] PROOF_SUPPRESSED_TRANSIENT_ZERO events=0 weeklyResetsAt=2026-07-18T07:56:55Z
 [verify-2054-proof] PROOF_SUPPRESSED_NIL_BOUNDARY events=0
-[verify-2054-proof] PROOF_CELEBRATED_REAL_RESET events=1 previousWeeklyResetsAt=2026-07-18T07:36:22Z advancedWeeklyResetsAt=2026-07-25T07:36:22Z
+[verify-2054-proof] PROOF_CELEBRATED_REAL_RESET events=1 previousWeeklyResetsAt=2026-07-18T07:56:55Z advancedWeeklyResetsAt=2026-07-25T07:56:55Z
 ```
 
 ## Redacted live fetch summary
@@ -39,10 +39,10 @@ CODEXBAR_SKIP_PACKAGE=0 ./Scripts/verify_2054_live.sh
   "provider": "codex",
   "source": "oauth",
   "account": "<redacted-email>",
-  "weeklyUsedPercent": 20,
-  "weeklyResetsAt": "2026-07-18T07:36:22Z",
-  "sessionUsedPercent": 100,
-  "sessionResetsAt": "2026-07-11T12:36:22Z",
+  "weeklyUsedPercent": 2,
+  "weeklyResetsAt": "2026-07-18T07:56:55Z",
+  "sessionUsedPercent": 12,
+  "sessionResetsAt": "2026-07-11T12:56:55Z",
   "loginMethod": "plus"
 }
 ```

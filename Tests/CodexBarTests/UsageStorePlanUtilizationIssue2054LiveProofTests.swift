@@ -5,7 +5,7 @@ import Testing
 
 extension UsageStorePlanUtilizationTests {
     @MainActor
-    @Test
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEXBAR_VERIFY_2054_LIVE_FIXTURE"] != nil))
     func `issue 2054 live behavior proof from fixture`() async throws {
         let fixturePath = try #require(ProcessInfo.processInfo.environment["CODEXBAR_VERIFY_2054_LIVE_FIXTURE"])
         let fixtureURL = URL(fileURLWithPath: fixturePath)

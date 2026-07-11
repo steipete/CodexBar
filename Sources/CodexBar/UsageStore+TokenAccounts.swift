@@ -1209,7 +1209,10 @@ extension UsageStore {
             self.failureGates[.codex]?.recordSuccess()
             self.rememberLiveSystemCodexEmailIfNeeded(snapshot.accountEmail(for: .codex))
             self.seedCodexAccountScopedRefreshGuard(accountEmail: account.email)
-            await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: snapshot)
+            await self.recordPlanUtilizationHistorySample(
+                provider: .codex,
+                snapshot: snapshot,
+                codexVisibleAccount: account)
             guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):

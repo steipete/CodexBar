@@ -197,15 +197,22 @@ extension UsageStorePlanUtilizationTests {
         let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: sharedEmail)
         defer { recorder.invalidate() }
 
+        let workspaceA = Self.makeCodexVisibleAccount(
+            id: "workspace-a",
+            email: sharedEmail,
+            workspaceAccountID: "acct-workspace-alpha",
+            workspaceLabel: "Workspace Alpha")
+        let workspaceB = Self.makeCodexVisibleAccount(
+            id: "workspace-b",
+            email: sharedEmail,
+            workspaceAccountID: "acct-workspace-beta",
+            workspaceLabel: "Workspace Beta")
+
         let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
         let sessionReset = firstDate.addingTimeInterval(5 * 3600)
         let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
 
-        func snapshot(
-            workspaceLabel: String,
-            weeklyUsed: Double,
-            updatedAt: Date) -> UsageSnapshot
-        {
+        func snapshot(weeklyUsed: Double, updatedAt: Date) -> UsageSnapshot {
             UsageSnapshot(
                 primary: RateWindow(
                     usedPercent: 14,
@@ -222,25 +229,21 @@ extension UsageStorePlanUtilizationTests {
                     providerID: .codex,
                     accountEmail: sharedEmail,
                     accountOrganization: "Shared Org",
-                    loginMethod: workspaceLabel))
+                    loginMethod: "plus"))
         }
 
-        let workspaceAHigh = snapshot(
-            workspaceLabel: "Workspace Alpha",
-            weeklyUsed: 86,
-            updatedAt: firstDate)
-        let workspaceBZero = snapshot(
-            workspaceLabel: "Workspace Beta",
-            weeklyUsed: 0,
-            updatedAt: firstDate.addingTimeInterval(120))
+        let workspaceAHigh = snapshot(weeklyUsed: 86, updatedAt: firstDate)
+        let workspaceBZero = snapshot(weeklyUsed: 0, updatedAt: firstDate.addingTimeInterval(120))
 
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: workspaceAHigh,
+            codexVisibleAccount: workspaceA,
             now: workspaceAHigh.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: workspaceBZero,
+            codexVisibleAccount: workspaceB,
             now: workspaceBZero.updatedAt)
 
         #expect(recorder.events.isEmpty)
@@ -365,42 +368,157 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `issue 2054 propagated workspace labels isolate detector keys`() async throws {
+    func `issue 2054 propagated workspace account ids isolate detector keys`() async throws {
         let sharedEmail = "issue-2054-workspace-label@example.com"
-        let workspaceA = UsageSnapshot(
-            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            updatedAt: Date(),
-            identity: ProviderIdentitySnapshot(
-                providerID: .codex,
-                accountEmail: sharedEmail,
-                accountOrganization: "Shared Org",
-                loginMethod: "Workspace Alpha"))
-        let workspaceB = UsageSnapshot(
-            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            updatedAt: Date(),
-            identity: ProviderIdentitySnapshot(
-                providerID: .codex,
-                accountEmail: sharedEmail,
-                accountOrganization: "Shared Org",
-                loginMethod: "Workspace Beta"))
+        let workspaceA = Self.makeCodexVisibleAccount(
+            id: "workspace-alpha",
+            email: sharedEmail,
+            workspaceAccountID: "acct-alpha",
+            workspaceLabel: "Workspace Alpha")
+        let workspaceB = Self.makeCodexVisibleAccount(
+            id: "workspace-beta",
+            email: sharedEmail,
+            workspaceAccountID: "acct-beta",
+            workspaceLabel: "Workspace Beta")
 
-        let keyA = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .codex, snapshot: workspaceA))
-        let keyB = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .codex, snapshot: workspaceB))
+        let snapshotA = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: sharedEmail,
+                accountOrganization: "Shared Org",
+                loginMethod: "plus"))
+        let snapshotB = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: sharedEmail,
+                accountOrganization: "Shared Org",
+                loginMethod: "plus"))
+
+        let keyA = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .codex, snapshot: snapshotA))
+        let keyB = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .codex, snapshot: snapshotB))
         #expect(keyA == keyB)
 
         let store = Self.makeStore()
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
-            snapshot: workspaceA,
-            now: workspaceA.updatedAt)
+            snapshot: snapshotA,
+            codexVisibleAccount: workspaceA,
+            now: snapshotA.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
-            snapshot: workspaceB,
-            now: workspaceB.updatedAt)
+            snapshot: snapshotB,
+            codexVisibleAccount: workspaceB,
+            now: snapshotB.updatedAt)
 
         #expect(store.weeklyLimitResetDetectorStates.count == 2)
+    }
+
+    @MainActor
+    @Test
+    func `issue 2054 plan change keeps stable workspace detector key`() async {
+        let store = Self.makeStore()
+        let sharedEmail = "issue-2054-plan-change@example.com"
+        let workspace = Self.makeCodexVisibleAccount(
+            id: "workspace-stable",
+            email: sharedEmail,
+            workspaceAccountID: "acct-stable-plan-change",
+            workspaceLabel: "Stable Workspace")
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_900_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+
+        func snapshot(plan: String, weeklyUsed: Double, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: weeklyUsed,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: sharedEmail,
+                    accountOrganization: nil,
+                    loginMethod: plan))
+        }
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: snapshot(plan: "plus", weeklyUsed: 86, updatedAt: firstDate),
+            codexVisibleAccount: workspace,
+            now: firstDate)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: snapshot(plan: "pro", weeklyUsed: 84, updatedAt: firstDate.addingTimeInterval(120)),
+            codexVisibleAccount: workspace,
+            now: firstDate.addingTimeInterval(120))
+
+        #expect(store.weeklyLimitResetDetectorStates.count == 1)
+    }
+
+    @MainActor
+    @Test
+    func `issue 2054 preserves baseline when boundary first appears then celebrates`() async {
+        let store = Self.makeStore()
+        let accountLabel = "issue-2054-first-boundary@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_600_000)
+        let sessionReset = firstDate.addingTimeInterval(5 * 3600)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+
+        func snapshot(weeklyUsed: Double, weeklyReset: Date?, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 14,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: weeklyUsed,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "plus"))
+        }
+
+        let before = snapshot(weeklyUsed: 86, weeklyReset: nil, updatedAt: firstDate)
+        let introducedBoundary = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+        let realReset = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: weeklyReset.addingTimeInterval(7 * 24 * 3600),
+            updatedAt: firstDate.addingTimeInterval(240))
+
+        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: introducedBoundary,
+            now: introducedBoundary.updatedAt)
+        #expect(recorder.events.isEmpty)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            now: realReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
     }
 
     @MainActor
@@ -448,6 +566,26 @@ extension UsageStorePlanUtilizationTests {
         #expect(recorder.events.isEmpty)
         let detectorKey = try #require(store.weeklyLimitResetDetectorStates.keys.first)
         #expect(store.weeklyLimitResetDetectorStates[detectorKey]?.wasAboveThreshold == true)
+    }
+
+    static func makeCodexVisibleAccount(
+        id: String,
+        email: String,
+        workspaceAccountID: String,
+        workspaceLabel: String? = nil) -> CodexVisibleAccount
+    {
+        CodexVisibleAccount(
+            id: id,
+            email: email,
+            workspaceLabel: workspaceLabel,
+            workspaceAccountID: workspaceAccountID,
+            authFingerprint: nil,
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: false,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
     }
 }
 

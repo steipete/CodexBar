@@ -16,7 +16,7 @@ LIVE_REDACTED="$ARTIFACT/live-usage.redacted.json"
 PROOF_LOG="$ARTIFACT/live-proof.log"
 DOC_PROOF="$ROOT/docs/verify-2054-proof.md"
 CLI="${CODEXBAR_CLI:-/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI}"
-SKIP_PACKAGE="${CODEXBAR_SKIP_PACKAGE:-1}"
+SKIP_PACKAGE="${CODEXBAR_SKIP_PACKAGE:-0}"
 
 if [[ ! -x "$CLI" ]]; then
   log "Missing CodexBarCLI at $CLI"
@@ -29,6 +29,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 log "Artifacts: $ARTIFACT"
+log "Source commit: $(git -C "$ROOT" rev-parse --short HEAD)"
+log "Packaged app proof: $([ "$SKIP_PACKAGE" = "0" ] && echo enabled || echo skipped)"
 
 if [[ "$SKIP_PACKAGE" != "1" ]]; then
   log "Phase 0: package release build from this branch"

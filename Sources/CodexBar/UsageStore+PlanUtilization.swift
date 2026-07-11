@@ -79,6 +79,7 @@ extension UsageStore {
         let snapshot: UsageSnapshot
         let accountKey: String?
         let capturedAt: Date
+        let codexVisibleAccount: CodexVisibleAccount?
     }
 
     private struct LimitResetObservation {
@@ -183,6 +184,7 @@ extension UsageStore {
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
         shouldAdoptUnscopedHistory: Bool = true,
+        codexVisibleAccount: CodexVisibleAccount? = nil,
         now: Date = Date())
         async
     {
@@ -217,7 +219,8 @@ extension UsageStore {
             account: account,
             snapshot: snapshot,
             accountKey: detectorAccountKey,
-            capturedAt: now)
+            capturedAt: now,
+            codexVisibleAccount: codexVisibleAccount)
         await MainActor.run {
             self.postLimitResetCelebrationsIfNeeded(
                 context: detectorContext,
@@ -471,7 +474,8 @@ extension UsageStore {
             provider: context.provider,
             account: context.account,
             snapshot: context.snapshot,
-            accountKey: context.accountKey)
+            accountKey: context.accountKey,
+            codexVisibleAccount: context.codexVisibleAccount)
         let detectorKey = Self.limitResetDetectorStateKey(
             provider: context.provider,
             accountIdentifier: accountIdentifier)
@@ -495,11 +499,12 @@ extension UsageStore {
             current: observation.resetBoundary)
         let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
+        let suppressedGuardedCrossing = crossedBelowThreshold && !resetBoundaryAllowsPost
         // Only preserve a known boundary when one already exists; otherwise adopt the current observation
         // so Codex weekly can later require previous/current advance before posting.
-        let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
+        let shouldPreserveBoundary = !sourceChanged && suppressedGuardedCrossing
             && previousState?.resetBoundary != nil
-        let shouldPreserveBaseline = crossedBelowThreshold && shouldPreserveBoundary
+        let shouldPreserveBaseline = suppressedGuardedCrossing
         states[detectorKey] = LimitResetDetectorState(
             // A transient zero must not erase the baseline needed to recognize the real reset that follows.
             wasAboveThreshold: shouldPreserveBaseline ? true : wasAboveThreshold,
@@ -904,7 +909,8 @@ extension UsageStore {
         provider: UsageProvider,
         account: ProviderTokenAccount?,
         snapshot: UsageSnapshot,
-        accountKey: String?) -> String
+        accountKey: String?,
+        codexVisibleAccount: CodexVisibleAccount?) -> String
     {
         let identity = snapshot.identity(for: provider)
         if let account {
@@ -913,7 +919,8 @@ extension UsageStore {
         if provider == .codex,
            let codexIdentifier = self.codexLimitResetDetectorAccountIdentifier(
                snapshot: snapshot,
-               accountKey: accountKey)
+               accountKey: accountKey,
+               visibleAccount: codexVisibleAccount)
         {
             return codexIdentifier
         }
@@ -925,7 +932,8 @@ extension UsageStore {
 
     private func codexLimitResetDetectorAccountIdentifier(
         snapshot: UsageSnapshot,
-        accountKey: String?) -> String?
+        accountKey: String?,
+        visibleAccount: CodexVisibleAccount?) -> String?
     {
         let ownership = self.codexOwnershipContext(snapshot: snapshot, includeDashboardFallback: false)
         if let canonicalKey = ownership.canonicalKey,
@@ -935,8 +943,9 @@ extension UsageStore {
         }
 
         if let accountKey,
-           let workspaceDiscriminator = Self.codexLimitResetWorkspaceDiscriminator(
-               identity: snapshot.identity(for: .codex))
+           let workspaceDiscriminator = self.codexLimitResetWorkspaceDiscriminator(
+               snapshot: snapshot,
+               visibleAccount: visibleAccount)
         {
             return Self.sha256Hex(
                 "codex:limit-reset:\(accountKey):workspace:\(workspaceDiscriminator)")
@@ -945,24 +954,115 @@ extension UsageStore {
         return ownership.canonicalKey ?? accountKey
     }
 
-    private nonisolated static func codexLimitResetWorkspaceDiscriminator(
-        identity: ProviderIdentitySnapshot?) -> String?
+    private func codexLimitResetWorkspaceDiscriminator(
+        snapshot: UsageSnapshot,
+        visibleAccount: CodexVisibleAccount?) -> String?
     {
-        let normalizedLoginMethod = identity?.loginMethod?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if let normalizedLoginMethod, !normalizedLoginMethod.isEmpty {
-            return normalizedLoginMethod
+        let resolvedAccount = visibleAccount ?? self.codexVisibleAccountMatchingLimitResetSnapshot(snapshot)
+        if let resolvedAccount {
+            if let workspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
+                resolvedAccount.workspaceAccountID)
+            {
+                return "provider-account:\(workspaceAccountID)"
+            }
+            if let authFingerprint = CodexAuthFingerprint.normalize(resolvedAccount.authFingerprint) {
+                return "auth:\(authFingerprint)"
+            }
+            if let workspaceLabel = resolvedAccount.workspaceLabel?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !workspaceLabel.isEmpty
+            {
+                return "workspace-label:\(workspaceLabel.lowercased())"
+            }
         }
 
-        let normalizedOrganization = identity?.accountOrganization?
+        let loginMethod = snapshot.identity(for: .codex)?.loginMethod?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let loginMethod,
+           !loginMethod.isEmpty,
+           !Self.isCodexPlanLoginMethod(loginMethod)
+        {
+            return "workspace-label:\(loginMethod.lowercased())"
+        }
+
+        let normalizedOrganization = snapshot.identity(for: .codex)?.accountOrganization?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         if let normalizedOrganization, !normalizedOrganization.isEmpty {
-            return normalizedOrganization
+            return "organization:\(normalizedOrganization)"
         }
 
         return nil
+    }
+
+    private func codexVisibleAccountMatchingLimitResetSnapshot(_ snapshot: UsageSnapshot) -> CodexVisibleAccount? {
+        let normalizedEmail = CodexIdentityResolver.normalizeEmail(snapshot.accountEmail(for: .codex))
+        guard let normalizedEmail else { return nil }
+
+        let candidates = self.settings.codexVisibleAccounts.filter {
+            CodexIdentityResolver.normalizeEmail($0.email) == normalizedEmail
+        }
+        guard !candidates.isEmpty else { return nil }
+        if candidates.count == 1 {
+            return candidates[0]
+        }
+
+        if let currentSnapshot = self.snapshots[.codex],
+           currentSnapshot.updatedAt == snapshot.updatedAt,
+           let guardValue = self.lastCodexAccountScopedRefreshGuard,
+           let guardedMatch = candidates.first(where: {
+               self.codexVisibleAccountMatchesLimitResetGuard($0, guardValue: guardValue)
+           })
+        {
+            return guardedMatch
+        }
+
+        if let activeMatch = candidates.first(where: \.isActive) {
+            return activeMatch
+        }
+
+        return nil
+    }
+
+    private func codexVisibleAccountMatchesLimitResetGuard(
+        _ account: CodexVisibleAccount,
+        guardValue: CodexAccountScopedRefreshGuard) -> Bool
+    {
+        guard guardValue.source == account.selectionSource else { return false }
+        let guardAuthFingerprint = CodexAuthFingerprint.normalize(guardValue.authFingerprint)
+        let accountAuthFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint)
+        if guardAuthFingerprint != nil || accountAuthFingerprint != nil {
+            guard guardAuthFingerprint == accountAuthFingerprint else { return false }
+        }
+        if let workspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
+            account.workspaceAccountID)
+        {
+            if case let .providerAccount(id) = guardValue.identity {
+                return id == CodexOpenAIWorkspaceIdentity.normalizeWorkspaceAccountID(workspaceAccountID)
+            }
+        }
+        guard let accountEmail = CodexIdentityResolver.normalizeEmail(account.email) else { return false }
+        return guardValue.accountKey == accountEmail
+    }
+
+    private nonisolated static func isCodexPlanLoginMethod(_ loginMethod: String) -> Bool {
+        let normalized = loginMethod.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return false }
+        let knownPlans: Set = [
+            "plus",
+            "pro",
+            "prolite",
+            "pro_lite",
+            "pro-lite",
+            "pro lite",
+            "team",
+            "business",
+            "enterprise",
+            "free",
+            "cbp",
+            "k12",
+        ]
+        return knownPlans.contains(normalized)
     }
 
     private func limitResetAccountLabel(
