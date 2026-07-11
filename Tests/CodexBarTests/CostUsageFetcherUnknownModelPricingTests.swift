@@ -73,6 +73,62 @@ struct CostUsageFetcherUnknownModelPricingTests {
             modelID: "gpt-new",
             cacheRoot: fixture.environment.cacheRoot) != nil)
     }
+
+    @Test
+    func `unattributed codex usage does not request a pricing refresh`() async throws {
+        let environment = try CostUsageTestEnvironment()
+        defer { environment.cleanup() }
+        let day = try environment.makeLocalNoon(year: 2026, month: 4, day: 12)
+        let staleCatalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": { "known-test-model": { "id": "known-test-model", "cost": { "input": 1, "output": 4 } } }
+          }
+        }
+        """.utf8))
+        ModelsDevCache.save(
+            catalog: staleCatalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: environment.cacheRoot)
+        let tokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": environment.isoString(for: day),
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "last_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    ],
+                ],
+            ],
+        ]
+        _ = try environment.writeCodexSessionFile(
+            day: day,
+            filename: "unattributed-model.jsonl",
+            contents: environment.jsonl([tokenCount]))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: environment.codexSessionsRoot,
+            claudeProjectsRoots: [environment.claudeProjectsRoot],
+            cacheRoot: environment.cacheRoot)
+        let counter = UnknownModelPricingRequestCounter()
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            refreshPricingInBackground: false,
+            scannerOptions: options,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherCountingModelsDevTransport(counter: counter)))
+
+        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        let requestCount = await counter.requestCount
+        #expect(breakdown.modelName == CostUsagePricing.codexUnattributedModel)
+        #expect(breakdown.totalTokens == 110)
+        #expect(breakdown.costUSD == nil)
+        #expect(requestCount == 0)
+    }
 }
 
 private struct UnknownModelPricingFixture {
@@ -209,5 +265,27 @@ private actor UnknownModelPricingCompletionProbe {
 
     func markCompleted() {
         self.isCompleted = true
+    }
+}
+
+private actor UnknownModelPricingRequestCounter {
+    private(set) var requestCount = 0
+
+    func recordRequest() {
+        self.requestCount += 1
+    }
+}
+
+private struct CostUsageFetcherCountingModelsDevTransport: ModelsDevHTTPTransport {
+    let counter: UnknownModelPricingRequestCounter
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        await self.counter.recordRequest()
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil)!
+        return (Data(#"{"openai":{"id":"openai","models":{}}}"#.utf8), response)
     }
 }

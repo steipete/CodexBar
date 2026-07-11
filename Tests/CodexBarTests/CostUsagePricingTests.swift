@@ -25,6 +25,32 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `unattributed codex usage stays unpriced despite a catalog collision`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "unknown": {
+                "id": "unknown",
+                "cost": { "input": 99, "output": 199 }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: CostUsagePricing.codexUnattributedModel,
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(cost == nil)
+    }
+
+    @Test
     func `codex cost supports gpt51 codex max`() {
         let cost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.1-codex-max",

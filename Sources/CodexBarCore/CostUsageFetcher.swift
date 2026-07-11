@@ -295,8 +295,14 @@ public struct CostUsageFetcher: Sendable {
     {
         guard provider == .codex || provider == .claude else { return nil }
         let unknownModelIDs = Set(daily.data.flatMap { entry in
-            entry.modelBreakdowns?.compactMap { breakdown in
-                breakdown.costUSD == nil ? breakdown.modelName : nil
+            entry.modelBreakdowns?.compactMap { breakdown -> String? in
+                guard breakdown.costUSD == nil else { return nil }
+                if provider == .codex,
+                   CostUsagePricing.isCodexUnattributedModel(breakdown.modelName)
+                {
+                    return nil
+                }
+                return breakdown.modelName
             } ?? []
         })
         guard !unknownModelIDs.isEmpty else { return nil }

@@ -2,6 +2,7 @@ import Foundation
 
 enum CostUsagePricing {
     private static let codexPriorityInputTokenLimit = 272_000
+    static let codexUnattributedModel = "unknown"
 
     struct CodexPricing {
         let inputCostPerToken: Double
@@ -479,6 +480,10 @@ enum CostUsagePricing {
         return trimmed
     }
 
+    static func isCodexUnattributedModel(_ raw: String) -> Bool {
+        self.normalizeCodexModel(raw) == self.codexUnattributedModel
+    }
+
     static func codexDisplayLabel(model: String) -> String? {
         let key = self.normalizeCodexModel(model)
         return self.codex[key]?.displayLabel
@@ -523,6 +528,7 @@ enum CostUsagePricing {
         modelsDevCacheRoot: URL? = nil) -> Double?
     {
         let key = self.normalizeCodexModel(model)
+        guard key != self.codexUnattributedModel else { return nil }
         let modelsDevLookup = self.modelsDevLookup(
             providerID: self.codexModelsDevProviderID,
             model: model,
