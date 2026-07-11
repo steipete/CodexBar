@@ -50,6 +50,8 @@ struct ClaudeDirectUsageFallbackTests {
         let invocations = log.contents()
         #expect(invocations.contains("pty-usage"))
         #expect(invocations.contains("direct-usage"))
+        #expect(invocations.contains("pty-auto-updater-disabled"))
+        #expect(invocations.contains("direct-auto-updater-disabled"))
         #expect(!invocations.contains("pty-secret-env"))
         #expect(!invocations.contains("direct-secret-env"))
     }
@@ -87,6 +89,9 @@ struct ClaudeDirectUsageFallbackTests {
         try self.makeClaudeCLI(name: "claude-direct-fallback", logURL: logURL, scriptBody: """
         if [ "$1" = "/usage" ]; then
           printf 'direct-usage\\n' >> "$LOG_FILE"
+          if [ "$DISABLE_AUTOUPDATER" = "1" ]; then
+            printf 'direct-auto-updater-disabled\\n' >> "$LOG_FILE"
+          fi
           if [ -n "$CODEXBAR_CLAUDE_OAUTH_TOKEN" ] ||
              [ -n "$CODEXBAR_CLAUDE_OAUTH_SCOPES" ] ||
              [ -n "$ANTHROPIC_ADMIN_KEY" ]; then
@@ -99,6 +104,9 @@ struct ClaudeDirectUsageFallbackTests {
           case "$line" in
             *"/usage"*)
               printf 'pty-usage\\n' >> "$LOG_FILE"
+              if [ "$DISABLE_AUTOUPDATER" = "1" ]; then
+                printf 'pty-auto-updater-disabled\\n' >> "$LOG_FILE"
+              fi
               if [ -n "$CODEXBAR_CLAUDE_OAUTH_TOKEN" ] ||
                  [ -n "$CODEXBAR_CLAUDE_OAUTH_SCOPES" ] ||
                  [ -n "$ANTHROPIC_ADMIN_KEY" ]; then
