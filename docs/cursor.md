@@ -63,11 +63,15 @@ Manual option:
 - Cursor range selection defaults to `Cycle` and can switch to `30d`; it changes the event/token diagnostic surface
   only, not Cursor's primary plan quota. If the API omits a billing-cycle start, the diagnostic surface falls back to
   the complete `30d` range instead of hiding the available data.
-- Cost estimates are local diagnostics, not Cursor billing. GPT total-only or partial rows use a conservative
-  one-sided lower bound. `gpt-5.5-extra-high` resolves to the `gpt-5.5` price key while retaining effort metadata.
-  Pricing was checked 2026-07-11 against [OpenAI GPT-5.5](https://openai.com/index/introducing-gpt-5-5/),
-  [Cursor Composer 2.5](https://cursor.com/changelog/composer-2-5), and
-  [Anthropic Claude Fable 5](https://www.anthropic.com/claude/fable).
+- Cost estimates are local diagnostics, not Cursor billing. Exact token-breakdown rows render `Est. $N`; partial
+  Anthropic/Composer rows render a visible `Approx. $low-$high` range, and total-only OpenAI rows use a conservative
+  `Approx. $low+` lower bound. Unknown or unpriced rows remain unavailable and never fabricate a total from their
+  token count. `gpt-5.5-extra-high` resolves to the `gpt-5.5` price key while retaining effort metadata.
+- Known input, output, cache-read, and cache-write fields are counted according to the local pricing catalog. Composer
+  cache tokens are treated as input-equivalent because Cursor does not publish a separate Composer cache rate; the UI
+  keeps that caveat with the estimate. Pricing references were checked 2026-07-11 against [OpenAI GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5),
+  [Anthropic Claude pricing](https://docs.anthropic.com/en/docs/about-claude/pricing), and
+  [Cursor Composer 2.5](https://cursor.com/changelog/composer-2-5). No new unverified model rate is added here.
 - Reset: billing cycle end date.
 
 ## Key files

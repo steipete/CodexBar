@@ -126,6 +126,18 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `claude cache read and write fields use the documented multipliers`() {
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "claude-opus-4-1",
+            inputTokens: 1_000_000,
+            cacheReadInputTokens: 1_000_000,
+            cacheCreationInputTokens: 1_000_000,
+            outputTokens: 1_000_000)
+
+        #expect(cost == 15 + 1.5 + 18.75 + 75)
+    }
+
+    @Test
     func `claude cost returns nil for unknown models`() {
         let cost = CostUsagePricing.claudeCostUSD(
             model: "glm-4.6",

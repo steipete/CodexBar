@@ -137,6 +137,20 @@ public enum UsageFormatter {
         }
     }
 
+    public static func cursorEstimatedTotalText(_ summary: CursorRequestCostSummary?) -> String? {
+        guard let summary else { return nil }
+        if let exact = summary.exactUSD {
+            return "Est. \(self.usdString(NSDecimalNumber(decimal: exact).doubleValue))"
+        }
+        guard let lower = summary.lowerBoundUSD else { return nil }
+        let lowerText = self.usdString(NSDecimalNumber(decimal: lower).doubleValue)
+        if let upper = summary.upperBoundUSD {
+            let upperText = self.usdString(NSDecimalNumber(decimal: upper).doubleValue)
+            return "Approx. \(lowerText)-\(upperText)"
+        }
+        return "Approx. \(lowerText)+"
+    }
+
     public static func cursorRequestCountLabel(requests: Int, requestCost: Double? = nil) -> String {
         let rowCount = max(1, requests)
         _ = requestCost
