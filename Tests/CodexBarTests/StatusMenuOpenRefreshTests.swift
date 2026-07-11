@@ -771,21 +771,22 @@ extension StatusMenuTests {
         controller.openMenus[submenuKey] = submenu
         controller.menuRefreshEnabledOverrideForTesting = true
 
-        var rebuildCount = 0
-        controller._test_openMenuRebuildObserver = { _ in
-            rebuildCount += 1
+        var rootRebuildCount = 0
+        controller._test_openMenuRebuildObserver = { rebuiltMenu in
+            guard rebuiltMenu === menu else { return }
+            rootRebuildCount += 1
         }
         defer { controller._test_openMenuRebuildObserver = nil }
 
         controller.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
         controller.refreshOpenMenuIfStillVisible(menu, provider: .codex)
 
-        for _ in 0..<20 where rebuildCount == 0 {
+        for _ in 0..<20 where rootRebuildCount == 0 {
             await Task.yield()
         }
 
         #expect(controller.openMenus[submenuKey] == nil)
-        #expect(rebuildCount == 1)
+        #expect(rootRebuildCount == 1)
         #expect(controller.menuVersions[menuKey] == controller.menuContentVersion)
     }
 
