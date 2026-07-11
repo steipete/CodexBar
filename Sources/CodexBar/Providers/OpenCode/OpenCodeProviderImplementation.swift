@@ -18,6 +18,8 @@ struct OpenCodeProviderImplementation: ProviderImplementation {
         _ = settings.opencodeCookieSource
         _ = settings.opencodeCookieHeader
         _ = settings.opencodeWorkspaceID
+        _ = settings.opencodeWorkspaceAccounts
+        _ = settings.activeOpenCodeWorkspaceAccount
     }
 
     @MainActor

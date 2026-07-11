@@ -823,12 +823,18 @@ extension StatusItemController {
         width: CGFloat) -> NSMenuItem
     {
         let view = TokenAccountSwitcherView(
-            accounts: display.accounts,
+            entries: display.entries,
             selectedIndex: display.activeIndex,
             width: width,
             onSelect: { [weak self, weak menu] index -> Task<Void, Never>? in
                 guard let self, let menu else { return nil }
-                self.settings.setActiveTokenAccountIndex(index, for: display.provider)
+                guard index >= 0, index < display.entries.count else { return nil }
+                let entry = display.entries[index]
+                if display.provider == .opencode {
+                    guard self.settings.setActiveOpenCodeWorkspace(id: entry.id) else { return nil }
+                } else {
+                    self.settings.setActiveTokenAccountIndex(index, for: display.provider)
+                }
                 // Immediately rebuild to show the new selection, then refresh data
                 // and rebuild again once fresh data arrives.
                 self.populateMenu(menu, provider: display.provider)
@@ -919,6 +925,10 @@ extension StatusItemController {
     }
 
     private func tokenAccountMenuDisplay(for provider: UsageProvider) -> TokenAccountMenuDisplay? {
+        if provider == .opencode {
+            let display = TokenAccountMenuDisplay.openCode(accounts: self.settings.opencodeWorkspaceAccounts)
+            return display.entries.count > 1 ? display : nil
+        }
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
         let accounts = self.settings.tokenAccounts(for: provider)
         guard accounts.count > 1 else { return nil }

@@ -153,6 +153,9 @@ extension SettingsStore {
                 entry.apiKey = nil
             }
         }
+        if provider == .opencode {
+            self.pruneOpenCodeWorkspaces()
+        }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account removed",
             metadata: [

@@ -73,6 +73,7 @@ struct ProviderRegistry {
         tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot
     {
         settings.ensureTokenAccountsLoaded()
+        settings.syncOpenCodeWorkspaceSelectionFromAppGroup()
         var builder = ProviderSettingsSnapshotBuilder(
             debugMenuEnabled: settings.debugMenuEnabled,
             debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)

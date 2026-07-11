@@ -95,11 +95,11 @@ struct OpenCodeUsageFetchStrategy: ProviderFetchStrategy {
     }
 }
 
-enum OpenCodeSettingsError: LocalizedError {
+public enum OpenCodeSettingsError: LocalizedError {
     case missingCookie
     case invalidCookie
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .missingCookie:
             "No OpenCode session cookies found in browsers."

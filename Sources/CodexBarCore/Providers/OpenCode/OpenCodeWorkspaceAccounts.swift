@@ -166,6 +166,17 @@ public struct OpenCodeWorkspaceAccounts: Codable, Equatable, Sendable {
         return true
     }
 
+    @discardableResult
+    public mutating func remove(id: String) -> Bool {
+        let originalCount = self.accounts.count
+        self.accounts.removeAll { $0.id == id }
+        guard self.accounts.count != originalCount else { return false }
+        if self.activeID == id {
+            self.activeID = self.accounts.first?.id
+        }
+        return true
+    }
+
     public mutating func prune(validTokenAccountIDs: Set<UUID>) {
         self.accounts.removeAll { !validTokenAccountIDs.contains($0.tokenAccountID) }
         guard let activeID = self.activeID,

@@ -793,7 +793,7 @@ final class ProviderSwitcherView: NSView {
 }
 
 final class TokenAccountSwitcherView: NSView {
-    private let accounts: [ProviderTokenAccount]
+    private let entries: [TokenAccountMenuEntry]
     private let onSelect: (Int) -> Task<Void, Never>?
     private var selectedIndex: Int
     private var buttons: [NSButton] = []
@@ -805,15 +805,15 @@ final class TokenAccountSwitcherView: NSView {
     private let unselectedTextColor = NSColor.secondaryLabelColor
 
     init(
-        accounts: [ProviderTokenAccount],
+        entries: [TokenAccountMenuEntry],
         selectedIndex: Int,
         width: CGFloat,
         onSelect: @escaping (Int) -> Task<Void, Never>?)
     {
-        self.accounts = accounts
+        self.entries = entries
         self.onSelect = onSelect
-        self.selectedIndex = min(max(selectedIndex, 0), max(0, accounts.count - 1))
-        let useTwoRows = accounts.count > 3
+        self.selectedIndex = min(max(selectedIndex, 0), max(0, entries.count - 1))
+        let useTwoRows = entries.count > 3
         let rows = useTwoRows ? 2 : 1
         let height = self.rowHeight * CGFloat(rows) + (useTwoRows ? self.rowSpacing : 0)
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: height))
@@ -828,11 +828,11 @@ final class TokenAccountSwitcherView: NSView {
     }
 
     private func buildButtons(useTwoRows: Bool) {
-        let perRow = useTwoRows ? Int(ceil(Double(self.accounts.count) / 2.0)) : self.accounts.count
-        let rows: [[ProviderTokenAccount]] = {
-            if !useTwoRows { return [self.accounts] }
-            let first = Array(self.accounts.prefix(perRow))
-            let second = Array(self.accounts.dropFirst(perRow))
+        let perRow = useTwoRows ? Int(ceil(Double(self.entries.count) / 2.0)) : self.entries.count
+        let rows: [[TokenAccountMenuEntry]] = {
+            if !useTwoRows { return [self.entries] }
+            let first = Array(self.entries.prefix(perRow))
+            let second = Array(self.entries.dropFirst(perRow))
             return [first, second]
         }()
 
@@ -851,13 +851,13 @@ final class TokenAccountSwitcherView: NSView {
             row.spacing = self.rowSpacing
             row.translatesAutoresizingMaskIntoConstraints = false
 
-            for account in rowAccounts {
+            for entry in rowAccounts {
                 let button = PaddedToggleButton(
-                    title: account.displayName,
+                    title: entry.title,
                     target: self,
                     action: #selector(self.handleSelect))
                 button.tag = globalIndex
-                button.toolTip = account.displayName
+                button.toolTip = entry.title
                 button.isBordered = false
                 button.setButtonType(.toggle)
                 button.controlSize = .small
@@ -898,7 +898,7 @@ final class TokenAccountSwitcherView: NSView {
 
     @discardableResult
     private func select(index: Int) -> Task<Void, Never>? {
-        guard index >= 0, index < self.accounts.count else { return nil }
+        guard index >= 0, index < self.entries.count else { return nil }
         self.selectedIndex = index
         self.updateButtonStyles()
         return self.onSelect(index)

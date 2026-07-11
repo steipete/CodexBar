@@ -67,10 +67,71 @@ struct OpenAIWebMenuItems {
 struct TokenAccountMenuDisplay {
     let provider: UsageProvider
     let accounts: [ProviderTokenAccount]
+    let entries: [TokenAccountMenuEntry]
     let snapshots: [TokenAccountUsageSnapshot]
     let activeIndex: Int
     let showAll: Bool
     let showSwitcher: Bool
+
+    static func openCode(accounts: OpenCodeWorkspaceAccounts) -> Self {
+        let entries = accounts.accounts.map { account in
+            TokenAccountMenuEntry(
+                id: account.id,
+                title: account.ownerLabel.map { "\(account.label) · \($0)" } ?? account.label,
+                tokenAccountID: account.tokenAccountID)
+        }
+        return Self(
+            provider: .opencode,
+            accounts: [],
+            entries: entries,
+            snapshots: [],
+            activeIndex: accounts.activeID.flatMap { activeID in entries.firstIndex { $0.id == activeID } } ?? 0,
+            showAll: false,
+            showSwitcher: entries.count > 1)
+    }
+
+    private init(
+        provider: UsageProvider,
+        accounts: [ProviderTokenAccount],
+        entries: [TokenAccountMenuEntry],
+        snapshots: [TokenAccountUsageSnapshot],
+        activeIndex: Int,
+        showAll: Bool,
+        showSwitcher: Bool)
+    {
+        self.provider = provider
+        self.accounts = accounts
+        self.entries = entries
+        self.snapshots = snapshots
+        self.activeIndex = activeIndex
+        self.showAll = showAll
+        self.showSwitcher = showSwitcher
+    }
+
+    init(
+        provider: UsageProvider,
+        accounts: [ProviderTokenAccount],
+        snapshots: [TokenAccountUsageSnapshot],
+        activeIndex: Int,
+        showAll: Bool,
+        showSwitcher: Bool)
+    {
+        self.provider = provider
+        self.accounts = accounts
+        self.entries = accounts.map {
+            TokenAccountMenuEntry(id: $0.id.uuidString, title: $0.displayName, tokenAccountID: $0.id)
+        }
+        self.snapshots = snapshots
+        self.activeIndex = activeIndex
+        self.showAll = showAll
+        self.showSwitcher = showSwitcher
+    }
+}
+
+struct TokenAccountMenuEntry: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let tokenAccountID: UUID?
 }
 
 struct CodexAccountMenuDisplay: Equatable {

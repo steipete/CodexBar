@@ -1,20 +1,32 @@
 import Foundation
 
-enum OpenCodeWebCookieSupport {
+public enum OpenCodeWebCookieSupport {
     private static let requestCookieNames: Set<String> = ["auth", "__Host-auth"]
 
-    struct Context {
-        let settings: ProviderSettingsSnapshot.OpenCodeProviderSettings?
-        let provider: UsageProvider
-        let browserDetection: BrowserDetection
-        let allowCached: Bool
+    public struct Context {
+        public let settings: ProviderSettingsSnapshot.OpenCodeProviderSettings?
+        public let provider: UsageProvider
+        public let browserDetection: BrowserDetection
+        public let allowCached: Bool
+
+        public init(
+            settings: ProviderSettingsSnapshot.OpenCodeProviderSettings?,
+            provider: UsageProvider,
+            browserDetection: BrowserDetection,
+            allowCached: Bool)
+        {
+            self.settings = settings
+            self.provider = provider
+            self.browserDetection = browserDetection
+            self.allowCached = allowCached
+        }
     }
 
-    static func requestCookieHeader(from rawHeader: String?) -> String? {
+    public static func requestCookieHeader(from rawHeader: String?) -> String? {
         CookieHeaderNormalizer.filteredHeader(from: rawHeader, allowedNames: self.requestCookieNames)
     }
 
-    static func resolveCookieHeader(
+    public static func resolveCookieHeader(
         context: Context,
         invalidCookie: @autoclosure () -> Error,
         missingCookie: @autoclosure () -> Error) throws -> String

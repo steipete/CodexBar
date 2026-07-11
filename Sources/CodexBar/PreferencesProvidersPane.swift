@@ -68,9 +68,14 @@ struct ProvidersPane: View {
                     onRefresh: {
                         self.triggerRefresh(for: provider)
                     },
-                    showsSupplementarySettingsContent: self.codexAccountsSectionState(for: provider) != nil,
+                    showsSupplementarySettingsContent: provider == .opencode ||
+                        self.codexAccountsSectionState(for: provider) != nil,
                     supplementarySettingsContent: {
-                        if let state = self.codexAccountsSectionState(for: provider) {
+                        if provider == .opencode {
+                            OpenCodeAccountsSectionView(
+                                settings: self.settings,
+                                store: self.store)
+                        } else if let state = self.codexAccountsSectionState(for: provider) {
                             CodexAccountsSectionView(
                                 state: state,
                                 setActiveVisibleAccount: { visibleAccountID in

@@ -14,7 +14,13 @@ extension UsageStore {
 
     func refreshProvider(_ provider: UsageProvider, allowDisabled: Bool = false) async {
         self.prepareRefreshState(for: provider)
+        if provider == .opencode {
+            self.settings.syncOpenCodeWorkspaceSelectionFromAppGroup()
+        }
         guard let spec = self.providerSpecs[provider] else { return }
+        let expectedOpenCodeWorkspaceID = provider == .opencode
+            ? self.settings.opencodeSettingsSnapshot(tokenOverride: nil).workspaceAccountID
+            : nil
         let codexExpectedGuard = provider == .codex ? self.currentCodexAccountScopedRefreshGuard() : nil
 
         if !spec.isEnabled(), !allowDisabled {
@@ -26,6 +32,9 @@ extension UsageStore {
                 self.lastSourceLabels.removeValue(forKey: provider)
                 self.lastFetchAttempts.removeValue(forKey: provider)
                 self.accountSnapshots.removeValue(forKey: provider)
+                if provider == .opencode {
+                    self.openCodeWorkspaceSnapshots.removeAll()
+                }
                 self.tokenSnapshots.removeValue(forKey: provider)
                 self.tokenErrors[provider] = nil
                 self.failureGates[provider]?.reset()
@@ -84,6 +93,17 @@ extension UsageStore {
             self.lastFetchAttempts[provider] = outcome.attempts
         }
 
+        if provider == .opencode,
+           !self.shouldApplyOpenCodeWorkspaceResult(expectedWorkspaceAccountID: expectedOpenCodeWorkspaceID)
+        {
+            if case let .success(result) = outcome.result,
+               let expectedOpenCodeWorkspaceID
+            {
+                self.openCodeWorkspaceSnapshots[expectedOpenCodeWorkspaceID] = result.usage.scoped(to: provider)
+            }
+            return
+        }
+
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: provider)
@@ -98,6 +118,11 @@ extension UsageStore {
                 self.handleSessionQuotaTransition(provider: provider, snapshot: backfilled)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
+                if provider == .opencode,
+                   let expectedOpenCodeWorkspaceID
+                {
+                    self.openCodeWorkspaceSnapshots[expectedOpenCodeWorkspaceID] = backfilled
+                }
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.failureGates[provider]?.recordSuccess()
@@ -143,5 +168,10 @@ extension UsageStore {
                 runtime.providerDidFail(context: context, provider: provider, error: error)
             }
         }
+    }
+
+    func shouldApplyOpenCodeWorkspaceResult(expectedWorkspaceAccountID: String?) -> Bool {
+        self.settings.opencodeSettingsSnapshot(tokenOverride: nil).workspaceAccountID ==
+            expectedWorkspaceAccountID
     }
 }

@@ -14,6 +14,7 @@ extension UsageStore {
         _ = self.lastSourceLabels
         _ = self.lastFetchAttempts
         _ = self.accountSnapshots
+        _ = self.openCodeWorkspaceSnapshots
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
@@ -126,6 +127,7 @@ final class UsageStore {
     var lastSourceLabels: [UsageProvider: String] = [:]
     var lastFetchAttempts: [UsageProvider: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [UsageProvider: [TokenAccountUsageSnapshot]] = [:]
+    var openCodeWorkspaceSnapshots: [String: UsageSnapshot] = [:]
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []

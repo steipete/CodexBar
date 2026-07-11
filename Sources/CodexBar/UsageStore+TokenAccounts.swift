@@ -27,6 +27,7 @@ extension UsageStore {
 
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
+        guard provider != .opencode else { return false }
         if provider == .copilot {
             return accounts.count > 1
         }

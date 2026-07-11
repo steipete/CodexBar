@@ -6,6 +6,31 @@ import Testing
 @MainActor
 struct SettingsStoreCoverageTests {
     @Test
+    func testOpenCodeWorkspaceSettingsReuseOneCredentialAndResolveActiveSnapshot() throws {
+        let settings = Self.makeSettingsStore()
+        settings.addTokenAccount(provider: .opencode, label: "Shared", token: "auth=shared")
+        let tokenAccount = try #require(settings.selectedTokenAccount(for: .opencode))
+
+        let result = settings.addOpenCodeWorkspace(
+            tokenAccountID: tokenAccount.id,
+            workspaceID: "https://opencode.ai/workspace/wrk_ALPHA/billing",
+            label: "Alpha",
+            ownerLabel: "Alice")
+
+        #expect(result == .saved)
+        let account = try #require(settings.opencodeWorkspaceAccounts.accounts.first)
+        #expect(account.tokenAccountID == tokenAccount.id)
+        let selected = settings.setActiveOpenCodeWorkspace(id: account.id)
+        #expect(selected)
+        let snapshot = settings.opencodeSettingsSnapshot(tokenOverride: nil)
+        #expect(snapshot.workspaceID == "wrk_ALPHA")
+        #expect(snapshot.workspaceAccountID == account.id)
+        #expect(snapshot.manualCookieHeader == "auth=shared")
+        settings.removeTokenAccount(provider: .opencode, accountID: tokenAccount.id)
+        #expect(settings.opencodeWorkspaceAccounts.accounts.isEmpty)
+    }
+
+    @Test
     func `provider ordering and caching`() throws {
         let suite = "SettingsStoreCoverageTests-ordering"
         let defaults = try #require(UserDefaults(suiteName: suite))
