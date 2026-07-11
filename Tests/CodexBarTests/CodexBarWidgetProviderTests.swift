@@ -42,6 +42,38 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `open code widget selection follows the stored workspace account`() {
+        let firstID = OpenCodeWorkspaceAccount.canonicalID(
+            tokenAccountID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+            workspaceID: "wrk_FIRST")
+        let secondID = OpenCodeWorkspaceAccount.canonicalID(
+            tokenAccountID: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+            workspaceID: "wrk_SECOND")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entries = [firstID, secondID].map { accountID in
+            WidgetSnapshot.ProviderEntry(
+                provider: .opencode,
+                updatedAt: now,
+                primary: nil,
+                secondary: nil,
+                tertiary: nil,
+                accountID: accountID,
+                accountLabel: accountID == firstID ? "First" : "Second",
+                creditsRemaining: nil,
+                codeReviewRemainingPercent: nil,
+                tokenUsage: nil,
+                dailyUsage: [])
+        }
+        let snapshot = WidgetSnapshot(entries: entries, generatedAt: now)
+        WidgetSelectionStore.saveSelectedOpenCodeWorkspaceAccountID(secondID)
+
+        #expect(
+            CodexBarSwitcherTimelineProvider.selectedOpenCodeWorkspaceAccountID(
+                provider: .opencode,
+                snapshot: snapshot) == secondID)
+    }
+
+    @Test
     func `codex weekly only widget rows omit session`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entry = WidgetSnapshot.ProviderEntry(

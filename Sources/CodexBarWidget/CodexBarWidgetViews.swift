@@ -7,7 +7,9 @@ struct CodexBarUsageWidgetView: View {
     let entry: CodexBarWidgetEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entry(
+            for: self.entry.provider,
+            accountID: self.entry.accountID)
         ZStack {
             Color.black.opacity(0.02)
             if let providerEntry {
@@ -49,7 +51,9 @@ struct CodexBarHistoryWidgetView: View {
     let entry: CodexBarWidgetEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entry(
+            for: self.entry.provider,
+            accountID: self.entry.accountID)
         ZStack {
             Color.black.opacity(0.02)
             if let providerEntry {
@@ -78,13 +82,24 @@ struct CodexBarCompactWidgetView: View {
     let entry: CodexBarCompactEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entry(
+            for: self.entry.provider,
+            accountID: self.entry.accountID)
         ZStack {
             Color.black.opacity(0.02)
-            if let providerEntry {
-                CompactMetricView(entry: providerEntry, metric: self.entry.metric)
-            } else {
-                self.emptyState
+            VStack(alignment: .leading, spacing: 6) {
+                if let providerEntry {
+                    CompactMetricView(entry: providerEntry, metric: self.entry.metric)
+                } else {
+                    self.emptyState
+                }
+                if self.entry.provider == .opencode {
+                    OpenCodeWorkspaceSwitcherRow(
+                        snapshot: self.entry.snapshot,
+                        selectedID: self.entry.accountID,
+                        compact: true)
+                        .padding(.horizontal, 8)
+                }
             }
         }
         .containerBackground(.fill.tertiary, for: .widget)
@@ -108,7 +123,9 @@ struct CodexBarSwitcherWidgetView: View {
     let entry: CodexBarSwitcherEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entry(
+            for: self.entry.provider,
+            accountID: self.entry.accountID)
         ZStack {
             Color.black.opacity(0.02)
             VStack(alignment: .leading, spacing: 10) {
@@ -118,6 +135,12 @@ struct CodexBarSwitcherWidgetView: View {
                     updatedAt: providerEntry?.updatedAt ?? Date(),
                     compact: self.family == .systemSmall,
                     showsTimestamp: self.family != .systemSmall)
+                if self.entry.provider == .opencode {
+                    OpenCodeWorkspaceSwitcherRow(
+                        snapshot: self.entry.snapshot,
+                        selectedID: self.entry.accountID,
+                        compact: self.family == .systemSmall)
+                }
                 if let providerEntry {
                     self.content(providerEntry: providerEntry)
                 } else {
@@ -239,6 +262,44 @@ private struct ProviderSwitcherRow: View {
                 Text(WidgetFormat.relativeDate(self.updatedAt))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct OpenCodeWorkspaceSwitcherRow: View {
+    let snapshot: WidgetSnapshot
+    let selectedID: String?
+    let compact: Bool
+
+    private var entries: [WidgetSnapshot.ProviderEntry] {
+        self.snapshot.entries.filter { $0.provider == .opencode && $0.accountID != nil }
+    }
+
+    var body: some View {
+        if self.entries.count > 1 {
+            HStack(spacing: self.compact ? 4 : 6) {
+                ForEach(Array(self.entries.enumerated()), id: \.offset) { _, entry in
+                    if let accountID = entry.accountID {
+                        Button(intent: SwitchWidgetOpenCodeWorkspaceIntent(accountID: accountID)) {
+                            Text(entry.accountLabel ?? "Workspace")
+                                .font(
+                                    self.compact
+                                        ? .caption2.weight(.semibold)
+                                        : .caption.weight(.semibold))
+                                .foregroundStyle(accountID == self.selectedID ? Color.primary : Color.secondary)
+                                .padding(.horizontal, self.compact ? 5 : 7)
+                                .padding(.vertical, self.compact ? 3 : 4)
+                                .background(
+                                    Capsule().fill(
+                                        accountID == self.selectedID
+                                            ? Color.accentColor.opacity(0.2)
+                                            : Color.primary.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                        .help(entry.accountLabel ?? "OpenCode workspace")
+                    }
+                }
             }
         }
     }

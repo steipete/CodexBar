@@ -27,14 +27,48 @@ extension UsageStore {
 
     private func makeWidgetSnapshot() -> WidgetSnapshot {
         let enabledProviders = self.enabledProviders()
-        let entries = UsageProvider.allCases.compactMap { provider in
-            self.makeWidgetEntry(for: provider)
+        let entries = UsageProvider.allCases.flatMap { provider in
+            self.makeWidgetEntries(for: provider)
         }
         return WidgetSnapshot(entries: entries, enabledProviders: enabledProviders, generatedAt: Date())
     }
 
-    private func makeWidgetEntry(for provider: UsageProvider) -> WidgetSnapshot.ProviderEntry? {
-        guard let snapshot = self.snapshots[provider] else { return nil }
+    private func makeWidgetEntries(for provider: UsageProvider) -> [WidgetSnapshot.ProviderEntry] {
+        guard provider == .opencode else {
+            return self.makeWidgetEntry(for: provider).map { [$0] } ?? []
+        }
+        let accounts = self.settings.opencodeWorkspaceAccounts.accounts
+        guard !accounts.isEmpty else {
+            return self.makeWidgetEntry(for: provider).map { [$0] } ?? []
+        }
+        let activeID = self.settings.activeOpenCodeWorkspaceAccount?.id
+        let orderedAccounts = accounts.sorted { first, second in
+            let firstIsActive = first.id == activeID
+            let secondIsActive = second.id == activeID
+            if firstIsActive != secondIsActive {
+                return firstIsActive
+            }
+            return first.id < second.id
+        }
+        return orderedAccounts.compactMap { account in
+            let snapshot = self.openCodeWorkspaceSnapshots[account.id]
+                ?? (account.id == activeID ? self.snapshots[provider] : nil)
+                ?? UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+            return self.makeWidgetEntry(
+                for: provider,
+                snapshot: snapshot,
+                accountID: account.id,
+                accountLabel: account.ownerLabel.map { "\(account.label) · \($0)" } ?? account.label)
+        }
+    }
+
+    private func makeWidgetEntry(
+        for provider: UsageProvider,
+        snapshot overrideSnapshot: UsageSnapshot? = nil,
+        accountID: String? = nil,
+        accountLabel: String? = nil) -> WidgetSnapshot.ProviderEntry?
+    {
+        guard let snapshot = overrideSnapshot ?? self.snapshots[provider] else { return nil }
 
         let tokenSnapshot = self.tokenSnapshots[provider]
         let dailyUsage = tokenSnapshot?.daily.map { entry in
@@ -97,6 +131,8 @@ extension UsageStore {
             primary: snapshot.primary,
             secondary: snapshot.secondary,
             tertiary: snapshot.tertiary,
+            accountID: accountID,
+            accountLabel: accountLabel,
             usageRows: usageRows,
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,

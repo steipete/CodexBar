@@ -11,6 +11,11 @@ read_when:
 ## Snapshot pipeline
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
+- `WidgetSnapshot.ProviderEntry` has optional `accountID` and `accountLabel` fields for provider-scoped entries; older
+  snapshots without those fields remain decodable.
+- OpenCode snapshots contain one display-safe entry per saved workspace. The switcher widget and compact widget show
+  workspace chips when more than one workspace is available; selecting a chip validates the canonical account ID against
+  the current snapshot before saving it. A missing or stale selection falls back to the first workspace entry.
 - Cursor snapshots can carry optional range metadata and bounded request details (model, token count, raw row count,
   optional weighted request cost, compact label, estimate text, and a presentation-ready exact/approximate total).
   Existing snapshots without those optional fields still decode normally.

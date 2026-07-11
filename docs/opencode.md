@@ -26,3 +26,13 @@ read_when:
 - Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
+
+## Workspace accounts
+- OpenCode workspace accounts are stored as display-safe records tied to a reusable token account. Each record keeps a
+  canonical `<token-account-UUID>/<wrk_…>` ID, workspace label, and optional owner label; it never stores the cookie in
+  the widget snapshot.
+- The app can discover workspaces from the authenticated `_server` response, import them in bulk, or add a normalized
+  workspace URL/ID manually. Removing a token account also prunes its workspace records.
+- Widget snapshots emit one OpenCode entry per saved workspace, with the active workspace first. The widget stores only
+  the canonical account ID in the app-group selection key `widget.selectedOpenCodeWorkspaceAccountID`; deleted or stale
+  selections fall back to the first current workspace.

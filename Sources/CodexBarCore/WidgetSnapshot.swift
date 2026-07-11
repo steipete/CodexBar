@@ -19,6 +19,8 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let primary: RateWindow?
         public let secondary: RateWindow?
         public let tertiary: RateWindow?
+        public let accountID: String?
+        public let accountLabel: String?
         public let usageRows: [WidgetUsageRowSnapshot]?
         public let creditsRemaining: Double?
         public let codeReviewRemainingPercent: Double?
@@ -33,6 +35,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             primary: RateWindow?,
             secondary: RateWindow?,
             tertiary: RateWindow?,
+            accountID: String? = nil,
+            accountLabel: String? = nil,
             usageRows: [WidgetUsageRowSnapshot]? = nil,
             creditsRemaining: Double?,
             codeReviewRemainingPercent: Double?,
@@ -46,6 +50,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.primary = primary
             self.secondary = secondary
             self.tertiary = tertiary
+            self.accountID = accountID
+            self.accountLabel = accountLabel
             self.usageRows = usageRows
             self.creditsRemaining = creditsRemaining
             self.codeReviewRemainingPercent = codeReviewRemainingPercent
@@ -140,6 +146,15 @@ public struct WidgetSnapshot: Codable, Sendable {
         self.generatedAt = generatedAt
     }
 
+    public func entry(for provider: UsageProvider, accountID: String? = nil) -> ProviderEntry? {
+        if let accountID,
+           let entry = self.entries.first(where: { $0.provider == provider && $0.accountID == accountID })
+        {
+            return entry
+        }
+        return self.entries.first(where: { $0.provider == provider })
+    }
+
     private enum CodingKeys: String, CodingKey {
         case entries
         case enabledProviders
@@ -159,6 +174,19 @@ public struct WidgetSnapshot: Codable, Sendable {
         try container.encode(self.entries, forKey: .entries)
         try container.encode(self.enabledProviders, forKey: .enabledProviders)
         try container.encode(self.generatedAt, forKey: .generatedAt)
+    }
+}
+
+public extension OpenCodeWorkspaceAccount {
+    static func isCanonicalID(_ raw: String) -> Bool {
+        let parts = raw.split(separator: "/", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              let tokenAccountID = UUID(uuidString: parts[0]),
+              let workspaceID = Self.normalizeWorkspaceID(parts[1])
+        else {
+            return false
+        }
+        return Self.canonicalID(tokenAccountID: tokenAccountID, workspaceID: workspaceID) == raw
     }
 }
 
@@ -204,6 +232,7 @@ public enum WidgetSnapshotStore {
 
 public enum WidgetSelectionStore {
     private static let selectedProviderKey = "widgetSelectedProvider"
+    private static let selectedOpenCodeWorkspaceAccountKey = "widget.selectedOpenCodeWorkspaceAccountID"
 
     public static func loadSelectedProvider(bundleID: String? = Bundle.main.bundleIdentifier) -> UsageProvider? {
         let defaults = self.sharedDefaults(bundleID: bundleID)
@@ -217,6 +246,20 @@ public enum WidgetSelectionStore {
     {
         let defaults = self.sharedDefaults(bundleID: bundleID)
         defaults.set(provider.rawValue, forKey: self.selectedProviderKey)
+    }
+
+    public static func loadSelectedOpenCodeWorkspaceAccountID(
+        bundleID: String? = Bundle.main.bundleIdentifier) -> String?
+    {
+        self.sharedDefaults(bundleID: bundleID).string(forKey: self.selectedOpenCodeWorkspaceAccountKey)
+    }
+
+    public static func saveSelectedOpenCodeWorkspaceAccountID(
+        _ accountID: String,
+        bundleID: String? = Bundle.main.bundleIdentifier)
+    {
+        guard OpenCodeWorkspaceAccount.isCanonicalID(accountID) else { return }
+        self.sharedDefaults(bundleID: bundleID).set(accountID, forKey: self.selectedOpenCodeWorkspaceAccountKey)
     }
 
     private static func sharedDefaults(bundleID: String?) -> UserDefaults {
