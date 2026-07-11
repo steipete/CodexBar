@@ -130,7 +130,7 @@ struct GeneralPane: View {
                 Text(L("section_refreshing"))
             } footer: {
                 if self.settings.refreshFrequency == .manual {
-                    Text(L("manual_refresh_hint"))
+                    SettingsSectionFooter(L("manual_refresh_hint"))
                 }
             }
 

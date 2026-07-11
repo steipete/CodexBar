@@ -75,7 +75,7 @@ struct ProviderQuotaWarningSettingsView: View {
         } header: {
             Text(L("quota_warnings_title"))
         } footer: {
-            Text(self.footerText)
+            SettingsSectionFooter(self.footerText)
         }
         .background(FocusResigningBackground())
     }
