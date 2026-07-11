@@ -3,7 +3,6 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-// Regression coverage for https://github.com/steipete/CodexBar/issues/2054
 extension UsageStorePlanUtilizationTests {
     @MainActor
     @Test
@@ -252,8 +251,8 @@ extension UsageStorePlanUtilizationTests {
     @Test
     func `issue 2054 distinct token account UUIDs keep detector isolated`() async throws {
         let store = Self.makeStore()
-        let accountAUUID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
-        let accountBUUID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+        let accountAUUID = try #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        let accountBUUID = try #require(UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
         let accountA = ProviderTokenAccount(
             id: accountAUUID,
             label: "issue-2054-token-a@example.com",
