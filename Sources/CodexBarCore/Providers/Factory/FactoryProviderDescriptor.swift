@@ -42,18 +42,18 @@ public enum FactoryProviderDescriptor {
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
         switch context.sourceMode {
         case .api:
-            [FactoryApiFetchStrategy()]
+            [FactoryAPIFetchStrategy()]
         case .web:
             [FactoryStatusFetchStrategy()]
         case .auto:
-            [FactoryApiFetchStrategy(), FactoryStatusFetchStrategy()]
+            [FactoryAPIFetchStrategy(), FactoryStatusFetchStrategy()]
         case .cli, .oauth:
             []
         }
     }
 }
 
-struct FactoryApiFetchStrategy: ProviderFetchStrategy {
+struct FactoryAPIFetchStrategy: ProviderFetchStrategy {
     let id: String = "factory.api"
     let kind: ProviderFetchKind = .apiToken
 
@@ -82,8 +82,9 @@ struct FactoryApiFetchStrategy: ProviderFetchStrategy {
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto else { return false }
         guard let factoryError = error as? FactoryStatusProbeError else { return false }
+        // mapAPIError converts .notLoggedIn / HTTP 401/403 into .unauthorizedAPIKey before fallback sees them.
         switch factoryError {
-        case .missingAPIKey, .unauthorizedAPIKey, .notLoggedIn:
+        case .missingAPIKey, .unauthorizedAPIKey:
             return true
         default:
             return false

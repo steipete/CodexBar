@@ -72,7 +72,7 @@ struct FactorySettingsReaderTests {
     }
 }
 
-struct FactoryApiFetchStrategyTests {
+struct FactoryAPIFetchStrategyTests {
     private struct StubClaudeFetcher: ClaudeUsageFetching {
         func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
             throw ClaudeUsageError.parseFailed("stub")
@@ -124,19 +124,19 @@ struct FactoryApiFetchStrategyTests {
 
     @Test
     func `api strategy available in api mode without key`() async {
-        let strategy = FactoryApiFetchStrategy()
+        let strategy = FactoryAPIFetchStrategy()
         #expect(await strategy.isAvailable(self.makeContext(sourceMode: .api)))
     }
 
     @Test
     func `api strategy skipped in auto mode without key`() async {
-        let strategy = FactoryApiFetchStrategy()
+        let strategy = FactoryAPIFetchStrategy()
         #expect(await !strategy.isAvailable(self.makeContext(sourceMode: .auto)))
     }
 
     @Test
     func `api strategy available in auto mode when key present`() async {
-        let strategy = FactoryApiFetchStrategy()
+        let strategy = FactoryAPIFetchStrategy()
         let context = self.makeContext(
             env: [FactorySettingsReader.apiTokenKey: "fk-test"],
             sourceMode: .auto)
@@ -145,7 +145,7 @@ struct FactoryApiFetchStrategyTests {
 
     @Test
     func `api strategy falls back on unauthorized only in auto mode`() {
-        let strategy = FactoryApiFetchStrategy()
+        let strategy = FactoryAPIFetchStrategy()
         #expect(strategy.shouldFallback(
             on: FactoryStatusProbeError.unauthorizedAPIKey,
             context: self.makeContext(sourceMode: .auto)))
@@ -156,7 +156,7 @@ struct FactoryApiFetchStrategyTests {
 
     @Test
     func `api strategy surfaces missing key in api mode`() async {
-        let strategy = FactoryApiFetchStrategy()
+        let strategy = FactoryAPIFetchStrategy()
         do {
             _ = try await strategy.fetch(self.makeContext(env: [:], sourceMode: .api))
             Issue.record("Expected missingAPIKey")
@@ -168,8 +168,7 @@ struct FactoryApiFetchStrategyTests {
     }
 }
 
-@Suite(.serialized)
-struct FactoryApiKeyProbeFetchTests {
+struct FactoryAPIKeyProbeFetchTests {
     @Test
     func `fetch with api key uses bearer billing limits path`() async throws {
         let transport = FactoryAPIKeyStubTransport()
@@ -337,7 +336,7 @@ struct FactoryApiKeyProbeFetchTests {
 
     @Test
     func `api strategy does not fall back on network errors in auto mode`() {
-        let strategy = FactoryApiFetchStrategy()
+        let strategy = FactoryAPIFetchStrategy()
         let context = ProviderFetchContext(
             runtime: .cli,
             sourceMode: .auto,

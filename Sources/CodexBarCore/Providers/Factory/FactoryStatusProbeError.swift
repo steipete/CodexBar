@@ -1,12 +1,13 @@
 import Foundation
-import SweetCookieKit
-
 #if os(macOS)
+import SweetCookieKit
 
 private let factoryAPIKeyCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.factory]?.browserCookieOrder ?? Browser.defaultImportOrder
+#endif
 
 public enum FactoryStatusProbeError: LocalizedError, Sendable, Equatable {
+    case notSupported
     case notLoggedIn
     case missingAPIKey
     case unauthorizedAPIKey
@@ -16,9 +17,15 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable, Equatable {
 
     public var errorDescription: String? {
         switch self {
+        case .notSupported:
+            "Factory is only supported on macOS."
         case .notLoggedIn:
+            #if os(macOS)
             "No usable Droid session found. Log in to app.factory.ai in \(factoryAPIKeyCookieImportOrder.loginHint), " +
                 "then refresh Droid."
+            #else
+            "No usable Droid session found. Log in to app.factory.ai, then refresh Droid."
+            #endif
         case .missingAPIKey:
             "Droid API key missing. Set FACTORY_API_KEY, add providers[].apiKey for factory in " +
                 "~/.codexbar/config.json, or run `codexbar config set-api-key --provider factory`."
@@ -30,28 +37,11 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable, Equatable {
         case let .parseFailed(msg):
             "Could not parse Factory usage: \(msg)"
         case .noSessionCookie:
+            #if os(macOS)
             "No Factory session found. Please log in to app.factory.ai in \(factoryAPIKeyCookieImportOrder.loginHint)."
+            #else
+            "No Factory session found. Please log in to app.factory.ai."
+            #endif
         }
     }
 }
-
-#else
-
-public enum FactoryStatusProbeError: LocalizedError, Sendable, Equatable {
-    case notSupported
-    case missingAPIKey
-    case unauthorizedAPIKey
-
-    public var errorDescription: String? {
-        switch self {
-        case .notSupported:
-            "Factory is only supported on macOS."
-        case .missingAPIKey:
-            "Droid API key missing. Set FACTORY_API_KEY or run `codexbar config set-api-key --provider factory`."
-        case .unauthorizedAPIKey:
-            "Droid API authentication failed (401/403). Refresh FACTORY_API_KEY."
-        }
-    }
-}
-
-#endif
