@@ -63,10 +63,15 @@ enum SessionQuotaNotificationLogic {
     /// Mirrors the session lane guard from issue #2054 confetti detection.
     static func sessionResetBoundaryAllowsRestore(
         previousResetBoundary: Date?,
-        currentResetBoundary: Date?) -> Bool
+        currentResetBoundary: Date?,
+        evaluationTime: Date) -> Bool
     {
         guard let previousResetBoundary else { return true }
-        guard let currentResetBoundary else { return false }
+        guard let currentResetBoundary else {
+            // OAuth can fall back to CLI/RPC samples that omit `resetsAt` even after the
+            // previously known boundary has elapsed.
+            return evaluationTime >= previousResetBoundary
+        }
         return !Self.areEquivalentResetBoundaries(previousResetBoundary, currentResetBoundary)
             && currentResetBoundary > previousResetBoundary
     }

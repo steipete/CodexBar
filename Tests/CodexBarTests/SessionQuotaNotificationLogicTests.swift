@@ -38,10 +38,12 @@ struct SessionQuotaNotificationLogicTests {
     @Test
     func `suppresses restored transition when session reset boundary is unchanged`() {
         let boundary = Date(timeIntervalSince1970: 1_700_000_000)
+        let evaluationTime = boundary.addingTimeInterval(60)
         #expect(
             SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
                 previousResetBoundary: boundary,
-                currentResetBoundary: boundary) == false)
+                currentResetBoundary: boundary,
+                evaluationTime: evaluationTime) == false)
     }
 
     @Test
@@ -51,7 +53,8 @@ struct SessionQuotaNotificationLogicTests {
         #expect(
             SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
                 previousResetBoundary: previous,
-                currentResetBoundary: current) == true)
+                currentResetBoundary: current,
+                evaluationTime: current) == true)
     }
 
     @Test
@@ -60,7 +63,30 @@ struct SessionQuotaNotificationLogicTests {
         #expect(
             SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
                 previousResetBoundary: nil,
-                currentResetBoundary: current) == true)
+                currentResetBoundary: current,
+                evaluationTime: current) == true)
+    }
+
+    @Test
+    func `allows restored transition when current boundary is missing after prior boundary elapsed`() {
+        let previous = Date(timeIntervalSince1970: 1_700_000_000)
+        let evaluationTime = previous.addingTimeInterval(60)
+        #expect(
+            SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
+                previousResetBoundary: previous,
+                currentResetBoundary: nil,
+                evaluationTime: evaluationTime) == true)
+    }
+
+    @Test
+    func `suppresses restored transition when current boundary is missing before prior boundary elapsed`() {
+        let previous = Date(timeIntervalSince1970: 1_700_000_000)
+        let evaluationTime = previous.addingTimeInterval(-60)
+        #expect(
+            SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
+                previousResetBoundary: previous,
+                currentResetBoundary: nil,
+                evaluationTime: evaluationTime) == false)
     }
 
     @Test

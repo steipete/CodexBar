@@ -936,7 +936,8 @@ final class UsageStore {
         if transition == .restored,
            !SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
                previousResetBoundary: previousResetBoundary,
-               currentResetBoundary: currentResetBoundary)
+               currentResetBoundary: currentResetBoundary,
+               evaluationTime: snapshot.updatedAt)
         {
             preserveDepletedBaseline = true
             let providerText = provider.rawValue

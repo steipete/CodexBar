@@ -33,12 +33,19 @@ struct CodexSessionQuotaFalseRestoreReproTests {
             self.weeklyReset = self.firstDate.addingTimeInterval(3 * 24 * 3600)
         }
 
-        func snapshot(sessionUsed: Double, weeklyUsed: Double = 100, updatedAt: Date? = nil) -> UsageSnapshot {
-            UsageSnapshot(
+        func snapshot(
+            sessionUsed: Double,
+            weeklyUsed: Double = 100,
+            sessionReset: Date? = nil,
+            omitSessionReset: Bool = false,
+            updatedAt: Date? = nil) -> UsageSnapshot
+        {
+            let reset: Date? = omitSessionReset ? nil : (sessionReset ?? self.sessionReset)
+            return UsageSnapshot(
                 primary: RateWindow(
                     usedPercent: sessionUsed,
                     windowMinutes: 300,
-                    resetsAt: self.sessionReset,
+                    resetsAt: reset,
                     resetDescription: nil),
                 secondary: RateWindow(
                     usedPercent: weeklyUsed,
@@ -211,6 +218,39 @@ struct CodexSessionQuotaFalseRestoreReproTests {
                 loginMethod: "pro"))
 
         store.handleSessionQuotaTransition(provider: .codex, snapshot: realReset)
+
+        #expect(notifier.posts.map(\.transition) == [.depleted, .restored])
+    }
+
+    @Test
+    func `contract fallback without resetsAt restores after known boundary elapsed`() {
+        let fixture = CodexSessionFixture(labelSuffix: "fallback-nil-boundary")
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeSessionNotificationStore(notifier: notifier)
+
+        store.handleSessionQuotaTransition(provider: .codex, snapshot: fixture.snapshot(sessionUsed: 20))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: fixture.snapshot(sessionUsed: 100, updatedAt: fixture.firstDate.addingTimeInterval(60)))
+
+        let beforeBoundary = fixture.snapshot(
+            sessionUsed: 20,
+            omitSessionReset: true,
+            updatedAt: fixture.sessionReset.addingTimeInterval(-60))
+        store.handleSessionQuotaTransition(provider: .codex, snapshot: beforeBoundary)
+        #expect(notifier.posts.map(\.transition) == [.depleted])
+
+        let afterBoundary = fixture.snapshot(
+            sessionUsed: 20,
+            omitSessionReset: true,
+            updatedAt: fixture.sessionReset.addingTimeInterval(60))
+        store.handleSessionQuotaTransition(provider: .codex, snapshot: afterBoundary)
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: fixture.snapshot(
+                sessionUsed: 30,
+                omitSessionReset: true,
+                updatedAt: fixture.sessionReset.addingTimeInterval(120)))
 
         #expect(notifier.posts.map(\.transition) == [.depleted, .restored])
     }
