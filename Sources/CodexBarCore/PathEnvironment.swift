@@ -658,6 +658,17 @@ final class TerminalForegroundCoordinator: @unchecked Sendable {
         defer { self.lock.unlock() }
         restore(lease.originalProcessGroup)
     }
+
+    static func shouldRestore(
+        original: pid_t?,
+        expectedCurrent: pid_t?,
+        current: pid_t?,
+        currentIsAlive: Bool) -> Bool
+    {
+        guard let original, let expectedCurrent, let current else { return false }
+        guard current != original else { return false }
+        return current == expectedCurrent || !currentIsAlive
+    }
 }
 
 public enum ShellCommandLocator {
@@ -773,6 +784,7 @@ public enum ShellCommandLocator {
         let foregroundLease = Self.terminalForegroundCoordinator.acquire(
             isTerminal: isatty(STDIN_FILENO) == 1,
             capture: { Self.foregroundProcessGroup(for: STDIN_FILENO) })
+        var spawnedProcessGroup: pid_t?
 
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
         // via posix_spawn_file_actions_addopen below.
@@ -781,7 +793,10 @@ public enum ShellCommandLocator {
 
         defer {
             Self.terminalForegroundCoordinator.release(foregroundLease) { original in
-                Self.restoreForegroundProcessGroup(for: STDIN_FILENO, original: original)
+                Self.restoreForegroundProcessGroup(
+                    for: STDIN_FILENO,
+                    original: original,
+                    expectedCurrent: spawnedProcessGroup)
             }
         }
         guard withUnsafeMutablePointer(to: &stdoutFds, {
@@ -880,6 +895,7 @@ public enum ShellCommandLocator {
 
         // POSIX_SPAWN_SETPGROUP with pgroup=0 guarantees the child's pgid == its pid.
         let pgid: pid_t = pid
+        spawnedProcessGroup = pgid
 
         // Track EOF on each pipe so we can wait for full drain instead of sleeping.
         // The readability handler fires with empty data when every writer end is
@@ -976,12 +992,24 @@ public enum ShellCommandLocator {
         return processGroup > 0 ? processGroup : nil
     }
 
-    private static func restoreForegroundProcessGroup(for fd: Int32, original: pid_t?) {
-        guard let original else { return }
+    private static func restoreForegroundProcessGroup(
+        for fd: Int32,
+        original: pid_t?,
+        expectedCurrent: pid_t?)
+    {
         guard isatty(fd) == 1 else { return }
 
-        let current = tcgetpgrp(fd)
-        guard current > 0, current != original else { return }
+        let currentProcessGroup = tcgetpgrp(fd)
+        let currentIsAlive = currentProcessGroup > 0
+            ? Self.processGroupIsAlive(currentProcessGroup)
+            : false
+        guard TerminalForegroundCoordinator.shouldRestore(
+            original: original,
+            expectedCurrent: expectedCurrent,
+            current: currentProcessGroup > 0 ? currentProcessGroup : nil,
+            currentIsAlive: currentIsAlive)
+        else { return }
+        guard let original else { return }
 
         // At this point the terminal's foreground group is not ours, so this
         // process is in a background process group. A bare tcsetpgrp from a
@@ -996,6 +1024,11 @@ public enum ShellCommandLocator {
         guard pthread_sigmask(SIG_BLOCK, &blockTTOU, &previousMask) == 0 else { return }
         defer { _ = pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
         _ = tcsetpgrp(fd, original)
+    }
+
+    private static func processGroupIsAlive(_ processGroup: pid_t) -> Bool {
+        guard kill(-processGroup, 0) != 0 else { return true }
+        return errno != ESRCH
     }
 
     // swiftlint:enable cyclomatic_complexity function_body_length
