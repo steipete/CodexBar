@@ -150,6 +150,53 @@ struct CodexSessionQuotaFalseRestoreTests {
     }
 
     @Test
+    func `regressed boundary before depletion does not erase the trusted boundary`() {
+        let boundary = self.start.addingTimeInterval(5 * 3600)
+        let regressedBoundary = self.start.addingTimeInterval(10 * 60)
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeStore(notifier: notifier)
+
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 20, resetBoundary: boundary, secondsAfterStart: 0))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 30, resetBoundary: regressedBoundary, secondsAfterStart: 60))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 100, resetBoundary: regressedBoundary, secondsAfterStart: 120))
+        #expect(store.lastKnownSessionResetBoundary[.codex] == boundary)
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 20, resetBoundary: regressedBoundary, secondsAfterStart: 180))
+
+        #expect(notifier.transitions == [.depleted])
+    }
+
+    @Test
+    func `missing boundary before depletion does not erase the trusted boundary`() {
+        let boundary = self.start.addingTimeInterval(5 * 3600)
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeStore(notifier: notifier)
+
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 20, resetBoundary: boundary, secondsAfterStart: 0))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 30, resetBoundary: nil, secondsAfterStart: 60))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 100, resetBoundary: nil, secondsAfterStart: 120))
+        #expect(store.lastKnownSessionResetBoundary[.codex] == boundary)
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 20, resetBoundary: nil, secondsAfterStart: 180))
+
+        #expect(notifier.transitions == [.depleted])
+    }
+
+    @Test
     func `clearing published Codex usage clears the notification boundary`() {
         let boundary = self.start.addingTimeInterval(5 * 3600)
         let store = Self.makeStore(notifier: SessionQuotaNotifierSpy())

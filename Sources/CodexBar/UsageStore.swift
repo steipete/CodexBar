@@ -871,29 +871,39 @@ final class UsageStore {
         let currentIsDepleted = SessionQuotaNotificationLogic.isDepleted(currentRemaining)
         let previousWasDepleted = SessionQuotaNotificationLogic.isDepleted(previousRemaining)
         var preserveDepletedBaseline = false
+        var acceptedRestore = false
 
         if let previousSource, previousSource != currentSource {
             let providerText = provider.rawValue
             self.sessionQuotaLogger.debug(
                 "session window source changed: provider=\(providerText) prevSource=\(previousSource.rawValue) " +
                     "currSource=\(currentSource.rawValue) curr=\(currentRemaining)")
+            self.clearSessionQuotaTransitionState(provider: provider)
             self.recordSessionQuotaTransitionState(
                 provider: provider,
                 remaining: currentRemaining,
                 source: currentSource,
-                resetBoundary: currentResetBoundary)
+                resetBoundary: currentResetBoundary,
+                observedAt: snapshot.updatedAt)
             return
         }
 
         defer {
             if !preserveDepletedBaseline {
+                let boundaryPolicy: SessionResetBoundaryRecordingPolicy = if acceptedRestore {
+                    .restored
+                } else if currentIsDepleted, previousWasDepleted {
+                    .preserve
+                } else {
+                    .update
+                }
                 self.recordSessionQuotaTransitionState(
                     provider: provider,
                     remaining: currentRemaining,
                     source: currentSource,
                     resetBoundary: currentResetBoundary,
-                    preserveExistingResetBoundary: currentIsDepleted &&
-                        (currentResetBoundary == nil || previousWasDepleted))
+                    observedAt: snapshot.updatedAt,
+                    boundaryPolicy: boundaryPolicy)
             }
         }
 
@@ -951,6 +961,7 @@ final class UsageStore {
             return
         }
 
+        acceptedRestore = transition == .restored
         let providerText = provider.rawValue
         let transitionText = String(describing: transition)
         let message =

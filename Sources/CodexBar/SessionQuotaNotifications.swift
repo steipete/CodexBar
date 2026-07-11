@@ -98,6 +98,12 @@ enum SessionQuotaNotificationLogic {
     }
 }
 
+enum SessionResetBoundaryRecordingPolicy {
+    case update
+    case preserve
+    case restored
+}
+
 enum QuotaWarningNotificationLogic {
     static func notificationIDPrefix(provider: UsageProvider, event: QuotaWarningEvent) -> String {
         let windowSegment = event.windowID.map { "-\($0)" } ?? ""
@@ -205,18 +211,35 @@ extension UsageStore {
         remaining: Double,
         source: SessionQuotaWindowSource,
         resetBoundary: Date?,
-        preserveExistingResetBoundary: Bool = false)
+        observedAt: Date,
+        boundaryPolicy: SessionResetBoundaryRecordingPolicy = .update)
     {
         self.lastKnownSessionRemaining[provider] = remaining
         self.lastKnownSessionWindowSource[provider] = source
-        if preserveExistingResetBoundary, self.lastKnownSessionResetBoundary[provider] != nil {
+
+        let previousBoundary = self.lastKnownSessionResetBoundary[provider]
+        if boundaryPolicy == .preserve, previousBoundary != nil {
             return
         }
-        if let resetBoundary {
+
+        if boundaryPolicy == .restored {
+            guard let resetBoundary,
+                  resetBoundary > observedAt,
+                  UsageStore.limitResetBoundaryAdvanced(previous: previousBoundary, current: resetBoundary)
+            else {
+                self.lastKnownSessionResetBoundary.removeValue(forKey: provider)
+                return
+            }
             self.lastKnownSessionResetBoundary[provider] = resetBoundary
-        } else {
-            self.lastKnownSessionResetBoundary.removeValue(forKey: provider)
+            return
         }
+
+        // Missing, expired, or regressed metadata must not discard the latest trusted boundary.
+        guard let resetBoundary, resetBoundary > observedAt else { return }
+        guard previousBoundary == nil ||
+            UsageStore.limitResetBoundaryAdvanced(previous: previousBoundary, current: resetBoundary)
+        else { return }
+        self.lastKnownSessionResetBoundary[provider] = resetBoundary
     }
 
     func clearSessionQuotaTransitionState(provider: UsageProvider) {
