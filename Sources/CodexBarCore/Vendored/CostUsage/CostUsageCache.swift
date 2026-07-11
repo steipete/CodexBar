@@ -9,7 +9,7 @@ enum CostUsageCacheIO {
     private static func artifactVersion(for provider: UsageProvider) -> Int {
         switch provider {
         case .codex:
-            8
+            9
         case .claude, .vertexai:
             4
         default:

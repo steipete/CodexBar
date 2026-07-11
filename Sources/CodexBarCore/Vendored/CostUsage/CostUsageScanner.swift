@@ -8,6 +8,8 @@ import Foundation
 
 // swiftlint:disable type_body_length file_length
 enum CostUsageScanner {
+    static let codexUnknownModel = "unknown"
+
     static let codexProjectMetadataVersion = 1
     typealias CancellationCheck = () throws -> Void
 
@@ -1054,6 +1056,11 @@ enum CostUsageScanner {
     private static let codexJSONFieldType = Array("type".utf8)
     private static let codexJSONFieldCwd = Array("cwd".utf8)
 
+    static func codexModelEvidence(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
     private static func codexForkParentId(from payload: [String: Any]?) -> String? {
         guard let payload else { return nil }
         for key in ["forked_from_id", "forkedFromId", "parent_session_id", "parentSessionId"] {
@@ -1268,26 +1275,26 @@ enum CostUsageScanner {
                           atDepth: 1)
                 else { return nil }
 
-                let model = Self.extractJSONByteStringField(
+                let model = Self.codexModelEvidence(Self.extractJSONByteStringField(
                     Self.codexJSONFieldModel,
                     from: rawBuffer,
                     in: infoRange,
-                    atDepth: 1)
-                    ?? Self.extractJSONByteStringField(
+                    atDepth: 1))
+                    ?? Self.codexModelEvidence(Self.extractJSONByteStringField(
                         Self.codexJSONFieldModelName,
                         from: rawBuffer,
                         in: infoRange,
-                        atDepth: 1)
-                    ?? Self.extractJSONByteStringField(
+                        atDepth: 1))
+                    ?? Self.codexModelEvidence(Self.extractJSONByteStringField(
                         Self.codexJSONFieldModel,
                         from: rawBuffer,
                         in: payloadRange,
-                        atDepth: 1)
-                    ?? Self.extractJSONByteStringField(
+                        atDepth: 1))
+                    ?? Self.codexModelEvidence(Self.extractJSONByteStringField(
                         Self.codexJSONFieldModel,
                         from: rawBuffer,
                         in: objectRange,
-                        atDepth: 1)
+                        atDepth: 1))
                 let total = Self.codexTotals(
                     from: rawBuffer,
                     in: Self.extractJSONByteObjectField(
@@ -1707,7 +1714,9 @@ enum CostUsageScanner {
             guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
             else { return }
 
-            let model = currentModel ?? record.model ?? "gpt-5"
+            let model = Self.codexModelEvidence(currentModel)
+                ?? Self.codexModelEvidence(record.model)
+                ?? Self.codexUnknownModel
             let total = record.total
             let last = record.last
 
@@ -2030,11 +2039,13 @@ enum CostUsageScanner {
                         guard (payload["type"] as? String) == "token_count" else { return }
 
                         let info = payload["info"] as? [String: Any]
-                        let modelFromInfo = info?["model"] as? String
-                            ?? info?["model_name"] as? String
-                            ?? payload["model"] as? String
-                            ?? obj["model"] as? String
-                        let model = currentModel ?? modelFromInfo ?? "gpt-5"
+                        let modelFromInfo = Self.codexModelEvidence(info?["model"] as? String)
+                            ?? Self.codexModelEvidence(info?["model_name"] as? String)
+                            ?? Self.codexModelEvidence(payload["model"] as? String)
+                            ?? Self.codexModelEvidence(obj["model"] as? String)
+                        let model = Self.codexModelEvidence(currentModel)
+                            ?? modelFromInfo
+                            ?? Self.codexUnknownModel
 
                         func toInt(_ v: Any?) -> Int {
                             if let n = v as? NSNumber { return n.intValue }

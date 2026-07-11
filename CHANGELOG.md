@@ -6,6 +6,9 @@
 - Settings: split provider pane "Settings" sections into "Menu bar" and "Connection" so metric pickers and auth/cookie/source controls are grouped by topic.
 
 ### Fixed
+- Codex cost history: keep model-less token events explicitly unattributed instead of pricing them as GPT-5 while preserving current turn model attribution. Thanks @hhh2210!
+- Gemini: recover expired Workspace and education OAuth sessions when current CLI packages omit `oauth2.js`, with explicit credential and install-path discovery fallbacks. Thanks @Yuxin-Qiao!
+- Codex accounts: confirm apparent weekly resets before publishing them and isolate reset detection by stable account ownership, preventing transient full gauges and confetti across same-email workspaces (#2054). Thanks @Yuxin-Qiao!
 - Settings: render section footer captions (Advanced keychain note, refresh hints, quota-warning and provider subtitles) leading-aligned in footnote size instead of the trailing-aligned body text macOS gives bare form footers.
 - Claude OAuth: remember an acknowledged CodexBar Keychain explanation for six hours without suppressing macOS authorization or either Keychain opt-out (#1990). Thanks @harjothkhara!
 - Codex accounts: find the Codex CLI bundled with ChatGPT when it is absent from shell PATH, restoring Add Account after the desktop apps merged (#2044). Thanks @sep1107!
@@ -13,7 +16,6 @@
 - Codex cost history: bound malformed session-metadata lines and release read chunks promptly, preventing metadata pre-scans from retaining memory in proportion to oversized JSONL records. Thanks @Yuxin-Qiao!
 - Widgets: add Cursor to configurable and switcher widgets with accurate legacy Requests and current Total, Auto, and API quota labels (#2040). Thanks @Zihao-Qi!
 - Menus: return oversized tracked menus to the provider header after a manual refresh without moving background updates, highlighted rows, open submenus, or newer menu/provider sessions (#2046). Thanks @ss251!
-- Codex cost history: reconcile large monotonic Pi usage snapshots only within their narrowest request, message, turn, or task lineage, preventing forked sessions from multiplying cumulative token totals (#2037). Thanks @kiranmagic7!
 
 ## 0.42.0 — 2026-07-11
 
@@ -36,6 +38,7 @@
 - Menus: stop completed provider cards and plan-utilization rows from remaining in “Refreshing…” while unrelated provider or token-cost work is still running. Thanks @Yuxin-Qiao!
 - Menu: keep native hover highlights aligned by deferring geometry-changing open-menu rebuilds until the pointer leaves the row. Thanks @Zihao-Qi!
 - Settings: keep visual-only preferences and provider reordering on cached UI paths instead of refreshing provider quotas, while preserving refreshes for data-affecting settings. Thanks @Zihao-Qi!
+- Claude: skip doomed background OAuth refreshes when Claude CLI credentials are expired and Keychain contains MCP-only state, allowing Auto mode to fall through. Thanks @janpollak!
 - Display settings: keep display mode, work days, multi-account layout, and cost summary selectors interactive on macOS 27. Thanks @jordanschwartz-js!
 - Quota warnings: keep compact per-window threshold editors available whenever notifications or usage-bar markers use them, preserve inherited overrides, and save edits on focus loss, Return, or window close. Thanks @Zihao-Qi!
 - CLI server: retain timed-out route and provider work until it actually exits, preventing repeated requests or config changes from stacking background fetches. Thanks @Yuxin-Qiao!

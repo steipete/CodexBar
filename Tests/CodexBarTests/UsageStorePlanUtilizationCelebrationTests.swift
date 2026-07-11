@@ -82,9 +82,12 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `codex session celebration follows semantic secondary session lane`() async {
+    func `codex session celebration follows semantic secondary session lane`() async throws {
         let store = Self.makeStore()
         let accountLabel = "codex-session-secondary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-session-secondary"),
+            accountEmail: accountLabel))
         let recorder = SessionLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
         defer { recorder.invalidate() }
 
@@ -107,8 +110,16 @@ extension UsageStorePlanUtilizationTests {
                 accountOrganization: nil,
                 loginMethod: "plus"))
 
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: after, now: after.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: after,
+            codexLimitResetOwnerKey: ownerKey,
+            now: after.updatedAt)
 
         #expect(recorder.events.count == 1)
         #expect(recorder.events.first?.usedPercent == 0)
@@ -116,9 +127,12 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `codex session celebration ignores transient zero when reset boundary is unchanged`() async {
+    func `codex session celebration ignores transient zero when reset boundary is unchanged`() async throws {
         let store = Self.makeStore()
         let accountLabel = "codex-session-transient-zero@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-session-transient-zero"),
+            accountEmail: accountLabel))
         let recorder = SessionLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
         defer { recorder.invalidate() }
 
@@ -163,18 +177,28 @@ extension UsageStorePlanUtilizationTests {
             sessionReset: sessionReset.addingTimeInterval(5 * 3600),
             updatedAt: firstDate.addingTimeInterval(180))
 
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: regressedBoundaryHigh,
+            codexLimitResetOwnerKey: ownerKey,
             now: regressedBoundaryHigh.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: transientZero,
+            codexLimitResetOwnerKey: ownerKey,
             now: transientZero.updatedAt)
         #expect(recorder.events.isEmpty)
 
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: realReset, now: realReset.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            codexLimitResetOwnerKey: ownerKey,
+            now: realReset.updatedAt)
 
         #expect(recorder.events.count == 1)
         #expect(recorder.events.first?.usedPercent == 0)
@@ -182,9 +206,223 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `codex session celebration ignores missing reset boundary after a known boundary`() async {
+    func `codex weekly celebration ignores transient zero when reset boundary is unchanged`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-transient-zero@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-transient-zero"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let sessionReset = firstDate.addingTimeInterval(5 * 3600)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+
+        func snapshot(weeklyUsed: Double, weeklyReset: Date, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 14,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: weeklyUsed,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "pro"))
+        }
+
+        let before = snapshot(
+            weeklyUsed: 86,
+            weeklyReset: weeklyReset,
+            updatedAt: firstDate)
+        let transientZero = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+        let realReset = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: weeklyReset.addingTimeInterval(7 * 24 * 3600),
+            updatedAt: firstDate.addingTimeInterval(180))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: transientZero,
+            codexLimitResetOwnerKey: ownerKey,
+            now: transientZero.updatedAt)
+        #expect(recorder.events.isEmpty)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            codexLimitResetOwnerKey: ownerKey,
+            now: realReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly celebration ignores missing reset boundaries`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-missing-boundary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-missing-boundary"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_800_000)
+        let sessionReset = firstDate.addingTimeInterval(5 * 3600)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+
+        func snapshot(weeklyUsed: Double, weeklyReset: Date?, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 14,
+                    windowMinutes: 300,
+                    resetsAt: sessionReset,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: weeklyUsed,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "pro"))
+        }
+
+        let before = snapshot(weeklyUsed: 86, weeklyReset: nil, updatedAt: firstDate)
+        let transientZero = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: nil,
+            updatedAt: firstDate.addingTimeInterval(120))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: transientZero,
+            codexLimitResetOwnerKey: ownerKey,
+            now: transientZero.updatedAt)
+        #expect(recorder.events.isEmpty)
+
+        let establishedBoundary = snapshot(
+            weeklyUsed: 72,
+            weeklyReset: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(240))
+        let realReset = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: weeklyReset.addingTimeInterval(7 * 24 * 3600),
+            updatedAt: firstDate.addingTimeInterval(360))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: establishedBoundary,
+            codexLimitResetOwnerKey: ownerKey,
+            now: establishedBoundary.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            codexLimitResetOwnerKey: ownerKey,
+            now: realReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly celebration preserves a known boundary across missing metadata`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-intermittent-boundary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-intermittent-boundary"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_900_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+
+        func snapshot(weeklyUsed: Double, weeklyReset: Date?, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 14,
+                    windowMinutes: 300,
+                    resetsAt: firstDate.addingTimeInterval(5 * 3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: weeklyUsed,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "pro"))
+        }
+
+        let before = snapshot(weeklyUsed: 86, weeklyReset: weeklyReset, updatedAt: firstDate)
+        let missingMetadata = snapshot(
+            weeklyUsed: 84,
+            weeklyReset: nil,
+            updatedAt: firstDate.addingTimeInterval(60))
+        let realReset = snapshot(
+            weeklyUsed: 0,
+            weeklyReset: weeklyReset.addingTimeInterval(7 * 24 * 3600),
+            updatedAt: firstDate.addingTimeInterval(120))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: missingMetadata,
+            codexLimitResetOwnerKey: ownerKey,
+            now: missingMetadata.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            codexLimitResetOwnerKey: ownerKey,
+            now: realReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `codex session celebration ignores missing reset boundary after a known boundary`() async throws {
         let store = Self.makeStore()
         let accountLabel = "codex-session-missing-boundary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-session-missing-boundary"),
+            accountEmail: accountLabel))
         let recorder = SessionLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
         defer { recorder.invalidate() }
 
@@ -229,18 +467,324 @@ extension UsageStorePlanUtilizationTests {
             sessionReset: sessionReset.addingTimeInterval(5 * 3600),
             updatedAt: firstDate.addingTimeInterval(180))
 
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: missingBoundaryHigh,
+            codexLimitResetOwnerKey: ownerKey,
             now: missingBoundaryHigh.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: missingBoundary,
+            codexLimitResetOwnerKey: ownerKey,
             now: missingBoundary.updatedAt)
         #expect(recorder.events.isEmpty)
 
-        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: realReset, now: realReset.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            codexLimitResetOwnerKey: ownerKey,
+            now: realReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly celebration ignores low usage with an unchanged boundary`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-unchanged-boundary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-unchanged-boundary"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_701_000_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        let before = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 86,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate)
+        let transientLow = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(60))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: before,
+            codexLimitResetOwnerKey: ownerKey,
+            now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: transientLow,
+            codexLimitResetOwnerKey: ownerKey,
+            now: transientLow.updatedAt)
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly celebration requires both reset boundaries`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-requires-boundaries@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_702_000_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        let missingPreviousOwner = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-missing-previous"),
+            accountEmail: accountLabel))
+        let missingCurrentOwner = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-missing-current"),
+            accountEmail: accountLabel))
+        let missingPreviousHigh = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 86,
+            resetsAt: nil,
+            updatedAt: firstDate)
+        let boundaryAppearedLow = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(60))
+        let knownBoundaryHigh = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 86,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+        let missingCurrentLow = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: nil,
+            updatedAt: firstDate.addingTimeInterval(180))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: missingPreviousHigh,
+            codexLimitResetOwnerKey: missingPreviousOwner,
+            now: missingPreviousHigh.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: boundaryAppearedLow,
+            codexLimitResetOwnerKey: missingPreviousOwner,
+            now: boundaryAppearedLow.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: knownBoundaryHigh,
+            codexLimitResetOwnerKey: missingCurrentOwner,
+            now: knownBoundaryHigh.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: missingCurrentLow,
+            codexLimitResetOwnerKey: missingCurrentOwner,
+            now: missingCurrentLow.updatedAt)
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly celebration posts once for an advanced boundary`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-advanced-boundary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-advanced-boundary"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_703_000_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        let nextWeeklyReset = weeklyReset.addingTimeInterval(7 * 24 * 3600)
+        let before = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 86,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate)
+        let reset = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: nextWeeklyReset,
+            updatedAt: firstDate.addingTimeInterval(60))
+        let repeatedLow = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: nextWeeklyReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+
+        for snapshot in [before, reset, repeatedLow] {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .codex,
+                snapshot: snapshot,
+                codexLimitResetOwnerKey: ownerKey,
+                now: snapshot.updatedAt)
+        }
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly detector isolates same email workspaces`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-shared-email@example.com"
+        let ownerA = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-workspace-a"),
+            accountEmail: accountLabel))
+        let ownerB = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-workspace-b"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_703_500_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        let nextWeeklyReset = weeklyReset.addingTimeInterval(7 * 24 * 3600)
+        let workspaceAHigh = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 86,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate)
+        let workspaceBLow = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: nextWeeklyReset,
+            updatedAt: firstDate.addingTimeInterval(60))
+        let workspaceAReset = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: nextWeeklyReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: workspaceAHigh,
+            codexLimitResetOwnerKey: ownerA,
+            now: workspaceAHigh.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: workspaceBLow,
+            codexLimitResetOwnerKey: ownerB,
+            now: workspaceBLow.updatedAt)
+
+        #expect(recorder.events.isEmpty)
+        #expect(store.weeklyLimitResetDetectorStates.count == 2)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: workspaceAReset,
+            codexLimitResetOwnerKey: ownerA,
+            now: workspaceAReset.updatedAt)
+
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly detector isolates members of the same workspace`() async throws {
+        let store = Self.makeStore()
+        let firstEmail = "first-workspace-member@example.com"
+        let secondEmail = "second-workspace-member@example.com"
+        let ownerA = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-shared-workspace"),
+            accountEmail: firstEmail))
+        let ownerB = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-shared-workspace"),
+            accountEmail: secondEmail))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: secondEmail)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_703_700_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        let nextWeeklyReset = weeklyReset.addingTimeInterval(7 * 24 * 3600)
+        let firstMemberHigh = codexWeeklySnapshot(
+            accountLabel: firstEmail,
+            usedPercent: 86,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate)
+        let secondMemberLow = codexWeeklySnapshot(
+            accountLabel: secondEmail,
+            usedPercent: 0,
+            resetsAt: nextWeeklyReset,
+            updatedAt: firstDate.addingTimeInterval(60))
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: firstMemberHigh,
+            codexLimitResetOwnerKey: ownerA,
+            now: firstMemberHigh.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: secondMemberLow,
+            codexLimitResetOwnerKey: ownerB,
+            now: secondMemberLow.updatedAt)
+
+        #expect(ownerA != ownerB)
+        #expect(store.weeklyLimitResetDetectorStates.count == 2)
+        #expect(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `codex weekly celebration preserves baseline across a regressed boundary`() async throws {
+        let store = Self.makeStore()
+        let accountLabel = "codex-weekly-regressed-boundary@example.com"
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "fixture-codex-weekly-regressed-boundary"),
+            accountEmail: accountLabel))
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_704_000_000)
+        let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
+        let before = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 86,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate)
+        let regressedHigh = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 87,
+            resetsAt: weeklyReset.addingTimeInterval(-24 * 3600),
+            updatedAt: firstDate.addingTimeInterval(60))
+        let transientLow = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: weeklyReset,
+            updatedAt: firstDate.addingTimeInterval(120))
+        let realReset = codexWeeklySnapshot(
+            accountLabel: accountLabel,
+            usedPercent: 0,
+            resetsAt: weeklyReset.addingTimeInterval(7 * 24 * 3600),
+            updatedAt: firstDate.addingTimeInterval(180))
+
+        for snapshot in [before, regressedHigh, transientLow] {
+            await store.recordPlanUtilizationHistorySample(
+                provider: .codex,
+                snapshot: snapshot,
+                codexLimitResetOwnerKey: ownerKey,
+                now: snapshot.updatedAt)
+        }
+        #expect(recorder.events.isEmpty)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: realReset,
+            codexLimitResetOwnerKey: ownerKey,
+            now: realReset.updatedAt)
 
         #expect(recorder.events.count == 1)
         #expect(recorder.events.first?.usedPercent == 0)
@@ -888,6 +1432,31 @@ extension UsageStorePlanUtilizationTests {
 
         #expect(recorder.events.isEmpty)
     }
+}
+
+private func codexWeeklySnapshot(
+    accountLabel: String,
+    usedPercent: Double,
+    resetsAt: Date?,
+    updatedAt: Date) -> UsageSnapshot
+{
+    UsageSnapshot(
+        primary: RateWindow(
+            usedPercent: usedPercent,
+            windowMinutes: 10080,
+            resetsAt: resetsAt,
+            resetDescription: nil),
+        secondary: RateWindow(
+            usedPercent: 14,
+            windowMinutes: 300,
+            resetsAt: nil,
+            resetDescription: nil),
+        updatedAt: updatedAt,
+        identity: ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: accountLabel,
+            accountOrganization: nil,
+            loginMethod: "test"))
 }
 
 private final class SessionLimitResetEventRecorder: @unchecked Sendable {

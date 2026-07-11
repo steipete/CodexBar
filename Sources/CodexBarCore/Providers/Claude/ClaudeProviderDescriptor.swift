@@ -272,7 +272,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
 
     private func loadNonInteractiveCredentialRecord(environment: [String: String]) -> ClaudeOAuthCredentialRecord? {
         #if DEBUG
-        if let override = Self.nonInteractiveCredentialRecordOverride { return override }
+        if let override = Self.nonInteractiveCredentialRecordOverride {
+            return override
+        }
         #endif
 
         return try? ClaudeOAuthCredentialsStore.loadRecord(
@@ -284,7 +286,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
 
     private func isClaudeCLIAvailable(environment: [String: String]) -> Bool {
         #if DEBUG
-        if let override = Self.claudeCLIAvailableOverride { return override }
+        if let override = Self.claudeCLIAvailableOverride {
+            return override
+        }
         #endif
         return ClaudeCLIResolver.isAvailable(environment: environment)
     }
@@ -321,10 +325,10 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 }
                 return true
             case .claudeCLI:
-                if sourceMode == .auto {
-                    return claudeCLIAvailable
-                }
-                return true
+                guard sourceMode == .auto else { return true }
+                guard claudeCLIAvailable else { return false }
+                guard ProviderInteractionContext.current == .background else { return true }
+                return !Self.hasMcpOAuthOnlyClaudeKeychainPayload(environment: environment)
             case .environment:
                 return sourceMode != .auto
             }
@@ -353,6 +357,12 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             return false
         }
         return ClaudeOAuthCredentialsStore.hasClaudeKeychainCredentialsWithoutPrompt()
+    }
+
+    private static func hasMcpOAuthOnlyClaudeKeychainPayload(environment: [String: String]) -> Bool {
+        ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+            interaction: ProviderInteractionContext.current,
+            environment: environment)
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {

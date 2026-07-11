@@ -116,11 +116,12 @@ extension StatusItemController {
     }
 
     private func codexAccountSnapshots(matching accounts: [CodexVisibleAccount]) -> [CodexAccountUsageSnapshot] {
-        var snapshotsByID: [String: CodexAccountUsageSnapshot] = [:]
-        for snapshot in self.store.codexAccountSnapshots {
-            snapshotsByID[snapshot.id] = snapshot
+        accounts.compactMap { account in
+            self.store.codexAccountSnapshots.first { snapshot in
+                snapshot.id == account.id &&
+                    UsageStore.codexPriorSnapshotAccountMatches(snapshot.account, account: account)
+            }
         }
-        return accounts.compactMap { snapshotsByID[$0.id] }
     }
 
     func stableCodexAccountMenuDisplay(

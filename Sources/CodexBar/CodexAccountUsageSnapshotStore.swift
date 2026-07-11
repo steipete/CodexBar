@@ -37,27 +37,15 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         }
 
         func matches(_ account: CodexVisibleAccount) -> Bool {
-            guard self.normalizedEmail == CodexIdentityResolver.normalizeEmail(account.email) else {
+            guard let normalizedEmail = self.normalizedEmail,
+                  normalizedEmail == CodexIdentityResolver.normalizeEmail(account.email),
+                  let workspaceAccountID = self.workspaceAccountID,
+                  workspaceAccountID == CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
+                      account.workspaceAccountID)
+            else {
                 return false
             }
-
-            let currentWorkspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
-                account.workspaceAccountID)
-            if self.workspaceAccountID != nil || currentWorkspaceAccountID != nil {
-                return self.workspaceAccountID == currentWorkspaceAccountID
-            }
-
-            let currentAuthFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint)
-            if self.authFingerprint != nil || currentAuthFingerprint != nil {
-                return self.authFingerprint == currentAuthFingerprint
-            }
-
-            if self.storedAccountID != nil || account.storedAccountID != nil {
-                return self.storedAccountID == account.storedAccountID
-            }
-
-            guard let selectionSource else { return true }
-            return selectionSource == account.selectionSource
+            return true
         }
     }
 
@@ -83,14 +71,10 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         let accountsByID = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0) })
         return payload.records.compactMap { record in
             guard let account = accountsByID[record.id] else { return nil }
-            guard record.accountIdentity?.matches(account)
-                ?? Self.canHydrateLegacyRecord(record, account: account)
-            else {
-                return nil
-            }
+            guard record.accountIdentity?.matches(account) == true else { return nil }
             return CodexAccountUsageSnapshot(
                 account: account,
-                snapshot: record.snapshot,
+                snapshot: Self.relabelSnapshot(record.snapshot, for: account),
                 error: record.error,
                 sourceLabel: record.sourceLabel)
         }
@@ -99,10 +83,12 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
     func store(_ snapshots: [CodexAccountUsageSnapshot]) {
         let payload = Payload(
             version: Self.currentVersion,
-            records: snapshots.map { snapshot in
-                Record(
+            records: snapshots.compactMap { snapshot in
+                let identity = AccountIdentity(account: snapshot.account)
+                guard identity.normalizedEmail != nil, identity.workspaceAccountID != nil else { return nil }
+                return Record(
                     id: snapshot.id,
-                    accountIdentity: AccountIdentity(account: snapshot.account),
+                    accountIdentity: identity,
                     snapshot: snapshot.snapshot,
                     error: snapshot.error,
                     sourceLabel: snapshot.sourceLabel)
@@ -125,15 +111,16 @@ struct FileCodexAccountUsageSnapshotStore: CodexAccountUsageSnapshotStoring, @un
         }
     }
 
-    private static func canHydrateLegacyRecord(_ record: Record, account: CodexVisibleAccount) -> Bool {
-        guard record.accountIdentity == nil else { return false }
-        let normalizedID = CodexIdentityResolver.normalizeEmail(record.id)
-        let normalizedEmail = CodexIdentityResolver.normalizeEmail(account.email)
-        let isEmailOnlyVisibleID = normalizedID == normalizedEmail
-        guard isEmailOnlyVisibleID else { return true }
-        return CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(account.workspaceAccountID) == nil &&
-            account.storedAccountID == nil &&
-            CodexAuthFingerprint.normalize(account.authFingerprint) == nil
+    private static func relabelSnapshot(_ snapshot: UsageSnapshot?, for account: CodexVisibleAccount)
+        -> UsageSnapshot?
+    {
+        guard let snapshot else { return nil }
+        let identity = snapshot.identity(for: .codex)
+        return snapshot.withIdentity(ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: account.email,
+            accountOrganization: identity?.accountOrganization,
+            loginMethod: identity?.loginMethod ?? account.workspaceLabel))
     }
 
     static func defaultURL() -> URL {

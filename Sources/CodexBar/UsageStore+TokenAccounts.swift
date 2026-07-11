@@ -69,7 +69,18 @@ private struct TokenAccountFetchResult {
 private struct CodexAccountFetchResult {
     let index: Int
     let account: CodexVisibleAccount
-    let outcome: ProviderFetchOutcome
+    let outcome: ProviderFetchOutcome?
+    let limitResetOwnerKey: CodexLimitResetOwnerKey?
+}
+
+private struct CodexAccountFetchRequest {
+    let index: Int
+    let account: CodexVisibleAccount
+    let previousSnapshot: UsageSnapshot?
+    let missingWindowBackfillSnapshot: UsageSnapshot?
+    let limitResetOwnerKey: CodexLimitResetOwnerKey?
+    let descriptor: ProviderDescriptor
+    let context: ProviderFetchContext
 }
 
 private struct CodexManagedVisibleAccountRuntimeState {
@@ -79,8 +90,6 @@ private struct CodexManagedVisibleAccountRuntimeState {
 
 extension UsageStore {
     static let tokenAccountMenuSnapshotLimit = 6
-    private static let codexSessionWindowMinutes = 5 * 60
-    private static let codexWeeklyWindowMinutes = 7 * 24 * 60
 
     func freshCodexVisibleAccountsForSnapshotHydration() -> [CodexVisibleAccount] {
         self.freshCodexVisibleAccountProjectionForAccountRefresh().visibleAccounts
@@ -121,30 +130,44 @@ extension UsageStore {
         let originalVisibleAccount = originalVisibleAccountID.flatMap { id in
             accounts.first { $0.id == id }
         }
-        let priorByAccountID = Dictionary(uniqueKeysWithValues: self.codexAccountSnapshots.map { ($0.id, $0) })
+        let priorSnapshots = self.codexAccountSnapshots
         var snapshots: [CodexAccountUsageSnapshot] = []
         var selectedOutcome: ProviderFetchOutcome?
         var selectedAccount: CodexVisibleAccount?
         var selectedSnapshot: UsageSnapshot?
         var selectedSourceLabel: String?
-        var sawAnyNonCancellationOutcome = false
+        var selectedLimitResetOwnerKey: CodexLimitResetOwnerKey?
 
-        let results = await self.fetchCodexVisibleAccountOutcomes(accounts)
+        let results = await self.fetchCodexVisibleAccountOutcomes(
+            accounts,
+            allVisibleAccounts: projection.visibleAccounts,
+            priorSnapshots: priorSnapshots,
+            activeVisibleAccountID: originalVisibleAccountID)
         for result in results {
             let account = result.account
-            let outcome = result.outcome
-            let isCancellation = Self.outcomeIsCancellation(outcome)
-            if !isCancellation {
-                sawAnyNonCancellationOutcome = true
+            let priorSnapshot = Self.codexPriorAccountSnapshot(
+                matching: account,
+                in: priorSnapshots)
+            guard let outcome = result.outcome else {
+                if let priorSnapshot {
+                    snapshots.append(priorSnapshot)
+                }
+                if account.id == originalVisibleAccountID {
+                    selectedAccount = account
+                    selectedLimitResetOwnerKey = result.limitResetOwnerKey
+                }
+                continue
             }
             let resolved = self.resolveCodexAccountOutcome(
                 outcome,
                 account: account,
-                priorSnapshot: priorByAccountID[account.id],
-                resetBackfillSnapshots: self.codexResetBackfillSnapshots(
-                    for: account,
-                    priorSnapshot: priorByAccountID[account.id],
-                    activeVisibleAccountID: originalVisibleAccountID))
+                priorSnapshot: priorSnapshot,
+                resetBackfillSnapshots: result.limitResetOwnerKey == nil
+                    ? []
+                    : self.codexResetBackfillSnapshots(
+                        for: account,
+                        priorSnapshot: priorSnapshot,
+                        activeVisibleAccountID: originalVisibleAccountID))
             if let snapshot = resolved.snapshot {
                 snapshots.append(snapshot)
             }
@@ -153,6 +176,7 @@ extension UsageStore {
                 selectedAccount = account
                 selectedSnapshot = resolved.usage
                 selectedSourceLabel = resolved.sourceLabel
+                selectedLimitResetOwnerKey = result.limitResetOwnerKey
             }
         }
 
@@ -176,21 +200,32 @@ extension UsageStore {
                 error: snapshot.error,
                 sourceLabel: snapshot.sourceLabel)
         }
-        let shouldPreservePriorState = !sawAnyNonCancellationOutcome &&
-            currentSnapshots.allSatisfy { $0.snapshot == nil }
-        if !shouldPreservePriorState {
-            self.codexAccountSnapshots = currentSnapshots
-            self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
-        }
+        self.codexAccountSnapshots = currentSnapshots
+        self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
 
         let selectionStillMatches = self.codexVisibleSelectionStillMatches(
             originalVisibleAccountID: originalVisibleAccountID,
             originalSelectionSource: originalSelectionSource,
             originalAccount: originalVisibleAccount,
             currentProjection: currentProjection)
-        guard let selectedOutcome, let selectedAccount else { return }
+        guard let selectedOutcome, let selectedAccount else {
+            if selectionStillMatches,
+               let selectedID = currentProjection.activeVisibleAccountID,
+               let preserved = currentSnapshots.first(where: { $0.id == selectedID }),
+               let snapshot = preserved.snapshot
+            {
+                self.snapshots[.codex] = snapshot
+                self.lastKnownResetSnapshots[.codex] = snapshot
+                let publicationGuard = Self.codexScopedRefreshGuard(for: preserved.account)
+                self.lastCodexUsagePublicationGuard = publicationGuard
+                self.lastCodexAccountScopedRefreshGuard = publicationGuard
+            } else if !selectionStillMatches {
+                self.reconcileCodexAccountStateForUsageOwner(self.freshCodexAccountScopedRefreshGuard())
+            }
+            return
+        }
         guard selectionStillMatches else {
-            _ = self.prepareCodexAccountScopedRefreshIfNeeded()
+            self.reconcileCodexAccountStateForUsageOwner(self.freshCodexAccountScopedRefreshGuard())
             return
         }
 
@@ -217,10 +252,11 @@ extension UsageStore {
                     account: currentSelectedAccount,
                     snapshot: currentSelectedSnapshot,
                     sourceLabel: selectedSourceLabel,
+                    limitResetOwnerKey: selectedLimitResetOwnerKey,
                     generation: generation)
             }
         } else {
-            _ = self.prepareCodexAccountScopedRefreshIfNeeded()
+            self.reconcileCodexAccountStateForUsageOwner(self.freshCodexAccountScopedRefreshGuard())
         }
     }
 
@@ -238,7 +274,11 @@ extension UsageStore {
         if currentProjection.activeVisibleAccountID == originalVisibleAccountID,
            currentSelectionSource == originalSelectionSource
         {
-            return true
+            guard let originalAccount else { return true }
+            guard let currentActiveAccount else { return false }
+            return Self.codexVisibleAccountMatchesCurrentProjection(
+                originalAccount,
+                account: currentActiveAccount)
         }
         guard let originalAccount, let currentActiveAccount, currentSelectionSource == originalSelectionSource else {
             return false
@@ -359,8 +399,12 @@ extension UsageStore {
     {
         guard prior.selectionSource == account.selectionSource else { return false }
 
-        let priorEmail = CodexIdentityResolver.normalizeEmail(prior.email)
-        let accountEmail = CodexIdentityResolver.normalizeEmail(account.email)
+        guard let priorEmail = CodexIdentityResolver.normalizeEmail(prior.email),
+              let accountEmail = CodexIdentityResolver.normalizeEmail(account.email),
+              priorEmail == accountEmail
+        else {
+            return false
+        }
 
         let priorWorkspaceID = self.normalizedCodexVisibleAccountText(prior.workspaceAccountID)
             .map(CodexOpenAIWorkspaceIdentity.normalizeWorkspaceAccountID)
@@ -371,20 +415,7 @@ extension UsageStore {
             if !allowProviderAccountAuthFingerprintMismatch {
                 guard self.codexVisibleAccountAuthFingerprintMatches(prior, account: account) else { return false }
             }
-            switch account.selectionSource {
-            case .managedAccount:
-                if !self.codexVisibleAccountAuthFingerprintMatches(prior, account: account) {
-                    return priorEmail != nil && priorEmail == accountEmail
-                }
-                return true
-            case .liveSystem:
-                return priorEmail != nil && priorEmail == accountEmail
-            case .profileHome:
-                if !allowProviderAccountAuthFingerprintMismatch {
-                    guard self.codexVisibleAccountAuthFingerprintMatches(prior, account: account) else { return false }
-                }
-                return priorEmail != nil && priorEmail == accountEmail
-            }
+            return true
         }
 
         let priorAuthFingerprint = CodexAuthFingerprint.normalize(prior.authFingerprint)
@@ -393,7 +424,7 @@ extension UsageStore {
             guard priorAuthFingerprint == accountAuthFingerprint else { return false }
         }
 
-        return priorEmail != nil && priorEmail == accountEmail
+        return true
     }
 
     private static func codexVisibleAccountAuthFingerprintMatches(
@@ -505,6 +536,19 @@ extension UsageStore {
         return false
     }
 
+    private nonisolated static func codexUsageOutcomeMatchesVisibleAccount(
+        _ outcome: ProviderFetchOutcome,
+        account: CodexVisibleAccount) -> Bool
+    {
+        guard case let .success(result) = outcome.result else { return true }
+        guard let resultEmail = CodexIdentityResolver.normalizeEmail(
+            result.usage.scoped(to: .codex).accountEmail(for: .codex))
+        else {
+            return true
+        }
+        return resultEmail == CodexIdentityResolver.normalizeEmail(account.email)
+    }
+
     nonisolated static func errorIsCancellation(_ error: any Error) -> Bool {
         if error is CancellationError {
             return true
@@ -525,7 +569,9 @@ extension UsageStore {
         selected: ProviderTokenAccount?) -> [ProviderTokenAccount]
     {
         let limit = Self.tokenAccountMenuSnapshotLimit
-        if accounts.count <= limit { return accounts }
+        if accounts.count <= limit {
+            return accounts
+        }
         var limited = Array(accounts.prefix(limit))
         if let selected, !limited.contains(where: { $0.id == selected.id }) {
             limited.removeLast()
@@ -544,7 +590,9 @@ extension UsageStore {
             snapshots: snapshots,
             activeVisibleAccountID: activeVisibleAccountID)
         let limit = Self.tokenAccountMenuSnapshotLimit
-        if accounts.count <= limit { return accounts }
+        if accounts.count <= limit {
+            return accounts
+        }
         var limited = Array(accounts.prefix(limit))
         if let activeVisibleAccountID,
            let active = accounts.first(where: { $0.id == activeVisibleAccountID }),
@@ -615,23 +663,42 @@ extension UsageStore {
         }
     }
 
-    private func fetchCodexVisibleAccountOutcomes(_ accounts: [CodexVisibleAccount]) async
+    private func fetchCodexVisibleAccountOutcomes(
+        _ accounts: [CodexVisibleAccount],
+        allVisibleAccounts: [CodexVisibleAccount],
+        priorSnapshots: [CodexAccountUsageSnapshot],
+        activeVisibleAccountID: String?) async
     -> [CodexAccountFetchResult] {
         let resetCreditsFetcher = self.codexResetCreditsFetcher()
-        let requests: [(
-            index: Int,
-            account: CodexVisibleAccount,
-            descriptor: ProviderDescriptor,
-            context: ProviderFetchContext)] =
-            accounts.enumerated().map { index, account in
-                let descriptor = self.providerSpecs[.codex]?.descriptor ?? ProviderDescriptorRegistry
-                    .descriptor(for: .codex)
-                let context = self.makeFetchContext(
-                    provider: .codex,
-                    override: nil,
-                    codexActiveSourceOverride: account.selectionSource)
-                return (index, account, descriptor, context)
-            }
+        let requests: [CodexAccountFetchRequest] = accounts.enumerated().map { index, account in
+            let descriptor = self.providerSpecs[.codex]?.descriptor ?? ProviderDescriptorRegistry
+                .descriptor(for: .codex)
+            let context = self.makeFetchContext(
+                provider: .codex,
+                override: nil,
+                codexActiveSourceOverride: account.selectionSource)
+            let limitResetOwnerKey = self.codexLimitResetOwnerKey(
+                forVisibleAccount: account,
+                visibleAccounts: allVisibleAccounts)
+            let priorSnapshot = Self.codexPriorAccountSnapshot(
+                matching: account,
+                in: priorSnapshots)
+            let trustedBackfillSnapshots = limitResetOwnerKey == nil
+                ? []
+                : self.codexResetBackfillSnapshots(
+                    for: account,
+                    priorSnapshot: priorSnapshot,
+                    activeVisibleAccountID: activeVisibleAccountID)
+            let missingWindowBackfillSnapshot = Self.codexMergedResetBackfillSnapshot(trustedBackfillSnapshots)
+            return CodexAccountFetchRequest(
+                index: index,
+                account: account,
+                previousSnapshot: limitResetOwnerKey == nil ? nil : priorSnapshot?.snapshot,
+                missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+                limitResetOwnerKey: limitResetOwnerKey,
+                descriptor: descriptor,
+                context: context)
+        }
 
         return await withTaskGroup(
             of: CodexAccountFetchResult.self,
@@ -639,15 +706,37 @@ extension UsageStore {
         { group in
             for request in requests {
                 group.addTask {
-                    let baseOutcome = await request.descriptor.fetchOutcome(context: request.context)
-                    let outcome = await Self.attachingCodexResetCreditsIfNeeded(
-                        to: baseOutcome,
-                        env: request.context.env,
-                        fetcher: resetCreditsFetcher)
+                    let fetchOutcome: CodexWeeklyConfirmationFetch = {
+                        let baseOutcome = await request.descriptor.fetchOutcome(context: request.context)
+                        return await Self.attachingCodexResetCreditsIfNeeded(
+                            to: baseOutcome,
+                            env: request.context.env,
+                            fetcher: resetCreditsFetcher)
+                    }
+                    let initialOutcome = await fetchOutcome()
+                    let outcome: ProviderFetchOutcome? = if Self.codexUsageOutcomeMatchesVisibleAccount(
+                        initialOutcome,
+                        account: request.account)
+                    {
+                        if let admitted = await Self.codexOutcomeAdmittedForPublication(
+                            initialOutcome: initialOutcome,
+                            previousSnapshot: request.previousSnapshot,
+                            missingWindowBackfillSnapshot: request.missingWindowBackfillSnapshot,
+                            fetchConfirmation: fetchOutcome),
+                            Self.codexUsageOutcomeMatchesVisibleAccount(admitted, account: request.account)
+                        {
+                            admitted
+                        } else {
+                            nil
+                        }
+                    } else {
+                        nil
+                    }
                     return CodexAccountFetchResult(
                         index: request.index,
                         account: request.account,
-                        outcome: outcome)
+                        outcome: outcome,
+                        limitResetOwnerKey: request.limitResetOwnerKey)
                 }
             }
 
@@ -745,11 +834,6 @@ extension UsageStore {
         let sourceLabel: String?
     }
 
-    private struct CodexResetBackfillWindowCandidate {
-        let window: RateWindow
-        let capturedAt: Date
-    }
-
     func tokenAccountErrorMessage(_ error: any Error) -> String? {
         guard !Self.errorIsCancellation(error) else { return nil }
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -780,59 +864,15 @@ extension UsageStore {
         {
             snapshots.append(lastKnown)
         }
-        if account.id != activeVisibleAccountID || self.codexCanUseHistoricalResetBackfill(for: account),
-           let history = self.codexPlanHistoryResetBackfillSnapshot(for: account)
-        {
-            snapshots.append(history)
-        }
+        // Plan history remains display-only: its legacy provider and email keys cannot prove
+        // the composite publication owner required for quota state.
         return snapshots
-    }
-
-    private func codexCanUseHistoricalResetBackfill(for account: CodexVisibleAccount) -> Bool {
-        let authFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint)
-        let workspaceAccountID = Self.normalizedCodexVisibleAccountText(account.workspaceAccountID)
-            .map(CodexOpenAIWorkspaceIdentity.normalizeWorkspaceAccountID)
-        guard authFingerprint != nil, workspaceAccountID == nil else { return true }
-        return Self.codexScopedGuard(self.lastCodexAccountScopedRefreshGuard, matches: account)
-    }
-
-    private func codexPlanHistoryResetBackfillSnapshot(for account: CodexVisibleAccount) -> UsageSnapshot? {
-        let histories = self.codexPlanUtilizationHistories(forVisibleAccount: account)
-        guard !histories.isEmpty
-        else {
-            return nil
-        }
-
-        let now = Date()
-        let primaryCandidate = Self.codexResetBackfillWindowCandidate(
-            from: histories,
-            name: .session,
-            windowMinutes: Self.codexSessionWindowMinutes,
-            now: now)
-        let secondaryCandidate = Self.codexResetBackfillWindowCandidate(
-            from: histories,
-            name: .weekly,
-            windowMinutes: Self.codexWeeklyWindowMinutes,
-            now: now)
-        let primary = primaryCandidate?.window
-        let secondary = secondaryCandidate?.window
-        guard primary != nil || secondary != nil else { return nil }
-
-        return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            updatedAt: [primaryCandidate?.capturedAt, secondaryCandidate?.capturedAt].compactMap(\.self).max() ?? now,
-            identity: ProviderIdentitySnapshot(
-                providerID: .codex,
-                accountEmail: account.email,
-                accountOrganization: nil,
-                loginMethod: account.workspaceLabel))
     }
 
     private func codexLastKnownResetSnapshot(for account: CodexVisibleAccount) -> UsageSnapshot? {
         guard let snapshot = self.lastKnownResetSnapshots[.codex],
               Self.codexVisibleAccountEmailMatches(snapshot: snapshot, account: account),
-              Self.codexScopedGuard(self.lastCodexAccountScopedRefreshGuard, matches: account)
+              Self.codexScopedGuard(self.lastCodexUsagePublicationGuard, matches: account)
         else {
             return nil
         }
@@ -841,7 +881,7 @@ extension UsageStore {
 
     func codexLastKnownResetSnapshot(matching guardValue: CodexAccountScopedRefreshGuard?) -> UsageSnapshot? {
         guard let guardValue,
-              let lastGuard = self.lastCodexAccountScopedRefreshGuard,
+              let lastGuard = self.lastCodexUsagePublicationGuard,
               Self.codexScopedRefreshGuardAllowsResetBackfill(lastGuard, matching: guardValue)
         else {
             return nil
@@ -863,7 +903,7 @@ extension UsageStore {
         return true
     }
 
-    private nonisolated static func codexPriorSnapshotAccountMatches(
+    nonisolated static func codexPriorSnapshotAccountMatches(
         _ prior: CodexVisibleAccount,
         account: CodexVisibleAccount) -> Bool
     {
@@ -901,6 +941,22 @@ extension UsageStore {
 
         guard prior.id != prior.email, account.id != account.email else { return false }
         return prior.id == account.id
+    }
+
+    private nonisolated static func codexPriorAccountSnapshot(
+        matching account: CodexVisibleAccount,
+        in snapshots: [CodexAccountUsageSnapshot]) -> CodexAccountUsageSnapshot?
+    {
+        if let exact = snapshots.first(where: { $0.id == account.id }),
+           self.codexPriorSnapshotAccountMatches(exact.account, account: account)
+        {
+            return exact
+        }
+        let matches = snapshots.filter {
+            self.codexPriorSnapshotAccountMatches($0.account, account: account)
+        }
+        guard matches.count == 1 else { return nil }
+        return matches[0]
     }
 
     private nonisolated static func codexScopedGuard(
@@ -953,59 +1009,34 @@ extension UsageStore {
         return trimmed
     }
 
-    private nonisolated static func codexResetBackfillWindowCandidate(
-        from histories: [PlanUtilizationSeriesHistory],
-        name: PlanUtilizationSeriesName,
-        windowMinutes: Int,
-        now: Date) -> CodexResetBackfillWindowCandidate?
-    {
-        let candidate = histories.lazy
-            .filter { $0.name == name && name.canonicalWindowMinutes($0.windowMinutes) == windowMinutes }
-            .flatMap { history in
-                history.entries.map { entry in
-                    (capturedAt: entry.capturedAt, usedPercent: entry.usedPercent, resetsAt: entry.resetsAt)
-                }
-            }
-            .filter { $0.resetsAt.map { $0 > now } ?? false }
-            .max { lhs, rhs in
-                if lhs.capturedAt != rhs.capturedAt {
-                    return lhs.capturedAt < rhs.capturedAt
-                }
-                return (lhs.resetsAt ?? .distantPast) < (rhs.resetsAt ?? .distantPast)
-            }
-
-        guard let candidate, let resetsAt = candidate.resetsAt else { return nil }
-        return CodexResetBackfillWindowCandidate(
-            window: RateWindow(
-                usedPercent: candidate.usedPercent,
-                windowMinutes: windowMinutes,
-                resetsAt: resetsAt,
-                resetDescription: nil),
-            capturedAt: candidate.capturedAt)
-    }
-
-    private nonisolated static func codexBackfillingResetWindows(
+    nonisolated static func codexBackfillingResetWindows(
         _ snapshot: UsageSnapshot,
         from cached: UsageSnapshot) -> UsageSnapshot
     {
-        let primary = self.codexBackfillingResetWindow(snapshot.primary, from: cached.primary)
-        let secondary = self.codexBackfillingResetWindow(snapshot.secondary, from: cached.secondary)
+        let primary = self.codexBackfillingResetWindow(
+            CodexConsumerProjection.sourceRateWindow(for: .session, snapshot: snapshot),
+            from: CodexConsumerProjection.sourceRateWindow(for: .session, snapshot: cached))
+        let secondary = self.codexBackfillingResetWindow(
+            CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: snapshot),
+            from: CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: cached))
         guard primary != snapshot.primary || secondary != snapshot.secondary else { return snapshot }
         return snapshot.with(primary: primary, secondary: secondary)
     }
 
-    private nonisolated static func codexMergedResetBackfillSnapshot(
+    nonisolated static func codexMergedResetBackfillSnapshot(
         _ snapshots: [UsageSnapshot],
         now: Date = Date()) -> UsageSnapshot?
     {
         let primary = self.codexPreferredResetBackfillWindow(
             snapshots.enumerated().compactMap { index, snapshot in
-                snapshot.primary.map { (window: $0, updatedAt: snapshot.updatedAt, priority: index) }
+                CodexConsumerProjection.sourceRateWindow(for: .session, snapshot: snapshot)
+                    .map { (window: $0, updatedAt: snapshot.updatedAt, priority: index) }
             },
             now: now)
         let secondary = self.codexPreferredResetBackfillWindow(
             snapshots.enumerated().compactMap { index, snapshot in
-                snapshot.secondary.map { (window: $0, updatedAt: snapshot.updatedAt, priority: index) }
+                CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: snapshot)
+                    .map { (window: $0, updatedAt: snapshot.updatedAt, priority: index) }
             },
             now: now)
         guard primary != nil || secondary != nil else { return nil }
@@ -1122,6 +1153,14 @@ extension UsageStore {
         switch outcome.result {
         case let .success(result):
             let scoped = result.usage.scoped(to: .codex)
+            if let resultEmail = CodexIdentityResolver.normalizeEmail(scoped.accountEmail(for: .codex)),
+               resultEmail != CodexIdentityResolver.normalizeEmail(account.email)
+            {
+                return ResolvedCodexAccountOutcome(
+                    snapshot: priorSnapshot,
+                    usage: nil,
+                    sourceLabel: priorSnapshot?.sourceLabel)
+            }
             let labeled = self.applyCodexVisibleAccountLabel(scoped, account: account)
             let backfilled = Self.codexMergedResetBackfillSnapshot(resetBackfillSnapshots)
                 .map { Self.codexBackfillingResetWindows(labeled, from: $0) } ?? labeled
@@ -1189,18 +1228,21 @@ extension UsageStore {
         account: CodexVisibleAccount,
         snapshot: UsageSnapshot?,
         sourceLabel: String?,
+        limitResetOwnerKey: CodexLimitResetOwnerKey?,
         generation: UInt64? = nil) async
     {
         guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
-        self.lastFetchAttempts[.codex] = outcome.attempts
         switch outcome.result {
         case .success:
             guard let snapshot else { return }
+            self.lastFetchAttempts[.codex] = outcome.attempts
             self.handleCodexResetCreditNotifications(snapshot: snapshot)
             self.handleSessionQuotaTransition(provider: .codex, snapshot: snapshot)
             self.handlePredictivePaceWarningTransitions(provider: .codex, snapshot: snapshot)
             self.lastKnownResetSnapshots[.codex] = snapshot
-            self.lastCodexAccountScopedRefreshGuard = Self.codexScopedRefreshGuard(for: account)
+            let publicationGuard = Self.codexScopedRefreshGuard(for: account)
+            self.lastCodexUsagePublicationGuard = publicationGuard
+            self.lastCodexAccountScopedRefreshGuard = publicationGuard
             self.snapshots[.codex] = snapshot
             if let sourceLabel {
                 self.lastSourceLabels[.codex] = sourceLabel
@@ -1209,7 +1251,10 @@ extension UsageStore {
             self.failureGates[.codex]?.recordSuccess()
             self.rememberLiveSystemCodexEmailIfNeeded(snapshot.accountEmail(for: .codex))
             self.seedCodexAccountScopedRefreshGuard(accountEmail: account.email)
-            await self.recordPlanUtilizationHistorySample(provider: .codex, snapshot: snapshot)
+            await self.recordPlanUtilizationHistorySample(
+                provider: .codex,
+                snapshot: snapshot,
+                codexLimitResetOwnerKey: limitResetOwnerKey)
             guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):
@@ -1217,6 +1262,10 @@ extension UsageStore {
                 self.errors[.codex] = nil
                 return
             }
+            let publicationGuard = Self.codexScopedRefreshGuard(for: account)
+            self.lastCodexUsagePublicationGuard = publicationGuard
+            self.lastCodexAccountScopedRefreshGuard = publicationGuard
+            self.lastFetchAttempts[.codex] = outcome.attempts
             let hadPriorData = self.snapshots[.codex] != nil
             let shouldSurface =
                 self.failureGates[.codex]?

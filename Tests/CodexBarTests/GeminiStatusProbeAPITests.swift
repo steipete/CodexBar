@@ -680,33 +680,6 @@ struct GeminiStatusProbeAPITests {
     }
 
     @Test
-    func `fails refresh when O auth config missing`() async throws {
-        let env = try GeminiTestEnvironment()
-        defer { env.cleanup() }
-        try env.writeCredentials(
-            accessToken: "old-token",
-            refreshToken: "refresh-token",
-            expiry: Date().addingTimeInterval(-3600),
-            idToken: nil)
-
-        let binURL = try env.writeFakeGeminiCLI(includeOAuth: false)
-        let previousValue = ProcessInfo.processInfo.environment["GEMINI_CLI_PATH"]
-        setenv("GEMINI_CLI_PATH", binURL.path, 1)
-        defer {
-            if let previousValue {
-                setenv("GEMINI_CLI_PATH", previousValue, 1)
-            } else {
-                unsetenv("GEMINI_CLI_PATH")
-            }
-        }
-
-        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path)
-        await Self.expectError(.apiError("Could not find Gemini CLI OAuth configuration")) {
-            _ = try await probe.fetch()
-        }
-    }
-
-    @Test
     func `reports api errors`() async throws {
         let env = try GeminiTestEnvironment()
         defer { env.cleanup() }

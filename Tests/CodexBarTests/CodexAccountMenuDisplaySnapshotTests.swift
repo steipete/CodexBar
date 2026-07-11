@@ -134,6 +134,83 @@ struct CodexAccountMenuDisplaySnapshotTests {
     }
 
     @Test
+    func `stacked menu matches runtime enriched snapshot for legacy managed workspace`() throws {
+        let settings = self.makeSettings()
+        settings.multiAccountMenuLayout = .stacked
+        let legacyID = UUID()
+        let siblingID = UUID()
+        let legacy = ManagedCodexAccount(
+            id: legacyID,
+            email: "legacy@example.com",
+            workspaceAccountID: nil,
+            managedHomePath: "/tmp/legacy",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let sibling = ManagedCodexAccount(
+            id: siblingID,
+            email: "sibling@example.com",
+            workspaceAccountID: "account-sibling",
+            managedHomePath: "/tmp/sibling",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let snapshot = CodexAccountReconciliationSnapshot(
+            storedAccounts: [legacy, sibling],
+            activeStoredAccount: legacy,
+            liveSystemAccount: nil,
+            matchingStoredAccountForLiveSystemAccount: nil,
+            activeSource: .managedAccount(id: legacyID),
+            hasUnreadableAddedAccountStore: false,
+            storedAccountRuntimeIdentities: [
+                legacyID: .providerAccount(id: " Account-Runtime "),
+                siblingID: .providerAccount(id: "account-sibling"),
+            ])
+        let projection = CodexVisibleAccountProjection.make(from: snapshot)
+        let legacyProjected = try #require(projection.visibleAccounts.first {
+            $0.selectionSource == .managedAccount(id: legacyID)
+        })
+        let siblingProjected = try #require(projection.visibleAccounts.first {
+            $0.selectionSource == .managedAccount(id: siblingID)
+        })
+        let runtimeEnrichedLegacy = CodexVisibleAccount(
+            id: legacyProjected.id,
+            email: legacyProjected.email,
+            workspaceLabel: legacyProjected.workspaceLabel,
+            workspaceAccountID: "account-runtime",
+            authFingerprint: legacyProjected.authFingerprint,
+            storedAccountID: legacyProjected.storedAccountID,
+            selectionSource: legacyProjected.selectionSource,
+            isActive: legacyProjected.isActive,
+            isLive: legacyProjected.isLive,
+            canReauthenticate: legacyProjected.canReauthenticate,
+            canRemove: legacyProjected.canRemove)
+
+        settings.codexActiveSource = .managedAccount(id: legacyID)
+        settings.cachedCodexAccountMenuProjection = self.cachedProjection(snapshot: snapshot, loadedAt: Date())
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        store.codexAccountSnapshots = [runtimeEnrichedLegacy, siblingProjected].map {
+            CodexAccountUsageSnapshot(account: $0, snapshot: nil, error: nil, sourceLabel: "test")
+        }
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let display = try #require(controller.codexAccountMenuDisplay(for: .codex))
+
+        #expect(legacyProjected.workspaceAccountID == "account-runtime")
+        #expect(display.snapshots.map(\.id).sorted() == [legacyProjected.id, siblingProjected.id].sorted())
+    }
+
+    @Test
     func `stale menu projection returns immediately then refreshes concurrently`() async {
         let settings = self.makeSettings()
         let staleSnapshot = self.liveSnapshot(email: "before@example.com")

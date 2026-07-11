@@ -320,6 +320,10 @@ struct CodexConsumerProjection {
         self.rateWindowsByLane[lane]
     }
 
+    static func sourceRateWindow(for lane: RateLane, snapshot: UsageSnapshot?) -> RateWindow? {
+        self.rateWindowsByLane(snapshot: snapshot)[lane]
+    }
+
     func menuBarSelectableRateWindow(for lane: RateLane) -> RateWindow? {
         guard let window = self.rateWindow(for: lane) else { return nil }
         guard window.remainingPercent <= 0,

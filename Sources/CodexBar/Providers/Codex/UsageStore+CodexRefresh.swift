@@ -97,6 +97,7 @@ extension UsageStore {
             guard !Task.isCancelled else { return }
             guard let applyGuard = self.codexScopedNonUsageSuccessApplyGuard(
                 expectedGuard: expectedGuard) else { return }
+            self.reconcileCodexPublishedUsageOwner(with: applyGuard)
             await MainActor.run {
                 self.credits = credits
                 self.lastCreditsError = nil
@@ -128,6 +129,7 @@ extension UsageStore {
             let message = error.localizedDescription
             if message.localizedCaseInsensitiveContains("data not available yet") {
                 guard self.shouldApplyCodexScopedNonUsageFailure(expectedGuard: expectedGuard) else { return }
+                self.reconcileCodexPublishedUsageOwner(with: expectedGuard)
                 await MainActor.run {
                     if let cached = self.lastCreditsSnapshot,
                        self.lastCreditsSnapshotAccountKey == expectedGuard.accountKey
@@ -145,6 +147,7 @@ extension UsageStore {
             }
 
             guard self.shouldApplyCodexScopedNonUsageFailure(expectedGuard: expectedGuard) else { return }
+            self.reconcileCodexPublishedUsageOwner(with: expectedGuard)
             await MainActor.run {
                 self.creditsFailureStreak += 1
                 if let cached = self.lastCreditsSnapshot,
@@ -194,7 +197,9 @@ extension UsageStore {
         let deadline = Date().addingTimeInterval(Self.codexSnapshotWaitTimeoutSeconds)
 
         while Date() < deadline {
-            if Task.isCancelled { return nil }
+            if Task.isCancelled {
+                return nil
+            }
             if let snapshot = await MainActor.run(body: { self.snapshots[.codex] }),
                snapshot.updatedAt >= minimumUpdatedAt
             {
@@ -211,7 +216,9 @@ extension UsageStore {
         let refreshStartDeadline = Date().addingTimeInterval(Self.codexRefreshStartGraceSeconds)
 
         while Date() < deadline {
-            if Task.isCancelled { return nil }
+            if Task.isCancelled {
+                return nil
+            }
             let state = await MainActor.run {
                 (
                     snapshot: self.snapshots[.codex],
