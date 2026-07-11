@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import CodexBarCore
 import Foundation
 
@@ -492,18 +491,25 @@ extension UsageStore {
         let sourceRawValue = observation.source?.rawValue
         let sourceChanged = descriptor.seriesName == .session && previousState?.sourceRawValue != nil
             && previousState?.sourceRawValue != sourceRawValue
-        let resetBoundaryAllowsPost = Self.semanticResetBoundaryAllowsPost(
-            provider: context.provider,
-            seriesName: descriptor.seriesName,
-            previous: previousState?.resetBoundary,
-            current: observation.resetBoundary)
+        let resetBoundaryAllowsPost = if descriptor.seriesName == .session {
+            Self.limitResetBoundaryAdvanced(
+                previous: previousState?.resetBoundary,
+                current: observation.resetBoundary)
+        } else if context.provider == .codex, descriptor.seriesName == .weekly {
+            Self.limitResetBoundaryAdvanced(
+                previous: previousState?.resetBoundary,
+                current: observation.resetBoundary,
+                requiresPreviousBoundary: true)
+        } else {
+            true
+        }
         let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
         let suppressedGuardedCrossing = crossedBelowThreshold && !resetBoundaryAllowsPost
-        // Only preserve a known boundary when one already exists; otherwise adopt the current observation
-        // so Codex weekly can later require previous/current advance before posting.
-        let shouldPreserveBoundary = !sourceChanged && suppressedGuardedCrossing
-            && previousState?.resetBoundary != nil
+        // Sessions retain the last non-regressed boundary on every guarded sample. Codex weekly crossings
+        // adopt a newly appearing boundary so a later genuine advance can still trigger once.
+        let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
+            && (descriptor.seriesName == .session || (suppressedGuardedCrossing && previousState?.resetBoundary != nil))
         let shouldPreserveBaseline = suppressedGuardedCrossing
         states[detectorKey] = LimitResetDetectorState(
             // A transient zero must not erase the baseline needed to recognize the real reset that follows.
@@ -550,42 +556,6 @@ extension UsageStore {
         default:
             return
         }
-    }
-
-    private nonisolated static func requiresSemanticResetBoundaryAdvance(
-        provider: UsageProvider,
-        seriesName: PlanUtilizationSeriesName) -> Bool
-    {
-        if seriesName == .session {
-            return true
-        }
-        if seriesName == .weekly {
-            return provider == .codex
-        }
-        return false
-    }
-
-    private nonisolated static func semanticResetBoundaryAllowsPost(
-        provider: UsageProvider,
-        seriesName: PlanUtilizationSeriesName,
-        previous: Date?,
-        current: Date?) -> Bool
-    {
-        guard self.requiresSemanticResetBoundaryAdvance(provider: provider, seriesName: seriesName) else {
-            return true
-        }
-        if provider == .codex, seriesName == .weekly {
-            guard let current else { return false }
-            guard let previous else { return false }
-            return !self.areEquivalentPlanUtilizationResetBoundaries(previous, current) && current > previous
-        }
-        return self.limitResetBoundaryAdvanced(previous: previous, current: current)
-    }
-
-    private nonisolated static func limitResetBoundaryAdvanced(previous: Date?, current: Date?) -> Bool {
-        guard let previous else { return true }
-        guard let current else { return false }
-        return !self.areEquivalentPlanUtilizationResetBoundaries(previous, current) && current > previous
     }
 
     private func planUtilizationSeriesSamples(
@@ -903,166 +873,6 @@ extension UsageStore {
 
     private func shouldDeferClaudePlanUtilizationHistory(provider: UsageProvider) -> Bool {
         provider == .claude && self.shouldHidePlanUtilizationMenuItem(for: .claude)
-    }
-
-    private func limitResetAccountIdentifier(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        snapshot: UsageSnapshot,
-        accountKey: String?,
-        codexVisibleAccount: CodexVisibleAccount?) -> String
-    {
-        let identity = snapshot.identity(for: provider)
-        if let account {
-            return account.id.uuidString.lowercased()
-        }
-        if provider == .codex,
-           let codexIdentifier = self.codexLimitResetDetectorAccountIdentifier(
-               snapshot: snapshot,
-               accountKey: accountKey,
-               visibleAccount: codexVisibleAccount)
-        {
-            return codexIdentifier
-        }
-        return accountKey
-            ?? identity?.accountEmail
-            ?? identity?.accountOrganization
-            ?? provider.rawValue
-    }
-
-    private func codexLimitResetDetectorAccountIdentifier(
-        snapshot: UsageSnapshot,
-        accountKey: String?,
-        visibleAccount: CodexVisibleAccount?) -> String?
-    {
-        let ownership = self.codexOwnershipContext(snapshot: snapshot, includeDashboardFallback: false)
-        if let canonicalKey = ownership.canonicalKey,
-           CodexHistoryOwnership.isCanonicalProviderAccountKey(canonicalKey)
-        {
-            return canonicalKey
-        }
-
-        if let accountKey,
-           let workspaceDiscriminator = self.codexLimitResetWorkspaceDiscriminator(
-               snapshot: snapshot,
-               visibleAccount: visibleAccount)
-        {
-            return Self.sha256Hex(
-                "codex:limit-reset:\(accountKey):workspace:\(workspaceDiscriminator)")
-        }
-
-        return ownership.canonicalKey ?? accountKey
-    }
-
-    private func codexLimitResetWorkspaceDiscriminator(
-        snapshot: UsageSnapshot,
-        visibleAccount: CodexVisibleAccount?) -> String?
-    {
-        let resolvedAccount = visibleAccount ?? self.codexVisibleAccountMatchingLimitResetSnapshot(snapshot)
-        if let resolvedAccount {
-            if let workspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
-                resolvedAccount.workspaceAccountID)
-            {
-                return "provider-account:\(workspaceAccountID)"
-            }
-            if let authFingerprint = CodexAuthFingerprint.normalize(resolvedAccount.authFingerprint) {
-                return "auth:\(authFingerprint)"
-            }
-            if let workspaceLabel = resolvedAccount.workspaceLabel?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                !workspaceLabel.isEmpty
-            {
-                return "workspace-label:\(workspaceLabel.lowercased())"
-            }
-        }
-
-        let loginMethod = snapshot.identity(for: .codex)?.loginMethod?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let loginMethod,
-           !loginMethod.isEmpty,
-           !Self.isCodexPlanLoginMethod(loginMethod)
-        {
-            return "workspace-label:\(loginMethod.lowercased())"
-        }
-
-        let normalizedOrganization = snapshot.identity(for: .codex)?.accountOrganization?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if let normalizedOrganization, !normalizedOrganization.isEmpty {
-            return "organization:\(normalizedOrganization)"
-        }
-
-        return nil
-    }
-
-    private func codexVisibleAccountMatchingLimitResetSnapshot(_ snapshot: UsageSnapshot) -> CodexVisibleAccount? {
-        let normalizedEmail = CodexIdentityResolver.normalizeEmail(snapshot.accountEmail(for: .codex))
-        guard let normalizedEmail else { return nil }
-
-        let candidates = self.settings.codexVisibleAccounts.filter {
-            CodexIdentityResolver.normalizeEmail($0.email) == normalizedEmail
-        }
-        guard !candidates.isEmpty else { return nil }
-        if candidates.count == 1 {
-            return candidates[0]
-        }
-
-        if let currentSnapshot = self.snapshots[.codex],
-           currentSnapshot.updatedAt == snapshot.updatedAt,
-           let guardValue = self.lastCodexAccountScopedRefreshGuard,
-           let guardedMatch = candidates.first(where: {
-               self.codexVisibleAccountMatchesLimitResetGuard($0, guardValue: guardValue)
-           })
-        {
-            return guardedMatch
-        }
-
-        if let activeMatch = candidates.first(where: \.isActive) {
-            return activeMatch
-        }
-
-        return nil
-    }
-
-    private func codexVisibleAccountMatchesLimitResetGuard(
-        _ account: CodexVisibleAccount,
-        guardValue: CodexAccountScopedRefreshGuard) -> Bool
-    {
-        guard guardValue.source == account.selectionSource else { return false }
-        let guardAuthFingerprint = CodexAuthFingerprint.normalize(guardValue.authFingerprint)
-        let accountAuthFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint)
-        if guardAuthFingerprint != nil || accountAuthFingerprint != nil {
-            guard guardAuthFingerprint == accountAuthFingerprint else { return false }
-        }
-        if let workspaceAccountID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(
-            account.workspaceAccountID)
-        {
-            if case let .providerAccount(id) = guardValue.identity {
-                return id == CodexOpenAIWorkspaceIdentity.normalizeWorkspaceAccountID(workspaceAccountID)
-            }
-        }
-        guard let accountEmail = CodexIdentityResolver.normalizeEmail(account.email) else { return false }
-        return guardValue.accountKey == accountEmail
-    }
-
-    private nonisolated static func isCodexPlanLoginMethod(_ loginMethod: String) -> Bool {
-        let normalized = loginMethod.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty else { return false }
-        let knownPlans: Set = [
-            "plus",
-            "pro",
-            "prolite",
-            "pro_lite",
-            "pro-lite",
-            "pro lite",
-            "team",
-            "business",
-            "enterprise",
-            "free",
-            "cbp",
-            "k12",
-        ]
-        return knownPlans.contains(normalized)
     }
 
     private func limitResetAccountLabel(
@@ -1641,7 +1451,7 @@ extension UsageStore {
         return true
     }
 
-    private nonisolated static func areEquivalentPlanUtilizationResetBoundaries(_ lhs: Date?, _ rhs: Date?) -> Bool {
+    nonisolated static func areEquivalentPlanUtilizationResetBoundaries(_ lhs: Date?, _ rhs: Date?) -> Bool {
         guard let lhs, let rhs else { return false }
         return abs(lhs.timeIntervalSince(rhs)) < self.planUtilizationResetEquivalenceToleranceSeconds
     }
