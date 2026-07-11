@@ -29,6 +29,8 @@ enum AmpUsageParser {
         let freePattern = #"(?im)^\s*Amp Free:\s*\$?"# + amountPattern +
             #"\s*/\s*\$?"# + amountPattern +
             #"\s+remaining(?:\s*\(replenishes\s*\+\$?"# + amountPattern + #"\s*/\s*hour\))?"#
+        let freePercentPattern = #"(?im)^\s*Amp Free:\s*"# + amountPattern +
+            #"\s*%\s+remaining(?:\s+today)?(?:\s*\(resets\s+daily\))?"#
         let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
         let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
             .flatMap(self.number(from:))
@@ -57,20 +59,33 @@ enum AmpUsageParser {
                 hourlyReplenishment: hourlyReplenishment,
                 windowHours: windowHours)
         }()
-        guard freeUsage != nil || individualCredits != nil || !workspaceBalances.isEmpty else {
+        let freePercentUsage: FreeTierUsage? = {
+            guard let remainingText = self.captures(in: text, pattern: freePercentPattern)?.first,
+                  let remaining = self.number(from: remainingText)
+            else { return nil }
+            let clampedRemaining = min(100, max(0, remaining))
+            return FreeTierUsage(
+                quota: 100,
+                used: 100 - clampedRemaining,
+                hourlyReplenishment: 0,
+                windowHours: 24)
+        }()
+        let resolvedFreeUsage = freeUsage ?? freePercentUsage
+        guard resolvedFreeUsage != nil || individualCredits != nil || !workspaceBalances.isEmpty else {
             throw AmpUsageError.parseFailed("Missing Amp usage data.")
         }
 
         return AmpUsageSnapshot(
-            freeQuota: freeUsage?.quota,
-            freeUsed: freeUsage?.used,
-            hourlyReplenishment: freeUsage?.hourlyReplenishment,
-            windowHours: freeUsage?.windowHours,
+            freeQuota: resolvedFreeUsage?.quota,
+            freeUsed: resolvedFreeUsage?.used,
+            hourlyReplenishment: resolvedFreeUsage?.hourlyReplenishment,
+            windowHours: resolvedFreeUsage?.windowHours,
             individualCredits: individualCredits,
             workspaceBalances: workspaceBalances,
             accountEmail: self.nonEmpty(identity?[0]),
             accountOrganization: self.nonEmpty(identity?[1]),
-            updatedAt: now)
+            updatedAt: now,
+            freeResetDescription: freePercentUsage == nil ? nil : "daily")
     }
 
     private struct FreeTierUsage {

@@ -30,6 +30,7 @@ public struct AmpUsageSnapshot: Sendable {
     public let accountEmail: String?
     public let accountOrganization: String?
     public let updatedAt: Date
+    public let freeResetDescription: String?
 
     public init(
         freeQuota: Double?,
@@ -40,7 +41,8 @@ public struct AmpUsageSnapshot: Sendable {
         workspaceBalances: [AmpWorkspaceBalance] = [],
         accountEmail: String? = nil,
         accountOrganization: String? = nil,
-        updatedAt: Date)
+        updatedAt: Date,
+        freeResetDescription: String? = nil)
     {
         self.freeQuota = freeQuota
         self.freeUsed = freeUsed
@@ -51,6 +53,7 @@ public struct AmpUsageSnapshot: Sendable {
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
         self.updatedAt = updatedAt
+        self.freeResetDescription = freeResetDescription
     }
 }
 
@@ -74,7 +77,7 @@ extension AmpUsageSnapshot {
                     usedPercent: percent,
                     windowMinutes: windowMinutes,
                     resetsAt: resetsAt,
-                    resetDescription: nil)
+                    resetDescription: self.freeResetDescription)
             }()
         } else {
             nil
