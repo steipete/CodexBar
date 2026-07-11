@@ -6,7 +6,7 @@ import Testing
 extension UsageStorePlanUtilizationTests {
     @MainActor
     @Test
-    func `codex weekly reset detector derives the active account for default refreshes`() async {
+    func `codex weekly reset detector does not derive an owner for default refreshes`() async {
         let store = Self.makeStore()
         let email = "shared-default@example.com"
         let observedAt = Date(timeIntervalSince1970: 1_700_050_000)
@@ -35,28 +35,26 @@ extension UsageStorePlanUtilizationTests {
                 observedAt: observedAt.addingTimeInterval(60)),
             now: observedAt.addingTimeInterval(60))
 
-        #expect(store.weeklyLimitResetDetectorStates.count == 2)
+        #expect(store.weeklyLimitResetDetectorStates.isEmpty)
     }
 
     @MainActor
     @Test
-    func `codex weekly reset detector separates workspace accounts and ignores plan changes`() async {
+    func `codex weekly reset detector separates workspace accounts and ignores plan changes`() async throws {
         let store = Self.makeStore()
         let email = "shared-workspace@example.com"
-        let workspaceA = Self.codexVisibleAccount(
-            id: "workspace-a",
-            email: email,
-            workspaceAccountID: "account-a")
-        let workspaceB = Self.codexVisibleAccount(
-            id: "workspace-b",
-            email: email,
-            workspaceAccountID: "account-b")
+        let ownerA = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "account-a"),
+            accountEmail: email))
+        let ownerB = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "account-b"),
+            accountEmail: email))
         let observedAt = Date(timeIntervalSince1970: 1_700_000_000)
 
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: Self.codexWeeklySnapshot(email: email, plan: "plus", observedAt: observedAt),
-            codexVisibleAccount: workspaceA,
+            codexLimitResetOwnerKey: ownerA,
             now: observedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
@@ -64,7 +62,7 @@ extension UsageStorePlanUtilizationTests {
                 email: email,
                 plan: "pro",
                 observedAt: observedAt.addingTimeInterval(60)),
-            codexVisibleAccount: workspaceA,
+            codexLimitResetOwnerKey: ownerA,
             now: observedAt.addingTimeInterval(60))
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
@@ -72,7 +70,7 @@ extension UsageStorePlanUtilizationTests {
                 email: email,
                 plan: "plus",
                 observedAt: observedAt.addingTimeInterval(120)),
-            codexVisibleAccount: workspaceB,
+            codexLimitResetOwnerKey: ownerB,
             now: observedAt.addingTimeInterval(120))
 
         #expect(store.weeklyLimitResetDetectorStates.count == 2)
@@ -80,17 +78,16 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `codex weekly reset detector separates auth fingerprints without workspace ids`() async {
+    func `codex weekly reset detector fails closed without workspace ids`() async {
         let store = Self.makeStore()
         let email = "shared-auth@example.com"
-        let accountA = Self.codexVisibleAccount(id: "auth-a", email: email, authFingerprint: "fingerprint-a")
-        let accountB = Self.codexVisibleAccount(id: "auth-b", email: email, authFingerprint: "fingerprint-b")
         let observedAt = Date(timeIntervalSince1970: 1_700_100_000)
+
+        #expect(CodexLimitResetOwnerKey(identity: .emailOnly(normalizedEmail: email), accountEmail: email) == nil)
 
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: Self.codexWeeklySnapshot(email: email, plan: "plus", observedAt: observedAt),
-            codexVisibleAccount: accountA,
             now: observedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
@@ -98,34 +95,25 @@ extension UsageStorePlanUtilizationTests {
                 email: email,
                 plan: "plus",
                 observedAt: observedAt.addingTimeInterval(60)),
-            codexVisibleAccount: accountB,
             now: observedAt.addingTimeInterval(60))
 
-        #expect(store.weeklyLimitResetDetectorStates.count == 2)
+        #expect(store.weeklyLimitResetDetectorStates.isEmpty)
     }
 
     @MainActor
     @Test
-    func `codex weekly reset detector keeps managed ownership across token refreshes`() async {
+    func `codex weekly reset detector keeps workspace ownership across token refreshes`() async throws {
         let store = Self.makeStore()
         let email = "managed-refresh@example.com"
-        let storedAccountID = UUID()
         let observedAt = Date(timeIntervalSince1970: 1_700_200_000)
-        let beforeRefresh = Self.codexVisibleAccount(
-            id: "managed-before",
-            email: email,
-            authFingerprint: "fingerprint-before",
-            storedAccountID: storedAccountID)
-        let afterRefresh = Self.codexVisibleAccount(
-            id: "managed-after",
-            email: email,
-            authFingerprint: "fingerprint-after",
-            storedAccountID: storedAccountID)
+        let ownerKey = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "managed-workspace"),
+            accountEmail: email))
 
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
             snapshot: Self.codexWeeklySnapshot(email: email, plan: "plus", observedAt: observedAt),
-            codexVisibleAccount: beforeRefresh,
+            codexLimitResetOwnerKey: ownerKey,
             now: observedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .codex,
@@ -133,7 +121,7 @@ extension UsageStorePlanUtilizationTests {
                 email: email,
                 plan: "plus",
                 observedAt: observedAt.addingTimeInterval(60)),
-            codexVisibleAccount: afterRefresh,
+            codexLimitResetOwnerKey: ownerKey,
             now: observedAt.addingTimeInterval(60))
 
         #expect(store.weeklyLimitResetDetectorStates.count == 1)
@@ -161,26 +149,5 @@ extension UsageStorePlanUtilizationTests {
                 accountEmail: email,
                 accountOrganization: nil,
                 loginMethod: plan))
-    }
-
-    private static func codexVisibleAccount(
-        id: String,
-        email: String,
-        workspaceAccountID: String? = nil,
-        authFingerprint: String? = nil,
-        storedAccountID: UUID? = nil) -> CodexVisibleAccount
-    {
-        CodexVisibleAccount(
-            id: id,
-            email: email,
-            workspaceLabel: nil,
-            workspaceAccountID: workspaceAccountID,
-            authFingerprint: authFingerprint,
-            storedAccountID: storedAccountID,
-            selectionSource: storedAccountID.map { .managedAccount(id: $0) } ?? .liveSystem,
-            isActive: false,
-            isLive: true,
-            canReauthenticate: false,
-            canRemove: false)
     }
 }

@@ -6,7 +6,7 @@ import Testing
 @MainActor
 extension CodexAccountScopedRefreshTests {
     @Test
-    func `repairs collapsed codex windows from matching provider account history`() async throws {
+    func `provider only history never backfills account quota publication`() async throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountVisibleHistoryBackfillTests")
         settings.refreshFrequency = .manual
@@ -91,11 +91,9 @@ extension CodexAccountScopedRefreshTests {
             $0.account.workspaceAccountID == "acct-target"
         }?.snapshot)
         #expect(targetSnapshot.primary?.usedPercent == 1)
-        #expect(targetSnapshot.primary?.windowMinutes == 300)
-        #expect(targetSnapshot.primary?.resetsAt == sessionReset)
-        #expect(targetSnapshot.secondary?.usedPercent == 13)
-        #expect(targetSnapshot.secondary?.windowMinutes == 10080)
-        #expect(targetSnapshot.secondary?.resetsAt == weeklyReset)
+        #expect(targetSnapshot.primary?.windowMinutes == 0)
+        #expect(targetSnapshot.primary?.resetsAt == nil)
+        #expect(targetSnapshot.secondary == nil)
 
         let siblingSnapshot = try #require(store.codexAccountSnapshots.first {
             $0.account.workspaceAccountID == "acct-sibling"
@@ -107,10 +105,10 @@ extension CodexAccountScopedRefreshTests {
         let persistedTarget = try #require(snapshotStore.storedSnapshots.first {
             $0.account.workspaceAccountID == "acct-target"
         }?.snapshot)
-        #expect(persistedTarget.primary?.resetsAt == sessionReset)
-        #expect(persistedTarget.secondary?.resetsAt == weeklyReset)
-        #expect(store.snapshots[.codex]?.primary?.resetsAt == sessionReset)
-        #expect(store.snapshots[.codex]?.secondary?.resetsAt == weeklyReset)
+        #expect(persistedTarget.primary?.resetsAt == nil)
+        #expect(persistedTarget.secondary == nil)
+        #expect(store.snapshots[.codex]?.primary?.resetsAt == nil)
+        #expect(store.snapshots[.codex]?.secondary == nil)
         #expect(store.planUtilizationHistory[.codex]?.accounts[targetHistoryKey]?.count == 2)
     }
 
@@ -400,7 +398,7 @@ extension CodexAccountScopedRefreshTests {
                     resetsAt: nil,
                     resetDescription: nil),
                 secondary: nil,
-                updatedAt: now)
+                updatedAt: now.addingTimeInterval(1))
         }
 
         await store.refreshCodexVisibleAccountsForMenu()
@@ -497,10 +495,12 @@ extension CodexAccountScopedRefreshTests {
             startupBehavior: .testing)
         let sessionReset = now.addingTimeInterval(2 * 60 * 60)
         let weeklyReset = now.addingTimeInterval(2 * 24 * 60 * 60)
-        store.lastCodexAccountScopedRefreshGuard = CodexAccountScopedRefreshGuard(
+        let publicationGuard = CodexAccountScopedRefreshGuard(
             source: .managedAccount(id: targetID),
             identity: .providerAccount(id: "acct-current-target"),
             accountKey: "current@example.com")
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
         store.lastKnownResetSnapshots[.codex] = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 44,
@@ -748,7 +748,7 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
-    func `backfills live codex row from same id prior snapshot`() async throws {
+    func `email only live codex row does not inherit prior quota windows`() async throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountVisibleHistoryBackfillTests-live-prior")
         settings.refreshFrequency = .manual
@@ -829,8 +829,8 @@ extension CodexAccountScopedRefreshTests {
             $0.account.selectionSource == .liveSystem
         }?.snapshot)
         #expect(liveSnapshot.primary?.usedPercent == 9)
-        #expect(liveSnapshot.primary?.windowMinutes == 300)
-        #expect(liveSnapshot.primary?.resetsAt == priorReset)
+        #expect(liveSnapshot.primary?.windowMinutes == 0)
+        #expect(liveSnapshot.primary?.resetsAt == nil)
     }
 
     @Test
@@ -1102,8 +1102,10 @@ extension CodexAccountScopedRefreshTests {
                 loginMethod: nil))
         store._setSnapshotForTesting(priorDisplayedSnapshot, provider: .codex)
         store.lastKnownResetSnapshots[.codex] = priorDisplayedSnapshot
-        store.lastCodexAccountScopedRefreshGuard = store.currentCodexAccountScopedRefreshGuard(
+        let priorGuard = store.currentCodexAccountScopedRefreshGuard(
             preferCurrentSnapshot: false)
+        store.lastCodexUsagePublicationGuard = priorGuard
+        store.lastCodexAccountScopedRefreshGuard = priorGuard
         let blocker = BlockingCodexFetchStrategy()
         let liveHomePath = liveHome.path
         self.installContextualCodexProvider(on: store) { context in
@@ -1403,14 +1405,22 @@ extension CodexAccountScopedRefreshTests {
 
         #expect(store.snapshots[.codex] == nil)
         #expect(store.lastKnownResetSnapshots[.codex] == nil)
-        #expect(store.codexAccountSnapshots.isEmpty)
+        #expect(!store.codexAccountSnapshots.contains {
+            $0.account.selectionSource == .liveSystem
+        })
+        #expect(store.codexAccountSnapshots.contains {
+            $0.account.workspaceAccountID == "acct-managed-selected-email"
+        })
         #expect(!snapshotStore.storedSnapshots.contains {
             $0.account.selectionSource == .liveSystem
+        })
+        #expect(snapshotStore.storedSnapshots.contains {
+            $0.account.workspaceAccountID == "acct-managed-selected-email"
         })
     }
 
     @Test
-    func `stacked visible refresh keeps selected apply after provider account email changes`() async throws {
+    func `stacked visible refresh discards selected apply after provider account email changes`() async throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountVisibleHistoryBackfillTests-selected-provider-email-change")
         settings.refreshFrequency = .manual
@@ -1475,6 +1485,27 @@ extension CodexAccountScopedRefreshTests {
         let targetHomePath = targetHome.path
         let now = Date()
         let reset = now.addingTimeInterval(90 * 60)
+        let prior = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 63,
+                windowMinutes: 300,
+                resetsAt: reset,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(-60),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "old-provider@example.com",
+                accountOrganization: nil,
+                loginMethod: "Provider Team"))
+        let priorGuard = CodexAccountScopedRefreshGuard(
+            source: .managedAccount(id: targetID),
+            identity: .providerAccount(id: "acct-provider-email"),
+            accountKey: "old-provider@example.com")
+        store.snapshots[.codex] = prior
+        store.lastKnownResetSnapshots[.codex] = prior
+        store.lastCodexUsagePublicationGuard = priorGuard
+        store.lastCodexAccountScopedRefreshGuard = priorGuard
         self.installContextualCodexProvider(on: store) { context in
             if context.env["CODEX_HOME"] == targetHomePath {
                 return try await blocker.awaitResult()
@@ -1514,27 +1545,16 @@ extension CodexAccountScopedRefreshTests {
                 loginMethod: "Pro"))))
         await refreshTask.value
 
-        let selectedSnapshot = try #require(store.snapshots[.codex])
-        #expect(selectedSnapshot.primary?.usedPercent == 64)
-        #expect(selectedSnapshot.accountEmail(for: .codex) == "new-provider@example.com")
-        #expect(selectedSnapshot.loginMethod(for: .codex) == "Pro")
-        #expect(store.lastKnownResetSnapshots[.codex]?.primary?.resetsAt == reset)
-        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "new-provider@example.com")
-
-        let targetRow = try #require(store.codexAccountSnapshots.first {
+        #expect(store.snapshots[.codex] == nil)
+        #expect(store.lastKnownResetSnapshots[.codex] == nil)
+        #expect(!store.codexAccountSnapshots.contains {
             $0.account.workspaceAccountID == "acct-provider-email"
         })
-        #expect(targetRow.account.email == "new-provider@example.com")
-        #expect(targetRow.snapshot?.primary?.usedPercent == 64)
-        #expect(targetRow.snapshot?.accountEmail(for: .codex) == "new-provider@example.com")
-        #expect(targetRow.snapshot?.loginMethod(for: .codex) == "Pro")
-
-        let persistedTarget = try #require(snapshotStore.storedSnapshots.first {
+        #expect(store.codexAccountSnapshots.contains {
+            $0.account.workspaceAccountID == "acct-provider-sibling"
+        })
+        #expect(!snapshotStore.storedSnapshots.contains {
             $0.account.workspaceAccountID == "acct-provider-email"
         })
-        #expect(persistedTarget.account.email == "new-provider@example.com")
-        #expect(persistedTarget.snapshot?.primary?.usedPercent == 64)
-        #expect(persistedTarget.snapshot?.accountEmail(for: .codex) == "new-provider@example.com")
-        #expect(persistedTarget.snapshot?.loginMethod(for: .codex) == "Pro")
     }
 }

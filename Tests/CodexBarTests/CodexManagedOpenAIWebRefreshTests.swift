@@ -190,6 +190,9 @@ struct CodexManagedOpenAIWebRefreshTests {
             settings: settings,
             startupBehavior: .testing)
         store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        let publicationGuard = store.currentCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
 
         let creditsBlocker = BlockingCreditsLoader()
         let saver = BlockingWidgetSnapshotSaver()
@@ -277,6 +280,9 @@ struct CodexManagedOpenAIWebRefreshTests {
         await store.widgetSnapshotPersistTask?.value
         settings.openAIWebAccessEnabled = true
         store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        let publicationGuard = store.currentCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
         store.creditsRefreshTask = Task {}
         store.creditsRefreshTaskKey = store.codexCreditsRefreshKey(
             expectedGuard: store.currentCodexAccountScopedRefreshGuard())
@@ -766,7 +772,9 @@ actor BlockingManagedOpenAIDashboardLoader {
     }
 
     func waitUntilStarted(count: Int = 1) async {
-        if self.started >= count { return }
+        if self.started >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startWaiters.append((count: count, continuation: continuation))
         }
@@ -849,7 +857,9 @@ actor BlockingCreditsLoader {
     }
 
     func waitUntilStarted(count: Int = 1) async {
-        if self.started >= count { return }
+        if self.started >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startWaiters.append((count: count, continuation: continuation))
         }
@@ -936,7 +946,9 @@ private actor OpenAIDashboardImportCallTracker {
     }
 
     func waitUntilCalls(count: Int) async {
-        if self.calls >= count { return }
+        if self.calls >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.waiters.append((count: count, continuation: continuation))
         }
