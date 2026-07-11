@@ -104,6 +104,25 @@ struct CodexSessionQuotaFalseRestoreTests {
     }
 
     @Test
+    func `boundary expired before evaluation is not trusted`() throws {
+        let owner = try self.owner("expired-before-evaluation")
+        let observedAt = self.start.addingTimeInterval(60)
+        let boundary = self.start.addingTimeInterval(120)
+        let evaluatedAt = self.start.addingTimeInterval(180)
+        let store = Self.makeStore(notifier: SessionQuotaNotifierSpy())
+
+        self.observe(
+            store,
+            used: 100,
+            boundary: boundary,
+            at: observedAt,
+            evaluatedAt: evaluatedAt,
+            owner: owner)
+
+        #expect(store.sessionQuotaTransitionStates[.codex]?.trustedResetBoundary == nil)
+    }
+
+    @Test
     func `depletion cannot advance a still future trusted boundary`() throws {
         let owner = try self.owner("depletion-advanced")
         let boundary = self.start.addingTimeInterval(5 * 3600)
@@ -202,6 +221,35 @@ struct CodexSessionQuotaFalseRestoreTests {
 
         #expect(notifier.transitions == [.depleted, .restored])
         #expect(store.sessionQuotaTransitionStates[.codex]?.trustedResetBoundary == advanced)
+    }
+
+    @Test
+    func `advanced boundary expired at observation time requires confirmation`() throws {
+        let owner = try self.owner("advanced-expired-at-observation")
+        let boundary = self.start.addingTimeInterval(100)
+        let candidate = self.start.addingTimeInterval(250)
+        let previous = SessionQuotaTransitionState(
+            remaining: 0,
+            source: .primary,
+            observedAt: self.start,
+            codexOwnerKey: owner,
+            trustedResetBoundary: boundary,
+            pendingCodexRestoreObservationAt: nil)
+
+        let evaluation = SessionQuotaTransitionReducer.evaluate(
+            previous: previous,
+            observation: SessionQuotaTransitionObservation(
+                provider: .codex,
+                remaining: 80,
+                source: .primary,
+                resetBoundary: candidate,
+                observedAt: self.start.addingTimeInterval(300),
+                evaluationTime: self.start.addingTimeInterval(200),
+                codexOwnerKey: owner),
+            notificationsEnabled: true)
+
+        #expect(evaluation.outcome == .awaitingCodexRestoreConfirmation)
+        #expect(evaluation.state.trustedResetBoundary == boundary)
     }
 
     @Test
@@ -304,7 +352,51 @@ struct CodexSessionQuotaFalseRestoreTests {
             now: self.start.addingTimeInterval(60))
 
         #expect(store.sessionQuotaTransitionStates[.codex] == nil)
+        #expect(store.codexSessionQuotaBaselineRequired)
         #expect(notifier.transitions.isEmpty)
+
+        self.observe(
+            store,
+            used: 100,
+            boundary: boundary,
+            at: self.start.addingTimeInterval(120),
+            owner: owner)
+
+        #expect(notifier.transitions.isEmpty)
+        #expect(store.sessionQuotaTransitionStates[.codex]?.remaining == 0)
+        #expect(!store.codexSessionQuotaBaselineRequired)
+    }
+
+    @Test
+    func `windowless Codex result preserves a matching depleted baseline`() throws {
+        let owner = try self.owner("windowless-partial")
+        let boundary = self.start.addingTimeInterval(5 * 3600)
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeStore(notifier: notifier)
+
+        self.observe(store, used: 20, boundary: boundary, at: self.start, owner: owner)
+        self.observe(store, used: 100, boundary: boundary, at: self.start.addingTimeInterval(60), owner: owner)
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: self.start.addingTimeInterval(120),
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "session-fixture@example.test",
+                    accountOrganization: nil,
+                    loginMethod: "test")),
+            codexOwnerKey: owner,
+            now: self.start.addingTimeInterval(120))
+
+        #expect(store.sessionQuotaTransitionStates[.codex]?.remaining == 0)
+        #expect(store.sessionQuotaTransitionStates[.codex]?.trustedResetBoundary == boundary)
+        #expect(notifier.transitions == [.depleted])
+
+        self.observe(store, used: 100, boundary: boundary, at: self.start.addingTimeInterval(180), owner: owner)
+
+        #expect(notifier.transitions == [.depleted])
     }
 
     @Test
@@ -318,11 +410,13 @@ struct CodexSessionQuotaFalseRestoreTests {
         self.observe(store, used: 100, boundary: nil, at: self.start.addingTimeInterval(60), owner: owner)
         #expect(notifier.transitions.isEmpty)
         #expect(store.sessionQuotaTransitionStates[.codex] == nil)
+        #expect(store.codexSessionQuotaBaselineRequired)
 
         store.settings.sessionQuotaNotificationsEnabled = true
         self.observe(store, used: 20, boundary: nil, at: self.start.addingTimeInterval(120), owner: owner)
         #expect(notifier.transitions.isEmpty)
         #expect(store.sessionQuotaTransitionStates[.codex]?.remaining == 80)
+        #expect(!store.codexSessionQuotaBaselineRequired)
     }
 
     @Test
@@ -541,16 +635,33 @@ struct CodexSessionQuotaFalseRestoreTests {
 
         #expect(store.snapshots[.codex] == nil)
         #expect(store.sessionQuotaTransitionStates[.codex] == nil)
+        #expect(store.codexSessionQuotaBaselineRequired)
         self.observe(
             store,
-            used: 20,
+            used: 100,
             boundary: nil,
             at: self.start.addingTimeInterval(120),
             owner: newOwner)
 
         #expect(notifier.transitions == [.depleted])
         #expect(store.sessionQuotaTransitionStates[.codex]?.codexOwnerKey == newOwner)
-        #expect(store.sessionQuotaTransitionStates[.codex]?.remaining == 80)
+        #expect(store.sessionQuotaTransitionStates[.codex]?.remaining == 0)
+        #expect(!store.codexSessionQuotaBaselineRequired)
+
+        self.observe(
+            store,
+            used: 20,
+            boundary: nil,
+            at: self.start.addingTimeInterval(180),
+            owner: newOwner)
+        self.observe(
+            store,
+            used: 10,
+            boundary: nil,
+            at: self.start.addingTimeInterval(240),
+            owner: newOwner)
+
+        #expect(notifier.transitions == [.depleted, .restored])
     }
 
     @Test
@@ -605,6 +716,7 @@ struct CodexSessionQuotaFalseRestoreTests {
             forceInvalidation: true,
             currentGuardOverride: newGuard)
         #expect(store.sessionQuotaTransitionStates[.codex] == nil)
+        #expect(store.codexSessionQuotaBaselineRequired)
     }
 
     @Test
@@ -632,6 +744,7 @@ struct CodexSessionQuotaFalseRestoreTests {
         store.clearCodexPublishedUsageState()
 
         #expect(store.sessionQuotaTransitionStates[.codex] == nil)
+        #expect(store.codexSessionQuotaBaselineRequired)
     }
 
     private func observe(

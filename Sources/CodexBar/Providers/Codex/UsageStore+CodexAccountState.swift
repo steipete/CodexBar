@@ -111,7 +111,7 @@ extension UsageStore {
         // Clearing selected-account state must not discard valid sibling rows.
         self.failureGates[.codex]?.reset()
         if !preserveSessionQuotaTransitionState {
-            self.clearSessionQuotaTransitionState(provider: .codex)
+            self.requireFreshCodexSessionQuotaBaseline()
         }
         self.lastKnownResetSnapshots.removeValue(forKey: .codex)
         self.lastCodexUsagePublicationGuard = nil

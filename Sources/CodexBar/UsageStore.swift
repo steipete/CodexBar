@@ -317,6 +317,7 @@ final class UsageStore {
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownResetSnapshots: [UsageProvider: UsageSnapshot] = [:]
     @ObservationIgnored var sessionQuotaTransitionStates: [UsageProvider: SessionQuotaTransitionState] = [:]
+    @ObservationIgnored var codexSessionQuotaBaselineRequired = false
     @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:]
     @ObservationIgnored var predictivePaceWarningNotifiedKeys: Set<PredictivePaceWarningStateKey> = []
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
@@ -858,28 +859,38 @@ final class UsageStore {
         {
             return
         }
+        if provider == .codex, !self.settings.sessionQuotaNotificationsEnabled {
+            self.requireFreshCodexSessionQuotaBaseline()
+            self.sessionQuotaLogger.debug("Codex session notifications disabled; cleared notification baseline")
+            return
+        }
+        if provider == .codex, codexOwnerKey == nil {
+            self.requireFreshCodexSessionQuotaBaseline()
+            self.sessionQuotaLogger.debug("missing Codex session owner; cleared notification baseline")
+            return
+        }
         guard let sessionWindow = self.sessionQuotaWindow(provider: provider, snapshot: snapshot) else {
             if provider == .commandcode, snapshot.commandCodeSubscriptionEnrichmentUnavailable {
                 return
             }
-            self.clearSessionQuotaTransitionState(provider: provider)
+            if provider == .codex {
+                if let previous = self.sessionQuotaTransitionStates[.codex],
+                   previous.codexOwnerKey != codexOwnerKey
+                {
+                    self.requireFreshCodexSessionQuotaBaseline()
+                }
+                self.sessionQuotaLogger.debug("missing Codex session window; retained notification baseline")
+            } else {
+                self.clearSessionQuotaTransitionState(provider: provider)
+            }
             return
         }
         guard !sessionWindow.window.isSyntheticPlaceholder else { return }
         let currentRemaining = sessionWindow.window.remainingPercent
         let currentSource = sessionWindow.source
         let currentResetBoundary = sessionWindow.window.resetsAt
-        if provider == .codex, !self.settings.sessionQuotaNotificationsEnabled {
-            self.clearSessionQuotaTransitionState(provider: provider)
-            self.sessionQuotaLogger.debug("Codex session notifications disabled; cleared notification baseline")
-            return
-        }
-        if provider == .codex, codexOwnerKey == nil {
-            self.clearSessionQuotaTransitionState(provider: provider)
-            self.sessionQuotaLogger.debug("missing Codex session owner; cleared notification baseline")
-            return
-        }
         let previousState = self.sessionQuotaTransitionStates[provider]
+        let forceBaseline = provider == .codex && self.codexSessionQuotaBaselineRequired
         let evaluation = SessionQuotaTransitionReducer.evaluate(
             previous: previousState,
             observation: SessionQuotaTransitionObservation(
@@ -890,8 +901,12 @@ final class UsageStore {
                 observedAt: snapshot.updatedAt,
                 evaluationTime: now,
                 codexOwnerKey: codexOwnerKey),
-            notificationsEnabled: self.settings.sessionQuotaNotificationsEnabled)
+            notificationsEnabled: self.settings.sessionQuotaNotificationsEnabled,
+            forceBaseline: forceBaseline)
         self.sessionQuotaTransitionStates[provider] = evaluation.state
+        if provider == .codex {
+            self.codexSessionQuotaBaselineRequired = false
+        }
 
         let providerText = provider.rawValue
         let previousRemaining = previousState?.remaining

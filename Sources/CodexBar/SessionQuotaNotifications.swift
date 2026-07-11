@@ -128,8 +128,14 @@ enum SessionQuotaTransitionReducer {
     static func evaluate(
         previous: SessionQuotaTransitionState?,
         observation: SessionQuotaTransitionObservation,
-        notificationsEnabled: Bool) -> SessionQuotaTransitionEvaluation
+        notificationsEnabled: Bool,
+        forceBaseline: Bool = false) -> SessionQuotaTransitionEvaluation
     {
+        if forceBaseline {
+            return SessionQuotaTransitionEvaluation(
+                outcome: .baselineChanged,
+                state: self.baselineState(observation: observation))
+        }
         guard let previous else {
             return SessionQuotaTransitionEvaluation(
                 outcome: notificationsEnabled && SessionQuotaNotificationLogic.isDepleted(observation.remaining)
@@ -195,12 +201,13 @@ enum SessionQuotaTransitionReducer {
                         observation: observation))
             }
 
-            if let resetBoundary = observation.resetBoundary,
-               !UsageStore.areEquivalentPlanUtilizationResetBoundaries(trustedResetBoundary, resetBoundary)
+            if let resetBoundary = self.validResetBoundary(
+                observation.resetBoundary,
+                observedAt: observation.observedAt,
+                evaluationTime: observation.evaluationTime),
+                !UsageStore.areEquivalentPlanUtilizationResetBoundaries(trustedResetBoundary, resetBoundary)
             {
-                if resetBoundary > trustedResetBoundary,
-                   resetBoundary > observation.evaluationTime
-                {
+                if resetBoundary > trustedResetBoundary {
                     return SessionQuotaTransitionEvaluation(
                         outcome: .restored,
                         state: Self.updatedState(
@@ -236,7 +243,10 @@ enum SessionQuotaTransitionReducer {
             observedAt: observation.observedAt,
             codexOwnerKey: observation.provider == .codex ? observation.codexOwnerKey : nil,
             trustedResetBoundary: observation.provider == .codex
-                ? self.validResetBoundary(observation.resetBoundary, observedAt: observation.observedAt)
+                ? self.validResetBoundary(
+                    observation.resetBoundary,
+                    observedAt: observation.observedAt,
+                    evaluationTime: observation.evaluationTime)
                 : nil,
             pendingCodexRestoreObservationAt: nil)
     }
@@ -255,7 +265,8 @@ enum SessionQuotaTransitionReducer {
                 previous: previous.trustedResetBoundary,
                 current: self.validResetBoundary(
                     observation.resetBoundary,
-                    observedAt: observation.observedAt))
+                    observedAt: observation.observedAt,
+                    evaluationTime: observation.evaluationTime))
         }
         return SessionQuotaTransitionState(
             remaining: observation.remaining,
@@ -286,8 +297,12 @@ enum SessionQuotaTransitionReducer {
         return current
     }
 
-    private static func validResetBoundary(_ candidate: Date?, observedAt: Date) -> Date? {
-        guard let candidate, candidate > observedAt else { return nil }
+    private static func validResetBoundary(
+        _ candidate: Date?,
+        observedAt: Date,
+        evaluationTime: Date) -> Date?
+    {
+        guard let candidate, candidate > observedAt, candidate > evaluationTime else { return nil }
         return candidate
     }
 }
@@ -396,6 +411,11 @@ extension UsageStore {
 
     func clearSessionQuotaTransitionState(provider: UsageProvider) {
         self.sessionQuotaTransitionStates.removeValue(forKey: provider)
+    }
+
+    func requireFreshCodexSessionQuotaBaseline() {
+        self.clearSessionQuotaTransitionState(provider: .codex)
+        self.codexSessionQuotaBaselineRequired = true
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
