@@ -807,6 +807,159 @@ struct PiSessionCostScannerTests {
 
 extension PiSessionCostScannerTests {
     @Test
+    func `pi scanner deltas cumulative ultra usage samples per lineage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
+        let model = "gpt-5.6-sol"
+
+        func assistant(step: Int) -> [String: Any] {
+            let timestamp = day.addingTimeInterval(TimeInterval(step))
+            let input = step * 1_000_000
+            let cacheRead = step * 100_000
+            let output = step * 1000
+            return [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": model,
+                    "turnId": "ultra-fork-turn",
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": input,
+                        "cacheRead": cacheRead,
+                        "output": output,
+                        "totalTokens": input + cacheRead + output,
+                    ],
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-11T10-00-00-000Z_ultra-cumulative.jsonl",
+            contents: env.jsonl((1...6).map(assistant(step:))))
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.inputTokens == 6_000_000)
+        #expect(report.data.first?.cacheReadTokens == 600_000)
+        #expect(report.data.first?.outputTokens == 6000)
+        #expect(report.data.first?.totalTokens == 6_606_000)
+    }
+
+    @Test
+    func `pi scanner keeps ordinary increasing rows below cumulative guardrail raw`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
+
+        func assistant(step: Int) -> [String: Any] {
+            let timestamp = day.addingTimeInterval(TimeInterval(step))
+            let input = step * 100
+            let output = step * 10
+            return [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "gpt-5.4",
+                    "turnId": "small-increasing-turn",
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": input,
+                        "output": output,
+                        "totalTokens": input + output,
+                    ],
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-11T10-00-00-000Z_small-increasing.jsonl",
+            contents: env.jsonl((1...5).map(assistant(step:))))
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.inputTokens == 1500)
+        #expect(report.data.first?.outputTokens == 150)
+        #expect(report.data.first?.totalTokens == 1650)
+    }
+
+    @Test
+    func `pi scanner keeps rows without lineage raw even when large and monotonic`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
+
+        func assistant(step: Int) -> [String: Any] {
+            let timestamp = day.addingTimeInterval(TimeInterval(step))
+            let input = step * 1_000_000
+            let cacheRead = step * 100_000
+            let output = step * 1000
+            return [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "gpt-5.6-sol",
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": input,
+                        "cacheRead": cacheRead,
+                        "output": output,
+                        "totalTokens": input + cacheRead + output,
+                    ],
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-11T10-00-00-000Z_no-lineage-monotonic.jsonl",
+            contents: env.jsonl((1...6).map(assistant(step:))))
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.inputTokens == 21_000_000)
+        #expect(report.data.first?.cacheReadTokens == 2_100_000)
+        #expect(report.data.first?.outputTokens == 21000)
+        #expect(report.data.first?.totalTokens == 23_121_000)
+    }
+
+    @Test
     func `pi scanner reprices unchanged files when catalog rates change`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

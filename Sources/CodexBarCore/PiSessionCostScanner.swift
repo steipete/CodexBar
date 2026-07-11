@@ -46,6 +46,33 @@ enum PiSessionCostScanner {
         let modelName: String
     }
 
+    private struct UsageSample {
+        let sequence: Int
+        let provider: UsageProvider
+        let dayKey: String
+        let modelName: String
+        let lineageKey: String
+        let pricingDate: Date
+        let usage: PiPackedUsage
+
+        func replacingUsage(_ usage: PiPackedUsage) -> UsageSample {
+            UsageSample(
+                sequence: self.sequence,
+                provider: self.provider,
+                dayKey: self.dayKey,
+                modelName: self.modelName,
+                lineageKey: self.lineageKey,
+                pricingDate: self.pricingDate,
+                usage: usage)
+        }
+    }
+
+    private struct UsageSampleGroupKey: Hashable {
+        let providerRawValue: String
+        let modelName: String
+        let lineageKey: String
+    }
+
     private struct ModelsDevPricingContext {
         let catalog: ModelsDevCatalog?
         let cacheRoot: URL?
@@ -61,7 +88,7 @@ enum PiSessionCostScanner {
 
     private static let costScale = 1_000_000_000.0
     /// Bump for Pi-only cost formula changes not represented by the parser or pricing fingerprints.
-    private static let costFormulaVersion = 1
+    private static let costFormulaVersion = 2
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let maxSafeRoundedInt = Double(Int.max) - 1
     private static let sessionStartFilenameRegex = try? NSRegularExpression(
@@ -312,35 +339,6 @@ enum PiSessionCostScanner {
             return
         }
 
-        if !context.forceRescan,
-           let cached,
-           size > cached.size,
-           cached.parsedBytes > 0,
-           cached.parsedBytes <= size
-        {
-            let delta = try self.parsePiSessionFile(
-                fileURL: fileURL,
-                range: context.range,
-                startOffset: cached.parsedBytes,
-                initialModelContext: cached.lastModelContext,
-                pricingContext: context.pricingContext,
-                checkCancellation: context.checkCancellation)
-            if !delta.contributions.isEmpty {
-                self.applyContributions(
-                    daysByProvider: &cache.daysByProvider,
-                    contributions: delta.contributions,
-                    sign: 1)
-            }
-            let merged = self.mergedContributions(existing: cached.contributions, delta: delta.contributions)
-            storeFileUsage(PiSessionFileUsage(
-                mtimeUnixMs: mtimeMs,
-                size: size,
-                parsedBytes: delta.parsedBytes,
-                lastModelContext: delta.lastModelContext,
-                contributions: merged))
-            return
-        }
-
         if let cached {
             self.applyContributions(
                 daysByProvider: &cache.daysByProvider,
@@ -374,6 +372,7 @@ enum PiSessionCostScanner {
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> ParseResult
     {
         var currentModelContext = initialModelContext
+        var samples: [UsageSample] = []
         var contributions: [String: [String: [String: PiPackedUsage]]] = [:]
 
         func add(provider: UsageProvider, dayKey: String, modelName: String, usage: PiPackedUsage) {
@@ -437,19 +436,32 @@ enum PiSessionCostScanner {
                         guard let identity else { return }
                         guard let date = self.timestampDate(entry: object, message: message) else { return }
                         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
-                        let usage = self.extractUsage(
+                        let usage = self.extractRawUsage(message: message)
+                        let sequence = samples.count
+                        samples.append(UsageSample(
+                            sequence: sequence,
                             provider: identity.provider,
+                            dayKey: dayKey,
                             modelName: identity.modelName,
-                            message: message,
+                            lineageKey: self.lineageKey(entry: object, message: message, fallbackSequence: sequence),
                             pricingDate: date,
-                            pricingContext: pricingContext)
-                        add(provider: identity.provider, dayKey: dayKey, modelName: identity.modelName, usage: usage)
+                            usage: usage))
                     }
                 })
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             parsedBytes = startOffset
+        }
+
+        for sample in self.adjustedUsageSamples(samples) {
+            let usage = self.pricedUsage(
+                provider: sample.provider,
+                modelName: sample.modelName,
+                usage: sample.usage,
+                pricingDate: sample.pricingDate,
+                pricingContext: pricingContext)
+            add(provider: sample.provider, dayKey: sample.dayKey, modelName: sample.modelName, usage: usage)
         }
 
         return ParseResult(
@@ -555,6 +567,37 @@ enum PiSessionCostScanner {
             ?? self.parseTimestampValue(entry["timestamp"])
     }
 
+    private static func lineageKey(
+        entry: [String: Any],
+        message: [String: Any],
+        fallbackSequence: Int) -> String
+    {
+        let keys = [
+            "turnId",
+            "turn_id",
+            "taskId",
+            "task_id",
+            "requestId",
+            "request_id",
+            "messageId",
+            "message_id",
+            "id",
+        ]
+        for key in keys {
+            if let value = (message[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty
+            {
+                return "\(key):\(value)"
+            }
+            if let value = (entry[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty
+            {
+                return "\(key):\(value)"
+            }
+        }
+        return "sample:\(fallbackSequence)"
+    }
+
     private static func parseTimestampValue(_ value: Any?) -> Date? {
         if let number = value as? NSNumber {
             let raw = number.doubleValue
@@ -578,13 +621,7 @@ enum PiSessionCostScanner {
         return nil
     }
 
-    private static func extractUsage(
-        provider: UsageProvider,
-        modelName: String,
-        message: [String: Any],
-        pricingDate: Date? = nil,
-        pricingContext: ModelsDevPricingContext? = nil) -> PiPackedUsage
-    {
+    private static func extractRawUsage(message: [String: Any]) -> PiPackedUsage {
         let usage = (message["usage"] as? [String: Any]) ?? [:]
         let input = self.readNonNegativeInt(
             usage["input"]
@@ -624,30 +661,121 @@ enum PiSessionCostScanner {
         let derivedTotal = input + cacheRead + cacheWrite + output
         let totalTokens = max(directTotal, derivedTotal)
 
-        let rawUsage = PiPackedUsage(
+        return PiPackedUsage(
             inputTokens: input,
             cacheReadTokens: cacheRead,
             cacheWriteTokens: cacheWrite,
             outputTokens: output,
             totalTokens: totalTokens)
+    }
+
+    private static func pricedUsage(
+        provider: UsageProvider,
+        modelName: String,
+        usage: PiPackedUsage,
+        pricingDate: Date? = nil,
+        pricingContext: ModelsDevPricingContext? = nil) -> PiPackedUsage
+    {
         // Pi JSONL does not record Anthropic cache retention, so use Pi's persisted default tariff.
         let costUSD = self.computedCostUSD(
             provider: provider,
             modelName: modelName,
-            usage: rawUsage,
+            usage: usage,
             pricingDate: pricingDate,
             pricingContext: pricingContext)
         let costNanos = costUSD.map { Int64(($0 * self.costScale).rounded()) } ?? 0
 
         return PiPackedUsage(
-            inputTokens: rawUsage.inputTokens,
-            cacheReadTokens: rawUsage.cacheReadTokens,
-            cacheWriteTokens: rawUsage.cacheWriteTokens,
-            outputTokens: rawUsage.outputTokens,
-            totalTokens: rawUsage.totalTokens,
+            inputTokens: usage.inputTokens,
+            cacheReadTokens: usage.cacheReadTokens,
+            cacheWriteTokens: usage.cacheWriteTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
             costNanos: costNanos,
             costSampleCount: costUSD == nil ? 0 : 1,
             usageSampleCount: 1)
+    }
+
+    private static func adjustedUsageSamples(_ samples: [UsageSample]) -> [UsageSample] {
+        guard samples.count > 1 else { return samples }
+
+        let grouped = Dictionary(grouping: samples) { sample in
+            UsageSampleGroupKey(
+                providerRawValue: sample.provider.rawValue,
+                modelName: sample.modelName,
+                lineageKey: sample.lineageKey)
+        }
+
+        var adjusted: [UsageSample] = []
+        adjusted.reserveCapacity(samples.count)
+
+        for group in grouped.values {
+            let sorted = group.sorted { $0.sequence < $1.sequence }
+            guard self.shouldTreatAsCumulative(sorted) else {
+                adjusted.append(contentsOf: sorted)
+                continue
+            }
+
+            var previous = PiPackedUsage()
+            for sample in sorted {
+                let delta = self.usageDelta(from: previous, to: sample.usage)
+                previous = sample.usage
+                guard !delta.isZero else { continue }
+                adjusted.append(sample.replacingUsage(delta))
+            }
+        }
+
+        return adjusted.sorted { $0.sequence < $1.sequence }
+    }
+
+    private static func shouldTreatAsCumulative(_ samples: [UsageSample]) -> Bool {
+        guard samples.count >= 4 else { return false }
+        let usages = samples.map(\.usage)
+        guard zip(usages, usages.dropFirst()).allSatisfy({ self.isNonDecreasing(previous: $0, current: $1) })
+        else {
+            return false
+        }
+
+        let rawTotal = usages.reduce(0) { partial, usage in
+            self.clampedAdd(partial, self.usageTotal(usage))
+        }
+        guard let final = usages.last.map(self.usageTotal), final > 0 else { return false }
+
+        return Double(rawTotal) >= Double(final) * 3.0
+            && rawTotal - final >= 1_000_000
+    }
+
+    private static func isNonDecreasing(previous: PiPackedUsage, current: PiPackedUsage) -> Bool {
+        current.inputTokens >= previous.inputTokens
+            && current.cacheReadTokens >= previous.cacheReadTokens
+            && current.cacheWriteTokens >= previous.cacheWriteTokens
+            && current.outputTokens >= previous.outputTokens
+            && current.totalTokens >= previous.totalTokens
+    }
+
+    private static func usageDelta(from previous: PiPackedUsage, to current: PiPackedUsage) -> PiPackedUsage {
+        let input = max(0, current.inputTokens - previous.inputTokens)
+        let cacheRead = max(0, current.cacheReadTokens - previous.cacheReadTokens)
+        let cacheWrite = max(0, current.cacheWriteTokens - previous.cacheWriteTokens)
+        let output = max(0, current.outputTokens - previous.outputTokens)
+        let total = max(0, current.totalTokens - previous.totalTokens)
+        return PiPackedUsage(
+            inputTokens: input,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite,
+            outputTokens: output,
+            totalTokens: max(total, input + cacheRead + cacheWrite + output))
+    }
+
+    private static func usageTotal(_ usage: PiPackedUsage) -> Int {
+        let derivedTotal = [usage.inputTokens, usage.cacheReadTokens, usage.cacheWriteTokens, usage.outputTokens]
+            .reduce(0, self.clampedAdd)
+        return max(usage.totalTokens, derivedTotal)
+    }
+
+    private static func clampedAdd(_ lhs: Int, _ rhs: Int) -> Int {
+        let added = lhs.addingReportingOverflow(rhs)
+        return added.overflow ? Int.max : added.partialValue
     }
 
     private static func computedCostUSD(
