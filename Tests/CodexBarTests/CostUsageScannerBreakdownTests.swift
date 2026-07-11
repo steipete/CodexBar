@@ -1398,7 +1398,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex token count model overrides stale turn context`() throws {
+    func `codex turn context remains authoritative over conflicting token model`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -1420,8 +1420,8 @@ struct CostUsageScannerBreakdownTests {
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
 
-        #expect(parsed.days[dayKey]?["gpt-5.6-sol"] == [50, 10, 5])
-        #expect(parsed.days[dayKey]?["gpt-5.5"] == nil)
+        #expect(parsed.days[dayKey]?["gpt-5.5"] == [50, 10, 5])
+        #expect(parsed.days[dayKey]?["gpt-5.6-sol"] == nil)
     }
 
     @Test
