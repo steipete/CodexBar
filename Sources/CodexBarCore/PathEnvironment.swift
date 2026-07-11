@@ -639,7 +639,30 @@ public enum CodexLaunchPreflight {
     #endif
 }
 
+final class TerminalForegroundCoordinator: @unchecked Sendable {
+    struct Lease: Sendable {
+        fileprivate let originalProcessGroup: pid_t?
+        fileprivate let isActive: Bool
+    }
+
+    private let lock = NSLock()
+
+    func acquire(isTerminal: Bool, capture: () -> pid_t?) -> Lease {
+        guard isTerminal else { return Lease(originalProcessGroup: nil, isActive: false) }
+        self.lock.lock()
+        return Lease(originalProcessGroup: capture(), isActive: true)
+    }
+
+    func release(_ lease: Lease, restore: (pid_t?) -> Void) {
+        guard lease.isActive else { return }
+        defer { self.lock.unlock() }
+        restore(lease.originalProcessGroup)
+    }
+}
+
 public enum ShellCommandLocator {
+    private static let terminalForegroundCoordinator = TerminalForegroundCoordinator()
+
     static func test_runShellCommand(
         shell: String,
         arguments: [String],
@@ -723,13 +746,15 @@ public enum ShellCommandLocator {
         func fire() -> Bool {
             self.lock.lock()
             defer { self.lock.unlock() }
-            if self.fired { return false }
+            if self.fired {
+                return false
+            }
             self.fired = true
             return true
         }
     }
 
-    // swiftlint:disable cyclomatic_complexity
+    // swiftlint:disable cyclomatic_complexity function_body_length
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  The child is launched via `posix_spawn` with
@@ -742,11 +767,12 @@ public enum ShellCommandLocator {
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
-        // Preserve the caller's foreground process group before spawning.
-        // Interactive shells (for PATH capture) can temporarily move terminal fg,
-        // and restoring it here prevents parent shells like `watch` from getting
-        // stranded after command completion.
-        let originalForegroundProcessGroup = Self.foregroundProcessGroup(for: STDIN_FILENO)
+        // Interactive shells can temporarily move terminal foreground ownership.
+        // Coordinate the complete capture/probe/restore sequence so overlapping
+        // probes cannot snapshot and later restore one another's short-lived group.
+        let foregroundLease = Self.terminalForegroundCoordinator.acquire(
+            isTerminal: isatty(STDIN_FILENO) == 1,
+            capture: { Self.foregroundProcessGroup(for: STDIN_FILENO) })
 
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
         // via posix_spawn_file_actions_addopen below.
@@ -754,7 +780,9 @@ public enum ShellCommandLocator {
         var stderrFds: (read: Int32, write: Int32) = (-1, -1)
 
         defer {
-            Self.restoreForegroundProcessGroup(for: STDIN_FILENO, original: originalForegroundProcessGroup)
+            Self.terminalForegroundCoordinator.release(foregroundLease) { original in
+                Self.restoreForegroundProcessGroup(for: STDIN_FILENO, original: original)
+            }
         }
         guard withUnsafeMutablePointer(to: &stdoutFds, {
             $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
@@ -868,7 +896,9 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                if stdoutDone.fire() { drainGroup.leave() }
+                if stdoutDone.fire() {
+                    drainGroup.leave()
+                }
             } else {
                 stdoutCollector.append(data)
             }
@@ -879,7 +909,9 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                if stderrDone.fire() { drainGroup.leave() }
+                if stderrDone.fire() {
+                    drainGroup.leave()
+                }
             }
         }
 
@@ -906,8 +938,12 @@ public enum ShellCommandLocator {
             }
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() { drainGroup.leave() }
-            if stderrDone.fire() { drainGroup.leave() }
+            if stdoutDone.fire() {
+                drainGroup.leave()
+            }
+            if stderrDone.fire() {
+                drainGroup.leave()
+            }
             return nil
         }
 
@@ -924,8 +960,12 @@ public enum ShellCommandLocator {
         if drainGroup.wait(timeout: .now() + 0.6) != .success {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() { drainGroup.leave() }
-            if stderrDone.fire() { drainGroup.leave() }
+            if stdoutDone.fire() {
+                drainGroup.leave()
+            }
+            if stderrDone.fire() {
+                drainGroup.leave()
+            }
         }
         return stdoutCollector.drain()
     }
@@ -941,7 +981,7 @@ public enum ShellCommandLocator {
         guard isatty(fd) == 1 else { return }
 
         let current = tcgetpgrp(fd)
-        guard current != original else { return }
+        guard current > 0, current != original else { return }
 
         // At this point the terminal's foreground group is not ours, so this
         // process is in a background process group. A bare tcsetpgrp from a
@@ -953,12 +993,12 @@ public enum ShellCommandLocator {
         sigemptyset(&blockTTOU)
         sigaddset(&blockTTOU, SIGTTOU)
         var previousMask = sigset_t()
-        pthread_sigmask(SIG_BLOCK, &blockTTOU, &previousMask)
+        guard pthread_sigmask(SIG_BLOCK, &blockTTOU, &previousMask) == 0 else { return }
+        defer { _ = pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
         _ = tcsetpgrp(fd, original)
-        pthread_sigmask(SIG_SETMASK, &previousMask, nil)
     }
 
-    // swiftlint:enable cyclomatic_complexity
+    // swiftlint:enable cyclomatic_complexity function_body_length
 
     private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
@@ -1023,8 +1063,12 @@ public enum ShellCommandLocator {
     }
 
     private static func expandPath(_ raw: String, home: String) -> String {
-        if raw == "~" { return home }
-        if raw.hasPrefix("~/") { return home + String(raw.dropFirst()) }
+        if raw == "~" {
+            return home
+        }
+        if raw.hasPrefix("~/") {
+            return home + String(raw.dropFirst())
+        }
         return raw
     }
 }
