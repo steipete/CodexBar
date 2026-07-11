@@ -862,6 +862,7 @@ final class UsageStore {
             self.clearSessionQuotaTransitionState(provider: provider)
             return
         }
+        guard !sessionWindow.window.isSyntheticPlaceholder else { return }
         let currentRemaining = sessionWindow.window.remainingPercent
         let currentSource = sessionWindow.source
         let currentResetBoundary = sessionWindow.window.resetsAt

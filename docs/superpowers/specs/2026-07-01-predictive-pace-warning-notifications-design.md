@@ -7,7 +7,7 @@ read_when:
 
 # Predictive pace warning notifications
 
-**Status:** accepted design; not implemented
+**Status:** implemented by #1960 and released in v0.42.0
 **Date:** 2026-07-01
 **Issue:** #1299
 
@@ -56,6 +56,7 @@ For each key:
    notify once.
 4. Low-confidence risk, missing pace, missing window, failed refresh, or incomplete provider enrichment neither notifies
    nor counts as recovery. Preserve current state until a successful, authoritative observation arrives.
+   A synthetic placeholder for an unreported quota window is also non-authoritative and must preserve state.
 5. A new reset-window identity starts with fresh state. Prune expired window keys rather than carrying episode state
    across resets.
 6. Keep this state in memory only. App restart resets episodes; do not add persisted notification history.
@@ -84,7 +85,7 @@ When personal information is hidden, do not include email, organization, workspa
 
 - A pure evaluator/state reducer accepting provider, account discriminator, reset-window identity, pace, and prior state.
 - A small `UsageStore` integration after successful snapshot/pace calculation, separate from static threshold transition state.
-- One default-off `SettingsStore` value and one General notifications control.
+- One default-off `SettingsStore` value and one Notifications-pane control.
 - Localized notification title/body through the existing presenter.
 - No new dependency and no provider fetch changes.
 

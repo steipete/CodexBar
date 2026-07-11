@@ -43,6 +43,61 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `Claude placeholder does not post or consume a genuine session reset`() async {
+        let store = Self.makeStore()
+        let accountLabel = "synthetic-session-reset@example.com"
+        let recorder = SessionLimitResetEventRecorder(provider: .claude, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        func snapshot(usedPercent: Double, isPlaceholder: Bool, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: usedPercent,
+                    windowMinutes: 5 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil,
+                    isSyntheticPlaceholder: isPlaceholder),
+                secondary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .claude,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "web"))
+        }
+
+        let start = Date(timeIntervalSince1970: 1_780_000_000)
+        let before = snapshot(usedPercent: 65, isPlaceholder: false, updatedAt: start)
+        let placeholder = snapshot(
+            usedPercent: 0,
+            isPlaceholder: true,
+            updatedAt: start.addingTimeInterval(60 * 60))
+        let genuineReset = snapshot(
+            usedPercent: 0,
+            isPlaceholder: false,
+            updatedAt: start.addingTimeInterval(2 * 60 * 60))
+
+        await store.recordPlanUtilizationHistorySample(provider: .claude, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: placeholder,
+            now: placeholder.updatedAt)
+        #expect(recorder.events.isEmpty)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: genuineReset,
+            now: genuineReset.updatedAt)
+        #expect(recorder.events.count == 1)
+        #expect(recorder.events.first?.usedPercent == 0)
+    }
+
+    @MainActor
+    @Test
     func `legacy session detector state preserves first reset after upgrade`() async throws {
         let store = Self.makeStore()
         let accountLabel = "session-reset-upgrade@example.com"

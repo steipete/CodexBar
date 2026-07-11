@@ -452,6 +452,7 @@ extension UsageStore {
     private static func isSemanticSessionResetWindow(
         _ resolved: (window: RateWindow, source: SessionQuotaWindowSource)) -> Bool
     {
+        guard !resolved.window.isSyntheticPlaceholder else { return false }
         switch resolved.source {
         case .primary:
             guard let minutes = resolved.window.windowMinutes else { return false }
@@ -571,6 +572,7 @@ extension UsageStore {
         func appendWindow(_ window: RateWindow?, name: PlanUtilizationSeriesName?) {
             guard let name,
                   let window,
+                  !window.isSyntheticPlaceholder,
                   let windowMinutes = window.windowMinutes,
                   windowMinutes > 0,
                   let usedPercent = Self.clampedPercent(window.usedPercent)
