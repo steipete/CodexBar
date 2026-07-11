@@ -764,6 +764,75 @@ struct CostHistoryChartMenuView: View {
 }
 
 extension CostHistoryChartMenuView {
+    struct RenderFingerprint: Equatable {
+        let currencyCode: String
+        let historyDays: Int
+        let windowLabel: String?
+        let totalCostBitPattern: UInt64?
+        let daily: [DailyEntry]
+        let projects: [VisibleProjectFingerprint]
+    }
+
+    struct VisibleProjectFingerprint: Equatable {
+        let name: String
+        let path: String?
+        let totalTokens: Int?
+        let totalCostBitPattern: UInt64?
+        let visibleSourceCount: Int
+        let sources: [VisibleSourceFingerprint]
+    }
+
+    struct VisibleSourceFingerprint: Equatable {
+        let name: String
+        let path: String?
+        let totalTokens: Int?
+        let totalCostBitPattern: UInt64?
+    }
+
+    static func renderFingerprint(from snapshot: CostUsageTokenSnapshot) -> RenderFingerprint {
+        self.makeRenderFingerprint(RenderFingerprintInputs(
+            currencyCode: snapshot.currencyCode,
+            historyDays: snapshot.historyDays,
+            windowLabel: snapshot.historyLabel,
+            totalCostUSD: snapshot.last30DaysCostUSD,
+            daily: snapshot.daily,
+            projects: snapshot.projects))
+    }
+
+    private struct RenderFingerprintInputs {
+        let currencyCode: String
+        let historyDays: Int
+        let windowLabel: String?
+        let totalCostUSD: Double?
+        let daily: [DailyEntry]
+        let projects: [CostUsageProjectBreakdown]
+    }
+
+    private static func makeRenderFingerprint(_ inputs: RenderFingerprintInputs) -> RenderFingerprint {
+        RenderFingerprint(
+            currencyCode: inputs.currencyCode,
+            historyDays: inputs.historyDays,
+            windowLabel: inputs.windowLabel,
+            totalCostBitPattern: inputs.totalCostUSD.map(\.bitPattern),
+            daily: inputs.daily,
+            projects: Array(inputs.projects.prefix(self.maxVisibleProjectRows)).map { project in
+                let visibleSources = self.visibleProjectSources(project)
+                return VisibleProjectFingerprint(
+                    name: project.name,
+                    path: project.path,
+                    totalTokens: project.totalTokens,
+                    totalCostBitPattern: project.totalCostUSD.map(\.bitPattern),
+                    visibleSourceCount: visibleSources.count,
+                    sources: Array(visibleSources.prefix(self.maxVisibleProjectSourceRows)).map { source in
+                        VisibleSourceFingerprint(
+                            name: source.name,
+                            path: source.path,
+                            totalTokens: source.totalTokens,
+                            totalCostBitPattern: source.totalCostUSD.map(\.bitPattern))
+                    })
+            })
+    }
+
     static func _defaultSelectedDateKeyForTesting(provider: UsageProvider, daily: [DailyEntry]) -> String? {
         self.defaultSelectedDateKey(model: self.makeModel(provider: provider, daily: daily))
     }
