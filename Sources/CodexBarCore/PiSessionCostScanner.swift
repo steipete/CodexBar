@@ -262,7 +262,9 @@ enum PiSessionCostScanner {
     }
 
     private static func defaultPiSessionsRoot(options: Options) -> URL {
-        if let override = options.piSessionsRoot { return override }
+        if let override = options.piSessionsRoot {
+            return override
+        }
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".pi", isDirectory: true)
             .appendingPathComponent("agent", isDirectory: true)
@@ -572,13 +574,14 @@ enum PiSessionCostScanner {
         message: [String: Any],
         fallbackSequence: Int) -> String
     {
+        // Broader turn and task IDs can span independent requests, so prefer the narrowest stable identity.
         let keys = [
-            "turnId",
-            "turn_id",
             "requestId",
             "request_id",
             "messageId",
             "message_id",
+            "turnId",
+            "turn_id",
             "taskId",
             "task_id",
             "id",

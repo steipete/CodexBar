@@ -808,55 +808,10 @@ struct PiSessionCostScannerTests {
 extension PiSessionCostScannerTests {
     @Test
     func `pi scanner deltas cumulative ultra usage samples per lineage`() throws {
-        let env = try CostUsageTestEnvironment()
-        defer { env.cleanup() }
-
-        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
-        let model = "gpt-5.6-sol"
-
-        func assistant(step: Int) -> [String: Any] {
-            let timestamp = day.addingTimeInterval(TimeInterval(step))
-            let input = step * 1_000_000
-            let cacheRead = step * 100_000
-            let output = step * 1000
-            return [
-                "type": "message",
-                "timestamp": env.isoString(for: timestamp),
-                "message": [
-                    "role": "assistant",
-                    "provider": "openai-codex",
-                    "model": model,
-                    "turnId": "ultra-fork-turn",
-                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
-                    "usage": [
-                        "input": input,
-                        "cacheRead": cacheRead,
-                        "output": output,
-                        "totalTokens": input + cacheRead + output,
-                    ],
-                ],
-            ]
-        }
-
-        _ = try env.writePiSessionFile(
+        try self.assertLargeMonotonicPiUsage(
             relativePath: "2026-07-11T10-00-00-000Z_ultra-cumulative.jsonl",
-            contents: env.jsonl((1...6).map(assistant(step:))))
-
-        let report = PiSessionCostScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day,
-            options: PiSessionCostScanner.Options(
-                piSessionsRoot: env.piSessionsRoot,
-                cacheRoot: env.cacheRoot,
-                refreshMinIntervalSeconds: 0))
-
-        #expect(report.data.count == 1)
-        #expect(report.data.first?.inputTokens == 6_000_000)
-        #expect(report.data.first?.cacheReadTokens == 600_000)
-        #expect(report.data.first?.outputTokens == 6000)
-        #expect(report.data.first?.totalTokens == 6_606_000)
+            expected: (6_000_000, 600_000, 6000, 6_606_000),
+            messageFields: { _ in ["turnId": "ultra-fork-turn"] })
     }
 
     @Test
@@ -909,60 +864,40 @@ extension PiSessionCostScannerTests {
     }
 
     @Test
-    func `pi scanner keeps unique requests additive under shared task id`() throws {
-        let env = try CostUsageTestEnvironment()
-        defer { env.cleanup() }
-
-        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
-
-        func assistant(step: Int) -> [String: Any] {
-            let timestamp = day.addingTimeInterval(TimeInterval(step))
-            let input = step * 1_000_000
-            let cacheRead = step * 100_000
-            let output = step * 1000
-            return [
-                "type": "message",
-                "timestamp": env.isoString(for: timestamp),
-                "message": [
-                    "role": "assistant",
-                    "provider": "openai-codex",
-                    "model": "gpt-5.6-sol",
+    func `pi scanner keeps unique requests additive under shared turn and task ids`() throws {
+        try self.assertLargeMonotonicPiUsage(
+            relativePath: "2026-07-11T10-00-00-000Z_shared-task-unique-requests.jsonl",
+            expected: (21_000_000, 2_100_000, 21000, 23_121_000),
+            messageFields: { step in
+                [
+                    "turnId": "shared-pi-turn",
                     "taskId": "shared-pi-task",
                     "requestId": "request-\(step)",
-                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
-                    "usage": [
-                        "input": input,
-                        "cacheRead": cacheRead,
-                        "output": output,
-                        "totalTokens": input + cacheRead + output,
-                    ],
-                ],
-            ]
-        }
+                ]
+            })
+    }
 
-        _ = try env.writePiSessionFile(
-            relativePath: "2026-07-11T10-00-00-000Z_shared-task-unique-requests.jsonl",
-            contents: env.jsonl((1...6).map(assistant(step:))))
-
-        let report = PiSessionCostScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day,
-            options: PiSessionCostScanner.Options(
-                piSessionsRoot: env.piSessionsRoot,
-                cacheRoot: env.cacheRoot,
-                refreshMinIntervalSeconds: 0))
-
-        #expect(report.data.count == 1)
-        #expect(report.data.first?.inputTokens == 21_000_000)
-        #expect(report.data.first?.cacheReadTokens == 2_100_000)
-        #expect(report.data.first?.outputTokens == 21000)
-        #expect(report.data.first?.totalTokens == 23_121_000)
+    @Test
+    func `pi scanner keeps unique event ids additive when usage is large and monotonic`() throws {
+        try self.assertLargeMonotonicPiUsage(
+            relativePath: "2026-07-11T10-00-00-000Z_unique-events-monotonic.jsonl",
+            expected: (21_000_000, 2_100_000, 21000, 23_121_000),
+            entryFields: { step in ["id": "event-\(step)"] })
     }
 
     @Test
     func `pi scanner keeps rows without lineage raw even when large and monotonic`() throws {
+        try self.assertLargeMonotonicPiUsage(
+            relativePath: "2026-07-11T10-00-00-000Z_no-lineage-monotonic.jsonl",
+            expected: (21_000_000, 2_100_000, 21000, 23_121_000))
+    }
+
+    private func assertLargeMonotonicPiUsage(
+        relativePath: String,
+        expected: (input: Int, cacheRead: Int, output: Int, total: Int),
+        entryFields: (Int) -> [String: Any] = { _ in [:] },
+        messageFields: (Int) -> [String: Any] = { _ in [:] }) throws
+    {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -973,26 +908,30 @@ extension PiSessionCostScannerTests {
             let input = step * 1_000_000
             let cacheRead = step * 100_000
             let output = step * 1000
-            return [
-                "type": "message",
-                "timestamp": env.isoString(for: timestamp),
-                "message": [
-                    "role": "assistant",
-                    "provider": "openai-codex",
-                    "model": "gpt-5.6-sol",
-                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
-                    "usage": [
-                        "input": input,
-                        "cacheRead": cacheRead,
-                        "output": output,
-                        "totalTokens": input + cacheRead + output,
-                    ],
+            var message: [String: Any] = [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.6-sol",
+                "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": input,
+                    "cacheRead": cacheRead,
+                    "output": output,
+                    "totalTokens": input + cacheRead + output,
                 ],
             ]
+            message.merge(messageFields(step)) { _, replacement in replacement }
+            var entry: [String: Any] = [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": message,
+            ]
+            entry.merge(entryFields(step)) { _, replacement in replacement }
+            return entry
         }
 
         _ = try env.writePiSessionFile(
-            relativePath: "2026-07-11T10-00-00-000Z_no-lineage-monotonic.jsonl",
+            relativePath: relativePath,
             contents: env.jsonl((1...6).map(assistant(step:))))
 
         let report = PiSessionCostScanner.loadDailyReport(
@@ -1006,10 +945,10 @@ extension PiSessionCostScannerTests {
                 refreshMinIntervalSeconds: 0))
 
         #expect(report.data.count == 1)
-        #expect(report.data.first?.inputTokens == 21_000_000)
-        #expect(report.data.first?.cacheReadTokens == 2_100_000)
-        #expect(report.data.first?.outputTokens == 21000)
-        #expect(report.data.first?.totalTokens == 23_121_000)
+        #expect(report.data.first?.inputTokens == expected.input)
+        #expect(report.data.first?.cacheReadTokens == expected.cacheRead)
+        #expect(report.data.first?.outputTokens == expected.output)
+        #expect(report.data.first?.totalTokens == expected.total)
     }
 
     @Test
