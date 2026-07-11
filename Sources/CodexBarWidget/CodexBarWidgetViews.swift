@@ -184,13 +184,37 @@ private struct CompactMetricView: View {
             let value = self.entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
             return (value, "Credits left", nil)
         case .todayCost:
-            let value = self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd) ?? "—"
-            let detail = self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
-            return (value, "Today cost", detail)
+            let value = self.entry.provider == .cursor
+                ? self.entry.tokenUsage?.sessionCostText
+                    ?? self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd)
+                    ?? "—"
+                : self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd) ?? "—"
+            let label = self.entry.provider == .cursor
+                ? self.entry.cursorRequestRange?.label ?? "Usage"
+                : "Today cost"
+            let detail = if self.entry.provider == .cursor {
+                self.entry.cursorRequestRange.map(WidgetFormat.cursorDateRange)
+                    ?? self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
+            } else {
+                self.entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
+            }
+            return (value, label, detail)
         case .last30DaysCost:
-            let value = self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd) ?? "—"
-            let detail = self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
-            return (value, "30d cost", detail)
+            let value = self.entry.provider == .cursor
+                ? self.entry.tokenUsage?.sessionCostText
+                    ?? self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd)
+                    ?? "—"
+                : self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd) ?? "—"
+            let label = self.entry.provider == .cursor
+                ? self.entry.cursorRequestRange?.label ?? "Usage"
+                : "30d cost"
+            let detail = if self.entry.provider == .cursor {
+                self.entry.cursorRequestRange.map(WidgetFormat.cursorDateRange)
+                    ?? self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
+            } else {
+                self.entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
+            }
+            return (value, label, detail)
         }
     }
 }
@@ -308,6 +332,7 @@ private struct SwitcherSmallUsageView: View {
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
+            CursorWidgetRangeSummaryView(entry: self.entry)
         }
     }
 }
@@ -326,9 +351,11 @@ private struct SwitcherMediumUsageView: View {
             if let credits = entry.creditsRemaining {
                 ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
             }
-            if let token = entry.tokenUsage {
+            if self.entry.provider == .cursor {
+                CursorWidgetRangeSummaryView(entry: self.entry)
+            } else if let token = entry.tokenUsage {
                 ValueLine(
-                    title: self.entry.cursorRequestRange?.label ?? "Today",
+                    title: "Today",
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
             }
         }
@@ -355,7 +382,9 @@ private struct SwitcherLargeUsageView: View {
             if let credits = entry.creditsRemaining {
                 ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
             }
-            if let token = entry.tokenUsage {
+            if self.entry.provider == .cursor {
+                CursorWidgetRangeSummaryView(entry: self.entry)
+            } else if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
                         title: self.entry.cursorRequestRange?.label ?? "Today",
@@ -417,6 +446,7 @@ private struct SmallUsageView: View {
                     percentLeft: codeReview,
                     color: WidgetColors.color(for: self.entry.provider))
             }
+            CursorWidgetRangeSummaryView(entry: self.entry)
         }
         .padding(12)
     }
@@ -437,7 +467,9 @@ private struct MediumUsageView: View {
             if let credits = entry.creditsRemaining {
                 ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
             }
-            if let token = entry.tokenUsage {
+            if self.entry.provider == .cursor {
+                CursorWidgetRangeSummaryView(entry: self.entry)
+            } else if let token = entry.tokenUsage {
                 ValueLine(
                     title: "Today",
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
@@ -468,7 +500,9 @@ private struct LargeUsageView: View {
             if let credits = entry.creditsRemaining {
                 ValueLine(title: "Credits", value: WidgetFormat.credits(credits))
             }
-            if let token = entry.tokenUsage {
+            if self.entry.provider == .cursor {
+                CursorWidgetRangeSummaryView(entry: self.entry)
+            } else if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
                         title: "Today",
@@ -522,7 +556,9 @@ private struct HistoryView: View {
             HeaderView(provider: self.entry.provider, updatedAt: self.entry.updatedAt)
             UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
                 .frame(height: self.isLarge ? 90 : 60)
-            if let token = entry.tokenUsage {
+            if self.entry.provider == .cursor {
+                CursorWidgetRangeSummaryView(entry: self.entry)
+            } else if let token = entry.tokenUsage {
                 ValueLine(
                     title: "Today",
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
@@ -590,6 +626,25 @@ private struct ValueLine: View {
                 .foregroundStyle(.secondary)
             Text(self.value)
                 .font(.caption)
+        }
+    }
+}
+
+private struct CursorWidgetRangeSummaryView: View {
+    let entry: WidgetSnapshot.ProviderEntry
+
+    var body: some View {
+        if self.entry.provider == .cursor, let token = self.entry.tokenUsage {
+            VStack(alignment: .leading, spacing: 2) {
+                if let range = self.entry.cursorRequestRange {
+                    Text(WidgetFormat.cursorDateRange(range))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                ValueLine(
+                    title: self.entry.cursorRequestRange?.label ?? "Usage",
+                    value: WidgetFormat.cursorCostAndTokens(token))
+            }
         }
     }
 }
@@ -708,6 +763,14 @@ enum WidgetFormat {
         return costText
     }
 
+    static func cursorCostAndTokens(_ token: WidgetSnapshot.TokenUsageSummary) -> String {
+        let costText = token.sessionCostText ?? token.sessionCostUSD.map(self.usd) ?? "—"
+        if let tokens = token.sessionTokens {
+            return "\(costText) · \(self.tokenCount(tokens))"
+        }
+        return costText
+    }
+
     static func usd(_ value: Double) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -723,6 +786,13 @@ enum WidgetFormat {
         formatter.maximumFractionDigits = 0
         let raw = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
         return "\(raw) tokens"
+    }
+
+    static func cursorDateRange(_ range: WidgetSnapshot.CursorRequestRange) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM d"
+        return "\(formatter.string(from: range.start)) – \(formatter.string(from: range.end))"
     }
 
     static func relativeDate(_ date: Date) -> String {

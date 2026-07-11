@@ -12,10 +12,12 @@ read_when:
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
 - Cursor snapshots can carry optional range metadata and bounded request details (model, token count, raw row count,
-  optional weighted request cost, compact label, and estimate text). Existing snapshots without those fields still
-  decode normally.
+  optional weighted request cost, compact label, estimate text, and a presentation-ready exact/approximate total).
+  Existing snapshots without those optional fields still decode normally.
 - The selected Cursor `Cycle` or `30d` range is persisted by the app and controls the Cursor summary written to the
-  widget snapshot. Medium/large widgets render that summary and up to three recent Cursor rows.
+  widget snapshot. The snapshot stores the actual diagnostic date range and the full aggregate summary; the visible
+  request list is capped at 30 rows and never determines the total. All relevant widget families render the selected
+  range label/date period, and medium/large widgets render up to three recent Cursor rows.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - If no snapshot is available, widgets fall back to preview/empty data.
 

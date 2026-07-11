@@ -46,8 +46,12 @@ extension UsageStore {
 
         let selectedCursorRange = provider == .cursor ? self.settings.cursorUsageRangeKind : nil
         let cursorSummary = selectedCursorRange.flatMap { range in
-            snapshot.cursorRangeSummaries?.first { $0.rangeKind == range }
-                ?? snapshot.cursorRangeSummaries?.first
+            let summaries = snapshot.cursorRangeSummaries ?? []
+            if let selected = summaries.first(where: { $0.rangeKind == range }) {
+                return selected
+            }
+            guard summaries.count == 1 else { return nil }
+            return summaries.first
         }
         let tokenUsage = cursorSummary.map(Self.widgetCursorTokenUsageSummary(from:))
             ?? Self.widgetTokenUsageSummary(from: tokenSnapshot)
@@ -55,7 +59,10 @@ extension UsageStore {
             WidgetSnapshot.CursorRequestRange(start: $0.range.start, end: $0.range.end, label: $0.rangeKind.label)
         }
         let cursorRequestDetails = cursorSummary.map { summary in
-            summary.recentRequests.map { request in
+            summary.recentRequests
+                .sorted { $0.timestamp > $1.timestamp }
+                .prefix(30)
+                .map { request in
                 let normalized = CursorModelNormalizer.normalize(request.model)
                 return WidgetSnapshot.CursorRequestDetail(
                     timestamp: request.timestamp,
@@ -120,7 +127,8 @@ extension UsageStore {
             sessionCostUSD: exactCost,
             sessionTokens: summary.tokens,
             last30DaysCostUSD: exactCost,
-            last30DaysTokens: summary.tokens)
+            last30DaysTokens: summary.tokens,
+            sessionCostText: UsageFormatter.cursorEstimatedTotalText(summary.requestCostSummary))
     }
 
     private func widgetUsageRows(

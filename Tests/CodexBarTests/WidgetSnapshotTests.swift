@@ -46,7 +46,8 @@ struct WidgetSnapshotTests {
                 sessionCostUSD: nil,
                 sessionTokens: 1000,
                 last30DaysCostUSD: nil,
-                last30DaysTokens: 1000),
+                last30DaysTokens: 1000,
+                sessionCostText: "Approx. $4.10+"),
             cursorRequestRange: WidgetSnapshot.CursorRequestRange(
                 start: timestamp.addingTimeInterval(-3600),
                 end: timestamp,
@@ -74,6 +75,7 @@ struct WidgetSnapshotTests {
         #expect(decodedEntry.cursorRequestRange?.label == "Cycle")
         #expect(decodedEntry.cursorRequestDetails?.first?.requestCost == 2)
         #expect(decodedEntry.cursorRequestDetails?.first?.compactModel == "GPT-5.5 · extra-high")
+        #expect(decodedEntry.tokenUsage?.sessionCostText == "Approx. $4.10+")
     }
 
     @Test

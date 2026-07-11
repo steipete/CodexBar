@@ -48,7 +48,7 @@ struct CursorWidgetSnapshotTests {
         await store.widgetSnapshotPersistTask?.value
         let entry = try #require(captured?.entries.first { $0.provider == .cursor })
 
-        #expect(Self.encodedSnapshot(captured).contains("\"sessionCostText\":\"Approx. $4.10+\""))
+        #expect(entry.tokenUsage?.sessionCostText == "Approx. $4.10+")
         #expect(entry.cursorRequestRange?.label == "Cycle")
         #expect(entry.cursorRequestRange?.start == range.start)
         #expect(entry.cursorRequestRange?.end == range.end)
@@ -100,6 +100,54 @@ struct CursorWidgetSnapshotTests {
         #expect(entry.cursorRequestDetails?.first?.estimateText?.hasPrefix("Approx.") == true)
     }
 
+    @Test
+    func `cursor widget aggregate is independent from capped visible rows`() async throws {
+        let now = Date(timeIntervalSince1970: 1_773_000_000)
+        let requests = (0..<31).map { index in
+            CursorRecentRequest(
+                timestamp: now.addingTimeInterval(Double(-index * 60)),
+                model: "gpt-5.5",
+                tokens: 1000,
+                requests: 1,
+                requestCost: 1)
+        }
+        let summary = CursorRangeUsageSummary(
+            rangeKind: .billingCycle,
+            range: CursorRecentRequestRange(start: now.addingTimeInterval(-3600), end: now),
+            tokens: 31_000,
+            requests: 31,
+            weightedRequestCost: 31,
+            requestCostSummary: CursorRequestCostSummary(
+                exactUSD: nil,
+                lowerBoundUSD: Decimal(string: "4.10"),
+                upperBoundUSD: nil,
+                containsApproximation: true),
+            recentRequests: requests)
+        let settings = Self.makeSettingsStore(suite: "CursorWidgetSnapshotTests-capped")
+        settings.cursorUsageRangeKind = .billingCycle
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                cursorRangeSummaries: [summary],
+                updatedAt: now),
+            provider: .cursor)
+
+        var captured: WidgetSnapshot?
+        store._test_widgetSnapshotSaveOverride = { captured = $0 }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "cursor-range")
+        await store.widgetSnapshotPersistTask?.value
+        let entry = try #require(captured?.entries.first { $0.provider == .cursor })
+
+        #expect(entry.cursorRequestDetails?.count == 30)
+        #expect(entry.tokenUsage?.sessionCostText == "Approx. $4.10+")
+        #expect(entry.tokenUsage?.sessionCostUSD == nil)
+        #expect(entry.tokenUsage?.sessionTokens == 31_000)
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -118,10 +166,4 @@ struct CursorWidgetSnapshotTests {
             startupBehavior: .testing)
     }
 
-    private static func encodedSnapshot(_ snapshot: WidgetSnapshot?) -> String {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = (try? encoder.encode(snapshot)) ?? Data()
-        return String(decoding: data, as: UTF8.self)
-    }
 }

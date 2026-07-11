@@ -61,17 +61,20 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let sessionTokens: Int?
         public let last30DaysCostUSD: Double?
         public let last30DaysTokens: Int?
+        public let sessionCostText: String?
 
         public init(
             sessionCostUSD: Double?,
             sessionTokens: Int?,
             last30DaysCostUSD: Double?,
-            last30DaysTokens: Int?)
+            last30DaysTokens: Int?,
+            sessionCostText: String? = nil)
         {
             self.sessionCostUSD = sessionCostUSD
             self.sessionTokens = sessionTokens
             self.last30DaysCostUSD = last30DaysCostUSD
             self.last30DaysTokens = last30DaysTokens
+            self.sessionCostText = sessionCostText
         }
     }
 
