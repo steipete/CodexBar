@@ -69,10 +69,10 @@ enum SessionQuotaNotificationLogic {
         evaluationTime: Date) -> Bool
     {
         guard let previousResetBoundary else { return true }
-        guard let currentResetBoundary else {
-            // OAuth can fall back to CLI/RPC samples that omit `resetsAt` even after the
-            // previously known boundary has elapsed.
-            return evaluationTime >= previousResetBoundary
+        // Positive usage after the known boundary is reset evidence even when a fallback
+        // omits `resetsAt` or repeats the now-stale boundary.
+        if evaluationTime >= previousResetBoundary {
+            return true
         }
         return UsageStore.limitResetBoundaryAdvanced(
             previous: previousResetBoundary,
@@ -204,13 +204,14 @@ extension UsageStore {
         provider: UsageProvider,
         remaining: Double,
         source: SessionQuotaWindowSource,
-        resetBoundary: Date?)
+        resetBoundary: Date?,
+        preserveResetBoundaryWhenMissing: Bool = false)
     {
         self.lastKnownSessionRemaining[provider] = remaining
         self.lastKnownSessionWindowSource[provider] = source
         if let resetBoundary {
             self.lastKnownSessionResetBoundary[provider] = resetBoundary
-        } else {
+        } else if !preserveResetBoundaryWhenMissing {
             self.lastKnownSessionResetBoundary.removeValue(forKey: provider)
         }
     }

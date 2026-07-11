@@ -889,7 +889,8 @@ final class UsageStore {
                     provider: provider,
                     remaining: currentRemaining,
                     source: currentSource,
-                    resetBoundary: currentResetBoundary)
+                    resetBoundary: currentResetBoundary,
+                    preserveResetBoundaryWhenMissing: SessionQuotaNotificationLogic.isDepleted(currentRemaining))
             }
         }
 

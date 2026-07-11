@@ -66,6 +66,9 @@ struct CodexSessionQuotaFalseRestoreTests {
             snapshot: self.snapshot(used: 100, resetBoundary: boundary, secondsAfterStart: 60))
         store.handleSessionQuotaTransition(
             provider: .codex,
+            snapshot: self.snapshot(used: 100, resetBoundary: nil, updatedAt: boundary.addingTimeInterval(-120)))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
             snapshot: self.snapshot(used: 20, resetBoundary: nil, updatedAt: boundary.addingTimeInterval(-60)))
         #expect(notifier.transitions == [.depleted])
 
@@ -75,6 +78,25 @@ struct CodexSessionQuotaFalseRestoreTests {
         store.handleSessionQuotaTransition(
             provider: .codex,
             snapshot: self.snapshot(used: 30, resetBoundary: nil, updatedAt: boundary.addingTimeInterval(120)))
+
+        #expect(notifier.transitions == [.depleted, .restored])
+    }
+
+    @Test
+    func `unchanged stale reset boundary restores after known boundary passes`() {
+        let boundary = self.start.addingTimeInterval(5 * 3600)
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeStore(notifier: notifier)
+
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 20, resetBoundary: boundary, secondsAfterStart: 0))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 100, resetBoundary: boundary, secondsAfterStart: 60))
+        store.handleSessionQuotaTransition(
+            provider: .codex,
+            snapshot: self.snapshot(used: 20, resetBoundary: boundary, updatedAt: boundary.addingTimeInterval(60)))
 
         #expect(notifier.transitions == [.depleted, .restored])
     }

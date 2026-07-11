@@ -38,12 +38,23 @@ struct SessionQuotaNotificationLogicTests {
     @Test
     func `suppresses restored transition when session reset boundary is unchanged`() {
         let boundary = Date(timeIntervalSince1970: 1_700_000_000)
-        let evaluationTime = boundary.addingTimeInterval(60)
+        let evaluationTime = boundary.addingTimeInterval(-60)
         #expect(
             SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
                 previousResetBoundary: boundary,
                 currentResetBoundary: boundary,
                 evaluationTime: evaluationTime) == false)
+    }
+
+    @Test
+    func `allows restored transition when unchanged session reset boundary has elapsed`() {
+        let boundary = Date(timeIntervalSince1970: 1_700_000_000)
+        let evaluationTime = boundary.addingTimeInterval(60)
+        #expect(
+            SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
+                previousResetBoundary: boundary,
+                currentResetBoundary: boundary,
+                evaluationTime: evaluationTime) == true)
     }
 
     @Test
