@@ -71,7 +71,7 @@ struct MenuSessionCoordinatorTests {
         #expect(coordinator.renderedVersion(for: menu) == nil)
         #expect(!coordinator.isDeferredUntilNextOpen(menu))
         #expect(!coordinator.isParentRebuildDeferred(menu))
-        #expect(coordinator.menuInteractionToken(for: menu) == nil)
+        #expect(coordinator.menuInteractionGeneration(for: menu) == nil)
         #expect(coordinator.pendingViewportRestores.isEmpty)
     }
 
@@ -108,10 +108,10 @@ struct MenuSessionCoordinatorTests {
         let current = coordinator.armViewportRestore("menu")
 
         #expect(!coordinator.isCurrentViewportRestore(stale, for: "menu"))
-        let staleConsumed = coordinator.consumeViewportRestore("menu", token: stale)
+        let staleConsumed = coordinator.consumeViewportRestore("menu", generation: stale)
         #expect(!staleConsumed)
         #expect(coordinator.isCurrentViewportRestore(current, for: "menu"))
-        let currentConsumed = coordinator.consumeViewportRestore("menu", token: current)
+        let currentConsumed = coordinator.consumeViewportRestore("menu", generation: current)
         #expect(currentConsumed)
         #expect(coordinator.pendingViewportRestores.isEmpty)
     }

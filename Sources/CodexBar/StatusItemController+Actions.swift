@@ -135,7 +135,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.startManualRefresh(
             for: nil,
             originatingMenuID: nil,
-            originatingMenuInteractionToken: nil)
+            originatingMenuInteractionGeneration: nil)
     }
 
     @objc func refreshMenuItem(_ sender: NSMenuItem) {
@@ -144,18 +144,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func refreshMenuProviderNow(in menu: NSMenu?) {
         let originatingMenuID = menu.map(ObjectIdentifier.init)
-        let originatingMenuInteractionToken = originatingMenuID.flatMap {
-            self.menuSession.menuInteractionToken(for: $0)
+        let originatingMenuInteractionGeneration = originatingMenuID.flatMap {
+            self.menuSession.menuInteractionGeneration(for: $0)
         }
         self.startManualRefresh(
             for: self.manualRefreshProvider(for: menu),
             originatingMenuID: originatingMenuID,
-            originatingMenuInteractionToken: originatingMenuInteractionToken)
+            originatingMenuInteractionGeneration: originatingMenuInteractionGeneration)
     }
 
     private func refreshMenuProviderNow(
         menuID: ObjectIdentifier,
-        originatingMenuInteractionToken: Int)
+        originatingMenuInteractionGeneration: Int)
     {
         let menu = self.openMenus[menuID] ?? self.mergedMenu.flatMap {
             ObjectIdentifier($0) == menuID ? $0 : nil
@@ -164,13 +164,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.startManualRefresh(
             for: provider,
             originatingMenuID: menuID,
-            originatingMenuInteractionToken: originatingMenuInteractionToken)
+            originatingMenuInteractionGeneration: originatingMenuInteractionGeneration)
     }
 
     private func startManualRefresh(
         for provider: UsageProvider?,
         originatingMenuID: ObjectIdentifier?,
-        originatingMenuInteractionToken: Int?)
+        originatingMenuInteractionGeneration: Int?)
     {
         let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
@@ -191,7 +191,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         let frozenModels = self.frozenManualRefreshMenuCardModels()
         let viewportRestoreRequests = self.armManualRefreshViewportRestoreRequests(
             originatingMenuID: originatingMenuID,
-            originatingMenuInteractionToken: originatingMenuInteractionToken)
+            originatingMenuInteractionGeneration: originatingMenuInteractionGeneration)
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             var completed = false
@@ -266,21 +266,21 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     func performPersistentRefreshAction(in menuID: ObjectIdentifier) {
-        guard let menuInteractionToken = self.menuSession.menuInteractionToken(for: menuID) else { return }
+        guard let menuInteractionGeneration = self.menuSession.menuInteractionGeneration(for: menuID) else { return }
         self.performPersistentRefreshAction(
             in: menuID,
-            menuInteractionToken: menuInteractionToken)
+            menuInteractionGeneration: menuInteractionGeneration)
     }
 
     nonisolated func performPersistentRefreshAction(
         in menuID: ObjectIdentifier,
-        menuInteractionToken: Int)
+        menuInteractionGeneration: Int)
     {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.refreshMenuProviderNow(
                 menuID: menuID,
-                originatingMenuInteractionToken: menuInteractionToken)
+                originatingMenuInteractionGeneration: menuInteractionGeneration)
         }
     }
 

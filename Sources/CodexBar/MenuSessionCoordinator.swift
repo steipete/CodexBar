@@ -12,9 +12,9 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
     private(set) var renderedVersions: [MenuID: Int] = [:]
     private(set) var deferredUntilNextOpen: Set<MenuID> = []
     private(set) var parentRebuildsDeferredDuringTracking: Set<MenuID> = []
-    private var nextMenuInteractionToken = 0
-    private(set) var menuInteractionTokens: [MenuID: Int] = [:]
-    private var nextViewportRestoreToken = 0
+    private var nextMenuInteractionGeneration = 0
+    private(set) var menuInteractionGenerations: [MenuID: Int] = [:]
+    private var nextViewportRestoreGeneration = 0
     private(set) var pendingViewportRestores: [MenuID: Int] = [:]
 
     @discardableResult
@@ -99,48 +99,48 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
     /// Identifies one concrete open/close lifetime even when AppKit reuses the same menu object.
     @discardableResult
     mutating func beginTrackingSession(_ menuID: MenuID) -> Int {
-        self.replaceMenuInteractionToken(for: menuID)
+        self.replaceMenuInteractionGeneration(for: menuID)
     }
 
-    func menuInteractionToken(for menuID: MenuID) -> Int? {
-        self.menuInteractionTokens[menuID]
+    func menuInteractionGeneration(for menuID: MenuID) -> Int? {
+        self.menuInteractionGenerations[menuID]
     }
 
-    func isCurrentMenuInteraction(_ token: Int, for menuID: MenuID) -> Bool {
-        self.menuInteractionTokens[menuID] == token
+    func isCurrentMenuInteraction(_ generation: Int, for menuID: MenuID) -> Bool {
+        self.menuInteractionGenerations[menuID] == generation
     }
 
     @discardableResult
     mutating func advanceMenuInteraction(for menuID: MenuID) -> Int? {
-        guard self.menuInteractionTokens[menuID] != nil else { return nil }
-        return self.replaceMenuInteractionToken(for: menuID)
+        guard self.menuInteractionGenerations[menuID] != nil else { return nil }
+        return self.replaceMenuInteractionGeneration(for: menuID)
     }
 
-    private mutating func replaceMenuInteractionToken(for menuID: MenuID) -> Int {
-        self.nextMenuInteractionToken &+= 1
-        self.menuInteractionTokens[menuID] = self.nextMenuInteractionToken
-        return self.nextMenuInteractionToken
+    private mutating func replaceMenuInteractionGeneration(for menuID: MenuID) -> Int {
+        self.nextMenuInteractionGeneration &+= 1
+        self.menuInteractionGenerations[menuID] = self.nextMenuInteractionGeneration
+        return self.nextMenuInteractionGeneration
     }
 
     mutating func endTrackingSession(_ menuID: MenuID) {
-        self.menuInteractionTokens.removeValue(forKey: menuID)
+        self.menuInteractionGenerations.removeValue(forKey: menuID)
     }
 
     /// One-shot viewport restore tied to the menu-tracking session that started a manual refresh.
     @discardableResult
     mutating func armViewportRestore(_ menuID: MenuID) -> Int {
-        self.nextViewportRestoreToken &+= 1
-        self.pendingViewportRestores[menuID] = self.nextViewportRestoreToken
-        return self.nextViewportRestoreToken
+        self.nextViewportRestoreGeneration &+= 1
+        self.pendingViewportRestores[menuID] = self.nextViewportRestoreGeneration
+        return self.nextViewportRestoreGeneration
     }
 
-    func isCurrentViewportRestore(_ token: Int, for menuID: MenuID) -> Bool {
-        self.pendingViewportRestores[menuID] == token
+    func isCurrentViewportRestore(_ generation: Int, for menuID: MenuID) -> Bool {
+        self.pendingViewportRestores[menuID] == generation
     }
 
     @discardableResult
-    mutating func consumeViewportRestore(_ menuID: MenuID, token: Int) -> Bool {
-        guard self.isCurrentViewportRestore(token, for: menuID) else { return false }
+    mutating func consumeViewportRestore(_ menuID: MenuID, generation: Int) -> Bool {
+        guard self.isCurrentViewportRestore(generation, for: menuID) else { return false }
         self.pendingViewportRestores.removeValue(forKey: menuID)
         return true
     }
@@ -161,7 +161,7 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
         self.renderedVersions.removeAll(keepingCapacity: false)
         self.deferredUntilNextOpen.removeAll(keepingCapacity: false)
         self.parentRebuildsDeferredDuringTracking.removeAll(keepingCapacity: false)
-        self.menuInteractionTokens.removeAll(keepingCapacity: false)
+        self.menuInteractionGenerations.removeAll(keepingCapacity: false)
         self.pendingViewportRestores.removeAll(keepingCapacity: false)
     }
 

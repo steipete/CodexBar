@@ -595,7 +595,7 @@ struct StatusMenuViewportRestoreTests {
         let menu = try #require(controller.makeMenu(for: .codex) as? StatusItemMenu)
         controller.providerMenus[.codex] = menu
         controller.menuWillOpen(menu)
-        let closedSession = try #require(menu.menuInteractionToken)
+        let closedSession = try #require(menu.menuInteractionGeneration)
 
         let gate = ViewportRefreshGate()
         var scheduledCount = 0
@@ -611,7 +611,7 @@ struct StatusMenuViewportRestoreTests {
         controller.menuDidClose(menu)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
-        let reopenedSession = try #require(menu.menuInteractionToken)
+        let reopenedSession = try #require(menu.menuInteractionGeneration)
         #expect(reopenedSession != closedSession)
 
         for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
@@ -698,14 +698,14 @@ extension StatusMenuViewportRestoreTests {
             await Task.yield()
         }
         let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
-        let refreshInteraction = try #require(controller.menuSession.menuInteractionToken(for: rootID))
+        let refreshInteraction = try #require(controller.menuSession.menuInteractionGeneration(for: rootID))
 
         let submenu = NSMenu()
         let submenuItem = NSMenuItem(title: "Submenu", action: nil, keyEquivalent: "")
         submenuItem.submenu = submenu
         rootMenu.addItem(submenuItem)
         controller.menuWillOpen(submenu)
-        #expect(controller.menuSession.menuInteractionToken(for: rootID) != refreshInteraction)
+        #expect(controller.menuSession.menuInteractionGeneration(for: rootID) != refreshInteraction)
         controller.menuDidClose(submenu)
 
         gate.resume()
@@ -831,11 +831,12 @@ extension StatusMenuViewportRestoreTests {
         await task.value
         #expect(scheduled.count == 1)
 
-        let initialGeneration = try #require(controller.menuSession.menuInteractionToken(for: ObjectIdentifier(menu)))
+        let initialGeneration = try #require(controller.menuSession
+            .menuInteractionGeneration(for: ObjectIdentifier(menu)))
         controller.selectOverviewProvider(.codex, menu: menu)
         controller.selectOverviewProvider(.claude, menu: menu)
         #expect(settings.selectedMenuProvider == .claude)
-        #expect(controller.menuSession.menuInteractionToken(for: ObjectIdentifier(menu)) == initialGeneration + 2)
+        #expect(controller.menuSession.menuInteractionGeneration(for: ObjectIdentifier(menu)) == initialGeneration + 2)
 
         scheduled.removeFirst()()
 
@@ -871,10 +872,11 @@ extension StatusMenuViewportRestoreTests {
         }
 
         menu.requestPersistentRefreshAction()
-        let actionGeneration = try #require(controller.menuSession.menuInteractionToken(for: ObjectIdentifier(menu)))
+        let actionGeneration = try #require(controller.menuSession
+            .menuInteractionGeneration(for: ObjectIdentifier(menu)))
         controller.selectOverviewProvider(.codex, menu: menu)
         controller.selectOverviewProvider(.claude, menu: menu)
-        #expect(controller.menuSession.menuInteractionToken(for: ObjectIdentifier(menu)) == actionGeneration + 2)
+        #expect(controller.menuSession.menuInteractionGeneration(for: ObjectIdentifier(menu)) == actionGeneration + 2)
 
         for _ in 0..<20 where controller.manualRefreshTasks[.provider(.claude)] == nil {
             await Task.yield()
@@ -922,14 +924,15 @@ extension StatusMenuViewportRestoreTests {
             await Task.yield()
         }
         let task = try #require(controller.manualRefreshTasks[.provider(.copilot)])
-        let initialToken = try #require(controller.menuSession.menuInteractionToken(for: ObjectIdentifier(menu)))
+        let initialGeneration = try #require(controller.menuSession
+            .menuInteractionGeneration(for: ObjectIdentifier(menu)))
 
         let secondaryRefresh = try #require(switcher._test_select(index: 1))
         secondaryRefresh.cancel()
         let primaryRefresh = try #require(switcher._test_select(index: 0))
         primaryRefresh.cancel()
         #expect(settings.tokenAccountsData(for: .copilot)?.clampedActiveIndex() == 0)
-        #expect(controller.menuSession.menuInteractionToken(for: ObjectIdentifier(menu)) == initialToken + 2)
+        #expect(controller.menuSession.menuInteractionGeneration(for: ObjectIdentifier(menu)) == initialGeneration + 2)
 
         gate.resume()
         await task.value

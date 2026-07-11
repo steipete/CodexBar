@@ -8,7 +8,7 @@ enum StatusItemMenuProviderNavigationDirection {
 protocol StatusItemMenuPersistentActionDelegate: AnyObject {
     func performPersistentRefreshAction(
         in menuID: ObjectIdentifier,
-        menuInteractionToken: Int)
+        menuInteractionGeneration: Int)
     func performPersistentSettingsAction()
     func performPersistentQuitAction()
     func performProviderNavigation(_ direction: StatusItemMenuProviderNavigationDirection)
@@ -16,13 +16,13 @@ protocol StatusItemMenuPersistentActionDelegate: AnyObject {
 
 final class StatusItemMenu: NSMenu {
     weak var persistentActionDelegate: StatusItemMenuPersistentActionDelegate?
-    var menuInteractionToken: Int?
+    var menuInteractionGeneration: Int?
 
     func requestPersistentRefreshAction() {
-        guard let menuInteractionToken else { return }
+        guard let menuInteractionGeneration else { return }
         self.persistentActionDelegate?.performPersistentRefreshAction(
             in: ObjectIdentifier(self),
-            menuInteractionToken: menuInteractionToken)
+            menuInteractionGeneration: menuInteractionGeneration)
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {

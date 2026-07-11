@@ -1,8 +1,8 @@
 import AppKit
 
 struct ManualRefreshViewportRestoreRequest {
-    let token: Int
-    let menuInteractionToken: Int
+    let generation: Int
+    let menuInteractionGeneration: Int
     let switcherSelection: ProviderSwitcherSelection?
 }
 
@@ -24,7 +24,7 @@ extension StatusItemController {
     /// session. Background refreshes never enter this path and therefore never move the viewport.
     func armManualRefreshViewportRestoreRequests(
         originatingMenuID: ObjectIdentifier?,
-        originatingMenuInteractionToken: Int?)
+        originatingMenuInteractionGeneration: Int?)
         -> [ObjectIdentifier: ManualRefreshViewportRestoreRequest]
     {
         let candidates: [(ObjectIdentifier, NSMenu)]
@@ -37,17 +37,17 @@ extension StatusItemController {
 
         var requests: [ObjectIdentifier: ManualRefreshViewportRestoreRequest] = [:]
         for (key, menu) in candidates where menu.supermenu == nil && !self.isHostedSubviewMenu(menu) {
-            guard let menuInteractionToken = self.menuSession.menuInteractionToken(for: key) else { continue }
+            guard let menuInteractionGeneration = self.menuSession.menuInteractionGeneration(for: key) else { continue }
             if key == originatingMenuID,
-               let originatingMenuInteractionToken,
-               menuInteractionToken != originatingMenuInteractionToken
+               let originatingMenuInteractionGeneration,
+               menuInteractionGeneration != originatingMenuInteractionGeneration
             {
                 continue
             }
             self.manualRefreshViewportRestoreState.deferredUntilRebuild.removeValue(forKey: key)
             requests[key] = ManualRefreshViewportRestoreRequest(
-                token: self.menuSession.armViewportRestore(key),
-                menuInteractionToken: menuInteractionToken,
+                generation: self.menuSession.armViewportRestore(key),
+                menuInteractionGeneration: menuInteractionGeneration,
                 switcherSelection: self.viewportRestoreSwitcherSelection(for: menu))
         }
         return requests
@@ -155,7 +155,7 @@ extension StatusItemController {
                 self.cancelManualRefreshViewportRestoreRequest(request, for: key)
                 return
             }
-            guard self.menuSession.consumeViewportRestore(key, token: request.token) else { return }
+            guard self.menuSession.consumeViewportRestore(key, generation: request.generation) else { return }
             self.restoreMenuViewportToTop(menu)
         }
         #if DEBUG
@@ -178,10 +178,10 @@ extension StatusItemController {
         _ request: ManualRefreshViewportRestoreRequest,
         for key: ObjectIdentifier)
     {
-        if self.manualRefreshViewportRestoreState.deferredUntilRebuild[key]?.token == request.token {
+        if self.manualRefreshViewportRestoreState.deferredUntilRebuild[key]?.generation == request.generation {
             self.manualRefreshViewportRestoreState.deferredUntilRebuild.removeValue(forKey: key)
         }
-        self.menuSession.consumeViewportRestore(key, token: request.token)
+        self.menuSession.consumeViewportRestore(key, generation: request.generation)
     }
 
     func cancelManualRefreshViewportRestoreRequests(
@@ -205,17 +205,17 @@ extension StatusItemController {
         for key: ObjectIdentifier)
         -> Bool
     {
-        self.menuSession.isCurrentViewportRestore(request.token, for: key) &&
-            self.menuSession.isCurrentMenuInteraction(request.menuInteractionToken, for: key)
+        self.menuSession.isCurrentViewportRestore(request.generation, for: key) &&
+            self.menuSession.isCurrentMenuInteraction(request.menuInteractionGeneration, for: key)
     }
 
     func advanceMenuContentSelection(for menu: NSMenu?) {
         guard let menu else { return }
         let key = ObjectIdentifier(menu)
         guard self.openMenus[key] === menu,
-              let token = self.menuSession.advanceMenuInteraction(for: key)
+              let generation = self.menuSession.advanceMenuInteraction(for: key)
         else { return }
-        (menu as? StatusItemMenu)?.menuInteractionToken = token
+        (menu as? StatusItemMenu)?.menuInteractionGeneration = generation
     }
 
     func restoreMenuViewportToTop(_ menu: NSMenu) {

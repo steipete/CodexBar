@@ -7,18 +7,18 @@ import Testing
 private final class RefreshShortcutRecorder: StatusItemMenuPersistentActionDelegate {
     var refreshCount = 0
     var refreshMenuIDs: [ObjectIdentifier] = []
-    var refreshMenuInteractionTokens: [Int] = []
+    var refreshMenuInteractionGenerations: [Int] = []
     var settingsCount = 0
     var quitCount = 0
     var navigationDirections: [StatusItemMenuProviderNavigationDirection] = []
 
     func performPersistentRefreshAction(
         in menuID: ObjectIdentifier,
-        menuInteractionToken: Int)
+        menuInteractionGeneration: Int)
     {
         self.refreshCount += 1
         self.refreshMenuIDs.append(menuID)
-        self.refreshMenuInteractionTokens.append(menuInteractionToken)
+        self.refreshMenuInteractionGenerations.append(menuInteractionGeneration)
     }
 
     func performPersistentSettingsAction() {
@@ -1029,7 +1029,7 @@ extension StatusMenuPersistentRefreshTests {
         let menu = StatusItemMenu()
         let recorder = RefreshShortcutRecorder()
         menu.persistentActionDelegate = recorder
-        menu.menuInteractionToken = 42
+        menu.menuInteractionGeneration = 42
 
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)) == true)
         #expect(try menu.performKeyEquivalent(with: self.keyEvent(",", keyCode: 43)) == true)
@@ -1037,7 +1037,7 @@ extension StatusMenuPersistentRefreshTests {
 
         #expect(recorder.refreshCount == 1)
         #expect(recorder.refreshMenuIDs == [ObjectIdentifier(menu)])
-        #expect(recorder.refreshMenuInteractionTokens == [42])
+        #expect(recorder.refreshMenuInteractionGenerations == [42])
         #expect(recorder.settingsCount == 1)
         #expect(recorder.quitCount == 1)
     }

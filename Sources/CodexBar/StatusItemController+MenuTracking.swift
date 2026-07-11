@@ -7,12 +7,12 @@ extension StatusItemController {
             self.advanceMenuContentSelection(for: self.rootMenu(for: menu))
         }
         let menuID = ObjectIdentifier(menu)
-        let token = self.menuSession.beginTrackingSession(menuID)
-        (menu as? StatusItemMenu)?.menuInteractionToken = token
+        let generation = self.menuSession.beginTrackingSession(menuID)
+        (menu as? StatusItemMenu)?.menuInteractionGeneration = generation
     }
 
     func endMenuTrackingSession(for menu: NSMenu) {
-        (menu as? StatusItemMenu)?.menuInteractionToken = nil
+        (menu as? StatusItemMenu)?.menuInteractionGeneration = nil
         self.menuSession.endTrackingSession(ObjectIdentifier(menu))
     }
 
