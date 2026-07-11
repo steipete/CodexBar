@@ -59,6 +59,45 @@ struct TerminalForegroundCoordinatorTests {
         #expect(didCapture == false)
         #expect(didRestore == false)
     }
+
+    @Test(arguments: [
+        (original: pid_t(100), expected: pid_t(101), current: pid_t(101), alive: true, result: true),
+        (original: pid_t(100), expected: pid_t(101), current: pid_t(102), alive: true, result: false),
+        (original: pid_t(100), expected: pid_t(101), current: pid_t(102), alive: false, result: true),
+        (original: pid_t(100), expected: pid_t(101), current: pid_t(100), alive: true, result: false),
+    ])
+    func `restoration replaces the probe or a dead descendant but not a newer live job`(
+        original: pid_t,
+        expected: pid_t,
+        current: pid_t,
+        alive: Bool,
+        result: Bool)
+    {
+        #expect(TerminalForegroundCoordinator.shouldRestore(
+            original: original,
+            expectedCurrent: expected,
+            current: current,
+            currentIsAlive: alive) == result)
+    }
+
+    @Test
+    func `restoration requires complete process group state`() {
+        #expect(TerminalForegroundCoordinator.shouldRestore(
+            original: nil,
+            expectedCurrent: 101,
+            current: 101,
+            currentIsAlive: false) == false)
+        #expect(TerminalForegroundCoordinator.shouldRestore(
+            original: 100,
+            expectedCurrent: nil,
+            current: 101,
+            currentIsAlive: false) == false)
+        #expect(TerminalForegroundCoordinator.shouldRestore(
+            original: 100,
+            expectedCurrent: 101,
+            current: nil,
+            currentIsAlive: false) == false)
+    }
 }
 
 private final class TerminalForegroundTestState: @unchecked Sendable {
