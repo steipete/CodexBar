@@ -897,8 +897,8 @@ extension StatusMenuViewportRestoreTests {
         settings.multiAccountMenuLayout = .segmented
         settings.statusChecksEnabled = false
         self.enableOnly([.copilot], settings: settings)
-        settings.addTokenAccount(provider: .copilot, label: "Primary", token: "test-primary")
-        settings.addTokenAccount(provider: .copilot, label: "Secondary", token: "test-secondary")
+        settings.addTokenAccount(provider: .copilot, label: "Primary", token: "a")
+        settings.addTokenAccount(provider: .copilot, label: "Secondary", token: "b")
         settings.setActiveTokenAccountIndex(0, for: .copilot)
 
         let controller = self.makeController(settings: settings)
