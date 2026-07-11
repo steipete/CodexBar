@@ -1714,8 +1714,8 @@ enum CostUsageScanner {
             guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
             else { return }
 
-            let model = Self.codexModelEvidence(record.model)
-                ?? Self.codexModelEvidence(currentModel)
+            let model = Self.codexModelEvidence(currentModel)
+                ?? Self.codexModelEvidence(record.model)
                 ?? Self.codexUnknownModel
             let total = record.total
             let last = record.last
@@ -2043,8 +2043,8 @@ enum CostUsageScanner {
                             ?? Self.codexModelEvidence(info?["model_name"] as? String)
                             ?? Self.codexModelEvidence(payload["model"] as? String)
                             ?? Self.codexModelEvidence(obj["model"] as? String)
-                        let model = modelFromInfo
-                            ?? Self.codexModelEvidence(currentModel)
+                        let model = Self.codexModelEvidence(currentModel)
+                            ?? modelFromInfo
                             ?? Self.codexUnknownModel
 
                         func toInt(_ v: Any?) -> Int {
