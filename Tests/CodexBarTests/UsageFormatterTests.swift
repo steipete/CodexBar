@@ -300,6 +300,7 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.modelDisplayName("Claude Opus 4.5 2025 1101") == "Claude Opus 4.5")
         #expect(UsageFormatter.modelDisplayName("claude-sonnet-4-5") == "claude-sonnet-4-5")
         #expect(UsageFormatter.modelDisplayName("gpt-5.3-codex-spark") == "gpt-5.3-codex-spark")
+        #expect(UsageFormatter.modelDisplayName("unknown") == "Unknown model")
     }
 
     @Test

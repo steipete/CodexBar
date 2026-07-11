@@ -8,6 +8,8 @@ import Foundation
 
 // swiftlint:disable type_body_length file_length
 enum CostUsageScanner {
+    static let codexUnknownModel = "unknown"
+
     static let codexProjectMetadataVersion = 1
     typealias CancellationCheck = () throws -> Void
 
@@ -1707,7 +1709,7 @@ enum CostUsageScanner {
             guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
             else { return }
 
-            let model = currentModel ?? record.model ?? "gpt-5"
+            let model = record.model ?? currentModel ?? Self.codexUnknownModel
             let total = record.total
             let last = record.last
 
@@ -2034,7 +2036,7 @@ enum CostUsageScanner {
                             ?? info?["model_name"] as? String
                             ?? payload["model"] as? String
                             ?? obj["model"] as? String
-                        let model = currentModel ?? modelFromInfo ?? "gpt-5"
+                        let model = modelFromInfo ?? currentModel ?? Self.codexUnknownModel
 
                         func toInt(_ v: Any?) -> Int {
                             if let n = v as? NSNumber { return n.intValue }
