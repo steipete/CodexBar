@@ -116,6 +116,40 @@ public enum UsageFormatter {
         value.formatted(.currency(code: currencyCode).locale(Locale(identifier: "en_US")))
     }
 
+    public static func cursorCompactModelLabel(_ model: CursorNormalizedModel) -> String {
+        guard let effort = model.effort, !effort.isEmpty else { return model.displayName }
+        return "\(model.displayName) · \(effort)"
+    }
+
+    public static func cursorEstimateText(_ estimate: CursorRequestCostEstimate) -> String? {
+        switch estimate.confidence {
+        case .exactBreakdown:
+            return estimate.usd.map { "Est. \(self.usdString(NSDecimalNumber(decimal: $0).doubleValue))" }
+        case .approximateTotalOnly:
+            guard let lower = estimate.lowerBoundUSD, let upper = estimate.upperBoundUSD else { return nil }
+            let lowerText = self.usdString(NSDecimalNumber(decimal: lower).doubleValue)
+            let upperText = self.usdString(NSDecimalNumber(decimal: upper).doubleValue)
+            return "Approx. \(lowerText)-\(upperText)"
+        case .approximateLowerBound:
+            return estimate.lowerBoundUSD.map { "Approx. \(self.usdString(NSDecimalNumber(decimal: $0).doubleValue))+" }
+        default:
+            return nil
+        }
+    }
+
+    public static func cursorRequestCountLabel(requests: Int, requestCost: Double? = nil) -> String {
+        let rowCount = max(1, requests)
+        _ = requestCost
+        return rowCount == 1 ? "Req 1" : "Req \(rowCount)"
+    }
+
+    public static func cursorRequestCostDetail(requestCost: Double?) -> String? {
+        guard let requestCost else { return nil }
+        let formatted = requestCost.formatted(
+            .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US_POSIX")))
+        return "Request cost: \(formatted)"
+    }
+
     public static func tokenCountString(_ value: Int) -> String {
         let absValue = abs(value)
         let sign = value < 0 ? "-" : ""

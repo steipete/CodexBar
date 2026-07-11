@@ -89,6 +89,10 @@ public struct UsageSnapshot: Codable, Sendable {
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
+    public let cursorTokenUsage: CursorTokenUsage?
+    public let cursorRecentRequests: [CursorRecentRequest]?
+    public let cursorRecentRequestRange: CursorRecentRequestRange?
+    public let cursorRangeSummaries: [CursorRangeUsageSummary]?
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
 
@@ -116,6 +120,10 @@ public struct UsageSnapshot: Codable, Sendable {
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        cursorTokenUsage: CursorTokenUsage? = nil,
+        cursorRecentRequests: [CursorRecentRequest]? = nil,
+        cursorRecentRequestRange: CursorRecentRequestRange? = nil,
+        cursorRangeSummaries: [CursorRangeUsageSummary]? = nil,
         updatedAt: Date,
         identity: ProviderIdentitySnapshot? = nil)
     {
@@ -128,6 +136,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.minimaxUsage = minimaxUsage
         self.openRouterUsage = openRouterUsage
         self.cursorRequests = cursorRequests
+        self.cursorTokenUsage = cursorTokenUsage
+        self.cursorRecentRequests = cursorRecentRequests
+        self.cursorRecentRequestRange = cursorRecentRequestRange
+        self.cursorRangeSummaries = cursorRangeSummaries
         self.updatedAt = updatedAt
         self.identity = identity
     }
@@ -143,6 +155,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.cursorTokenUsage = nil // Not persisted, fetched fresh each time
+        self.cursorRecentRequests = nil // Not persisted, fetched fresh each time
+        self.cursorRecentRequestRange = nil // Not persisted, fetched fresh each time
+        self.cursorRangeSummaries = nil // Not persisted, fetched fresh each time
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
             self.identity = identity
@@ -259,6 +275,10 @@ public struct UsageSnapshot: Codable, Sendable {
             minimaxUsage: self.minimaxUsage,
             openRouterUsage: self.openRouterUsage,
             cursorRequests: self.cursorRequests,
+            cursorTokenUsage: self.cursorTokenUsage,
+            cursorRecentRequests: self.cursorRecentRequests,
+            cursorRecentRequestRange: self.cursorRecentRequestRange,
+            cursorRangeSummaries: self.cursorRangeSummaries,
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -289,6 +309,10 @@ public struct UsageSnapshot: Codable, Sendable {
             minimaxUsage: self.minimaxUsage,
             openRouterUsage: self.openRouterUsage,
             cursorRequests: self.cursorRequests,
+            cursorTokenUsage: self.cursorTokenUsage,
+            cursorRecentRequests: self.cursorRecentRequests,
+            cursorRecentRequestRange: self.cursorRecentRequestRange,
+            cursorRangeSummaries: self.cursorRangeSummaries,
             updatedAt: self.updatedAt,
             identity: self.identity)
     }

@@ -21,6 +21,27 @@ enum CostUsagePricing {
         let cacheReadInputCostPerTokenAboveThreshold: Double?
     }
 
+    /// Provider pricing shape for a covered OpenAI/Codex model, or `nil` when the model is unknown.
+    struct CodexPricingCapabilities: Equatable, Sendable {
+        let inputCostPerToken: Double
+        let outputCostPerToken: Double
+        let cacheReadInputCostPerToken: Double?
+    }
+
+    /// Provider pricing shape for a covered Claude model, or `nil` when the model is unknown.
+    struct ClaudePricingCapabilities: Equatable, Sendable {
+        let distinguishesCacheWriteTiers: Bool
+        let inputCostPerToken: Double
+        let outputCostPerToken: Double
+        let cacheCreationInputCostPerToken: Double
+        let cacheReadInputCostPerToken: Double
+        let thresholdTokens: Int?
+        let inputCostPerTokenAboveThreshold: Double?
+        let outputCostPerTokenAboveThreshold: Double?
+        let cacheCreationInputCostPerTokenAboveThreshold: Double?
+        let cacheReadInputCostPerTokenAboveThreshold: Double?
+    }
+
     private static let codex: [String: CodexPricing] = [
         "gpt-5": CodexPricing(
             inputCostPerToken: 1.25e-6,
@@ -195,6 +216,26 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: nil,
             cacheCreationInputCostPerTokenAboveThreshold: nil,
             cacheReadInputCostPerTokenAboveThreshold: nil),
+        "claude-opus-4-8": ClaudePricing(
+            inputCostPerToken: 5e-6,
+            outputCostPerToken: 2.5e-5,
+            cacheCreationInputCostPerToken: 6.25e-6,
+            cacheReadInputCostPerToken: 5e-7,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
+        "claude-fable-5": ClaudePricing(
+            inputCostPerToken: 1e-5,
+            outputCostPerToken: 5e-5,
+            cacheCreationInputCostPerToken: 1.25e-5,
+            cacheReadInputCostPerToken: 1e-6,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
         "claude-sonnet-4-5": ClaudePricing(
             inputCostPerToken: 3e-6,
             outputCostPerToken: 1.5e-5,
@@ -308,6 +349,41 @@ enum CostUsagePricing {
         }
 
         return trimmed
+    }
+
+    static func supportedCodexPricingKey(_ raw: String) -> String? {
+        let key = self.normalizeCodexModel(raw)
+        return self.codex[key] == nil ? nil : key
+    }
+
+    static func supportedClaudePricingKey(_ raw: String) -> String? {
+        let key = self.normalizeClaudeModel(raw)
+        return self.claude[key] == nil ? nil : key
+    }
+
+    static func codexPricingCapabilities(model: String) -> CodexPricingCapabilities? {
+        let key = self.normalizeCodexModel(model)
+        guard let pricing = self.codex[key] else { return nil }
+        return CodexPricingCapabilities(
+            inputCostPerToken: pricing.inputCostPerToken,
+            outputCostPerToken: pricing.outputCostPerToken,
+            cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken)
+    }
+
+    static func claudePricingCapabilities(model: String) -> ClaudePricingCapabilities? {
+        let key = self.normalizeClaudeModel(model)
+        guard let pricing = self.claude[key] else { return nil }
+        return ClaudePricingCapabilities(
+            distinguishesCacheWriteTiers: true,
+            inputCostPerToken: pricing.inputCostPerToken,
+            outputCostPerToken: pricing.outputCostPerToken,
+            cacheCreationInputCostPerToken: pricing.cacheCreationInputCostPerToken,
+            cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken,
+            thresholdTokens: pricing.thresholdTokens,
+            inputCostPerTokenAboveThreshold: pricing.inputCostPerTokenAboveThreshold,
+            outputCostPerTokenAboveThreshold: pricing.outputCostPerTokenAboveThreshold,
+            cacheCreationInputCostPerTokenAboveThreshold: pricing.cacheCreationInputCostPerTokenAboveThreshold,
+            cacheReadInputCostPerTokenAboveThreshold: pricing.cacheReadInputCostPerTokenAboveThreshold)
     }
 
     static func codexCostUSD(model: String, inputTokens: Int, cachedInputTokens: Int, outputTokens: Int) -> Double? {
