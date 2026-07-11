@@ -114,7 +114,7 @@ struct CursorWidgetSnapshotTests {
         let summary = CursorRangeUsageSummary(
             rangeKind: .billingCycle,
             range: CursorRecentRequestRange(start: now.addingTimeInterval(-3600), end: now),
-            tokens: 31_000,
+            tokens: 31000,
             requests: 31,
             weightedRequestCost: 31,
             requestCostSummary: CursorRequestCostSummary(
@@ -145,7 +145,7 @@ struct CursorWidgetSnapshotTests {
         #expect(entry.cursorRequestDetails?.count == 30)
         #expect(entry.tokenUsage?.sessionCostText == "Approx. $4.10+")
         #expect(entry.tokenUsage?.sessionCostUSD == nil)
-        #expect(entry.tokenUsage?.sessionTokens == 31_000)
+        #expect(entry.tokenUsage?.sessionTokens == 31000)
     }
 
     private static func makeSettingsStore(suite: String) -> SettingsStore {
@@ -165,5 +165,4 @@ struct CursorWidgetSnapshotTests {
             settings: settings,
             startupBehavior: .testing)
     }
-
 }

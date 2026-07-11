@@ -349,7 +349,8 @@ public struct OpenCodeUsageFetcher: Sendable {
             }
         }
 
-        let pattern = #"id\s*:\s*["'](wrk_[^"']+)["'][^}]{0,300}?(?:name|label|displayName|title)\s*:\s*["']([^"']+)["']"#
+        let pattern = #"id\s*:\s*["'](wrk_[^"']+)["'][^}]{0,300}?(?:"#
+            + #"name|label|displayName|title)\s*:\s*["']([^"']+)["']"#
         var workspaces: [OpenCodeDiscoveredWorkspace] = []
         var seen: Set<String> = []
         if let regex = try? NSRegularExpression(pattern: pattern, options: []) {

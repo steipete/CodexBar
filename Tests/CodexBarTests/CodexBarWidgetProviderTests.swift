@@ -42,12 +42,12 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
-    func `open code widget selection follows the stored workspace account`() {
-        let firstID = OpenCodeWorkspaceAccount.canonicalID(
-            tokenAccountID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+    func `open code widget selection follows the stored workspace account`() throws {
+        let firstID = try OpenCodeWorkspaceAccount.canonicalID(
+            tokenAccountID: #require(UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")),
             workspaceID: "wrk_FIRST")
-        let secondID = OpenCodeWorkspaceAccount.canonicalID(
-            tokenAccountID: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+        let secondID = try OpenCodeWorkspaceAccount.canonicalID(
+            tokenAccountID: #require(UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")),
             workspaceID: "wrk_SECOND")
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let entries = [firstID, secondID].map { accountID in

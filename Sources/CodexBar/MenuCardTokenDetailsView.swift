@@ -1,7 +1,7 @@
 import CodexBarCore
 import SwiftUI
 
-struct MenuCardTokenDetailsModel {
+enum MenuCardTokenDetailsModel {
     static func lines(for request: CursorRecentRequest) -> [String] {
         UsageFormatter.cursorRequestDiagnosticLines(request)
     }

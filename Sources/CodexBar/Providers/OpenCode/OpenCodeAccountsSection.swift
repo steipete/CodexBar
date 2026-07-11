@@ -139,7 +139,7 @@ struct OpenCodeAccountsSectionView: View {
             let results = try await self.settings.importOpenCodeWorkspaceAccounts(
                 browserDetection: self.store.browserDetection,
                 timeout: 60)
-            let savedCount = results.filter { $0 == .saved }.count
+            let savedCount = results.count(where: { $0 == .saved })
             self.statusText = savedCount == 0
                 ? "OpenCode workspaces are up to date."
                 : "Saved \(savedCount) OpenCode workspace\(savedCount == 1 ? "" : "s")."

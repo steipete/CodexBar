@@ -209,8 +209,8 @@ private struct CompactMetricView: View {
         case .todayCost:
             let value = self.entry.provider == .cursor
                 ? self.entry.tokenUsage?.sessionCostText
-                    ?? self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd)
-                    ?? "—"
+                ?? self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd)
+                ?? "—"
                 : self.entry.tokenUsage?.sessionCostUSD.map(WidgetFormat.usd) ?? "—"
             let label = self.entry.provider == .cursor
                 ? self.entry.cursorRequestRange?.label ?? "Usage"
@@ -225,8 +225,8 @@ private struct CompactMetricView: View {
         case .last30DaysCost:
             let value = self.entry.provider == .cursor
                 ? self.entry.tokenUsage?.sessionCostText
-                    ?? self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd)
-                    ?? "—"
+                ?? self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd)
+                ?? "—"
                 : self.entry.tokenUsage?.last30DaysCostUSD.map(WidgetFormat.usd) ?? "—"
             let label = self.entry.provider == .cursor
                 ? self.entry.cursorRequestRange?.label ?? "Usage"

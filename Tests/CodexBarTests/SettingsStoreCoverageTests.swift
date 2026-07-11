@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct SettingsStoreCoverageTests {
     @Test
-    func testOpenCodeWorkspaceSettingsReuseOneCredentialAndResolveActiveSnapshot() throws {
+    func openCodeWorkspaceSettingsReuseOneCredentialAndResolveActiveSnapshot() throws {
         let settings = Self.makeSettingsStore()
         settings.addTokenAccount(provider: .opencode, label: "Shared", token: "auth=shared")
         let tokenAccount = try #require(settings.selectedTokenAccount(for: .opencode))

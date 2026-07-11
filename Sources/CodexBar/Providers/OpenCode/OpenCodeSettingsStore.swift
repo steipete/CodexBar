@@ -173,7 +173,7 @@ extension SettingsStore {
         }
         if let workspaceAccount = self.resolvedOpenCodeWorkspaceAccount,
            let account = self.tokenAccounts(for: .opencode)
-            .first(where: { $0.id == workspaceAccount.tokenAccountID })
+               .first(where: { $0.id == workspaceAccount.tokenAccountID })
         {
             return account
         }

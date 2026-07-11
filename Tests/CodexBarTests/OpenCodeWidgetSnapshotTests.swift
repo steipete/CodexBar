@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct OpenCodeWidgetSnapshotTests {
     @Test
-    func testWidgetSnapshotEmitsOneSafeEntryPerSavedWorkspace() async throws {
+    func widgetSnapshotEmitsOneSafeEntryPerSavedWorkspace() async throws {
         let now = Date(timeIntervalSince1970: 1_780_000_000)
         let settings = Self.makeSettingsStore(suite: "OpenCodeWidgetSnapshotTests-entries")
         settings.addTokenAccount(provider: .opencode, label: "Shared", token: "auth=shared")
@@ -52,7 +52,7 @@ struct OpenCodeWidgetSnapshotTests {
     }
 
     @Test
-    func testWidgetSelectionUsesRequestedWorkspaceAndFallsBackSafely() throws {
+    func widgetSelectionUsesRequestedWorkspaceAndFallsBackSafely() {
         let first = WidgetSnapshot.ProviderEntry(
             provider: .opencode,
             updatedAt: Date(),
@@ -84,7 +84,7 @@ struct OpenCodeWidgetSnapshotTests {
     }
 
     @Test
-    func testOpenCodeIntentAcceptsOnlySnapshotWorkspaceIDs() {
+    func openCodeIntentAcceptsOnlySnapshotWorkspaceIDs() {
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .opencode,
             updatedAt: Date(),

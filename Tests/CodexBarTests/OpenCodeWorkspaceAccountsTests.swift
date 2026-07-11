@@ -4,8 +4,8 @@ import Testing
 
 struct OpenCodeWorkspaceAccountsTests {
     @Test
-    func testCanonicalIDsDistinguishWorkspacesWhileRemainingStableForSamePair() throws {
-        let tokenAccountID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+    func canonicalIDsDistinguishWorkspacesWhileRemainingStableForSamePair() throws {
+        let tokenAccountID = try #require(UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
         let first = try #require(OpenCodeWorkspaceAccount(
             tokenAccountID: tokenAccountID,
             workspaceID: "https://opencode.ai/workspace/wrk_ALPHA/billing",
@@ -28,8 +28,8 @@ struct OpenCodeWorkspaceAccountsTests {
     }
 
     @Test
-    func testDeduplicatesAccountsAndPreservesActiveWorkspace() throws {
-        let tokenAccountID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+    func deduplicatesAccountsAndPreservesActiveWorkspace() throws {
+        let tokenAccountID = try #require(UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
         let alpha = try #require(OpenCodeWorkspaceAccount(
             tokenAccountID: tokenAccountID,
             workspaceID: "wrk_ALPHA",
@@ -50,9 +50,9 @@ struct OpenCodeWorkspaceAccountsTests {
     }
 
     @Test
-    func testPruningRemovesDeletedTokenAccountsAndFallsBackDeterministically() throws {
-        let firstToken = UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!
-        let secondToken = UUID(uuidString: "DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD")!
+    func pruningRemovesDeletedTokenAccountsAndFallsBackDeterministically() throws {
+        let firstToken = try #require(UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"))
+        let secondToken = try #require(UUID(uuidString: "DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD"))
         let first = try #require(OpenCodeWorkspaceAccount(
             tokenAccountID: firstToken,
             workspaceID: "wrk_ALPHA",
@@ -72,7 +72,7 @@ struct OpenCodeWorkspaceAccountsTests {
     }
 
     @Test
-    func testInvalidAndMissingCredentialsHaveExplicitMutationResults() {
+    func invalidAndMissingCredentialsHaveExplicitMutationResults() {
         var accounts = OpenCodeWorkspaceAccounts()
 
         #expect(accounts.add(

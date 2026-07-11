@@ -88,11 +88,11 @@ public struct OpenCodeWorkspaceAccount: Codable, Identifiable, Sendable, Equatab
             ?? Self.canonicalID(tokenAccountID: tokenAccountID, workspaceID: workspaceID)
         self.tokenAccountID = tokenAccountID
         self.workspaceID = workspaceID
-        self.label = Self.cleanLabel(
-            try container.decode(String.self, forKey: .label),
+        self.label = try Self.cleanLabel(
+            container.decode(String.self, forKey: .label),
             fallback: workspaceID)
-        self.ownerLabel = Self.cleanOptionalLabel(
-            try container.decodeIfPresent(String.self, forKey: .ownerLabel))
+        self.ownerLabel = try Self.cleanOptionalLabel(
+            container.decodeIfPresent(String.self, forKey: .ownerLabel))
         self.createdAt = try container.decodeIfPresent(TimeInterval.self, forKey: .createdAt) ?? 0
         self.updatedAt = try container.decodeIfPresent(TimeInterval.self, forKey: .updatedAt) ?? self.createdAt
     }

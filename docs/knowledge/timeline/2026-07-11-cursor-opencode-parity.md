@@ -10,3 +10,4 @@
 - Task 5: added Codable OpenCode workspace-account records with canonical credential/workspace IDs, active-account pruning/fallback, explicit mutation results, injected-session discovery of sanitized workspace labels and owners, and an additive provider settings snapshot account-ID field.
 - Task 6: wired OpenCode workspace accounts through settings import/manual-add/remove flows, active workspace snapshots and stale-response guards, token-account pruning, and a display-safe generic menu switcher that leaves Claude/Copilot behavior intact.
 - Task 7: restored multi-workspace OpenCode widget entries, display-safe workspace chips and intents, app-group selection fallback, and backward-compatible widget snapshot account metadata.
+- Task 8: documented the shipped Cursor estimate/range boundaries and OpenCode widget selection semantics; final integration checks also corrected the OpenCode discovery regex line-length violation.

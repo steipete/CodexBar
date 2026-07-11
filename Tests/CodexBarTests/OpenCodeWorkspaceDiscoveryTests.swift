@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct OpenCodeWorkspaceDiscoveryTests {
     @Test
-    func testDiscoveriesReturnTypedLabelsAndOwnersThroughInjectedSession() async throws {
+    func discoveriesReturnTypedLabelsAndOwnersThroughInjectedSession() async throws {
         defer {
             OpenCodeStubURLProtocol.handler = nil
         }
@@ -18,7 +18,7 @@ struct OpenCodeWorkspaceDiscoveryTests {
               ]
             }
             """
-            return Self.makeResponse(url: try #require(request.url), body: body, statusCode: 200)
+            return try Self.makeResponse(url: #require(request.url), body: body, statusCode: 200)
         }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [OpenCodeStubURLProtocol.self]
@@ -35,7 +35,7 @@ struct OpenCodeWorkspaceDiscoveryTests {
     }
 
     @Test
-    func testDiscoveryResultExposesMissingCredentialsAndFailures() async {
+    func discoveryResultExposesMissingCredentialsAndFailures() async {
         let missing = await OpenCodeWorkspaceDiscovery.resolve(
             cookieHeader: nil,
             timeout: 2,

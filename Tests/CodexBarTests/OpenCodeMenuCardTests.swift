@@ -6,8 +6,8 @@ import Testing
 @MainActor
 struct OpenCodeMenuCardTests {
     @Test
-    func testWorkspaceMenuEntriesUseOwnerLabelsWithoutCredentialData() throws {
-        let tokenAccountID = UUID(uuidString: "EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE")!
+    func workspaceMenuEntriesUseOwnerLabelsWithoutCredentialData() throws {
+        let tokenAccountID = try #require(UUID(uuidString: "EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE"))
         let alpha = try #require(OpenCodeWorkspaceAccount(
             tokenAccountID: tokenAccountID,
             workspaceID: "wrk_ALPHA",

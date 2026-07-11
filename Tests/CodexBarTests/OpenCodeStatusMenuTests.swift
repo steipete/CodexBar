@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct OpenCodeStatusMenuTests {
     @Test
-    func testOldWorkspaceResultsAreRejectedAfterSelectionChanges() throws {
+    func oldWorkspaceResultsAreRejectedAfterSelectionChanges() throws {
         let suite = "OpenCodeStatusMenuTests-refresh-guard"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -44,8 +44,8 @@ struct OpenCodeStatusMenuTests {
     }
 
     @Test
-    func testSharedCredentialWorkspacesRemainDistinctSelectableEntries() throws {
-        let tokenAccountID = UUID(uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF")!
+    func sharedCredentialWorkspacesRemainDistinctSelectableEntries() throws {
+        let tokenAccountID = try #require(UUID(uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"))
         let first = try #require(OpenCodeWorkspaceAccount(
             tokenAccountID: tokenAccountID,
             workspaceID: "wrk_ALPHA",

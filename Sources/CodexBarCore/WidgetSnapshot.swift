@@ -177,8 +177,8 @@ public struct WidgetSnapshot: Codable, Sendable {
     }
 }
 
-public extension OpenCodeWorkspaceAccount {
-    static func isCanonicalID(_ raw: String) -> Bool {
+extension OpenCodeWorkspaceAccount {
+    public static func isCanonicalID(_ raw: String) -> Bool {
         let parts = raw.split(separator: "/", maxSplits: 1).map(String.init)
         guard parts.count == 2,
               let tokenAccountID = UUID(uuidString: parts[0]),

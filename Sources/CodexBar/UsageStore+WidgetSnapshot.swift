@@ -97,16 +97,17 @@ extension UsageStore {
                 .sorted { $0.timestamp > $1.timestamp }
                 .prefix(30)
                 .map { request in
-                let normalized = CursorModelNormalizer.normalize(request.model)
-                return WidgetSnapshot.CursorRequestDetail(
-                    timestamp: request.timestamp,
-                    model: request.model,
-                    tokens: request.tokens,
-                    requests: request.requests,
-                    requestCost: request.requestCost,
-                    compactModel: UsageFormatter.cursorCompactModelLabel(normalized),
-                    estimateText: UsageFormatter.cursorEstimateText(CursorRequestCostEstimator.estimate(for: request)))
-            }
+                    let normalized = CursorModelNormalizer.normalize(request.model)
+                    return WidgetSnapshot.CursorRequestDetail(
+                        timestamp: request.timestamp,
+                        model: request.model,
+                        tokens: request.tokens,
+                        requests: request.requests,
+                        requestCost: request.requestCost,
+                        compactModel: UsageFormatter.cursorCompactModelLabel(normalized),
+                        estimateText: UsageFormatter
+                            .cursorEstimateText(CursorRequestCostEstimator.estimate(for: request)))
+                }
         }
         let usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot)
 

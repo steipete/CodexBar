@@ -55,7 +55,7 @@ public enum OpenCodeWorkspaceDiscovery {
             return .invalidWorkspaceID
         }
         do {
-            return .discovered(try await self.discover(
+            return try await .discovered(self.discover(
                 cookieHeader: cookieHeader,
                 timeout: timeout,
                 session: session))
