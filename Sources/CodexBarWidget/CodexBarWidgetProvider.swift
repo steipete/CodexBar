@@ -303,9 +303,7 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     }
 
     static func supportedProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
-        let enabled = snapshot.enabledProviders
-        let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
-        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
+        let supported = snapshot.enabledProviders.filter { ProviderChoice(provider: $0) != nil }
         return supported.isEmpty ? [.codex] : supported
     }
 }

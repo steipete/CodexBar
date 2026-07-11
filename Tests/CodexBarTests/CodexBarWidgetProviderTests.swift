@@ -928,6 +928,24 @@ extension CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `supported providers ignore stale entries when every provider is disabled`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .cursor,
+            updatedAt: now,
+            primary: RateWindow(usedPercent: 25, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [], generatedAt: now)
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.codex])
+    }
+
+    @Test
     func `widget token titles disclose stale age for today and history rows`() {
         let entryUpdatedAt = Date()
         let staleToken = WidgetSnapshot.TokenUsageSummary(
