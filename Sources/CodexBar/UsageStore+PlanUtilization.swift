@@ -488,15 +488,17 @@ extension UsageStore {
         let sourceRawValue = observation.source?.rawValue
         let sourceChanged = descriptor.seriesName == .session && previousState?.sourceRawValue != nil
             && previousState?.sourceRawValue != sourceRawValue
-        let resetBoundaryAllowsPost = !Self.requiresSemanticResetBoundaryAdvance(
+        let resetBoundaryAllowsPost = Self.semanticResetBoundaryAllowsPost(
             provider: context.provider,
-            seriesName: descriptor.seriesName)
-            || Self.limitResetBoundaryAdvanced(
-                previous: previousState?.resetBoundary,
-                current: observation.resetBoundary)
+            seriesName: descriptor.seriesName,
+            previous: previousState?.resetBoundary,
+            current: observation.resetBoundary)
         let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
+        // Only preserve a known boundary when one already exists; otherwise adopt the current observation
+        // so Codex weekly can later require previous/current advance before posting.
         let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
+            && previousState?.resetBoundary != nil
         let shouldPreserveBaseline = crossedBelowThreshold && shouldPreserveBoundary
         states[detectorKey] = LimitResetDetectorState(
             // A transient zero must not erase the baseline needed to recognize the real reset that follows.
@@ -556,6 +558,23 @@ extension UsageStore {
             return provider == .codex
         }
         return false
+    }
+
+    private nonisolated static func semanticResetBoundaryAllowsPost(
+        provider: UsageProvider,
+        seriesName: PlanUtilizationSeriesName,
+        previous: Date?,
+        current: Date?) -> Bool
+    {
+        guard self.requiresSemanticResetBoundaryAdvance(provider: provider, seriesName: seriesName) else {
+            return true
+        }
+        if provider == .codex, seriesName == .weekly {
+            guard let current else { return false }
+            guard let previous else { return false }
+            return !self.areEquivalentPlanUtilizationResetBoundaries(previous, current) && current > previous
+        }
+        return self.limitResetBoundaryAdvanced(previous: previous, current: current)
     }
 
     private nonisolated static func limitResetBoundaryAdvanced(previous: Date?, current: Date?) -> Bool {
@@ -915,18 +934,35 @@ extension UsageStore {
             return canonicalKey
         }
 
-        let identity = snapshot.identity(for: .codex)
-        let normalizedOrganization = identity?.accountOrganization?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
         if let accountKey,
-           let normalizedOrganization,
-           !normalizedOrganization.isEmpty
+           let workspaceDiscriminator = Self.codexLimitResetWorkspaceDiscriminator(
+               identity: snapshot.identity(for: .codex))
         {
-            return Self.sha256Hex("codex:limit-reset:\(accountKey):org:\(normalizedOrganization)")
+            return Self.sha256Hex(
+                "codex:limit-reset:\(accountKey):workspace:\(workspaceDiscriminator)")
         }
 
         return ownership.canonicalKey ?? accountKey
+    }
+
+    private nonisolated static func codexLimitResetWorkspaceDiscriminator(
+        identity: ProviderIdentitySnapshot?) -> String?
+    {
+        let normalizedLoginMethod = identity?.loginMethod?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let normalizedLoginMethod, !normalizedLoginMethod.isEmpty {
+            return normalizedLoginMethod
+        }
+
+        let normalizedOrganization = identity?.accountOrganization?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let normalizedOrganization, !normalizedOrganization.isEmpty {
+            return normalizedOrganization
+        }
+
+        return nil
     }
 
     private func limitResetAccountLabel(

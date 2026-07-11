@@ -202,7 +202,7 @@ extension UsageStorePlanUtilizationTests {
         let weeklyReset = firstDate.addingTimeInterval(3 * 24 * 3600)
 
         func snapshot(
-            organization: String,
+            workspaceLabel: String,
             weeklyUsed: Double,
             updatedAt: Date) -> UsageSnapshot
         {
@@ -221,16 +221,16 @@ extension UsageStorePlanUtilizationTests {
                 identity: ProviderIdentitySnapshot(
                     providerID: .codex,
                     accountEmail: sharedEmail,
-                    accountOrganization: organization,
-                    loginMethod: "pro"))
+                    accountOrganization: "Shared Org",
+                    loginMethod: workspaceLabel))
         }
 
         let workspaceAHigh = snapshot(
-            organization: "Workspace Alpha",
+            workspaceLabel: "Workspace Alpha",
             weeklyUsed: 86,
             updatedAt: firstDate)
         let workspaceBZero = snapshot(
-            organization: "Workspace Beta",
+            workspaceLabel: "Workspace Beta",
             weeklyUsed: 0,
             updatedAt: firstDate.addingTimeInterval(120))
 
@@ -319,6 +319,88 @@ extension UsageStorePlanUtilizationTests {
             now: accountBZero.updatedAt)
 
         #expect(recorderB.events.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `issue 2054 weekly confetti ignores nil reset boundaries`() async {
+        let store = Self.makeStore()
+        let accountLabel = "issue-2054-weekly-nil-boundary@example.com"
+        let recorder = WeeklyLimitResetEventRecorder(provider: .codex, accountLabel: accountLabel)
+        defer { recorder.invalidate() }
+
+        let firstDate = Date(timeIntervalSince1970: 1_700_700_000)
+
+        func snapshot(weeklyUsed: Double, updatedAt: Date) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 14,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: weeklyUsed,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: accountLabel,
+                    accountOrganization: nil,
+                    loginMethod: "pro"))
+        }
+
+        let before = snapshot(weeklyUsed: 86, updatedAt: firstDate)
+        let transientZero = snapshot(weeklyUsed: 0, updatedAt: firstDate.addingTimeInterval(120))
+
+        await store.recordPlanUtilizationHistorySample(provider: .codex, snapshot: before, now: before.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: transientZero,
+            now: transientZero.updatedAt)
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    @Test
+    func `issue 2054 propagated workspace labels isolate detector keys`() async throws {
+        let sharedEmail = "issue-2054-workspace-label@example.com"
+        let workspaceA = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: sharedEmail,
+                accountOrganization: "Shared Org",
+                loginMethod: "Workspace Alpha"))
+        let workspaceB = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: sharedEmail,
+                accountOrganization: "Shared Org",
+                loginMethod: "Workspace Beta"))
+
+        let keyA = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .codex, snapshot: workspaceA))
+        let keyB = try #require(UsageStore._planUtilizationAccountKeyForTesting(provider: .codex, snapshot: workspaceB))
+        #expect(keyA == keyB)
+
+        let store = Self.makeStore()
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: workspaceA,
+            now: workspaceA.updatedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: workspaceB,
+            now: workspaceB.updatedAt)
+
+        #expect(store.weeklyLimitResetDetectorStates.count == 2)
     }
 
     @MainActor
