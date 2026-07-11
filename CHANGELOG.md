@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.42.1 — Unreleased
+
+### Changed
+- Settings: split provider pane "Settings" sections into "Menu bar" and "Connection" so metric pickers and auth/cookie/source controls are grouped by topic.
+
 ## 0.42.0 — 2026-07-11
 
 ### Added

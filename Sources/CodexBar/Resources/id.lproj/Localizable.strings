@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "Pilih IDE yang dipantau";
 "Session quota notifications" = "Notifikasi kuota sesi";
 "Session tokens" = "Token sesi";
-"Settings" = "Pengaturan";
+"provider_section_connection" = "Koneksi";
+"provider_section_menu_bar" = "Menu bar";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Tampilkan bagian Kredit Codex dan penggunaan Ekstra Claude di menu.";
 "Show Debug Settings" = "Tampilkan Pengaturan Debug";
 "Show all token accounts" = "Tampilkan semua akun token";

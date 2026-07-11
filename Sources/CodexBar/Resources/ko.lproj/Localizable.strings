@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "모니터링할 IDE 선택";
 "Session quota notifications" = "세션 할당량 알림";
 "Session tokens" = "세션 토큰";
-"Settings" = "설정";
+"provider_section_connection" = "연결";
+"provider_section_menu_bar" = "메뉴 막대";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "메뉴에 Codex 크레딧 및 Claude 추가 사용량 섹션을 표시합니다.";
 "Show Debug Settings" = "디버그 설정 표시";
 "Show all token accounts" = "모든 토큰 계정 표시";

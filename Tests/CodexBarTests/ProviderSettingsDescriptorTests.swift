@@ -58,7 +58,8 @@ struct ProviderSettingsDescriptorTests {
         let pickers = CodexProviderImplementation().settingsPickers(context: context)
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
         #expect(pickers.contains(where: { $0.id == "codex-usage-source" }))
-        #expect(pickers.contains(where: { $0.id == "codex-cookie-source" }))
+        let cookiePicker = try #require(pickers.first(where: { $0.id == "codex-cookie-source" }))
+        #expect(cookiePicker.placement == .connection)
         #expect(toggles.contains(where: { $0.id == "codex-historical-tracking" }))
         let sparkToggle = try #require(toggles.first(where: { $0.id == "codex-spark-usage-visible" }))
         #expect(sparkToggle.title == "Show Codex Spark usage")
@@ -112,7 +113,8 @@ struct ProviderSettingsDescriptorTests {
         let context = fixture.settingsContext(provider: .claude)
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
-        #expect(pickers.contains(where: { $0.id == "claude-usage-source" }))
+        let usagePicker = try #require(pickers.first(where: { $0.id == "claude-usage-source" }))
+        #expect(usagePicker.placement == .connection)
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
         #expect(!toggles.contains(where: { $0.id == "claude-peak-hours" }))
@@ -208,6 +210,19 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(pickers.map(\.id) == ["copilot-icon-secondary-window", "copilot-budget-cookie-source"])
         #expect(pickers.first?.title == "Menu bar secondary metric")
+        #expect(pickers.first?.placement == .menuBar)
+        #expect(pickers.last?.placement == .connection)
+    }
+
+    @Test
+    func `kiro menu bar display picker uses the menu bar placement`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kiro-placement")
+        let context = fixture.settingsContext(provider: .kiro)
+
+        let pickers = KiroProviderImplementation().settingsPickers(context: context)
+        let picker = try #require(pickers.first(where: { $0.id == "kiroMenuBarDisplay" }))
+
+        #expect(picker.placement == .menuBar)
     }
 
     @Test

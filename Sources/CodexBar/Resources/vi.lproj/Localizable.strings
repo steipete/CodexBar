@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "Chọn IDE để giám sát";
 "Session quota notifications" = "Thông báo phiên Hạn mức";
 "Session tokens" = "Mã thông báo phiên";
-"Settings" = "Cài đặt";
+"provider_section_connection" = "Kết nối";
+"provider_section_menu_bar" = "Thanh menu";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Hiển thị Tín dụng Codex và Claude Các phần Mức sử dụng bổ sung trong menu.";
 "Show Debug Settings" = "Hiển thị gỡ lỗi Cài đặt";
 "Show all token accounts" = "Hiển thị tất cả token tài khoản";

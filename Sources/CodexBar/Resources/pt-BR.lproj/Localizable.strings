@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "Selecione a IDE para monitorar";
 "Session quota notifications" = "Notificações de cota de sessão";
 "Session tokens" = "Tokens de sessão";
-"Settings" = "Ajustes";
+"provider_section_connection" = "Conexão";
+"provider_section_menu_bar" = "Barra de menus";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Mostra as seções de créditos do Codex e uso extra do Claude no menu.";
 "Show Debug Settings" = "Mostrar ajustes de depuração";
 "Show all token accounts" = "Mostrar todas as contas de token";

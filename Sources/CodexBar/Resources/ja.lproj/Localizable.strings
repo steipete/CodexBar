@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "監視する IDE を選択";
 "Session quota notifications" = "セッションクォータ通知";
 "Session tokens" = "セッショントークン";
-"Settings" = "設定";
+"provider_section_connection" = "接続";
+"provider_section_menu_bar" = "メニューバー";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Codex クレジットと Claude 追加使用量のセクションをメニューに表示します。";
 "Show Debug Settings" = "デバッグ設定を表示";
 "Show all token accounts" = "すべてのトークンアカウントを表示";

@@ -275,7 +275,8 @@
 "Session" = "会话";
 "Session quota notifications" = "会话配额通知";
 "Session tokens" = "会话令牌";
-"Settings" = "设置";
+"provider_section_connection" = "连接";
+"provider_section_menu_bar" = "菜单栏";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "在菜单中显示 Codex 额度和 Claude 额外用量部分。";
 "Show Debug Settings" = "显示调试设置";
 "Show all token accounts" = "显示所有令牌账户";

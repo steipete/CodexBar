@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "เลือก IDE ที่จะตรวจสอบ";
 "Session quota notifications" = "การแจ้งเตือนโควต้าเซสชัน";
 "Session tokens" = "โทเค็นเซสชัน";
-"Settings" = "การตั้งค่า";
+"provider_section_connection" = "การเชื่อมต่อ";
+"provider_section_menu_bar" = "แถบเมนู";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "แสดงส่วนเครดิต Codex และการใช้งานเพิ่มเติม Claude ในเมนู";
 "Show Debug Settings" = "แสดงการตั้งค่าการดีบัก";
 "Show all token accounts" = "แสดงบัญชีโทเค็นทั้งหมด";

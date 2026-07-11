@@ -439,6 +439,7 @@ struct ProvidersPaneCoverageTests {
         let picker = pane._test_menuBarMetricPicker(for: .claude)
         let ids = picker?.options.map(\.id) ?? []
         #expect(ids.contains(MenuBarMetricPreference.primaryAndSecondary.rawValue))
+        #expect(picker?.placement == .menuBar)
     }
 
     @Test

@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "اختر IDE للمراقبة";
 "Session quota notifications" = "إشعارات حصص الجلسة";
 "Session tokens" = "رموز الجلسة";
-"Settings" = "الإعدادات";
+"provider_section_connection" = "الاتصال";
+"provider_section_menu_bar" = "شريط القوائم";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "عرض أقسام Codex الاعتمادات و Claude الاستخدام الإضافي في القائمة.";
 "Show Debug Settings" = "عرض إعدادات التصحيح";
 "Show all token accounts" = "عرض جميع حسابات الرموز";

@@ -587,6 +587,7 @@ struct ProvidersPane: View {
             id: "menuBarMetric",
             title: L("menu_bar_metric_title"),
             subtitle: Self.menuBarMetricPickerSubtitle(for: provider),
+            placement: .menuBar,
             binding: Binding(
                 get: {
                     self.settings

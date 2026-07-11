@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "Виберіть IDE для моніторингу";
 "Session quota notifications" = "Сповіщення про квоту сеансу";
 "Session tokens" = "Токени сесії";
-"Settings" = "Налаштування";
+"provider_section_connection" = "Підключення";
+"provider_section_menu_bar" = "Рядок меню";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Показати в меню розділи використання кредитів Codex і Claude Extra.";
 "Show Debug Settings" = "Показати налаштування налагодження";
 "Show all token accounts" = "Показати всі облікові записи маркерів";

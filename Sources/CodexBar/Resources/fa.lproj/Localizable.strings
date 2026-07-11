@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "IDE را برای مانیتور انتخاب کنید";
 "Session quota notifications" = "اعلان های سهمیه نشست";
 "Session tokens" = "توکن های جلسه";
-"Settings" = "محیط ها";
+"provider_section_connection" = "اتصال";
+"provider_section_menu_bar" = "نوار منو";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "بخش های Codex اعتبارها و Claude استفاده اضافی را در منو نمایش دهید.";
 "Show Debug Settings" = "نمایش تنظیمات اشکال زدایی";
 "Show all token accounts" = "نمایش همه حساب های توکن";
