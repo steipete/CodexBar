@@ -317,6 +317,7 @@ final class UsageStore {
     @ObservationIgnored var lastKnownResetSnapshots: [UsageProvider: UsageSnapshot] = [:]
     @ObservationIgnored var lastKnownSessionRemaining: [UsageProvider: Double] = [:]
     @ObservationIgnored var lastKnownSessionWindowSource: [UsageProvider: SessionQuotaWindowSource] = [:]
+    @ObservationIgnored var lastKnownSessionResetBoundary: [UsageProvider: Date] = [:]
     @ObservationIgnored var quotaWarningState: [QuotaWarningStateKey: QuotaWarningState] = [:]
     @ObservationIgnored var predictivePaceWarningNotifiedKeys: Set<PredictivePaceWarningStateKey> = []
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
@@ -857,14 +858,16 @@ final class UsageStore {
             if provider == .commandcode, snapshot.commandCodeSubscriptionEnrichmentUnavailable {
                 return
             }
-            self.lastKnownSessionRemaining.removeValue(forKey: provider)
-            self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+            Self.clearSessionQuotaTransitionState(store: self, provider: provider)
             return
         }
         let currentRemaining = sessionWindow.window.remainingPercent
         let currentSource = sessionWindow.source
+        let currentResetBoundary = sessionWindow.window.resetsAt
         let previousRemaining = self.lastKnownSessionRemaining[provider]
         let previousSource = self.lastKnownSessionWindowSource[provider]
+        let previousResetBoundary = self.lastKnownSessionResetBoundary[provider]
+        var preserveDepletedBaseline = false
 
         if let previousSource, previousSource != currentSource {
             let providerText = provider.rawValue
@@ -873,11 +876,21 @@ final class UsageStore {
                     "currSource=\(currentSource.rawValue) curr=\(currentRemaining)")
             self.lastKnownSessionRemaining[provider] = currentRemaining
             self.lastKnownSessionWindowSource[provider] = currentSource
+            Self.updateSessionResetBoundary(
+                store: self,
+                provider: provider,
+                resetBoundary: currentResetBoundary)
             return
         }
 
         defer {
-            self.lastKnownSessionRemaining[provider] = currentRemaining
+            if !preserveDepletedBaseline {
+                self.lastKnownSessionRemaining[provider] = currentRemaining
+                Self.updateSessionResetBoundary(
+                    store: self,
+                    provider: provider,
+                    resetBoundary: currentResetBoundary)
+            }
             self.lastKnownSessionWindowSource[provider] = currentSource
         }
 
@@ -917,6 +930,20 @@ final class UsageStore {
                     "prev=\(previousRemaining ?? -1) curr=\(currentRemaining)"
                 self.sessionQuotaLogger.debug(message)
             }
+            return
+        }
+
+        if transition == .restored,
+           !SessionQuotaNotificationLogic.sessionResetBoundaryAllowsRestore(
+               previousResetBoundary: previousResetBoundary,
+               currentResetBoundary: currentResetBoundary)
+        {
+            preserveDepletedBaseline = true
+            let providerText = provider.rawValue
+            let message =
+                "suppressed transient restore: provider=\(providerText) " +
+                "prev=\(previousRemaining ?? -1) curr=\(currentRemaining)"
+            self.sessionQuotaLogger.info(message)
             return
         }
 

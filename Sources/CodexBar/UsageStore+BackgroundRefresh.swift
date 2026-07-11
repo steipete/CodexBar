@@ -21,8 +21,7 @@ extension UsageStore {
         self.tokenFailureGates[provider]?.reset()
         self.statuses.removeValue(forKey: provider)
         self.statusComponents.removeValue(forKey: provider)
-        self.lastKnownSessionRemaining.removeValue(forKey: provider)
-        self.lastKnownSessionWindowSource.removeValue(forKey: provider)
+        Self.clearSessionQuotaTransitionState(store: self, provider: provider)
         self.lastTokenFetchAt.removeValue(forKey: provider)
     }
 

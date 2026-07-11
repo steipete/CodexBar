@@ -343,8 +343,7 @@ extension UsageStore {
         self.accountSnapshots.removeValue(forKey: .codex)
         self.codexAccountSnapshots = []
         self.failureGates[.codex]?.reset()
-        self.lastKnownSessionRemaining.removeValue(forKey: .codex)
-        self.lastKnownSessionWindowSource.removeValue(forKey: .codex)
+        Self.clearSessionQuotaTransitionState(store: self, provider: .codex)
     }
 
     private func clearDashboardDerivedCreditsIfNeeded() {
