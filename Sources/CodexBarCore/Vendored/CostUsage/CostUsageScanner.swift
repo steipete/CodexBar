@@ -1009,7 +1009,7 @@ enum CostUsageScanner {
         return String(filename[matchRange])
     }
 
-    private struct CodexSessionMetadata {
+    struct CodexSessionMetadata {
         let sessionId: String?
         let forkedFromId: String?
         let forkTimestamp: String?
@@ -1322,7 +1322,9 @@ enum CostUsageScanner {
         try self.parseCodexSessionMetadata(fileURL: fileURL, checkCancellation: checkCancellation)?.sessionId
     }
 
-    private static func parseCodexSessionMetadata(
+    static let codexSessionMetadataMaxLineBytes = 256 * 1024
+
+    static func parseCodexSessionMetadata(
         fileURL: URL,
         checkCancellation: CancellationCheck? = nil) throws -> CodexSessionMetadata?
     {
@@ -1338,6 +1340,7 @@ enum CostUsageScanner {
         defer { try? handle.close() }
 
         var buffer = Data()
+        var discardingOversizedLine = false
         let newline = Data([0x0A])
 
         func parseSessionMetadata(from lineData: Data) -> CodexSessionMetadata? {
@@ -1367,13 +1370,29 @@ enum CostUsageScanner {
         do {
             while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
                 try checkCancellation?()
-                buffer.append(chunk)
+
+                if discardingOversizedLine {
+                    guard let newlineRange = chunk.range(of: newline) else { continue }
+                    buffer = Data(chunk[newlineRange.upperBound...])
+                    discardingOversizedLine = false
+                } else {
+                    buffer.append(chunk)
+                }
+
                 while let newlineRange = buffer.range(of: newline) {
-                    let lineData = buffer.subdata(in: 0..<newlineRange.lowerBound)
+                    let lineLength = newlineRange.lowerBound
+                    let lineData = lineLength <= Self.codexSessionMetadataMaxLineBytes
+                        ? buffer.subdata(in: 0..<lineLength)
+                        : Data()
                     buffer.removeSubrange(0..<newlineRange.upperBound)
                     if let metadata = parseSessionMetadata(from: lineData) {
                         return metadata
                     }
+                }
+
+                if buffer.count > Self.codexSessionMetadataMaxLineBytes {
+                    buffer.removeAll(keepingCapacity: true)
+                    discardingOversizedLine = true
                 }
             }
         } catch is CancellationError {
@@ -1385,7 +1404,9 @@ enum CostUsageScanner {
             return nil
         }
 
-        if let metadata = parseSessionMetadata(from: buffer) {
+        if !discardingOversizedLine,
+           let metadata = parseSessionMetadata(from: buffer)
+        {
             return metadata
         }
         return nil

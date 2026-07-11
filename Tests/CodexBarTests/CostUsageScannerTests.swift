@@ -4,6 +4,26 @@ import Testing
 
 struct CostUsageScannerTests {
     @Test
+    func `codex session metadata skips an oversized line without retaining it`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 11)
+        let oversizedLine = #"{"type":"session_meta","payload":{"id":"too-large","padding":"#
+            + String(repeating: "x", count: CostUsageScanner.codexSessionMetadataMaxLineBytes)
+            + #""}}"#
+        let expectedLine = #"{"type":"session_meta","payload":{"id":"expected-session"}}"#
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "oversized-session-meta.jsonl",
+            contents: oversizedLine + "\n" + expectedLine + "\n")
+
+        let metadata = try CostUsageScanner.parseCodexSessionMetadata(fileURL: fileURL)
+        #expect(metadata?.sessionId == "expected-session")
+        #expect(metadata?.forkedFromId == nil)
+    }
+
+    @Test
     func `codex file metadata detects append truncation and replacement`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-codex-metadata-\(UUID().uuidString)", isDirectory: true)
