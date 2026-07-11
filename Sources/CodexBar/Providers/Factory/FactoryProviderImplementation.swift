@@ -83,7 +83,8 @@ struct FactoryProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "factory-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses a Factory API key first, then falls back to cookies/WorkOS.",
+                subtitle: "Auto tries a Factory API key first, then falls back to cookies/WorkOS on "
+                    + "auth or recoverable API failures.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,

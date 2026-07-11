@@ -40,7 +40,11 @@ Manual option:
 
 ### Auto (`auto`)
 1. Try API first when a key is resolvable.
-2. Fall back to web strategies when the API key is missing or returns 401/403.
+2. Fall back to web strategies on missing/unauthorized keys and other recoverable API failures
+   (timeouts, DNS/network errors, 5xx, parse failures). Cancellation does not fall back.
+3. Explicit `api` mode stays strict and does not fall back to web.
+4. When both an API key and a browser/WorkOS session are available, Auto may surface the API-key
+   account rather than the browser session. Use explicit `web` (or `api`) to pin account precedence.
 
 ## Settings
 - Preferences → Providers → Droid:

@@ -49,6 +49,7 @@ public enum FactoryProviderDescriptor {
             [FactoryStatusFetchStrategy()]
         case .auto, .cli:
             // Legacy `source: cli` behaves as Auto (API key first, then cookies/WorkOS on macOS).
+            // Recoverable API failures fall through to web; explicit `.api` does not.
             [FactoryAPIFetchStrategy(), FactoryStatusFetchStrategy()]
         case .oauth:
             []
@@ -62,7 +63,8 @@ struct FactoryAPIFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         // Explicit API mode always runs so a missing key surfaces as FactoryStatusProbeError.missingAPIKey.
-        // Auto mode only tries API when a key is resolvable, then falls back to cookies/WorkOS.
+        // Auto mode only tries API when a key is resolvable, then falls back to cookies/WorkOS
+        // for missing/unauthorized keys and other recoverable API failures.
         context.sourceMode == .api || Self.resolveAPIKey(environment: context.env) != nil
     }
 
@@ -83,15 +85,13 @@ struct FactoryAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        guard context.sourceMode == .auto else { return false }
-        guard let factoryError = error as? FactoryStatusProbeError else { return false }
-        // mapAPIError converts .notLoggedIn / HTTP 401/403 into .unauthorizedAPIKey before fallback sees them.
-        switch factoryError {
-        case .missingAPIKey, .unauthorizedAPIKey:
-            return true
-        default:
+        // Explicit API mode stays strict. Auto/cli keep cookies/WorkOS as a recoverable fallback so
+        // timeouts, DNS/5xx failures, and parse changes do not strand existing web setups.
+        guard context.sourceMode == .auto || context.sourceMode == .cli else { return false }
+        if error is CancellationError || (error as? URLError)?.code == .cancelled {
             return false
         }
+        return true
     }
 
     private static func resolveAPIKey(environment: [String: String]) -> String? {

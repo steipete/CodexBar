@@ -159,11 +159,14 @@ struct FactoryAPIFetchStrategyTests {
     }
 
     @Test
-    func `api strategy falls back on unauthorized only in auto mode`() {
+    func `api strategy falls back in auto and cli but not explicit api mode`() {
         let strategy = FactoryAPIFetchStrategy()
         #expect(strategy.shouldFallback(
             on: FactoryStatusProbeError.unauthorizedAPIKey,
             context: self.makeContext(sourceMode: .auto)))
+        #expect(strategy.shouldFallback(
+            on: FactoryStatusProbeError.unauthorizedAPIKey,
+            context: self.makeContext(sourceMode: .cli)))
         #expect(!strategy.shouldFallback(
             on: FactoryStatusProbeError.unauthorizedAPIKey,
             context: self.makeContext(sourceMode: .api)))
@@ -350,9 +353,9 @@ struct FactoryAPIKeyProbeFetchTests {
     }
 
     @Test
-    func `api strategy does not fall back on network errors in auto mode`() {
+    func `api strategy falls back on recoverable api failures in auto mode`() {
         let strategy = FactoryAPIFetchStrategy()
-        let context = ProviderFetchContext(
+        let autoContext = ProviderFetchContext(
             runtime: .cli,
             sourceMode: .auto,
             includeCredits: false,
@@ -364,15 +367,40 @@ struct FactoryAPIKeyProbeFetchTests {
             fetcher: UsageFetcher(environment: [:]),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0))
-        #expect(!strategy.shouldFallback(
+        let apiContext = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .api,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+
+        #expect(strategy.shouldFallback(
             on: FactoryStatusProbeError.networkError("HTTP 500"),
-            context: context))
-        #expect(!strategy.shouldFallback(
+            context: autoContext))
+        #expect(strategy.shouldFallback(
             on: FactoryStatusProbeError.parseFailed("bad json"),
-            context: context))
+            context: autoContext))
         #expect(strategy.shouldFallback(
             on: FactoryStatusProbeError.unauthorizedAPIKey,
-            context: context))
+            context: autoContext))
+        #expect(strategy.shouldFallback(
+            on: URLError(.timedOut),
+            context: autoContext))
+        #expect(!strategy.shouldFallback(
+            on: CancellationError(),
+            context: autoContext))
+        #expect(!strategy.shouldFallback(
+            on: FactoryStatusProbeError.networkError("HTTP 500"),
+            context: apiContext))
+        #expect(!strategy.shouldFallback(
+            on: FactoryStatusProbeError.parseFailed("bad json"),
+            context: apiContext))
     }
 
     @Test
