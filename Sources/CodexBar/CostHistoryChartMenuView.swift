@@ -774,6 +774,7 @@ extension CostHistoryChartMenuView {
         let historyDays: Int
         let windowLabel: String?
         let totalCostBitPattern: UInt64?
+        let hasDailyEntries: Bool
         let daily: [VisibleDailyFingerprint]
         let projects: [VisibleProjectFingerprint]
     }
@@ -822,6 +823,7 @@ extension CostHistoryChartMenuView {
             historyDays: snapshot.historyDays,
             windowLabel: snapshot.historyLabel,
             totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),
+            hasDailyEntries: !snapshot.daily.isEmpty,
             daily: snapshot.daily
                 .filter { self.chartPointInput(for: $0) != nil }
                 .sorted { $0.date < $1.date }

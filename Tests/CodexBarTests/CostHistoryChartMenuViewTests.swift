@@ -466,8 +466,8 @@ struct CostHistoryChartMenuViewTests {
         ]
         let empty = Self.fingerprint(daily: [])
 
-        #expect(Self.fingerprint(daily: invalidRows) == empty)
-        #expect(Self.fingerprint(daily: differentInvalidRows) == empty)
+        #expect(Self.fingerprint(daily: invalidRows) == Self.fingerprint(daily: differentInvalidRows))
+        #expect(Self.fingerprint(daily: invalidRows) != empty)
         #expect(Self.fingerprint(daily: [Self.dailyEntry(date: "2026-06-07", costUSD: 1)]) != empty)
     }
 
