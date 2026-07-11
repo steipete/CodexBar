@@ -278,7 +278,10 @@ extension CostUsageScanner {
         lastTotals: CostUsageCodexTotals? = nil,
         lastCountedTotals: CostUsageCodexTotals? = nil,
         lastRawTotalsBaseline: CostUsageCodexTotals? = nil,
+        lastRawTotalsWatermark: CostUsageCodexTotals? = nil,
+        seenRawTotals: [CostUsageCodexTotals]? = nil,
         hasDivergentTotals: Bool? = nil,
+        hasInterleavedTotals: Bool? = nil,
         lastCodexTurnID: String? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
@@ -304,7 +307,10 @@ extension CostUsageScanner {
             lastTotals: lastTotals,
             lastCountedTotals: lastCountedTotals,
             lastRawTotalsBaseline: lastRawTotalsBaseline,
+            lastRawTotalsWatermark: lastRawTotalsWatermark,
+            seenRawTotals: seenRawTotals,
             hasDivergentTotals: hasDivergentTotals,
+            hasInterleavedTotals: hasInterleavedTotals,
             lastCodexTurnID: lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
@@ -692,7 +698,10 @@ extension CostUsageScanner {
             lastTotals: usage.lastTotals,
             lastCountedTotals: usage.lastCountedTotals,
             lastRawTotalsBaseline: usage.lastRawTotalsBaseline,
+            lastRawTotalsWatermark: usage.lastRawTotalsWatermark,
+            seenRawTotals: usage.seenRawTotals,
             hasDivergentTotals: usage.hasDivergentTotals,
+            hasInterleavedTotals: usage.hasInterleavedTotals,
             lastCodexTurnID: usage.lastCodexTurnID,
             sessionId: usage.sessionId,
             forkedFromId: usage.forkedFromId,
@@ -956,10 +965,18 @@ extension CostUsageScanner {
         let startOffset = cached.parsedBytes ?? cached.size
         let initialCountedTotals = cached.lastCountedTotals ?? cached.lastTotals
         let initialRawTotalsBaseline = cached.lastRawTotalsBaseline ?? cached.lastTotals
+        let initialHasDivergentTotals = cached.hasDivergentTotals ?? (cached.lastTotals == nil)
+        // Correctness-critical interleave state is watermark + interleaved flag (+ counted/raw).
+        // `seenRawTotals` is optional precision only and must not gate incremental resume (#2037).
+        let hasIncompleteInterleaveState =
+            (cached.hasInterleavedTotals == true && cached.lastRawTotalsWatermark == nil)
+            || (cached.lastRawTotalsWatermark != nil && cached.hasInterleavedTotals == nil)
+            || (initialHasDivergentTotals && cached.lastRawTotalsWatermark == nil)
         let canIncremental = input.metadata.size > cached.size && startOffset > 0
             && startOffset <= input.metadata.size
             && initialCountedTotals != nil
             && cached.forkedFromId == nil
+            && !hasIncompleteInterleaveState
         guard canIncremental else { return false }
 
         let delta = try Self.parseCodexFileCancellable(
@@ -969,7 +986,10 @@ extension CostUsageScanner {
             initialModel: cached.lastModel,
             initialTotals: initialCountedTotals,
             initialRawTotalsBaseline: initialRawTotalsBaseline,
-            initialHasDivergentTotals: cached.hasDivergentTotals ?? (cached.lastTotals == nil),
+            initialRawTotalsWatermark: cached.lastRawTotalsWatermark,
+            initialSeenRawTotals: cached.seenRawTotals ?? [],
+            initialHasDivergentTotals: initialHasDivergentTotals,
+            initialHasInterleavedTotals: cached.hasInterleavedTotals ?? false,
             initialCodexTurnID: cached.lastCodexTurnID,
             initialCodexUsageRowIndex: Self.nextCodexUsageRowIndex(cached.codexRows),
             checkCancellation: context.checkCancellation)
@@ -1039,7 +1059,10 @@ extension CostUsageScanner {
             lastTotals: delta.lastTotals,
             lastCountedTotals: delta.lastCountedTotals,
             lastRawTotalsBaseline: delta.lastRawTotalsBaseline,
+            lastRawTotalsWatermark: delta.lastRawTotalsWatermark,
+            seenRawTotals: delta.seenRawTotals,
             hasDivergentTotals: delta.hasDivergentTotals,
+            hasInterleavedTotals: delta.hasInterleavedTotals,
             lastCodexTurnID: delta.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: delta.forkedFromId ?? migratedCached.forkedFromId,
@@ -1133,7 +1156,10 @@ extension CostUsageScanner {
             lastTotals: parsed.lastTotals,
             lastCountedTotals: parsed.lastCountedTotals,
             lastRawTotalsBaseline: parsed.lastRawTotalsBaseline,
+            lastRawTotalsWatermark: parsed.lastRawTotalsWatermark,
+            seenRawTotals: parsed.seenRawTotals,
             hasDivergentTotals: parsed.hasDivergentTotals,
+            hasInterleavedTotals: parsed.hasInterleavedTotals,
             lastCodexTurnID: parsed.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: parsed.forkedFromId,

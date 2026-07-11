@@ -1684,6 +1684,811 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex interleaved cumulative lineages do not recount the gap`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        // Two interleaved totals-only lineages in one file (Ultra sub-agents, #2037). The old
+        // single-baseline logic recounted the A/B gap on every flip (100k + 96k + 96k = 292k).
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "interleaved-lineages.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 100_000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 5000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 101_000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: model,
+                    total: (input: 6000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(5)),
+                    model: model,
+                    total: (input: 102_000, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 102_000)
+        #expect(parsed.rows.count == 3)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex alternating repeated snapshots count zero`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        // Alternating re-emissions with fat `last` on every row. Post-latch containment caps
+        // `last` by the contained totals delta (zero on lineage flips), so repeats cannot inflate
+        // even without relying on the seen-set FIFO.
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "alternating-repeats.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 1000, cached: 0, output: 0),
+                    last: (input: 1000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 50, cached: 0, output: 0),
+                    last: (input: 50, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 1000, cached: 0, output: 0),
+                    last: (input: 1000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: model,
+                    total: (input: 50, cached: 0, output: 0),
+                    last: (input: 50, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(5)),
+                    model: model,
+                    total: (input: 1000, cached: 0, output: 0),
+                    last: (input: 1000, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        // Phase 1: smaller lineage below the watermark is dropped (50 never counted).
+        #expect(packed[safe: 0] == 1000)
+        #expect(parsed.rows.count == 1)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex totals only growth below watermark is conservatively dropped`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        // Accepted Phase 1 limitation: a totals-only lineage growing beneath another lineage's
+        // watermark (5000 -> 7000) contributes nothing. Undercount, never inflate.
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "below-watermark-growth.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 100_000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 5000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 7000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: model,
+                    total: (input: 100_500, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 100_500)
+        #expect(parsed.rows.count == 2)
+    }
+
+    @Test
+    func `codex single lineage counter reset undercounts but never inflates`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        // A genuine counter reset latches interleaved mode; totals-only growth below the old
+        // peak is dropped and counting resumes once the counter passes the watermark.
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "counter-reset.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 1000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 1200, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 300, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: model,
+                    total: (input: 800, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(5)),
+                    model: model,
+                    total: (input: 1500, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 1500)
+        #expect(parsed.rows.count == 3)
+    }
+
+    @Test
+    func `codex interleaved fork child caps last by contained total delta`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        // Phase 1: after latch, min(last, containedTotalDelta). The mid-row last=5 is dropped
+        // because contained delta is 0 below the watermark; only watermark advances count.
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(iso0)-interleaved-fork-child.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": iso0,
+                    "payload": [
+                        "id": "child-session",
+                        "forked_from_id": "parent-session",
+                        "timestamp": iso0,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 1010, cached: 0, output: 0),
+                    last: (input: 10, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 505, cached: 0, output: 0),
+                    last: (input: 5, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 1020, cached: 0, output: 0),
+                    last: (input: 10, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { parentSessionId, _ in
+                #expect(parentSessionId == "parent-session")
+                return .resolved(.init(input: 1000, cached: 0, output: 0))
+            })
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 20)
+        #expect(parsed.rows.count == 2)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex root interleaved caps last much larger than watermark delta`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        // After latch, a tiny watermark advance with a huge replayed/status `last` must count
+        // only the contained totals delta (1000), not the full last (100_000).
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "root-last-cap.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 100_000, cached: 0, output: 0),
+                    last: (input: 100_000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 5000, cached: 0, output: 0),
+                    last: (input: 5000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 101_000, cached: 0, output: 0),
+                    last: (input: 100_000, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 101_000)
+        #expect(parsed.rows.count == 2)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex fork interleaved caps last much larger than watermark delta`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(iso0)-fork-last-cap.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": iso0,
+                    "payload": [
+                        "id": "child-session",
+                        "forked_from_id": "parent-session",
+                        "timestamp": iso0,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 2000, cached: 0, output: 0),
+                    last: (input: 1000, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 100, cached: 0, output: 0),
+                    last: (input: 100, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 2100, cached: 0, output: 0),
+                    last: (input: 50000, cached: 0, output: 0)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { _, _ in
+                .resolved(.init(input: 1000, cached: 0, output: 0))
+            })
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        // adjusted: 1000, then 0 (latch), then 1100 → contained deltas 1000 + 0 + 100 = 1100
+        #expect(packed[safe: 0] == 1100)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex interleaved replay after sixty five unique snapshots stays contained`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        var events: [[String: Any]] = [
+            self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            // Latch interleaved mode with a second lineage.
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                model: model,
+                total: (input: 5000, cached: 0, output: 0),
+                last: (input: 5000, cached: 0, output: 0)),
+        ]
+        // 65 unique advances of lineage A — enough to FIFO-evict the B=5000 snapshot.
+        for index in 0..<65 {
+            let total = 100_001 + index
+            events.append(self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(TimeInterval(3 + index))),
+                model: model,
+                total: (input: total, cached: 0, output: 0),
+                last: (input: 1, cached: 0, output: 0)))
+        }
+        // Re-emit the evicted B snapshot with a fat last; containment must keep it at zero.
+        events.append(self.codexTokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(70)),
+            model: model,
+            total: (input: 5000, cached: 0, output: 0),
+            last: (input: 5000, cached: 0, output: 0)))
+
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "eviction-replay.jsonl",
+            contents: env.jsonl(events))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 100_065)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex interleaved totals only sequences stay within containment bound`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 11)
+        let model = "openai/gpt-5.5"
+        // Property-style: many interleaved totals-only sequences must never exceed the max
+        // observed cumulative total (the Phase 1 never-inflates bound for totals-only streams).
+        for seed in 0..<40 {
+            var a = 10000 + seed * 17
+            var b = 100 + seed * 3
+            var maxObserved = 0
+            var events: [[String: Any]] = [
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+            ]
+            for step in 0..<30 {
+                let useA = (step + seed) % 3 != 0
+                if useA {
+                    a += 1 + (step % 5)
+                    maxObserved = max(maxObserved, a)
+                    events.append(self.codexTokenCount(
+                        timestamp: env.isoString(for: day.addingTimeInterval(TimeInterval(step + 1))),
+                        model: model,
+                        total: (input: a, cached: 0, output: 0)))
+                } else {
+                    b += 1 + (step % 3)
+                    maxObserved = max(maxObserved, b)
+                    events.append(self.codexTokenCount(
+                        timestamp: env.isoString(for: day.addingTimeInterval(TimeInterval(step + 1))),
+                        model: model,
+                        total: (input: b, cached: 0, output: 0)))
+                }
+            }
+
+            let fileURL = try env.writeCodexSessionFile(
+                day: day,
+                filename: "property-\(seed).jsonl",
+                contents: env.jsonl(events))
+            let parsed = CostUsageScanner.parseCodexFile(
+                fileURL: fileURL,
+                range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+            let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+            let counted = parsed.days[dayKey]?["gpt-5.5"]?[safe: 0] ?? 0
+            #expect(counted <= maxObserved)
+            #expect(counted >= 10000 + seed * 17)
+        }
+    }
+
+    @Test
+    func `codex incremental append preserves interleave containment across boundary`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 12)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso0,
+            "payload": ["session_id": "interleaved-incremental"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let initialEvents: [[String: Any]] = [
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                model: model,
+                total: (input: 5000, cached: 0, output: 0),
+                last: (input: 5000, cached: 0, output: 0)),
+        ]
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext] + initialEvents))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let first = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(first.data.first?.totalTokens == 100_000)
+
+        let appendedEvents: [[String: Any]] = [
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                model: model,
+                total: (input: 5000, cached: 0, output: 0),
+                last: (input: 5000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(5)),
+                model: model,
+                total: (input: 101_000, cached: 0, output: 0),
+                last: (input: 1000, cached: 0, output: 0)),
+        ]
+        try env.jsonl([sessionMeta, turnContext] + initialEvents + appendedEvents)
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let second = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(second.data.first?.totalTokens == 101_000)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let usage = cache.files.first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
+            .value
+        #expect(usage?.hasInterleavedTotals == true)
+        #expect(usage?.lastRawTotalsWatermark?.input == 101_000)
+        #expect(usage?.lastCountedTotals?.input == 101_000)
+
+        options.forceRescan = true
+        let rescanned = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        #expect(rescanned.data.first?.totalTokens == 101_000)
+
+        let rescannedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let rescannedUsage = rescannedCache.files
+            .first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
+            .value
+        #expect(rescannedUsage?.hasInterleavedTotals == usage?.hasInterleavedTotals)
+        #expect(rescannedUsage?.lastRawTotalsWatermark == usage?.lastRawTotalsWatermark)
+        #expect(rescannedUsage?.lastCountedTotals == usage?.lastCountedTotals)
+        #expect(rescannedUsage?.hasDivergentTotals == usage?.hasDivergentTotals)
+        #expect(rescannedUsage?.codexCostNanos == usage?.codexCostNanos)
+        #expect(rescanned.data.first?.totalTokens == second.data.first?.totalTokens)
+    }
+
+    @Test
+    func `codex missing watermark or interleaved flag forces full rescan`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 12)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso0,
+            "payload": ["session_id": "incomplete-interleave-critical"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let initialEvents: [[String: Any]] = [
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                model: model,
+                total: (input: 5000, cached: 0, output: 0),
+                last: (input: 5000, cached: 0, output: 0)),
+        ]
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext] + initialEvents))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let replayedSnapshot = self.codexTokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(3)),
+            model: model,
+            total: (input: 100_000, cached: 0, output: 0),
+            last: (input: 100_000, cached: 0, output: 0))
+
+        // Correctness-critical fields: missing either forces a full rescan rather than an unsafe
+        // incremental resume.
+        let mutations: [(String, (inout CostUsageFileUsage) -> Void)] = [
+            ("watermark", { $0.lastRawTotalsWatermark = nil }),
+            ("interleaved flag", { $0.hasInterleavedTotals = nil }),
+        ]
+
+        for (label, mutate) in mutations {
+            try env.jsonl([sessionMeta, turnContext] + initialEvents)
+                .write(to: fileURL, atomically: true, encoding: .utf8)
+            options.forceRescan = true
+            let baseline = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day,
+                options: options)
+            #expect(baseline.data.first?.totalTokens == 100_000, "baseline failed for \(label)")
+            options.forceRescan = false
+
+            var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+            for (path, usage) in cache.files {
+                var stripped = usage
+                mutate(&stripped)
+                cache.files[path] = stripped
+            }
+            CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+            try env.jsonl([sessionMeta, turnContext] + initialEvents + [replayedSnapshot])
+                .write(to: fileURL, atomically: true, encoding: .utf8)
+
+            let second = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(1),
+                options: options)
+            #expect(second.data.first?.totalTokens == 100_000, "failed for missing \(label)")
+
+            let healed = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+            let usage = healed.files
+                .first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
+                .value
+            #expect(usage?.lastRawTotalsWatermark != nil, "healed watermark missing after \(label)")
+            #expect(usage?.hasInterleavedTotals == true, "healed interleaved flag missing after \(label)")
+        }
+    }
+
+    @Test
+    func `codex missing optional seen set keeps incremental resume safe`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 12)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso0,
+            "payload": ["session_id": "optional-seen-set"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let initialEvents: [[String: Any]] = [
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                model: model,
+                total: (input: 5000, cached: 0, output: 0),
+                last: (input: 5000, cached: 0, output: 0)),
+        ]
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext] + initialEvents))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let first = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(first.data.first?.totalTokens == 100_000)
+
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let path = try #require(cache.files.keys.first {
+            URL(fileURLWithPath: $0).lastPathComponent == fileURL.lastPathComponent
+        })
+        var usage = try #require(cache.files[path])
+        let parsedBytesBeforeAppend = usage.parsedBytes ?? usage.size
+        #expect(usage.hasInterleavedTotals == true)
+        #expect(usage.lastRawTotalsWatermark != nil)
+        // Optional precision only: stripping the seen-set must not block incremental resume.
+        usage.seenRawTotals = nil
+        cache.files[path] = usage
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let appendedEvents: [[String: Any]] = [
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                model: model,
+                total: (input: 101_000, cached: 0, output: 0),
+                last: (input: 1000, cached: 0, output: 0)),
+        ]
+        try env.jsonl([sessionMeta, turnContext] + initialEvents + appendedEvents)
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let second = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(second.data.first?.totalTokens == 101_000)
+
+        let after = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let afterUsage = try #require(after.files[path])
+        #expect(afterUsage.hasInterleavedTotals == true)
+        #expect(afterUsage.lastRawTotalsWatermark?.input == 101_000)
+        #expect((afterUsage.parsedBytes ?? afterUsage.size) > parsedBytesBeforeAppend)
+    }
+
+    @Test
+    func `codex divergent cache entry without watermark forces full rescan`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 12)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        let sessionMeta: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": iso0,
+            "payload": ["session_id": "legacy-divergent"],
+        ]
+        let turnContext = self.codexTurnContext(timestamp: iso0, model: model)
+        let initialEvents: [[String: Any]] = [
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: model,
+                total: (input: 100_000, cached: 0, output: 0),
+                last: (input: 100_000, cached: 0, output: 0)),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                model: model,
+                total: (input: 5000, cached: 0, output: 0),
+                last: (input: 5000, cached: 0, output: 0)),
+        ]
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([sessionMeta, turnContext] + initialEvents))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let first = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(first.data.first?.totalTokens == 100_000)
+
+        // Simulate a cache entry written before the interleave tracker existed: divergent totals
+        // but no watermark. Resuming incrementally from it would be unsafe.
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        for (path, usage) in cache.files {
+            var stripped = usage
+            stripped.lastRawTotalsWatermark = nil
+            stripped.seenRawTotals = nil
+            stripped.hasInterleavedTotals = nil
+            cache.files[path] = stripped
+        }
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+
+        let replayedSnapshot = self.codexTokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(3)),
+            model: model,
+            total: (input: 100_000, cached: 0, output: 0),
+            last: (input: 100_000, cached: 0, output: 0))
+        try env.jsonl([sessionMeta, turnContext] + initialEvents + [replayedSnapshot])
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let second = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(second.data.first?.totalTokens == 100_000)
+
+        let healed = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let usage = healed.files.first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
+            .value
+        #expect(usage?.lastRawTotalsWatermark != nil)
+        #expect(usage?.hasInterleavedTotals == true)
+    }
+
+    @Test
     func `codex daily report includes archived sessions and dedupes`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
