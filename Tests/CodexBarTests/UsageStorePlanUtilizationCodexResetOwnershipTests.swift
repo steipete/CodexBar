@@ -104,6 +104,41 @@ extension UsageStorePlanUtilizationTests {
         #expect(store.weeklyLimitResetDetectorStates.count == 2)
     }
 
+    @MainActor
+    @Test
+    func `codex weekly reset detector keeps managed ownership across token refreshes`() async {
+        let store = Self.makeStore()
+        let email = "managed-refresh@example.com"
+        let storedAccountID = UUID()
+        let observedAt = Date(timeIntervalSince1970: 1_700_200_000)
+        let beforeRefresh = Self.codexVisibleAccount(
+            id: "managed-before",
+            email: email,
+            authFingerprint: "fingerprint-before",
+            storedAccountID: storedAccountID)
+        let afterRefresh = Self.codexVisibleAccount(
+            id: "managed-after",
+            email: email,
+            authFingerprint: "fingerprint-after",
+            storedAccountID: storedAccountID)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: Self.codexWeeklySnapshot(email: email, plan: "plus", observedAt: observedAt),
+            codexVisibleAccount: beforeRefresh,
+            now: observedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: Self.codexWeeklySnapshot(
+                email: email,
+                plan: "plus",
+                observedAt: observedAt.addingTimeInterval(60)),
+            codexVisibleAccount: afterRefresh,
+            now: observedAt.addingTimeInterval(60))
+
+        #expect(store.weeklyLimitResetDetectorStates.count == 1)
+    }
+
     private static func codexWeeklySnapshot(
         email: String,
         plan: String,
@@ -132,7 +167,8 @@ extension UsageStorePlanUtilizationTests {
         id: String,
         email: String,
         workspaceAccountID: String? = nil,
-        authFingerprint: String? = nil) -> CodexVisibleAccount
+        authFingerprint: String? = nil,
+        storedAccountID: UUID? = nil) -> CodexVisibleAccount
     {
         CodexVisibleAccount(
             id: id,
@@ -140,8 +176,8 @@ extension UsageStorePlanUtilizationTests {
             workspaceLabel: nil,
             workspaceAccountID: workspaceAccountID,
             authFingerprint: authFingerprint,
-            storedAccountID: nil,
-            selectionSource: .liveSystem,
+            storedAccountID: storedAccountID,
+            selectionSource: storedAccountID.map { .managedAccount(id: $0) } ?? .liveSystem,
             isActive: false,
             isLive: true,
             canReauthenticate: false,

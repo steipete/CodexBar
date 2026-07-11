@@ -63,11 +63,17 @@ extension UsageStore {
     private nonisolated static func codexLimitResetWorkspaceDiscriminator(
         _ account: CodexVisibleAccount) -> String?
     {
-        if let authFingerprint = CodexAuthFingerprint.normalize(account.authFingerprint) {
-            return "auth:\(authFingerprint)"
+        if let storedAccountID = account.storedAccountID {
+            return "managed:\(storedAccountID.uuidString.lowercased())"
+        }
+        if case let .profileHome(path) = account.selectionSource {
+            return "profile:\(path)"
         }
         let workspaceLabel = account.workspaceLabel?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return workspaceLabel.flatMap { $0.isEmpty ? nil : "workspace-label:\($0.lowercased())" }
+        if let workspaceLabel, !workspaceLabel.isEmpty {
+            return "workspace-label:\(workspaceLabel.lowercased())"
+        }
+        return CodexAuthFingerprint.normalize(account.authFingerprint).map { "auth:\($0)" }
     }
 }
