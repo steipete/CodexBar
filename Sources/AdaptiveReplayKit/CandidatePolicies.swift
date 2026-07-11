@@ -6,7 +6,7 @@ public struct CodingActivityAdaptivePolicy: ReplayPolicy, Sendable {
     public let name = "adaptive-activity"
     public let advancesOnInteraction = true
 
-    private let base = MirroredAdaptivePolicy()
+    private let base = AdaptiveReplayPolicy()
     private static let activeThreshold: TimeInterval = 5 * 60
     private static let activeDelayCap: TimeInterval = 5 * 60
 

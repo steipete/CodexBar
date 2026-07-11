@@ -5,10 +5,11 @@ explicit JSONL trace. `AdaptiveReplayCLI` is the command-line wrapper around the
 
 ## Scope
 
-The replay targets do not import `CodexBar` or `CodexBarCore`. They do not record app behavior,
-scan Codex or Claude transcript directories, write trace files, call providers, or change the
-production refresh policy. Trace capture and lifecycle management are deliberately outside this
-PR; callers provide an existing trace path to the CLI.
+The replay targets do not import `CodexBar` or `CodexBarCore`; they share only the package-internal,
+Foundation-only `AdaptiveRefreshCore` target with the app. They do not record app behavior, scan
+Codex or Claude transcript directories, write trace files, call providers, or change the production
+refresh policy. Trace capture and lifecycle management are deliberately outside this PR; callers
+provide an existing trace path to the CLI.
 
 Optional activity fields in the trace schema are inputs only. The replay kit never discovers or
 collects them. Old records without those fields continue to decode.
@@ -18,8 +19,9 @@ collects them. Old records without those fields continue to decode.
 - `AdaptiveRefreshTrace.swift` defines the version-tolerant trace schema.
 - `AdaptiveRefreshTraceParser.swift` parses JSONL strictly by default. The tolerant entry point is
   available for exploratory work that explicitly accepts skipped malformed records.
-- `ReplayPolicy.swift`, `BaselinePolicies.swift`, and `CandidatePolicies.swift` define the current
-  mirrored policy, fixed/manual baselines, and the replay-only activity candidate.
+- `AdaptiveRefreshCore` owns the production decision table. `ReplayPolicy.swift`,
+  `BaselinePolicies.swift`, and `CandidatePolicies.swift` provide replay adapters, fixed/manual
+  baselines, and the replay-only activity candidate.
 - `ReplayEngine.swift` and `ReplayMetrics.swift` calculate simulated refresh cadence, menu-open
   staleness, interaction advances, and constrained-state compliance.
 - `ReplayTraceSegmentation.swift` excludes legacy deadline-overrun gaps with an explicit heuristic

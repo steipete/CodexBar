@@ -104,7 +104,7 @@ enum AdaptiveReplayCLI {
 
     private static func policy(named name: String) throws -> any ReplayPolicy {
         if name == "adaptive" {
-            return MirroredAdaptivePolicy()
+            return AdaptiveReplayPolicy()
         }
         if name == "adaptive-activity" {
             return CodingActivityAdaptivePolicy()
@@ -211,15 +211,15 @@ enum AdaptiveReplayCLI {
     }
 
     private static let helpText = """
-    Usage: adaptive-replay-cli <trace.jsonl> [--policy <name>]... [--gap-grace <seconds>] [--raw-wall-clock] [--json]
+    Usage: AdaptiveReplayCLI <trace.jsonl> [--policy <name>]... [--gap-grace <seconds>] [--raw-wall-clock] [--json]
 
     Replays a JSONL adaptive-refresh trace against one or more refresh-timing policies and prints
     per-policy metrics over automatically segmented observed time. Simulated advances are
     counterfactual policy events; recorded live schedule evaluations are audited separately.
 
     Policies:
-      adaptive       The current adaptive table, mirrored from AdaptiveRefreshPolicy. Advances on
-                     menu-open interactions, same as UsageStore.noteMenuOpened(at:).
+      adaptive       The shared production adaptive policy. Advances on menu-open interactions,
+                     same as UsageStore.noteMenuOpened(at:).
       adaptive-activity  Experimental adaptive table capped at 5m after observed coding activity.
       fixed-2m       Fixed 2 minute cadence. Unaffected by menu-open interactions.
       fixed-5m       Fixed 5 minute cadence.
@@ -246,64 +246,6 @@ private enum CLIError: Error, CustomStringConvertible {
         case let .unknownPolicy(name):
             "unknown policy '\(name)' (expected: adaptive, adaptive-activity, manual, fixed-<N>m)"
         }
-    }
-}
-
-private enum CLIArguments {
-    case run(tracePath: String, policyNames: [String], jsonOutput: Bool, gapGraceSeconds: TimeInterval?)
-    case help(exitCode: Int32)
-    case invalid(message: String)
-
-    static let allPolicyNames = [
-        "adaptive", "adaptive-activity", "fixed-2m", "fixed-5m", "fixed-15m", "fixed-30m", "manual",
-    ]
-
-    static func parse(_ arguments: [String]) -> Self {
-        if arguments.contains("-h") || arguments.contains("--help") {
-            return .help(exitCode: EXIT_SUCCESS)
-        }
-
-        var tracePath: String?
-        var policyNames: [String] = []
-        var jsonOutput = false
-        var gapGraceSeconds: TimeInterval? = ReplayTraceSegmenter.defaultGraceSeconds
-        var index = 0
-        while index < arguments.count {
-            let argument = arguments[index]
-            switch argument {
-            case "--json":
-                jsonOutput = true
-            case "--raw-wall-clock":
-                gapGraceSeconds = nil
-            case "--gap-grace":
-                index += 1
-                guard index < arguments.count,
-                      let seconds = TimeInterval(arguments[index]),
-                      seconds >= 0,
-                      seconds.isFinite
-                else { return .invalid(message: "--gap-grace requires non-negative finite seconds") }
-                gapGraceSeconds = seconds
-            case "--policy":
-                index += 1
-                guard index < arguments.count else { return .invalid(message: "--policy requires a value") }
-                policyNames.append(arguments[index])
-            default:
-                guard tracePath == nil else {
-                    return .invalid(message: "unexpected argument '\(argument)'")
-                }
-                tracePath = argument
-            }
-            index += 1
-        }
-
-        guard let tracePath else {
-            return .help(exitCode: EXIT_FAILURE)
-        }
-        return .run(
-            tracePath: tracePath,
-            policyNames: policyNames.isEmpty ? self.allPolicyNames : policyNames,
-            jsonOutput: jsonOutput,
-            gapGraceSeconds: gapGraceSeconds)
     }
 }
 

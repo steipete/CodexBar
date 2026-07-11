@@ -1,52 +1,26 @@
+import AdaptiveRefreshCore
 import Foundation
 
-/// A byte-for-byte mirror of `AdaptiveRefreshPolicy`'s first-match-wins table, re-expressed
-/// against `ReplayPolicyInput` because this library cannot import the app target that owns the
-/// original. `AdaptiveReplayPolicyMirrorTests` asserts this mirror's output matches the real
-/// policy case-for-case across the boundary table; if the two ever drift (someone edits one
-/// table's thresholds without the other), that test fails red. Kept in sync by hand — phase 1
-/// intentionally accepts this duplication rather than restructuring the upstream PR surface.
-public struct MirroredAdaptivePolicy: ReplayPolicy, Sendable {
+/// Replay adapter for the same canonical policy core used by the CodexBar app.
+public struct AdaptiveReplayPolicy: ReplayPolicy, Sendable {
     public let name = "adaptive"
 
-    /// Mirrors `UsageStore.noteMenuOpened(at:)`'s adaptive-only advance guard: this is the one
+    /// Matches `UsageStore.noteMenuOpened(at:)`'s adaptive-only advance guard: this is the one
     /// baseline that actually models the interaction-advance path, so it is the only one that
     /// overrides the protocol's `false` default.
     public let advancesOnInteraction = true
 
-    private static let recentInteractionThreshold: TimeInterval = 5 * 60
-    private static let warmThreshold: TimeInterval = 60 * 60
-    private static let idleThreshold: TimeInterval = 4 * 60 * 60
-
-    private static let recentInteractionDelay: TimeInterval = 2 * 60
-    private static let warmDelay: TimeInterval = 5 * 60
-    private static let idleDelay: TimeInterval = 15 * 60
-    private static let longIdleDelay: TimeInterval = 30 * 60
-    private static let constrainedDelay: TimeInterval = 30 * 60
-
     public init() {}
 
     public func decide(_ input: ReplayPolicyInput) -> ReplayPolicyDecision {
-        if input.isConstrained {
-            return ReplayPolicyDecision(delaySeconds: Self.constrainedDelay, reason: "constrained")
-        }
-
-        guard let lastMenuOpenAt = input.lastMenuOpenAt else {
-            return ReplayPolicyDecision(delaySeconds: Self.longIdleDelay, reason: "longIdle")
-        }
-
-        let age = input.now.timeIntervalSince(lastMenuOpenAt)
-
-        if age <= Self.recentInteractionThreshold {
-            return ReplayPolicyDecision(delaySeconds: Self.recentInteractionDelay, reason: "recentInteraction")
-        }
-        if age <= Self.warmThreshold {
-            return ReplayPolicyDecision(delaySeconds: Self.warmDelay, reason: "warm")
-        }
-        if age < Self.idleThreshold {
-            return ReplayPolicyDecision(delaySeconds: Self.idleDelay, reason: "idle")
-        }
-        return ReplayPolicyDecision(delaySeconds: Self.longIdleDelay, reason: "longIdle")
+        let decision = AdaptiveRefreshPolicyCore().nextDelay(for: AdaptiveRefreshPolicyCore.Input(
+            now: input.now,
+            lastMenuOpenAt: input.lastMenuOpenAt,
+            lowPowerModeEnabled: input.lowPowerModeEnabled,
+            thermalPressure: input.thermalState.isConstrained ? .constrained : .nominal))
+        return ReplayPolicyDecision(
+            delaySeconds: TimeInterval(decision.delay.components.seconds),
+            reason: decision.reason.rawValue)
     }
 }
 

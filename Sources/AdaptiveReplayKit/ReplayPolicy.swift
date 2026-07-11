@@ -1,10 +1,10 @@
 import Foundation
 
-// Replay harness for the adaptive refresh policy shipped in the `CodexBar` app target. This
-// library never imports `CodexBar`, so every type is self-contained. The macOS-only
-// `AdaptiveReplayPolicyMirrorTests` compare `MirroredAdaptivePolicy` against the real table.
+// Replay harness for the adaptive refresh policy shipped in the `CodexBar` app target. The app
+// and replay adapter both call `AdaptiveRefreshPolicyCore`; these types only normalize replay
+// inputs and report replay-friendly output.
 
-/// Coarse thermal-pressure signal mirroring the two `ProcessInfo.ThermalState` cases the policy
+/// Coarse thermal-pressure signal matching the two `ProcessInfo.ThermalState` cases the policy
 /// distinguishes (`.serious`/`.critical` vs everything else), expressed independently so this
 /// library never needs Darwin-only APIs and can build on any platform.
 public enum ReplayThermalState: String, Sendable, Codable, CaseIterable {
@@ -19,8 +19,7 @@ public enum ReplayThermalState: String, Sendable, Codable, CaseIterable {
 }
 
 /// The inputs a refresh-timing policy needs to decide how long to wait before the next refresh.
-/// Structurally mirrors `AdaptiveRefreshPolicy.Input` but is a distinct type: this library cannot
-/// import the app target that owns the original.
+/// Replay-specific policy input. Platform-independent fields map into the shared policy core.
 public struct ReplayPolicyInput: Sendable, Equatable {
     public let now: Date
     public let lastMenuOpenAt: Date?

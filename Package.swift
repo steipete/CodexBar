@@ -84,11 +84,20 @@ let package = Package(
                     .enableUpcomingFeature("StrictConcurrency"),
                 ],
                 linkerSettings: sqlite3LinkerSettings),
+            // Sole owner of the adaptive refresh decision table. Package-internal so the app and
+            // offline replay tool share behavior without publishing another library product.
+            .target(
+                name: "AdaptiveRefreshCore",
+                dependencies: [],
+                path: "Sources/AdaptiveRefreshCore",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ]),
             // Offline adaptive-refresh replay harness: pure Foundation,
             // no CodexBar/CodexBarCore dependency, so it builds anywhere CodexBarCore does.
             .target(
                 name: "AdaptiveReplayKit",
-                dependencies: [],
+                dependencies: ["AdaptiveRefreshCore"],
                 path: "Sources/AdaptiveReplayKit",
                 exclude: ["README.md"],
                 swiftSettings: [
@@ -103,7 +112,7 @@ let package = Package(
                 ]),
             .testTarget(
                 name: "AdaptiveReplayKitTests",
-                dependencies: ["AdaptiveReplayKit"],
+                dependencies: ["AdaptiveRefreshCore", "AdaptiveReplayKit"],
                 path: "Tests/AdaptiveReplayKitTests",
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
@@ -138,6 +147,7 @@ let package = Package(
                     .product(name: "Sparkle", package: "Sparkle"),
                     .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                     .product(name: "Vortex", package: "Vortex"),
+                    "AdaptiveRefreshCore",
                     "CodexBarCore",
                 ],
                 path: "Sources/CodexBar",
@@ -167,7 +177,7 @@ let package = Package(
 
         targets.append(.testTarget(
             name: "CodexBarTests",
-            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget", "AdaptiveReplayKit"],
+            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget"],
             path: "Tests",
             exclude: ["AdaptiveReplayKitTests"],
             resources: [

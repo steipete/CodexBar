@@ -47,6 +47,8 @@ Current `main` has two independent refresh paths:
 
 Relevant implementation seams:
 
+- `Sources/AdaptiveRefreshCore/AdaptiveRefreshPolicyCore.swift`: canonical package-internal policy table shared by the
+  app adapter and offline replay tooling.
 - `Sources/CodexBar/SettingsStore.swift`: `RefreshFrequency` and fixed interval mapping.
 - `Sources/CodexBar/UsageStore.swift`: timer ownership and provider-batch refresh.
 - `Sources/CodexBar/UsageStore+Refresh.swift`: provider refresh coalescing and result application.
@@ -252,6 +254,9 @@ This follow-up adds offline replay tooling only. It does not add app-side record
 transcript-directory scanning, or a new production-policy input. The evaluated 1,780-record snapshot came from local
 experimental instrumentation that is not part of this change. Its SHA-256 is
 `b1e4aa33180b7c177293eb9ed16b45e24e026d259600fba2b1b67b931b904f0b`; the raw trace remains local.
+
+The app and replay adapter call the same package-internal policy core. Platform-specific adapters normalize thermal
+state and output units; they do not copy the policy thresholds or decision table.
 
 The replay splits legacy deadline-overrun gaps five minutes after the most recent recorded timer deadline. It found 28
 observed segments and excluded 26.10 hours of unobserved wall time. The heuristic cannot distinguish sleep or reboot from

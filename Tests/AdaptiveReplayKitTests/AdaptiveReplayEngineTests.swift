@@ -89,7 +89,7 @@ struct AdaptiveReplayEngineTests {
                 delaySeconds: 1800),
             .refreshCompleted(timestamp: self.at(1800)),
         ]
-        let metrics = ReplayEngine.run(trace: trace, policy: MirroredAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: trace, policy: AdaptiveReplayPolicy())
         #expect(metrics.stalenessAtMenuOpen == nil)
     }
 
@@ -125,8 +125,8 @@ struct AdaptiveReplayEngineTests {
     }
 
     @Test
-    func `the mirrored adaptive policy honors the constrained floor`() {
-        let metrics = ReplayEngine.run(trace: self.constrainedTrace(), policy: MirroredAdaptivePolicy())
+    func `the shared adaptive policy honors the constrained floor`() {
+        let metrics = ReplayEngine.run(trace: self.constrainedTrace(), policy: AdaptiveReplayPolicy())
 
         #expect(metrics.constrainedCompliance.constrainedDecisionCount == 1)
         #expect(metrics.constrainedCompliance.violationCount == 0)
@@ -140,7 +140,7 @@ struct AdaptiveReplayEngineTests {
 
     @Test
     func `an empty trace reports zero metrics without crashing`() {
-        let metrics = ReplayEngine.run(trace: [], policy: MirroredAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: [], policy: AdaptiveReplayPolicy())
         #expect(metrics.totalRefreshCount == 0)
         #expect(metrics.simulatedSpanSeconds == 0.0)
         #expect(metrics.stalenessAtMenuOpen == nil)
@@ -154,7 +154,7 @@ struct AdaptiveReplayEngineTests {
     /// refresh at t=1800, far past the trace's end) and one `menuOpen` at t=50 landing inside that
     /// tick's window.
     ///
-    /// Hand computation for `MirroredAdaptivePolicy` (`advancesOnInteraction == true`):
+    /// Hand computation for `AdaptiveReplayPolicy` (`advancesOnInteraction == true`):
     /// - cursor=0: decide(now:0, lastMenuOpenAt: nil) -> longIdle, delay=1800 -> next=1800.
     ///   menuOpen@50 falls in (0, 1800]: decide(now:50, lastMenuOpenAt:50) (age 0) ->
     ///   recentInteraction, delay=120 -> candidate=170. 170 < 1800, so the schedule advances:
@@ -191,7 +191,7 @@ struct AdaptiveReplayEngineTests {
 
     @Test
     func `a menu open pulls the adaptive schedule forward, matching hand computation`() {
-        let metrics = ReplayEngine.run(trace: self.menuOpenAdvanceTrace(), policy: MirroredAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: self.menuOpenAdvanceTrace(), policy: AdaptiveReplayPolicy())
 
         #expect(metrics.totalRefreshCount == 2)
         #expect(metrics.interactionAdvanceCount == 1)
@@ -223,7 +223,7 @@ struct AdaptiveReplayEngineTests {
             reason: "recentInteraction",
             delaySeconds: 120))
 
-        let policy = MirroredAdaptivePolicy()
+        let policy = AdaptiveReplayPolicy()
         let recomputed = policy.decide(ReplayPolicyInput(
             now: menuOpenAt,
             lastMenuOpenAt: menuOpenAt,
@@ -274,7 +274,7 @@ struct AdaptiveReplayEngineTests {
 
     @Test
     func `a later menu open in the same window cannot postpone an earlier advance`() {
-        let metrics = ReplayEngine.run(trace: self.twoMenuOpensSameWindowTrace(), policy: MirroredAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: self.twoMenuOpensSameWindowTrace(), policy: AdaptiveReplayPolicy())
 
         #expect(metrics.totalRefreshCount == 1)
         #expect(metrics.interactionAdvanceCount == 1)
