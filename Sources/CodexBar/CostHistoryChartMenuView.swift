@@ -363,8 +363,7 @@ struct CostHistoryChartMenuView: View {
         var maxDetailRows = 0
         var hasModeDetails = false
         for entry in sorted {
-            guard let costUSD = entry.costUSD, costUSD >= 0 else { continue }
-            guard let date = self.dateFromDayKey(entry.date) else { continue }
+            guard let (costUSD, date) = self.chartPointInput(for: entry) else { continue }
             let point = Point(
                 date: date,
                 costUSD: costUSD,
@@ -453,6 +452,12 @@ struct CostHistoryChartMenuView: View {
         comps.day = day
         comps.hour = 12
         return comps.date
+    }
+
+    private static func chartPointInput(for entry: DailyEntry) -> (costUSD: Double, date: Date)? {
+        guard let costUSD = entry.costUSD, costUSD >= 0 else { return nil }
+        guard let date = self.dateFromDayKey(entry.date) else { return nil }
+        return (costUSD, date)
     }
 
     private static func peakPoint(model: Model) -> Point? {
@@ -769,8 +774,26 @@ extension CostHistoryChartMenuView {
         let historyDays: Int
         let windowLabel: String?
         let totalCostBitPattern: UInt64?
-        let daily: [DailyEntry]
+        let daily: [VisibleDailyFingerprint]
         let projects: [VisibleProjectFingerprint]
+    }
+
+    struct VisibleDailyFingerprint: Equatable {
+        let date: String
+        let totalTokens: Int?
+        let requestCount: Int?
+        let costBitPattern: UInt64?
+        let modelBreakdowns: [VisibleModelBreakdownFingerprint]
+    }
+
+    struct VisibleModelBreakdownFingerprint: Equatable {
+        let modelName: String
+        let costBitPattern: UInt64?
+        let totalTokens: Int?
+        let standardCostBitPattern: UInt64?
+        let priorityCostBitPattern: UInt64?
+        let standardTokens: Int?
+        let priorityTokens: Int?
     }
 
     struct VisibleProjectFingerprint: Equatable {
@@ -789,33 +812,21 @@ extension CostHistoryChartMenuView {
         let totalCostBitPattern: UInt64?
     }
 
-    static func renderFingerprint(from snapshot: CostUsageTokenSnapshot) -> RenderFingerprint {
-        self.makeRenderFingerprint(RenderFingerprintInputs(
+    static func renderFingerprint(
+        from snapshot: CostUsageTokenSnapshot,
+        provider: UsageProvider) -> RenderFingerprint
+    {
+        let projects = provider == .codex ? snapshot.projects : []
+        return RenderFingerprint(
             currencyCode: snapshot.currencyCode,
             historyDays: snapshot.historyDays,
             windowLabel: snapshot.historyLabel,
-            totalCostUSD: snapshot.last30DaysCostUSD,
-            daily: snapshot.daily,
-            projects: snapshot.projects))
-    }
-
-    private struct RenderFingerprintInputs {
-        let currencyCode: String
-        let historyDays: Int
-        let windowLabel: String?
-        let totalCostUSD: Double?
-        let daily: [DailyEntry]
-        let projects: [CostUsageProjectBreakdown]
-    }
-
-    private static func makeRenderFingerprint(_ inputs: RenderFingerprintInputs) -> RenderFingerprint {
-        RenderFingerprint(
-            currencyCode: inputs.currencyCode,
-            historyDays: inputs.historyDays,
-            windowLabel: inputs.windowLabel,
-            totalCostBitPattern: inputs.totalCostUSD.map(\.bitPattern),
-            daily: inputs.daily,
-            projects: Array(inputs.projects.prefix(self.maxVisibleProjectRows)).map { project in
+            totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),
+            daily: snapshot.daily
+                .filter { self.chartPointInput(for: $0) != nil }
+                .sorted { $0.date < $1.date }
+                .map(self.visibleDailyFingerprint),
+            projects: Array(projects.prefix(self.maxVisibleProjectRows)).map { project in
                 let visibleSources = self.visibleProjectSources(project)
                 return VisibleProjectFingerprint(
                     name: project.name,
@@ -830,6 +841,24 @@ extension CostHistoryChartMenuView {
                             totalTokens: source.totalTokens,
                             totalCostBitPattern: source.totalCostUSD.map(\.bitPattern))
                     })
+            })
+    }
+
+    private static func visibleDailyFingerprint(_ entry: DailyEntry) -> VisibleDailyFingerprint {
+        VisibleDailyFingerprint(
+            date: entry.date,
+            totalTokens: entry.totalTokens,
+            requestCount: entry.requestCount,
+            costBitPattern: entry.costUSD.map(\.bitPattern),
+            modelBreakdowns: self.orderedBreakdownItems(entry.modelBreakdowns ?? []).map { item in
+                VisibleModelBreakdownFingerprint(
+                    modelName: item.modelName,
+                    costBitPattern: item.costUSD.map(\.bitPattern),
+                    totalTokens: item.totalTokens,
+                    standardCostBitPattern: item.standardCostUSD.map(\.bitPattern),
+                    priorityCostBitPattern: item.priorityCostUSD.map(\.bitPattern),
+                    standardTokens: item.standardCostUSD == nil ? nil : item.standardTokens,
+                    priorityTokens: item.priorityCostUSD == nil ? nil : item.priorityTokens)
             })
     }
 
