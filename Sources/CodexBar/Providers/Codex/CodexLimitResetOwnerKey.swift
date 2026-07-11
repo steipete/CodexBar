@@ -18,6 +18,48 @@ struct CodexLimitResetOwnerKey: Equatable, Hashable, Sendable {
     }
 }
 
+struct CodexSessionQuotaOwnerKey: Equatable, Sendable {
+    let rawValue: String
+
+    init?(refreshGuard: CodexAccountScopedRefreshGuard) {
+        let input: String
+        switch refreshGuard.identity {
+        case let .providerAccount(id):
+            guard let normalizedID = CodexOpenAIWorkspaceResolver.normalizeWorkspaceAccountID(id),
+                  let normalizedEmail = CodexIdentityResolver.normalizeEmail(refreshGuard.accountKey)
+            else {
+                return nil
+            }
+            input = "codex-session-quota-owner:v1\0provider\0\(normalizedID)\0\(normalizedEmail)"
+        case let .emailOnly(normalizedEmail):
+            guard let email = CodexIdentityResolver.normalizeEmail(normalizedEmail) else { return nil }
+            if let accountKey = CodexIdentityResolver.normalizeEmail(refreshGuard.accountKey), accountKey != email {
+                return nil
+            }
+            guard let sourceKey = Self.sourceKey(refreshGuard.source) else { return nil }
+            let fingerprint = CodexAuthFingerprint.normalize(refreshGuard.authFingerprint)
+                .map { "present:\($0)" } ?? "missing"
+            input = "codex-session-quota-owner:v1\0email\0\(sourceKey)\0" +
+                "\(email)\0\(fingerprint)"
+        case .unresolved:
+            return nil
+        }
+        let digest = SHA256.hash(data: Data(input.utf8))
+        self.rawValue = digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func sourceKey(_ source: CodexActiveSource) -> String? {
+        switch source {
+        case .liveSystem:
+            "live-system"
+        case let .managedAccount(id):
+            "managed:\(id.uuidString.lowercased())"
+        case let .profileHome(path):
+            CodexHomeScope.normalizedHomePath(path).map { "profile:\($0)" }
+        }
+    }
+}
+
 extension UsageStore {
     func codexLimitResetOwnerKey(
         expectedGuard: CodexAccountScopedRefreshGuard,

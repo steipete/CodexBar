@@ -333,7 +333,10 @@ struct CodexSessionQuotaFalseRestoreTests {
 
     @Test
     func `selected Codex account caller forwards its stable owner`() async throws {
-        let owner = try self.owner("selected-caller")
+        let expectedOwner = try self.owner("selected-caller")
+        let limitResetOwner = try #require(CodexLimitResetOwnerKey(
+            identity: .providerAccount(id: "workspace-fixture-selected-caller"),
+            accountEmail: "session-fixture@example.test"))
         let now = self.start
         let snapshot = self.snapshot(
             used: 20,
@@ -363,9 +366,108 @@ struct CodexSessionQuotaFalseRestoreTests {
             account: account,
             snapshot: snapshot,
             sourceLabel: "fixture",
-            limitResetOwnerKey: owner)
+            limitResetOwnerKey: limitResetOwner)
 
-        #expect(store.sessionQuotaTransitionStates[.codex]?.codexOwnerKey == owner)
+        #expect(store.sessionQuotaTransitionStates[.codex]?.codexOwnerKey == expectedOwner)
+    }
+
+    @Test
+    func `selected email only Codex account keeps session notifications`() async {
+        let email = "email-only-session@example.test"
+        let account = CodexVisibleAccount(
+            id: "live:email-only-session",
+            email: email,
+            workspaceAccountID: nil,
+            authFingerprint: "fixture-auth-fingerprint",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeStore(notifier: notifier)
+        let boundary = self.start.addingTimeInterval(5 * 3600)
+
+        let advancedBoundary = boundary.addingTimeInterval(5 * 3600)
+        for (used, observedAt, resetBoundary) in [
+            (20.0, self.start, boundary),
+            (100.0, self.start.addingTimeInterval(60), boundary),
+            (20.0, boundary.addingTimeInterval(60), advancedBoundary),
+            (10.0, boundary.addingTimeInterval(120), advancedBoundary),
+        ] {
+            let snapshot = self.snapshot(
+                used: used,
+                resetBoundary: resetBoundary,
+                updatedAt: observedAt,
+                email: email)
+            let result = ProviderFetchResult(
+                usage: snapshot,
+                credits: nil,
+                dashboard: nil,
+                sourceLabel: "fixture",
+                strategyID: "fixture.oauth",
+                strategyKind: .oauth)
+            await store.applySelectedCodexVisibleAccountOutcome(
+                ProviderFetchOutcome(result: .success(result), attempts: []),
+                account: account,
+                snapshot: snapshot,
+                sourceLabel: "fixture",
+                limitResetOwnerKey: nil)
+        }
+
+        #expect(store.sessionQuotaTransitionStates[.codex]?.codexOwnerKey != nil)
+        #expect(notifier.transitions == [.depleted, .restored])
+    }
+
+    @Test
+    func `email only notification owners isolate source and credential`() throws {
+        let email = "email-only-owner@example.test"
+        let identity = CodexIdentity.emailOnly(normalizedEmail: email)
+        let liveA = try #require(CodexSessionQuotaOwnerKey(refreshGuard: CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: identity,
+            accountKey: email,
+            authFingerprint: "fixture-a")))
+        let liveB = try #require(CodexSessionQuotaOwnerKey(refreshGuard: CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: identity,
+            accountKey: email,
+            authFingerprint: "fixture-b")))
+        let profile = try #require(CodexSessionQuotaOwnerKey(refreshGuard: CodexAccountScopedRefreshGuard(
+            source: .profileHome(path: "/tmp/codex-email-only-owner"),
+            identity: identity,
+            accountKey: email,
+            authFingerprint: "fixture-a")))
+        let providerIdentity = CodexIdentity.providerAccount(id: "workspace-email-only-owner")
+        let providerA = try #require(CodexSessionQuotaOwnerKey(refreshGuard: CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: providerIdentity,
+            accountKey: email,
+            authFingerprint: "fixture-a")))
+        let providerB = try #require(CodexSessionQuotaOwnerKey(refreshGuard: CodexAccountScopedRefreshGuard(
+            source: .profileHome(path: "/tmp/codex-email-only-owner"),
+            identity: providerIdentity,
+            accountKey: email,
+            authFingerprint: "fixture-b")))
+
+        #expect(liveA != liveB)
+        #expect(liveA != profile)
+        #expect(providerA == providerB)
+        #expect(CodexLimitResetOwnerKey(identity: identity, accountEmail: email) == nil)
+    }
+
+    @Test
+    func `regular refresh owner builder supports email only identity`() throws {
+        let email = "regular-email-only-owner@example.test"
+        let refreshGuard = CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: .emailOnly(normalizedEmail: email),
+            accountKey: email,
+            authFingerprint: "fixture-regular")
+        let owner = try #require(UsageStore.codexSessionQuotaOwnerKey(for: refreshGuard))
+
+        #expect(!owner.rawValue.isEmpty)
     }
 
     @Test
@@ -389,7 +491,7 @@ struct CodexSessionQuotaFalseRestoreTests {
         boundary: Date?,
         at: Date,
         evaluatedAt: Date? = nil,
-        owner: CodexLimitResetOwnerKey?)
+        owner: CodexSessionQuotaOwnerKey?)
     {
         store.handleSessionQuotaTransition(
             provider: provider,
@@ -406,7 +508,8 @@ struct CodexSessionQuotaFalseRestoreTests {
         provider: UsageProvider = .codex,
         used: Double,
         resetBoundary: Date?,
-        updatedAt: Date) -> UsageSnapshot
+        updatedAt: Date,
+        email: String = "session-fixture@example.test") -> UsageSnapshot
     {
         UsageSnapshot(
             primary: RateWindow(
@@ -418,15 +521,16 @@ struct CodexSessionQuotaFalseRestoreTests {
             updatedAt: updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: provider,
-                accountEmail: "session-fixture@example.test",
+                accountEmail: email,
                 accountOrganization: nil,
                 loginMethod: "test"))
     }
 
-    private func owner(_ suffix: String) throws -> CodexLimitResetOwnerKey {
-        try #require(CodexLimitResetOwnerKey(
+    private func owner(_ suffix: String) throws -> CodexSessionQuotaOwnerKey {
+        try #require(CodexSessionQuotaOwnerKey(refreshGuard: CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
             identity: .providerAccount(id: "workspace-fixture-\(suffix)"),
-            accountEmail: "session-fixture@example.test"))
+            accountKey: "session-fixture@example.test")))
     }
 
     private static func makeStore(notifier: SessionQuotaNotifierSpy) -> UsageStore {

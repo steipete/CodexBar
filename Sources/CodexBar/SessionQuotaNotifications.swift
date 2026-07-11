@@ -13,7 +13,7 @@ struct SessionQuotaTransitionState: Equatable {
     let remaining: Double
     let source: UsageStore.SessionQuotaWindowSource
     let observedAt: Date
-    let codexOwnerKey: CodexLimitResetOwnerKey?
+    let codexOwnerKey: CodexSessionQuotaOwnerKey?
     let trustedResetBoundary: Date?
     let pendingCodexRestoreObservationAt: Date?
 }
@@ -48,7 +48,7 @@ struct SessionQuotaTransitionObservation: Equatable {
     let resetBoundary: Date?
     let observedAt: Date
     let evaluationTime: Date
-    let codexOwnerKey: CodexLimitResetOwnerKey?
+    let codexOwnerKey: CodexSessionQuotaOwnerKey?
 }
 
 struct QuotaWarningEvent: Equatable {

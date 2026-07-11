@@ -845,7 +845,7 @@ final class UsageStore {
     func handleSessionQuotaTransition(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        codexOwnerKey: CodexLimitResetOwnerKey? = nil,
+        codexOwnerKey: CodexSessionQuotaOwnerKey? = nil,
         now: Date = Date())
     {
         // Session quota notifications are tied to the primary session window. Copilot free plans can
