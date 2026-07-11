@@ -126,26 +126,6 @@ enum ProviderChoice: String, AppEnum {
         case .zed: return nil // Zed not yet supported in widgets
         }
     }
-
-    static func enabledChoices(from snapshot: WidgetSnapshot?) -> [ProviderChoice] {
-        guard let snapshot else { return Array(allCases) }
-        let enabled = snapshot.enabledProviders.compactMap(Self.init(provider:))
-        return enabled.isEmpty ? [.codex] : enabled
-    }
-}
-
-struct EnabledProviderOptionsProvider: DynamicOptionsProvider {
-    func results() async throws -> [ProviderChoice] {
-        Self.currentChoices()
-    }
-
-    func defaultResult() async -> ProviderChoice? {
-        Self.currentChoices().first
-    }
-
-    static func currentChoices() -> [ProviderChoice] {
-        ProviderChoice.enabledChoices(from: WidgetSnapshotStore.load())
-    }
 }
 
 enum CompactMetric: String, AppEnum {
@@ -166,11 +146,11 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider"
     static let description = IntentDescription("Select the provider to display in the widget.")
 
-    @Parameter(title: "Provider", optionsProvider: EnabledProviderOptionsProvider())
+    @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
     init() {
-        self.provider = EnabledProviderOptionsProvider.currentChoices().first ?? .codex
+        self.provider = .codex
     }
 }
 
@@ -198,14 +178,14 @@ struct CompactMetricSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Provider + Metric"
     static let description = IntentDescription("Select the provider and metric to display.")
 
-    @Parameter(title: "Provider", optionsProvider: EnabledProviderOptionsProvider())
+    @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
     @Parameter(title: "Metric", default: .credits)
     var metric: CompactMetric
 
     init() {
-        self.provider = EnabledProviderOptionsProvider.currentChoices().first ?? .codex
+        self.provider = .codex
         self.metric = .credits
     }
 }
@@ -303,7 +283,9 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     }
 
     static func supportedProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
-        let supported = snapshot.enabledProviders.filter { ProviderChoice(provider: $0) != nil }
+        let enabled = snapshot.enabledProviders
+        let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
+        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
         return supported.isEmpty ? [.codex] : supported
     }
 }
