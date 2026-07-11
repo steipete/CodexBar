@@ -46,11 +46,18 @@ public enum KeychainPromptHandler {
     public nonisolated(unsafe) static var handler: ((KeychainPromptContext) -> Void)?
 
     public static func notify(_ context: KeychainPromptContext) {
+        _ = self.notifyIfHandled(context)
+    }
+
+    @discardableResult
+    static func notifyIfHandled(_ context: KeychainPromptContext) -> Bool {
         if let taskHandlerStore {
             taskHandlerStore.handler(context)
-            return
+            return true
         }
-        self.handler?(context)
+        guard let handler else { return false }
+        handler(context)
+        return true
     }
 
     #if DEBUG

@@ -105,15 +105,21 @@ extension ClaudeOAuthCredentialsStore {
 
     static func withIsolatedMemoryCacheForTesting<T>(operation: () throws -> T) rethrows -> T {
         let store = MemoryCacheStore()
-        return try self.$taskMemoryCacheStoreOverride.withValue(store) {
-            try operation()
+        let preAlertStore = ClaudeOAuthKeychainPreAlertGate.StateStore()
+        return try ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(preAlertStore) {
+            try self.$taskMemoryCacheStoreOverride.withValue(store) {
+                try operation()
+            }
         }
     }
 
     static func withIsolatedMemoryCacheForTesting<T>(operation: () async throws -> T) async rethrows -> T {
         let store = MemoryCacheStore()
-        return try await self.$taskMemoryCacheStoreOverride.withValue(store) {
-            try await operation()
+        let preAlertStore = ClaudeOAuthKeychainPreAlertGate.StateStore()
+        return try await ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(preAlertStore) {
+            try await self.$taskMemoryCacheStoreOverride.withValue(store) {
+                try await operation()
+            }
         }
     }
 
