@@ -160,6 +160,16 @@ extension SettingsStore {
         }
     }
 
+    var cursorUsageRangeKind: CursorUsageRangeKind {
+        get {
+            CursorUsageRangeKind(rawValue: self.defaultsState.cursorUsageRangeKindRaw ?? "") ?? .billingCycle
+        }
+        set {
+            self.defaultsState.cursorUsageRangeKindRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "cursorUsageRangeKind")
+        }
+    }
+
     var menuBarMetricPreferencesRaw: [String: String] {
         get { self.defaultsState.menuBarMetricPreferencesRaw }
         set {

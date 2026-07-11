@@ -75,8 +75,13 @@ struct UsageMenuCardView: View {
         }
 
         struct TokenUsageSection {
+            let title: String
             let sessionLine: String
             let monthLine: String
+            let cursorRangeKinds: [CursorUsageRangeKind]
+            let selectedCursorRangeKind: CursorUsageRangeKind?
+            let selectCursorRange: ((CursorUsageRangeKind) -> Void)?
+            let cursorRequestDetails: [CursorRecentRequest]
             let hintLine: String?
             let errorLine: String?
             let errorCopyText: String?
@@ -177,13 +182,12 @@ struct UsageMenuCardView: View {
                     }
                     if let tokenUsage = self.model.tokenUsage {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Cost")
-                                .font(.body)
-                                .fontWeight(.medium)
+                            CursorTokenUsageHeader(tokenUsage: tokenUsage)
                             Text(tokenUsage.sessionLine)
                                 .font(.footnote)
                             Text(tokenUsage.monthLine)
                                 .font(.footnote)
+                            CursorRequestDetailsList(requests: tokenUsage.cursorRequestDetails)
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)
@@ -672,6 +676,8 @@ extension UsageMenuCardView.Model {
         let hidePersonalInfo: Bool
         let claudePeakHoursEnabled: Bool
         let weeklyPace: UsagePace?
+        let cursorUsageRangeKind: CursorUsageRangeKind
+        let selectCursorUsageRange: ((CursorUsageRangeKind) -> Void)?
         let now: Date
 
         init(
@@ -697,6 +703,8 @@ extension UsageMenuCardView.Model {
             hidePersonalInfo: Bool,
             claudePeakHoursEnabled: Bool = true,
             weeklyPace: UsagePace? = nil,
+            cursorUsageRangeKind: CursorUsageRangeKind = .billingCycle,
+            selectCursorUsageRange: ((CursorUsageRangeKind) -> Void)? = nil,
             now: Date)
         {
             self.provider = provider
@@ -721,6 +729,8 @@ extension UsageMenuCardView.Model {
             self.hidePersonalInfo = hidePersonalInfo
             self.claudePeakHoursEnabled = claudePeakHoursEnabled
             self.weeklyPace = weeklyPace
+            self.cursorUsageRangeKind = cursorUsageRangeKind
+            self.selectCursorUsageRange = selectCursorUsageRange
             self.now = now
         }
     }
@@ -745,11 +755,7 @@ extension UsageMenuCardView.Model {
         } else {
             Self.providerCostSection(provider: input.provider, cost: input.snapshot?.providerCost)
         }
-        let tokenUsage = Self.tokenUsageSection(
-            provider: input.provider,
-            enabled: input.tokenCostUsageEnabled,
-            snapshot: input.tokenSnapshot,
-            error: input.tokenError)
+        let tokenUsage = Self.tokenUsageSection(input: input)
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
@@ -1453,44 +1459,6 @@ extension UsageMenuCardView.Model {
     private static func dashboardHint(error: String?) -> String? {
         guard let error, !error.isEmpty else { return nil }
         return error
-    }
-
-    private static func tokenUsageSection(
-        provider: UsageProvider,
-        enabled: Bool,
-        snapshot: CostUsageTokenSnapshot?,
-        error: String?) -> TokenUsageSection?
-    {
-        guard provider == .codex || provider == .claude || provider == .vertexai else { return nil }
-        guard enabled else { return nil }
-        guard let snapshot else { return nil }
-
-        let sessionCost = snapshot.sessionCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-        let sessionTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
-        let sessionLine: String = {
-            if let sessionTokens {
-                return "Today: \(sessionCost) · \(sessionTokens) tokens"
-            }
-            return "Today: \(sessionCost)"
-        }()
-
-        let monthCost = snapshot.last30DaysCostUSD.map { UsageFormatter.usdString($0) } ?? "—"
-        let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
-        let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
-        let monthTokens = monthTokensValue.map { UsageFormatter.tokenCountString($0) }
-        let monthLine: String = {
-            if let monthTokens {
-                return "Last 30 days: \(monthCost) · \(monthTokens) tokens"
-            }
-            return "Last 30 days: \(monthCost)"
-        }()
-        let err = (error?.isEmpty ?? true) ? nil : error
-        return TokenUsageSection(
-            sessionLine: sessionLine,
-            monthLine: monthLine,
-            hintLine: nil,
-            errorLine: err,
-            errorCopyText: (error?.isEmpty ?? true) ? nil : error)
     }
 
     private static func providerCostSection(

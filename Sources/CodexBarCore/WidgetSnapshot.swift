@@ -23,6 +23,8 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let creditsRemaining: Double?
         public let codeReviewRemainingPercent: Double?
         public let tokenUsage: TokenUsageSummary?
+        public let cursorRequestRange: CursorRequestRange?
+        public let cursorRequestDetails: [CursorRequestDetail]?
         public let dailyUsage: [DailyUsagePoint]
 
         public init(
@@ -35,6 +37,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             creditsRemaining: Double?,
             codeReviewRemainingPercent: Double?,
             tokenUsage: TokenUsageSummary?,
+            cursorRequestRange: CursorRequestRange? = nil,
+            cursorRequestDetails: [CursorRequestDetail]? = nil,
             dailyUsage: [DailyUsagePoint])
         {
             self.provider = provider
@@ -46,6 +50,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.creditsRemaining = creditsRemaining
             self.codeReviewRemainingPercent = codeReviewRemainingPercent
             self.tokenUsage = tokenUsage
+            self.cursorRequestRange = cursorRequestRange
+            self.cursorRequestDetails = cursorRequestDetails
             self.dailyUsage = dailyUsage
         }
     }
@@ -66,6 +72,46 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.sessionTokens = sessionTokens
             self.last30DaysCostUSD = last30DaysCostUSD
             self.last30DaysTokens = last30DaysTokens
+        }
+    }
+
+    public struct CursorRequestDetail: Codable, Equatable, Sendable {
+        public let timestamp: Date
+        public let model: String
+        public let tokens: Int
+        public let requests: Int
+        public let requestCost: Double?
+        public let compactModel: String?
+        public let estimateText: String?
+
+        public init(
+            timestamp: Date,
+            model: String,
+            tokens: Int,
+            requests: Int,
+            requestCost: Double? = nil,
+            compactModel: String? = nil,
+            estimateText: String? = nil)
+        {
+            self.timestamp = timestamp
+            self.model = model
+            self.tokens = tokens
+            self.requests = requests
+            self.requestCost = requestCost
+            self.compactModel = compactModel
+            self.estimateText = estimateText
+        }
+    }
+
+    public struct CursorRequestRange: Codable, Equatable, Sendable {
+        public let start: Date
+        public let end: Date
+        public let label: String
+
+        public init(start: Date, end: Date, label: String) {
+            self.start = start
+            self.end = end
+            self.label = label
         }
     }
 

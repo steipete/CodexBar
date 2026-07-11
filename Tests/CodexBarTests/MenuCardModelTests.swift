@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 @testable import CodexBar
 
+// swiftlint:disable:next type_body_length
 struct MenuCardModelTests {
     @Test
     func `builds metrics using remaining percent`() throws {
@@ -258,6 +259,164 @@ struct MenuCardModelTests {
 
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
         #expect(model.tokenUsage?.monthLine.contains("tokens") == true)
+    }
+
+    @Test
+    func `cursor menu model uses the selected range and preserves its selection callback`() throws {
+        let now = Date()
+        let request = CursorRecentRequest(
+            timestamp: now.addingTimeInterval(-60),
+            model: "gpt-5.5-extra-high",
+            tokens: 1000,
+            requests: 1,
+            requestCost: 2)
+        let cycle = CursorRangeUsageSummary(
+            rangeKind: .billingCycle,
+            range: CursorRecentRequestRange(start: now.addingTimeInterval(-3600), end: now),
+            tokens: 1000,
+            requests: 1,
+            weightedRequestCost: 2,
+            requestCostSummary: nil,
+            recentRequests: [request])
+        let last30Days = CursorRangeUsageSummary(
+            rangeKind: .last30Days,
+            range: CursorRecentRequestRange(start: now.addingTimeInterval(-2_592_000), end: now),
+            tokens: 2000,
+            requests: 1,
+            weightedRequestCost: 2,
+            requestCostSummary: nil,
+            recentRequests: [request])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            cursorRangeSummaries: [cycle, last30Days],
+            updatedAt: now)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+        var selectedRange: CursorUsageRangeKind?
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            cursorUsageRangeKind: .last30Days,
+            selectCursorUsageRange: { selectedRange = $0 },
+            now: now))
+        let tokenUsage = try #require(model.tokenUsage)
+
+        #expect(tokenUsage.title == "Cursor usage")
+        #expect(tokenUsage.sessionLine == "30d: 2K tokens")
+        #expect(tokenUsage.selectedCursorRangeKind == .last30Days)
+        #expect(tokenUsage.cursorRequestDetails.first?.requestCost == 2)
+        tokenUsage.selectCursorRange?(.billingCycle)
+        #expect(selectedRange == .billingCycle)
+    }
+
+    @Test
+    func `cursor menu model falls back to the available 30 day range`() throws {
+        let now = Date()
+        let request = CursorRecentRequest(
+            timestamp: now.addingTimeInterval(-60),
+            model: "gpt-5.5",
+            tokens: 1000,
+            requests: 1)
+        let last30Days = CursorRangeUsageSummary(
+            rangeKind: .last30Days,
+            range: CursorRecentRequestRange(start: now.addingTimeInterval(-2_592_000), end: now),
+            tokens: 1000,
+            requests: 1,
+            requestCostSummary: nil,
+            recentRequests: [request])
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            cursorRangeSummaries: [last30Days],
+            updatedAt: now)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            cursorUsageRangeKind: .billingCycle,
+            now: now))
+        let tokenUsage = try #require(model.tokenUsage)
+
+        #expect(tokenUsage.sessionLine == "30d: 1K tokens")
+        #expect(tokenUsage.selectedCursorRangeKind == .last30Days)
+        #expect(tokenUsage.cursorRangeKinds == [.last30Days])
+    }
+
+    @Test
+    @MainActor
+    func `cursor menu policy forwards scrolling for long request details`() throws {
+        let now = Date()
+        let requests = (0..<8).map { index in
+            CursorRecentRequest(
+                timestamp: now.addingTimeInterval(Double(-index)),
+                model: "gpt-5.5",
+                tokens: 1000,
+                requests: 1)
+        }
+        let summary = CursorRangeUsageSummary(
+            rangeKind: .billingCycle,
+            range: CursorRecentRequestRange(start: now.addingTimeInterval(-3600), end: now),
+            tokens: 8000,
+            requests: 8,
+            requestCostSummary: nil,
+            recentRequests: requests)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            cursorRangeSummaries: [summary],
+            updatedAt: now)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(StatusItemController.menuCardInteractionPolicy(for: model) == .scrollableContent)
     }
 
     @Test

@@ -18,6 +18,7 @@ extension SettingsStore {
         _ = self.menuBarDisplayMode
         _ = self.historicalTrackingEnabled
         _ = self.showAllTokenAccountsInMenu
+        _ = self.cursorUsageRangeKind
         _ = self.menuBarMetricPreferencesRaw
         _ = self.costUsageEnabled
         _ = self.hidePersonalInfo

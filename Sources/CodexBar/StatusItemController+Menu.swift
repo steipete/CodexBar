@@ -494,14 +494,16 @@ extension StatusItemController {
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),
                     id: "menuCard",
-                    width: context.menuWidth))
+                    width: context.menuWidth,
+                    interactionPolicy: Self.menuCardInteractionPolicy(for: model)))
                 menu.addItem(.separator())
             } else {
                 for (index, model) in cards.enumerated() {
                     menu.addItem(self.makeMenuCardItem(
                         UsageMenuCardView(model: model, width: context.menuWidth),
                         id: "menuCard-\(index)",
-                        width: context.menuWidth))
+                        width: context.menuWidth,
+                        interactionPolicy: Self.menuCardInteractionPolicy(for: model)))
                     if index < cards.count - 1 {
                         menu.addItem(.separator())
                     }
@@ -535,7 +537,8 @@ extension StatusItemController {
         menu.addItem(self.makeMenuCardItem(
             UsageMenuCardView(model: model, width: context.menuWidth),
             id: "menuCard",
-            width: context.menuWidth))
+            width: context.menuWidth,
+            interactionPolicy: Self.menuCardInteractionPolicy(for: model)))
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
         }
@@ -1106,6 +1109,7 @@ extension StatusItemController {
         submenu: NSMenu? = nil,
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
+        interactionPolicy: MenuCardInteractionPolicy = .default,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         if !Self.menuCardRenderingEnabled {
@@ -1130,6 +1134,7 @@ extension StatusItemController {
             view
         }
         let hosting = MenuCardItemHostingView(rootView: wrapped, highlightState: highlightState, onClick: onClick)
+        hosting.interactionPolicy = interactionPolicy
         // Set frame with target width immediately
         let height = self.menuCardHeight(for: hosting, width: width)
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
@@ -1175,6 +1180,7 @@ extension StatusItemController {
         let hasExtraUsage = model.providerCost != nil
         let hasCost = model.tokenUsage != nil
         let hasStorage = self.store.storageFootprintText(for: provider) != nil
+        let interactionPolicy = Self.menuCardInteractionPolicy(for: model)
         let bottomPadding = CGFloat(hasCredits ? 4 : 6)
         let sectionSpacing = CGFloat(6)
         let usageBottomPadding = bottomPadding
@@ -1261,7 +1267,8 @@ extension StatusItemController {
                 costView,
                 id: "menuCardCost",
                 width: width,
-                submenu: costSubmenu))
+                submenu: costSubmenu,
+                interactionPolicy: interactionPolicy))
         }
     }
 
@@ -1594,6 +1601,8 @@ extension StatusItemController {
             hidePersonalInfo: self.settings.hidePersonalInfo,
             claudePeakHoursEnabled: self.settings.claudePeakHoursEnabled,
             weeklyPace: weeklyPace,
+            cursorUsageRangeKind: self.settings.cursorUsageRangeKind,
+            selectCursorUsageRange: { [weak self] range in self?.selectCursorUsageRange(range) },
             now: now)
         return UsageMenuCardView.Model.make(input)
     }

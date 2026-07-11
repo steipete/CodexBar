@@ -11,6 +11,11 @@ read_when:
 ## Snapshot pipeline
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
+- Cursor snapshots can carry optional range metadata and bounded request details (model, token count, raw row count,
+  optional weighted request cost, compact label, and estimate text). Existing snapshots without those fields still
+  decode normally.
+- The selected Cursor `Cycle` or `30d` range is persisted by the app and controls the Cursor summary written to the
+  widget snapshot. Medium/large widgets render that summary and up to three recent Cursor rows.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - If no snapshot is available, widgets fall back to preview/empty data.
 

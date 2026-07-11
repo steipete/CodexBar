@@ -84,6 +84,7 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
 final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting, MenuCardMeasuring {
     private let highlightState: MenuCardHighlightState
     private let onClick: (() -> Void)?
+    var interactionPolicy: StatusItemController.MenuCardInteractionPolicy = .default
 
     override var allowsVibrancy: Bool {
         true
@@ -133,8 +134,38 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     }
 
     func setHighlighted(_ highlighted: Bool) {
+        guard self.interactionPolicy.allowsHighlight else {
+            self.highlightState.isHighlighted = false
+            return
+        }
         guard self.highlightState.isHighlighted != highlighted else { return }
         self.highlightState.isHighlighted = highlighted
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard self.interactionPolicy.forwardsScrollToEmbeddedScrollView,
+              let scrollView = self.scrollView(at: event.locationInWindow)
+        else {
+            super.scrollWheel(with: event)
+            return
+        }
+        scrollView.scrollWheel(with: event)
+    }
+
+    private func scrollView(at windowPoint: NSPoint) -> NSScrollView? {
+        let localPoint = self.convert(windowPoint, from: nil)
+        return self.deepestScrollView(in: self, containing: localPoint)
+    }
+
+    private func deepestScrollView(in view: NSView, containing point: NSPoint) -> NSScrollView? {
+        guard view.bounds.contains(point) else { return nil }
+        for subview in view.subviews.reversed() {
+            let subviewPoint = subview.convert(point, from: view)
+            if let scrollView = self.deepestScrollView(in: subview, containing: subviewPoint) {
+                return scrollView
+            }
+        }
+        return view as? NSScrollView
     }
 }
 

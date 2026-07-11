@@ -37,5 +37,6 @@ struct SettingsDefaultsState {
     var mergedMenuLastSelectedWasOverview: Bool
     var mergedOverviewSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
+    var cursorUsageRangeKindRaw: String?
     var providerDetectionCompleted: Bool
 }

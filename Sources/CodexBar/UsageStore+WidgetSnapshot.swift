@@ -44,7 +44,29 @@ extension UsageStore {
                 costUSD: entry.costUSD)
         } ?? []
 
-        let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot)
+        let selectedCursorRange = provider == .cursor ? self.settings.cursorUsageRangeKind : nil
+        let cursorSummary = selectedCursorRange.flatMap { range in
+            snapshot.cursorRangeSummaries?.first { $0.rangeKind == range }
+                ?? snapshot.cursorRangeSummaries?.first
+        }
+        let tokenUsage = cursorSummary.map(Self.widgetCursorTokenUsageSummary(from:))
+            ?? Self.widgetTokenUsageSummary(from: tokenSnapshot)
+        let cursorRequestRange = cursorSummary.map {
+            WidgetSnapshot.CursorRequestRange(start: $0.range.start, end: $0.range.end, label: $0.rangeKind.label)
+        }
+        let cursorRequestDetails = cursorSummary.map { summary in
+            summary.recentRequests.map { request in
+                let normalized = CursorModelNormalizer.normalize(request.model)
+                return WidgetSnapshot.CursorRequestDetail(
+                    timestamp: request.timestamp,
+                    model: request.model,
+                    tokens: request.tokens,
+                    requests: request.requests,
+                    requestCost: request.requestCost,
+                    compactModel: UsageFormatter.cursorCompactModelLabel(normalized),
+                    estimateText: UsageFormatter.cursorEstimateText(CursorRequestCostEstimator.estimate(for: request)))
+            }
+        }
         let usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot)
 
         let creditsRemaining: Double?
@@ -72,6 +94,8 @@ extension UsageStore {
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,
             tokenUsage: tokenUsage,
+            cursorRequestRange: cursorRequestRange,
+            cursorRequestDetails: cursorRequestDetails,
             dailyUsage: dailyUsage)
     }
 
@@ -86,6 +110,17 @@ extension UsageStore {
             sessionTokens: snapshot.sessionTokens,
             last30DaysCostUSD: snapshot.last30DaysCostUSD,
             last30DaysTokens: monthTokensValue)
+    }
+
+    private nonisolated static func widgetCursorTokenUsageSummary(
+        from summary: CursorRangeUsageSummary) -> WidgetSnapshot.TokenUsageSummary
+    {
+        let exactCost = summary.requestCostSummary?.exactUSD.map { NSDecimalNumber(decimal: $0).doubleValue }
+        return WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: exactCost,
+            sessionTokens: summary.tokens,
+            last30DaysCostUSD: exactCost,
+            last30DaysTokens: summary.tokens)
     }
 
     private func widgetUsageRows(

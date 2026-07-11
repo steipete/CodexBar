@@ -328,7 +328,7 @@ private struct SwitcherMediumUsageView: View {
             }
             if let token = entry.tokenUsage {
                 ValueLine(
-                    title: "Today",
+                    title: self.entry.cursorRequestRange?.label ?? "Today",
                     value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
             }
         }
@@ -358,13 +358,39 @@ private struct SwitcherLargeUsageView: View {
             if let token = entry.tokenUsage {
                 VStack(alignment: .leading, spacing: 4) {
                     ValueLine(
-                        title: "Today",
+                        title: self.entry.cursorRequestRange?.label ?? "Today",
                         value: WidgetFormat.costAndTokens(cost: token.sessionCostUSD, tokens: token.sessionTokens))
-                    ValueLine(
-                        title: "30d",
-                        value: WidgetFormat.costAndTokens(
-                            cost: token.last30DaysCostUSD,
-                            tokens: token.last30DaysTokens))
+                    if self.entry.cursorRequestRange == nil {
+                        ValueLine(
+                            title: "30d",
+                            value: WidgetFormat.costAndTokens(
+                                cost: token.last30DaysCostUSD,
+                                tokens: token.last30DaysTokens))
+                    }
+                }
+            }
+            if let requests = entry.cursorRequestDetails {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(requests.prefix(3).enumerated()), id: \.offset) { _, request in
+                        VStack(alignment: .leading, spacing: 1) {
+                            ValueLine(
+                                title: request.compactModel ?? request.model,
+                                value: "\(WidgetFormat.tokenCount(request.tokens)) · "
+                                    + UsageFormatter.cursorRequestCountLabel(requests: request.requests))
+                            if let estimateText = request.estimateText {
+                                Text(estimateText)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let requestCostDetail = UsageFormatter.cursorRequestCostDetail(
+                                requestCost: request.requestCost)
+                            {
+                                Text(requestCostDetail)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
             UsageHistoryChart(points: self.entry.dailyUsage, color: WidgetColors.color(for: self.entry.provider))
