@@ -6,6 +6,40 @@ import Testing
 extension UsageStorePlanUtilizationTests {
     @MainActor
     @Test
+    func `codex weekly reset detector derives the active account for default refreshes`() async {
+        let store = Self.makeStore()
+        let email = "shared-default@example.com"
+        let observedAt = Date(timeIntervalSince1970: 1_700_050_000)
+        defer { store.settings._test_liveSystemCodexAccount = nil }
+
+        store.settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: email,
+            authFingerprint: "fingerprint-a",
+            codexHomePath: "/tmp/codex-a",
+            observedAt: observedAt)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: Self.codexWeeklySnapshot(email: email, plan: "plus", observedAt: observedAt),
+            now: observedAt)
+
+        store.settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: email,
+            authFingerprint: "fingerprint-b",
+            codexHomePath: "/tmp/codex-b",
+            observedAt: observedAt.addingTimeInterval(60))
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: Self.codexWeeklySnapshot(
+                email: email,
+                plan: "plus",
+                observedAt: observedAt.addingTimeInterval(60)),
+            now: observedAt.addingTimeInterval(60))
+
+        #expect(store.weeklyLimitResetDetectorStates.count == 2)
+    }
+
+    @MainActor
+    @Test
     func `codex weekly reset detector separates workspace accounts and ignores plan changes`() async {
         let store = Self.makeStore()
         let email = "shared-workspace@example.com"

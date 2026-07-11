@@ -2,6 +2,12 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    func activeCodexVisibleAccountForLimitResetDetection() -> CodexVisibleAccount? {
+        let projection = self.settings.codexVisibleAccountProjection
+        guard let activeID = projection.activeVisibleAccountID else { return nil }
+        return projection.visibleAccounts.first { $0.id == activeID }
+    }
+
     func limitResetAccountIdentifier(
         provider: UsageProvider,
         account: ProviderTokenAccount?,

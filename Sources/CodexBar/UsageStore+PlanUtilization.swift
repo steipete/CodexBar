@@ -213,13 +213,18 @@ extension UsageStore {
             // Persisting without a high-entropy owner would merge unrelated OAuth accounts into `unscoped`.
             return
         }
+        let effectiveCodexVisibleAccount: CodexVisibleAccount? = if provider == .codex {
+            codexVisibleAccount ?? self.activeCodexVisibleAccountForLimitResetDetection()
+        } else {
+            nil
+        }
         let detectorContext = LimitResetDetectionContext(
             provider: provider,
             account: account,
             snapshot: snapshot,
             accountKey: detectorAccountKey,
             capturedAt: now,
-            codexVisibleAccount: codexVisibleAccount)
+            codexVisibleAccount: effectiveCodexVisibleAccount)
         await MainActor.run {
             self.postLimitResetCelebrationsIfNeeded(
                 context: detectorContext,
@@ -509,7 +514,7 @@ extension UsageStore {
         // Sessions retain the last non-regressed boundary on every guarded sample. Codex weekly crossings
         // adopt a newly appearing boundary so a later genuine advance can still trigger once.
         let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
-            && (descriptor.seriesName == .session || (suppressedGuardedCrossing && previousState?.resetBoundary != nil))
+            && (descriptor.seriesName == .session || previousState?.resetBoundary != nil)
         let shouldPreserveBaseline = suppressedGuardedCrossing
         states[detectorKey] = LimitResetDetectorState(
             // A transient zero must not erase the baseline needed to recognize the real reset that follows.
