@@ -487,7 +487,9 @@ extension UsageStore {
         let sourceRawValue = observation.source?.rawValue
         let sourceChanged = descriptor.seriesName == .session && previousState?.sourceRawValue != nil
             && previousState?.sourceRawValue != sourceRawValue
-        let resetBoundaryAllowsPost = descriptor.seriesName != .session
+        let resetBoundaryAllowsPost = !Self.requiresSemanticResetBoundaryAdvance(
+            provider: context.provider,
+            seriesName: descriptor.seriesName)
             || Self.limitResetBoundaryAdvanced(
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary)
@@ -540,6 +542,19 @@ extension UsageStore {
         default:
             return
         }
+    }
+
+    private nonisolated static func requiresSemanticResetBoundaryAdvance(
+        provider: UsageProvider,
+        seriesName: PlanUtilizationSeriesName) -> Bool
+    {
+        if seriesName == .session {
+            return true
+        }
+        if seriesName == .weekly {
+            return provider == .codex
+        }
+        return false
     }
 
     private nonisolated static func limitResetBoundaryAdvanced(previous: Date?, current: Date?) -> Bool {
@@ -872,11 +887,45 @@ extension UsageStore {
         accountKey: String?) -> String
     {
         let identity = snapshot.identity(for: provider)
-        return account?.id.uuidString.lowercased()
-            ?? accountKey
+        if let account {
+            return account.id.uuidString.lowercased()
+        }
+        if provider == .codex,
+           let codexIdentifier = self.codexLimitResetDetectorAccountIdentifier(
+               snapshot: snapshot,
+               accountKey: accountKey)
+        {
+            return codexIdentifier
+        }
+        return accountKey
             ?? identity?.accountEmail
             ?? identity?.accountOrganization
             ?? provider.rawValue
+    }
+
+    private func codexLimitResetDetectorAccountIdentifier(
+        snapshot: UsageSnapshot,
+        accountKey: String?) -> String?
+    {
+        let ownership = self.codexOwnershipContext(snapshot: snapshot, includeDashboardFallback: false)
+        if let canonicalKey = ownership.canonicalKey,
+           CodexHistoryOwnership.isCanonicalProviderAccountKey(canonicalKey)
+        {
+            return canonicalKey
+        }
+
+        let identity = snapshot.identity(for: .codex)
+        let normalizedOrganization = identity?.accountOrganization?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let accountKey,
+           let normalizedOrganization,
+           !normalizedOrganization.isEmpty
+        {
+            return Self.sha256Hex("codex:limit-reset:\(accountKey):org:\(normalizedOrganization)")
+        }
+
+        return ownership.canonicalKey ?? accountKey
     }
 
     private func limitResetAccountLabel(
