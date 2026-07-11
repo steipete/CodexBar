@@ -72,7 +72,7 @@ enum SessionQuotaNotificationLogic {
     }
 
     private static func areEquivalentResetBoundaries(_ lhs: Date, _ rhs: Date) -> Bool {
-        abs(lhs.timeIntervalSince(rhs)) < Self.resetBoundaryEquivalenceToleranceSeconds
+        abs(lhs.timeIntervalSince(rhs)) < self.resetBoundaryEquivalenceToleranceSeconds
     }
 
     static func notificationCopy(

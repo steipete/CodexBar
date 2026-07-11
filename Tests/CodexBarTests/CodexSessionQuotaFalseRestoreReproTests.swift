@@ -234,7 +234,8 @@ struct CodexSessionQuotaFalseRestoreReproTests {
 
     // MARK: - D. Live proof (real Codex sessionResetsAt from CodexBarCLI)
 
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEXBAR_VERIFY_SESSION_FALSE_RESTORE_LIVE_FIXTURE"] != nil))
+    @Test(.enabled(if: ProcessInfo.processInfo
+            .environment["CODEXBAR_VERIFY_SESSION_FALSE_RESTORE_LIVE_FIXTURE"] != nil))
     func `live proof session notification false restores with real codex session resetsAt`() async throws {
         let fixturePath = try #require(
             ProcessInfo.processInfo.environment["CODEXBAR_VERIFY_SESSION_FALSE_RESTORE_LIVE_FIXTURE"])
