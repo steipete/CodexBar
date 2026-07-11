@@ -205,13 +205,16 @@ extension UsageStore {
         remaining: Double,
         source: SessionQuotaWindowSource,
         resetBoundary: Date?,
-        preserveResetBoundaryWhenMissing: Bool = false)
+        preserveExistingResetBoundary: Bool = false)
     {
         self.lastKnownSessionRemaining[provider] = remaining
         self.lastKnownSessionWindowSource[provider] = source
+        if preserveExistingResetBoundary, self.lastKnownSessionResetBoundary[provider] != nil {
+            return
+        }
         if let resetBoundary {
             self.lastKnownSessionResetBoundary[provider] = resetBoundary
-        } else if !preserveResetBoundaryWhenMissing {
+        } else {
             self.lastKnownSessionResetBoundary.removeValue(forKey: provider)
         }
     }

@@ -868,6 +868,8 @@ final class UsageStore {
         let previousRemaining = self.lastKnownSessionRemaining[provider]
         let previousSource = self.lastKnownSessionWindowSource[provider]
         let previousResetBoundary = self.lastKnownSessionResetBoundary[provider]
+        let currentIsDepleted = SessionQuotaNotificationLogic.isDepleted(currentRemaining)
+        let previousWasDepleted = SessionQuotaNotificationLogic.isDepleted(previousRemaining)
         var preserveDepletedBaseline = false
 
         if let previousSource, previousSource != currentSource {
@@ -890,7 +892,8 @@ final class UsageStore {
                     remaining: currentRemaining,
                     source: currentSource,
                     resetBoundary: currentResetBoundary,
-                    preserveResetBoundaryWhenMissing: SessionQuotaNotificationLogic.isDepleted(currentRemaining))
+                    preserveExistingResetBoundary: currentIsDepleted &&
+                        (currentResetBoundary == nil || previousWasDepleted))
             }
         }
 
