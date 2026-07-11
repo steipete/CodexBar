@@ -161,7 +161,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm, .crossmodel, .clawrouter:
+        case .chutes, .poe, .litellm, .crossmodel, .clawrouter, .factory:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -180,6 +180,8 @@ public enum ProviderConfigEnvironment {
             CrossModelSettingsReader.envKey
         case .clawrouter:
             ClawRouterSettingsReader.apiKeyEnvironmentKey
+        case .factory:
+            FactorySettingsReader.apiTokenKey
         default:
             nil
         }

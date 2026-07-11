@@ -32,7 +32,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | OpenCode Go | Web dashboard via cookies (`web`) -> local SQLite usage (`local`) in auto mode; optional workspace ID. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
-| Droid/Factory | Web cookies → stored tokens → local storage → WorkOS cookies (`web`). |
+| Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
 | Manus | Browser `session_id` cookie (auto/manual/env) → credits API (`web`). |
@@ -213,8 +213,9 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Details: `docs/alibaba-token-plan.md`.
 
 ## Droid (Factory)
+- API key from `~/.codexbar/config.json` (`providers[].apiKey`), `FACTORY_API_KEY`, or `~/.factory/.env`.
 - Web API via Factory cookies, bearer tokens, and WorkOS refresh tokens.
-- Multiple fallback strategies (cookies → stored tokens → local storage → WorkOS cookies).
+- Auto prefers API when a key is available, then falls back to web strategies.
 - Status: `https://status.factory.ai`.
 - Details: `docs/factory.md`.
 
