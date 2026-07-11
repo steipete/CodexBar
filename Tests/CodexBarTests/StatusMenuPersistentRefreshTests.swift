@@ -7,13 +7,18 @@ import Testing
 private final class RefreshShortcutRecorder: StatusItemMenuPersistentActionDelegate {
     var refreshCount = 0
     var refreshMenuIDs: [ObjectIdentifier] = []
+    var refreshMenuInteractionTokens: [Int] = []
     var settingsCount = 0
     var quitCount = 0
     var navigationDirections: [StatusItemMenuProviderNavigationDirection] = []
 
-    func performPersistentRefreshAction(in menuID: ObjectIdentifier) {
+    func performPersistentRefreshAction(
+        in menuID: ObjectIdentifier,
+        menuInteractionToken: Int)
+    {
         self.refreshCount += 1
         self.refreshMenuIDs.append(menuID)
+        self.refreshMenuInteractionTokens.append(menuInteractionToken)
     }
 
     func performPersistentSettingsAction() {
@@ -869,7 +874,8 @@ extension StatusMenuPersistentRefreshTests {
         controller._test_manualRefreshOperation = { await mouseGate.wait() }
         let refreshItem = try #require(menu.items.first { $0.title == "Refresh" })
         #expect(controller.isPersistentRefreshItem(refreshItem))
-        controller.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+        let refreshView = try #require(refreshItem.view as? PersistentRefreshMenuView)
+        #expect(refreshView.accessibilityPerformPress())
         for _ in 0..<20 where controller.manualRefreshTasks[.provider(.claude)] == nil {
             await Task.yield()
         }
@@ -1023,6 +1029,7 @@ extension StatusMenuPersistentRefreshTests {
         let menu = StatusItemMenu()
         let recorder = RefreshShortcutRecorder()
         menu.persistentActionDelegate = recorder
+        menu.menuInteractionToken = 42
 
         #expect(try menu.performKeyEquivalent(with: self.keyEvent("r", keyCode: 15)) == true)
         #expect(try menu.performKeyEquivalent(with: self.keyEvent(",", keyCode: 43)) == true)
@@ -1030,6 +1037,7 @@ extension StatusMenuPersistentRefreshTests {
 
         #expect(recorder.refreshCount == 1)
         #expect(recorder.refreshMenuIDs == [ObjectIdentifier(menu)])
+        #expect(recorder.refreshMenuInteractionTokens == [42])
         #expect(recorder.settingsCount == 1)
         #expect(recorder.quitCount == 1)
     }

@@ -132,7 +132,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func refreshNow() {
-        self.startManualRefresh(for: nil, originatingMenuID: nil)
+        self.startManualRefresh(
+            for: nil,
+            originatingMenuID: nil,
+            originatingMenuInteractionToken: nil)
     }
 
     @objc func refreshMenuItem(_ sender: NSMenuItem) {
@@ -141,28 +144,33 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func refreshMenuProviderNow(in menu: NSMenu?) {
         let originatingMenuID = menu.map(ObjectIdentifier.init)
-        guard let provider = self.manualRefreshProvider(for: menu) else {
-            self.startManualRefresh(for: nil, originatingMenuID: originatingMenuID)
-            return
+        let originatingMenuInteractionToken = originatingMenuID.flatMap {
+            self.menuSession.menuInteractionToken(for: $0)
         }
-        self.startManualRefresh(for: provider, originatingMenuID: originatingMenuID)
+        self.startManualRefresh(
+            for: self.manualRefreshProvider(for: menu),
+            originatingMenuID: originatingMenuID,
+            originatingMenuInteractionToken: originatingMenuInteractionToken)
     }
 
-    private func refreshMenuProviderNow(menuID: ObjectIdentifier) {
-        if let menu = self.openMenus[menuID] {
-            self.refreshMenuProviderNow(in: menu)
-        } else if let mergedMenu = self.mergedMenu, ObjectIdentifier(mergedMenu) == menuID {
-            self.refreshMenuProviderNow(in: mergedMenu)
-        } else if let provider = self.menuProviders[menuID] {
-            self.startManualRefresh(for: provider, originatingMenuID: menuID)
-        } else {
-            self.startManualRefresh(for: nil, originatingMenuID: menuID)
+    private func refreshMenuProviderNow(
+        menuID: ObjectIdentifier,
+        originatingMenuInteractionToken: Int)
+    {
+        let menu = self.openMenus[menuID] ?? self.mergedMenu.flatMap {
+            ObjectIdentifier($0) == menuID ? $0 : nil
         }
+        let provider = menu.flatMap { self.manualRefreshProvider(for: $0) } ?? self.menuProviders[menuID]
+        self.startManualRefresh(
+            for: provider,
+            originatingMenuID: menuID,
+            originatingMenuInteractionToken: originatingMenuInteractionToken)
     }
 
     private func startManualRefresh(
         for provider: UsageProvider?,
-        originatingMenuID: ObjectIdentifier?)
+        originatingMenuID: ObjectIdentifier?,
+        originatingMenuInteractionToken: Int?)
     {
         let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
@@ -182,7 +190,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
         let frozenModels = self.frozenManualRefreshMenuCardModels()
         let viewportRestoreRequests = self.armManualRefreshViewportRestoreRequests(
-            originatingMenuID: originatingMenuID)
+            originatingMenuID: originatingMenuID,
+            originatingMenuInteractionToken: originatingMenuInteractionToken)
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             var completed = false
@@ -256,10 +265,22 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         return models
     }
 
-    nonisolated func performPersistentRefreshAction(in menuID: ObjectIdentifier) {
+    func performPersistentRefreshAction(in menuID: ObjectIdentifier) {
+        guard let menuInteractionToken = self.menuSession.menuInteractionToken(for: menuID) else { return }
+        self.performPersistentRefreshAction(
+            in: menuID,
+            menuInteractionToken: menuInteractionToken)
+    }
+
+    nonisolated func performPersistentRefreshAction(
+        in menuID: ObjectIdentifier,
+        menuInteractionToken: Int)
+    {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.refreshMenuProviderNow(menuID: menuID)
+            self.refreshMenuProviderNow(
+                menuID: menuID,
+                originatingMenuInteractionToken: menuInteractionToken)
         }
     }
 

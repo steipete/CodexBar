@@ -2,6 +2,28 @@ import AppKit
 import CodexBarCore
 
 extension StatusItemController {
+    func beginMenuTrackingSession(for menu: NSMenu) {
+        if menu.supermenu != nil, !self.isHostedSubviewMenu(menu) {
+            self.advanceMenuContentSelection(for: self.rootMenu(for: menu))
+        }
+        let menuID = ObjectIdentifier(menu)
+        let token = self.menuSession.beginTrackingSession(menuID)
+        (menu as? StatusItemMenu)?.menuInteractionToken = token
+    }
+
+    func endMenuTrackingSession(for menu: NSMenu) {
+        (menu as? StatusItemMenu)?.menuInteractionToken = nil
+        self.menuSession.endTrackingSession(ObjectIdentifier(menu))
+    }
+
+    private func rootMenu(for menu: NSMenu) -> NSMenu {
+        var root = menu
+        while let parent = root.supermenu {
+            root = parent
+        }
+        return root
+    }
+
     private static let defaultClosedMenuPreparationDelay: Duration = .milliseconds(350)
 
     var isMenuRefreshEnabled: Bool {
@@ -379,6 +401,10 @@ extension StatusItemController {
 
     func hasOpenHostedSubviewMenu() -> Bool {
         self.openMenus.values.contains { self.isHostedSubviewMenu($0) }
+    }
+
+    func hasOpenNonHostedChildMenu() -> Bool {
+        self.openMenus.values.contains { $0.supermenu != nil && !self.isHostedSubviewMenu($0) }
     }
 
     func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {

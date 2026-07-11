@@ -7,12 +7,6 @@ import SwiftUI
 // MARK: - NSMenu construction
 
 extension StatusItemController {
-    var fallbackProvider: UsageProvider? {
-        // Intentionally uses availability-filtered list: fallback activates when no provider
-        // can actually work, ensuring at least a codex icon is always visible.
-        self.store.enabledProviders().isEmpty ? .codex : nil
-    }
-
     static let menuCardBaseWidth: CGFloat = 310
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     static let overviewRowIdentifierPrefix = "overviewRow-"
@@ -57,10 +51,6 @@ extension StatusItemController {
         }
     }
 
-    func isPersistentRefreshItem(_ item: NSMenuItem) -> Bool {
-        item.representedObject as? String == Self.persistentRefreshMenuItemID
-    }
-
     func makeMenu() -> NSMenu {
         guard self.shouldMergeIcons else {
             return self.makeMenu(for: nil)
@@ -87,6 +77,8 @@ extension StatusItemController {
 
         self.cancelDeferredMenuInteractionRefreshTask()
         self.cancelClosedMenuRebuild(menu)
+
+        self.beginMenuTrackingSession(for: menu)
 
         // Track whether this is the root menu opening (no menus were open). Only the root open rebuilds
         // all content from current data, so the readiness baseline is re-anchored only here — re-anchoring
@@ -172,6 +164,8 @@ extension StatusItemController {
     func forgetClosedMenu(_ menu: NSMenu) {
         let key = ObjectIdentifier(menu)
         let wasMergedMenu = menu === self.mergedMenu
+
+        self.endMenuTrackingSession(for: menu)
 
         if key == self.providerSwitcherShortcutMenuID {
             self.removeProviderSwitcherShortcutMonitor()
@@ -613,7 +607,7 @@ extension StatusItemController {
         menu.addItem(item)
     }
 
-    private func addMenuCards(to menu: NSMenu, context: MenuCardContext) -> Bool {
+    private func addMenuCards(to menu: NSMenu, context: MenuCardContext, captureMenu: NSMenu? = nil) -> Bool {
         if let codexAccountDisplay = context.codexAccountDisplay, codexAccountDisplay.showAll {
             self.addStackedCodexMenuCards(codexAccountDisplay, to: menu, context: context)
             return false
@@ -625,7 +619,7 @@ extension StatusItemController {
             provider: context.currentProvider,
             accountCount: self.store.claudeSwapAccountSnapshots.count)
         {
-            self.addClaudeSwapMenuCards(to: menu, context: context)
+            self.addClaudeSwapMenuCards(to: menu, captureMenu: captureMenu ?? menu, context: context)
             return false
         }
 
@@ -776,7 +770,7 @@ extension StatusItemController {
                 menu.addItem(.separator())
             }
         } else {
-            let addedOpenAIWebItems = self.addMenuCards(to: menu, context: context)
+            let addedOpenAIWebItems = self.addMenuCards(to: menu, context: context, captureMenu: captureMenu)
             self.addOpenAIWebItemsIfNeeded(
                 to: menu,
                 currentProvider: context.currentProvider,
@@ -1023,6 +1017,7 @@ extension StatusItemController {
                 guard let self, let menu else { return nil }
                 guard display.accounts.indices.contains(index) else { return nil }
                 let selectedAccount = display.accounts[index]
+                self.advanceMenuContentSelection(for: menu)
                 self.settings.setActiveTokenAccountIndex(index, for: display.provider)
                 self.store.activateCachedTokenAccountSnapshot(
                     provider: display.provider,
@@ -1066,6 +1061,7 @@ extension StatusItemController {
     @discardableResult
     private func handleCodexVisibleAccountSelection(_ account: CodexVisibleAccount, menu: NSMenu?) -> Bool {
         let visibleAccountID = account.id
+        self.advanceMenuContentSelection(for: menu)
         self.settings.selectDisplayedCodexVisibleAccount(account)
         if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
@@ -1091,7 +1087,9 @@ extension StatusItemController {
 
     func resolvedMenuProvider(enabledProviders: [UsageProvider]? = nil) -> UsageProvider? {
         let enabled = enabledProviders ?? self.store.enabledProvidersForDisplay()
-        if enabled.isEmpty { return .codex }
+        if enabled.isEmpty {
+            return .codex
+        }
         if let selected = self.selectedMenuProvider, enabled.contains(selected) {
             return selected
         }
@@ -1164,7 +1162,9 @@ extension StatusItemController {
                 refreshingProviders: self.store.refreshingProviders,
                 staleProviders: Set(visibleProviders.filter { self.store.isStale(provider: $0) }),
                 missingProviders: Set(visibleProviders.filter { !self.store.hasSatisfiedUsageFetch(for: $0) })))
-            if plan.refreshCodexDashboard { self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all") }
+            if plan.refreshCodexDashboard {
+                self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all")
+            }
             let retryProviders = plan.providers
             guard !retryProviders.isEmpty else {
                 self.clearSatisfiedDeferredMenuInteractionRefreshes(
@@ -1639,27 +1639,6 @@ extension StatusItemController {
             guard let id = item.representedObject as? String else { return false }
             return ids.contains(id)
         }
-    }
-
-    func refreshHostedSubviewHeights(in menu: NSMenu) {
-        let width = self.renderedMenuWidth(for: menu)
-
-        for item in menu.items {
-            guard let view = item.view else { continue }
-            let height = self.hostedSubviewFittingHeight(for: view, width: width)
-            view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
-        }
-    }
-
-    /// Measures the natural height of a hosted submenu view at the given width using the live
-    /// view that will actually be displayed. Hosted chart items used to spin up a second,
-    /// throwaway `NSHostingController` purely to size the chart even though every build path
-    /// immediately re-measures the live view via `fittingSize`; that extra SwiftUI hierarchy was
-    /// pure overhead on a popup-menu hot path, so callers now size the displayed view directly.
-    func hostedSubviewFittingHeight(for view: NSView, width: CGFloat) -> CGFloat {
-        view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
-        view.layoutSubtreeIfNeeded()
-        return view.fittingSize.height
     }
 
     @objc func menuCardNoOp(_ sender: NSMenuItem) {

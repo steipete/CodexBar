@@ -10,6 +10,27 @@ extension StatusItemController {
         let providerRawValue: String?
     }
 
+    func refreshHostedSubviewHeights(in menu: NSMenu) {
+        let width = self.renderedMenuWidth(for: menu)
+
+        for item in menu.items {
+            guard let view = item.view else { continue }
+            let height = self.hostedSubviewFittingHeight(for: view, width: width)
+            view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        }
+    }
+
+    /// Measures the natural height of a hosted submenu view at the given width using the live
+    /// view that will actually be displayed. Hosted chart items used to spin up a second,
+    /// throwaway `NSHostingController` purely to size the chart even though every build path
+    /// immediately re-measures the live view via `fittingSize`; that extra SwiftUI hierarchy was
+    /// pure overhead on a popup-menu hot path, so callers now size the displayed view directly.
+    func hostedSubviewFittingHeight(for view: NSView, width: CGFloat) -> CGFloat {
+        view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
+        view.layoutSubtreeIfNeeded()
+        return view.fittingSize.height
+    }
+
     func isHostedSubviewMenu(_ menu: NSMenu) -> Bool {
         let ids: Set = [
             Self.usageBreakdownChartID,

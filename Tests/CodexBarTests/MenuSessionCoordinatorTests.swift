@@ -64,13 +64,40 @@ struct MenuSessionCoordinatorTests {
         coordinator.markFresh(menu)
         coordinator.deferUntilNextOpen(menu)
         coordinator.deferParentRebuild(menu)
+        _ = coordinator.beginTrackingSession(menu)
         _ = coordinator.armViewportRestore(menu)
         coordinator.removeMenu(menu)
 
         #expect(coordinator.renderedVersion(for: menu) == nil)
         #expect(!coordinator.isDeferredUntilNextOpen(menu))
         #expect(!coordinator.isParentRebuildDeferred(menu))
+        #expect(coordinator.menuInteractionToken(for: menu) == nil)
         #expect(coordinator.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `reopening a persistent menu replaces its tracking session token`() {
+        var coordinator = MenuSessionCoordinator<String>()
+
+        let closedSession = coordinator.beginTrackingSession("menu")
+        coordinator.endTrackingSession("menu")
+        let reopenedSession = coordinator.beginTrackingSession("menu")
+
+        #expect(closedSession != reopenedSession)
+        #expect(!coordinator.isCurrentMenuInteraction(closedSession, for: "menu"))
+        #expect(coordinator.isCurrentMenuInteraction(reopenedSession, for: "menu"))
+    }
+
+    @Test
+    func `menu interaction token advances within one tracking session`() throws {
+        var coordinator = MenuSessionCoordinator<String>()
+        let initial = coordinator.beginTrackingSession("menu")
+
+        let advanced = coordinator.advanceMenuInteraction(for: "menu")
+        let replacement = try #require(advanced)
+
+        #expect(!coordinator.isCurrentMenuInteraction(initial, for: "menu"))
+        #expect(coordinator.isCurrentMenuInteraction(replacement, for: "menu"))
     }
 
     @Test

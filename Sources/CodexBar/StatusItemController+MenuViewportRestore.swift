@@ -2,6 +2,7 @@ import AppKit
 
 struct ManualRefreshViewportRestoreRequest {
     let token: Int
+    let menuInteractionToken: Int
     let switcherSelection: ProviderSwitcherSelection?
 }
 
@@ -22,7 +23,8 @@ extension StatusItemController {
     /// before refreshing so a close and reopen cannot transfer the restore to a new tracking
     /// session. Background refreshes never enter this path and therefore never move the viewport.
     func armManualRefreshViewportRestoreRequests(
-        originatingMenuID: ObjectIdentifier?)
+        originatingMenuID: ObjectIdentifier?,
+        originatingMenuInteractionToken: Int?)
         -> [ObjectIdentifier: ManualRefreshViewportRestoreRequest]
     {
         let candidates: [(ObjectIdentifier, NSMenu)]
@@ -35,9 +37,17 @@ extension StatusItemController {
 
         var requests: [ObjectIdentifier: ManualRefreshViewportRestoreRequest] = [:]
         for (key, menu) in candidates where menu.supermenu == nil && !self.isHostedSubviewMenu(menu) {
+            guard let menuInteractionToken = self.menuSession.menuInteractionToken(for: key) else { continue }
+            if key == originatingMenuID,
+               let originatingMenuInteractionToken,
+               menuInteractionToken != originatingMenuInteractionToken
+            {
+                continue
+            }
             self.manualRefreshViewportRestoreState.deferredUntilRebuild.removeValue(forKey: key)
             requests[key] = ManualRefreshViewportRestoreRequest(
                 token: self.menuSession.armViewportRestore(key),
+                menuInteractionToken: menuInteractionToken,
                 switcherSelection: self.viewportRestoreSwitcherSelection(for: menu))
         }
         return requests
@@ -50,7 +60,10 @@ extension StatusItemController {
         _ requests: [ObjectIdentifier: ManualRefreshViewportRestoreRequest])
     {
         for (key, request) in requests {
-            guard self.menuSession.isCurrentViewportRestore(request.token, for: key) else { continue }
+            guard self.isCurrentManualRefreshViewportRestoreContext(request, for: key) else {
+                self.cancelManualRefreshViewportRestoreRequest(request, for: key)
+                continue
+            }
             guard !self.hasPreparedForAppShutdown,
                   let menu = self.openMenus[key],
                   ObjectIdentifier(menu) == key,
@@ -59,6 +72,10 @@ extension StatusItemController {
                   request.switcherSelection == self.viewportRestoreSwitcherSelection(for: menu),
                   self.menuNeedsRefresh(menu)
             else {
+                self.cancelManualRefreshViewportRestoreRequest(request, for: key)
+                continue
+            }
+            guard !self.hasOpenNonHostedChildMenu() else {
                 self.cancelManualRefreshViewportRestoreRequest(request, for: key)
                 continue
             }
@@ -82,9 +99,10 @@ extension StatusItemController {
         let key = ObjectIdentifier(menu)
         guard let request = self.manualRefreshViewportRestoreState.deferredUntilRebuild.removeValue(forKey: key)
         else { return }
-        guard self.menuSession.isCurrentViewportRestore(request.token, for: key),
+        guard self.isCurrentManualRefreshViewportRestoreContext(request, for: key),
               !self.hasPreparedForAppShutdown,
               self.openMenus[key] === menu,
+              !self.hasOpenNonHostedChildMenu(),
               !self.hasOpenHostedSubviewMenu(),
               !self.isNativeMenuItemHighlighted(in: menu),
               request.switcherSelection == self.viewportRestoreSwitcherSelection(for: menu)
@@ -102,12 +120,19 @@ extension StatusItemController {
         let key = ObjectIdentifier(menu)
         let operation: @MainActor () -> Void = { [weak self, weak menu] in
             guard let self else { return }
-            guard self.menuSession.isCurrentViewportRestore(request.token, for: key) else { return }
+            guard self.isCurrentManualRefreshViewportRestoreContext(request, for: key) else {
+                self.cancelManualRefreshViewportRestoreRequest(request, for: key)
+                return
+            }
             guard !self.hasPreparedForAppShutdown,
                   let menu,
                   self.openMenus[key] === menu,
                   request.switcherSelection == self.viewportRestoreSwitcherSelection(for: menu)
             else {
+                self.cancelManualRefreshViewportRestoreRequest(request, for: key)
+                return
+            }
+            guard !self.hasOpenNonHostedChildMenu() else {
                 self.cancelManualRefreshViewportRestoreRequest(request, for: key)
                 return
             }
@@ -173,6 +198,24 @@ extension StatusItemController {
             return .overview
         }
         return .provider(self.resolvedMenuProvider() ?? .codex)
+    }
+
+    private func isCurrentManualRefreshViewportRestoreContext(
+        _ request: ManualRefreshViewportRestoreRequest,
+        for key: ObjectIdentifier)
+        -> Bool
+    {
+        self.menuSession.isCurrentViewportRestore(request.token, for: key) &&
+            self.menuSession.isCurrentMenuInteraction(request.menuInteractionToken, for: key)
+    }
+
+    func advanceMenuContentSelection(for menu: NSMenu?) {
+        guard let menu else { return }
+        let key = ObjectIdentifier(menu)
+        guard self.openMenus[key] === menu,
+              let token = self.menuSession.advanceMenuInteraction(for: key)
+        else { return }
+        (menu as? StatusItemMenu)?.menuInteractionToken = token
     }
 
     func restoreMenuViewportToTop(_ menu: NSMenu) {

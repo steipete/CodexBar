@@ -42,7 +42,9 @@ final class ProviderSwitcherEventPeekGate {
         }
         // CoreGraphics does not count key autorepeat events. Keep peeking while a key is
         // held so repeated provider-navigation events are still handled.
-        if !self.heldKeyCodes.isEmpty { return true }
+        if !self.heldKeyCodes.isEmpty {
+            return true
+        }
         return self.emptyPeekBudget > 0
     }
 
@@ -269,7 +271,11 @@ extension StatusItemController {
         if StatusItemMenu.isPersistentRefreshShortcut(for: event),
            menu.items.contains(where: self.isPersistentRefreshItem)
         {
-            self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+            if let menu = menu as? StatusItemMenu {
+                menu.requestPersistentRefreshAction()
+            } else {
+                self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+            }
             return true
         }
         guard menu.items.first?.view is ProviderSwitcherView else { return false }
