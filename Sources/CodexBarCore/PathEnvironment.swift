@@ -46,6 +46,10 @@ public struct PathDebugSnapshot: Equatable, Sendable {
 }
 
 public enum BinaryLocator {
+    /// Test-only override so parallel Gemini suites can point at fake binaries
+    /// without mutating process-wide `GEMINI_CLI_PATH`.
+    @TaskLocal public static var geminiBinaryPathOverrideForTesting: String?
+
     public static func resolveClaudeBinary(
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
@@ -154,7 +158,12 @@ public enum BinaryLocator {
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
-        self.resolveBinary(
+        if let override = self.geminiBinaryPathOverrideForTesting,
+           fileManager.isExecutableFile(atPath: override)
+        {
+            return override
+        }
+        return self.resolveBinary(
             name: "gemini",
             overrideKey: "GEMINI_CLI_PATH",
             env: env,
