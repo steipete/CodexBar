@@ -1425,6 +1425,70 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex blank token count model preserves turn context`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let contents = try env.jsonl([
+            self.codexTurnContext(timestamp: env.isoString(for: day), model: "openai/gpt-5.5"),
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: "   ",
+                last: (input: 50, cached: 10, output: 5)),
+        ])
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "blank-token-count-model.jsonl",
+            contents: contents)
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+
+        #expect(parsed.days[dayKey]?["gpt-5.5"] == [50, 10, 5])
+        #expect(parsed.days[dayKey]?[""] == nil)
+    }
+
+    @Test
+    func `codex blank model falls through to model name`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let event: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": env.isoString(for: day),
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "model": "",
+                    "model_name": " openai/gpt-5.6-sol ",
+                    "last_token_usage": [
+                        "input_tokens": 50,
+                        "cached_input_tokens": 10,
+                        "output_tokens": 5,
+                    ],
+                ],
+            ],
+        ]
+        let contents = try env.jsonl([event])
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "blank-model-valid-model-name.jsonl",
+            contents: contents)
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+
+        #expect(parsed.days[dayKey]?["gpt-5.6-sol"] == [50, 10, 5])
+        #expect(parsed.days[dayKey]?[""] == nil)
+    }
+
+    @Test
     func `codex daily report writes corrected cache artifact for oversized turn context`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
