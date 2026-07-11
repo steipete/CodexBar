@@ -72,6 +72,11 @@ Manual option:
   keeps that caveat with the estimate. Pricing references were checked 2026-07-11 against [OpenAI GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5),
   [Anthropic Claude pricing](https://docs.anthropic.com/en/docs/about-claude/pricing), and
   [Cursor Composer 2.5](https://cursor.com/changelog/composer-2-5). No new unverified model rate is added here.
+- The menu's compact request rows keep semantic request counts (“Req N”) separate from weighted Cursor request cost.
+  Clicking a row expands an inline diagnostic block with the raw model, ISO 8601 timestamp, request count, weighted
+  request cost when supplied, token and cache breakdown, local estimate, pricing source, and the estimator caveat.
+  Expanded diagnostics use the same 30-row cap and existing 120-point scroll surface, so long histories continue to
+  forward wheel input to the embedded list.
 - Reset: billing cycle end date.
 
 ## Key files

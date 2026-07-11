@@ -188,6 +188,7 @@ struct UsageMenuCardView: View {
                             Text(tokenUsage.monthLine)
                                 .font(.footnote)
                             CursorRequestDetailsList(requests: tokenUsage.cursorRequestDetails)
+                                .accessibilityLabel("Cursor request details")
                             if let hint = tokenUsage.hintLine, !hint.isEmpty {
                                 Text(hint)
                                     .font(.footnote)

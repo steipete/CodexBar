@@ -6,3 +6,4 @@
 - SwiftPM test-target compilation constraint handled: pre-implementation assertions use serialized snapshot output and existing menu seams until the later typed presentation APIs land.
 - Task 2: verified existing normalization/pricing regression coverage and restored aggregate exact, bounded, and lower-bound estimate formatting without adding an unverified model rate.
 - Task 3: persisted selected Cursor range totals/date windows and presentation-ready cost text in a backward-compatible widget snapshot, with newest-first request rows capped independently from aggregates.
+- Task 4: restored inline Cursor request diagnostics for model, timestamp, weighted cost, token/cache breakdown, estimate source, and caveat text while preserving the 30-row cap and scroll-forwarding interaction policy.

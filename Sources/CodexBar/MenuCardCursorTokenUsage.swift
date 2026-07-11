@@ -92,33 +92,43 @@ struct CursorTokenUsageHeader: View {
 
 struct CursorRequestDetailsList: View {
     let requests: [CursorRecentRequest]
+    @State private var expandedRequestIndex: Int?
 
     var body: some View {
         if !self.requests.isEmpty {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 3) {
-                    ForEach(Array(self.requests.prefix(30).enumerated()), id: \.offset) { _, request in
+                    ForEach(Array(self.requests.prefix(30).enumerated()), id: \.offset) { index, request in
                         let normalized = CursorModelNormalizer.normalize(request.model)
                         let estimate = CursorRequestCostEstimator.estimate(for: request)
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(UsageFormatter.cursorCompactModelLabel(normalized))
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 1) {
-                                Text(UsageFormatter.cursorRequestCountLabel(requests: request.requests))
-                                if let estimateText = UsageFormatter.cursorEstimateText(estimate) {
-                                    Text(estimateText)
-                                        .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button {
+                                self.expandedRequestIndex = self.expandedRequestIndex == index ? nil : index
+                            } label: {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(UsageFormatter.cursorCompactModelLabel(normalized))
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 1) {
+                                        Text(UsageFormatter.cursorRequestCountLabel(requests: request.requests))
+                                        if let estimateText = UsageFormatter.cursorEstimateText(estimate) {
+                                            Text(estimateText)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
                                 }
+                            }
+                            .buttonStyle(.plain)
+                            if self.expandedRequestIndex == index {
+                                MenuCardTokenDetailsView(request: request)
+                            } else if let requestCostDetail = UsageFormatter
+                                .cursorRequestCostDetail(requestCost: request.requestCost)
+                            {
+                                Text(requestCostDetail)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         .font(.caption)
-                        if let requestCostDetail = UsageFormatter
-                            .cursorRequestCostDetail(requestCost: request.requestCost)
-                        {
-                            Text(requestCostDetail)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
                     }
                 }
             }

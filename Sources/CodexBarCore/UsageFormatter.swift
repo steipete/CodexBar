@@ -164,6 +164,44 @@ public enum UsageFormatter {
         return "Request cost: \(formatted)"
     }
 
+    public static func cursorRequestDiagnosticLines(_ request: CursorRecentRequest) -> [String] {
+        let timestamp = ISO8601DateFormatter().string(from: request.timestamp)
+        var lines = [
+            "Model: \(request.model)",
+            "Timestamp: \(timestamp)",
+            "Requests: \(self.cursorRequestCountLabel(requests: request.requests))",
+        ]
+        if let requestCost = self.cursorRequestCostDetail(requestCost: request.requestCost) {
+            lines.append(requestCost)
+        }
+        if let breakdown = request.tokenBreakdown {
+            if let inputTokens = breakdown.inputTokens {
+                lines.append("input: \(self.tokenCountString(inputTokens)) tokens")
+            }
+            if let outputTokens = breakdown.outputTokens {
+                lines.append("output: \(self.tokenCountString(outputTokens)) tokens")
+            }
+            if let cacheReadTokens = breakdown.cacheReadTokens {
+                lines.append("cache read: \(self.tokenCountString(cacheReadTokens)) tokens")
+            }
+            if let cacheWriteTokens = breakdown.cacheWriteTokens {
+                lines.append("cache write: \(self.tokenCountString(cacheWriteTokens)) tokens")
+            }
+            lines.append("total: \(self.tokenCountString(breakdown.totalTokens)) tokens")
+        } else {
+            lines.append("total: \(self.tokenCountString(request.tokens)) tokens")
+        }
+        let estimate = CursorRequestCostEstimator.estimate(for: request)
+        if let estimateText = self.cursorEstimateText(estimate) {
+            lines.append(estimateText)
+        }
+        if let pricingSource = estimate.pricingSource {
+            lines.append("Source: \(pricingSource)")
+        }
+        lines.append("Note: \(estimate.explanation)")
+        return lines
+    }
+
     public static func tokenCountString(_ value: Int) -> String {
         let absValue = abs(value)
         let sign = value < 0 ? "-" : ""

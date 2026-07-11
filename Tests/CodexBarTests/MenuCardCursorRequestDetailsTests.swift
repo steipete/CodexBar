@@ -21,12 +21,12 @@ struct MenuCardCursorRequestDetailsTests {
                 totalTokens: 3_000_000,
                 confidence: .partialBreakdown))
 
-        let detailsView = CursorRequestDetailsList(requests: [request])
+        let lines = MenuCardTokenDetailsModel.lines(for: request)
 
-        #expect(detailsView.requests.first?.model == request.model)
-        #expect(detailsView.requests.first?.requestCost == 2)
-        #expect(UsageFormatter.cursorRequestCostDetail(requestCost: request.requestCost) == "Request cost: 2")
-        #expect(UsageFormatter.cursorEstimateText(CursorRequestCostEstimator.estimate(for: request)) != nil)
+        #expect(lines.contains("Request cost: 2"))
+        #expect(lines.contains(where: { $0.hasPrefix("Model: ") }))
+        #expect(lines.contains(where: { $0.contains("cache read") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Approx.") || $0.hasPrefix("Est.") }))
     }
 
     @Test
