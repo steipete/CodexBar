@@ -6,6 +6,9 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
+#if os(macOS)
+import Security
+#endif
 
 public enum PathPurpose: Hashable, Sendable {
     case rpc
@@ -127,12 +130,14 @@ public enum BinaryLocator {
             home: home)
     }
 
-    /// Well-known installation paths for the signed Codex desktop app CLI.
+    /// Well-known installation paths for the signed Codex CLI bundled with current and legacy desktop apps.
     /// Keep these after PATH lookups, but use them as a safe fallback when a PATH shim is blocked.
     static func codexWellKnownPaths(home: String) -> [String] {
         #if os(macOS)
         [
+            "\(home)/Applications/ChatGPT.app/Contents/Resources/codex",
             "\(home)/Applications/Codex.app/Contents/Resources/codex",
+            "/Applications/ChatGPT.app/Contents/Resources/codex",
             "/Applications/Codex.app/Contents/Resources/codex",
         ]
         #else
@@ -370,6 +375,11 @@ public enum BinaryLocator {
 }
 
 public enum CodexLaunchPreflight {
+    struct GatekeeperAssessment {
+        let output: String
+        let exitStatus: Int32
+    }
+
     public static func isLaunchCandidateAllowed(path: String, fileManager: FileManager = .default) -> Bool {
         #if os(macOS)
         self.isLaunchCandidateAllowed(
@@ -377,6 +387,7 @@ public enum CodexLaunchPreflight {
             fileManager: fileManager,
             hasExtendedAttribute: self.hasExtendedAttribute,
             spctlAssessment: { self.spctlAssessment(path: $0) },
+            appSignatureIsTrusted: self.isExpectedOpenAIAppSignature,
             isMachOExecutable: self.isMachOExecutable)
         #else
         _ = path
@@ -386,23 +397,50 @@ public enum CodexLaunchPreflight {
     }
 
     #if os(macOS)
+    // Keep each security boundary injectable so preflight tests never inspect or launch host binaries.
+    // swiftlint:disable:next function_parameter_count
     static func isLaunchCandidateAllowed(
         path: String,
         fileManager: FileManager,
         hasExtendedAttribute: (String, String) -> Bool,
-        spctlAssessment: (String) -> String?,
+        spctlAssessment: (String) -> GatekeeperAssessment?,
+        appSignatureIsTrusted: (String) -> Bool,
         isMachOExecutable: (String) -> Bool) -> Bool
     {
         let realPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        let pathsToCheck = [path, realPath] + self.nativeCodexExecutableCandidates(
-            for: realPath,
-            fileManager: fileManager)
+        let sourceAppBundlePath = self.containingAppBundlePath(for: path)
+        let resolvedAppBundlePath = self.containingAppBundlePath(for: realPath)
+        let appBundlePath: String?
+        if let sourceAppBundlePath {
+            let resolvedSourceBundle = URL(fileURLWithPath: sourceAppBundlePath).resolvingSymlinksInPath().path
+            guard resolvedAppBundlePath == resolvedSourceBundle else { return false }
+            appBundlePath = resolvedSourceBundle
+        } else {
+            appBundlePath = resolvedAppBundlePath
+        }
+        let appBundlePaths = [sourceAppBundlePath, appBundlePath].compactMap(\.self)
+        let pathsToCheck = [path, realPath] + appBundlePaths + self
+            .nativeCodexExecutableCandidates(
+                for: realPath,
+                fileManager: fileManager)
 
         for candidate in Set(pathsToCheck) where hasExtendedAttribute(candidate, "com.apple.malware") {
             return false
         }
 
         let hasQuarantine = Set(pathsToCheck).contains { hasExtendedAttribute($0, "com.apple.quarantine") }
+        if let appBundlePath {
+            guard appSignatureIsTrusted(appBundlePath),
+                  let assessment = spctlAssessment(appBundlePath),
+                  assessment.exitStatus == 0,
+                  self.isAcceptedAssessment(assessment.output, path: appBundlePath),
+                  !self.isExplicitlyBlockedAssessment(assessment.output, path: appBundlePath)
+            else {
+                return false
+            }
+            return true
+        }
+
         guard let native = pathsToCheck.first(where: isMachOExecutable) else {
             return !hasQuarantine
         }
@@ -412,7 +450,20 @@ public enum CodexLaunchPreflight {
             return !hasQuarantine
         }
 
-        return !self.isExplicitlyBlockedAssessment(assessment, path: native)
+        return !self.isExplicitlyBlockedAssessment(assessment.output, path: native)
+    }
+
+    private static func containingAppBundlePath(for path: String) -> String? {
+        var candidate = URL(fileURLWithPath: path).standardizedFileURL
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                return candidate.path
+            }
+            let parent = candidate.deletingLastPathComponent()
+            guard parent.path != candidate.path else { return nil }
+            candidate = parent
+        }
+        return nil
     }
 
     private static func nativeCodexExecutableCandidates(for path: String, fileManager: FileManager) -> [String] {
@@ -475,7 +526,7 @@ public enum CodexLaunchPreflight {
             bytes == [0xCA, 0xFE, 0xBA, 0xBF]
     }
 
-    private static func spctlAssessment(path: String, timeout: TimeInterval = 2.0) -> String? {
+    private static func spctlAssessment(path: String, timeout: TimeInterval = 2.0) -> GatekeeperAssessment? {
         let spctlPath = "/usr/sbin/spctl"
         guard FileManager.default.isExecutableFile(atPath: spctlPath) else { return nil }
 
@@ -502,7 +553,44 @@ public enum CodexLaunchPreflight {
         }
 
         let data = output.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        return GatekeeperAssessment(output: text, exitStatus: process.terminationStatus)
+    }
+
+    private static func isExpectedOpenAIAppSignature(path: String) -> Bool {
+        let requirementText =
+            "identifier \"com.openai.codex\" and anchor apple generic " +
+            "and certificate leaf[subject.OU] = \"2DC432GLL2\""
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(
+            URL(fileURLWithPath: path) as CFURL,
+            SecCSFlags(),
+            &staticCode) == errSecSuccess,
+            let staticCode
+        else {
+            return false
+        }
+
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(
+            requirementText as CFString,
+            SecCSFlags(),
+            &requirement) == errSecSuccess
+        else {
+            return false
+        }
+
+        // Pin the publisher and bundle identity here; the Gatekeeper assessment below performs full bundle validation.
+        let validationFlags = SecCSFlags(rawValue: kSecCSBasicValidateOnly)
+        return SecStaticCodeCheckValidity(staticCode, validationFlags, requirement) == errSecSuccess
+    }
+
+    private static func isAcceptedAssessment(_ assessment: String, path: String) -> Bool {
+        self.assessmentDiagnosticText(assessment, path: path)
+            .split(whereSeparator: \.isNewline)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare("accepted") == .orderedSame
     }
 
     private static func isExplicitlyBlockedAssessment(_ assessment: String, path: String) -> Bool {
