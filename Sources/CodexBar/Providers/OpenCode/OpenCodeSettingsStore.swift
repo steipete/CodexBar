@@ -24,6 +24,7 @@ extension SettingsStore {
         var accounts = self.opencodeWorkspaceAccounts
         guard accounts.selectActive(id: id) else { return false }
         self.opencodeWorkspaceAccounts = accounts
+        AppGroupSupport.sharedDefaults()?.removeObject(forKey: Self.openCodeWidgetSelectionKey)
         return true
     }
 
@@ -72,6 +73,7 @@ extension SettingsStore {
             defaults.removeObject(forKey: Self.openCodeWidgetSelectionKey)
             return false
         }
+        defaults.removeObject(forKey: Self.openCodeWidgetSelectionKey)
         guard accounts.activeID != self.opencodeWorkspaceAccounts.activeID else { return false }
         self.opencodeWorkspaceAccounts = accounts
         return true
@@ -215,16 +217,24 @@ extension SettingsStore {
                 allowCached: true),
             invalidCookie: OpenCodeSettingsError.invalidCookie,
             missingCookie: OpenCodeSettingsError.missingCookie)
-        guard let tokenAccount = self.ensureOpenCodeTokenAccount(cookieHeader: cookieHeader) else {
-            throw OpenCodeSettingsError.invalidCookie
-        }
-        let workspaces = try await OpenCodeWorkspaceDiscovery.discover(
+        let discovery = await OpenCodeWorkspaceDiscovery.resolve(
             cookieHeader: cookieHeader,
+            workspaceID: nil,
             timeout: timeout,
             session: session)
-        return self.saveOpenCodeWorkspaces(
-            workspaces,
-            tokenAccountID: tokenAccount.id)
+        switch discovery {
+        case let .discovered(workspaces):
+            guard let tokenAccount = self.ensureOpenCodeTokenAccount(cookieHeader: cookieHeader) else {
+                throw OpenCodeSettingsError.invalidCookie
+            }
+            return self.saveOpenCodeWorkspaces(workspaces, tokenAccountID: tokenAccount.id)
+        case .missingReusableCredential:
+            return [.missingReusableCredential]
+        case .invalidWorkspaceID:
+            return [.invalidWorkspaceID]
+        case let .discoveryFailed(message):
+            return [.discoveryFailed(message)]
+        }
     }
 
     private func ensureOpenCodeTokenAccount(cookieHeader: String) -> ProviderTokenAccount? {

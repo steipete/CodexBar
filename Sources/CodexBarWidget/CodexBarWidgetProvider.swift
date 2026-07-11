@@ -7,6 +7,7 @@ enum ProviderChoice: String, AppEnum {
     case codex
     case claude
     case gemini
+    case cursor
     case alibaba
     case antigravity
     case zai
@@ -22,6 +23,7 @@ enum ProviderChoice: String, AppEnum {
         .codex: DisplayRepresentation(title: "Codex"),
         .claude: DisplayRepresentation(title: "Claude"),
         .gemini: DisplayRepresentation(title: "Gemini"),
+        .cursor: DisplayRepresentation(title: "Cursor"),
         .alibaba: DisplayRepresentation(title: "Alibaba"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
         .zai: DisplayRepresentation(title: "z.ai"),
@@ -37,6 +39,7 @@ enum ProviderChoice: String, AppEnum {
         case .codex: .codex
         case .claude: .claude
         case .gemini: .gemini
+        case .cursor: .cursor
         case .alibaba: .alibaba
         case .antigravity: .antigravity
         case .zai: .zai
@@ -54,9 +57,9 @@ enum ProviderChoice: String, AppEnum {
         case .codex: self = .codex
         case .claude: self = .claude
         case .gemini: self = .gemini
+        case .cursor: self = .cursor
         case .alibaba: self = .alibaba
         case .antigravity: self = .antigravity
-        case .cursor: return nil // Cursor not yet supported in widgets
         case .opencode: self = .opencode
         case .opencodego: self = .opencodego
         case .zai: self = .zai

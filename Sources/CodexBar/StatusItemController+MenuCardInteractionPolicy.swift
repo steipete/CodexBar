@@ -12,7 +12,7 @@ extension StatusItemController {
     static func menuCardInteractionPolicy(for model: UsageMenuCardView.Model) -> MenuCardInteractionPolicy {
         guard model.provider == .cursor,
               let tokenUsage = model.tokenUsage,
-              tokenUsage.cursorRequestDetails.count > 7
+              !tokenUsage.cursorRequestDetails.isEmpty
         else {
             return .default
         }

@@ -31,6 +31,35 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func widgetWorkspaceSelectionIsConsumedBeforeLaterMenuSelection() throws {
+        let settings = Self.makeSettingsStore(suiteName: "SettingsStoreCoverageTests-widget-selection")
+        settings.addTokenAccount(provider: .opencode, label: "Shared", token: "auth=shared")
+        let tokenAccount = try #require(settings.selectedTokenAccount(for: .opencode))
+        #expect(settings.addOpenCodeWorkspace(
+            tokenAccountID: tokenAccount.id,
+            workspaceID: "wrk_ALPHA",
+            label: "Alpha") == .saved)
+        #expect(settings.addOpenCodeWorkspace(
+            tokenAccountID: tokenAccount.id,
+            workspaceID: "wrk_BETA",
+            label: "Beta") == .saved)
+        let accounts = settings.opencodeWorkspaceAccounts.accounts
+        let first = try #require(accounts.first)
+        let second = try #require(accounts.last)
+        let defaults = try #require(AppGroupSupport.sharedDefaults())
+        defer { defaults.removeObject(forKey: SettingsStore.openCodeWidgetSelectionKey) }
+
+        #expect(settings.setActiveOpenCodeWorkspace(id: second.id))
+        WidgetSelectionStore.saveSelectedOpenCodeWorkspaceAccountID(first.id)
+        #expect(settings.syncOpenCodeWorkspaceSelectionFromAppGroup())
+        #expect(settings.activeOpenCodeWorkspaceAccount?.id == first.id)
+
+        #expect(settings.setActiveOpenCodeWorkspace(id: second.id))
+        #expect(!settings.syncOpenCodeWorkspaceSelectionFromAppGroup())
+        #expect(settings.activeOpenCodeWorkspaceAccount?.id == second.id)
+    }
+
+    @Test
     func `provider ordering and caching`() throws {
         let suite = "SettingsStoreCoverageTests-ordering"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -17,6 +17,28 @@ struct CodexBarWidgetProviderTests {
     }
 
     @Test
+    func `provider choice supports cursor`() {
+        let choice = ProviderChoice(rawValue: "cursor")
+
+        #expect(choice?.provider == .cursor)
+        #expect(ProviderChoice(provider: .cursor)?.provider == .cursor)
+
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .cursor,
+            updatedAt: Date(),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.cursor], generatedAt: Date())
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.cursor])
+    }
+
+    @Test
     func `supported providers fall back to codex when snapshot is empty`() {
         let snapshot = WidgetSnapshot(entries: [], enabledProviders: [], generatedAt: Date())
 

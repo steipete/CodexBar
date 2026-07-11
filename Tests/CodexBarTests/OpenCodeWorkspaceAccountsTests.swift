@@ -84,4 +84,25 @@ struct OpenCodeWorkspaceAccountsTests {
             workspaceID: "not-a-workspace",
             label: "Invalid") == .invalidWorkspaceID)
     }
+
+    @Test
+    func persistedAccountIDIsRecomputedFromCanonicalFields() throws {
+        let json = """
+        {
+          "id": "stale-id",
+          "tokenAccountID": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA",
+          "workspaceID": "wrk_ALPHA",
+          "label": "Alpha",
+          "createdAt": 100,
+          "updatedAt": 200
+        }
+        """
+
+        let account = try JSONDecoder().decode(OpenCodeWorkspaceAccount.self, from: Data(json.utf8))
+        let tokenAccountID = try #require(UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
+
+        #expect(account.id == OpenCodeWorkspaceAccount.canonicalID(
+            tokenAccountID: tokenAccountID,
+            workspaceID: "wrk_ALPHA"))
+    }
 }

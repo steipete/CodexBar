@@ -84,8 +84,7 @@ public struct OpenCodeWorkspaceAccount: Codable, Identifiable, Sendable, Equatab
                 in: container,
                 debugDescription: "Invalid OpenCode workspace ID.")
         }
-        self.id = try container.decodeIfPresent(String.self, forKey: .id)
-            ?? Self.canonicalID(tokenAccountID: tokenAccountID, workspaceID: workspaceID)
+        self.id = Self.canonicalID(tokenAccountID: tokenAccountID, workspaceID: workspaceID)
         self.tokenAccountID = tokenAccountID
         self.workspaceID = workspaceID
         self.label = try Self.cleanLabel(
