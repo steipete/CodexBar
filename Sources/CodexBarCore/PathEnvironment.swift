@@ -672,6 +672,11 @@ final class TerminalForegroundCoordinator: @unchecked Sendable {
 }
 
 public enum ShellCommandLocator {
+    private struct ControllingTerminal {
+        let fileDescriptor: Int32
+        let shouldClose: Bool
+    }
+
     private static let terminalForegroundCoordinator = TerminalForegroundCoordinator()
 
     static func test_runShellCommand(
@@ -781,9 +786,20 @@ public enum ShellCommandLocator {
         // Interactive shells can temporarily move terminal foreground ownership.
         // Coordinate the complete capture/probe/restore sequence so overlapping
         // probes cannot snapshot and later restore one another's short-lived group.
+        let controllingTerminal = Self.controllingTerminal()
+        defer {
+            if controllingTerminal?.shouldClose == true,
+               let fileDescriptor = controllingTerminal?.fileDescriptor
+            {
+                close(fileDescriptor)
+            }
+        }
         let foregroundLease = Self.terminalForegroundCoordinator.acquire(
-            isTerminal: isatty(STDIN_FILENO) == 1,
-            capture: { Self.foregroundProcessGroup(for: STDIN_FILENO) })
+            isTerminal: controllingTerminal != nil,
+            capture: {
+                guard let fileDescriptor = controllingTerminal?.fileDescriptor else { return nil }
+                return Self.foregroundProcessGroup(for: fileDescriptor)
+            })
         var spawnedProcessGroup: pid_t?
 
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
@@ -793,8 +809,9 @@ public enum ShellCommandLocator {
 
         defer {
             Self.terminalForegroundCoordinator.release(foregroundLease) { original in
+                guard let fileDescriptor = controllingTerminal?.fileDescriptor else { return }
                 Self.restoreForegroundProcessGroup(
-                    for: STDIN_FILENO,
+                    for: fileDescriptor,
                     original: original,
                     expectedCurrent: spawnedProcessGroup)
             }
@@ -990,6 +1007,20 @@ public enum ShellCommandLocator {
         guard isatty(fd) == 1 else { return nil }
         let processGroup = tcgetpgrp(fd)
         return processGroup > 0 ? processGroup : nil
+    }
+
+    private static func controllingTerminal() -> ControllingTerminal? {
+        if isatty(STDIN_FILENO) == 1 {
+            return ControllingTerminal(fileDescriptor: STDIN_FILENO, shouldClose: false)
+        }
+
+        let fileDescriptor = open("/dev/tty", O_RDWR | O_CLOEXEC)
+        guard fileDescriptor >= 0 else { return nil }
+        guard isatty(fileDescriptor) == 1 else {
+            close(fileDescriptor)
+            return nil
+        }
+        return ControllingTerminal(fileDescriptor: fileDescriptor, shouldClose: true)
     }
 
     private static func restoreForegroundProcessGroup(
