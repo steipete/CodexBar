@@ -9,6 +9,7 @@
 - Claude: prevent CodexBar's passive CLI probes from starting background Claude Code updates, avoiding repeated partial downloads when a probe exits before an update completes. Thanks @PG2047!
 - Codex cost history: bound malformed session-metadata lines and release read chunks promptly, preventing metadata pre-scans from retaining memory in proportion to oversized JSONL records. Thanks @Yuxin-Qiao!
 - Widgets: add Cursor to configurable and switcher widgets with accurate legacy Requests and current Total, Auto, and API quota labels (#2040). Thanks @Zihao-Qi!
+- Menus: return oversized tracked menus to the provider header after a manual refresh without moving background updates, highlighted rows, open submenus, or newer menu/provider sessions (#2046). Thanks @ss251!
 
 ## 0.42.0 — 2026-07-11
 
