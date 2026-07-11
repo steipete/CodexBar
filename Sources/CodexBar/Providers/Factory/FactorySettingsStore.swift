@@ -3,7 +3,13 @@ import Foundation
 
 extension SettingsStore {
     var factoryUsageDataSource: ProviderSourceMode {
-        get { self.configSnapshot.providerConfig(for: .factory)?.source ?? .auto }
+        get {
+            switch self.configSnapshot.providerConfig(for: .factory)?.source {
+            case .api: .api
+            case .web: .web
+            case .auto, .cli, .oauth, .none: .auto
+            }
+        }
         set {
             let source: ProviderSourceMode? = switch newValue {
             case .auto: .auto

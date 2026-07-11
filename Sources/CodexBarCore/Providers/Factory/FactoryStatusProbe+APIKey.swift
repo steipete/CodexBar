@@ -1,7 +1,5 @@
 import Foundation
 
-#if os(macOS)
-
 extension FactoryStatusProbe {
     /// Fetch Factory usage using a Factory API key (`FACTORY_API_KEY` / `fk-…`).
     public func fetch(
@@ -62,17 +60,3 @@ extension FactoryStatusProbe {
         }
     }
 }
-
-#else
-
-extension FactoryStatusProbe {
-    public func fetch(
-        apiKey _: String,
-        logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot
-    {
-        _ = logger
-        throw FactoryStatusProbeError.notSupported
-    }
-}
-
-#endif

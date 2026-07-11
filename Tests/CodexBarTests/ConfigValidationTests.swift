@@ -53,6 +53,17 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `accepts legacy factory cli source as compatibility alias`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .factory, source: .cli))
+        let issues = CodexBarConfigValidator.validate(config)
+        #expect(!issues.contains(where: {
+            $0.provider == .factory && $0.code == "unsupported_source"
+        }))
+        #expect(FactoryProviderDescriptor.descriptor.fetchPlan.sourceModes.contains(.cli))
+    }
+
+    @Test
     func `reports missing API key when source API`() {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .zai, source: .api, apiKey: nil))

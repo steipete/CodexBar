@@ -32,7 +32,9 @@ public enum FactoryProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Droid cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api, .web],
+                // `.cli` remains as an Auto compatibility alias for persisted configs from older builds
+                // that advertised `[.auto, .cli]` while only implementing the web strategy.
+                sourceModes: [.auto, .api, .web, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "factory",
@@ -45,9 +47,10 @@ public enum FactoryProviderDescriptor {
             [FactoryAPIFetchStrategy()]
         case .web:
             [FactoryStatusFetchStrategy()]
-        case .auto:
+        case .auto, .cli:
+            // Legacy `source: cli` behaves as Auto (API key first, then cookies/WorkOS on macOS).
             [FactoryAPIFetchStrategy(), FactoryStatusFetchStrategy()]
-        case .cli, .oauth:
+        case .oauth:
             []
         }
     }
@@ -113,8 +116,13 @@ struct FactoryStatusFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .web
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        #if !os(macOS)
+        // Cookie/WorkOS import is macOS-only; Linux relies on API-key auth instead.
+        return false
+        #else
         guard context.settings?.factory?.cookieSource != .off else { return false }
         return true
+        #endif
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

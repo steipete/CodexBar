@@ -18,7 +18,7 @@ public enum FactoryStatusProbeError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .notSupported:
-            "Factory is only supported on macOS."
+            "Factory browser-cookie auth is only supported on macOS. Use FACTORY_API_KEY / --source api on Linux."
         case .notLoggedIn:
             #if os(macOS)
             "No usable Droid session found. Log in to app.factory.ai in \(factoryAPIKeyCookieImportOrder.loginHint), " +

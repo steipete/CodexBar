@@ -715,6 +715,13 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .factory,
+           sourceMode == .auto || sourceMode == .cli,
+           environment.map({ FactorySettingsReader.apiKey(environment: $0) != nil }) == true
+        {
+            // Linux Auto/legacy-cli can use FACTORY_API_KEY without browser cookies.
+            return false
+        }
         if provider == .mimo,
            sourceMode == .auto,
            let environment,

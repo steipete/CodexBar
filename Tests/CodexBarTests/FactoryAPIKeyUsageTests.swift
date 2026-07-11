@@ -113,6 +113,21 @@ struct FactoryAPIFetchStrategyTests {
     }
 
     @Test
+    func `legacy cli source aliases auto strategies`() async {
+        let modes = FactoryProviderDescriptor.descriptor.fetchPlan.sourceModes
+        #expect(modes.contains(.cli))
+        #expect(modes.contains(.api))
+        #expect(modes.contains(.web))
+
+        let cli = await FactoryProviderDescriptor.descriptor.fetchPlan.pipeline
+            .resolveStrategies(self.makeContext(sourceMode: .cli))
+        let auto = await FactoryProviderDescriptor.descriptor.fetchPlan.pipeline
+            .resolveStrategies(self.makeContext(sourceMode: .auto))
+        #expect(cli.map(\.id) == auto.map(\.id))
+        #expect(cli.map(\.id) == ["factory.api", "factory.web"])
+    }
+
+    @Test
     func `descriptor isolates api and web source modes`() async {
         let api = await FactoryProviderDescriptor.descriptor.fetchPlan.pipeline
             .resolveStrategies(self.makeContext(sourceMode: .api))

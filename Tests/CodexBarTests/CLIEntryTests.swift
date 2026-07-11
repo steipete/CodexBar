@@ -455,4 +455,27 @@ final class CLIEntryTests: XCTestCase {
             provider: .mimo,
             environment: ["MIMO_LOCAL_USAGE_PATH": directory.appendingPathComponent("missing.json").path]))
     }
+
+    func test_sourceModeRequiresWebSupportAllowsFactoryAPIKeyOnLinuxGate() {
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .factory,
+            environment: ["FACTORY_API_KEY": "fk-test"]))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .cli,
+            provider: .factory,
+            environment: ["FACTORY_API_KEY": "fk-test"]))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .factory,
+            environment: [:]))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .factory,
+            environment: ["FACTORY_API_KEY": "fk-test"]))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .api,
+            provider: .factory,
+            environment: [:]))
+    }
 }
