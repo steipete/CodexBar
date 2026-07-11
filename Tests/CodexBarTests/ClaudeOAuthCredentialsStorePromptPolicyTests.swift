@@ -4,6 +4,12 @@ import Testing
 
 @Suite(.serialized)
 struct ClaudeOAuthCredentialsStorePromptPolicyTests {
+    @Test
+    func `keychain prompt notify preserves its void function signature`() {
+        let notify: (KeychainPromptContext) -> Void = KeychainPromptHandler.notify
+        _ = notify
+    }
+
     private func makeCredentialsData(accessToken: String, expiresAt: Date, refreshToken: String? = nil) -> Data {
         let millis = Int(expiresAt.timeIntervalSince1970 * 1000)
         let refreshField: String = {

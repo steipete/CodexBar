@@ -424,7 +424,7 @@ public enum ClaudeOAuthCredentialsStore {
 
                 if ClaudeOAuthCredentialsStore.shouldNotifyClaudeKeychainPreAlert() {
                     ClaudeOAuthKeychainPreAlertGate.presentIfNeeded {
-                        KeychainPromptHandler.notify(
+                        KeychainPromptHandler.notifyIfHandled(
                             KeychainPromptContext(
                                 kind: .claudeOAuth,
                                 service: ClaudeOAuthCredentialsStore.claudeKeychainService,
