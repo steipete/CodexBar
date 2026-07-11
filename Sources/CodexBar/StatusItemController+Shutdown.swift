@@ -80,6 +80,7 @@ extension StatusItemController {
         self.openMenuRebuildRequests.cancelAll()
         self.openMenuRebuildsClosingHostedSubviewMenus.removeAll(keepingCapacity: false)
         self.menuSession.clearMenuTracking()
+        self.manualRefreshViewportRestoreState.deferredUntilRebuild.removeAll(keepingCapacity: false)
         self.openMenus.removeAll(keepingCapacity: false)
         self.highlightedMenuItems.removeAll(keepingCapacity: false)
         self.nativeHighlightDeferredMenuRebuilds.removeAll(keepingCapacity: false)

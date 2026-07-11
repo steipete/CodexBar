@@ -132,7 +132,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func refreshNow() {
-        self.startManualRefresh(for: nil)
+        self.startManualRefresh(for: nil, originatingMenuID: nil)
     }
 
     @objc func refreshMenuItem(_ sender: NSMenuItem) {
@@ -140,11 +140,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     func refreshMenuProviderNow(in menu: NSMenu?) {
+        let originatingMenuID = menu.map(ObjectIdentifier.init)
         guard let provider = self.manualRefreshProvider(for: menu) else {
-            self.startManualRefresh(for: nil)
+            self.startManualRefresh(for: nil, originatingMenuID: originatingMenuID)
             return
         }
-        self.startManualRefresh(for: provider)
+        self.startManualRefresh(for: provider, originatingMenuID: originatingMenuID)
     }
 
     private func refreshMenuProviderNow(menuID: ObjectIdentifier) {
@@ -153,13 +154,16 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         } else if let mergedMenu = self.mergedMenu, ObjectIdentifier(mergedMenu) == menuID {
             self.refreshMenuProviderNow(in: mergedMenu)
         } else if let provider = self.menuProviders[menuID] {
-            self.startManualRefresh(for: provider)
+            self.startManualRefresh(for: provider, originatingMenuID: menuID)
         } else {
-            self.startManualRefresh(for: nil)
+            self.startManualRefresh(for: nil, originatingMenuID: menuID)
         }
     }
 
-    private func startManualRefresh(for provider: UsageProvider?) {
+    private func startManualRefresh(
+        for provider: UsageProvider?,
+        originatingMenuID: ObjectIdentifier?)
+    {
         let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
             ?? !self.store.refreshingProviders.isEmpty
@@ -177,13 +181,21 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         else { return }
 
         let frozenModels = self.frozenManualRefreshMenuCardModels()
+        let viewportRestoreRequests = self.armManualRefreshViewportRestoreRequests(
+            originatingMenuID: originatingMenuID)
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
+            var completed = false
             defer {
                 self.manualRefreshTasks[scope] = nil
                 self.menuCardRefreshMonitor.endManualRefresh(for: provider)
                 self.updatePersistentRefreshItemsEnabled()
-                self.armMenuViewportRestoreAfterManualRefresh()
+                if completed {
+                    self.scheduleCompletedManualRefreshViewportRestore(viewportRestoreRequests)
+                } else {
+                    self.cancelManualRefreshViewportRestoreRequests(viewportRestoreRequests)
+                }
+                self.completeParentMenuRebuildAfterHostedSubviewCloseIfNeeded()
                 self.prepareAttachedClosedMenusIfNeeded()
             }
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
@@ -191,6 +203,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             if let operation = self._test_manualRefreshOperation {
                 await operation()
                 guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+                completed = true
                 return
             }
             #endif
@@ -205,6 +218,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                     refreshOpenMenusWhenComplete: true,
                     interaction: .userInitiated)
             }
+            guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            completed = true
         }
         self.manualRefreshTasks[scope] = task
         self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: provider)

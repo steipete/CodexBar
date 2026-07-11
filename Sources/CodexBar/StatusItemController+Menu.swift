@@ -7,6 +7,12 @@ import SwiftUI
 // MARK: - NSMenu construction
 
 extension StatusItemController {
+    var fallbackProvider: UsageProvider? {
+        // Intentionally uses availability-filtered list: fallback activates when no provider
+        // can actually work, ensuring at least a codex icon is always visible.
+        self.store.enabledProviders().isEmpty ? .codex : nil
+    }
+
     static let menuCardBaseWidth: CGFloat = 310
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
     static let overviewRowIdentifierPrefix = "overviewRow-"

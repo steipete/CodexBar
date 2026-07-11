@@ -64,11 +64,29 @@ struct MenuSessionCoordinatorTests {
         coordinator.markFresh(menu)
         coordinator.deferUntilNextOpen(menu)
         coordinator.deferParentRebuild(menu)
+        _ = coordinator.armViewportRestore(menu)
         coordinator.removeMenu(menu)
 
         #expect(coordinator.renderedVersion(for: menu) == nil)
         #expect(!coordinator.isDeferredUntilNextOpen(menu))
         #expect(!coordinator.isParentRebuildDeferred(menu))
+        #expect(coordinator.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `replacement viewport restore token rejects stale completion`() {
+        var coordinator = MenuSessionCoordinator<String>()
+
+        let stale = coordinator.armViewportRestore("menu")
+        let current = coordinator.armViewportRestore("menu")
+
+        #expect(!coordinator.isCurrentViewportRestore(stale, for: "menu"))
+        let staleConsumed = coordinator.consumeViewportRestore("menu", token: stale)
+        #expect(!staleConsumed)
+        #expect(coordinator.isCurrentViewportRestore(current, for: "menu"))
+        let currentConsumed = coordinator.consumeViewportRestore("menu", token: current)
+        #expect(currentConsumed)
+        #expect(coordinator.pendingViewportRestores.isEmpty)
     }
 }
 

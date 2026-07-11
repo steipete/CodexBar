@@ -4,6 +4,31 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+private final class ViewportRefreshGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func wait() async {
+        if self.isOpen {
+            self.isOpen = false
+            return
+        }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func resume() {
+        if let continuation = self.continuation {
+            continuation.resume()
+            self.continuation = nil
+        } else {
+            self.isOpen = true
+        }
+    }
+}
+
+@MainActor
 @Suite(.serialized)
 struct StatusMenuViewportRestoreTests {
     private func makeSettings() -> SettingsStore {
@@ -87,47 +112,499 @@ struct StatusMenuViewportRestoreTests {
     }
 
     @Test
-    func `completed manual refresh arms a restore for the open dirty menu`() async throws {
+    func `manual refresh restores originating dirty menu without rebuilding tracked parent`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
 
         let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
-        #expect(controller.openMenus[ObjectIdentifier(menu)] === menu)
+        let menuID = ObjectIdentifier(menu)
 
-        controller._test_manualRefreshOperation = {
-            // Stand-in for the store mutations of a real refresh: content is newer
-            // than what the open menu rendered.
-            controller.menuContentVersion += 1
+        var restoredMenus: [ObjectIdentifier] = []
+        var rebuildCount = 0
+        controller._test_menuViewportRestoreObserver = { restoredMenus.append(ObjectIdentifier($0)) }
+        controller._test_openMenuRebuildObserver = { rebuiltMenu in
+            if rebuiltMenu === menu {
+                rebuildCount += 1
+            }
         }
-        controller.refreshNow()
-        for _ in 0..<20 where controller.manualRefreshTasks[.global] == nil {
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        #expect(try controller.handleMenuTrackingShortcutEvent(self.keyEvent("r", keyCode: 15), menu: menu))
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
             await Task.yield()
         }
-        let task = try #require(controller.manualRefreshTasks[.global])
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
         await task.value
 
-        #expect(controller.menuSession.pendingViewportRestores.contains(ObjectIdentifier(menu)))
+        #expect(controller.menuNeedsRefresh(menu))
+        #expect(controller.menuSession.isParentRebuildDeferred(menuID))
+        #expect(rebuildCount == 0)
+
+        self.runLoop(mode: CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString))
+
+        #expect(restoredMenus == [menuID])
+        self.runLoop(mode: .defaultMode)
+        #expect(restoredMenus == [menuID])
+        #expect(rebuildCount == 0)
+        #expect(controller.menuNeedsRefresh(menu))
+        #expect(controller.menuSession.isParentRebuildDeferred(menuID))
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
     }
 
     @Test
-    func `completed manual refresh does not arm a restore for a clean menu`() async throws {
+    func `completed manual refresh clears its request when the menu stayed clean`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
 
         let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
         controller.markMenuFresh(menu)
 
+        var scheduledCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
         controller._test_manualRefreshOperation = {}
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `provider refresh restores only its originating open menu`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let claudeMenu = controller.makeMenu(for: .claude)
+        let codexMenu = controller.makeMenu(for: .codex)
+        controller.providerMenus[.claude] = claudeMenu
+        controller.providerMenus[.codex] = codexMenu
+        controller.menuWillOpen(claudeMenu)
+        controller.menuWillOpen(codexMenu)
+        defer {
+            controller.menuDidClose(codexMenu)
+            controller.menuDidClose(claudeMenu)
+        }
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoredMenus: [ObjectIdentifier] = []
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { restoredMenus.append(ObjectIdentifier($0)) }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: claudeMenu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.claude)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.claude)])
+        await task.value
+
+        #expect(scheduled.count == 1)
+        scheduled.removeFirst()()
+
+        #expect(restoredMenus == [ObjectIdentifier(claudeMenu)])
+        #expect(controller.menuNeedsRefresh(codexMenu))
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `closing and reopening during refresh cannot transfer restore to new tracking session`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        let gate = ViewportRefreshGate()
+        var scheduledCount = 0
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        #expect(!controller.menuSession.pendingViewportRestores.isEmpty)
+
+        controller.menuDidClose(menu)
+        controller.menuWillOpen(menu)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+
+        gate.resume()
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `closing after completion invalidates scheduled restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        controller.menuDidClose(menu)
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `open hosted submenu blocks parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.usageBreakdownChartID)
+        controller.openMenus[ObjectIdentifier(submenu)] = submenu
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        var rebuildCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_openMenuRebuildObserver = { rebuiltMenu in
+            if rebuiltMenu === menu {
+                rebuildCount += 1
+            }
+        }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+
+        #expect(scheduled.isEmpty)
+        #expect(restoreCount == 0)
+        #expect(!controller.menuSession.pendingViewportRestores.isEmpty)
+        #expect(controller.manualRefreshViewportRestoreState.deferredUntilRebuild.count == 1)
+
+        controller.menuDidClose(submenu)
+        for _ in 0..<20 where scheduled.isEmpty {
+            await Task.yield()
+        }
+        #expect(rebuildCount == 1)
+        #expect(scheduled.count == 1)
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 1)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+        #expect(controller.manualRefreshViewportRestoreState.deferredUntilRebuild.isEmpty)
+    }
+
+    @Test
+    func `hosted submenu opening before delivery invalidates parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        var rebuildCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_openMenuRebuildObserver = { rebuiltMenu in
+            if rebuiltMenu === menu {
+                rebuildCount += 1
+            }
+        }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.usageBreakdownChartID)
+        controller.openMenus[ObjectIdentifier(submenu)] = submenu
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 0)
+        #expect(!controller.menuSession.pendingViewportRestores.isEmpty)
+        #expect(controller.manualRefreshViewportRestoreState.deferredUntilRebuild.count == 1)
+
+        controller.menuDidClose(submenu)
+        for _ in 0..<20 where scheduled.isEmpty {
+            await Task.yield()
+        }
+        #expect(rebuildCount == 1)
+        #expect(scheduled.count == 1)
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 1)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+        #expect(controller.manualRefreshViewportRestoreState.deferredUntilRebuild.isEmpty)
+    }
+
+    @Test
+    func `fresh parent does not defer old restore when hosted submenu opens before delivery`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        controller.rebuildOpenMenuIfStillVisible(menu, provider: .codex)
+        #expect(!controller.menuNeedsRefresh(menu))
+        controller.parentMenuRebuildPendingAfterHostedSubviewClose = true
+        let submenu = controller.makeHostedSubviewPlaceholderMenu(
+            chartID: StatusItemController.usageBreakdownChartID)
+        controller.openMenus[ObjectIdentifier(submenu)] = submenu
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+        #expect(controller.manualRefreshViewportRestoreState.deferredUntilRebuild.isEmpty)
+    }
+
+    @Test
+    func `native highlight blocks parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        let settingsItem = try #require(menu.items.first { $0.title == "Settings..." })
+        controller.menu(menu, willHighlight: settingsItem)
+
+        var scheduledCount = 0
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `native highlight before delivery invalidates parent viewport restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoreCount = 0
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        await task.value
+        #expect(scheduled.count == 1)
+
+        let settingsItem = try #require(menu.items.first { $0.title == "Settings..." })
+        controller.menu(menu, willHighlight: settingsItem)
+        scheduled.removeFirst()()
+
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `non-manual invalidation never schedules a viewport restore`() {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+
+        var scheduledCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller.refreshOpenMenusAfterExplicitStoreAction()
+
+        #expect(controller.menuNeedsRefresh(menu))
+        #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `closed origin cannot transfer restore to another open menu before task starts`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let claudeMenu = controller.makeMenu(for: .claude)
+        let codexMenu = controller.makeMenu(for: .codex)
+        controller.providerMenus[.claude] = claudeMenu
+        controller.providerMenus[.codex] = codexMenu
+        controller.menuWillOpen(claudeMenu)
+
+        var scheduledCount = 0
+        var restoreCount = 0
+        let gate = ViewportRefreshGate()
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_menuViewportRestoreObserver = { _ in restoreCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+
+        controller.performPersistentRefreshAction(in: ObjectIdentifier(claudeMenu))
+        controller.menuDidClose(claudeMenu)
+        controller.menuWillOpen(codexMenu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.claude)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.claude)])
+        gate.resume()
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(restoreCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `global manual refresh ignores tracked non-root submenu`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let rootMenu = controller.makeMenu(for: .codex)
+        controller.menuWillOpen(rootMenu)
+        let submenu = NSMenu()
+        let submenuItem = NSMenuItem(title: "Submenu", action: nil, keyEquivalent: "")
+        submenuItem.submenu = submenu
+        rootMenu.addItem(submenuItem)
+        controller.openMenus[ObjectIdentifier(submenu)] = submenu
+
+        var scheduled: [@MainActor () -> Void] = []
+        var restoredMenus: [ObjectIdentifier] = []
+        controller._test_menuViewportRestoreScheduler = { scheduled.append($0) }
+        controller._test_menuViewportRestoreObserver = { restoredMenus.append(ObjectIdentifier($0)) }
+        controller._test_manualRefreshOperation = {
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
         controller.refreshNow()
         for _ in 0..<20 where controller.manualRefreshTasks[.global] == nil {
             await Task.yield()
@@ -135,57 +612,78 @@ struct StatusMenuViewportRestoreTests {
         let task = try #require(controller.manualRefreshTasks[.global])
         await task.value
 
-        #expect(!controller.menuSession.pendingViewportRestores.contains(ObjectIdentifier(menu)))
-    }
-
-    @Test
-    func `landed open-menu rebuild consumes the pending restore exactly once`() async {
-        let settings = self.makeSettings()
-        settings.refreshFrequency = .manual
-        settings.mergeIcons = false
-
-        let controller = self.makeController(settings: settings)
-        controller.menuRefreshEnabledOverrideForTesting = true
-        let menu = controller.makeMenu(for: .codex)
-        controller.menuWillOpen(menu)
-        defer { controller.menuDidClose(menu) }
-        #expect(controller.openMenus[ObjectIdentifier(menu)] === menu)
-
-        var restoredMenus: [ObjectIdentifier] = []
-        StatusItemController._test_menuViewportRestoreObserver = { restoredMenus.append(ObjectIdentifier($0)) }
-        defer { StatusItemController._test_menuViewportRestoreObserver = nil }
-
-        controller.menuSession.armViewportRestore(ObjectIdentifier(menu))
-        controller.rebuildOpenMenuIfStillVisible(menu, provider: .codex)
+        #expect(scheduled.count == 1)
+        scheduled.removeFirst()()
+        #expect(restoredMenus == [ObjectIdentifier(rootMenu)])
         #expect(controller.menuSession.pendingViewportRestores.isEmpty)
-        for _ in 0..<20 where restoredMenus.isEmpty {
-            await Task.yield()
-        }
-        #expect(restoredMenus == [ObjectIdentifier(menu)])
-
-        // A follow-up rebuild without a pending restore must leave the viewport alone.
-        controller.rebuildOpenMenuIfStillVisible(menu, provider: .codex)
-        for _ in 0..<20 {
-            await Task.yield()
-        }
-        #expect(restoredMenus == [ObjectIdentifier(menu)])
     }
 
     @Test
-    func `closing the menu clears its pending restore`() {
+    func `merged selection change discards originating refresh restore`() async throws {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        self.enableOnly([.claude, .codex], settings: settings)
+        settings.selectedMenuProvider = .claude
+        settings.mergedMenuLastSelectedWasOverview = false
+
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.menuRefreshEnabledOverrideForTesting = true
+        let menu = controller.makeMenu()
+        controller.mergedMenu = menu
+        controller.menuWillOpen(menu)
+
+        let gate = ViewportRefreshGate()
+        var scheduledCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_manualRefreshOperation = {
+            await gate.wait()
+            controller.refreshOpenMenusAfterExplicitStoreAction()
+        }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.claude)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.claude)])
+
+        settings.selectedMenuProvider = .codex
+        gate.resume()
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `cancelled manual refresh clears restore request without scheduling`() async throws {
         let settings = self.makeSettings()
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
 
         let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
         controller.menuRefreshEnabledOverrideForTesting = true
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
 
-        controller.menuSession.armViewportRestore(ObjectIdentifier(menu))
-        controller.menuDidClose(menu)
+        let gate = ViewportRefreshGate()
+        var scheduledCount = 0
+        controller._test_menuViewportRestoreScheduler = { _ in scheduledCount += 1 }
+        controller._test_manualRefreshOperation = { await gate.wait() }
+        controller.refreshMenuProviderNow(in: menu)
+        for _ in 0..<20 where controller.manualRefreshTasks[.provider(.codex)] == nil {
+            await Task.yield()
+        }
+        let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        #expect(!controller.menuSession.pendingViewportRestores.isEmpty)
 
-        #expect(!controller.menuSession.pendingViewportRestores.contains(ObjectIdentifier(menu)))
+        task.cancel()
+        gate.resume()
+        await task.value
+
+        #expect(scheduledCount == 0)
+        #expect(controller.menuSession.pendingViewportRestores.isEmpty)
     }
 
     @Test
@@ -195,6 +693,7 @@ struct StatusMenuViewportRestoreTests {
         settings.mergeIcons = false
 
         let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
         let menu = controller.makeMenu(for: .codex)
         controller.menuWillOpen(menu)
         defer { controller.menuDidClose(menu) }
@@ -203,5 +702,30 @@ struct StatusMenuViewportRestoreTests {
         // scroll view cannot be resolved and the restore must bail out quietly.
         #expect(StatusItemController.attachedMenuScrollView(in: menu) == nil)
         controller.restoreMenuViewportToTop(menu)
+    }
+
+    private func keyEvent(_ characters: String, keyCode: UInt16) throws -> NSEvent {
+        try #require(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode))
+    }
+
+    private func enableOnly(_ providers: Set<UsageProvider>, settings: SettingsStore) {
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: providers.contains(provider))
+        }
+    }
+
+    private func runLoop(mode: CFRunLoopMode) {
+        CFRunLoopRunInMode(mode, 0.1, true)
     }
 }

@@ -12,7 +12,8 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
     private(set) var renderedVersions: [MenuID: Int] = [:]
     private(set) var deferredUntilNextOpen: Set<MenuID> = []
     private(set) var parentRebuildsDeferredDuringTracking: Set<MenuID> = []
-    private(set) var pendingViewportRestores: Set<MenuID> = []
+    private var nextViewportRestoreToken = 0
+    private(set) var pendingViewportRestores: [MenuID: Int] = [:]
 
     @discardableResult
     mutating func invalidate(
@@ -93,22 +94,34 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
         self.parentRebuildsDeferredDuringTracking.contains(menuID)
     }
 
-    /// One-shot viewport restore armed by a completed user-initiated manual refresh and
-    /// consumed when that refresh's open-menu rebuild lands.
-    mutating func armViewportRestore(_ menuID: MenuID) {
-        self.pendingViewportRestores.insert(menuID)
+    /// One-shot viewport restore tied to the menu-tracking session that started a manual refresh.
+    @discardableResult
+    mutating func armViewportRestore(_ menuID: MenuID) -> Int {
+        self.nextViewportRestoreToken &+= 1
+        self.pendingViewportRestores[menuID] = self.nextViewportRestoreToken
+        return self.nextViewportRestoreToken
+    }
+
+    func isCurrentViewportRestore(_ token: Int, for menuID: MenuID) -> Bool {
+        self.pendingViewportRestores[menuID] == token
     }
 
     @discardableResult
-    mutating func consumeViewportRestore(_ menuID: MenuID) -> Bool {
-        self.pendingViewportRestores.remove(menuID) != nil
+    mutating func consumeViewportRestore(_ menuID: MenuID, token: Int) -> Bool {
+        guard self.isCurrentViewportRestore(token, for: menuID) else { return false }
+        self.pendingViewportRestores.removeValue(forKey: menuID)
+        return true
+    }
+
+    mutating func cancelViewportRestore(_ menuID: MenuID) {
+        self.pendingViewportRestores.removeValue(forKey: menuID)
     }
 
     mutating func removeMenu(_ menuID: MenuID) {
         self.renderedVersions.removeValue(forKey: menuID)
         self.deferredUntilNextOpen.remove(menuID)
         self.parentRebuildsDeferredDuringTracking.remove(menuID)
-        self.pendingViewportRestores.remove(menuID)
+        self.cancelViewportRestore(menuID)
     }
 
     mutating func clearMenuTracking() {
