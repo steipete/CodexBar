@@ -28,8 +28,7 @@ let package = Package(
         var products: [Product] = [
             .library(name: "CodexBarCore", targets: ["CodexBarCore"]),
             .executable(name: "CodexBarCLI", targets: ["CodexBarCLI"]),
-            // Offline adaptive-refresh replay harness.
-            .library(name: "AdaptiveReplayKit", targets: ["AdaptiveReplayKit"]),
+            // Offline adaptive-refresh replay harness. Keep the supporting library package-internal.
             .executable(name: "AdaptiveReplayCLI", targets: ["AdaptiveReplayCLI"]),
         ]
 
@@ -103,6 +102,14 @@ let package = Package(
                     .enableUpcomingFeature("StrictConcurrency"),
                 ]),
             .testTarget(
+                name: "AdaptiveReplayKitTests",
+                dependencies: ["AdaptiveReplayKit"],
+                path: "Tests/AdaptiveReplayKitTests",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                    .enableExperimentalFeature("SwiftTesting"),
+                ]),
+            .testTarget(
                 name: "CodexBarLinuxTests",
                 dependencies: [
                     "CodexBarCore",
@@ -132,8 +139,6 @@ let package = Package(
                     .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                     .product(name: "Vortex", package: "Vortex"),
                     "CodexBarCore",
-                    // Opt-in adaptive-refresh trace recording.
-                    "AdaptiveReplayKit",
                 ],
                 path: "Sources/CodexBar",
                 resources: [
@@ -164,6 +169,7 @@ let package = Package(
             name: "CodexBarTests",
             dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget", "AdaptiveReplayKit"],
             path: "Tests",
+            exclude: ["AdaptiveReplayKitTests"],
             resources: [
                 .copy("CodexBarTests/Fixtures"),
             ],

@@ -31,8 +31,11 @@ public enum AdaptiveRefreshTraceParser {
     public static func parse(_ text: String) throws -> [AdaptiveRefreshTraceRecord] {
         let decoder = Self.makeDecoder()
         var records: [AdaptiveRefreshTraceRecord] = []
-        for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+        for (index, line) in text.split(
+            omittingEmptySubsequences: false,
+            whereSeparator: \.isNewline).enumerated()
+        {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
             guard let data = trimmed.data(using: .utf8) else {
                 throw AdaptiveRefreshTraceParseError(
@@ -64,8 +67,8 @@ public enum AdaptiveRefreshTraceParser {
     public static func parseTolerantly(_ text: String) -> [AdaptiveRefreshTraceRecord] {
         let decoder = Self.makeDecoder()
         var records: [AdaptiveRefreshTraceRecord] = []
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+        for line in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { continue }
             if let record = try? decoder.decode(AdaptiveRefreshTraceRecord.self, from: data) {
                 records.append(record)

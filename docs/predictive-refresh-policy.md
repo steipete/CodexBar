@@ -248,28 +248,10 @@ Any of those requires its own evidence and product/privacy review.
 
 ## Local replay follow-up (2026-07-10, evidence only)
 
-This is not approval to change the default or add coding activity to the production policy. An opt-in trace/replay
-harness evaluated a local 1,780-record snapshot (SHA-256 `b1e4aa33180b7c177293eb9ed16b45e24e026d259600fba2b1b67b931b904f0b`).
-The raw trace remains local; only aggregate results belong in review material.
-
-### Proposed opt-in diagnostic storage boundary
-
-Merging this follow-up would approve only the hidden, local diagnostic described here. It would not approve persistent
-history as a production input or any external telemetry:
-
-- recording remains off by default and requires the `adaptiveRefreshTraceEnabled` defaults key;
-- records are stored at `~/Library/Application Support/CodexBar/adaptive-refresh-trace.jsonl`;
-- fields are limited to policy inputs/outputs, menu and refresh timestamps, timer-advance comparisons, and stat-only
-  coding-activity metadata; transcript contents, paths, project/account identity, credentials, provider responses, and
-  menu content are excluded;
-- the writer stops before the file would exceed 10 MiB; it does not rotate, truncate, migrate, or upload the trace;
-- only one traced CodexBar process may write this file at a time; concurrent traced instances are unsupported;
-- disabling and deleting the diagnostic requires no app migration:
-  `defaults delete com.steipete.codexbar adaptiveRefreshTraceEnabled` followed by
-  `rm "$HOME/Library/Application Support/CodexBar/adaptive-refresh-trace.jsonl"`.
-
-This is the privacy and storage decision requested by the draft. Until it is accepted, the recorder/probe portion is not
-approved by the earlier experiment's state contract.
+This follow-up adds offline replay tooling only. It does not add app-side recording, persistent diagnostic storage,
+transcript-directory scanning, or a new production-policy input. The evaluated 1,780-record snapshot came from local
+experimental instrumentation that is not part of this change. Its SHA-256 is
+`b1e4aa33180b7c177293eb9ed16b45e24e026d259600fba2b1b67b931b904f0b`; the raw trace remains local.
 
 The replay splits legacy deadline-overrun gaps five minutes after the most recent recorded timer deadline. It found 28
 observed segments and excluded 26.10 hours of unobserved wall time. The heuristic cannot distinguish sleep or reboot from
@@ -281,12 +263,11 @@ a long refresh or event-loop stall, so the excluded time is not a causal classif
 | Activity-cap candidate | 696 | 143.88 | 53 | 0 / 145 | 139s / 1093s |
 | Fixed 5m | 1383 | 285.90 | 0 | 0 / 99 | 150s / 281s |
 
-The stat-only candidate caps an otherwise slower adaptive decision at five minutes when the newest observed Codex or
-Claude transcript write is under five minutes old. It adds two simulated refreshes and removes the four active-delay
-violations in this snapshot, but does not improve p95 menu staleness. The sample is one machine and the candidate changes
-only a small number of decisions, so this is motivation for continued shadow replay, not sufficient evidence for a
-production or default change.
+The replay-only candidate caps an otherwise slower adaptive decision at five minutes when an input trace reports recent
+coding activity. It adds two simulated refreshes and removes the four active-delay violations in this snapshot, but does
+not improve p95 menu staleness. The sample is one machine and the candidate changes only a small number of decisions, so
+this is not sufficient evidence for a production or default change.
 
 Replay advances are counterfactual events on a zero-service-time policy clock. They are intentionally not compared by
 count with live `timerAdvanced` events, whose schedule includes real refresh duration and in-flight coalescing. The
-recorder now logs every accepted and rejected live schedule comparison separately for future exact reconciliation.
+offline audit reports recorded schedule events separately when the supplied trace contains them.

@@ -66,8 +66,6 @@ extension StatusItemController {
     func menuWillOpen(_ menu: NSMenu) {
         // Records interaction and may bring an adaptive timer forward; never refreshes synchronously.
         self.store.noteMenuOpened()
-        // Opt-in replay-harness trace; no-op unless explicitly enabled.
-        AdaptiveRefreshTraceRecording.recordMenuOpen()
         self.agentSessions.refreshOnMenuOpen()
 
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")

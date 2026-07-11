@@ -1,12 +1,8 @@
 import Foundation
 
-// Replay harness for the adaptive refresh policy shipped in the `CodexBar`
-// app target. This library never imports `CodexBar` — `AdaptiveRefreshPolicy` lives in an
-// executable target that a library cannot depend on — so every type here is self-contained and
-// re-expressed independently of the app's types. See `AdaptiveRefreshPolicy+ReplayAdapter.swift`
-// in `Sources/CodexBar` for the adapter that lets the real policy conform to `ReplayPolicy`, and
-// `AdaptiveReplayPolicyMirrorTests.swift` for the test that keeps `MirroredAdaptivePolicy`
-// (below, in BaselinePolicies.swift) honest against the real table.
+// Replay harness for the adaptive refresh policy shipped in the `CodexBar` app target. This
+// library never imports `CodexBar`, so every type is self-contained. The macOS-only
+// `AdaptiveReplayPolicyMirrorTests` compare `MirroredAdaptivePolicy` against the real table.
 
 /// Coarse thermal-pressure signal mirroring the two `ProcessInfo.ThermalState` cases the policy
 /// distinguishes (`.serious`/`.critical` vs everything else), expressed independently so this
@@ -73,9 +69,7 @@ public struct ReplayPolicyDecision: Sendable, Equatable {
     }
 }
 
-/// A pure, deterministic function from `ReplayPolicyInput` to `ReplayPolicyDecision`. Both the
-/// real adaptive policy (via the adapter in the app target) and the baselines below conform to
-/// this so the replay engine can simulate any of them interchangeably.
+/// A pure, deterministic function from `ReplayPolicyInput` to `ReplayPolicyDecision`.
 public protocol ReplayPolicy: Sendable {
     var name: String { get }
 

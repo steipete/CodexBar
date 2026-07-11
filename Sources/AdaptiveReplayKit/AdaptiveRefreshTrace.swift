@@ -20,9 +20,9 @@ public enum AdaptiveRefreshTraceEventKind: String, Sendable, Codable {
 
 /// One line of a JSONL adaptive-refresh trace. Field presence depends on `kind`: `decision`
 /// records populate `menuAgeSeconds`, `lowPowerModeEnabled`, `thermalState`, `reason`, and
-/// `delaySeconds`, plus the shadow-mode `CodingActivityProbe` signals when tracing sampled them
-/// (`codexActivitySeconds`/`claudeActivitySeconds`, the "A layer" seconds-since-newest-transcript,
-/// and the "B layer" per-file intensity fields alongside them); timer advance records populate
+/// `delaySeconds`, plus optional activity observations supplied by the input trace
+/// (`codexActivitySeconds`/`claudeActivitySeconds`, the seconds-since-newest-transcript fields,
+/// and the per-file intensity fields alongside them); timer advance records populate
 /// `previousScheduledAt`, `candidateScheduledAt`, `reason`, and `delaySeconds`; `menuOpen` and
 /// `refreshCompleted` carry only `kind` and `timestamp`.
 public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
@@ -48,28 +48,22 @@ public struct AdaptiveRefreshTraceRecord: Sendable, Codable, Equatable {
     public let scheduleLeadSeconds: TimeInterval?
     /// `timerAdvanceEvaluated` only: whether another refresh was in flight at comparison time.
     public let refreshInFlight: Bool?
-    /// `decision` only, and only while the `CodingActivityProbe` shadow-mode signal is being
-    /// recorded: seconds since the newest local Codex session transcript was modified, or `nil`
-    /// when unavailable. Record-only telemetry — never fed into `AdaptiveRefreshPolicy`. Optional
-    /// so old trace lines without this field keep decoding (see `AdaptiveReplayTraceParserTests`).
+    /// `decision` only: seconds since the newest observed Codex session transcript modification,
+    /// or `nil` when unavailable. Optional so old trace lines without this field keep decoding.
     public let codexActivitySeconds: TimeInterval?
     /// `decision` only: the Claude Code counterpart of `codexActivitySeconds`.
     public let claudeActivitySeconds: TimeInterval?
-    /// `decision` only, shadow-mode "B layer": how long the newest Codex transcript has been
+    /// `decision` only: how long the newest Codex transcript has been
     /// growing (its mtime minus its creationDate), or `nil` when unavailable. Not a separate
     /// session-age field — age is `codexActivitySeconds` + `codexSessionDurationSeconds`.
     public let codexSessionDurationSeconds: TimeInterval?
     /// `decision` only: the Claude Code counterpart of `codexSessionDurationSeconds`.
     public let claudeSessionDurationSeconds: TimeInterval?
-    /// `decision` only, shadow-mode "B layer": size in bytes of the newest Codex transcript, as a
-    /// stateless raw value. Offline replay analysis derives burn-intensity deltas between
-    /// consecutive decisions from this; the app never computes the delta itself.
+    /// `decision` only: size in bytes of the newest Codex transcript, as a stateless raw value.
     public let codexTranscriptBytes: Int64?
     /// `decision` only: the Claude Code counterpart of `codexTranscriptBytes`.
     public let claudeTranscriptBytes: Int64?
-    /// `decision` only, shadow-mode "B layer": count of Codex `.jsonl` transcripts (within the
-    /// probe's bounded lookback window) modified in the last few minutes, i.e. concurrent-session
-    /// intensity a newest-file-only metric would miss.
+    /// `decision` only: count of Codex `.jsonl` transcripts modified in the observation window.
     public let codexActiveTranscriptCount: Int?
     /// `decision` only: the Claude Code counterpart of `codexActiveTranscriptCount`.
     public let claudeActiveTranscriptCount: Int?

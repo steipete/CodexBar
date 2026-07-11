@@ -211,10 +211,8 @@ struct AdaptiveReplayEngineTests {
 
     @Test
     func `a recorded timerAdvanced ground-truth event agrees with the engine's own recomputation`() throws {
-        // A trace as a live UsageStore would actually write it: the menuOpen ground truth, plus the
-        // timerAdvanced record UsageStore.noteMenuOpened(at:) emits when it takes the advance
-        // branch. This is the reconciliation `AdaptiveRefreshTraceRecordingTests` (app target)
-        // exercises from the live app side; here it's checked purely within AdaptiveReplayKit.
+        // The menuOpen ground truth plus a timerAdvanced record for the accepted schedule change.
+        // The offline audit checks that record against the policy's recomputed candidate.
         let menuOpenAt = self.at(50)
         let recordedCandidate = self.at(170) // menuOpenAt + recentInteractionDelay (120s)
         var trace = self.menuOpenAdvanceTrace()

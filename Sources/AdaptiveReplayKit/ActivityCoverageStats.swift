@@ -1,11 +1,8 @@
 import Foundation
 
-/// Purely informational summary of the `CodingActivityProbe` shadow-mode signal across a trace's
-/// `decision` events: how many carried activity data at all, and among those, how many looked like
-/// "active coding right now" (either CLI's seconds-since-activity under `activeThresholdSeconds`).
-/// Computed directly from raw trace records, independent of any `ReplayPolicy` — the shadow-mode
-/// signal never participates in `ReplayEngine`'s simulation, so this has no bearing on
-/// `ReplayMetrics`.
+/// Informational summary of optional coding-activity observations in a trace's `decision` events.
+/// It reports how many decisions carried activity data and how many sampled decisions were below
+/// `activeThresholdSeconds` for either CLI.
 public struct ActivityCoverageStats: Sendable, Equatable {
     public let decisionCount: Int
     public let sampledCount: Int
@@ -44,7 +41,9 @@ public struct ActivityCoverageStats: Sendable, Equatable {
             sampledCount += 1
             let isActive = (codexSeconds ?? .infinity) < activeThresholdSeconds
                 || (claudeSeconds ?? .infinity) < activeThresholdSeconds
-            if isActive { activeCount += 1 }
+            if isActive {
+                activeCount += 1
+            }
         }
         return Self(decisionCount: decisionCount, sampledCount: sampledCount, activeCount: activeCount)
     }

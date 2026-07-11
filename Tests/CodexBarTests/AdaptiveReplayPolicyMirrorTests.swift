@@ -3,12 +3,10 @@ import Foundation
 import Testing
 @testable import CodexBar
 
-/// Guards the replay harness's two stand-ins for the real `AdaptiveRefreshPolicy`:
-/// `MirroredAdaptivePolicy` (a hand-copied table `AdaptiveReplayKit` uses because it cannot import
-/// the app target) and the `ReplayPolicy` adapter on `AdaptiveRefreshPolicy` itself (used by
-/// future in-app tooling). Both must agree with the real policy at every boundary the existing
-/// `AdaptiveRefreshPolicyTests` table exercises. Mutation-red: temporarily change any constant in
-/// `MirroredAdaptivePolicy` (e.g. `warmDelay` from 5*60 to 6*60) and this test fails.
+/// Guards the hand-copied policy table used by the standalone replay kit. The mirror must agree
+/// with the real `AdaptiveRefreshPolicy` at every boundary the existing policy tests exercise.
+/// Mutation-red: temporarily change any constant in `MirroredAdaptivePolicy` (for example,
+/// `warmDelay` from 5*60 to 6*60) and this test fails.
 struct AdaptiveReplayPolicyMirrorTests {
     private static let referenceNow = Date(timeIntervalSinceReferenceDate: 800_000_000)
 
@@ -76,36 +74,12 @@ struct AdaptiveReplayPolicyMirrorTests {
         }
     }
 
-    @Test
-    func `the real policy adapter matches the real policy's own decision`() {
-        let policy = AdaptiveRefreshPolicy()
-        for age in Self.ages {
-            for lowPower in Self.lowPowerModes {
-                for thermalState in Self.thermalStates {
-                    let real = policy.nextDelay(for: self.realInput(
-                        ageSeconds: age,
-                        lowPowerModeEnabled: lowPower,
-                        thermalState: thermalState))
-                    let adapted = policy.decide(self.replayInput(
-                        ageSeconds: age,
-                        lowPowerModeEnabled: lowPower,
-                        thermalState: thermalState))
-
-                    #expect(adapted.reason == real.reason.rawValue)
-                    #expect(adapted.delaySeconds == TimeInterval(real.delay.components.seconds))
-                }
-            }
-        }
-    }
-
     /// `UsageStore.noteMenuOpened(at:)` only ever advances the timer in adaptive mode (see the
-    /// `settings.refreshFrequency == .adaptive` guard), so both stand-ins for the real adaptive
-    /// policy must report `advancesOnInteraction == true` — otherwise `ReplayEngine` would silently
-    /// stop reproducing the interaction-advance path for whichever one drifted.
+    /// `settings.refreshFrequency == .adaptive` guard), so the mirror must report
+    /// `advancesOnInteraction == true`; otherwise replay would miss that production behavior.
     @Test
-    func `both adaptive policy stand-ins report that they advance on interaction`() {
+    func `the adaptive policy mirror advances on interaction`() {
         #expect(MirroredAdaptivePolicy().advancesOnInteraction)
-        #expect(AdaptiveRefreshPolicy().advancesOnInteraction)
     }
 
     /// Baseline policies default to `advancesOnInteraction == false` via the protocol extension,

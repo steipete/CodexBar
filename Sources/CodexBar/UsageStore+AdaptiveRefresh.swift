@@ -91,29 +91,13 @@ extension UsageStore {
     static func nextAdaptiveTimerSleepDuration(for store: UsageStore?) async -> Duration? {
         guard let store else { return nil }
         let now = Date()
-        let lastMenuOpenAt = store.lastMenuOpenAt
-        let lowPowerModeEnabled = ProcessInfo.processInfo.isLowPowerModeEnabled
-        let thermalState = ProcessInfo.processInfo.thermalState
         let decision = Self.adaptiveRefreshDecision(
             now: now,
-            lastMenuOpenAt: lastMenuOpenAt,
-            lowPowerModeEnabled: lowPowerModeEnabled,
-            thermalState: thermalState)
+            lastMenuOpenAt: store.lastMenuOpenAt,
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            thermalState: ProcessInfo.processInfo.thermalState)
         store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
         store.logAdaptiveRefreshDecision(decision)
-        // Opt-in replay-harness trace; no-op unless explicitly enabled.
-        // The activity probe is sampled only when tracing is on, so it costs nothing otherwise —
-        // it is record-only telemetry and never feeds back into `decision` above.
-        let activitySample = AdaptiveRefreshTraceRecording.isEnabled
-            ? CodingActivityProbe.sample(now: now)
-            : nil
-        AdaptiveRefreshTraceRecording.recordDecision(
-            now: now,
-            lastMenuOpenAt: lastMenuOpenAt,
-            lowPowerModeEnabled: lowPowerModeEnabled,
-            thermalState: thermalState,
-            decision: decision,
-            activitySample: activitySample)
         return store.effectiveTimerSleepDuration(decision.delay)
     }
 

@@ -48,6 +48,19 @@ struct AdaptiveReplayTraceParserTests {
     }
 
     @Test
+    func `strict parsing accepts multiple CRLF records`() throws {
+        let records: [AdaptiveRefreshTraceRecord] = [
+            .menuOpen(timestamp: Self.referenceNow),
+            .refreshCompleted(timestamp: Self.referenceNow.addingTimeInterval(1)),
+        ]
+        let text = try records.map(self.encode).joined(separator: "\r\n")
+
+        let parsed = try AdaptiveRefreshTraceParser.parse(text)
+
+        #expect(parsed.map(\.kind) == [.menuOpen, .refreshCompleted])
+    }
+
+    @Test
     func `empty trace parses to zero records`() throws {
         let parsed = try AdaptiveRefreshTraceParser.parse("")
         #expect(parsed.isEmpty)
@@ -81,6 +94,17 @@ struct AdaptiveReplayTraceParserTests {
         let parsed = AdaptiveRefreshTraceParser.parseTolerantly(text)
 
         #expect(parsed.count == 2)
+    }
+
+    @Test
+    func `tolerant parsing accepts CRLF and skips only malformed records`() throws {
+        let menuOpen = try self.encode(.menuOpen(timestamp: Self.referenceNow))
+        let refresh = try self.encode(.refreshCompleted(timestamp: Self.referenceNow.addingTimeInterval(1)))
+        let text = [menuOpen, "not json", refresh].joined(separator: "\r\n")
+
+        let parsed = AdaptiveRefreshTraceParser.parseTolerantly(text)
+
+        #expect(parsed.map(\.kind) == [.menuOpen, .refreshCompleted])
     }
 
     /// `timerAdvanced` round-trips its two extra fields (`previousScheduledAt`,
@@ -166,7 +190,7 @@ struct AdaptiveReplayTraceParserTests {
         #expect(parsed[0].claudeActivitySeconds == 99)
     }
 
-    /// The writer must omit nil activity fields rather than emitting explicit `null`s, so old
+    /// Encoding must omit nil activity fields rather than emitting explicit `null`s, so old
     /// tooling and hand-inspection of a trace stay unsurprised by fields it doesn't expect.
     @Test
     func `encoding a decision with nil activity signals omits both keys entirely`() throws {
@@ -275,7 +299,7 @@ struct AdaptiveReplayTraceParserTests {
         #expect(parsed[0].claudeActiveTranscriptCount == 4)
     }
 
-    /// The writer must omit nil B-layer fields rather than emitting explicit `null`s, matching the
+    /// Encoding must omit nil B-layer fields rather than emitting explicit `null`s, matching the
     /// A-layer's contract.
     @Test
     func `encoding a decision with nil B-layer fields omits all six keys entirely`() throws {

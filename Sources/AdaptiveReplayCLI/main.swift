@@ -84,8 +84,7 @@ enum AdaptiveReplayCLI {
             + "ambiguous=\(audit.ambiguousComparisonCount)"
     }
 
-    /// Shadow-mode telemetry line (never fed into any production policy): how much of the trace
-    /// carries the `CodingActivityProbe` signal, and how much of that looked like active coding.
+    /// Reports coverage of optional activity observations already present in the input trace.
     private static func renderActivityCoverage(_ stats: ActivityCoverageStats) -> String {
         guard stats.decisionCount > 0 else {
             return "activity telemetry: no decision events in trace"
