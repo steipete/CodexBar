@@ -131,6 +131,7 @@ extension StatusItemController {
         self.openMenuRebuildRequests.cancel(for: key)
         self.openMenuRebuildsClosingHostedSubviewMenus.remove(key)
         self.pendingMenuBaselineResyncs.remove(key)
+        self.menuSession.consumeViewportRestore(key)
     }
 
     func clearMenuHighlight(_ key: ObjectIdentifier) {
@@ -410,6 +411,7 @@ extension StatusItemController {
             self.markMenuFresh(menu)
             self.menuSession.clearParentRebuildDeferral(key)
             self.applyIcon(phase: nil)
+            self.consumePendingMenuViewportRestore(for: menu)
         }
         #if DEBUG
         self._test_openMenuRebuildObserver?(menu)

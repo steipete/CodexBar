@@ -12,6 +12,7 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
     private(set) var renderedVersions: [MenuID: Int] = [:]
     private(set) var deferredUntilNextOpen: Set<MenuID> = []
     private(set) var parentRebuildsDeferredDuringTracking: Set<MenuID> = []
+    private(set) var pendingViewportRestores: Set<MenuID> = []
 
     @discardableResult
     mutating func invalidate(
@@ -92,16 +93,29 @@ struct MenuSessionCoordinator<MenuID: Hashable> {
         self.parentRebuildsDeferredDuringTracking.contains(menuID)
     }
 
+    /// One-shot viewport restore armed by a completed user-initiated manual refresh and
+    /// consumed when that refresh's open-menu rebuild lands.
+    mutating func armViewportRestore(_ menuID: MenuID) {
+        self.pendingViewportRestores.insert(menuID)
+    }
+
+    @discardableResult
+    mutating func consumeViewportRestore(_ menuID: MenuID) -> Bool {
+        self.pendingViewportRestores.remove(menuID) != nil
+    }
+
     mutating func removeMenu(_ menuID: MenuID) {
         self.renderedVersions.removeValue(forKey: menuID)
         self.deferredUntilNextOpen.remove(menuID)
         self.parentRebuildsDeferredDuringTracking.remove(menuID)
+        self.pendingViewportRestores.remove(menuID)
     }
 
     mutating func clearMenuTracking() {
         self.renderedVersions.removeAll(keepingCapacity: false)
         self.deferredUntilNextOpen.removeAll(keepingCapacity: false)
         self.parentRebuildsDeferredDuringTracking.removeAll(keepingCapacity: false)
+        self.pendingViewportRestores.removeAll(keepingCapacity: false)
     }
 
     #if DEBUG

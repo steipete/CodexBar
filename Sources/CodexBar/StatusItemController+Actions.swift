@@ -183,6 +183,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 self.manualRefreshTasks[scope] = nil
                 self.menuCardRefreshMonitor.endManualRefresh(for: provider)
                 self.updatePersistentRefreshItemsEnabled()
+                self.armMenuViewportRestoreAfterManualRefresh()
                 self.prepareAttachedClosedMenusIfNeeded()
             }
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
