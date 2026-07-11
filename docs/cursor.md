@@ -77,6 +77,10 @@ Manual option:
   request cost when supplied, token and cache breakdown, local estimate, pricing source, and the estimator caveat.
   Expanded diagnostics use the same 30-row cap and existing 120-point scroll surface, so long histories continue to
   forward wheel input to the embedded list.
+- The widget uses the same selected `Cycle`/`30d` range summary and calendar dates, with the full aggregate independent
+  of the newest-first 30-row request preview. Exact rows render an exact total; partial rows render an approximate range;
+  total-only OpenAI rows render an approximate lower bound. These estimates describe locally observed request tokens,
+  not Cursor billing or the request-based quota.
 - Reset: billing cycle end date.
 
 ## Key files

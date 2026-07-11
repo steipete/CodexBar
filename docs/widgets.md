@@ -23,6 +23,8 @@ read_when:
   widget snapshot. The snapshot stores the actual diagnostic date range and the full aggregate summary; the visible
   request list is capped at 30 rows and never determines the total. All relevant widget families render the selected
   range label/date period, and medium/large widgets render up to three recent Cursor rows.
+- Cursor widget estimates are explicitly exact, approximate-range, or approximate-lower-bound text based on available
+  token coverage; they are local diagnostics and do not replace Cursor's request-based quota or billing statement.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - If no snapshot is available, widgets fall back to preview/empty data.
 
@@ -38,7 +40,7 @@ read_when:
 
 ## Provider picker support
 The configurable provider widgets currently expose:
-Codex, Claude, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, and OpenCode Go.
+Codex, Claude, Cursor, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, and OpenCode Go.
 
 Providers without a `ProviderChoice` case can still be present in the app snapshot, but they are not selectable from the widget configuration UI yet.
 

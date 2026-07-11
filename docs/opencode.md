@@ -9,7 +9,7 @@ read_when:
 
 ## Data sources
 - Browser cookies from `opencode.ai`.
-- `POST https://opencode.ai/_server` with server function IDs:
+- `GET https://opencode.ai/_server` first, with `POST https://opencode.ai/_server` fallback, using server function IDs:
   - `workspaces` (`def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f`)
   - `subscription.get` (`7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4`)
 
@@ -36,3 +36,6 @@ read_when:
 - Widget snapshots emit one OpenCode entry per saved workspace, with the active workspace first. The widget stores only
   the canonical account ID in the app-group selection key `widget.selectedOpenCodeWorkspaceAccountID`; deleted or stale
   selections fall back to the first current workspace.
+- A widget switch changes only the display selection and reloads timelines. The next app refresh reconciles that ID
+  against the saved workspace accounts before selecting the reusable credential and requesting usage; no widget intent
+  performs a network request or exposes the cookie/header value.
