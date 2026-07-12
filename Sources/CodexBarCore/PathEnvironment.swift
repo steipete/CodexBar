@@ -640,12 +640,22 @@ public enum CodexLaunchPreflight {
 }
 
 public enum ShellCommandLocator {
+    #if canImport(Darwin)
+    private static let shellSpawnFlags = Int16(POSIX_SPAWN_SETSID)
+    #else
+    private static let shellSpawnFlags: Int16 = 0x80 // glibc/musl POSIX_SPAWN_SETSID.
+    #endif
+
     static func test_runShellCommand(
         shell: String,
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
         self.runShellCommand(shell: shell, arguments: arguments, timeout: timeout)
+    }
+
+    static var test_shellSpawnFlags: Int16 {
+        self.shellSpawnFlags
     }
 
     public static func commandV(
@@ -723,20 +733,22 @@ public enum ShellCommandLocator {
         func fire() -> Bool {
             self.lock.lock()
             defer { self.lock.unlock() }
-            if self.fired { return false }
+            if self.fired {
+                return false
+            }
             self.fired = true
             return true
         }
     }
 
-    // swiftlint:disable cyclomatic_complexity
+    // swiftlint:disable cyclomatic_complexity function_body_length
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  The child is launched via `posix_spawn` with
-    /// `POSIX_SPAWN_SETPGROUP` so it becomes its own process-group leader *before*
-    /// `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach any
-    /// background helpers spawned by shell init, on both the timeout-kill path and
-    /// after normal completion.
+    /// `POSIX_SPAWN_SETSID` so it cannot take ownership of the caller's controlling
+    /// terminal. The new session also makes the child its own process-group leader
+    /// before `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach
+    /// background helpers spawned by shell init, both after timeout and normal exit.
     fileprivate static func runShellCommand(
         shell: String,
         arguments: [String],
@@ -779,8 +791,9 @@ public enum ShellCommandLocator {
         posix_spawn_file_actions_addclose(&fileActions, stderrFds.read)
         posix_spawn_file_actions_addclose(&fileActions, stderrFds.write)
 
-        // Build attributes: set the child's process group to itself in the child,
-        // before exec, eliminating the race that an after-launch setpgid(2) has.
+        // Build attributes: detach the child into a new session before exec. This
+        // prevents interactive shell startup from changing the caller's foreground
+        // process group while retaining a stable process group for cleanup.
         #if canImport(Darwin)
         var attr: posix_spawnattr_t?
         #else
@@ -792,8 +805,11 @@ public enum ShellCommandLocator {
             return nil
         }
         defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
-        posix_spawnattr_setpgroup(&attr, 0) // 0 = child becomes its own pgid leader
+        guard posix_spawnattr_setflags(&attr, self.shellSpawnFlags) == 0 else {
+            close(stdoutFds.read); close(stdoutFds.write)
+            close(stderrFds.read); close(stderrFds.write)
+            return nil
+        }
 
         // Build argv (argv[0] is conventionally the executable path).
         var cArgs: [UnsafeMutablePointer<CChar>?] = []
@@ -840,7 +856,7 @@ public enum ShellCommandLocator {
             return nil
         }
 
-        // POSIX_SPAWN_SETPGROUP with pgroup=0 guarantees the child's pgid == its pid.
+        // POSIX_SPAWN_SETSID guarantees the child's session ID and pgid equal its pid.
         let pgid: pid_t = pid
 
         // Track EOF on each pipe so we can wait for full drain instead of sleeping.
@@ -858,7 +874,9 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                if stdoutDone.fire() { drainGroup.leave() }
+                if stdoutDone.fire() {
+                    drainGroup.leave()
+                }
             } else {
                 stdoutCollector.append(data)
             }
@@ -869,7 +887,9 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                if stderrDone.fire() { drainGroup.leave() }
+                if stderrDone.fire() {
+                    drainGroup.leave()
+                }
             }
         }
 
@@ -896,8 +916,12 @@ public enum ShellCommandLocator {
             }
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() { drainGroup.leave() }
-            if stderrDone.fire() { drainGroup.leave() }
+            if stdoutDone.fire() {
+                drainGroup.leave()
+            }
+            if stderrDone.fire() {
+                drainGroup.leave()
+            }
             return nil
         }
 
@@ -914,13 +938,17 @@ public enum ShellCommandLocator {
         if drainGroup.wait(timeout: .now() + 0.6) != .success {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() { drainGroup.leave() }
-            if stderrDone.fire() { drainGroup.leave() }
+            if stdoutDone.fire() {
+                drainGroup.leave()
+            }
+            if stderrDone.fire() {
+                drainGroup.leave()
+            }
         }
         return stdoutCollector.drain()
     }
 
-    // swiftlint:enable cyclomatic_complexity
+    // swiftlint:enable cyclomatic_complexity function_body_length
 
     private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
@@ -985,8 +1013,12 @@ public enum ShellCommandLocator {
     }
 
     private static func expandPath(_ raw: String, home: String) -> String {
-        if raw == "~" { return home }
-        if raw.hasPrefix("~/") { return home + String(raw.dropFirst()) }
+        if raw == "~" {
+            return home
+        }
+        if raw.hasPrefix("~/") {
+            return home + String(raw.dropFirst())
+        }
         return raw
     }
 }
