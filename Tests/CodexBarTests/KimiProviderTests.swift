@@ -288,6 +288,19 @@ struct KimiAPIFetchStrategyTests {
     }
 
     @Test
+    func `rejected CLI credential keeps CLI remediation`() {
+        let cliError = KimiAPIFetchStrategy.normalizedCodeAPIError(
+            KimiAPIError.invalidAPIKey,
+            source: .authFile)
+        let keyError = KimiAPIFetchStrategy.normalizedCodeAPIError(
+            KimiAPIError.invalidAPIKey,
+            source: .environment)
+
+        #expect(cliError as? KimiAPIError == .invalidCodeCredential)
+        #expect(keyError as? KimiAPIError == .invalidAPIKey)
+    }
+
+    @Test
     func `auto mode falls back from invalid API key to web cookies`() {
         let strategy = KimiAPIFetchStrategy()
         let context = makeKimiFetchContext(sourceMode: .auto)
@@ -1112,6 +1125,7 @@ struct KimiAPIErrorTests {
         #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("Settings > Providers > Kimi") == true)
         #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("KIMI_CODE_API_KEY") == true)
         #expect(KimiAPIError.expiredCodeCredential.errorDescription?.contains("does not refresh") == true)
+        #expect(KimiAPIError.invalidCodeCredential.errorDescription?.contains("Sign in again") == true)
         #expect(KimiAPIError.invalidAPIKey.errorDescription?.contains("API key") == true)
         #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)
         #expect(KimiAPIError.networkError("Timeout").errorDescription?.contains("Timeout") == true)

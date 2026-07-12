@@ -78,10 +78,15 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
         let identityHeaders = resolution.source == .authFile
             ? KimiSettingsReader.kimiCodeIdentityHeaders(environment: context.env)
             : [:]
-        let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
-            apiKey: resolution.token,
-            baseURL: baseURL,
-            identityHeaders: identityHeaders)
+        let snapshot: KimiUsageSnapshot
+        do {
+            snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
+                apiKey: resolution.token,
+                baseURL: baseURL,
+                identityHeaders: identityHeaders)
+        } catch {
+            throw Self.normalizedCodeAPIError(error, source: resolution.source)
+        }
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
             sourceLabel: resolution.source == .authFile ? "Kimi Code CLI" : "Kimi Code API key")
@@ -95,6 +100,7 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
         }
         if case KimiAPIError.missingAPIKey = error { return true }
         if case KimiAPIError.expiredCodeCredential = error { return true }
+        if case KimiAPIError.invalidCodeCredential = error { return true }
         if case KimiAPIError.invalidAPIKey = error { return true }
         if case KimiAPIError.apiError = error { return true }
         if error is DecodingError { return true }
@@ -110,6 +116,11 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
         }
         guard let token = KimiSettingsReader.apiKey(environment: environment) else { return nil }
         return ProviderTokenResolution(token: token, source: .environment)
+    }
+
+    static func normalizedCodeAPIError(_ error: Error, source: ProviderTokenSource) -> Error {
+        guard source == .authFile, case KimiAPIError.invalidAPIKey = error else { return error }
+        return KimiAPIError.invalidCodeCredential
     }
 }
 
