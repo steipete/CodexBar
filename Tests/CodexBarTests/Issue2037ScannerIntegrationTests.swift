@@ -239,7 +239,7 @@ struct Issue2037ScannerIntegrationTests {
         ].joined(separator: "\n") + "\n"
         let fileURL = try env.writeCodexSessionFile(day: day, filename: "fingerprints.jsonl", contents: contents)
 
-        let fingerprints = CostUsageScanner.parseCodexTokenUsageFingerprints(fileURL: fileURL)
+        let fingerprints = try CostUsageScanner.parseCodexTokenUsageFingerprints(fileURL: fileURL)
         let parsed = try CostUsageScanner.parseCodexFileCancellable(
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
@@ -247,5 +247,95 @@ struct Issue2037ScannerIntegrationTests {
         #expect(fingerprints.count == 1)
         #expect(parsed.rows.count == 1)
         #expect(fingerprints.count == parsed.rows.count)
+    }
+
+    @Test
+    func `missing parent fingerprint pre scan honors cancellation`() throws {
+        let fixture = try Issue2037FixtureHarness.load(named: "missing-parent-siblings")
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        try Issue2037FixtureHarness.install(fixture, into: env)
+
+        let since = try env.makeLocalNoon(year: 2030, month: 1, day: 1)
+        let until = try env.makeLocalNoon(year: 2030, month: 1, day: 2)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.forceRescan = true
+        options.refreshMinIntervalSeconds = 0
+
+        var checks = 0
+        let checkCancellation: CostUsageScanner.CancellationCheck = {
+            checks += 1
+            if checks >= 2 {
+                throw CancellationError()
+            }
+        }
+
+        #expect(throws: CancellationError.self) {
+            _ = try CostUsageScanner.loadDailyReportCancellable(
+                provider: .codex,
+                since: since,
+                until: until,
+                now: until,
+                options: options,
+                checkCancellation: checkCancellation)
+        }
+        #expect(checks >= 2)
+    }
+
+    @Test
+    func `missing parent suppressions rescan cached siblings when family grows`() throws {
+        let fixture = try Issue2037FixtureHarness.load(named: "missing-parent-siblings")
+        let scannerOracle = try #require(fixture.manifest.scannerOracle)
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let siblingB = fixture.manifest.files.first { $0.alias == "sibling-b" }
+        let siblingBFile = try #require(siblingB)
+        let siblingBSource = fixture.root.appendingPathComponent(siblingBFile.relativePath, isDirectory: false)
+        let siblingBDestination = env.root.appendingPathComponent(siblingBFile.relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: siblingBDestination.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: siblingBSource, to: siblingBDestination)
+
+        let since = try env.makeLocalNoon(year: 2030, month: 1, day: 1)
+        let until = try env.makeLocalNoon(year: 2030, month: 1, day: 2)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        // Warm the cache with only the non-owner sibling.
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: since,
+            until: until,
+            now: until,
+            options: options)
+
+        // Introduce the earlier owner sibling without forceRescan.
+        try Issue2037FixtureHarness.install(fixture, into: env)
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: since,
+            until: until,
+            now: until,
+            options: options)
+
+        var scannedUnits = 0
+        for day in report.data {
+            scannedUnits += day.inputTokens ?? 0
+            scannedUnits += day.cacheReadTokens ?? 0
+            scannedUnits += day.outputTokens ?? 0
+        }
+
+        #expect(
+            scannedUnits == scannerOracle.dedupedScannerUnits,
+            """
+            scanned=\(scannedUnits) expectedDeduped=\(scannerOracle.dedupedScannerUnits) \
+            naive=\(scannerOracle.naiveScannerUnits)
+            """)
     }
 }

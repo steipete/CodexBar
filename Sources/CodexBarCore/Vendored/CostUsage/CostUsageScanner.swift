@@ -2511,7 +2511,7 @@ enum CostUsageScanner {
 
             let filePathsInScan = Set(files.map(\.path))
             var scanState = CodexScanState()
-            let resources = Self.makeCodexScanResources(
+            let resources = try Self.makeCodexScanResources(
                 files: files,
                 plan: plan,
                 options: options,
@@ -2608,7 +2608,7 @@ enum CostUsageScanner {
         plan: CodexRefreshPlan,
         options: Options,
         cache: CostUsageCache,
-        checkCancellation: CancellationCheck?) -> CodexScanResources
+        checkCancellation: CancellationCheck?) throws -> CodexScanResources
     {
         let filePathsInScan = Set(files.map(\.path))
         let fileIndex = CodexSessionFileIndex(
@@ -2622,10 +2622,11 @@ enum CostUsageScanner {
         let inheritedResolver = CodexInheritedTotalsResolver(
             fileIndex: fileIndex,
             checkCancellation: checkCancellation)
-        let billingSuppressions = Self.buildProvisionalPrefixBillingSuppressions(
+        let billingSuppressions = try Self.buildProvisionalPrefixBillingSuppressions(
             files: files,
             fileIndex: fileIndex,
             cache: cache,
+            roots: plan.roots,
             checkCancellation: checkCancellation)
         return CodexScanResources(
             fileIndex: fileIndex,
@@ -2663,7 +2664,8 @@ enum CostUsageScanner {
         files: [URL],
         fileIndex: CodexSessionFileIndex,
         cache: CostUsageCache,
-        checkCancellation: CancellationCheck?) -> [String: Set<Int>]
+        roots: [URL],
+        checkCancellation: CancellationCheck?) throws -> [String: Set<Int>]
     {
         struct Member {
             let fileURL: URL
@@ -2674,22 +2676,24 @@ enum CostUsageScanner {
 
         var membersByParent: [String: [Member]] = [:]
         for fileURL in files {
-            try? checkCancellation?()
-            guard let metadata = try? Self.parseCodexSessionMetadata(fileURL: fileURL),
-                  let sessionId = metadata.sessionId,
-                  let parentId = metadata.forkedFromId,
-                  !parentId.isEmpty
+            try checkCancellation?()
+            guard let metadata = try Self.parseCodexSessionMetadata(
+                fileURL: fileURL,
+                checkCancellation: checkCancellation),
+                let sessionId = metadata.sessionId,
+                let parentId = metadata.forkedFromId,
+                !parentId.isEmpty
             else { continue }
-            // Match inheritance discovery against cache + in-scan files only. Avoid `indexRoots()`
-            // crawls on every refresh for confirmed-missing parents; previously scanned parents are
-            // already seeded into `fileIndex` via `cachedCodexSessionIndex`.
-            if Self.codexCacheContainsSession(cache, sessionId: parentId) {
+            // Match inheritance discovery against live cache entries + in-scan files only. Avoid
+            // `indexRoots()` crawls on every refresh for confirmed-missing parents; previously
+            // scanned parents are already seeded into `fileIndex` via `cachedCodexSessionIndex`.
+            if Self.codexCacheContainsLiveSession(cache, sessionId: parentId, roots: roots) {
                 continue
             }
-            if (try? fileIndex.fileURL(for: parentId, searchRoots: false)) != nil {
+            if try fileIndex.fileURL(for: parentId, searchRoots: false) != nil {
                 continue
             }
-            let fingerprints = Self.parseCodexTokenUsageFingerprints(
+            let fingerprints = try Self.parseCodexTokenUsageFingerprints(
                 fileURL: fileURL,
                 checkCancellation: checkCancellation)
             guard !fingerprints.isEmpty else { continue }
@@ -2720,10 +2724,20 @@ enum CostUsageScanner {
         return suppressions
     }
 
-    private static func codexCacheContainsSession(_ cache: CostUsageCache, sessionId: String) -> Bool {
-        cache.files.contains { _, usage in
-            usage.sessionId == sessionId
+    /// True when the cache still points at a readable parent file under the active Codex roots.
+    private static func codexCacheContainsLiveSession(
+        _ cache: CostUsageCache,
+        sessionId: String,
+        roots: [URL]) -> Bool
+    {
+        for (path, usage) in cache.files {
+            guard usage.sessionId == sessionId else { continue }
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let fileURL = URL(fileURLWithPath: path)
+            guard Self.isWithinCodexRoots(fileURL: fileURL, roots: roots) else { continue }
+            return true
         }
+        return false
     }
 
     private static func sharedFingerprintPrefixLength(_ streams: [[String]]) -> Int {
@@ -2743,7 +2757,7 @@ enum CostUsageScanner {
     /// `parseCodexFileCancellable`, so provisional suppression ordinals stay aligned.
     static func parseCodexTokenUsageFingerprints(
         fileURL: URL,
-        checkCancellation: CancellationCheck? = nil) -> [String]
+        checkCancellation: CancellationCheck? = nil) throws -> [String]
     {
         let maxLineBytes = 256 * 1024
         var fingerprints: [String] = []
@@ -2809,8 +2823,11 @@ enum CostUsageScanner {
                             total: (info?["total_token_usage"] as? [String: Any]).map(tokenTotals)))
                     }
                 })
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            return fingerprints
+            // Unreadable / corrupt candidates are skipped for provisional matching.
+            return []
         }
         return fingerprints
     }

@@ -204,9 +204,11 @@ Scanner change: `buildProvisionalPrefixBillingSuppressions` groups children by m
 
 **Billing-suppression baseline rule:** after computing a suppressed event's delta via `commitDelta`, do **not** subtract that delta back out of `previousTotals`. State must stay advanced so the next event cannot re-include suppressed growth or falsely trip `sawDivergentTotals`. Billing is omitted only by skipping row emission.
 
-**Fingerprint / ordinal alignment:** provisional fingerprints are built with the same `CostUsageJsonl` line scan, truncation limit, and `parseCodexFastLine` (+ JSON fallback) path as `parseCodexFileCancellable`, so suppression ordinals cannot drift from scan ordinals on truncated or oddly encoded lines.
+**Fingerprint / ordinal alignment:** provisional fingerprints are built with the same `CostUsageJsonl` line scan, truncation limit, and `parseCodexFastLine` (+ JSON fallback) path as `parseCodexFileCancellable`, so suppression ordinals cannot drift from scan ordinals on truncated or oddly encoded lines. Cancellation during that pre-scan aborts the refresh (no `try?` / partial-suppression plan).
 
-**Parent presence for provisional suppressions:** check `CostUsageCache` session ids and the in-scan / cache-seeded `fileIndex` **without** `indexRoots()` crawls (`fileURL(for:searchRoots: false)`). Do **not** record those probes in `missingSessionIds`, or they poison later `#1164` inheritance lookups that are allowed to crawl. Previously scanned parents are seeded via `cachedCodexSessionIndex`.
+**Parent presence for provisional suppressions:** check **live** cache session ids (path still exists under active Codex roots) and the in-scan / cache-seeded `fileIndex` **without** `indexRoots()` crawls (`fileURL(for:searchRoots: false)`). Do **not** record those probes in `missingSessionIds`, or they poison later `#1164` inheritance lookups that are allowed to crawl. Stale cache rows for deleted/moved parents no longer suppress the missing-parent path.
+
+**Warm-cache family growth:** when provisional suppressions apply to a file, bypass fresh-cache keep/incremental append so a newly discovered sibling owner can force a rescan of previously cached non-owners.
 
 **Open follow-ups:**
 - Optionally cache `usageFingerprints` on `CostUsageFileUsage` when mtime/size match to skip even the aligned fingerprint pass.

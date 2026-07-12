@@ -886,6 +886,8 @@ extension CostUsageScanner {
         state: inout CodexScanState) -> Bool
     {
         guard let cached = input.cached else { return false }
+        // Newly computed missing-parent suppressions must rescan even when mtime/size match.
+        guard !Self.codexFileHasBillingSuppressions(input: input, context: context) else { return false }
         let needsSessionId = cached.sessionId == nil
         guard cached.mtimeUnixMs == input.metadata.mtimeUnixMs,
               cached.size == input.metadata.size,
@@ -950,6 +952,15 @@ extension CostUsageScanner {
         return !(Set(cached.codexTurnIDs ?? []).isDisjoint(with: context.changedPriorityTurnIDs))
     }
 
+    static func codexFileHasBillingSuppressions(
+        input: CodexFileScanInput,
+        context: CodexFileScanContext) -> Bool
+    {
+        guard let suppressed = context.resources.billingSuppressedTokenOrdinalsByFilePath[input.fileURL.path]
+        else { return false }
+        return !suppressed.isEmpty
+    }
+
     static func appendCodexFileIncrementIfPossible(
         input: CodexFileScanInput,
         context: CodexFileScanContext,
@@ -958,6 +969,7 @@ extension CostUsageScanner {
     {
         try context.checkCancellation?()
         guard let cached = input.cached, cached.sessionId != nil, !context.forceFullScan else { return false }
+        guard !Self.codexFileHasBillingSuppressions(input: input, context: context) else { return false }
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
