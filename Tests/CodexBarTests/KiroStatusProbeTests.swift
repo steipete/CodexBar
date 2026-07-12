@@ -226,6 +226,40 @@ extension KiroStatusProbeTests {
     }
 
     @Test
+    func `slow pipe remains viable after PTY fallback starts`() async throws {
+        let cliURL = try self.makeCLI(
+            """
+            #!/bin/sh
+            if [ -t 1 ]; then
+              exit 97
+            fi
+            if [ "$1" = "whoami" ]; then
+              printf 'Logged in with Google\nEmail: person@example.com\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              sleep 1
+              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
+              printf 'Credits (12.50 of 50 covered in plan)\n'
+              printf '████████████████████ 25%%\n'
+              exit 0
+            fi
+            if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
+              exit 0
+            fi
+            exit 1
+            """)
+        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+
+        let snapshot = try await KiroStatusProbe(
+            cliBinaryResolver: { cliURL.path },
+            usageProbeTimeout: 2,
+            pipeTimeoutCap: 0.2).fetch()
+
+        #expect(snapshot.planName == "KIRO FREE")
+    }
+
+    @Test
     func `fetch falls back to PTY for older kiro cli`() async throws {
         let cliURL = try self.makeCLI(
             """
