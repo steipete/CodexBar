@@ -31,10 +31,6 @@ enum CostUsageScanner {
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
 
-        /// Default value used by `init(...)` and memberwise synthesis. Callers can compare
-        /// against this sentinel to detect "no explicit override" without hard-coding `60`.
-        static let defaultRefreshMinIntervalSeconds: TimeInterval = 60
-
         init(
             codexSessionsRoot: URL? = nil,
             claudeProjectsRoots: [URL]? = nil,

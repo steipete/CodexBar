@@ -31,7 +31,8 @@ extension UsageStore {
                     forceRefresh: force,
                     allowVertexClaudeFallback: !self.isEnabled(.claude),
                     codexHomePath: codexHomePath,
-                    historyDays: historyDays)
+                    historyDays: historyDays,
+                    bypassScannerDebounce: true)
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
