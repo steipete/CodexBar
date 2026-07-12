@@ -1,7 +1,7 @@
 import CodexBarCore
 import Foundation
 
-struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, ExpressibleByStringLiteral {
+struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, ExpressibleByStringLiteral, Sendable {
     let rawValue: String
 
     init(rawValue: String) {
@@ -28,13 +28,13 @@ struct PlanUtilizationSeriesName: RawRepresentable, Hashable, Codable, Expressib
     }
 }
 
-struct PlanUtilizationHistoryEntry: Codable, Equatable, Hashable {
+struct PlanUtilizationHistoryEntry: Codable, Equatable, Hashable, Sendable {
     let capturedAt: Date
     let usedPercent: Double
     let resetsAt: Date?
 }
 
-struct PlanUtilizationSeriesHistory: Codable, Equatable {
+struct PlanUtilizationSeriesHistory: Codable, Equatable, Sendable {
     let name: PlanUtilizationSeriesName
     let windowMinutes: Int
     let entries: [PlanUtilizationHistoryEntry]
@@ -60,7 +60,7 @@ struct PlanUtilizationSeriesHistory: Codable, Equatable {
     }
 }
 
-struct PlanUtilizationHistoryBuckets: Equatable {
+struct PlanUtilizationHistoryBuckets: Equatable, Sendable {
     var preferredAccountKey: String?
     var unscoped: [PlanUtilizationSeriesHistory] = []
     var accounts: [String: [PlanUtilizationSeriesHistory]] = [:]
@@ -97,20 +97,20 @@ struct PlanUtilizationHistoryBuckets: Equatable {
     }
 }
 
-private struct ProviderHistoryFile: Codable {
+private struct ProviderHistoryFile: Codable, Sendable {
     let preferredAccountKey: String?
     let unscoped: [PlanUtilizationSeriesHistory]
     let accounts: [String: [PlanUtilizationSeriesHistory]]
 }
 
-private struct ProviderHistoryDocument: Codable {
+private struct ProviderHistoryDocument: Codable, Sendable {
     let version: Int
     let preferredAccountKey: String?
     let unscoped: [PlanUtilizationSeriesHistory]
     let accounts: [String: [PlanUtilizationSeriesHistory]]
 }
 
-struct PlanUtilizationHistoryStore {
+struct PlanUtilizationHistoryStore: Sendable {
     fileprivate static let providerSchemaVersion = 1
 
     let directoryURL: URL?
@@ -125,6 +125,16 @@ struct PlanUtilizationHistoryStore {
 
     func load() -> [UsageProvider: PlanUtilizationHistoryBuckets] {
         self.loadProviderFiles()
+    }
+
+    /// Loads the persisted histories on a utility-priority detached task.
+    ///
+    /// The on-disk decode is synchronous I/O + JSON parsing that can take
+    /// ~150 ms for mature two-year histories and must not run on the app
+    /// startup main thread. The returned dictionary is safe to apply on the
+    /// main actor once decoding completes.
+    func loadAsync() async -> [UsageProvider: PlanUtilizationHistoryBuckets] {
+        await Task.detached(priority: .utility) { self.load() }.value
     }
 
     func save(_ providers: [UsageProvider: PlanUtilizationHistoryBuckets]) {
@@ -265,5 +275,65 @@ extension ProviderHistoryDocument {
         self.preferredAccountKey = try container.decodeIfPresent(String.self, forKey: .preferredAccountKey)
         self.unscoped = try container.decode([PlanUtilizationSeriesHistory].self, forKey: .unscoped)
         self.accounts = try container.decode([String: [PlanUtilizationSeriesHistory]].self, forKey: .accounts)
+    }
+}
+
+/// One-shot synchronization primitive used by `UsageStore.init` to defer the
+/// utility-priority plan-utilization history load until a test chooses to
+/// release it. The default `nil` gate is open and the load proceeds immediately.
+///
+/// Used to verify that `UsageStore.init` returns before disk I/O completes and
+/// that the history is applied exactly once after the gate opens.
+final class PlanUtilizationHistoryLoadGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+    private var _isOpen: Bool = false
+
+    init() {}
+
+    var isOpen: Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self._isOpen
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.lock.lock()
+            if self._isOpen {
+                self.lock.unlock()
+                continuation.resume()
+                return
+            }
+            self.continuations.append(continuation)
+            self.lock.unlock()
+        }
+    }
+
+    func open() {
+        self.lock.lock()
+        self._isOpen = true
+        let pending = self.continuations
+        self.continuations.removeAll()
+        self.lock.unlock()
+        for continuation in pending {
+            continuation.resume()
+        }
+    }
+
+    /// Resumes every pending waiter without marking the gate as open. Use this
+    /// to release a waiter that is being cancelled so its `withCheckedContinuation`
+    /// does not leak the suspended task, continuation, and the gate itself.
+    /// Pending waiters resume as if `open()` had been called; subsequent
+    /// `wait()` calls still observe the gate as closed, so a test that calls
+    /// `cancelAll()` and then `open()` gets the natural reopen semantics.
+    func cancelAll() {
+        self.lock.lock()
+        let pending = self.continuations
+        self.continuations.removeAll()
+        self.lock.unlock()
+        for continuation in pending {
+            continuation.resume()
+        }
     }
 }

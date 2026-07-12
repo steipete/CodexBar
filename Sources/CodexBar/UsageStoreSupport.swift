@@ -129,5 +129,23 @@ extension UsageStore {
         self.codexHistoricalDatasetAccountKey = accountKey
         self.historicalPaceRevision += 1
     }
+
+    /// Cancels the one-shot persisted plan-utilization load and treats the
+    /// in-memory dictionary as "loaded" so callers can assign state directly
+    /// without racing the background decode. Used by test helpers that
+    /// intentionally seed history from scratch.
+    func _cancelPlanUtilizationHistoryLoadForTesting() {
+        self.planUtilizationHistoryLoadTask?.cancel()
+        self.planUtilizationHistoryLoadTask = nil
+        self.planUtilizationHistoryLoaded = true
+    }
+
+    /// Awaits the background plan-utilization load task to completion. Used
+    /// by tests that write history files to disk before constructing
+    /// `UsageStore` and then expect the dictionary to be populated by the
+    /// time assertions run.
+    func _waitForPlanUtilizationHistoryLoadForTesting() async {
+        await self.planUtilizationHistoryLoadTask?.value
+    }
 }
 #endif

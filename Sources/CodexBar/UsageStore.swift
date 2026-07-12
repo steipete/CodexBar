@@ -100,19 +100,14 @@ extension UsageStore {
         }
     }
 
-    /// Returns the login method (plan type) for the specified provider, if available.
     private func loginMethod(for provider: UsageProvider) -> String? {
         self.snapshots[provider]?.loginMethod(for: provider)
     }
 
-    /// Returns true if the Claude account appears to be a subscription (Max, Pro, Ultra, Team).
-    /// Returns false for API users or when plan cannot be determined.
     func isClaudeSubscription() -> Bool {
         Self.isSubscriptionPlan(self.loginMethod(for: .claude))
     }
 
-    /// Determines if a login method string indicates a Claude subscription plan.
-    /// Known subscription indicators: Max, Pro, Ultra, Team (case-insensitive).
     nonisolated static func isSubscriptionPlan(_ loginMethod: String?) -> Bool {
         ClaudePlan.isSubscriptionLoginMethod(loginMethod)
     }
@@ -204,8 +199,7 @@ final class UsageStore {
     @ObservationIgnored var creditsFailureStreak: Int = 0
     @ObservationIgnored var openAIDashboardAttachmentAuthorized: Bool = false {
         didSet {
-            guard self.openAIDashboardAttachmentAuthorized != oldValue else { return }
-            self.openAIDashboardAttachmentRevision &+= 1
+            if self.openAIDashboardAttachmentAuthorized != oldValue { self.openAIDashboardAttachmentRevision &+= 1 }
         }
     }
 
@@ -294,7 +288,6 @@ final class UsageStore {
     @ObservationIgnored private var providerAvailabilityCache: [UsageProvider: ProviderAvailabilityCacheEntry] = [:]
     @ObservationIgnored var accountInfoCache: [UsageProvider: AccountInfoCacheEntry] = [:]
     @ObservationIgnored private var timerTask: Task<Void, Never>?
-    /// In-memory only; resets on every launch.
     @ObservationIgnored private(set) var lastMenuOpenAt: Date?
     @ObservationIgnored var adaptiveRefreshScheduledAt: Date?
     @ObservationIgnored var tokenTimerTask: Task<Void, Never>?
@@ -346,7 +339,13 @@ final class UsageStore {
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
-    @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
+    @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:] {
+        didSet { if !self.planUtilizationHistoryLoaded { self.planUtilizationHistoryLoaded = true } }
+    }
+
+    /// Background load task and completion flag. Cleared on deinit and on the cancel test seam.
+    @ObservationIgnored var planUtilizationHistoryLoadTask: Task<Void, Never>?
+    @ObservationIgnored var planUtilizationHistoryLoaded: Bool = false
     @ObservationIgnored var sessionLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
     @ObservationIgnored var weeklyLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
@@ -369,7 +368,8 @@ final class UsageStore {
         codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil,
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
         startupBehavior: StartupBehavior = .automatic,
-        environmentBase: [String: String] = ProcessInfo.processInfo.environment)
+        environmentBase: [String: String] = ProcessInfo.processInfo.environment,
+        planUtilizationHistoryLoadGateForTesting: PlanUtilizationHistoryLoadGate? = nil)
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -387,10 +387,9 @@ final class UsageStore {
         self.planUtilizationPersistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator(
             store: planUtilizationHistoryStore)
         self.providerMetadata = registry.metadata
-        self
-            .failureGates = Dictionary(
-                uniqueKeysWithValues: UsageProvider.allCases
-                    .map { ($0, ConsecutiveFailureGate()) })
+        self.failureGates = Dictionary(
+            uniqueKeysWithValues: UsageProvider.allCases
+                .map { ($0, ConsecutiveFailureGate()) })
         self.tokenFailureGates = Dictionary(
             uniqueKeysWithValues: UsageProvider.allCases
                 .map { ($0, ConsecutiveFailureGate()) })
@@ -404,7 +403,7 @@ final class UsageStore {
         self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
-        self.planUtilizationHistory = planUtilizationHistoryStore.load()
+        self.startPlanUtilizationHistoryLoad(gate: planUtilizationHistoryLoadGateForTesting)
         self.sessionLimitResetDetectorStates = Self.loadLimitResetDetectorStates(
             from: settings.userDefaults,
             defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,
@@ -467,12 +466,10 @@ final class UsageStore {
         return enabled.filter { self.isProviderAvailable($0, now: now) }
     }
 
-    /// Enabled providers without availability filtering. Used for display (switcher, merge-icons).
     func enabledProvidersForDisplay() -> [UsageProvider] {
         self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata)
     }
 
-    /// Providers that should actually participate in background refresh/status/token work.
     func enabledProvidersForBackgroundWork() -> [UsageProvider] {
         self.enabledProviders()
     }
@@ -721,7 +718,6 @@ final class UsageStore {
         return true
     }
 
-    /// For demo/testing: drop the snapshot so the loading animation plays, then restore the last snapshot.
     func replayLoadingAnimation(duration: TimeInterval = 3) {
         let current = self.preferredSnapshot
         self.snapshots.removeAll()
@@ -744,11 +740,7 @@ final class UsageStore {
     #if DEBUG
     @ObservationIgnored private(set) var refreshTimerSleepOverrideForTesting: Duration?
 
-    /// Sets this store's timer sleep override and restarts the timer with it applied, so tests can
-    /// observe multiple fixed/adaptive ticks without waiting real minutes. The reason/delay a tick
-    /// computes and logs is unaffected; only how long it sleeps before acting on that decision
-    /// changes. Instance-scoped (not a shared global) so concurrently running tests, each with their
-    /// own `UsageStore`, cannot clobber one another's override.
+    /// Instance-scoped timer sleep override so concurrent tests do not clobber one another's ticks.
     func restartTimerWithSleepOverrideForTesting(_ duration: Duration?) {
         self.refreshTimerSleepOverrideForTesting = duration
         self.startTimer()
@@ -830,12 +822,7 @@ final class UsageStore {
     struct QuotaWarningStateKey: Hashable {
         let provider: UsageProvider
         let window: QuotaWarningWindow
-        /// Distinguishes independent extra rate windows that share a provider/window lane
-        /// (e.g. multiple `claude-weekly-scoped-*` windows) so their fired-threshold state
-        /// does not clobber each other or the primary session/weekly lanes. `nil` for the
-        /// primary session and weekly lanes.
         let windowID: String?
-
         init(provider: UsageProvider, window: QuotaWarningWindow, windowID: String? = nil) {
             self.provider = provider
             self.window = window
@@ -1633,12 +1620,10 @@ extension UsageStore {
         self.lastTokenFetchScope.removeValue(forKey: provider)
     }
 
-    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
-    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
+    /// Fast failures may retry on the next scheduled pass. Timed-out scans keep the
+    /// fetch TTL so a slow corpus cannot thrash back-to-back rescans.
     nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
-        if case CostUsageError.timedOut = error {
-            return false
-        }
+        if case CostUsageError.timedOut = error { return false }
         return true
     }
 }
