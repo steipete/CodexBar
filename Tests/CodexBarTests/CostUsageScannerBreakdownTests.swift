@@ -3979,7 +3979,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex resolved fork equal total clears inherited last-only remainder`() throws {
+    func `codex resolved fork equal total reconciles inherited last-only remainder`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -4007,19 +4007,11 @@ struct CostUsageScannerBreakdownTests {
                 self.codexTokenCount(
                     timestamp: env.isoString(for: day.addingTimeInterval(2)),
                     model: model,
-                    total: (input: 50, cached: 0, output: 0)),
+                    total: (input: 80, cached: 0, output: 0)),
                 self.codexTokenCount(
                     timestamp: env.isoString(for: day.addingTimeInterval(3)),
                     model: model,
-                    last: (input: 10, cached: 0, output: 0)),
-                self.codexTokenCount(
-                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
-                    model: model,
-                    total: (input: 100, cached: 0, output: 0)),
-                self.codexTokenCount(
-                    timestamp: env.isoString(for: day.addingTimeInterval(5)),
-                    model: model,
-                    last: (input: 10, cached: 0, output: 0)),
+                    last: (input: 40, cached: 0, output: 0)),
             ]))
         let parsed = CostUsageScanner.parseCodexFile(
             fileURL: fileURL,
@@ -4030,7 +4022,7 @@ struct CostUsageScannerBreakdownTests {
         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
         let packed = parsed.days[dayKey]?["gpt-5.4"] ?? []
 
-        #expect(packed[safe: 0] == 10)
+        #expect(packed[safe: 0] == 20)
         #expect(parsed.rows.count == 1)
     }
 

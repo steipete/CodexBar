@@ -1952,10 +1952,15 @@ enum CostUsageScanner {
                     } else if forkedFromId != nil,
                               !hasUnresolvedForkBaseline,
                               let total,
-                              let inheritedTotals,
-                              Self.codexTotalsAtLeast(total, inheritedTotals)
+                              let inheritedTotals
                     {
-                        remainingInheritedTotals = nil
+                        let remaining = CostUsageCodexTotals(
+                            input: max(0, inheritedTotals.input - total.input),
+                            cached: max(0, inheritedTotals.cached - total.cached),
+                            output: max(0, inheritedTotals.output - total.output))
+                        remainingInheritedTotals = Self.codexTotalsEqual(
+                            remaining,
+                            CostUsageCodexTotals(input: 0, cached: 0, output: 0)) ? nil : remaining
                     }
                     return
                 }
