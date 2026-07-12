@@ -50,12 +50,20 @@ public enum UsageFormatter {
         if let provider {
             return provider(key)
         }
+        #if canImport(ObjectiveC)
+        // Bundle(for:) walks CFBundleGetAllBundles to find the bundle that defines
+        // BundleToken, which requires Objective-C runtime introspection swift-corelibs-
+        // foundation cannot provide on Linux — it segfaults in _CFIsSwift there (GitHub
+        // issue #2092). CodexBarCore ships no .lproj resources of its own anyway (real
+        // localized strings come from the macOS app via setLocalizationProvider above),
+        // so on non-Darwin platforms skip straight to the hardcoded English fallback table.
         let coreBundle = Bundle(for: BundleToken.self)
         let coreValue = NSLocalizedString(key, tableName: "Localizable", bundle: coreBundle, value: key, comment: "")
         if coreValue != key { return coreValue }
 
         let mainValue = NSLocalizedString(key, tableName: "Localizable", bundle: .main, value: key, comment: "")
         if mainValue != key { return mainValue }
+        #endif
 
         switch key {
         case "Updated relative %@": return "Updated %@"
