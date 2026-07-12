@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+#if os(Linux)
 @Suite(.serialized)
 struct ShellCommandSessionLinuxTests {
     @Test
@@ -18,3 +19,4 @@ struct ShellCommandSessionLinuxTests {
         #expect(identifiers[0] == identifiers[1])
     }
 }
+#endif
