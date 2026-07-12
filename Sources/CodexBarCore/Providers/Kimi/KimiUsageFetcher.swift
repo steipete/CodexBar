@@ -15,7 +15,9 @@ public struct KimiUsageFetcher: Sendable {
     public static func fetchCodeAPIUsage(
         apiKey: String,
         baseURL: URL = KimiSettingsReader.defaultCodeAPIBaseURL,
-        now: Date = Date()) async throws -> KimiUsageSnapshot
+        identityHeaders: [String: String] = [:],
+        now: Date = Date(),
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiUsageSnapshot
     {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw KimiAPIError.missingAPIKey
@@ -28,10 +30,13 @@ public struct KimiUsageFetcher: Sendable {
         let endpoint = self.codeAPIUsageEndpoint(baseURL: validatedBaseURL)
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
+        for (name, value) in identityHeaders {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
         guard response.statusCode == 200 else {
             let responseBody = String(data: data, encoding: .utf8) ?? "<binary data>"

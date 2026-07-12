@@ -711,7 +711,10 @@ extension CodexBarCLI {
         }
         if provider == .kimi,
            sourceMode == .auto,
-           environment.map({ ProviderTokenResolver.kimiAPIToken(environment: $0) != nil }) == true
+           environment.map({ environment in
+               ProviderTokenResolver.kimiAPIToken(environment: environment) != nil ||
+                   KimiSettingsReader.hasKimiCodeCredential(environment: environment)
+           }) == true
         {
             return false
         }

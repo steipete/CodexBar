@@ -304,7 +304,13 @@ public enum ProviderTokenResolver {
     public static func kimiAPIResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
-        self.resolveEnv(KimiSettingsReader.apiKey(environment: environment))
+        if let resolution = self.resolveEnv(KimiSettingsReader.apiKey(environment: environment)) {
+            return resolution
+        }
+        if let token = KimiSettingsReader.kimiCodeAccessToken(environment: environment) {
+            return ProviderTokenResolution(token: token, source: .authFile)
+        }
+        return nil
     }
 
     public static func kimiK2Resolution(

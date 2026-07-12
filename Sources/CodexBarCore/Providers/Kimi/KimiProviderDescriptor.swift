@@ -58,20 +58,33 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        context.sourceMode == .api || Self.resolveToken(environment: context.env) != nil
+        if context.sourceMode == .api { return true }
+        return Self.resolveToken(environment: context.env) != nil ||
+            KimiSettingsReader.hasKimiCodeCredential(environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
+        let allowAuthFile = context.sourceMode != .api
+        guard let resolution = Self.resolveToken(
+            environment: context.env,
+            allowAuthFile: allowAuthFile)
+        else {
+            if allowAuthFile, KimiSettingsReader.hasKimiCodeCredential(environment: context.env) {
+                throw KimiAPIError.expiredCodeCredential
+            }
             throw KimiAPIError.missingAPIKey
         }
         let baseURL = try KimiSettingsReader.codeAPIBaseURL(environment: context.env)
+        let identityHeaders = resolution.source == .authFile
+            ? KimiSettingsReader.kimiCodeIdentityHeaders(environment: context.env)
+            : [:]
         let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
-            apiKey: apiKey,
-            baseURL: baseURL)
+            apiKey: resolution.token,
+            baseURL: baseURL,
+            identityHeaders: identityHeaders)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "api")
+            sourceLabel: resolution.source == .authFile ? "Kimi Code CLI" : "Kimi Code API key")
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -81,14 +94,22 @@ struct KimiAPIFetchStrategy: ProviderFetchStrategy {
             return urlError.code != .cancelled
         }
         if case KimiAPIError.missingAPIKey = error { return true }
+        if case KimiAPIError.expiredCodeCredential = error { return true }
         if case KimiAPIError.invalidAPIKey = error { return true }
         if case KimiAPIError.apiError = error { return true }
         if error is DecodingError { return true }
         return false
     }
 
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.kimiAPIToken(environment: environment)
+    private static func resolveToken(
+        environment: [String: String],
+        allowAuthFile: Bool = true) -> ProviderTokenResolution?
+    {
+        if allowAuthFile {
+            return ProviderTokenResolver.kimiAPIResolution(environment: environment)
+        }
+        guard let token = KimiSettingsReader.apiKey(environment: environment) else { return nil }
+        return ProviderTokenResolution(token: token, source: .environment)
     }
 }
 
@@ -123,7 +144,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
         let snapshot = try await KimiUsageFetcher.fetchUsage(authToken: token)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "web")
+            sourceLabel: "Kimi web cookie")
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {

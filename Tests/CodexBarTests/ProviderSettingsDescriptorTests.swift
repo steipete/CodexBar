@@ -249,7 +249,14 @@ struct ProviderSettingsDescriptorTests {
         let pickers = implementation.settingsPickers(context: context)
         let fields = implementation.settingsFields(context: context)
 
-        #expect(pickers.contains(where: { $0.id == "kimi-usage-source" }))
+        let usagePicker = try #require(pickers.first(where: { $0.id == "kimi-usage-source" }))
+        #expect(usagePicker.options.map(\.id) == ["auto", "api", "web"])
+        #expect(usagePicker.subtitle ==
+            "Auto tries your configured API key, then a signed-in Kimi Code CLI credential, then browser cookies.")
+        #expect(usagePicker.placement == .connection)
+        #expect(usagePicker.trailingText?() == nil)
+        fixture.store.lastSourceLabels[.kimi] = "Kimi Code CLI"
+        #expect(usagePicker.trailingText?() == "Kimi Code CLI")
         #expect(pickers.contains(where: { $0.id == "kimi-cookie-source" }))
         #expect(fields.contains(where: { $0.id == "kimi-api-key" }))
         #expect(fields.contains(where: { $0.id == "kimi-cookie" }))
