@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 extension UsageStore {
@@ -24,15 +25,16 @@ extension UsageStore {
             guard !Task.isCancelled else { return }
             let loaded = store.load()
             guard !Task.isCancelled else { return }
-            await MainActor.run {
-                guard !Task.isCancelled,
-                      let owner,
-                      !owner.planUtilizationHistoryLoaded
-                else { return }
-                owner.planUtilizationHistory = loaded
-                owner.planUtilizationHistoryLoaded = true
-                owner.planUtilizationHistoryRevision &+= 1
-            }
+            await owner?.publishLoadedPlanUtilizationHistory(loaded)
         }
+    }
+
+    private func publishLoadedPlanUtilizationHistory(
+        _ loaded: [UsageProvider: PlanUtilizationHistoryBuckets])
+    {
+        guard !Task.isCancelled, !self.planUtilizationHistoryLoaded else { return }
+        self.planUtilizationHistory = loaded
+        self.planUtilizationHistoryLoaded = true
+        self.planUtilizationHistoryRevision &+= 1
     }
 }
