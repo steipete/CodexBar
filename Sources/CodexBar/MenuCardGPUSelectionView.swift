@@ -147,10 +147,7 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
             super.mouseDown(with: event)
             return
         }
-        let localPoint = self.locationInView(for: event)
-        if self.bounds.contains(localPoint) {
-            self.isPressed = true
-        }
+        self.beginPrimaryPress(at: self.locationInView(for: event))
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -158,11 +155,18 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
             super.mouseUp(with: event)
             return
         }
-        defer { self.isPressed = false }
-        let localPoint = self.locationInView(for: event)
-        if self.isPressed, self.bounds.contains(localPoint) {
+        if self.endPrimaryPress(at: self.locationInView(for: event)) {
             self.onClick?()
         }
+    }
+
+    private func beginPrimaryPress(at point: NSPoint) {
+        self.isPressed = self.bounds.contains(point)
+    }
+
+    private func endPrimaryPress(at point: NSPoint) -> Bool {
+        defer { self.isPressed = false }
+        return self.isPressed && self.bounds.contains(point)
     }
 
     override func layout() {
@@ -270,35 +274,12 @@ extension GPUSelectionHostingView {
         self.hitsHostedInteractiveControl(at: point)
     }
 
-    func _test_simulateRuntimeClick() -> Bool {
-        guard self.onClick != nil else { return false }
-
-        let centerLocal = NSPoint(x: self.bounds.midX, y: self.bounds.midY)
-
-        let eventDown = NSEvent.mouseEvent(
-            with: .leftMouseDown,
-            location: centerLocal,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            eventNumber: 1,
-            clickCount: 1,
-            pressure: 1.0)!
-        self.mouseDown(with: eventDown)
-
-        let eventUp = NSEvent.mouseEvent(
-            with: .leftMouseUp,
-            location: centerLocal,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            eventNumber: 2,
-            clickCount: 1,
-            pressure: 0.0)!
-        self.mouseUp(with: eventUp)
-
+    func _test_simulateRuntimeClick(at point: NSPoint? = nil) -> Bool {
+        let clickPoint = point ?? NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+        guard let onClick = self.onClick, self.hitTest(clickPoint) === self else { return false }
+        self.beginPrimaryPress(at: clickPoint)
+        guard self.endPrimaryPress(at: clickPoint) else { return false }
+        onClick()
         return true
     }
 }

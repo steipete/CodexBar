@@ -82,7 +82,40 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
-    func `standard hosting preserves nested SwiftUI button presses`() {
+    func `gpu hosting preserves nested SwiftUI button target`() {
+        let interactiveRegionStore = MenuCardInteractiveRegionStore()
+        let content = Button("Copy") {}
+            .frame(width: 80, height: 30)
+            .menuCardInteractiveControl()
+            .frame(width: 320, height: 44, alignment: .trailing)
+        let wrapped = MenuCardSectionContainerView(
+            highlightState: MenuCardHighlightState(),
+            showsSubmenuIndicator: false,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0,
+            refreshMonitor: nil,
+            interactiveRegionStore: interactiveRegionStore)
+        {
+            content
+        }
+        let view = GPUSelectionHostingView(
+            rootView: wrapped,
+            allowsMenuHighlight: true,
+            containsInteractiveControls: true,
+            interactiveRegionStore: interactiveRegionStore,
+            onClick: {})
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 51)
+        Self.settleWindowlessLayout(view)
+        let buttonPoint = NSPoint(x: 280, y: 39)
+
+        #expect(view._test_hitsHostedInteractiveControl(at: buttonPoint))
+        #expect(!view._test_hitsHostedInteractiveControl(at: NSPoint(x: 280, y: 8)))
+        #expect(view.hitTest(buttonPoint) !== view)
+        #expect(!view._test_simulateRuntimeClick(at: buttonPoint))
+    }
+
+    @Test
+    func `standard hosting forwards nested SwiftUI control events without invoking row`() {
         var rowClicked = false
         let interactiveRegionStore = MenuCardInteractiveRegionStore()
         let content = Button("Copy") {}
@@ -106,48 +139,19 @@ struct StatusMenuOverviewClickTests {
             containsInteractiveControls: true,
             interactiveRegionStore: interactiveRegionStore,
             onClick: { rowClicked = true })
-        let window = Self.hostInWindow(view, height: 51)
-        defer { window.close() }
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 51)
+        Self.settleWindowlessLayout(view)
         let buttonPoint = NSPoint(x: 280, y: 39)
 
         #expect(view._test_hitsHostedInteractiveControl(at: buttonPoint))
         #expect(!view._test_hitsHostedInteractiveControl(at: NSPoint(x: 280, y: 8)))
-        let events = Self.mouseClick(at: buttonPoint, in: window)
+        let events = Self.mouseClick(at: buttonPoint)
         view.mouseDown(with: events.down)
         view.mouseUp(with: events.up)
+        let forwarded = view._test_forwardedHostedControlEvents
+        #expect(forwarded.mouseDown)
+        #expect(forwarded.mouseUp)
         #expect(!rowClicked)
-    }
-
-    @Test
-    func `gpu hosting preserves nested SwiftUI button target`() {
-        let interactiveRegionStore = MenuCardInteractiveRegionStore()
-        let content = Button("Copy") {}
-            .frame(width: 80, height: 30)
-            .menuCardInteractiveControl()
-            .frame(width: 320, height: 44, alignment: .trailing)
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil,
-            interactiveRegionStore: interactiveRegionStore)
-        {
-            content
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
-            containsInteractiveControls: true,
-            interactiveRegionStore: interactiveRegionStore,
-            onClick: {})
-        let window = Self.hostInWindow(view, height: 51)
-        defer { window.close() }
-        let buttonPoint = NSPoint(x: 280, y: 39)
-
-        #expect(view._test_hitsHostedInteractiveControl(at: buttonPoint))
-        #expect(!view._test_hitsHostedInteractiveControl(at: NSPoint(x: 280, y: 8)))
-        #expect(view.hitTest(buttonPoint) !== view)
     }
 
     @Test
@@ -175,37 +179,29 @@ struct StatusMenuOverviewClickTests {
             containsInteractiveControls: true,
             interactiveRegionStore: interactiveRegionStore,
             onClick: { rowClicked = true })
-        let window = Self.hostInWindow(view)
-        defer { window.close() }
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
+        Self.settleWindowlessLayout(view)
         let buttonPoint = NSPoint(x: 280, y: 22)
 
         #expect(!view._test_hitsHostedInteractiveControl(at: buttonPoint))
-        let events = Self.mouseClick(at: buttonPoint, in: window)
-        view.mouseDown(with: events.down)
-        view.mouseUp(with: events.up)
+        #expect(view._test_simulateRuntimeClick(at: buttonPoint))
         #expect(rowClicked)
     }
 
-    private static func hostInWindow(_ view: NSView, height: CGFloat = 44) -> NSWindow {
-        let frame = NSRect(x: 0, y: 0, width: 320, height: height)
-        view.frame = frame
-        let window = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
-        let container = NSView(frame: frame)
-        container.addSubview(view)
-        window.contentView = container
-        window.makeKeyAndOrderFront(nil)
+    private static func settleWindowlessLayout(_ view: NSView) {
+        view.needsLayout = true
         view.layoutSubtreeIfNeeded()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
-        return window
+        RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        view.layoutSubtreeIfNeeded()
     }
 
-    private static func mouseClick(at point: NSPoint, in window: NSWindow) -> (down: NSEvent, up: NSEvent) {
+    private static func mouseClick(at point: NSPoint) -> (down: NSEvent, up: NSEvent) {
         let down = NSEvent.mouseEvent(
             with: .leftMouseDown,
             location: point,
             modifierFlags: [],
             timestamp: 0,
-            windowNumber: window.windowNumber,
+            windowNumber: 0,
             context: nil,
             eventNumber: 1,
             clickCount: 1,
@@ -215,7 +211,7 @@ struct StatusMenuOverviewClickTests {
             location: point,
             modifierFlags: [],
             timestamp: 0,
-            windowNumber: window.windowNumber,
+            windowNumber: 0,
             context: nil,
             eventNumber: 2,
             clickCount: 1,

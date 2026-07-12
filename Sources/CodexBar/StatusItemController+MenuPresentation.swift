@@ -138,6 +138,10 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     let interactiveRegionStore: MenuCardInteractiveRegionStore?
     private var isPressed = false
     private var isForwardingHostedControlPress = false
+    #if DEBUG
+    private var testForwardedHostedControlMouseDown = false
+    private var testForwardedHostedControlMouseUp = false
+    #endif
 
     override var allowsVibrancy: Bool {
         true
@@ -250,13 +254,11 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
             return
         }
         let localPoint = self.locationInView(for: event)
-        if self.hitsHostedInteractiveControl(at: localPoint) {
-            self.isForwardingHostedControlPress = true
+        if self.beginPrimaryPress(at: localPoint) {
+            #if DEBUG
+            self.testForwardedHostedControlMouseDown = true
+            #endif
             super.mouseDown(with: event)
-            return
-        }
-        if self.bounds.contains(localPoint) {
-            self.isPressed = true
         }
     }
 
@@ -265,16 +267,36 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
             super.mouseUp(with: event)
             return
         }
-        if self.isForwardingHostedControlPress {
-            self.isForwardingHostedControlPress = false
+        let result = self.endPrimaryPress(at: self.locationInView(for: event))
+        if result.forwardToHostedControl {
+            #if DEBUG
+            self.testForwardedHostedControlMouseUp = true
+            #endif
             super.mouseUp(with: event)
             return
         }
-        defer { self.isPressed = false }
-        let localPoint = self.locationInView(for: event)
-        if self.isPressed, self.bounds.contains(localPoint) {
+        if result.invokeRowAction {
             self.onClick?()
         }
+    }
+
+    /// Returns whether AppKit should forward the press into a nested SwiftUI control.
+    private func beginPrimaryPress(at point: NSPoint) -> Bool {
+        if self.hitsHostedInteractiveControl(at: point) {
+            self.isForwardingHostedControlPress = true
+            return true
+        }
+        self.isPressed = self.bounds.contains(point)
+        return false
+    }
+
+    private func endPrimaryPress(at point: NSPoint) -> (forwardToHostedControl: Bool, invokeRowAction: Bool) {
+        if self.isForwardingHostedControlPress {
+            self.isForwardingHostedControlPress = false
+            return (true, false)
+        }
+        defer { self.isPressed = false }
+        return (false, self.isPressed && self.bounds.contains(point))
     }
 
     private func hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
@@ -544,39 +566,24 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
 
 #if DEBUG
 extension MenuCardItemHostingView {
+    var _test_forwardedHostedControlEvents: (mouseDown: Bool, mouseUp: Bool) {
+        (self.testForwardedHostedControlMouseDown, self.testForwardedHostedControlMouseUp)
+    }
+
     func _test_hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
         self.hitsHostedInteractiveControl(at: point)
     }
 
-    func _test_simulateRuntimeClick() -> Bool {
-        guard self.onClick != nil else { return false }
-
-        let centerLocal = NSPoint(x: self.bounds.midX, y: self.bounds.midY)
-
-        let eventDown = NSEvent.mouseEvent(
-            with: .leftMouseDown,
-            location: centerLocal,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            eventNumber: 1,
-            clickCount: 1,
-            pressure: 1.0)!
-        self.mouseDown(with: eventDown)
-
-        let eventUp = NSEvent.mouseEvent(
-            with: .leftMouseUp,
-            location: centerLocal,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            eventNumber: 2,
-            clickCount: 1,
-            pressure: 0.0)!
-        self.mouseUp(with: eventUp)
-
+    func _test_simulateRuntimeClick(at point: NSPoint? = nil) -> Bool {
+        let clickPoint = point ?? NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+        guard let onClick = self.onClick else { return false }
+        guard !self.beginPrimaryPress(at: clickPoint) else {
+            _ = self.endPrimaryPress(at: clickPoint)
+            return false
+        }
+        let result = self.endPrimaryPress(at: clickPoint)
+        guard result.invokeRowAction else { return false }
+        onClick()
         return true
     }
 }
