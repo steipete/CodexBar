@@ -16,8 +16,11 @@ private struct KimiStubClaudeFetcher: ClaudeUsageFetching {
     }
 }
 
-private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
-    let env: [String: String] = [:]
+private func makeKimiFetchContext(
+    sourceMode: ProviderSourceMode,
+    environment: [String: String] = [:]) -> ProviderFetchContext
+{
+    let env = environment
     return ProviderFetchContext(
         runtime: .app,
         sourceMode: sourceMode,
@@ -30,6 +33,68 @@ private func makeKimiFetchContext(sourceMode: ProviderSourceMode) -> ProviderFet
         fetcher: UsageFetcher(environment: env),
         claudeFetcher: KimiStubClaudeFetcher(),
         browserDetection: BrowserDetection(cacheTTL: 0))
+}
+
+private func makeTemporaryKimiCodeHome() throws -> URL {
+    let home = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CodexBar-KimiCode-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(
+        at: home,
+        withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700])
+    return home
+}
+
+private func writeKimiCodeCredential(
+    home: URL,
+    accessToken: String,
+    refreshToken: String = "refresh",
+    expiresAt: Any?) throws -> URL
+{
+    let credentials = home.appendingPathComponent("credentials", isDirectory: true)
+    try FileManager.default.createDirectory(at: credentials, withIntermediateDirectories: true)
+    var payload: [String: Any] = [
+        "access_token": accessToken,
+        "refresh_token": refreshToken,
+    ]
+    if let expiresAt {
+        payload["expires_at"] = expiresAt
+    }
+    let url = credentials.appendingPathComponent("kimi-code.json")
+    try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]).write(to: url)
+    return url
+}
+
+private actor KimiOrderedCredentialTransport: ProviderHTTPTransport {
+    private var headers: [String] = []
+
+    func authorizationHeaders() -> [String] {
+        self.headers
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let authorization = request.value(forHTTPHeaderField: "Authorization") ?? ""
+        self.headers.append(authorization)
+        let statusCode: Int
+        let body: String
+        switch authorization {
+        case "Bearer api-bad":
+            statusCode = 401
+            body = #"{"error":"unauthorized"}"#
+        case "Bearer cli-ok":
+            statusCode = 200
+            body = #"{"usage":{"limit":"100","used":"25","remaining":"75"},"limits":[]}"#
+        default:
+            throw URLError(.userAuthenticationRequired)
+        }
+        let url = try #require(request.url)
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]))
+        return (Data(body.utf8), response)
+    }
 }
 
 struct KimiSettingsReaderTests {
@@ -62,6 +127,84 @@ struct KimiSettingsReaderTests {
         ]
         let token = KimiSettingsReader.apiKey(environment: env)
         #expect(token == "kimi-code-token")
+    }
+
+    @Test
+    func `reuses fresh CLI credential without modifying it`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let credentialURL = try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth",
+            expiresAt: now.addingTimeInterval(3600).timeIntervalSince1970)
+        let originalData = try Data(contentsOf: credentialURL)
+        let originalModificationDate = try #require(
+            FileManager.default.attributesOfItem(atPath: credentialURL.path)[.modificationDate] as? Date)
+        let environment = ["KIMI_CODE_HOME": home.path]
+
+        let token = KimiSettingsReader.kimiCodeAccessToken(environment: environment, now: now)
+        let headers = KimiSettingsReader.kimiCodeIdentityHeaders(environment: environment)
+
+        #expect(token == "oauth")
+        #expect(headers["X-Msh-Platform"] == "kimi_code_cli")
+        #expect(headers["X-Msh-Device-Id"]?.isEmpty == false)
+        #expect(try Data(contentsOf: credentialURL) == originalData)
+        let finalModificationDate = try #require(
+            FileManager.default.attributesOfItem(atPath: credentialURL.path)[.modificationDate] as? Date)
+        #expect(finalModificationDate == originalModificationDate)
+
+        let deviceURL = home.appendingPathComponent("device_id")
+        let permissions = try #require(
+            FileManager.default.attributesOfItem(atPath: deviceURL.path)[.posixPermissions] as? NSNumber)
+        #expect(permissions.intValue & 0o777 == 0o600)
+    }
+
+    @Test
+    func `rejects expired or missing-expiry CLI credentials`() throws {
+        let now = Date()
+        for expiresAt: Any? in [now.addingTimeInterval(30).timeIntervalSince1970, nil, "not-a-time"] {
+            let home = try makeTemporaryKimiCodeHome()
+            defer { try? FileManager.default.removeItem(at: home) }
+            _ = try writeKimiCodeCredential(
+                home: home,
+                accessToken: "oauth",
+                expiresAt: expiresAt)
+            let environment = ["KIMI_CODE_HOME": home.path]
+
+            #expect(KimiSettingsReader.hasKimiCodeCredential(environment: environment))
+            #expect(KimiSettingsReader.kimiCodeAccessToken(environment: environment, now: now) == nil)
+        }
+    }
+
+    @Test
+    func `keeps explicit key separate and isolates CLI credential from endpoint overrides`() throws {
+        let home = try makeTemporaryKimiCodeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        _ = try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth",
+            expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970)
+
+        let explicit = ProviderTokenResolver.kimiAPIResolution(environment: [
+            "KIMI_CODE_API_KEY": "explicit",
+            "KIMI_CODE_HOME": home.path,
+        ])
+        #expect(explicit?.token == "explicit")
+        #expect(explicit?.source == .environment)
+        #expect(KimiSettingsReader.kimiCodeAccessToken(environment: [
+            "KIMI_CODE_API_KEY": "explicit",
+            "KIMI_CODE_HOME": home.path,
+        ]) == "oauth")
+
+        for key in ["KIMI_CODE_BASE_URL", "KIMI_CODE_OAUTH_HOST", "KIMI_OAUTH_HOST"] {
+            let environment = [
+                "KIMI_CODE_HOME": home.path,
+                key: "https://proxy.example.com",
+            ]
+            #expect(KimiSettingsReader.hasKimiCodeCredential(environment: environment) == false)
+            #expect(ProviderTokenResolver.kimiAPIResolution(environment: environment) == nil)
+        }
     }
 
     @Test
@@ -140,6 +283,86 @@ struct KimiSettingsReaderTests {
 }
 
 struct KimiAPIFetchStrategyTests {
+    @Test
+    func `auto mode accepts CLI credential and reports expired remediation`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        _ = try writeKimiCodeCredential(
+            home: home,
+            accessToken: "expired",
+            expiresAt: Date().addingTimeInterval(-60).timeIntervalSince1970)
+        let strategy = KimiCLICredentialFetchStrategy()
+        let context = makeKimiFetchContext(
+            sourceMode: .auto,
+            environment: ["KIMI_CODE_HOME": home.path])
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(throws: KimiAPIError.expiredCodeCredential) {
+            try await strategy.fetch(context)
+        }
+        #expect(strategy.shouldFallback(on: KimiAPIError.expiredCodeCredential, context: context))
+    }
+
+    @Test
+    func `explicit API mode ignores fresh CLI credential`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        _ = try writeKimiCodeCredential(
+            home: home,
+            accessToken: "oauth",
+            expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970)
+        let strategy = KimiAPIFetchStrategy()
+        let context = makeKimiFetchContext(
+            sourceMode: .api,
+            environment: ["KIMI_CODE_HOME": home.path])
+
+        await #expect(throws: KimiAPIError.missingAPIKey) {
+            try await strategy.fetch(context)
+        }
+    }
+
+    @Test
+    func `rejected CLI credential keeps CLI remediation`() {
+        let cliError = KimiCLICredentialFetchStrategy.normalizedCodeAPIError(KimiAPIError.invalidAPIKey)
+        let keyError = KimiCLICredentialFetchStrategy.normalizedCodeAPIError(KimiAPIError.apiError("failed"))
+
+        #expect(cliError as? KimiAPIError == .invalidCodeCredential)
+        #expect(keyError as? KimiAPIError == .apiError("failed"))
+    }
+
+    @Test
+    func `auto retries fresh CLI credential after rejected API key`() async throws {
+        let home = try makeTemporaryKimiCodeHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        _ = try writeKimiCodeCredential(
+            home: home,
+            accessToken: "cli-ok",
+            expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970)
+        let transport = KimiOrderedCredentialTransport()
+        let pipeline = ProviderFetchPipeline { _ in
+            [
+                KimiAPIFetchStrategy(transport: transport),
+                KimiCLICredentialFetchStrategy(transport: transport),
+            ]
+        }
+        let context = makeKimiFetchContext(
+            sourceMode: .auto,
+            environment: [
+                "KIMI_CODE_API_KEY": "api-bad",
+                "KIMI_CODE_HOME": home.path,
+            ])
+
+        let outcome = await pipeline.fetch(context: context, provider: .kimi)
+        let result = try outcome.result.get()
+
+        #expect(result.sourceLabel == "Kimi Code CLI")
+        #expect(outcome.attempts.map(\.strategyID) == ["kimi.api", "kimi.cli"])
+        #expect(await transport.authorizationHeaders() == [
+            "Bearer api-bad",
+            "Bearer cli-ok",
+        ])
+    }
+
     @Test
     func `auto mode falls back from invalid API key to web cookies`() {
         let strategy = KimiAPIFetchStrategy()
@@ -331,6 +554,43 @@ struct KimiUsageResponseParsingTests {
         #expect(abs((usage.secondary?.usedPercent ?? -1) - 9.5) < 0.001)
         #expect(usage.secondary?.windowMinutes == 300)
         #expect(usage.secondary?.resetDescription == "Rate: 19/200 per 5 hours")
+    }
+
+    @Test
+    func `sends CLI identity headers on the existing usage request`() async throws {
+        let baseURL = try #require(URL(string: "https://api.kimi.com"))
+        let identityHeaders = [
+            "User-Agent": "CodexBar/test",
+            "X-Msh-Platform": "kimi_code_cli",
+            "X-Msh-Device-Id": "test-device-id",
+        ]
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.url?.path == "/coding/v1/usages")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer oauth-token")
+            for (name, value) in identityHeaders {
+                #expect(request.value(forHTTPHeaderField: name) == value)
+            }
+            let response = try #require(HTTPURLResponse(
+                url: request.url ?? baseURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            let data = Data("""
+            {
+              "usage": {"limit": "100", "used": "25", "remaining": "75"},
+              "limits": []
+            }
+            """.utf8)
+            return (data, response)
+        }
+
+        let snapshot = try await KimiUsageFetcher.fetchCodeAPIUsage(
+            apiKey: "oauth-token",
+            baseURL: baseURL,
+            identityHeaders: identityHeaders,
+            transport: transport)
+
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 25)
     }
 
     @Test
@@ -927,6 +1187,8 @@ struct KimiAPIErrorTests {
         #expect(KimiAPIError.invalidToken.errorDescription?.contains("invalid") == true)
         #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("Settings > Providers > Kimi") == true)
         #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("KIMI_CODE_API_KEY") == true)
+        #expect(KimiAPIError.expiredCodeCredential.errorDescription?.contains("does not refresh") == true)
+        #expect(KimiAPIError.invalidCodeCredential.errorDescription?.contains("Sign in again") == true)
         #expect(KimiAPIError.invalidAPIKey.errorDescription?.contains("API key") == true)
         #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)
         #expect(KimiAPIError.networkError("Timeout").errorDescription?.contains("Timeout") == true)

@@ -438,6 +438,7 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .kimi,
             environment: ["KIMI_CODE_API_KEY": "kimi-test"]))
+        try self.assertKimiCodeCredentialSourceMode(in: directory)
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .mimo,
@@ -454,6 +455,24 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .mimo,
             environment: ["MIMO_LOCAL_USAGE_PATH": directory.appendingPathComponent("missing.json").path]))
+    }
+
+    private func assertKimiCodeCredentialSourceMode(in directory: URL) throws {
+        let home = directory.appendingPathComponent("kimi-code", isDirectory: true)
+        let credentials = home.appendingPathComponent("credentials", isDirectory: true)
+        try FileManager.default.createDirectory(at: credentials, withIntermediateDirectories: true)
+        let payload: [String: Any] = [
+            "access_token": "expired",
+            "refresh_token": "refresh",
+            "expires_at": Date().addingTimeInterval(-60).timeIntervalSince1970,
+        ]
+        try JSONSerialization.data(withJSONObject: payload)
+            .write(to: credentials.appendingPathComponent("kimi-code.json"))
+
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .kimi,
+            environment: ["KIMI_CODE_HOME": home.path]))
     }
 
     func test_sourceModeRequiresWebSupportAllowsFactoryAPIKeyOnLinuxGate() {

@@ -75,7 +75,8 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "kimi-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses the Kimi Code API key first, then falls back to browser cookies.",
+                subtitle: "Auto tries your configured API key, then a signed-in Kimi Code CLI credential, " +
+                    "then browser cookies.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
