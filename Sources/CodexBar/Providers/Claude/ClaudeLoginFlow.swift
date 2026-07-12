@@ -5,12 +5,6 @@ typealias ClaudeLoginFlowRunner = (
     _ timeout: TimeInterval,
     _ onPhaseChange: @escaping @Sendable (ClaudeLoginRunner.Phase) -> Void) async -> ClaudeLoginRunner.Result
 
-enum ClaudeLoginFlowPolicy {
-    static func usageDataSourceAfterSuccessfulLogin(previous: ClaudeUsageDataSource) -> ClaudeUsageDataSource {
-        previous
-    }
-}
-
 @MainActor
 extension StatusItemController {
     func runClaudeLoginFlow() async -> Bool {
@@ -39,8 +33,6 @@ extension StatusItemController {
         if case .success = result.outcome {
             let metadata = self.store.metadata(for: .claude)
             self.settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
-            self.settings.claudeUsageDataSource = ClaudeLoginFlowPolicy.usageDataSourceAfterSuccessfulLogin(
-                previous: self.settings.claudeUsageDataSource)
             self.postLoginNotification(for: .claude)
             return true
         }

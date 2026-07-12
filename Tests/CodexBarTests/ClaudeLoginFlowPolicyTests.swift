@@ -4,14 +4,7 @@ import Testing
 
 @MainActor
 @Suite(.serialized)
-struct ClaudeLoginFlowPolicyTests {
-    @Test
-    func `successful Claude login preserves selected source so auto fallback remains available`() {
-        for source in ClaudeUsageDataSource.allCases {
-            #expect(ClaudeLoginFlowPolicy.usageDataSourceAfterSuccessfulLogin(previous: source) == source)
-        }
-    }
-
+struct ClaudeLoginFlowTests {
     @Test
     func `successful Claude login controller flow preserves selected source and enables provider`() async throws {
         let registry = ProviderRegistry.shared
@@ -19,7 +12,7 @@ struct ClaudeLoginFlowPolicyTests {
 
         for source in ClaudeUsageDataSource.allCases {
             let settings = testSettingsStore(
-                suiteName: "ClaudeLoginFlowPolicyTests-controller-\(source.rawValue)")
+                suiteName: "ClaudeLoginFlowTests-controller-\(source.rawValue)")
             settings.statusChecksEnabled = false
             settings.refreshFrequency = .manual
             settings.providerDetectionCompleted = true
