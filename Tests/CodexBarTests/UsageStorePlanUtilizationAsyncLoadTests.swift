@@ -36,6 +36,33 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
 
     @MainActor
     @Test
+    func `testing startup without an explicit gate skips background load`() {
+        let suiteName = "UsageStorePlanUtilizationAsyncLoad-testing-\(UUID().uuidString)"
+        let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
+        historyStore.save([.codex: PlanUtilizationHistoryBuckets(
+            preferredAccountKey: nil,
+            unscoped: [planSeries(
+                name: .session,
+                windowMinutes: 300,
+                entries: [planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 42)])],
+            accounts: [:])])
+        let settings = Self.makeSettings(suiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            planUtilizationHistoryStore: historyStore,
+            startupBehavior: .testing)
+
+        #expect(store.planUtilizationHistoryLoadTask == nil)
+        #expect(store.planUtilizationHistoryLoaded)
+        #expect(store.planUtilizationHistory.isEmpty)
+    }
+
+    @MainActor
+    @Test
     func `init returns before disk load completes`() {
         let suiteName = "UsageStorePlanUtilizationAsyncLoad-init-\(UUID().uuidString)"
         let gate = PlanUtilizationHistoryLoadGate()
@@ -222,6 +249,79 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
         #expect(store.planUtilizationHistory[.codex]?.accounts[accountKey]?.count == 2)
         #expect(store.planUtilizationHistory[.claude]?.accounts[accountKey]?.count == 2)
         #expect(store.planUtilizationHistory[.codex]?.preferredAccountKey == accountKey)
+    }
+
+    @MainActor
+    @Test
+    func `record waits for disk load then merges and persists history`() async {
+        let suiteName = "UsageStorePlanUtilizationAsyncLoad-record-\(UUID().uuidString)"
+        let gate = PlanUtilizationHistoryLoadGate()
+        let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
+        let oldCapture = Date(timeIntervalSince1970: 1_700_000_000)
+        let newCapture = oldCapture.addingTimeInterval(3700)
+        historyStore.save([.claude: PlanUtilizationHistoryBuckets(
+            preferredAccountKey: nil,
+            unscoped: [planSeries(
+                name: .session,
+                windowMinutes: 300,
+                entries: [planEntry(at: oldCapture, usedPercent: 20)])],
+            accounts: [:])])
+        let settings = Self.makeSettings(suiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            planUtilizationHistoryStore: historyStore,
+            startupBehavior: .testing,
+            planUtilizationHistoryLoadGateForTesting: gate)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 42,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: newCapture,
+            identity: nil)
+
+        var recordStarted = false
+        var recordCompleted = false
+        let recordTask = Task { @MainActor in
+            recordStarted = true
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: snapshot,
+                now: newCapture)
+            recordCompleted = true
+        }
+        for _ in 0..<1000 where !recordStarted {
+            await Task.yield()
+        }
+        #expect(recordStarted)
+        #expect(!recordCompleted)
+        #expect(store.planUtilizationHistory.isEmpty)
+
+        gate.open()
+        await store._waitForPlanUtilizationHistoryLoadForTesting()
+        await recordTask.value
+
+        let inMemory = findSeries(
+            store.planUtilizationHistory[.claude]?.unscoped ?? [],
+            name: .session,
+            windowMinutes: 300)
+        var persisted: PlanUtilizationSeriesHistory?
+        for _ in 0..<100 {
+            persisted = findSeries(
+                historyStore.load()[.claude]?.unscoped ?? [],
+                name: .session,
+                windowMinutes: 300)
+            if persisted == inMemory { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(inMemory?.entries.map(\.capturedAt) == [oldCapture, newCapture])
+        #expect(inMemory?.entries.map(\.usedPercent) == [20, 42])
+        #expect(persisted == inMemory)
     }
 
     @MainActor
