@@ -419,10 +419,16 @@ final class UsageStore {
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
         self.planUtilizationHistory = [:]
-        self.planUtilizationHistoryLoadTask = Self.makePlanUtilizationHistoryLoadTask(
-            owner: self,
-            store: planUtilizationHistoryStore,
-            gate: planUtilizationHistoryLoadGateForTesting)
+        if self.startupBehavior.automaticallyStartsBackgroundWork || planUtilizationHistoryLoadGateForTesting != nil {
+            self.planUtilizationHistoryLoadTask = Self.makePlanUtilizationHistoryLoadTask(
+                owner: self,
+                store: planUtilizationHistoryStore,
+                gate: planUtilizationHistoryLoadGateForTesting)
+        } else {
+            // `.testing` disables automatic startup work. Focused async-load
+            // tests opt back in by supplying the gate above.
+            self.planUtilizationHistoryLoaded = true
+        }
         self.sessionLimitResetDetectorStates = Self.loadLimitResetDetectorStates(
             from: settings.userDefaults,
             defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,

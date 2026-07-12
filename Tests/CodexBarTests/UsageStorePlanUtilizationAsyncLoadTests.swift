@@ -17,6 +17,33 @@ import Testing
 struct UsageStorePlanUtilizationAsyncLoadTests {
     @MainActor
     @Test
+    func `testing startup without an explicit gate skips background load`() {
+        let suiteName = "UsageStorePlanUtilizationAsyncLoad-testing-\(UUID().uuidString)"
+        let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
+        historyStore.save([.codex: PlanUtilizationHistoryBuckets(
+            preferredAccountKey: nil,
+            unscoped: [planSeries(
+                name: .session,
+                windowMinutes: 300,
+                entries: [planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 42)])],
+            accounts: [:])])
+        let settings = Self.makeSettings(suiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            planUtilizationHistoryStore: historyStore,
+            startupBehavior: .testing)
+
+        #expect(store.planUtilizationHistoryLoadTask == nil)
+        #expect(store.planUtilizationHistoryLoaded)
+        #expect(store.planUtilizationHistory.isEmpty)
+    }
+
+    @MainActor
+    @Test
     func `init returns before disk load completes`() {
         let suiteName = "UsageStorePlanUtilizationAsyncLoad-init-\(UUID().uuidString)"
         let gate = PlanUtilizationHistoryLoadGate()
