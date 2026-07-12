@@ -127,16 +127,6 @@ struct PlanUtilizationHistoryStore: Sendable {
         self.loadProviderFiles()
     }
 
-    /// Loads the persisted histories on a utility-priority detached task.
-    ///
-    /// The on-disk decode is synchronous I/O + JSON parsing that can take
-    /// ~150 ms for mature two-year histories and must not run on the app
-    /// startup main thread. The returned dictionary is safe to apply on the
-    /// main actor once decoding completes.
-    func loadAsync() async -> [UsageProvider: PlanUtilizationHistoryBuckets] {
-        await Task.detached(priority: .utility) { self.load() }.value
-    }
-
     func save(_ providers: [UsageProvider: PlanUtilizationHistoryBuckets]) {
         guard let directoryURL = self.directoryURL else { return }
         do {
@@ -286,7 +276,7 @@ extension ProviderHistoryDocument {
 /// that the history is applied exactly once after the gate opens.
 final class PlanUtilizationHistoryLoadGate: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuations: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
     private var _isOpen: Bool = false
 
     init() {}
@@ -297,43 +287,49 @@ final class PlanUtilizationHistoryLoadGate: @unchecked Sendable {
         return self._isOpen
     }
 
-    func wait() async {
-        await withCheckedContinuation { continuation in
-            self.lock.lock()
-            if self._isOpen {
-                self.lock.unlock()
-                continuation.resume()
-                return
+    /// Returns `true` when the gate opens and `false` when the waiting task is
+    /// cancelled. Cancellation removes and resumes only this task's waiter, so
+    /// a cancelled startup load cannot remain suspended or proceed to disk I/O.
+    func wait() async -> Bool {
+        let waiterID = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                self.lock.lock()
+                if self._isOpen {
+                    self.lock.unlock()
+                    continuation.resume(returning: true)
+                } else if Task.isCancelled {
+                    self.lock.unlock()
+                    continuation.resume(returning: false)
+                } else {
+                    self.waiters[waiterID] = continuation
+                    self.lock.unlock()
+                }
             }
-            self.continuations.append(continuation)
+        } onCancel: {
+            self.lock.lock()
+            let continuation = self.waiters.removeValue(forKey: waiterID)
             self.lock.unlock()
+            continuation?.resume(returning: false)
         }
     }
 
     func open() {
         self.lock.lock()
         self._isOpen = true
-        let pending = self.continuations
-        self.continuations.removeAll()
+        let pending = Array(self.waiters.values)
+        self.waiters.removeAll()
         self.lock.unlock()
         for continuation in pending {
-            continuation.resume()
+            continuation.resume(returning: true)
         }
     }
 
-    /// Resumes every pending waiter without marking the gate as open. Use this
-    /// to release a waiter that is being cancelled so its `withCheckedContinuation`
-    /// does not leak the suspended task, continuation, and the gate itself.
-    /// Pending waiters resume as if `open()` had been called; subsequent
-    /// `wait()` calls still observe the gate as closed, so a test that calls
-    /// `cancelAll()` and then `open()` gets the natural reopen semantics.
-    func cancelAll() {
+    #if DEBUG
+    var pendingWaiterCount: Int {
         self.lock.lock()
-        let pending = self.continuations
-        self.continuations.removeAll()
-        self.lock.unlock()
-        for continuation in pending {
-            continuation.resume()
-        }
+        defer { self.lock.unlock() }
+        return self.waiters.count
     }
+    #endif
 }

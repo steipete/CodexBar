@@ -142,9 +142,9 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
         let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
         // Write a file that does not parse as the expected schema.
         let directoryURL = try #require(historyStore.directoryURL)
-        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let badURL = directoryURL.appendingPathComponent("codex.json")
-        try? Data("{not valid json".utf8).write(to: badURL)
+        try Data("{not valid json".utf8).write(to: badURL)
         let settings = Self.makeSettings(suiteName: suiteName)
         defer { UserDefaults().removePersistentDomain(forName: suiteName) }
         _ = settings
@@ -207,25 +207,21 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
 
     @MainActor
     @Test
-    func `init work is independent of history size`() throws {
-        // With a closed load gate, UsageStore.init must return even when the
-        // persisted history would dominate startup time at production scale.
-        // The closed gate decouples the assertion from wall-clock variance;
-        // we verify the init returned before the load completed, not the
-        // decode duration itself.
-        let suiteName = "UsageStorePlanUtilizationAsyncLoad-perf-\(UUID().uuidString)"
+    func `record waits for disk load then merges and persists history`() async {
+        let suiteName = "UsageStorePlanUtilizationAsyncLoad-record-\(UUID().uuidString)"
         let gate = PlanUtilizationHistoryLoadGate()
         let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
-        // Write a multi-megabyte synthetic payload so a real load would block.
-        let directoryURL = try #require(historyStore.directoryURL)
-        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let bigURL = directoryURL.appendingPathComponent("codex.json")
-        let payload = Self.makeSyntheticHistoryPayload(entriesPerProvider: 50000)
-        try? payload.write(to: bigURL)
+        let oldCapture = Date(timeIntervalSince1970: 1_700_000_000)
+        let newCapture = oldCapture.addingTimeInterval(3700)
+        historyStore.save([.claude: PlanUtilizationHistoryBuckets(
+            preferredAccountKey: nil,
+            unscoped: [planSeries(
+                name: .session,
+                windowMinutes: 300,
+                entries: [planEntry(at: oldCapture, usedPercent: 20)])],
+            accounts: [:])])
         let settings = Self.makeSettings(suiteName: suiteName)
         defer { UserDefaults().removePersistentDomain(forName: suiteName) }
-        _ = settings
-
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -233,62 +229,59 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
             planUtilizationHistoryStore: historyStore,
             startupBehavior: .testing,
             planUtilizationHistoryLoadGateForTesting: gate)
-        defer { store._cancelPlanUtilizationHistoryLoadForTesting() }
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 42,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: newCapture,
+            identity: nil)
 
-        // Init returned without waiting on the disk load.
-        #expect(store.planUtilizationHistoryLoaded == false)
-        #expect(gate.isOpen == false)
+        for _ in 0..<1000 where gate.pendingWaiterCount == 0 {
+            await Task.yield()
+        }
+        #expect(gate.pendingWaiterCount == 1)
+
+        var recordStarted = false
+        var recordCompleted = false
+        let recordTask = Task { @MainActor in
+            recordStarted = true
+            await store.recordPlanUtilizationHistorySample(
+                provider: .claude,
+                snapshot: snapshot,
+                now: newCapture)
+            recordCompleted = true
+        }
+        for _ in 0..<1000 where !recordStarted {
+            await Task.yield()
+        }
+        #expect(recordStarted)
+        #expect(!recordCompleted)
+        #expect(store.planUtilizationHistory.isEmpty)
+
+        gate.open()
+        await store._waitForPlanUtilizationHistoryLoadForTesting()
+        await recordTask.value
+        await store._waitForPlanUtilizationHistoryPersistenceForTesting()
+
+        let inMemory = findSeries(
+            store.planUtilizationHistory[.claude]?.unscoped ?? [],
+            name: .session,
+            windowMinutes: 300)
+        let persisted = findSeries(
+            historyStore.load()[.claude]?.unscoped ?? [],
+            name: .session,
+            windowMinutes: 300)
+        #expect(inMemory?.entries.map(\.capturedAt) == [oldCapture, newCapture])
+        #expect(inMemory?.entries.map(\.usedPercent) == [20, 42])
+        #expect(persisted == inMemory)
     }
 
     @MainActor
     @Test
-    func `init returns within a startup budget even with a multi-megabyte fixture`() throws {
-        // Belt-and-suspenders timing proof for the audit's "Release benchmark"
-        // claim: the audit measured ~150 ms of main-thread decode before this
-        // PR. With the load moved off the main thread, init must not spend
-        // that time even when the persisted fixture is multi-megabyte.
-        let suiteName = "UsageStorePlanUtilizationAsyncLoad-budget-\(UUID().uuidString)"
-        let gate = PlanUtilizationHistoryLoadGate()
-        let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
-        let directoryURL = try #require(historyStore.directoryURL)
-        try? FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        // ~6 MB of synthetic payload — comparable to the audit's mature fixture.
-        let bigURL = directoryURL.appendingPathComponent("codex.json")
-        try Data(repeating: 0x20, count: 6 * 1024 * 1024).write(to: bigURL)
-        let settings = Self.makeSettings(suiteName: suiteName)
-        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
-        _ = settings
-
-        // Warm up Task scheduling so the first call does not pay for cold-start.
-        _ = Task<Void, Never> {}
-
-        let start = DispatchTime.now()
-        let store = UsageStore(
-            fetcher: UsageFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings,
-            planUtilizationHistoryStore: historyStore,
-            startupBehavior: .testing,
-            planUtilizationHistoryLoadGateForTesting: gate)
-        let initNanos = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
-        defer { store._cancelPlanUtilizationHistoryLoadForTesting() }
-
-        // Init must return long before the audit's measured ~150 ms baseline.
-        // Allow 50 ms as a generous wall-clock budget that absorbs CI noise
-        // without giving back the synchronous main-thread decode.
-        #expect(initNanos < 50_000_000)
-        #expect(store.planUtilizationHistoryLoaded == false)
-        #expect(gate.isOpen == false)
-    }
-
-    @MainActor
-    @Test
-    func `cancel during load releases the gate and drains the continuation`() async throws {
-        // The bot flagged that cancelling the load task without draining the
-        // gate would leak the suspended continuation, captured store, and
-        // the gate itself across test runs. This test cancels a still-gated
-        // load and asserts the gate's pending waiter count goes to zero so
-        // the continuation cannot outlive the load task.
+    func `cancel during load drains the exact gate waiter`() async {
         let suiteName = "UsageStorePlanUtilizationAsyncLoad-cancel-\(UUID().uuidString)"
         let gate = PlanUtilizationHistoryLoadGate()
         let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
@@ -303,18 +296,18 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
             startupBehavior: .testing,
             planUtilizationHistoryLoadGateForTesting: gate)
 
-        // Spin briefly so the detached task reaches `gate.wait()` and the
-        // continuation is registered before we cancel.
-        for _ in 0..<50 where store.planUtilizationHistoryLoadTask == nil {
+        for _ in 0..<1000 where gate.pendingWaiterCount == 0 {
             await Task.yield()
         }
-        try await Task.sleep(nanoseconds: 20_000_000)
+        #expect(gate.pendingWaiterCount == 1)
 
         store._cancelPlanUtilizationHistoryLoadForTesting()
-        // After cancel, the gate must be drained. Re-opening should not leak
-        // an extra waiter (no panic, no second resume).
-        gate.open()
-        #expect(gate.isOpen == true)
+        await store._waitForPlanUtilizationHistoryLoadForTesting()
+
+        #expect(gate.pendingWaiterCount == 0)
+        #expect(!gate.isOpen)
+        #expect(store.planUtilizationHistory.isEmpty)
+        #expect(store.planUtilizationHistoryRevision == 0)
     }
 
     // MARK: - Helpers
@@ -327,18 +320,5 @@ struct UsageStorePlanUtilizationAsyncLoadTests {
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suiteName),
             tokenAccountStore: InMemoryTokenAccountStore())
-    }
-
-    private static func makeSyntheticHistoryPayload(entriesPerProvider: Int) -> Data {
-        // A non-decodable but valid JSON shape keeps the test independent of
-        // the schema version while still forcing the JSON decoder to do real
-        // work when the load runs.
-        var entries: [String] = []
-        entries.reserveCapacity(entriesPerProvider)
-        for index in 0..<entriesPerProvider {
-            entries.append("{\"i\":\(index),\"p\":0.5,\"r\":\"2026-01-01T00:00:00Z\"}")
-        }
-        let body = "{\"v\":1,\"u\":[\(entries.joined(separator: ","))],\"a\":{}}"
-        return Data(body.utf8)
     }
 }

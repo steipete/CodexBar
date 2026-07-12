@@ -186,4 +186,43 @@ extension UsageStore {
     nonisolated static func tokenCostNoDataMessage(for provider: UsageProvider) -> String {
         ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.noDataMessage()
     }
+
+    func tokenRefreshPublicationIsCurrent(
+        provider: UsageProvider,
+        publicationRevision: ProviderPublicationRevision,
+        costScopeSignature: String) -> Bool
+    {
+        guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
+              self.settings.costUsageEnabled,
+              self.isEnabled(provider)
+        else {
+            return false
+        }
+        let scope = self.tokenCostScope(for: provider)
+        let currentSignature = "\(scope.signature)|historyDays=\(self.settings.costUsageHistoryDays)"
+        return currentSignature == costScopeSignature
+    }
+
+    func clearTokenFetchMetadataIfMatching(
+        provider: UsageProvider,
+        attemptedAt: Date,
+        costScopeSignature: String)
+    {
+        guard self.lastTokenFetchAt[provider] == attemptedAt,
+              self.lastTokenFetchScope[provider] == costScopeSignature
+        else {
+            return
+        }
+        self.lastTokenFetchAt.removeValue(forKey: provider)
+        self.lastTokenFetchScope.removeValue(forKey: provider)
+    }
+
+    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
+    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
+    nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
+        if case CostUsageError.timedOut = error {
+            return false
+        }
+        return true
+    }
 }

@@ -1632,42 +1632,6 @@ extension UsageStore {
     #endif
 }
 
-actor PlanUtilizationHistoryPersistenceCoordinator {
-    private let store: PlanUtilizationHistoryStore
-    private var pendingSnapshot: [UsageProvider: PlanUtilizationHistoryBuckets]?
-    private var isPersisting: Bool = false
-
-    init(store: PlanUtilizationHistoryStore) {
-        self.store = store
-    }
-
-    func enqueue(_ snapshot: [UsageProvider: PlanUtilizationHistoryBuckets]) {
-        self.pendingSnapshot = snapshot
-        guard !self.isPersisting else { return }
-        self.isPersisting = true
-
-        Task(priority: .utility) {
-            await self.persistLoop()
-        }
-    }
-
-    private func persistLoop() async {
-        while let nextSnapshot = self.pendingSnapshot {
-            self.pendingSnapshot = nil
-            await self.saveAsync(nextSnapshot)
-        }
-
-        self.isPersisting = false
-    }
-
-    private func saveAsync(_ snapshot: [UsageProvider: PlanUtilizationHistoryBuckets]) async {
-        let store = self.store
-        await Task.detached(priority: .utility) {
-            store.save(snapshot)
-        }.value
-    }
-}
-
 /// Prompt-free reader for the active Claude account UUID recorded in `~/.claude.json`. The `@TaskLocal` test
 /// seam lives here (not on `UsageStore`) because Swift forbids stored properties in extensions and task-local
 /// storage must be nonisolated, whereas `UsageStore` is `@MainActor`.

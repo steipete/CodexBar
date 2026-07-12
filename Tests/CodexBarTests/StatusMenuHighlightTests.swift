@@ -5,6 +5,12 @@ import Testing
 
 @MainActor
 extension StatusMenuTests {
+    private func makeHighlightStore(settings: SettingsStore) -> UsageStore {
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        return store
+    }
+
     final class HighlightProbeView: NSView, MenuCardHighlighting {
         private(set) var states: [Bool] = []
 
@@ -17,8 +23,7 @@ extension StatusMenuTests {
     func `menu highlight updates only previous and current custom rows`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -61,8 +66,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -134,8 +138,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -187,8 +190,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -259,8 +261,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -328,8 +329,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -394,8 +394,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -448,8 +447,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = true
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -518,8 +516,7 @@ extension StatusMenuTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
-        store._cancelPlanUtilizationHistoryLoadForTesting()
+        let store = self.makeHighlightStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,

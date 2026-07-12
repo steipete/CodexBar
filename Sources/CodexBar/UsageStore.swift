@@ -347,10 +347,15 @@ final class UsageStore {
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:] {
-        didSet { if !self.planUtilizationHistoryLoaded { self.planUtilizationHistoryLoaded = true } }
+        didSet {
+            if !self.planUtilizationHistoryLoaded {
+                self.planUtilizationHistoryLoaded = true
+            }
+        }
     }
 
-    /// Background load task; cleared on deinit and on the cancel test seam.
+    /// Directly owned utility worker for the one-shot persisted-history load.
+    /// Cancellation stops a gated worker before disk I/O and prevents publication.
     @ObservationIgnored var planUtilizationHistoryLoadTask: Task<Void, Never>?
     /// Set once after the load completes. Gates mutation paths and sync menu
     /// accessors so they cannot race the decode or write empty history back to disk.
@@ -414,20 +419,10 @@ final class UsageStore {
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
         self.planUtilizationHistory = [:]
-        self.planUtilizationHistoryLoadTask = Task { @MainActor [weak self] in
-            // Move persisted plan-utilization decode off the startup main thread.
-            // In-memory starts empty; mutation paths and sync menu accessors gate on
-            // `planUtilizationHistoryLoaded` until the load task publishes once.
-            let loaded = await withTaskCancellationHandler {
-                await Task.detached(priority: .utility) {
-                    await planUtilizationHistoryLoadGateForTesting?.wait()
-                    return planUtilizationHistoryStore.load()
-                }.value
-            } onCancel: { planUtilizationHistoryLoadGateForTesting?.cancelAll() }
-            guard let self, !self.planUtilizationHistoryLoaded else { return }
-            self.planUtilizationHistory = loaded
-            self.planUtilizationHistoryRevision &+= 1
-        }
+        self.planUtilizationHistoryLoadTask = Self.makePlanUtilizationHistoryLoadTask(
+            owner: self,
+            store: planUtilizationHistoryStore,
+            gate: planUtilizationHistoryLoadGateForTesting)
         self.sessionLimitResetDetectorStates = Self.loadLimitResetDetectorStates(
             from: settings.userDefaults,
             defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,
@@ -1625,45 +1620,6 @@ extension UsageStore {
                 self.tokenErrors[provider] = nil
             }
         }
-    }
-
-    private func tokenRefreshPublicationIsCurrent(
-        provider: UsageProvider,
-        publicationRevision: ProviderPublicationRevision,
-        costScopeSignature: String) -> Bool
-    {
-        guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
-              self.settings.costUsageEnabled,
-              self.isEnabled(provider)
-        else {
-            return false
-        }
-        let scope = self.tokenCostScope(for: provider)
-        let currentSignature = "\(scope.signature)|historyDays=\(self.settings.costUsageHistoryDays)"
-        return currentSignature == costScopeSignature
-    }
-
-    private func clearTokenFetchMetadataIfMatching(
-        provider: UsageProvider,
-        attemptedAt: Date,
-        costScopeSignature: String)
-    {
-        guard self.lastTokenFetchAt[provider] == attemptedAt,
-              self.lastTokenFetchScope[provider] == costScopeSignature
-        else {
-            return
-        }
-        self.lastTokenFetchAt.removeValue(forKey: provider)
-        self.lastTokenFetchScope.removeValue(forKey: provider)
-    }
-
-    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
-    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
-    nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
-        if case CostUsageError.timedOut = error {
-            return false
-        }
-        return true
     }
 }
 

@@ -94,7 +94,9 @@ struct ConsecutiveFailureGate {
     /// Returns true when the caller should surface the error to the UI.
     mutating func shouldSurfaceError(onFailureWithPriorData hadPriorData: Bool) -> Bool {
         self.streak += 1
-        if hadPriorData, self.streak == 1 { return false }
+        if hadPriorData, self.streak == 1 {
+            return false
+        }
         return true
     }
 }
@@ -136,16 +138,16 @@ extension UsageStore {
     /// intentionally seed history from scratch.
     func _cancelPlanUtilizationHistoryLoadForTesting() {
         self.planUtilizationHistoryLoadTask?.cancel()
-        self.planUtilizationHistoryLoadTask = nil
         self.planUtilizationHistoryLoaded = true
     }
 
-    /// Awaits the background plan-utilization load task to completion. Used
-    /// by tests that write history files to disk before constructing
-    /// `UsageStore` and then expect the dictionary to be populated by the
-    /// time assertions run.
+    /// Awaits the actual utility worker so tests can prove cancellation drains.
     func _waitForPlanUtilizationHistoryLoadForTesting() async {
         await self.planUtilizationHistoryLoadTask?.value
+    }
+
+    func _waitForPlanUtilizationHistoryPersistenceForTesting() async {
+        await self.planUtilizationPersistenceCoordinator.waitForIdleForTesting()
     }
 }
 #endif
