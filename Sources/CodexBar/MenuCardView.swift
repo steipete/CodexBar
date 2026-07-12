@@ -334,7 +334,10 @@ private struct UsageMenuCardHeaderView: View {
                 Spacer()
                 if usesErrorLayout {
                     let showsCopyButton = liveSubtitle.style == .error && !liveSubtitle.text.isEmpty
-                    CopyIconButton(copyText: liveSubtitle.text, isHighlighted: self.isHighlighted)
+                    CopyIconButton(
+                        copyText: liveSubtitle.text,
+                        isHighlighted: self.isHighlighted,
+                        isInteractive: showsCopyButton)
                         .opacity(showsCopyButton ? 1 : 0)
                         .allowsHitTesting(showsCopyButton)
                         .accessibilityHidden(!showsCopyButton)
@@ -346,6 +349,7 @@ private struct UsageMenuCardHeaderView: View {
                                 Text(plan)
                             }
                             .buttonStyle(.plain)
+                            .menuCardInteractiveControl()
                             .accessibilityLabel(plan)
                         } else {
                             Text(plan)
@@ -392,6 +396,7 @@ private struct CopyIconButtonStyle: ButtonStyle {
 private struct CopyIconButton: View {
     let copyText: String
     let isHighlighted: Bool
+    let isInteractive: Bool
 
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
@@ -406,6 +411,7 @@ private struct CopyIconButton: View {
                 .frame(width: 18, height: 18)
         }
         .buttonStyle(CopyIconButtonStyle(isHighlighted: self.isHighlighted))
+        .menuCardInteractiveControl(isEnabled: self.isInteractive)
         .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy error"))
     }
 

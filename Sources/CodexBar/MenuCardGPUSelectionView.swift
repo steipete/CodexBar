@@ -24,6 +24,8 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     private var tintFilter: CIFilter?
     private var isRowHighlighted = false
     private var onClick: (() -> Void)?
+    private let containsInteractiveControls: Bool
+    private let interactiveRegionStore: MenuCardInteractiveRegionStore?
     private var isPressed = false
 
     private(set) var allowsMenuHighlight: Bool
@@ -52,10 +54,14 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     init(
         rootView: MenuCardSectionContainerView<Content>,
         allowsMenuHighlight: Bool,
+        containsInteractiveControls: Bool = false,
+        interactiveRegionStore: MenuCardInteractiveRegionStore? = nil,
         onClick: (() -> Void)?)
     {
         self.hosting = NSHostingView(rootView: rootView)
         self.allowsMenuHighlight = allowsMenuHighlight
+        self.containsInteractiveControls = containsInteractiveControls
+        self.interactiveRegionStore = interactiveRegionStore
         self.onClick = onClick
         self.tintFilter = nil
         super.init(frame: .zero)
@@ -110,11 +116,23 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
                 }
                 current = view.superview
             }
+            if self.hitsHostedInteractiveControl(at: point) {
+                return descendant
+            }
             if descendant !== self, self.onClick != nil {
                 return self
             }
         }
         return descendant
+    }
+
+    private func hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
+        guard self.containsInteractiveControls else { return false }
+        let hostedPoint = self.hosting.convert(point, from: self)
+        return self.interactiveRegionStore?.contains(
+            hostedPoint,
+            hostingBounds: self.hosting.bounds,
+            fittedSize: self.hosting.fittingSize) == true
     }
 
     private func locationInView(for event: NSEvent) -> NSPoint {
@@ -248,6 +266,10 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
 
 #if DEBUG
 extension GPUSelectionHostingView {
+    func _test_hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
+        self.hitsHostedInteractiveControl(at: point)
+    }
+
     func _test_simulateRuntimeClick() -> Bool {
         guard self.onClick != nil else { return false }
 
