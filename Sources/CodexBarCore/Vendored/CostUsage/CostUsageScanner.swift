@@ -1947,6 +1947,11 @@ enum CostUsageScanner {
                 // diverges from it. Counting `last` again would inflate usage without advancing
                 // the authoritative cumulative counter.
                 if Self.codexTotalsEqual(adjustedTotal, tracker.watermark) {
+                    if hasUnresolvedForkBaseline, unresolvedForkTotalWatermark == nil {
+                        unresolvedForkTotalWatermark = total
+                    } else if forkedFromId != nil, !hasUnresolvedForkBaseline {
+                        remainingInheritedTotals = nil
+                    }
                     return
                 }
                 tracker.latchIfBelowWatermark(adjustedTotal)

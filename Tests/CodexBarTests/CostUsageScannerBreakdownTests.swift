@@ -3979,6 +3979,54 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex resolved fork equal total clears inherited last-only remainder`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.4"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(iso0)-resolved-mixed-child.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": iso0,
+                    "payload": [
+                        "id": "child-session",
+                        "forked_from_id": "parent-session",
+                        "timestamp": iso0,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    last: (input: 50, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 100, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    last: (input: 10, cached: 0, output: 0)),
+            ]))
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { _, _ in
+                .resolved(.init(input: 100, cached: 0, output: 0))
+            })
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.4"] ?? []
+
+        #expect(packed[safe: 0] == 10)
+        #expect(parsed.rows.count == 1)
+    }
+
+    @Test
     func `codex fork skips last usage when parent baseline is unresolved`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -4080,6 +4128,53 @@ struct CostUsageScannerBreakdownTests {
         #expect(packed[0] == 30)
         #expect(packed[1] == 7)
         #expect(packed[2] == 8)
+        #expect(parsed.rows.count == 2)
+    }
+
+    @Test
+    func `codex unresolved fork equal first total initializes replay baseline`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.4"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(iso0)-unresolved-mixed-child.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": iso0,
+                    "payload": [
+                        "id": "child-session",
+                        "forked_from_id": "missing-parent",
+                        "timestamp": iso0,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    last: (input: 50, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 50, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 80, cached: 0, output: 0),
+                    last: (input: 30, cached: 0, output: 0)),
+            ]))
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { _, _ in .unresolved })
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.4"] ?? []
+
+        #expect(packed[safe: 0] == 80)
         #expect(parsed.rows.count == 2)
     }
 
