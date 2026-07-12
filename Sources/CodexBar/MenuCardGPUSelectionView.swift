@@ -24,6 +24,7 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     private var tintFilter: CIFilter?
     private var isRowHighlighted = false
     private var onClick: (() -> Void)?
+    private var isPressed = false
 
     private(set) var allowsMenuHighlight: Bool
 
@@ -62,9 +63,6 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         self.refreshTintFilter()
         self.setupSelectionView()
         self.setupHosting()
-        if onClick != nil {
-            self.installClickRecognizer()
-        }
     }
 
     @available(*, unavailable)
@@ -100,6 +98,53 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         }
         onClick()
         return true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if let descendant {
+            var current: NSView? = descendant
+            while let view = current, view !== self {
+                if view is NSButton || view is NSControl {
+                    return descendant
+                }
+                current = view.superview
+            }
+            if descendant !== self, self.onClick != nil {
+                return self
+            }
+        }
+        return descendant
+    }
+
+    private func locationInView(for event: NSEvent) -> NSPoint {
+        guard self.window != nil else {
+            return event.locationInWindow
+        }
+        return self.convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown, self.onClick != nil else {
+            super.mouseDown(with: event)
+            return
+        }
+        let localPoint = self.locationInView(for: event)
+        if self.bounds.contains(localPoint) {
+            self.isPressed = true
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard event.type == .leftMouseUp, self.onClick != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        defer { self.isPressed = false }
+        let localPoint = self.locationInView(for: event)
+        if self.isPressed, self.bounds.contains(localPoint) {
+            self.onClick?()
+        }
     }
 
     override func layout() {
@@ -172,17 +217,6 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         self.addSubview(self.hosting)
     }
 
-    private func installClickRecognizer() {
-        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
-        recognizer.buttonMask = 0x1
-        self.addGestureRecognizer(recognizer)
-    }
-
-    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
-        guard recognizer.state == .ended else { return }
-        self.onClick?()
-    }
-
     /// Maps every pixel's RGB to the system selected-menu-item text color while preserving alpha,
     /// reproducing the appearance the SwiftUI rows already adopt when highlighted. The bias is read
     /// from `NSColor.selectedMenuItemTextColor` rather than hard-coded to white so graphite/
@@ -211,3 +245,39 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         return filter
     }
 }
+
+#if DEBUG
+extension GPUSelectionHostingView {
+    func _test_simulateRuntimeClick() -> Bool {
+        guard self.onClick != nil else { return false }
+
+        let centerLocal = NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+
+        let eventDown = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: centerLocal,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1.0)!
+        self.mouseDown(with: eventDown)
+
+        let eventUp = NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: centerLocal,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 0.0)!
+        self.mouseUp(with: eventUp)
+
+        return true
+    }
+}
+#endif

@@ -134,7 +134,7 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     let highlightState: MenuCardHighlightState
     private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
-    private var hasClickRecognizer = false
+    private var isPressed = false
 
     override var allowsVibrancy: Bool {
         true
@@ -156,9 +156,6 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
         super.init(rootView: rootView)
-        if onClick != nil {
-            self.installClickRecognizer()
-        }
     }
 
     /// Reuses this hosting view for a rebuilt card with the same identity: the replaced
@@ -169,9 +166,7 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         self.rootView = rootView
         self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
-        if onClick != nil, !self.hasClickRecognizer {
-            self.installClickRecognizer()
-        }
+        self.isPressed = false
     }
 
     /// `NSMenu` tracking consumes keyboard events before they reach a menu item's custom view, so
@@ -190,13 +185,6 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         return true
     }
 
-    private func installClickRecognizer() {
-        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
-        recognizer.buttonMask = 0x1
-        self.addGestureRecognizer(recognizer)
-        self.hasClickRecognizer = true
-    }
-
     required init(rootView: Content) {
         self.highlightState = MenuCardHighlightState()
         self.allowsMenuHighlight = false
@@ -213,9 +201,51 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         true
     }
 
-    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
-        guard recognizer.state == .ended else { return }
-        self.onClick?()
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if let descendant {
+            var current: NSView? = descendant
+            while let view = current, view !== self {
+                if view is NSButton || view is NSControl {
+                    return descendant
+                }
+                current = view.superview
+            }
+            if descendant !== self, self.onClick != nil {
+                return self
+            }
+        }
+        return descendant
+    }
+
+    private func locationInView(for event: NSEvent) -> NSPoint {
+        guard self.window != nil else {
+            return event.locationInWindow
+        }
+        return self.convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown, self.onClick != nil else {
+            super.mouseDown(with: event)
+            return
+        }
+        let localPoint = self.locationInView(for: event)
+        if self.bounds.contains(localPoint) {
+            self.isPressed = true
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard event.type == .leftMouseUp, self.onClick != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        defer { self.isPressed = false }
+        let localPoint = self.locationInView(for: event)
+        if self.isPressed, self.bounds.contains(localPoint) {
+            self.onClick?()
+        }
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
@@ -474,6 +504,42 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
         self.onClick?()
     }
 }
+
+#if DEBUG
+extension MenuCardItemHostingView {
+    func _test_simulateRuntimeClick() -> Bool {
+        guard self.onClick != nil else { return false }
+
+        let centerLocal = NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+
+        let eventDown = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: centerLocal,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1.0)!
+        self.mouseDown(with: eventDown)
+
+        let eventUp = NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: centerLocal,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 0.0)!
+        self.mouseUp(with: eventUp)
+
+        return true
+    }
+}
+#endif
 
 struct MenuCardSectionContainerView<Content: View>: View {
     @Bindable var highlightState: MenuCardHighlightState
