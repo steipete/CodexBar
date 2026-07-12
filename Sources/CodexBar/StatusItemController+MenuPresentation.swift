@@ -134,7 +134,7 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     let highlightState: MenuCardHighlightState
     private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
-    private var hasClickRecognizer = false
+    private var isPressed = false
 
     override var allowsVibrancy: Bool {
         true
@@ -156,9 +156,6 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
         super.init(rootView: rootView)
-        if onClick != nil {
-            self.installClickRecognizer()
-        }
     }
 
     /// Reuses this hosting view for a rebuilt card with the same identity: the replaced
@@ -169,9 +166,6 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         self.rootView = rootView
         self.allowsMenuHighlight = allowsMenuHighlight
         self.onClick = onClick
-        if onClick != nil, !self.hasClickRecognizer {
-            self.installClickRecognizer()
-        }
     }
 
     /// `NSMenu` tracking consumes keyboard events before they reach a menu item's custom view, so
@@ -190,13 +184,6 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         return true
     }
 
-    private func installClickRecognizer() {
-        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
-        recognizer.buttonMask = 0x1
-        self.addGestureRecognizer(recognizer)
-        self.hasClickRecognizer = true
-    }
-
     required init(rootView: Content) {
         self.highlightState = MenuCardHighlightState()
         self.allowsMenuHighlight = false
@@ -210,13 +197,77 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        // NSMenu's tracking run loop occasionally drops NSClickGestureRecognizer / NSButton
+        // target-action dispatch when the menu is rebuilt under the cursor (e.g. a background
+        // refresh reusing this row via prepareForReuse while the pointer sits over it). The
+        // overrides below hit-test this view itself, then drive the click from mouseDown/mouseUp
+        // here so it never has to round-trip through a gesture recognizer's begin→end state
+        // machine inside the tracking loop. Same fix as #867 (ProviderSwitcherView); see #2090.
         true
     }
 
-    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
-        guard recognizer.state == .ended else { return }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if self.onClick != nil, descendant != nil, descendant !== self {
+            // Swallow hits on the hosted SwiftUI content so its view hierarchy never owns the
+            // click; this view drives it instead via mouseDown/mouseUp below.
+            return self
+        }
+        return descendant
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard self.onClick != nil else {
+            super.mouseDown(with: event)
+            return
+        }
+        let location = self.convert(event.locationInWindow, from: nil)
+        self.isPressed = self.bounds.contains(location)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard self.onClick != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        defer { self.isPressed = false }
+        guard self.isPressed else { return }
+        let location = self.convert(event.locationInWindow, from: nil)
+        guard self.bounds.contains(location) else { return }
         self.onClick?()
     }
+
+    #if DEBUG
+    /// Drives the production mouseDown/mouseUp click path with synthetic events, bypassing
+    /// NSMenu's tracking loop entirely — the loop and any gesture recognizer are exactly what a
+    /// unit test can't reproduce, and were the actual failure mode in #2090. Returns whether a
+    /// click was recognized (both events landed inside bounds and `onClick` fired). Mirrors
+    /// CodexAccountSwitcherView._test_simulateRuntimeClick's event construction (#867).
+    @discardableResult
+    func _test_simulateRuntimeClick() -> Bool {
+        if self.frame.width <= 0 || self.frame.height <= 0 {
+            self.setFrameSize(NSSize(width: max(self.frame.width, 1), height: max(self.frame.height, 1)))
+        }
+        let point = NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+        var fired = false
+        let originalOnClick = self.onClick
+        self.onClick = {
+            fired = true
+            originalOnClick?()
+        }
+        defer { self.onClick = originalOnClick }
+        guard let mouseDownEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown, location: point, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 1),
+            let mouseUpEvent = NSEvent.mouseEvent(
+                with: .leftMouseUp, location: point, modifierFlags: [], timestamp: 0,
+                windowNumber: 0, context: nil, eventNumber: 2, clickCount: 1, pressure: 0)
+        else { return false }
+        self.mouseDown(with: mouseDownEvent)
+        self.mouseUp(with: mouseUpEvent)
+        return fired
+    }
+    #endif
 
     func measuredHeight(width: CGFloat) -> CGFloat {
         self.frame = NSRect(origin: self.frame.origin, size: NSSize(width: width, height: 1))
