@@ -665,6 +665,7 @@ struct CostUsageScannerBreakdownTests {
         let iso0 = env.isoString(for: day)
         let iso1 = env.isoString(for: day.addingTimeInterval(1))
         let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let iso3 = env.isoString(for: day.addingTimeInterval(3))
         let model = "openai/gpt-5.4"
         let sessionMeta: [String: Any] = [
             "type": "session_meta",
@@ -697,11 +698,16 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(first.data.first?.totalTokens == 100)
 
-        let secondTokenCount = self.codexTokenCount(
+        let repeatedTokenCount = self.codexTokenCount(
             timestamp: iso2,
             model: model,
+            total: (input: 50, cached: 0, output: 0),
+            last: (input: 100, cached: 0, output: 0))
+        let secondTokenCount = self.codexTokenCount(
+            timestamp: iso3,
+            model: model,
             total: (input: 80, cached: 0, output: 0))
-        try env.jsonl([sessionMeta, turnContext, firstTokenCount, secondTokenCount])
+        try env.jsonl([sessionMeta, turnContext, firstTokenCount, repeatedTokenCount, secondTokenCount])
             .write(to: fileURL, atomically: true, encoding: .utf8)
 
         let second = CostUsageScanner.loadDailyReport(
@@ -1987,6 +1993,37 @@ struct CostUsageScannerBreakdownTests {
         #expect(packed[safe: 1] == 20)
         #expect(packed[safe: 2] == 12)
         #expect(parsed.rows.count == 2)
+    }
+
+    @Test
+    func `codex repeated divergent snapshots do not recount last usage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 20)
+        let model = "openai/gpt-5.5"
+        let repeated = (1...3).map { offset in
+            self.codexTokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(TimeInterval(offset))),
+                model: model,
+                total: (input: 50, cached: 0, output: 0),
+                last: (input: 100, cached: 0, output: 0))
+        }
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "repeated-divergent-snapshot.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+            ] + repeated))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let packed = parsed.days[dayKey]?["gpt-5.5"] ?? []
+
+        #expect(packed[safe: 0] == 100)
+        #expect(parsed.rows.count == 1)
     }
 
     @Test

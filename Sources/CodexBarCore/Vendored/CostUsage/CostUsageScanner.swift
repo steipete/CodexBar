@@ -293,6 +293,9 @@ enum CostUsageScanner {
         {
             let base = self.countedTotals ?? .init(input: 0, cached: 0, output: 0)
             if let total {
+                if CostUsageScanner.codexTotalsEqual(total, self.tracker.watermark) {
+                    return base
+                }
                 self.tracker.latchIfBelowWatermark(total)
             }
             let watermarkBaseline = self.tracker.watermark ?? self.rawTotalsBaseline
@@ -1940,6 +1943,12 @@ enum CostUsageScanner {
             }
 
             if let adjustedTotal {
+                // An unchanged cumulative snapshot is a replay even when `last_token_usage`
+                // diverges from it. Counting `last` again would inflate usage without advancing
+                // the authoritative cumulative counter.
+                if Self.codexTotalsEqual(adjustedTotal, tracker.watermark) {
+                    return
+                }
                 tracker.latchIfBelowWatermark(adjustedTotal)
             }
             let watermarkBaseline = tracker.watermark ?? rawTotalsBaseline
