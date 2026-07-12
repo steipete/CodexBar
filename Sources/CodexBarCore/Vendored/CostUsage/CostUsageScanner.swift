@@ -312,12 +312,16 @@ enum CostUsageScanner {
             let base = self.countedTotals ?? .init(input: 0, cached: 0, output: 0)
             if let total {
                 // Best-effort exact re-emission suppression (precision only; containment is load-bearing).
-                if self.tracker.isSeen(total) { return base }
+                if self.tracker.isSeen(total) {
+                    return base
+                }
                 self.tracker.latchIfBelowWatermark(total)
             }
             let watermarkBaseline = self.tracker.watermark ?? self.rawTotalsBaseline
             defer {
-                if let total { self.tracker.commitObserved(total) }
+                if let total {
+                    self.tracker.commitObserved(total)
+                }
             }
 
             if let last {
@@ -795,8 +799,12 @@ enum CostUsageScanner {
         }
 
         static func isInRange(dayKey: String, since: String, until: String) -> Bool {
-            if dayKey < since { return false }
-            if dayKey > until { return false }
+            if dayKey < since {
+                return false
+            }
+            if dayKey > until {
+                return false
+            }
             return true
         }
     }
@@ -804,7 +812,9 @@ enum CostUsageScanner {
     // MARK: - Codex
 
     private static func defaultCodexSessionsRoot(options: Options) -> URL {
-        if let override = options.codexSessionsRoot { return override }
+        if let override = options.codexSessionsRoot {
+            return override
+        }
         let env = ProcessInfo.processInfo.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let env, !env.isEmpty {
             return URL(fileURLWithPath: env).appendingPathComponent("sessions", isDirectory: true)
@@ -1086,7 +1096,9 @@ enum CostUsageScanner {
         while CostUsageDayRange.dayKey(from: cursor) <= untilKey {
             out.append(CostUsageDayRange.dayKey(from: cursor))
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            if next <= cursor { break }
+            if next <= cursor {
+                break
+            }
             cursor = next
         }
         return out
@@ -1114,7 +1126,9 @@ enum CostUsageScanner {
         let filePath = fileURL.standardizedFileURL.path
         return roots.contains { root in
             let rootPath = root.standardizedFileURL.path
-            if filePath == rootPath { return true }
+            if filePath == rootPath {
+                return true
+            }
             let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
             return filePath.hasPrefix(prefix)
         }
@@ -1640,8 +1654,12 @@ enum CostUsageScanner {
 
                     return false
                 }
-                if let matchedMetadata { return matchedMetadata }
-                if reachedEOF { break }
+                if let matchedMetadata {
+                    return matchedMetadata
+                }
+                if reachedEOF {
+                    break
+                }
             }
         } catch is CancellationError {
             throw CancellationError()
@@ -1738,7 +1756,9 @@ enum CostUsageScanner {
                         guard let timestamp = obj["timestamp"] as? String else { return }
 
                         func toInt(_ value: Any?) -> Int {
-                            if let number = value as? NSNumber { return number.intValue }
+                            if let number = value as? NSNumber {
+                                return number.intValue
+                            }
                             return 0
                         }
 
@@ -1945,14 +1965,19 @@ enum CostUsageScanner {
             }
 
             if let adjustedTotal {
-                // Best-effort exact re-emission suppression. Post-latch containment is the
-                // load-bearing guard; the seen-set is only a precision optimization.
-                if tracker.isSeen(adjustedTotal) { return }
+                // Only committed observations enter the seen set. Replacing this with a bare
+                // watermark-equality check would skip first-time fork baseline bookkeeping.
+                // Post-latch containment remains the load-bearing overcount guard.
+                if tracker.isSeen(adjustedTotal) {
+                    return
+                }
                 tracker.latchIfBelowWatermark(adjustedTotal)
             }
             let watermarkBaseline = tracker.watermark ?? rawTotalsBaseline
             defer {
-                if let adjustedTotal { tracker.commitObserved(adjustedTotal) }
+                if let adjustedTotal {
+                    tracker.commitObserved(adjustedTotal)
+                }
             }
 
             func totalsDerivedDelta(to currentTotals: CostUsageCodexTotals) -> CostUsageCodexTotals {
@@ -2071,7 +2096,9 @@ enum CostUsageScanner {
                 return
             }
 
-            if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
+            if deltaInput == 0, deltaCached == 0, deltaOutput == 0 {
+                return
+            }
             let eventIndex = codexUsageRowIndex
             codexUsageRowIndex += 1
             let normModel = CostUsagePricing.normalizeCodexModel(model)
@@ -2140,7 +2167,9 @@ enum CostUsageScanner {
                 prefixBytes: prefixBytes,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    if deferredError != nil { return }
+                    if deferredError != nil {
+                        return
+                    }
                     guard !line.bytes.isEmpty else { return }
                     if line.wasTruncated {
                         // `turn_context` can carry very large prompts, but its model usually appears near the start.
@@ -2242,7 +2271,9 @@ enum CostUsageScanner {
                             ?? Self.codexModelEvidence(obj["model"] as? String)
 
                         func toInt(_ v: Any?) -> Int {
-                            if let n = v as? NSNumber { return n.intValue }
+                            if let n = v as? NSNumber {
+                                return n.intValue
+                            }
                             return 0
                         }
 
