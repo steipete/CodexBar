@@ -6,6 +6,7 @@
 - Settings: split provider pane "Settings" sections into "Menu bar" and "Connection" so metric pickers and auth/cookie/source controls are grouped by topic.
 
 ### Fixed
+- Website: update every public provider count and the social card to 58, with a registry-derived check to prevent future drift. Thanks @kiranmagic7!
 - CLI: isolate interactive PATH probes from the caller's terminal so concurrent and redirected-stdin lookups cannot break `watch` or Ctrl+C. Thanks @possibilities!
 - Claude login: preserve the selected usage source after OAuth sign-in so Auto mode can still fall back to CLI or web data when OAuth is unavailable. Thanks @Chipagosfinest!
 - Claude quotas: ignore synthetic no-session placeholders when tracking notifications, history, and reset events, preventing false restores and duplicate threshold or pace warnings while weekly usage continues updating. Thanks @vincent-peng!

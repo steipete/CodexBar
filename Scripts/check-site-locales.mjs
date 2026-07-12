@@ -7,6 +7,39 @@ import { localeCatalog, localeMessages } from "../docs/site-locales.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "docs/index.html"), "utf8");
+const providerSource = fs.readFileSync(
+  path.join(repoRoot, "Sources/CodexBarCore/Providers/Providers.swift"),
+  "utf8",
+);
+const providerEnumBody = providerSource.match(
+  /public enum UsageProvider:[^{]+\{([\s\S]*?)\n\}/,
+)?.[1];
+assert(providerEnumBody, "could not locate UsageProvider cases");
+const providerIDs = [...providerEnumBody.matchAll(/^\s*case\s+(\w+)\s*$/gm)].map((match) => match[1]);
+assert(providerIDs.length > 0, "UsageProvider must define at least one provider");
+assertEqual(new Set(providerIDs).size, providerIDs.length, "UsageProvider IDs");
+const providerCount = providerIDs.length;
+
+const publicCountFiles = [
+  ["README.md", `alt="CodexBar — every AI coding limit in your menu bar. ${providerCount} providers."`],
+  ["docs/providers.md", `CodexBar currently registers ${providerCount} provider IDs.`],
+  ["docs/social.html", `<strong>${providerCount} providers</strong>`],
+  ["docs/llms.txt", `across ${providerCount} providers`],
+];
+for (const [relativePath, expectedText] of publicCountFiles) {
+  const contents = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+  assert(contents.includes(expectedText), `${relativePath} must advertise ${providerCount} providers`);
+}
+assert(indexHtml.includes(`across ${providerCount} providers`), `index metadata must advertise ${providerCount} providers`);
+assert(
+  indexHtml.includes(`across ${providerCount} AI coding providers`),
+  `index social metadata must advertise ${providerCount} providers`,
+);
+assert(
+  indexHtml.includes(`>${providerCount} providers,{mobileBreak}one menu bar</span>`),
+  `index provider heading must advertise ${providerCount} providers`,
+);
+
 assert(!indexHtml.includes("cdn.tailwindcss.com"), "site must not load Tailwind from a runtime CDN");
 for (const match of indexHtml.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+)(?:\?[^"']*)?"/g)) {
   assert(fs.existsSync(path.join(repoRoot, "docs", match[1])), `missing local stylesheet ${match[1]}`);
@@ -37,6 +70,11 @@ for (const locale of localeCatalog) {
   const messages = localeMessages[locale.code];
   assert(messages, `missing messages for ${locale.code}`);
   assertEqual(Object.keys(messages).sort(), englishKeys, `${locale.code} message keys`);
+
+  for (const key of ["meta.description", "meta.ogDescription", "providers.title"]) {
+    const counts = [...messages[key].matchAll(/\d+/g)].map(Number);
+    assertEqual(counts[0], providerCount, `${locale.code}.${key} provider count`);
+  }
 
   for (const key of englishKeys) {
     assert(messages[key].trim(), `${locale.code}.${key} is blank`);
