@@ -172,12 +172,24 @@ public struct CostUsageFetcher: Sendable {
         } else if provider == .claude {
             options.claudeLogProviderFilter = .excludeVertexAI
         }
+        // App-side callers already rate-limit via UsageStore.tokenFetchTTL, so the scanner's
+        // default 60s debounce is redundant on this path — it only manifests as a silent stale
+        // snapshot that the TTL then pins for up to an hour (see #2089). Force the debounce off
+        // unless the caller explicitly opted into a non-default value.
+        if options.refreshMinIntervalSeconds == CostUsageScanner.Options.defaultRefreshMinIntervalSeconds {
+            options.refreshMinIntervalSeconds = 0
+        }
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0
         }
         var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
         if resolvedPiOptions.cacheRoot == nil {
             resolvedPiOptions.cacheRoot = options.cacheRoot
+        }
+        if resolvedPiOptions.refreshMinIntervalSeconds == PiSessionCostScanner.Options
+            .defaultRefreshMinIntervalSeconds
+        {
+            resolvedPiOptions.refreshMinIntervalSeconds = 0
         }
         if forceRefresh {
             resolvedPiOptions.refreshMinIntervalSeconds = 0
