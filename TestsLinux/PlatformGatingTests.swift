@@ -6,6 +6,15 @@ import Testing
 @Suite
 struct PlatformGatingTests {
     @Test
+    func `shell probe requests a detached Linux session`() {
+        #if os(Linux)
+        #expect(ShellCommandLocator.test_shellSpawnFlags == 0x80)
+        #else
+        #expect(Bool(true))
+        #endif
+    }
+
+    @Test
     func ampAutoSource_doesNotRequireWebSupport() {
         #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .amp))
     }
