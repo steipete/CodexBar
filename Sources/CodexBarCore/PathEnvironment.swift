@@ -640,10 +640,10 @@ public enum CodexLaunchPreflight {
 }
 
 public enum ShellCommandLocator {
-    #if os(Linux)
-    private static let shellSpawnFlags: Int16 = 0x80 // glibc/musl POSIX_SPAWN_SETSID.
-    #else
+    #if canImport(Darwin)
     private static let shellSpawnFlags = Int16(POSIX_SPAWN_SETSID)
+    #else
+    private static let shellSpawnFlags: Int16 = 0x80 // glibc/musl POSIX_SPAWN_SETSID.
     #endif
 
     static func test_runShellCommand(
