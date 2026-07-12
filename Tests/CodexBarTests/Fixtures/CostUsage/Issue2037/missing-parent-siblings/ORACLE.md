@@ -17,12 +17,14 @@ unresolved-fork first-event skip on owner (#1164) = 25,671
 scanner deduped oracle = 28,836,599
 ```
 
-Billable prefix owner: **sibling-a** (deterministic: earliest fork timestamp, then
-session id). Sibling-b prefix rows are billing-suppressed (state still advances).
+Desired billable prefix owner: **sibling-a** (deterministic: earliest fork
+timestamp, then session id). This is a hand oracle for a future provenance
+ledger, not authorization for token-only runtime suppression.
 
 `#1164` alone cannot fix this: there is no parent file to inherit from, so each
-child billed nearly the full prefix before provisional suppressions. The
-unresolved-fork path still skips the owner's first totals row (pre-existing);
-the scanner oracle subtracts that skip from the ideal prefix-once total.
+child bills nearly the full prefix. Runtime cross-file dedupe intentionally
+fails open because distinct sibling events can have equal token vectors. The
+unresolved-fork path still skips the first totals row (pre-existing); the target
+scanner oracle subtracts one owner skip from the ideal prefix-once total.
 
 Not an Ultra interleaved golden. Not a claim that #2037 is closed.

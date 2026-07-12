@@ -606,4 +606,4 @@ File-local containment alone cannot close #2037. This scan-wide provenance desig
 - **Parent present:** `#1164` inherited totals already match the parent-owns-prefix scanner-unit oracle (`Issue2037ScannerIntegrationTests`) — regression-locked, not a new ledger.
 - Local Ultra/Sol–Terra parallel runs did **not** produce interleaved `total_token_usage` drops; do not block cross-file work on drops.
 - **Still open for close criteria:** Ultra interleaved corpus, fuller event-key ledger / ownership migration, priority/`logs_2` join.
-- **Missing-parent siblings:** provisional prefix billing suppressions landed (`buildProvisionalPrefixBillingSuppressions` + `missing-parent-siblings` fixture).
+- **Missing-parent siblings:** sanitized fixture + hand oracle landed. Runtime token-only prefix suppression was removed because equal-counter distinct events are ambiguous; the scanner fails open until the P1 identity/quality path exists.

@@ -141,9 +141,6 @@ struct CostUsageFileUsage: Codable {
     var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
-    var forkTimestamp: String?
-    /// Versioned identity of the billing suppressions applied while producing this file's rows.
-    var codexBillingSuppressionKey: String?
     var projectPath: String?
     var canonicalProjectPath: String?
     var codexCostCacheComplete: Bool?

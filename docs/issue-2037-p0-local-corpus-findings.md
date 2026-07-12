@@ -32,10 +32,10 @@ Observed families (prefixes):
 | `turn_id` | Present on other events (`event_msg`, `turn_context`) | **Not** on `token_count` | Lineage / priority join hint only — never sole cross-completion key |
 | Envelope `timestamp` on `token_count` | **No** — rewritten at fork into a tight burst | n/a | **Not** copy-stable; exclude from fingerprint match |
 | File-local ordinal / line number | No | Tie-break only | Exclude from fingerprint |
-| Normalized `last_token_usage` + `total_token_usage` vector | **Yes** (field-equal, ordered) | Unique within observed parent streams (0 dupes in clean families) | **Primary copy identity** under ancestry + ordered prefix |
+| Normalized `last_token_usage` + `total_token_usage` vector | **Yes** (field-equal, ordered) | Unique within observed parent streams, but not proven unique across distinct sibling work | Copy-candidate evidence only; insufficient destructive event identity |
 | Byte-identical JSONL line | **No** (0 byte-identical parent↔child lines) | n/a | Prefer normalized equality |
 
-**Lock:** For this Codex shape, there is **no** stable per-`token_count` event ID. Provenance must use **ordered exact-prefix matching** of normalized usage vectors under `forked_from_id` ancestry.
+**Lock:** For this Codex shape, there is **no** stable per-`token_count` event ID. Ordered exact-prefix matching of normalized usage vectors under `forked_from_id` ancestry identifies the copied-prefix candidate in the sanitized corpus, but token equality alone must not suppress runtime billing.
 
 ### §10.2 Copy equality
 
@@ -48,7 +48,7 @@ Do not require equal timestamps.
 
 ### §10.9 Fork-boundary rule (locked for this corpus)
 
-**Primary rule:** Contiguous ordered usage-fingerprint prefix.
+**Corpus oracle rule (not a sufficient runtime event key):** Contiguous ordered usage-fingerprint prefix.
 
 1. Take parent and child canonical `token_count` streams in file order.
 2. Let `N` = longest `k` such that `child[0..k)` equals `parent[0..k)` under the normalized usage fingerprint.
@@ -116,18 +116,18 @@ Attempts to produce **intra-file interleaved cumulative streams** (multiple risi
 
 - Ultra interleaved multi-lineage totals inside one file (the #2037 reporter shape / billions-scale gap)
 - Priority / `logs_2` turn surcharge metadata on these `token_count` rows (not visible in the JSONL token payload here)
-- Parent disappearance → provisional sibling `primary` vs `contained` (no missing-parent pair in the original snapshot; next fixture work)
-- Cross-session `usage_fp` collision rate at scale (sample showed collisions across parent/child as expected; unrelated-session risk needs a larger distinct-session check before relying on fingerprint **without** ancestry)
+- Copy-stable event identity for parent-missing siblings; the added fixture proves the arithmetic gap, not that token-vector equality is collision-free
+- Cross-session / cross-sibling `usage_fp` collision rate at scale (sample showed collisions across parent/child as expected; token equality is not allowed to become destructive identity)
 
-## Provisional implementation locks (Codex P1 design input)
+## P1 design constraints from the provisional corpus
 
 1. **Event key:** none from explicit IDs on `token_count`.
-2. **Copy match:** ordered contiguous normalized `(last_token_usage, total_token_usage)` under ancestry.
-3. **Fork boundary:** that contiguous prefix length `N`; `session_meta` fork timestamp for graph ordering only.
-4. **Fingerprint:** usage vectors only — **exclude** rewritten timestamps and file ordinals.
-5. **Billable owner:** earliest real ancestor containing the matched prefix event; descendants state-only for those keys.
+2. **Copy candidate:** ordered contiguous normalized `(last_token_usage, total_token_usage)` under ancestry.
+3. **Fork-boundary oracle:** that contiguous prefix length `N`; `session_meta` fork timestamp for graph ordering only.
+4. **Low-confidence fingerprint:** usage vectors exclude rewritten timestamps and file ordinals, but cannot drive suppression without stronger copy-stable identity.
+5. **Future billable owner:** earliest real ancestor containing a ledger-accepted copied event; descendants state-only only after identity acceptance.
 6. **Embedded meta:** first `session_meta` is leaf; ignore ancestor meta rows as competing file identities.
-7. **#2066 containment:** only on post-ledger unique child stream; never across family copies.
+7. **Runtime today:** fail open for missing-parent cross-file equality; `#2066` containment remains file-local and non-closing.
 
 ## In-repo fixtures and tests (what we built)
 
@@ -185,35 +185,28 @@ Repro probes were ephemeral Python over `~/.codex/**/*.jsonl`, hashing normalize
 
 ## Next steps
 
-1. ~~Add a **missing-parent sibling** sanitized fixture + scanner test that fails under today’s `#1164`-only path.~~ **Done** (`missing-parent-siblings` + provisional suppressions).
+1. ~~Add a **missing-parent sibling** sanitized fixture + hand oracle that exposes today’s `#1164`-only gap.~~ **Done** (`missing-parent-siblings`). Runtime cross-file suppression is deferred until copy-stable event identity is proven.
 2. ~~Optionally sanitize `4d90→52bf` as a second parent-present golden.~~ **Done** (`live-fork-4d90-52bf`; parent truncated to copied prefix for a clean `#1164` regression). Locks a real corpus quirk: parent ordinal 120 has non-zero `last` with flat `total` — scanner units must follow **total deltas**, not `sum(last)`.
 3. Still seek an Ultra interleaved corpus before claiming #2037 fully closed for that shape.
-4. Broader event-key ledger / ownership migration (parent disappear/reappear) beyond missing-parent provisional suppressions.
-5. PR packaging: keep #2066 non-closing; ship provenance fixtures + missing-parent fix + docs without claiming full #2037 close.
+4. Build the event-key ledger / ownership migration path (including parent disappear/reappear) before enabling missing-parent cross-file dedupe.
+5. PR packaging: keep #2066 non-closing; ship containment + provenance fixtures/docs without claiming full #2037 close.
 
-### Missing-parent siblings (implemented 2026-07-11)
+### Missing-parent siblings (fixture locked; runtime dedupe deferred 2026-07-12)
 
 Fixture `missing-parent-siblings`: two children, shared 135-event prefix, no parent file.
 
 | Metric | Scanner units |
 |--------|---------------|
 | Naive (both bill prefix) | ~54.4M |
-| After provisional suppressions | ~28.8M |
+| Target parent-owns-prefix oracle | ~28.8M |
 
-Scanner change: `buildProvisionalPrefixBillingSuppressions` groups children by missing `forked_from_id` and walks an ordered prefix trie. At each shared ordinal, one deterministic child owns billing and the other children on that same prefix branch suppress billing; diverged branches never rejoin. This also handles mixed fork depths (for example, one child copies 100 events while two others copy 150) without double-billing the deeper shared segment. Baselines still advance, and the parent-present `#1164` path is unchanged.
+The provisional token-vector prefix suppression was removed before merge. Distinct sibling events can have identical `last_token_usage` / `total_token_usage` vectors at the same ordinal; treating that equality as event identity can silently suppress legitimate work. Adding envelope timestamps is invalid because copied timestamps are rewritten, and model is not reliably present on `token_count` rows.
 
-**Billing-suppression baseline rule:** after computing a suppressed event's delta via `commitDelta`, do **not** subtract that delta back out of `previousTotals`. State must stay advanced so the next event cannot re-include suppressed growth or falsely trip `sawDivergentTotals`. Billing is omitted only by skipping row emission.
+**Runtime fail-open rule:** when a parent file is missing, do not perform destructive cross-file dedupe from token counters alone. Each sibling keeps its file-local unresolved-parent accounting. This can retain copied-prefix overcount, but it cannot undercount distinct work merely because counters collide. `Issue2037ScannerIntegrationTests` locks this with two missing-parent siblings whose distinct models/timestamps have equal token vectors.
 
-**Fingerprint / ordinal alignment:** provisional fingerprints are built with the same `CostUsageJsonl` line scan, truncation limit, and `parseCodexFastLine` (+ JSON fallback) path as `parseCodexFileCancellable`, so suppression ordinals cannot drift from scan ordinals on truncated or oddly encoded lines. Cancellation during that pre-scan aborts the refresh (no `try?` / partial-suppression plan).
+The sanitized fixture and arithmetic remain useful as the desired family-ledger oracle. They do not authorize suppression until the runtime has a corpus-proven copy-stable event key, collision handling, cross-window family closure, and an exposed ambiguous/contained quality path.
 
-**Parent presence for provisional suppressions:** check **live** cache session ids (path still exists under active Codex roots) and the in-scan / cache-seeded `fileIndex` **without** `indexRoots()` crawls (`fileURL(for:searchRoots: false)`). Do **not** record those probes in `missingSessionIds`, or they poison later `#1164` inheritance lookups that are allowed to crawl. Stale cache rows for deleted/moved parents no longer suppress the missing-parent path.
-
-**Two-pass planning:** collect and group child metadata first, reusing cached `sessionId`, `forkedFromId`, and `forkTimestamp` when mtime and size match. Only groups with at least two children and no live parent pay the aligned full-file fingerprint pass.
-
-**Warm-cache ownership migration:** each cached file persists a compact, versioned suppression-range key. Fresh-cache reuse and incremental append are rejected only when the newly computed key differs from the persisted key. This detects family growth, owner disappearance, owner restoration, and mixed-depth plan changes in both directions while allowing unchanged suppressed siblings to reuse their cache. Fully state-only entries are retained so a completely suppressed sibling is not reparsed every refresh. Integration tests lock warm-cache equality with a cold rescan across owner disappearance/restoration and lock the mixed-depth `100/150/150` ownership shape.
-
-**Open follow-ups:**
-- Optionally cache `usageFingerprints` on `CostUsageFileUsage` when mtime/size match to skip even the aligned fingerprint pass.
-- Build family closure across files outside the reporting window before applying the date filter; this provisional implementation still plans from the scanner's current file set.
-- Widen the production fingerprint to the full P0 identity vector after locking the raw field contract (notably stored `total_tokens` and `reasoning_output_tokens`).
-- Do **not** put model into copy fingerprints yet: P0 lock is usage-vector identity under ancestry; `token_count` rows often omit model (it lives on `turn_context`).
+**Required before revisiting runtime suppression:**
+- Prove a copy-stable identity stronger than token values; `reasoning_output_tokens` / `total_tokens` only reduce collision probability and are not sufficient identity.
+- Build family closure across files outside the reporting window before applying the date filter.
+- Add fingerprint-collision, ownership migration, cache-repeat, and affected-setup proof.

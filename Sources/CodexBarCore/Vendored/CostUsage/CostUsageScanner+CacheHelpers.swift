@@ -285,8 +285,6 @@ extension CostUsageScanner {
         lastCodexTurnID: String? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
-        forkTimestamp: String? = nil,
-        codexBillingSuppressionKey: String? = nil,
         projectPath: String? = nil,
         canonicalProjectPath: String? = nil,
         codexCostCacheComplete: Bool? = true,
@@ -316,8 +314,6 @@ extension CostUsageScanner {
             lastCodexTurnID: lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
-            forkTimestamp: forkTimestamp,
-            codexBillingSuppressionKey: codexBillingSuppressionKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostCacheComplete: codexCostCacheComplete,
@@ -709,8 +705,6 @@ extension CostUsageScanner {
             lastCodexTurnID: usage.lastCodexTurnID,
             sessionId: usage.sessionId,
             forkedFromId: usage.forkedFromId,
-            forkTimestamp: usage.forkTimestamp,
-            codexBillingSuppressionKey: usage.codexBillingSuppressionKey,
             projectPath: usage.projectPath,
             canonicalProjectPath: usage.canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
@@ -892,9 +886,6 @@ extension CostUsageScanner {
         state: inout CodexScanState) -> Bool
     {
         guard let cached = input.cached else { return false }
-        // Reconcile both family growth and shrinkage. A cached file is reusable only when it was
-        // produced with exactly the suppression plan that applies now.
-        guard !Self.codexBillingSuppressionChanged(input: input, context: context) else { return false }
         let needsSessionId = cached.sessionId == nil
         guard cached.mtimeUnixMs == input.metadata.mtimeUnixMs,
               cached.size == input.metadata.size,
@@ -959,41 +950,6 @@ extension CostUsageScanner {
         return !(Set(cached.codexTurnIDs ?? []).isDisjoint(with: context.changedPriorityTurnIDs))
     }
 
-    static func codexBillingSuppressionKey(
-        input: CodexFileScanInput,
-        context: CodexFileScanContext) -> String?
-    {
-        self.codexBillingSuppressionKey(
-            context.resources.billingSuppressedTokenOrdinalsByFilePath[input.fileURL.path] ?? [])
-    }
-
-    static func codexBillingSuppressionKey(_ ordinals: Set<Int>) -> String? {
-        let sorted = ordinals.sorted()
-        guard let first = sorted.first else { return nil }
-
-        var encodedRanges: [String] = []
-        var rangeStart = first
-        var rangeEnd = first
-        for ordinal in sorted.dropFirst() {
-            if ordinal == rangeEnd + 1 {
-                rangeEnd = ordinal
-                continue
-            }
-            encodedRanges.append(rangeStart == rangeEnd ? "\(rangeStart)" : "\(rangeStart)-\(rangeEnd)")
-            rangeStart = ordinal
-            rangeEnd = ordinal
-        }
-        encodedRanges.append(rangeStart == rangeEnd ? "\(rangeStart)" : "\(rangeStart)-\(rangeEnd)")
-        return "v2:" + encodedRanges.joined(separator: ",")
-    }
-
-    static func codexBillingSuppressionChanged(
-        input: CodexFileScanInput,
-        context: CodexFileScanContext) -> Bool
-    {
-        input.cached?.codexBillingSuppressionKey != self.codexBillingSuppressionKey(input: input, context: context)
-    }
-
     static func appendCodexFileIncrementIfPossible(
         input: CodexFileScanInput,
         context: CodexFileScanContext,
@@ -1002,7 +958,6 @@ extension CostUsageScanner {
     {
         try context.checkCancellation?()
         guard let cached = input.cached, cached.sessionId != nil, !context.forceFullScan else { return false }
-        guard !Self.codexBillingSuppressionChanged(input: input, context: context) else { return false }
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
@@ -1111,8 +1066,6 @@ extension CostUsageScanner {
             lastCodexTurnID: delta.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: delta.forkedFromId ?? migratedCached.forkedFromId,
-            forkTimestamp: delta.forkTimestamp ?? migratedCached.forkTimestamp,
-            codexBillingSuppressionKey: Self.codexBillingSuppressionKey(input: input, context: context),
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: Self.codexMergedCostMap(
@@ -1165,8 +1118,6 @@ extension CostUsageScanner {
             fileURL: input.fileURL,
             range: context.range,
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
-            billingSuppressedTokenOrdinals: context.resources
-                .billingSuppressedTokenOrdinalsByFilePath[input.fileURL.path] ?? [],
             checkCancellation: context.checkCancellation)
         let sessionId = parsed.sessionId ?? input.cached?.sessionId
         let projectPath = parsed.projectPath ?? input.cached?.projectPath
@@ -1212,8 +1163,6 @@ extension CostUsageScanner {
             lastCodexTurnID: parsed.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: parsed.forkedFromId,
-            forkTimestamp: parsed.forkTimestamp,
-            codexBillingSuppressionKey: Self.codexBillingSuppressionKey(input: input, context: context),
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
@@ -1338,10 +1287,6 @@ extension CostUsageScanner {
         guard isForceRescan else { return }
         for key in cache.files.keys {
             guard let old = cache.files[key] else { continue }
-            // A fully state-only sibling has no report days, but its empty contribution and
-            // applied suppression key are still a valid cache result. Retain it so unchanged
-            // families do not reparse that file on every refresh.
-            guard old.codexBillingSuppressionKey == nil else { continue }
             guard !old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
             else { continue }
             Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
