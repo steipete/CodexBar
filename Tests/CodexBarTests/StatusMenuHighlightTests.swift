@@ -18,6 +18,7 @@ extension StatusMenuTests {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -61,6 +62,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -133,6 +135,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -185,6 +188,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -256,6 +260,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -324,6 +329,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -389,6 +395,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -442,6 +449,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -511,6 +519,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,

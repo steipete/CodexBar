@@ -1115,6 +1115,10 @@ extension UsageStorePlanUtilizationTests {
             startupBehavior: .testing)
         isolatedSettings._test_managedCodexAccountStoreURL = managedStoreURL
         isolatedSettings.codexActiveSource = .liveSystem
+        // Cancel the background plan-utilization decode so it cannot race the
+        // explicit empty assignment below. Production paths still load on the
+        // utility queue; this only short-circuits the test setup.
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         store.planUtilizationHistory = [:]
         return store
     }
