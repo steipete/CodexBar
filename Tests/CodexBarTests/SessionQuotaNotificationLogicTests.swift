@@ -29,6 +29,66 @@ struct SessionQuotaNotificationLogicTests {
     }
 
     @Test
+    func `restores when weekly has remaining and gating enabled`() {
+        let transition = SessionQuotaNotificationLogic.transition(
+            previousRemaining: 0,
+            currentRemaining: 5,
+            weeklyRemaining: 50,
+            weeklyBlocksRestore: true)
+        #expect(transition == .restored)
+    }
+
+    @Test
+    func `suppresses restored when weekly is still depleted`() {
+        let transition = SessionQuotaNotificationLogic.transition(
+            previousRemaining: 0,
+            currentRemaining: 50,
+            weeklyRemaining: 0,
+            weeklyBlocksRestore: true)
+        #expect(transition == .none)
+    }
+
+    @Test
+    func `suppresses restored when weekly is below threshold`() {
+        let transition = SessionQuotaNotificationLogic.transition(
+            previousRemaining: 0,
+            currentRemaining: 30,
+            weeklyRemaining: 0.00001,
+            weeklyBlocksRestore: true)
+        #expect(transition == .none)
+    }
+
+    @Test
+    func `does not suppress restored when weekly is unknown and gating enabled`() {
+        let transition = SessionQuotaNotificationLogic.transition(
+            previousRemaining: 0,
+            currentRemaining: 30,
+            weeklyRemaining: nil,
+            weeklyBlocksRestore: true)
+        #expect(transition == .restored)
+    }
+
+    @Test
+    func `still emits restored when gating disabled even with weekly depleted`() {
+        let transition = SessionQuotaNotificationLogic.transition(
+            previousRemaining: 0,
+            currentRemaining: 30,
+            weeklyRemaining: 0,
+            weeklyBlocksRestore: false)
+        #expect(transition == .restored)
+    }
+
+    @Test
+    func `depleted transition ignores weekly gate`() {
+        let transition = SessionQuotaNotificationLogic.transition(
+            previousRemaining: 50,
+            currentRemaining: 0,
+            weeklyRemaining: 0,
+            weeklyBlocksRestore: true)
+        #expect(transition == .depleted)
+    }
+
+    @Test
     func `treats tiny positive remaining as depleted`() {
         let transition = SessionQuotaNotificationLogic.transition(previousRemaining: 0, currentRemaining: 0.00001)
         #expect(transition == .none)

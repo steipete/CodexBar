@@ -47,7 +47,12 @@ enum SessionQuotaNotificationLogic {
         return remaining <= Self.depletedThreshold
     }
 
-    static func transition(previousRemaining: Double?, currentRemaining: Double?) -> SessionQuotaTransition {
+    static func transition(
+        previousRemaining: Double?,
+        currentRemaining: Double?,
+        weeklyRemaining: Double? = nil,
+        weeklyBlocksRestore: Bool = false) -> SessionQuotaTransition
+    {
         guard let currentRemaining else { return .none }
         guard let previousRemaining else { return .none }
 
@@ -55,7 +60,17 @@ enum SessionQuotaNotificationLogic {
         let isDepleted = currentRemaining <= Self.depletedThreshold
 
         if !wasDepleted, isDepleted { return .depleted }
-        if wasDepleted, !isDepleted { return .restored }
+        if wasDepleted, !isDepleted {
+            // Suppress misleading session-restored notifications when the weekly lane is still
+            // exhausted: a 5h reset is not actionable until weekly capacity returns too.
+            if weeklyBlocksRestore,
+               let weeklyRemaining,
+               weeklyRemaining <= Self.depletedThreshold
+            {
+                return .none
+            }
+            return .restored
+        }
         return .none
     }
 

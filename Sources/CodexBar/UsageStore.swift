@@ -906,7 +906,9 @@ final class UsageStore {
 
         let transition = SessionQuotaNotificationLogic.transition(
             previousRemaining: previousRemaining,
-            currentRemaining: currentRemaining)
+            currentRemaining: currentRemaining,
+            weeklyRemaining: provider == .codex ? snapshot.secondary?.remainingPercent : nil,
+            weeklyBlocksRestore: provider == .codex)
         guard transition != .none else {
             if SessionQuotaNotificationLogic.isDepleted(currentRemaining) ||
                 SessionQuotaNotificationLogic.isDepleted(previousRemaining)
