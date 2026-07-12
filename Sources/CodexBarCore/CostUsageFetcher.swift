@@ -172,16 +172,18 @@ public struct CostUsageFetcher: Sendable {
         } else if provider == .claude {
             options.claudeLogProviderFilter = .excludeVertexAI
         }
-        if forceRefresh {
-            options.refreshMinIntervalSeconds = 0
-        }
+        // Always disarm the scanner's own debounce here, not just for forceRefresh: UsageStore
+        // already TTL-gates its own callers (tokenFetchTTL, 60 min), so this debounce never saves
+        // real work at the app layer. Left conditional, it silently pins a stale scan — from this
+        // process or any other sharing the on-disk cache (the CLI, a second scan) — for the full
+        // TTL window whenever a non-forced fetch lands within refreshMinIntervalSeconds of a prior
+        // scan. The scanner's incremental cache still keeps re-scans cheap. See GitHub issue #2089.
+        options.refreshMinIntervalSeconds = 0
         var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
         if resolvedPiOptions.cacheRoot == nil {
             resolvedPiOptions.cacheRoot = options.cacheRoot
         }
-        if forceRefresh {
-            resolvedPiOptions.refreshMinIntervalSeconds = 0
-        }
+        resolvedPiOptions.refreshMinIntervalSeconds = 0
         let piOptions = resolvedPiOptions
 
         try Task.checkCancellation()

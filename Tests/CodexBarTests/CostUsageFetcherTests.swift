@@ -820,6 +820,91 @@ struct CostUsageFetcherTests {
         #expect(refreshed.daily.first?.totalTokens == 176)
     }
 
+    // Regression test for GitHub issue #2089: a non-forced refresh must reflect usage appended
+    // to the session log since the prior scan, even when it lands inside the scanner's internal
+    // refreshMinIntervalSeconds debounce window. UsageStore already TTL-gates its own callers, so
+    // that debounce should never cause the app layer to silently pin a stale scan.
+    @Test
+    func `non-forced refresh keeps incremental cost cache current`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 11)
+        let iso0 = env.isoString(for: day)
+        let iso1 = env.isoString(for: day.addingTimeInterval(1))
+        let iso2 = env.isoString(for: day.addingTimeInterval(2))
+        let model = "openai/gpt-5.4"
+
+        let turnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": iso0,
+            "payload": ["model": model],
+        ]
+        let firstTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso1,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "model": model,
+                    "total_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    ],
+                ],
+            ],
+        ]
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "session.jsonl",
+            contents: env.jsonl([turnContext, firstTokenCount]))
+
+        let nativeOptions = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot)
+
+        let first = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            scannerOptions: nativeOptions,
+            piScannerOptions: piOptions)
+        #expect(first.daily.first?.totalTokens == 110)
+
+        let appendedTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": iso2,
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "model": model,
+                    "total_token_usage": [
+                        "input_tokens": 160,
+                        "cached_input_tokens": 40,
+                        "output_tokens": 16,
+                    ],
+                ],
+            ],
+        ]
+        try env.jsonl([turnContext, firstTokenCount, appendedTokenCount])
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+
+        // Same `now` and no forceRefresh: this lands inside the scanner's default 60s
+        // refreshMinIntervalSeconds window. Stock (unfixed) behavior throttles the scan and
+        // returns the stale cached 110; the fix makes this non-forced call see the appended row.
+        let refreshed = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            scannerOptions: nativeOptions,
+            piScannerOptions: piOptions)
+
+        #expect(refreshed.daily.first?.totalTokens == 176)
+    }
+
     private static func writeCodexSessionFile(
         homeRoot: URL,
         env: CostUsageTestEnvironment,
