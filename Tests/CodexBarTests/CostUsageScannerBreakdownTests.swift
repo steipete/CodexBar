@@ -4007,9 +4007,17 @@ struct CostUsageScannerBreakdownTests {
                 self.codexTokenCount(
                     timestamp: env.isoString(for: day.addingTimeInterval(2)),
                     model: model,
-                    total: (input: 100, cached: 0, output: 0)),
+                    total: (input: 50, cached: 0, output: 0)),
                 self.codexTokenCount(
                     timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    last: (input: 10, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: model,
+                    total: (input: 100, cached: 0, output: 0)),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(5)),
                     model: model,
                     last: (input: 10, cached: 0, output: 0)),
             ]))

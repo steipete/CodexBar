@@ -1949,7 +1949,12 @@ enum CostUsageScanner {
                 if Self.codexTotalsEqual(adjustedTotal, tracker.watermark) {
                     if hasUnresolvedForkBaseline, unresolvedForkTotalWatermark == nil {
                         unresolvedForkTotalWatermark = total
-                    } else if forkedFromId != nil, !hasUnresolvedForkBaseline {
+                    } else if forkedFromId != nil,
+                              !hasUnresolvedForkBaseline,
+                              let total,
+                              let inheritedTotals,
+                              Self.codexTotalsAtLeast(total, inheritedTotals)
+                    {
                         remainingInheritedTotals = nil
                     }
                     return
