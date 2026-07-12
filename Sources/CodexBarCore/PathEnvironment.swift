@@ -678,14 +678,9 @@ public enum ShellCommandLocator {
     static func test_terminalForegroundRestoreTarget(
         original: pid_t?,
         probe: pid_t?,
-        current: pid_t?,
-        currentIsAlive: Bool = true) -> pid_t?
+        current: pid_t?) -> pid_t?
     {
-        self.terminalForegroundRestoreTarget(
-            original: original,
-            probe: probe,
-            current: current,
-            currentIsAlive: currentIsAlive)
+        self.terminalForegroundRestoreTarget(original: original, probe: probe, current: current)
     }
 
     public static func commandV(
@@ -1031,12 +1026,10 @@ public enum ShellCommandLocator {
 
         let currentProcessGroup = tcgetpgrp(lease.fd)
         let current = currentProcessGroup > 0 ? currentProcessGroup : nil
-        let currentIsAlive = current.map(self.processGroupIsAlive) ?? false
         guard let target = self.terminalForegroundRestoreTarget(
             original: lease.originalProcessGroup,
             probe: probeProcessGroup,
-            current: current,
-            currentIsAlive: currentIsAlive)
+            current: current)
         else { return }
 
         // The probe still owns the foreground, so this process is in a background
@@ -1053,17 +1046,10 @@ public enum ShellCommandLocator {
     private static func terminalForegroundRestoreTarget(
         original: pid_t?,
         probe: pid_t?,
-        current: pid_t?,
-        currentIsAlive: Bool) -> pid_t?
+        current: pid_t?) -> pid_t?
     {
-        guard let original, let probe, let current, original != current else { return nil }
-        guard current == probe || !currentIsAlive else { return nil }
+        guard let original, let probe, current == probe, original != probe else { return nil }
         return original
-    }
-
-    private static func processGroupIsAlive(_ processGroup: pid_t) -> Bool {
-        guard kill(-processGroup, 0) != 0 else { return true }
-        return errno != ESRCH
     }
 
     // swiftlint:enable cyclomatic_complexity function_body_length

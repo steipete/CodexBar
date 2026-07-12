@@ -20,11 +20,6 @@ struct ShellCommandForegroundTests {
             current: 300) == nil)
         #expect(ShellCommandLocator.test_terminalForegroundRestoreTarget(
             original: 100,
-            probe: 200,
-            current: 300,
-            currentIsAlive: false) == 100)
-        #expect(ShellCommandLocator.test_terminalForegroundRestoreTarget(
-            original: 100,
             probe: nil,
             current: 200) == nil)
     }
