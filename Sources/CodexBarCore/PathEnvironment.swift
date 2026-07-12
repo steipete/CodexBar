@@ -639,33 +639,8 @@ public enum CodexLaunchPreflight {
     #endif
 }
 
-final class TerminalForegroundProbeCoordinator: @unchecked Sendable {
-    private let lock = NSLock()
-
-    func lockProbe() {
-        self.lock.lock()
-    }
-
-    func unlockProbe() {
-        self.lock.unlock()
-    }
-
-    func withLock<T>(_ operation: () throws -> T) rethrows -> T {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return try operation()
-    }
-}
-
 public enum ShellCommandLocator {
-    private struct TerminalForegroundLease {
-        let fd: Int32
-        let originalProcessGroup: pid_t?
-        let holdsLock: Bool
-        let ownsFileDescriptor: Bool
-    }
-
-    private static let terminalForegroundProbeCoordinator = TerminalForegroundProbeCoordinator()
+    private static let shellSpawnFlags = Int16(POSIX_SPAWN_SETSID)
 
     static func test_runShellCommand(
         shell: String,
@@ -675,12 +650,8 @@ public enum ShellCommandLocator {
         self.runShellCommand(shell: shell, arguments: arguments, timeout: timeout)
     }
 
-    static func test_terminalForegroundRestoreTarget(
-        original: pid_t?,
-        probe: pid_t?,
-        current: pid_t?) -> pid_t?
-    {
-        self.terminalForegroundRestoreTarget(original: original, probe: probe, current: current)
+    static var test_shellSpawnFlags: Int16 {
+        self.shellSpawnFlags
     }
 
     public static func commandV(
@@ -770,23 +741,15 @@ public enum ShellCommandLocator {
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  The child is launched via `posix_spawn` with
-    /// `POSIX_SPAWN_SETPGROUP` so it becomes its own process-group leader *before*
-    /// `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach any
-    /// background helpers spawned by shell init, on both the timeout-kill path and
-    /// after normal completion.
+    /// `POSIX_SPAWN_SETSID` so it cannot take ownership of the caller's controlling
+    /// terminal. The new session also makes the child its own process-group leader
+    /// before `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach
+    /// background helpers spawned by shell init, both after timeout and normal exit.
     fileprivate static func runShellCommand(
         shell: String,
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
-        // TTY ownership is process-global. Keep interactive probes serialized so
-        // one invocation cannot snapshot another probe's temporary process group.
-        let terminalLease = Self.beginTerminalForegroundLease(fallbackFD: STDIN_FILENO)
-        var spawnedProcessGroup: pid_t?
-        defer {
-            Self.endTerminalForegroundLease(terminalLease, probeProcessGroup: spawnedProcessGroup)
-        }
-
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
         // via posix_spawn_file_actions_addopen below.
         var stdoutFds: (read: Int32, write: Int32) = (-1, -1)
@@ -824,8 +787,9 @@ public enum ShellCommandLocator {
         posix_spawn_file_actions_addclose(&fileActions, stderrFds.read)
         posix_spawn_file_actions_addclose(&fileActions, stderrFds.write)
 
-        // Build attributes: set the child's process group to itself in the child,
-        // before exec, eliminating the race that an after-launch setpgid(2) has.
+        // Build attributes: detach the child into a new session before exec. This
+        // prevents interactive shell startup from changing the caller's foreground
+        // process group while retaining a stable process group for cleanup.
         #if canImport(Darwin)
         var attr: posix_spawnattr_t?
         #else
@@ -837,9 +801,7 @@ public enum ShellCommandLocator {
             return nil
         }
         defer { posix_spawnattr_destroy(&attr) }
-        guard posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP)) == 0,
-              posix_spawnattr_setpgroup(&attr, 0) == 0 // 0 = child becomes its own pgid leader
-        else {
+        guard posix_spawnattr_setflags(&attr, self.shellSpawnFlags) == 0 else {
             close(stdoutFds.read); close(stdoutFds.write)
             close(stderrFds.read); close(stderrFds.write)
             return nil
@@ -890,9 +852,8 @@ public enum ShellCommandLocator {
             return nil
         }
 
-        // POSIX_SPAWN_SETPGROUP with pgroup=0 guarantees the child's pgid == its pid.
+        // POSIX_SPAWN_SETSID guarantees the child's session ID and pgid equal its pid.
         let pgid: pid_t = pid
-        spawnedProcessGroup = pgid
 
         // Track EOF on each pipe so we can wait for full drain instead of sleeping.
         // The readability handler fires with empty data when every writer end is
@@ -981,75 +942,6 @@ public enum ShellCommandLocator {
             }
         }
         return stdoutCollector.drain()
-    }
-
-    private static func beginTerminalForegroundLease(fallbackFD: Int32) -> TerminalForegroundLease {
-        let controllingTerminalFD = open("/dev/tty", O_RDWR | O_CLOEXEC)
-        let fd: Int32
-        let ownsFileDescriptor: Bool
-        if controllingTerminalFD >= 0 {
-            fd = controllingTerminalFD
-            ownsFileDescriptor = true
-        } else if isatty(fallbackFD) == 1 {
-            fd = fallbackFD
-            ownsFileDescriptor = false
-        } else {
-            return TerminalForegroundLease(
-                fd: fallbackFD,
-                originalProcessGroup: nil,
-                holdsLock: false,
-                ownsFileDescriptor: false)
-        }
-
-        self.terminalForegroundProbeCoordinator.lockProbe()
-        let processGroup = tcgetpgrp(fd)
-        return TerminalForegroundLease(
-            fd: fd,
-            originalProcessGroup: processGroup > 0 ? processGroup : nil,
-            holdsLock: true,
-            ownsFileDescriptor: ownsFileDescriptor)
-    }
-
-    private static func endTerminalForegroundLease(
-        _ lease: TerminalForegroundLease,
-        probeProcessGroup: pid_t?)
-    {
-        defer {
-            if lease.ownsFileDescriptor {
-                close(lease.fd)
-            }
-            if lease.holdsLock {
-                self.terminalForegroundProbeCoordinator.unlockProbe()
-            }
-        }
-        guard lease.holdsLock, isatty(lease.fd) == 1 else { return }
-
-        let currentProcessGroup = tcgetpgrp(lease.fd)
-        let current = currentProcessGroup > 0 ? currentProcessGroup : nil
-        guard let target = self.terminalForegroundRestoreTarget(
-            original: lease.originalProcessGroup,
-            probe: probeProcessGroup,
-            current: current)
-        else { return }
-
-        // The probe still owns the foreground, so this process is in a background
-        // group. Block SIGTTOU on this thread while restoring the prior owner.
-        var blockTTOU = sigset_t()
-        sigemptyset(&blockTTOU)
-        sigaddset(&blockTTOU, SIGTTOU)
-        var previousMask = sigset_t()
-        guard pthread_sigmask(SIG_BLOCK, &blockTTOU, &previousMask) == 0 else { return }
-        defer { _ = pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
-        _ = tcsetpgrp(lease.fd, target)
-    }
-
-    private static func terminalForegroundRestoreTarget(
-        original: pid_t?,
-        probe: pid_t?,
-        current: pid_t?) -> pid_t?
-    {
-        guard let original, let probe, current == probe, original != probe else { return nil }
-        return original
     }
 
     // swiftlint:enable cyclomatic_complexity function_body_length
