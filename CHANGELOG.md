@@ -6,6 +6,7 @@
 - sub2api: add group-key usage with daily, weekly, and monthly quotas, multi-account switching, wallet balance, and expiry details. Thanks @weirdo-adam!
 
 ### Fixed
+- Startup: load persisted plan-utilization history away from the main thread so mature histories no longer delay app launch. Thanks @Yuxin-Qiao!
 - Provider cleanup: prevent in-flight usage, status, token-cost, and cached-hydration work from republishing stale state after a provider is disabled, unavailable, or re-enabled. Thanks @Yuxin-Qiao!
 - Agent Sessions: coalesce overlapping unchanged remote refresh requests so menu opens do not repeat Tailscale discovery and SSH passes. Thanks @Yuxin-Qiao!
 

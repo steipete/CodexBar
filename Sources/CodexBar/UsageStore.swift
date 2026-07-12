@@ -86,16 +86,8 @@ extension UsageStore {
 
     private static func isRunningTestsProcess() -> Bool {
         let environment = ProcessInfo.processInfo.environment
-        if environment["XCTestConfigurationFilePath"] != nil {
-            return true
-        }
-        if environment["XCTestSessionIdentifier"] != nil {
-            return true
-        }
-        if environment["SWIFT_TESTING_ENABLED"] != nil {
-            return true
-        }
-        return CommandLine.arguments.contains { argument in
+        let testKeys = ["XCTestConfigurationFilePath", "XCTestSessionIdentifier", "SWIFT_TESTING_ENABLED"]
+        return testKeys.contains(where: { environment[$0] != nil }) || CommandLine.arguments.contains { argument in
             argument.contains("xctest") || argument.contains("swift-testing")
         }
     }
@@ -347,6 +339,12 @@ final class UsageStore {
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
+
+    /// Background load task; cleared on deinit and on the cancel test seam.
+    @ObservationIgnored var planUtilizationHistoryLoadTask: Task<Void, Never>?
+    /// Set once after the load completes. Gates mutation paths and sync menu
+    /// accessors so they cannot race the decode or write empty history back to disk.
+    @ObservationIgnored var planUtilizationHistoryLoaded: Bool = false
     @ObservationIgnored var sessionLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
     @ObservationIgnored var weeklyLimitResetDetectorStates: [String: LimitResetDetectorState] = [:]
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
@@ -365,11 +363,12 @@ final class UsageStore {
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
-        planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
+        planUtilizationHistoryStore: PlanUtilizationHistoryStore? = nil,
         codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil,
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
         startupBehavior: StartupBehavior = .automatic,
-        environmentBase: [String: String] = ProcessInfo.processInfo.environment)
+        environmentBase: [String: String] = ProcessInfo.processInfo.environment,
+        planUtilizationHistoryLoadGateForTesting: PlanUtilizationHistoryLoadGate? = nil)
     {
         self.codexFetcher = fetcher
         self.browserDetection = browserDetection
@@ -379,13 +378,14 @@ final class UsageStore {
         self.registry = registry
         self.environmentBase = environmentBase
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
-        self.planUtilizationHistoryStore = planUtilizationHistoryStore
-        self.sessionQuotaNotifier = sessionQuotaNotifier
         self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
+        let planHistoryStore = Self.resolvedPlanHistoryStore(planUtilizationHistoryStore, startup: self.startupBehavior)
+        self.planUtilizationHistoryStore = planHistoryStore
+        self.sessionQuotaNotifier = sessionQuotaNotifier
         self.codexAccountUsageSnapshotStore = codexAccountUsageSnapshotStore ??
             (self.startupBehavior.automaticallyStartsBackgroundWork ? FileCodexAccountUsageSnapshotStore() : nil)
         self.planUtilizationPersistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator(
-            store: planUtilizationHistoryStore)
+            store: planHistoryStore)
         self.providerMetadata = registry.metadata
         self
             .failureGates = Dictionary(
@@ -404,7 +404,10 @@ final class UsageStore {
         self.providerRuntimes = Dictionary(uniqueKeysWithValues: ProviderCatalog.all.compactMap { implementation in
             implementation.makeRuntime().map { (implementation.id, $0) }
         })
-        self.planUtilizationHistory = planUtilizationHistoryStore.load()
+        self.startPlanUtilizationHistoryLoad(
+            gate: planUtilizationHistoryLoadGateForTesting,
+            enabled: self.startupBehavior.automaticallyStartsBackgroundWork ||
+                planUtilizationHistoryStore != nil)
         self.sessionLimitResetDetectorStates = Self.loadLimitResetDetectorStates(
             from: settings.userDefaults,
             defaultsKey: Self.sessionLimitResetDetectorDefaultsKey,
@@ -817,6 +820,7 @@ final class UsageStore {
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
+        self.planUtilizationHistoryLoadTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {

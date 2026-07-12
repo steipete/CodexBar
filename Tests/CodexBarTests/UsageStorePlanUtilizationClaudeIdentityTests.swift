@@ -889,11 +889,17 @@ struct UsageStorePlanUtilizationClaudeIdentityTests {
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.addTokenAccount(provider: .claude, label: "Unrelated", token: "unrelated-token")
         settings.setActiveTokenAccountIndex(0, for: .claude)
-        return UsageStore(
+        let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             planUtilizationHistoryStore: historyStore,
             startupBehavior: .testing)
+        // Cancel the background decode and apply the disk-loaded buckets
+        // synchronously so callers can immediately query without racing the
+        // utility-priority load task.
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        store.planUtilizationHistory = store.planUtilizationHistoryStore.load()
+        return store
     }
 }

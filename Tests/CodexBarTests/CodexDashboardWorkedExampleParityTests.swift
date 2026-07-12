@@ -424,12 +424,14 @@ struct CodexDashboardWorkedExampleParityTests {
             .appendingPathComponent("usage-history.jsonl")
         let planStore = testPlanUtilizationHistoryStore(
             suiteName: "CodexDashboardWorkedExampleParityTests-\(UUID().uuidString)")
-        return UsageStore(
+        let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyURL),
             planUtilizationHistoryStore: planStore)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        return store
     }
 
     private func makeCLIContext(

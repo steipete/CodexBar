@@ -285,6 +285,7 @@ struct CodexAccountMenuDisplaySnapshotTests {
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         let controller = StatusItemController(
             store: store,
             settings: settings,

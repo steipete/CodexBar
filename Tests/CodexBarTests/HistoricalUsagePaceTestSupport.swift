@@ -299,12 +299,14 @@ extension HistoricalUsagePaceTests {
         settings.historicalTrackingEnabled = true
         let planHistoryStore = testPlanUtilizationHistoryStore(
             suiteName: "HistoricalUsagePaceTests-\(UUID().uuidString)")
-        return UsageStore(
+        let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             historicalUsageHistoryStore: historicalUsageHistoryStore,
             planUtilizationHistoryStore: planHistoryStore)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        return store
     }
 
     @MainActor
