@@ -319,6 +319,7 @@ extension HistoricalUsagePaceTests {
             settings: settings,
             historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: Self.makeTempURL()),
             planUtilizationHistoryStore: planHistoryStore)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
 
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(

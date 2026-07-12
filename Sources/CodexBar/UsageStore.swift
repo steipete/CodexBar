@@ -86,16 +86,8 @@ extension UsageStore {
 
     private static func isRunningTestsProcess() -> Bool {
         let environment = ProcessInfo.processInfo.environment
-        if environment["XCTestConfigurationFilePath"] != nil {
-            return true
-        }
-        if environment["XCTestSessionIdentifier"] != nil {
-            return true
-        }
-        if environment["SWIFT_TESTING_ENABLED"] != nil {
-            return true
-        }
-        return CommandLine.arguments.contains { argument in
+        let testKeys = ["XCTestConfigurationFilePath", "XCTestSessionIdentifier", "SWIFT_TESTING_ENABLED"]
+        return testKeys.contains(where: { environment[$0] != nil }) || CommandLine.arguments.contains { argument in
             argument.contains("xctest") || argument.contains("swift-testing")
         }
     }
@@ -378,7 +370,7 @@ final class UsageStore {
         settings: SettingsStore,
         registry: ProviderRegistry = .shared,
         historicalUsageHistoryStore: HistoricalUsageHistoryStore = HistoricalUsageHistoryStore(),
-        planUtilizationHistoryStore: PlanUtilizationHistoryStore = .defaultAppSupport(),
+        planUtilizationHistoryStore: PlanUtilizationHistoryStore? = nil,
         codexAccountUsageSnapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil,
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
         startupBehavior: StartupBehavior = .automatic,
@@ -393,13 +385,14 @@ final class UsageStore {
         self.registry = registry
         self.environmentBase = environmentBase
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
-        self.planUtilizationHistoryStore = planUtilizationHistoryStore
-        self.sessionQuotaNotifier = sessionQuotaNotifier
         self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
+        let planHistoryStore = Self.resolvedPlanHistoryStore(planUtilizationHistoryStore, startup: self.startupBehavior)
+        self.planUtilizationHistoryStore = planHistoryStore
+        self.sessionQuotaNotifier = sessionQuotaNotifier
         self.codexAccountUsageSnapshotStore = codexAccountUsageSnapshotStore ??
             (self.startupBehavior.automaticallyStartsBackgroundWork ? FileCodexAccountUsageSnapshotStore() : nil)
         self.planUtilizationPersistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator(
-            store: planUtilizationHistoryStore)
+            store: planHistoryStore)
         self.providerMetadata = registry.metadata
         self
             .failureGates = Dictionary(
@@ -422,7 +415,7 @@ final class UsageStore {
         if self.startupBehavior.automaticallyStartsBackgroundWork || planUtilizationHistoryLoadGateForTesting != nil {
             self.planUtilizationHistoryLoadTask = Self.makePlanUtilizationHistoryLoadTask(
                 owner: self,
-                store: planUtilizationHistoryStore,
+                store: planHistoryStore,
                 gate: planUtilizationHistoryLoadGateForTesting)
         } else {
             // `.testing` disables automatic startup work. Focused async-load

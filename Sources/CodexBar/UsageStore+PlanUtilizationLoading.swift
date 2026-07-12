@@ -1,6 +1,15 @@
 import Foundation
 
 extension UsageStore {
+    static func resolvedPlanHistoryStore(
+        _ store: PlanUtilizationHistoryStore?,
+        startup: StartupBehavior) -> PlanUtilizationHistoryStore
+    {
+        store ?? (startup.automaticallyStartsBackgroundWork
+            ? .defaultAppSupport()
+            : PlanUtilizationHistoryStore(directoryURL: nil))
+    }
+
     /// Returns the utility worker itself so cancellation owns the gate, decode,
     /// and publication path instead of only cancelling an outer awaiting task.
     static func makePlanUtilizationHistoryLoadTask(

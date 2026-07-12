@@ -559,6 +559,7 @@ extension CodexAccountScopedRefreshTests {
             codexAccountUsageSnapshotStore: snapshotStore,
             startupBehavior: .testing,
             environmentBase: environment)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         store._test_codexResetCreditsFetcherOverride = { _ in nil }
         return store
     }

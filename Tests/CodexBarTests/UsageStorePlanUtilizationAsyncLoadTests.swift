@@ -17,6 +17,25 @@ import Testing
 struct UsageStorePlanUtilizationAsyncLoadTests {
     @MainActor
     @Test
+    func `testing startup without an injected history store uses no disk directory`() {
+        let suiteName = "UsageStorePlanUtilizationAsyncLoad-default-test-\(UUID().uuidString)"
+        let settings = Self.makeSettings(suiteName: suiteName)
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        #expect(store.planUtilizationHistoryLoadTask == nil)
+        #expect(store.planUtilizationHistoryLoaded)
+        #expect(store.planUtilizationHistory.isEmpty)
+        #expect(store.planUtilizationHistoryStore.directoryURL == nil)
+    }
+
+    @MainActor
+    @Test
     func `testing startup without an explicit gate skips background load`() {
         let suiteName = "UsageStorePlanUtilizationAsyncLoad-testing-\(UUID().uuidString)"
         let historyStore = testPlanUtilizationHistoryStore(suiteName: suiteName, reset: true)
