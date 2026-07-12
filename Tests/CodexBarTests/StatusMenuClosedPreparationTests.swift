@@ -30,6 +30,12 @@ private final class ClosedMenuManualRefreshGate {
 }
 
 extension StatusMenuTests {
+    private func makeClosedMenuStore(settings: SettingsStore) -> UsageStore {
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        return store
+    }
+
     @Test
     func `stale data refresh suppresses icon attached closed menu preparation`() async {
         self.disableMenuCardsForTesting()
@@ -44,7 +50,7 @@ extension StatusMenuTests {
             }
         }
 
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let store = self.makeClosedMenuStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -95,7 +101,7 @@ extension StatusMenuTests {
             }
         }
 
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let store = self.makeClosedMenuStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -157,7 +163,7 @@ extension StatusMenuTests {
             }
         }
 
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let store = self.makeClosedMenuStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -212,7 +218,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
 
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let store = self.makeClosedMenuStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -270,7 +276,7 @@ extension StatusMenuTests {
             }
         }
 
-        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let store = self.makeClosedMenuStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
