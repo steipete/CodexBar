@@ -36,7 +36,9 @@ public enum ReplayEngine {
     private struct TraceSignals {
         let menuOpenTimestamps: [Date]
         let signalSamples: [(timestamp: Date, lowPower: Bool, thermal: ReplayThermalState)]
+        let signalTimestamps: [Date]
         let activitySamples: [ActivityObservation]
+        let activityTimestamps: [Date]
     }
 
     private struct ActivityObservation {
@@ -70,28 +72,32 @@ public enum ReplayEngine {
             .map(\.timestamp)
             .sorted()
 
+        let signalSamples: [(timestamp: Date, lowPower: Bool, thermal: ReplayThermalState)] = trace
+            .filter { $0.kind == .decision }
+            .compactMap { record in
+                guard let lowPower = record.lowPowerModeEnabled, let thermal = record.thermalState else {
+                    return nil
+                }
+                return (timestamp: record.timestamp, lowPower: lowPower, thermal: thermal)
+            }
+            .sorted { $0.timestamp < $1.timestamp }
+        let activitySamples = trace
+            .filter { $0.kind == .decision }
+            .map { record in
+                let activityDates = [record.codexActivitySeconds, record.claudeActivitySeconds]
+                    .compactMap(\.self)
+                    .map { record.timestamp.addingTimeInterval(-max(0, $0)) }
+                return ActivityObservation(
+                    timestamp: record.timestamp,
+                    lastCodingActivityAt: activityDates.max())
+            }
+            .sorted { $0.timestamp < $1.timestamp }
         let signals = TraceSignals(
             menuOpenTimestamps: menuOpenTimestamps,
-            signalSamples: trace
-                .filter { $0.kind == .decision }
-                .compactMap { record in
-                    guard let lowPower = record.lowPowerModeEnabled, let thermal = record.thermalState else {
-                        return nil
-                    }
-                    return (record.timestamp, lowPower, thermal)
-                }
-                .sorted { $0.timestamp < $1.timestamp },
-            activitySamples: trace
-                .filter { $0.kind == .decision }
-                .map { record in
-                    let activityDates = [record.codexActivitySeconds, record.claudeActivitySeconds]
-                        .compactMap(\.self)
-                        .map { record.timestamp.addingTimeInterval(-max(0, $0)) }
-                    return ActivityObservation(
-                        timestamp: record.timestamp,
-                        lastCodingActivityAt: activityDates.max())
-                }
-                .sorted { $0.timestamp < $1.timestamp })
+            signalSamples: signalSamples,
+            signalTimestamps: signalSamples.map(\.timestamp),
+            activitySamples: activitySamples,
+            activityTimestamps: activitySamples.map(\.timestamp))
 
         var cursor = start
         var refreshTimestamps: [Date] = []
@@ -107,11 +113,17 @@ public enum ReplayEngine {
 
         while cursor <= end, iterations < self.maxIterations {
             iterations += 1
-            let (lowPower, thermal) = self.signal(signals.signalSamples, at: cursor)
+            let (lowPower, thermal) = self.signal(
+                signals.signalSamples,
+                timestamps: signals.signalTimestamps,
+                at: cursor)
             let input = ReplayPolicyInput(
                 now: cursor,
                 lastMenuOpenAt: self.lastValue(menuOpenTimestamps, atOrBefore: cursor),
-                lastCodingActivityAt: self.lastActivity(signals.activitySamples, at: cursor),
+                lastCodingActivityAt: self.lastActivity(
+                    signals.activitySamples,
+                    timestamps: signals.activityTimestamps,
+                    at: cursor),
                 lowPowerModeEnabled: lowPower,
                 thermalState: thermal)
             let decision = policy.decide(input)
@@ -205,11 +217,17 @@ public enum ReplayEngine {
             }
             guard menuOpenAt <= next else { break }
 
-            let (lowPower, thermal) = self.signal(signals.signalSamples, at: menuOpenAt)
+            let (lowPower, thermal) = self.signal(
+                signals.signalSamples,
+                timestamps: signals.signalTimestamps,
+                at: menuOpenAt)
             let advanceDecision = policy.decide(ReplayPolicyInput(
                 now: menuOpenAt,
                 lastMenuOpenAt: menuOpenAt,
-                lastCodingActivityAt: self.lastActivity(signals.activitySamples, at: menuOpenAt),
+                lastCodingActivityAt: self.lastActivity(
+                    signals.activitySamples,
+                    timestamps: signals.activityTimestamps,
+                    at: menuOpenAt),
                 lowPowerModeEnabled: lowPower,
                 thermalState: thermal))
             scanIndex += 1
@@ -238,8 +256,12 @@ public enum ReplayEngine {
         }
     }
 
-    private static func lastActivity(_ samples: [ActivityObservation], at time: Date) -> Date? {
-        guard let index = self.lastIndex(samples.map(\.timestamp), atOrBefore: time) else { return nil }
+    private static func lastActivity(
+        _ samples: [ActivityObservation],
+        timestamps: [Date],
+        at time: Date) -> Date?
+    {
+        guard let index = self.lastIndex(timestamps, atOrBefore: time) else { return nil }
         return samples[index].lastCodingActivityAt
     }
 
@@ -248,10 +270,11 @@ public enum ReplayEngine {
     /// nominal/not-low-power when no samples exist at all.
     private static func signal(
         _ samples: [(timestamp: Date, lowPower: Bool, thermal: ReplayThermalState)],
+        timestamps: [Date],
         at time: Date) -> (Bool, ReplayThermalState)
     {
         guard !samples.isEmpty else { return (false, .nominal) }
-        if let index = self.lastIndex(samples.map(\.timestamp), atOrBefore: time) {
+        if let index = self.lastIndex(timestamps, atOrBefore: time) {
             return (samples[index].lowPower, samples[index].thermal)
         }
         return (samples[0].lowPower, samples[0].thermal)
