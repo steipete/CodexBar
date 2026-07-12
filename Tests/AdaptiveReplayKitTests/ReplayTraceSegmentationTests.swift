@@ -82,4 +82,20 @@ struct ReplayTraceSegmentationTests {
         #expect(metrics.boundaryCensoredMenuOpenCount == 1)
         #expect(try #require(metrics.stalenessAtMenuOpen).sampleCount == 1)
     }
+
+    @Test
+    func `recorded refresh anchors staleness before a policy refresh`() throws {
+        let trace = [
+            self.decision(0, delay: 600),
+            .refreshCompleted(timestamp: self.at(600)),
+            .menuOpen(timestamp: self.at(700)),
+            self.decision(1200, delay: 600),
+        ]
+
+        let metrics = ReplayEngine.runSegmented(trace: trace, policy: ManualPolicy())
+        let staleness = try #require(metrics.stalenessAtMenuOpen)
+
+        #expect(staleness.sampleCount == 1)
+        #expect(staleness.mean == 100)
+    }
 }

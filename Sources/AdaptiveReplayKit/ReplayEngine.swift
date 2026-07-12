@@ -173,7 +173,7 @@ public enum ReplayEngine {
         let stalenessSamples = stalenessMenuTimestamps.isEmpty ? [] : self.stalenessSamples(
             menuOpenTimestamps: stalenessMenuTimestamps,
             refreshTimestamps: refreshTimestamps,
-            traceStart: start)
+            initialFreshAt: stalenessStartAt ?? start)
 
         return ReplayRun(
             metrics: ReplayMetrics(
@@ -245,13 +245,13 @@ public enum ReplayEngine {
     private static func stalenessSamples(
         menuOpenTimestamps: [Date],
         refreshTimestamps: [Date],
-        traceStart: Date) -> [Double]
+        initialFreshAt: Date) -> [Double]
     {
         menuOpenTimestamps.map { menuOpenAt in
             if let lastRefresh = self.lastValue(refreshTimestamps, atOrBefore: menuOpenAt) {
                 menuOpenAt.timeIntervalSince(lastRefresh)
             } else {
-                menuOpenAt.timeIntervalSince(traceStart)
+                menuOpenAt.timeIntervalSince(initialFreshAt)
             }
         }
     }
