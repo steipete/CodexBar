@@ -42,6 +42,72 @@ struct StatusMenuOverviewClickTests {
     }
 
     @Test
+    func `gpu tracking activates only for mouseUp inside row`() {
+        let wrapped = MenuCardSectionContainerView(
+            highlightState: MenuCardHighlightState(),
+            showsSubmenuIndicator: false,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0,
+            refreshMonitor: nil)
+        {
+            Text("Overview GPU row")
+        }
+        let view = GPUSelectionHostingView(
+            rootView: wrapped,
+            allowsMenuHighlight: true,
+            onClick: {})
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
+        let events = Self.mouseClick(at: NSPoint(x: 160, y: 22))
+
+        #expect(view._test_primaryPressDecision(for: events.down) == nil)
+        #expect(view._test_primaryPressDecision(for: events.up) == true)
+    }
+
+    @Test
+    func `gpu tracking cancels when release leaves row`() {
+        let wrapped = MenuCardSectionContainerView(
+            highlightState: MenuCardHighlightState(),
+            showsSubmenuIndicator: true,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0,
+            refreshMonitor: nil)
+        {
+            Text("Overview GPU row")
+        }
+        let view = GPUSelectionHostingView(
+            rootView: wrapped,
+            allowsMenuHighlight: true,
+            onClick: {})
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
+        let outsideUp = Self.mouseClick(at: NSPoint(x: 340, y: 22)).up
+
+        #expect(view._test_primaryPressDecision(for: outsideUp) == false)
+    }
+
+    @Test
+    func `gpu tracking yields an outside drag to native submenu tracking`() {
+        let wrapped = MenuCardSectionContainerView(
+            highlightState: MenuCardHighlightState(),
+            showsSubmenuIndicator: true,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0,
+            refreshMonitor: nil)
+        {
+            Text("Overview GPU row")
+        }
+        let view = GPUSelectionHostingView(
+            rootView: wrapped,
+            allowsMenuHighlight: true,
+            onClick: {})
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
+
+        let insideDrag = Self.mouseDrag(at: NSPoint(x: 160, y: 22))
+        let outsideDrag = Self.mouseDrag(at: NSPoint(x: 340, y: 22))
+        #expect(!view._test_primaryPressShouldYieldToMenu(for: insideDrag))
+        #expect(view._test_primaryPressShouldYieldToMenu(for: outsideDrag))
+    }
+
+    @Test
     func `hitTest preserves button targets in standard hosting view`() {
         let view = MenuCardItemHostingView(
             rootView: Text("Overview row"),
@@ -217,5 +283,18 @@ struct StatusMenuOverviewClickTests {
             clickCount: 1,
             pressure: 0)!
         return (down, up)
+    }
+
+    private static func mouseDrag(at point: NSPoint) -> NSEvent {
+        NSEvent.mouseEvent(
+            with: .leftMouseDragged,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 3,
+            clickCount: 1,
+            pressure: 1)!
     }
 }

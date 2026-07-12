@@ -26,7 +26,6 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     private var onClick: (() -> Void)?
     private let containsInteractiveControls: Bool
     private let interactiveRegionStore: MenuCardInteractiveRegionStore?
-    private var isPressed = false
 
     private(set) var allowsMenuHighlight: Bool
 
@@ -147,26 +146,44 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
             super.mouseDown(with: event)
             return
         }
-        self.beginPrimaryPress(at: self.locationInView(for: event))
-    }
+        guard self.bounds.contains(self.locationInView(for: event)), let window = self.window else { return }
 
-    override func mouseUp(with event: NSEvent) {
-        guard event.type == .leftMouseUp, self.onClick != nil else {
-            super.mouseUp(with: event)
-            return
+        // A submenu-backed NSMenuItem consumes mouseUp in its nested tracking loop before a custom
+        // view receives it. Track the drag/up sequence directly so release-inside cancellation stays
+        // native while the menu never gets a chance to close before the row action runs.
+        var shouldInvoke = false
+        window.trackEvents(
+            matching: [.leftMouseDragged, .leftMouseUp],
+            timeout: NSEvent.foreverDuration,
+            mode: .eventTracking)
+        { [weak self] trackedEvent, stop in
+            guard let self, let trackedEvent else {
+                stop.pointee = true
+                return
+            }
+            if self.primaryPressShouldYieldToMenu(for: trackedEvent) {
+                // We dequeued this drag from the window; put it back so NSMenu's tracking loop can
+                // continue native drag-to-submenu selection from the same event.
+                window.postEvent(trackedEvent, atStart: true)
+                stop.pointee = true
+                return
+            }
+            guard let decision = self.primaryPressDecision(for: trackedEvent) else { return }
+            shouldInvoke = decision
+            stop.pointee = true
         }
-        if self.endPrimaryPress(at: self.locationInView(for: event)) {
+        if shouldInvoke {
             self.onClick?()
         }
     }
 
-    private func beginPrimaryPress(at point: NSPoint) {
-        self.isPressed = self.bounds.contains(point)
+    private func primaryPressDecision(for event: NSEvent) -> Bool? {
+        guard event.type == .leftMouseUp else { return nil }
+        return self.bounds.contains(self.locationInView(for: event))
     }
 
-    private func endPrimaryPress(at point: NSPoint) -> Bool {
-        defer { self.isPressed = false }
-        return self.isPressed && self.bounds.contains(point)
+    private func primaryPressShouldYieldToMenu(for event: NSEvent) -> Bool {
+        event.type == .leftMouseDragged && !self.bounds.contains(self.locationInView(for: event))
     }
 
     override func layout() {
@@ -277,10 +294,17 @@ extension GPUSelectionHostingView {
     func _test_simulateRuntimeClick(at point: NSPoint? = nil) -> Bool {
         let clickPoint = point ?? NSPoint(x: self.bounds.midX, y: self.bounds.midY)
         guard let onClick = self.onClick, self.hitTest(clickPoint) === self else { return false }
-        self.beginPrimaryPress(at: clickPoint)
-        guard self.endPrimaryPress(at: clickPoint) else { return false }
+        guard self.bounds.contains(clickPoint) else { return false }
         onClick()
         return true
+    }
+
+    func _test_primaryPressDecision(for event: NSEvent) -> Bool? {
+        self.primaryPressDecision(for: event)
+    }
+
+    func _test_primaryPressShouldYieldToMenu(for event: NSEvent) -> Bool {
+        self.primaryPressShouldYieldToMenu(for: event)
     }
 }
 #endif
