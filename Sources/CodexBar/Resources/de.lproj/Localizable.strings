@@ -828,6 +828,8 @@
 /* Popup panels */
 "No usage configured." = "Keine Nutzung konfiguriert.";
 "Quota" = "Kontingent";
+"Daily quota" = "Tageskontingent";
+"Total" = "Gesamt";
 "tokens" = "Token";
 "requests" = "Anfragen";
 "Latest" = "Letzte";

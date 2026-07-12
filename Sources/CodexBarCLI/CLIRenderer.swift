@@ -38,6 +38,7 @@ enum CLIRenderer {
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -101,6 +102,7 @@ enum CLIRenderer {
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -486,6 +488,7 @@ enum CLIRenderer {
         }
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
+        self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -710,6 +713,38 @@ enum CLIRenderer {
         }
     }
 
+    private static func appendSub2APIUsageLines(
+        snapshot: UsageSnapshot,
+        useColor: Bool,
+        lines: inout [String])
+    {
+        guard let usage = snapshot.sub2APIUsage else { return }
+        if let balance = usage.balance {
+            lines.append(self.labelValueLine(
+                "Balance",
+                value: UsageFormatter.currencyString(balance, currencyCode: usage.unit),
+                useColor: useColor))
+        }
+        if let today = usage.today {
+            lines.append(self.labelValueLine(
+                "Today",
+                value: self.sub2APITotalsText(today, unit: usage.unit),
+                useColor: useColor))
+        }
+        if let total = usage.total {
+            lines.append(self.labelValueLine(
+                "Total",
+                value: self.sub2APITotalsText(total, unit: usage.unit),
+                useColor: useColor))
+        }
+    }
+
+    private static func sub2APITotalsText(_ totals: Sub2APIUsageDetails.Totals, unit: String) -> String {
+        "\(UsageFormatter.tokenCountString(totals.requests)) requests · " +
+            "\(UsageFormatter.tokenCountString(totals.totalTokens)) tokens · " +
+            UsageFormatter.currencyString(totals.actualCostUSD, currencyCode: unit)
+    }
+
     private static func appendWayfinderUsageLines(
         snapshot: UsageSnapshot,
         useColor: Bool,
@@ -826,9 +861,13 @@ enum CLIRenderer {
                 tertiary: "Monthly",
                 showsTertiary: true)
         }
-        let primaryLabel = provider == .grok
-            ? GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
-            : metadata.sessionLabel
+        let primaryLabel = if provider == .grok {
+            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+        } else if provider == .sub2api {
+            Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? metadata.sessionLabel
+        } else {
+            metadata.sessionLabel
+        }
         return RateWindowLabels(
             primary: primaryLabel,
             secondary: metadata.weeklyLabel,

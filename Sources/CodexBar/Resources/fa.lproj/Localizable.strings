@@ -832,6 +832,8 @@
 /* Popup panels */
 "No usage configured." = "هیچ استفاده ای تنظیم نشده است.";
 "Quota" = "سهمیه";
+"Daily quota" = "سهمیه روزانه";
+"Total" = "مجموع";
 "tokens" = "توکن ها";
 "requests" = "درخواست ها";
 "Latest" = "جدیدترین ها";

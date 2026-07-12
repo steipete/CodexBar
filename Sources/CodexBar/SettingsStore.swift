@@ -180,9 +180,15 @@ final class SettingsStore {
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
-        if env["XCTestConfigurationFilePath"] != nil { return true }
-        if env["TESTING_LIBRARY_VERSION"] != nil { return true }
-        if env["SWIFT_TESTING"] != nil { return true }
+        if env["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+        if env["TESTING_LIBRARY_VERSION"] != nil {
+            return true
+        }
+        if env["SWIFT_TESTING"] != nil {
+            return true
+        }
         return NSClassFromString("XCTestCase") != nil
     }()
 
@@ -212,11 +218,20 @@ final class SettingsStore {
     var backgroundWorkSettingsRevision: Int = 0
     var providerOrder: [UsageProvider] = []
     var providerEnablement: [UsageProvider: Bool] = [:]
+    @ObservationIgnored var providerEnablementRevisions: [UsageProvider: UInt64] = [:]
+    @ObservationIgnored var providerConfigRevisions: [UsageProvider: UInt64] = [:]
+    @ObservationIgnored var providerConfigFingerprints: [UsageProvider: Data] = [:]
 
     static func shouldBridgeSharedDefaults(for userDefaults: UserDefaults) -> Bool {
-        if !self.isRunningTests { return true }
-        if userDefaults === UserDefaults.standard { return true }
-        if let shared = sharedDefaults, userDefaults === shared { return true }
+        if !self.isRunningTests {
+            return true
+        }
+        if userDefaults === UserDefaults.standard {
+            return true
+        }
+        if let shared = sharedDefaults, userDefaults === shared {
+            return true
+        }
         return false
     }
 
@@ -371,8 +386,12 @@ extension SettingsStore {
         hadExistingConfig: Bool) -> Bool
     {
         guard let codex = config.providerConfig(for: .codex) else { return false }
-        if let cookieSource = codex.cookieSource { return cookieSource.isEnabled }
-        if codex.sanitizedCookieHeader != nil { return true }
+        if let cookieSource = codex.cookieSource {
+            return cookieSource.isEnabled
+        }
+        if codex.sanitizedCookieHeader != nil {
+            return true
+        }
         return hadExistingConfig
     }
 
@@ -736,9 +755,33 @@ extension SettingsStore {
         enablement.reserveCapacity(metadata.count)
         for provider in UsageProvider.allCases {
             let defaultEnabled = metadata[provider]?.defaultEnabled ?? false
-            enablement[provider] = config.providerConfig(for: provider)?.enabled ?? defaultEnabled
+            let providerConfig = config.providerConfig(for: provider) ?? ProviderConfig(id: provider)
+            let isEnabled = providerConfig.enabled ?? defaultEnabled
+            if let previous = self.providerEnablement[provider], previous != isEnabled {
+                self.providerEnablementRevisions[provider, default: 0] &+= 1
+            }
+            let fingerprint = Self.providerConfigFingerprint(providerConfig)
+            if let previous = self.providerConfigFingerprints[provider], previous != fingerprint {
+                self.providerConfigRevisions[provider, default: 0] &+= 1
+            }
+            self.providerConfigFingerprints[provider] = fingerprint
+            enablement[provider] = isEnabled
         }
         self.providerEnablement = enablement
+    }
+
+    private static func providerConfigFingerprint(_ config: ProviderConfig) -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(config)) ?? Data()
+    }
+
+    func providerEnablementRevision(for provider: UsageProvider) -> UInt64 {
+        self.providerEnablementRevisions[provider, default: 0]
+    }
+
+    func providerConfigRevision(for provider: UsageProvider) -> UInt64 {
+        self.providerConfigRevisions[provider, default: 0]
     }
 
     func orderedProviders() -> [UsageProvider] {

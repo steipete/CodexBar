@@ -704,6 +704,8 @@
 /* Popup panels */
 "No usage configured." = "尚未設定使用量。";
 "Quota" = "配額";
+"Daily quota" = "每日配額";
+"Total" = "總計";
 "tokens" = "token";
 "requests" = "請求";
 "Latest" = "最新";

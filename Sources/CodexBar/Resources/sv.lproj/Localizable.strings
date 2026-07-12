@@ -1122,6 +1122,8 @@
 "Paste a Cookie or Authorization header from %@." = "Klistra in en Cookie- eller Authorization-header från %@.";
 "stale data" = "inaktuella data";
 "Quota" = "Kvot";
+"Daily quota" = "Daglig kvot";
+"Total" = "Totalt";
 "Auth source" = "Autentiseringskälla";
 "Automatic imports browser cookies from Xiaomi MiMo." = "Importerar webbläsarcookies från Xiaomi MiMo automatiskt.";
 "No usage configured." = "Ingen användning konfigurerad.";

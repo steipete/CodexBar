@@ -49,6 +49,61 @@ extension UsageMenuCardView.Model {
         }
     }
 
+    static func usageNotes(input: Input) -> [String] {
+        let subscriptionNotes = self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider)
+
+        if input.provider == .sub2api {
+            return self.sub2APIUsageNotes(input.snapshot?.sub2APIUsage) + subscriptionNotes
+        }
+
+        if input.provider == .kiro {
+            return self.kiroUsageNotes(input: input) + subscriptionNotes
+        }
+
+        if input.provider == .kilo {
+            var notes = Self.kiloLoginDetails(snapshot: input.snapshot)
+            let resolvedSource = input.sourceLabel?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if input.kiloAutoMode,
+               resolvedSource == "cli",
+               !notes.contains(where: { $0.caseInsensitiveCompare("Using CLI fallback") == .orderedSame })
+            {
+                notes.append(L("Using CLI fallback"))
+            }
+            return notes + subscriptionNotes
+        }
+
+        if input.provider == .mimo, input.snapshot != nil {
+            return Self.mimoUsageNotes(input: input, subscriptionNotes: subscriptionNotes)
+        }
+
+        if let notes = self.apiProviderUsageNotes(input: input) {
+            return notes + subscriptionNotes
+        }
+
+        if input.provider == .crossmodel, let crossModel = input.snapshot?.crossModelUsage {
+            return Self.crossModelSpendNotes(crossModel) + subscriptionNotes
+        }
+
+        guard input.provider == .openrouter,
+              let openRouter = input.snapshot?.openRouterUsage
+        else {
+            return subscriptionNotes
+        }
+
+        var notes = Self.openRouterSpendNotes(openRouter)
+        switch openRouter.keyQuotaStatus {
+        case .available:
+            break
+        case .noLimitConfigured:
+            notes.append(L("No limit set for the API key"))
+        case .unavailable:
+            notes.append(L("API key limit unavailable right now"))
+        }
+        return notes + subscriptionNotes
+    }
+
     var isOverviewErrorOnly: Bool {
         self.subtitleStyle == .error &&
             self.metrics.isEmpty &&
@@ -231,6 +286,8 @@ extension UsageMenuCardView.Model {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else if input.provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
+        } else if input.provider == .sub2api {
+            Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }
@@ -239,6 +296,27 @@ extension UsageMenuCardView.Model {
             L(input.metadata.weeklyLabel),
             input.metadata.opusLabel.map(L) ?? L("Sonnet"),
             input.metadata.supportsOpus)
+    }
+
+    static func sub2APIUsageNotes(_ usage: Sub2APIUsageDetails?) -> [String] {
+        guard let usage else { return [] }
+        var notes: [String] = []
+        if let balance = usage.balance {
+            notes.append("\(L("Balance")): \(UsageFormatter.currencyString(balance, currencyCode: usage.unit))")
+        }
+        if let today = usage.today {
+            notes.append("\(L("Today")): \(self.sub2APITotalsText(today, unit: usage.unit))")
+        }
+        if let total = usage.total {
+            notes.append("\(L("Total")): \(self.sub2APITotalsText(total, unit: usage.unit))")
+        }
+        return notes
+    }
+
+    private static func sub2APITotalsText(_ totals: Sub2APIUsageDetails.Totals, unit: String) -> String {
+        "\(UsageFormatter.tokenCountString(totals.requests)) \(L("requests")) · " +
+            "\(UsageFormatter.tokenCountString(totals.totalTokens)) \(L("tokens")) · " +
+            UsageFormatter.currencyString(totals.actualCostUSD, currencyCode: unit)
     }
 
     static func resetText(
@@ -363,9 +441,15 @@ extension UsageMenuCardView.Model {
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
         let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
-        if expectedPercent.isFinite == false || actualPercent.isFinite == false { return nil }
+        if expectedPercent.isFinite == false || actualPercent.isFinite == false {
+            return nil
+        }
         let paceOnTop = actualUsed <= expectedUsed
-        let pacePercent: Double? = if detail.stage == .onTrack { nil } else { expectedPercent }
+        let pacePercent: Double? = if detail.stage == .onTrack {
+            nil
+        } else {
+            expectedPercent
+        }
         return PaceDetail(
             leftLabel: detail.leftLabel,
             rightLabel: detail.rightLabel,
@@ -386,9 +470,15 @@ extension UsageMenuCardView.Model {
         let actualUsed = window.usedPercent
         let expectedPercent = showUsed ? expectedUsed : (100 - expectedUsed)
         let actualPercent = showUsed ? actualUsed : (100 - actualUsed)
-        if expectedPercent.isFinite == false || actualPercent.isFinite == false { return nil }
+        if expectedPercent.isFinite == false || actualPercent.isFinite == false {
+            return nil
+        }
         let paceOnTop = actualUsed <= expectedUsed
-        let pacePercent: Double? = if detail.stage == .onTrack { nil } else { expectedPercent }
+        let pacePercent: Double? = if detail.stage == .onTrack {
+            nil
+        } else {
+            expectedPercent
+        }
         return PaceDetail(
             leftLabel: detail.leftLabel,
             rightLabel: detail.rightLabel,
@@ -549,9 +639,15 @@ extension UsageMenuCardView.Model {
                 window: namedWindow.window,
                 input: input)
             let usageKnown = namedWindow.usageKnown
-            let resetText = Self.extraRateWindowResetText(
+            let resolvedResetText = Self.extraRateWindowResetText(
                 namedWindow: namedWindow,
                 input: input)
+            let resetText = input.provider == .sub2api && namedWindow.window.resetsAt == nil
+                ? nil
+                : resolvedResetText
+            let detailText = input.provider == .sub2api
+                ? namedWindow.window.resetDescription
+                : nil
             let statusText: String? = if usageKnown {
                 nil
             } else if let resetText {
@@ -569,7 +665,7 @@ extension UsageMenuCardView.Model {
                 percentStyle: percentStyle,
                 statusText: statusText,
                 resetText: usageKnown ? resetText : nil,
-                detailText: nil,
+                detailText: usageKnown ? detailText : nil,
                 detailLeftText: usageKnown ? paceDetail?.leftLabel : nil,
                 detailRightText: usageKnown ? paceDetail?.rightLabel : nil,
                 pacePercent: usageKnown ? paceDetail?.pacePercent : nil,

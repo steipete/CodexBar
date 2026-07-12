@@ -259,6 +259,8 @@ extension CodexBarCLI {
             LLMProxySettingsReader.apiKey(environment: environment) != nil
         case .clawrouter:
             ClawRouterSettingsReader.apiKey(environment: environment) != nil
+        case .sub2api:
+            Sub2APISettingsReader.apiKey(environment: environment) != nil
         case .moonshot:
             MoonshotSettingsReader.apiKey(environment: environment) != nil
         case .ollama:

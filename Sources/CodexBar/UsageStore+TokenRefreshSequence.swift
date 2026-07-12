@@ -5,6 +5,7 @@ extension UsageStore {
     private enum TokenRefreshSequenceScope: Sendable {
         case all
         case provider(UsageProvider)
+        case providers([UsageProvider])
     }
 
     func startTokenTimer() {
@@ -20,6 +21,7 @@ extension UsageStore {
 
     func scheduleTokenRefresh() {
         guard self.tokenRefreshSequenceTask == nil, !self.hasForcedRefreshEnrichmentInFlight else { return }
+        if self.startPendingTokenRefreshRetryIfPossible() { return }
         self.startTokenRefreshSequence(force: false, scope: .all)
     }
 
@@ -72,6 +74,8 @@ extension UsageStore {
             self.enabledProvidersForBackgroundWork()
         case let .provider(provider):
             [provider]
+        case let .providers(providers):
+            providers
         }
         let token = UUID()
         self.tokenRefreshSequenceToken = token
@@ -100,6 +104,32 @@ extension UsageStore {
         self.tokenRefreshSequenceTask = nil
         self.tokenRefreshSequenceToken = nil
         self.tokenRefreshSequenceProvider = nil
+        self.startPendingTokenRefreshRetryIfPossible()
+    }
+
+    func requestTokenRefreshAfterStaleCompletion(for provider: UsageProvider) {
+        self.tokenRefreshRetryProviders.insert(provider)
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.startPendingTokenRefreshRetryIfPossible()
+        }
+    }
+
+    @discardableResult
+    private func startPendingTokenRefreshRetryIfPossible() -> Bool {
+        guard !self.tokenRefreshRetryProviders.isEmpty,
+              self.tokenRefreshSequenceTask == nil,
+              self.settings.costUsageEnabled
+        else {
+            return false
+        }
+        let providers = self.enabledProvidersForBackgroundWork().filter(self.tokenRefreshRetryProviders.contains)
+        guard !providers.isEmpty else { return false }
+        self.tokenRefreshRetryProviders.subtract(providers)
+        // Retry only lanes whose prior completion was rejected. Disabled lanes remain pending
+        // until re-enabled, while unrelated providers keep their valid TTL and avoid a second scan.
+        self.startTokenRefreshSequence(force: true, scope: .providers(providers))
+        return true
     }
 
     private func refreshTokenUsageSequence(providers: [UsageProvider], force: Bool) async {

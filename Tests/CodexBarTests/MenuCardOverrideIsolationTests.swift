@@ -88,4 +88,92 @@ struct MenuCardOverrideIsolationTests {
         #expect(liveModel.subtitleStyle == .error)
         #expect(liveModel.subtitleText == "Claude OAuth credentials unavailable")
     }
+
+    @Test
+    func `failed stacked token account card keeps its configured label`() throws {
+        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Rejected group",
+            token: "fixture",
+            addedAt: 0,
+            lastUsed: nil)
+        let accountSnapshot = TokenAccountUsageSnapshot(
+            account: account,
+            snapshot: nil,
+            error: "sub2api rejected the API key.",
+            sourceLabel: nil,
+            cacheKey: "fixture-cache")
+
+        let model = try #require(controller.tokenAccountMenuCardModel(
+            for: .sub2api,
+            accountSnapshot: accountSnapshot))
+
+        #expect(model.email == "Rejected group")
+        #expect(model.subtitleStyle == .error)
+    }
+
+    @Test
+    func `successful stacked token account card prefers fetched identity over configured label`() throws {
+        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Configured group",
+            token: "fixture",
+            addedAt: 0,
+            lastUsed: nil)
+        let usage = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .sub2api,
+                accountEmail: "fetched@example.com",
+                accountOrganization: nil,
+                loginMethod: nil))
+        let accountSnapshot = TokenAccountUsageSnapshot(
+            account: account,
+            snapshot: usage,
+            error: nil,
+            sourceLabel: "api",
+            cacheKey: "fixture-cache")
+
+        let model = try #require(controller.tokenAccountMenuCardModel(
+            for: .sub2api,
+            accountSnapshot: accountSnapshot))
+
+        #expect(model.email == "fetched@example.com")
+    }
 }

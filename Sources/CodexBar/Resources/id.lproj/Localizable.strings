@@ -834,6 +834,8 @@
 /* Popup panels */
 "No usage configured." = "Tidak ada penggunaan dikonfigurasi.";
 "Quota" = "Kuota";
+"Daily quota" = "Kuota harian";
+"Total" = "Total";
 "tokens" = "token";
 "requests" = "permintaan";
 "Latest" = "Terbaru";

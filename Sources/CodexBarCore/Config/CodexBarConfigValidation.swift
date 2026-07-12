@@ -35,6 +35,7 @@ public enum CodexBarConfigValidator {
         .kimi,
         .litellm,
         .llmproxy,
+        .sub2api,
         .wayfinder,
     ]
 
@@ -102,7 +103,7 @@ public enum CodexBarConfigValidator {
 
         if let source = entry.source, source == .api,
            self.providerRequiresAPIKey(provider),
-           entry.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+           !self.hasConfiguredAPICredential(entry)
         {
             issues.append(CodexBarConfigIssue(
                 severity: .warning,
@@ -146,6 +147,8 @@ public enum CodexBarConfigValidator {
         }
 
         self.validateSecretKey(entry, issues: &issues)
+
+        self.validateSub2APIBaseURL(entry, issues: &issues)
 
         self.validateRegion(entry, issues: &issues)
 
@@ -204,6 +207,23 @@ public enum CodexBarConfigValidator {
             message: "secretKey is set but only bedrock and doubao use secretKey."))
     }
 
+    private static func validateSub2APIBaseURL(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
+        guard entry.id == .sub2api,
+              let raw = entry.enterpriseHost?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty,
+              Sub2APISettingsReader.baseURL(environment: [Sub2APISettingsReader.baseURLEnvironmentKey: raw]) == nil
+        else {
+            return
+        }
+
+        issues.append(CodexBarConfigIssue(
+            severity: .error,
+            provider: .sub2api,
+            field: "enterpriseHost",
+            code: "invalid_enterprise_host",
+            message: Sub2APISettingsError.invalidBaseURL.errorDescription ?? "Invalid sub2api base URL."))
+    }
+
     private static func validateZaiTeamContext(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
         guard entry.id == .zai else { return }
 
@@ -248,6 +268,17 @@ public enum CodexBarConfigValidator {
 
     private static func providerRequiresAPIKey(_ provider: UsageProvider) -> Bool {
         provider != .wayfinder
+    }
+
+    private static func hasConfiguredAPICredential(_ entry: ProviderConfig) -> Bool {
+        if let apiKey = entry.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
+            return true
+        }
+        return entry.tokenAccounts?.accounts.contains(where: { account in
+            let token = account.token.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !token.isEmpty &&
+                TokenAccountSupportCatalog.envOverride(for: entry.id, token: token)?.isEmpty == false
+        }) == true
     }
 
     private static var enterpriseHostProviderList: String {

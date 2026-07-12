@@ -798,6 +798,8 @@
 "Login with Google" = "Google로 로그인";
 "No usage configured." = "구성된 사용량이 없습니다.";
 "Quota" = "할당량";
+"Daily quota" = "일일 할당량";
+"Total" = "합계";
 "tokens" = "토큰";
 "requests" = "요청";
 "Latest" = "최신";

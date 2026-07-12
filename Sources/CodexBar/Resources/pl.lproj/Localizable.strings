@@ -834,6 +834,8 @@
 /* Popup panels */
 "No usage configured." = "Nie skonfigurowano użycia.";
 "Quota" = "Limit";
+"Daily quota" = "Limit dzienny";
+"Total" = "Łącznie";
 "tokens" = "tokeny";
 "requests" = "żądania";
 "Latest" = "Najnowsze";

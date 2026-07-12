@@ -832,6 +832,8 @@
 /* Popup panels */
 "No usage configured." = "لا يوجد استخدام محدد.";
 "Quota" = "الحصة";
+"Daily quota" = "الحصة اليومية";
+"Total" = "الإجمالي";
 "tokens" = "الرموز";
 "requests" = "الطلبات";
 "Latest" = "أحدث الإصدارات";

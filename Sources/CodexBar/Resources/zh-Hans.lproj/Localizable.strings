@@ -797,6 +797,8 @@
 /* Popup panels */
 "No usage configured." = "尚未配置用量。";
 "Quota" = "配额";
+"Daily quota" = "每日配额";
+"Total" = "总计";
 "tokens" = "token";
 "requests" = "请求";
 "Latest" = "最新";

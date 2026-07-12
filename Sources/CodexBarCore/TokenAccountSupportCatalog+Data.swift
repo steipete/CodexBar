@@ -157,6 +157,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: LiteLLMSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .sub2api: TokenAccountSupport(
+            title: "Group API keys",
+            subtitle: "Store one labeled sub2api API key for each group you want to monitor.",
+            placeholder: "Paste sub2api API key…",
+            injection: .environment(key: Sub2APISettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .stepfun: TokenAccountSupport(
             title: "Session tokens",
             subtitle: "Store multiple StepFun Oasis-Token values.",

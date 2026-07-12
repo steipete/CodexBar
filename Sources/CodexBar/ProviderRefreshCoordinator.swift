@@ -43,6 +43,16 @@ final class ProviderRefreshCoordinator<Key: Hashable> {
             predecessorStates: predecessorStates)
     }
 
+    /// Invalidates in-flight work without creating a replacement request. Existing states stay
+    /// registered until their tasks and waiters drain, but their generations can no longer publish.
+    func invalidateRequests(for key: Key) {
+        self.nextGeneration &+= 1
+        self.latestGenerations[key] = self.nextGeneration
+        for state in self.states[key] ?? [] {
+            state.cancelTask()
+        }
+    }
+
     func wait(for key: Key, state: ProviderRefreshTaskState) async -> WaitResult {
         self.nextWaiterID &+= 1
         let waiterID = self.nextWaiterID

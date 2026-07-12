@@ -413,6 +413,7 @@ struct CodexBarWidgetProviderTests {
     @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
+        #expect(ProviderChoice(provider: .sub2api) == nil)
     }
 
     @Test

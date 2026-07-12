@@ -826,6 +826,8 @@
 /* Popup panels */
 "No usage configured." = "Chưa định cấu hình Mức sử dụng.";
 "Quota" = "Hạn mức";
+"Daily quota" = "Hạn mức hằng ngày";
+"Total" = "Tổng";
 "tokens" = "mã thông báo";
 "requests" = "yêu cầu";
 "Latest" = "Mới nhất";

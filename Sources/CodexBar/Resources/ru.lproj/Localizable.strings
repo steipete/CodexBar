@@ -832,6 +832,8 @@
 /* Popup panels */
 "No usage configured." = "Использование не настроено.";
 "Quota" = "Квота";
+"Daily quota" = "Дневная квота";
+"Total" = "Всего";
 "tokens" = "токены";
 "requests" = "запросы";
 "Latest" = "Последние";

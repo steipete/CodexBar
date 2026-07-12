@@ -60,6 +60,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case chutes
     case crossmodel
     case clawrouter
+    case sub2api
     case wayfinder
 }
 
@@ -121,6 +122,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case chutes
     case crossmodel
     case clawrouter
+    case sub2api
     case wayfinder
     case combined
 }

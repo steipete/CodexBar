@@ -709,6 +709,8 @@
 /* Popup panels */
 "No usage configured." = "No hay uso configurado.";
 "Quota" = "Cuota";
+"Daily quota" = "Cuota diaria";
+"Total" = "Total";
 "tokens" = "tokens";
 "requests" = "solicitudes";
 "Latest" = "Último";

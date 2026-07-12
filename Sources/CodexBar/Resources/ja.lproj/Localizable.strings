@@ -827,6 +827,8 @@
 /* Popup panels */
 "No usage configured." = "使用状況が設定されていません。";
 "Quota" = "クォータ";
+"Daily quota" = "日次クォータ";
+"Total" = "合計";
 "tokens" = "トークン";
 "requests" = "リクエスト";
 "Latest" = "最新";

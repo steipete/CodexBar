@@ -830,6 +830,8 @@
 /* Popup panels */
 "No usage configured." = "Geen gebruik geconfigureerd.";
 "Quota" = "Quotum";
+"Daily quota" = "Dagquotum";
+"Total" = "Totaal";
 "tokens" = "tokens";
 "requests" = "verzoeken";
 "Latest" = "Nieuwste";

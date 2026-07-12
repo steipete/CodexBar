@@ -832,6 +832,8 @@
 /* Popup panels */
 "No usage configured." = "No usage configured.";
 "Quota" = "Quota";
+"Daily quota" = "Daily quota";
+"Total" = "Total";
 "tokens" = "tokens";
 "requests" = "requests";
 "Latest" = "Latest";

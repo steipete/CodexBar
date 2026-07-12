@@ -25,6 +25,32 @@ struct ProviderRefreshCoordinatorTests {
     }
 
     @Test
+    func `invalidation cancels work without dropping waiter completion`() async {
+        let coordinator = ProviderRefreshCoordinator<String>()
+        let request = coordinator.beginReplacingRequest(for: "codex")
+        let gate = ProviderRefreshCoordinatorGate()
+        let task = Task {
+            await gate.wait()
+        }
+        request.state.install(task: task)
+        let waiter = Task {
+            await coordinator.wait(for: "codex", state: request.state)
+        }
+        await Task.yield()
+
+        coordinator.invalidateRequests(for: "codex")
+
+        #expect(task.isCancelled)
+        #expect(!coordinator.isCurrent(request.generation, for: "codex"))
+        #expect(coordinator.coalescingState(for: "codex") == nil)
+
+        await gate.resume()
+        await task.value
+        coordinator.complete(request.state, for: "codex", retryRequired: false)
+        #expect(await waiter.value == .completed)
+    }
+
+    @Test
     func `coalescing returns latest request independently per key`() {
         let coordinator = ProviderRefreshCoordinator<String>()
         let firstCodex = coordinator.beginReplacingRequest(for: "codex")

@@ -830,6 +830,8 @@
 /* Popup panels */
 "No usage configured." = "Aucune utilisation configurée.";
 "Quota" = "Quota";
+"Daily quota" = "Quota quotidien";
+"Total" = "Total";
 "tokens" = "jetons";
 "requests" = "requêtes";
 "Latest" = "Dernier";
