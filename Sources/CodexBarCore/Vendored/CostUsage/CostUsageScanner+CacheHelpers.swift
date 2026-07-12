@@ -1118,6 +1118,8 @@ extension CostUsageScanner {
             fileURL: input.fileURL,
             range: context.range,
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
+            billingSuppressedTokenOrdinals: context.resources
+                .billingSuppressedTokenOrdinalsByFilePath[input.fileURL.path] ?? [],
             checkCancellation: context.checkCancellation)
         let sessionId = parsed.sessionId ?? input.cached?.sessionId
         let projectPath = parsed.projectPath ?? input.cached?.projectPath

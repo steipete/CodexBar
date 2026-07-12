@@ -390,6 +390,8 @@ enum CostUsageScanner {
         let modelsDevCatalog: ModelsDevCatalog?
         let modelsDevCacheRoot: URL?
         let priorityTurns: [String: CodexPriorityTurnMetadata]
+        /// File path → `token_count` ordinals whose billing must be suppressed (state still advances).
+        let billingSuppressedTokenOrdinalsByFilePath: [String: Set<Int>]
     }
 
     struct CodexFileScanContext {
@@ -541,7 +543,7 @@ enum CostUsageScanner {
             self.fileURLBySessionId[sessionId] = fileURL
         }
 
-        func fileURL(for sessionId: String) throws -> URL? {
+        func fileURL(for sessionId: String, searchRoots: Bool = true) throws -> URL? {
             if let cached = self.fileURLBySessionId[sessionId] {
                 return cached
             }
@@ -565,14 +567,18 @@ enum CostUsageScanner {
                 }
             }
 
-            if !self.didIndexRoots {
+            if searchRoots, !self.didIndexRoots {
                 try self.indexRoots()
                 if let indexed = self.fileURLBySessionId[sessionId] {
                     return indexed
                 }
             }
 
-            self.missingSessionIds.insert(sessionId)
+            // Only remember misses after a full search. A `searchRoots: false` probe must not
+            // poison later inheritance lookups that are allowed to crawl.
+            if searchRoots {
+                self.missingSessionIds.insert(sessionId)
+            }
             return nil
         }
 
@@ -1796,6 +1802,7 @@ enum CostUsageScanner {
                 initialCodexTurnID: initialCodexTurnID,
                 initialCodexUsageRowIndex: initialCodexUsageRowIndex,
                 inheritedTotalsResolver: throwingResolver,
+                billingSuppressedTokenOrdinals: [],
                 checkCancellation: nil)) ?? CodexParseResult(
             days: [:],
             parsedBytes: startOffset,
@@ -1829,6 +1836,7 @@ enum CostUsageScanner {
         initialCodexTurnID: String? = nil,
         initialCodexUsageRowIndex: Int = 0,
         inheritedTotalsResolver: ((String, String) throws -> CodexForkBaseline)? = nil,
+        billingSuppressedTokenOrdinals: Set<Int> = [],
         checkCancellation: CancellationCheck? = nil) throws -> CodexParseResult
     {
         var currentModel = initialModel
@@ -1843,6 +1851,7 @@ enum CostUsageScanner {
         var unresolvedForkTotalWatermark: CostUsageCodexTotals?
         var currentTurnID = initialCodexTurnID
         var codexUsageRowIndex = initialCodexUsageRowIndex
+        var tokenCountOrdinal = 0
         var rawTotalsBaseline = initialRawTotalsBaseline ?? initialTotals
         var sawDivergentTotals = initialHasDivergentTotals
         var tracker = CodexTotalsTracker(
@@ -1899,6 +1908,10 @@ enum CostUsageScanner {
 
         // swiftlint:disable:next function_body_length
         func handleTokenCount(_ record: CodexTokenCountRecord) throws {
+            let tokenOrdinal = tokenCountOrdinal
+            tokenCountOrdinal += 1
+            let suppressBilling = billingSuppressedTokenOrdinals.contains(tokenOrdinal)
+
             guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
             else { return }
 
@@ -2068,6 +2081,14 @@ enum CostUsageScanner {
                 commitDelta(totalsDerivedDelta(to: currentTotals), rawBaseline: currentTotals)
                 remainingInheritedTotals = nil
             } else if !handledUnresolvedForkTotal {
+                return
+            }
+
+            if suppressBilling {
+                // Keep cumulative observation / baseline continuity, but do not emit tokens.
+                // Do not roll previousTotals back: commitDelta already advanced counted state, and
+                // reverting it makes the next event re-include suppressed growth (and falsely trips
+                // sawDivergentTotals when rawTotalsBaseline stays ahead).
                 return
             }
 
@@ -2490,24 +2511,12 @@ enum CostUsageScanner {
 
             let filePathsInScan = Set(files.map(\.path))
             var scanState = CodexScanState()
-            let fileIndex = CodexSessionFileIndex(
+            let resources = Self.makeCodexScanResources(
                 files: files,
-                roots: plan.roots,
-                cachedSessionFiles: Self.cachedCodexSessionIndex(
-                    cache: cache,
-                    roots: plan.roots,
-                    knownExistingPaths: filePathsInScan),
+                plan: plan,
+                options: options,
+                cache: cache,
                 checkCancellation: checkCancellation)
-            let inheritedResolver = CodexInheritedTotalsResolver(
-                fileIndex: fileIndex,
-                checkCancellation: checkCancellation)
-            let resources = CodexScanResources(
-                fileIndex: fileIndex,
-                inheritedResolver: inheritedResolver,
-                projectPathResolver: CodexCanonicalProjectPathResolver(),
-                modelsDevCatalog: plan.modelsDevCatalog,
-                modelsDevCacheRoot: options.cacheRoot,
-                priorityTurns: plan.priorityTurns)
             let scanContext = Self.codexFileScanContext(
                 range: range,
                 options: options,
@@ -2594,6 +2603,40 @@ enum CostUsageScanner {
             priorityTurns: plan.priorityTurns)
     }
 
+    private static func makeCodexScanResources(
+        files: [URL],
+        plan: CodexRefreshPlan,
+        options: Options,
+        cache: CostUsageCache,
+        checkCancellation: CancellationCheck?) -> CodexScanResources
+    {
+        let filePathsInScan = Set(files.map(\.path))
+        let fileIndex = CodexSessionFileIndex(
+            files: files,
+            roots: plan.roots,
+            cachedSessionFiles: Self.cachedCodexSessionIndex(
+                cache: cache,
+                roots: plan.roots,
+                knownExistingPaths: filePathsInScan),
+            checkCancellation: checkCancellation)
+        let inheritedResolver = CodexInheritedTotalsResolver(
+            fileIndex: fileIndex,
+            checkCancellation: checkCancellation)
+        let billingSuppressions = Self.buildProvisionalPrefixBillingSuppressions(
+            files: files,
+            fileIndex: fileIndex,
+            cache: cache,
+            checkCancellation: checkCancellation)
+        return CodexScanResources(
+            fileIndex: fileIndex,
+            inheritedResolver: inheritedResolver,
+            projectPathResolver: CodexCanonicalProjectPathResolver(),
+            modelsDevCatalog: plan.modelsDevCatalog,
+            modelsDevCacheRoot: options.cacheRoot,
+            priorityTurns: plan.priorityTurns,
+            billingSuppressedTokenOrdinalsByFilePath: billingSuppressions)
+    }
+
     private static func codexFileScanContext(
         range: CostUsageDayRange,
         options: Options,
@@ -2611,6 +2654,181 @@ enum CostUsageScanner {
             changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
             resources: resources,
             checkCancellation: checkCancellation)
+    }
+
+    /// When several children share a missing `forked_from_id`, bill the shared ordered usage
+    /// prefix once on a deterministic owner; suppress billing on the other siblings' prefix
+    /// ordinals while leaving unique suffixes intact.
+    private static func buildProvisionalPrefixBillingSuppressions(
+        files: [URL],
+        fileIndex: CodexSessionFileIndex,
+        cache: CostUsageCache,
+        checkCancellation: CancellationCheck?) -> [String: Set<Int>]
+    {
+        struct Member {
+            let fileURL: URL
+            let sessionId: String
+            let forkTimestamp: String
+            let fingerprints: [String]
+        }
+
+        var membersByParent: [String: [Member]] = [:]
+        for fileURL in files {
+            try? checkCancellation?()
+            guard let metadata = try? Self.parseCodexSessionMetadata(fileURL: fileURL),
+                  let sessionId = metadata.sessionId,
+                  let parentId = metadata.forkedFromId,
+                  !parentId.isEmpty
+            else { continue }
+            // Match inheritance discovery against cache + in-scan files only. Avoid `indexRoots()`
+            // crawls on every refresh for confirmed-missing parents; previously scanned parents are
+            // already seeded into `fileIndex` via `cachedCodexSessionIndex`.
+            if Self.codexCacheContainsSession(cache, sessionId: parentId) {
+                continue
+            }
+            if (try? fileIndex.fileURL(for: parentId, searchRoots: false)) != nil {
+                continue
+            }
+            let fingerprints = Self.parseCodexTokenUsageFingerprints(
+                fileURL: fileURL,
+                checkCancellation: checkCancellation)
+            guard !fingerprints.isEmpty else { continue }
+            membersByParent[parentId, default: []].append(
+                Member(
+                    fileURL: fileURL,
+                    sessionId: sessionId,
+                    forkTimestamp: metadata.forkTimestamp ?? "",
+                    fingerprints: fingerprints))
+        }
+
+        var suppressions: [String: Set<Int>] = [:]
+        for (_, members) in membersByParent {
+            guard members.count >= 2 else { continue }
+            let sorted = members.sorted { lhs, rhs in
+                if lhs.forkTimestamp != rhs.forkTimestamp {
+                    return lhs.forkTimestamp < rhs.forkTimestamp
+                }
+                return lhs.sessionId < rhs.sessionId
+            }
+            let sharedPrefixLength = Self.sharedFingerprintPrefixLength(sorted.map(\.fingerprints))
+            guard sharedPrefixLength > 0 else { continue }
+            let suppressed = Set(0..<sharedPrefixLength)
+            for member in sorted.dropFirst() {
+                suppressions[member.fileURL.path] = suppressed
+            }
+        }
+        return suppressions
+    }
+
+    private static func codexCacheContainsSession(_ cache: CostUsageCache, sessionId: String) -> Bool {
+        cache.files.contains { _, usage in
+            usage.sessionId == sessionId
+        }
+    }
+
+    private static func sharedFingerprintPrefixLength(_ streams: [[String]]) -> Int {
+        guard let first = streams.first else { return 0 }
+        var length = 0
+        while length < first.count {
+            let value = first[length]
+            if streams.contains(where: { $0.count <= length || $0[length] != value }) {
+                break
+            }
+            length += 1
+        }
+        return length
+    }
+
+    /// Builds token-count fingerprints with the same line filters / parsers as
+    /// `parseCodexFileCancellable`, so provisional suppression ordinals stay aligned.
+    static func parseCodexTokenUsageFingerprints(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) -> [String]
+    {
+        let maxLineBytes = 256 * 1024
+        var fingerprints: [String] = []
+        do {
+            _ = try CostUsageJsonl.scan(
+                fileURL: fileURL,
+                offset: 0,
+                maxLineBytes: maxLineBytes,
+                prefixBytes: maxLineBytes,
+                checkCancellation: checkCancellation,
+                onLine: { line in
+                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    guard
+                        line.bytes.containsAscii(#""type":"event_msg""#)
+                        || line.bytes.containsAscii(#""type":"turn_context""#)
+                        || line.bytes.containsAscii(#""type":"session_meta""#)
+                    else { return }
+
+                    if line.bytes.containsAscii(#""type":"event_msg""#),
+                       !line.bytes.containsAscii(#""token_count""#),
+                       !line.bytes.containsAscii(#""task_started""#)
+                    {
+                        return
+                    }
+
+                    if let fastLine = Self.parseCodexFastLine(line.bytes) {
+                        if case let .tokenCount(record) = fastLine {
+                            fingerprints.append(Self.codexTokenUsageFingerprint(
+                                last: record.last,
+                                total: record.total))
+                        }
+                        return
+                    }
+
+                    autoreleasepool {
+                        guard
+                            let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                            let type = obj["type"] as? String,
+                            type == "event_msg",
+                            let tsText = obj["timestamp"] as? String,
+                            Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) != nil,
+                            let payload = obj["payload"] as? [String: Any],
+                            (payload["type"] as? String) == "token_count"
+                        else { return }
+
+                        func toInt(_ value: Any?) -> Int {
+                            if let number = value as? NSNumber { return number.intValue }
+                            return 0
+                        }
+
+                        func tokenTotals(_ usage: [String: Any]) -> CostUsageCodexTotals {
+                            CostUsageCodexTotals(
+                                input: max(0, toInt(usage["input_tokens"])),
+                                cached: max(
+                                    0,
+                                    toInt(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"])),
+                                output: max(0, toInt(usage["output_tokens"])))
+                        }
+
+                        let info = payload["info"] as? [String: Any]
+                        fingerprints.append(Self.codexTokenUsageFingerprint(
+                            last: (info?["last_token_usage"] as? [String: Any]).map(tokenTotals),
+                            total: (info?["total_token_usage"] as? [String: Any]).map(tokenTotals)))
+                    }
+                })
+        } catch {
+            return fingerprints
+        }
+        return fingerprints
+    }
+
+    private static func codexTokenUsageFingerprint(
+        last: CostUsageCodexTotals?,
+        total: CostUsageCodexTotals?) -> String
+    {
+        let last = last ?? CostUsageCodexTotals(input: 0, cached: 0, output: 0)
+        let total = total ?? CostUsageCodexTotals(input: 0, cached: 0, output: 0)
+        return [
+            last.input,
+            last.cached,
+            last.output,
+            total.input,
+            total.cached,
+            total.output,
+        ].map(String.init).joined(separator: ":")
     }
 }
 
