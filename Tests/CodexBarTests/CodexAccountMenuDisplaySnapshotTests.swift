@@ -28,6 +28,15 @@ struct CodexAccountMenuDisplaySnapshotTests {
         }
     }
 
+    private func makeUsageStore(settings: SettingsStore) -> UsageStore {
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        return store
+    }
+
     private func liveSnapshot(email: String) -> CodexAccountReconciliationSnapshot {
         CodexAccountReconciliationSnapshot(
             storedAccounts: [],
@@ -188,10 +197,7 @@ struct CodexAccountMenuDisplaySnapshotTests {
 
         settings.codexActiveSource = .managedAccount(id: legacyID)
         settings.cachedCodexAccountMenuProjection = self.cachedProjection(snapshot: snapshot, loadedAt: Date())
-        let store = UsageStore(
-            fetcher: UsageFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+        let store = self.makeUsageStore(settings: settings)
         store.codexAccountSnapshots = [runtimeEnrichedLegacy, siblingProjected].map {
             CodexAccountUsageSnapshot(account: $0, snapshot: nil, error: nil, sourceLabel: "test")
         }
@@ -281,10 +287,7 @@ struct CodexAccountMenuDisplaySnapshotTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         self.enableOnlyCodex(settings)
-        let store = UsageStore(
-            fetcher: UsageFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+        let store = self.makeUsageStore(settings: settings)
         let controller = StatusItemController(
             store: store,
             settings: settings,
