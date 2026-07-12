@@ -98,4 +98,20 @@ struct ReplayTraceSegmentationTests {
         #expect(staleness.sampleCount == 1)
         #expect(staleness.mean == 100)
     }
+
+    @Test
+    func `recorded refresh supersedes an earlier simulated refresh`() throws {
+        let trace = [
+            self.decision(0, delay: 650),
+            .refreshCompleted(timestamp: self.at(650)),
+            .menuOpen(timestamp: self.at(700)),
+            self.decision(1200, delay: 600),
+        ]
+
+        let metrics = ReplayEngine.runSegmented(trace: trace, policy: FixedIntervalPolicy(minutes: 10))
+        let staleness = try #require(metrics.stalenessAtMenuOpen)
+
+        #expect(staleness.sampleCount == 1)
+        #expect(staleness.mean == 50)
+    }
 }

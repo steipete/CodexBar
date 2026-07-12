@@ -90,6 +90,47 @@ struct RecordedScheduleAuditTests {
     }
 
     @Test
+    func `unequal schedule dates override a contradictory exact lead`() {
+        let event = AdaptiveRefreshTraceRecord(
+            kind: .timerAdvanceEvaluated,
+            timestamp: self.at(50),
+            reason: "recentInteraction",
+            delaySeconds: 120,
+            previousScheduledAt: self.at(180),
+            candidateScheduledAt: self.at(170),
+            timerAdvanceAccepted: false,
+            scheduleLeadSeconds: -10,
+            refreshInFlight: false)
+
+        let audit = RecordedScheduleAuditor.audit([.menuOpen(timestamp: self.at(50)), event])
+
+        #expect(audit.decisionMismatchCount == 1)
+        #expect(!audit.isValid)
+    }
+
+    @Test
+    func `accepted evaluation without a previous schedule remains valid`() {
+        let event = AdaptiveRefreshTraceRecord.timerAdvanceEvaluated(
+            timestamp: self.at(50),
+            previousScheduledAt: nil,
+            candidateScheduledAt: self.at(170),
+            reason: "recentInteraction",
+            delaySeconds: 120,
+            accepted: true,
+            refreshInFlight: false)
+
+        let advanced = AdaptiveRefreshTraceRecord.timerAdvanced(
+            timestamp: self.at(50),
+            previousScheduledAt: nil,
+            candidateScheduledAt: self.at(170),
+            reason: "recentInteraction",
+            delaySeconds: 120)
+        let audit = RecordedScheduleAuditor.audit([.menuOpen(timestamp: self.at(50)), event, advanced])
+
+        #expect(audit.isValid)
+    }
+
+    @Test
     func `fractional live lead survives whole-second date serialization`() throws {
         let timestamp = self.at(50.2)
         let candidate = self.at(170.2)

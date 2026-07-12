@@ -83,15 +83,12 @@ public enum RecordedScheduleAuditor {
               let delay = record.delaySeconds,
               abs(candidate.timeIntervalSince(record.timestamp) - delay) < 0.001
         else { return .mismatch }
-        guard record.previousScheduledAt != nil else { return accepted ? .valid : .mismatch }
-        if let lead = record.scheduleLeadSeconds {
-            return accepted == (lead > 0) ? .valid : .mismatch
+        guard let previous = record.previousScheduledAt else { return accepted ? .valid : .mismatch }
+        if candidate != previous {
+            return accepted == (candidate < previous) ? .valid : .mismatch
         }
-        guard let previous = record.previousScheduledAt else { return .mismatch }
-        if candidate == previous {
-            return .ambiguous
-        }
-        return accepted == (candidate < previous) ? .valid : .mismatch
+        guard let lead = record.scheduleLeadSeconds else { return .ambiguous }
+        return accepted == (lead > 0) ? .valid : .mismatch
     }
 
     private struct ScheduleKey: Hashable {

@@ -248,11 +248,9 @@ public enum ReplayEngine {
         initialFreshAt: Date) -> [Double]
     {
         menuOpenTimestamps.map { menuOpenAt in
-            if let lastRefresh = self.lastValue(refreshTimestamps, atOrBefore: menuOpenAt) {
-                menuOpenAt.timeIntervalSince(lastRefresh)
-            } else {
-                menuOpenAt.timeIntervalSince(initialFreshAt)
-            }
+            let simulatedRefresh = self.lastValue(refreshTimestamps, atOrBefore: menuOpenAt)
+            let freshestAt = simulatedRefresh.map { max($0, initialFreshAt) } ?? initialFreshAt
+            return menuOpenAt.timeIntervalSince(freshestAt)
         }
     }
 
