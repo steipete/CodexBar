@@ -18,9 +18,7 @@ extension CostUsageScanner {
         }
 
         func load(_ loader: (URL?) -> ModelsDevCatalog?) -> ModelsDevCatalog {
-            if let catalog {
-                return catalog
-            }
+            if let catalog { return catalog }
             let loaded = loader(self.cacheRoot) ?? ModelsDevCatalog(providers: [:])
             self.catalog = loaded
             return loaded
@@ -281,6 +279,7 @@ extension CostUsageScanner {
         lastCountedTotals: CostUsageCodexTotals? = nil,
         lastRawTotalsBaseline: CostUsageCodexTotals? = nil,
         lastRawTotalsWatermark: CostUsageCodexTotals? = nil,
+        seenRawTotals: [CostUsageCodexTotals]? = nil,
         hasDivergentTotals: Bool? = nil,
         hasInterleavedTotals: Bool? = nil,
         lastCodexTurnID: String? = nil,
@@ -309,6 +308,7 @@ extension CostUsageScanner {
             lastCountedTotals: lastCountedTotals,
             lastRawTotalsBaseline: lastRawTotalsBaseline,
             lastRawTotalsWatermark: lastRawTotalsWatermark,
+            seenRawTotals: seenRawTotals,
             hasDivergentTotals: hasDivergentTotals,
             hasInterleavedTotals: hasInterleavedTotals,
             lastCodexTurnID: lastCodexTurnID,
@@ -699,6 +699,7 @@ extension CostUsageScanner {
             lastCountedTotals: usage.lastCountedTotals,
             lastRawTotalsBaseline: usage.lastRawTotalsBaseline,
             lastRawTotalsWatermark: usage.lastRawTotalsWatermark,
+            seenRawTotals: usage.seenRawTotals,
             hasDivergentTotals: usage.hasDivergentTotals,
             hasInterleavedTotals: usage.hasInterleavedTotals,
             lastCodexTurnID: usage.lastCodexTurnID,
@@ -966,6 +967,7 @@ extension CostUsageScanner {
         let initialRawTotalsBaseline = cached.lastRawTotalsBaseline ?? cached.lastTotals
         let initialHasDivergentTotals = cached.hasDivergentTotals ?? (cached.lastTotals == nil)
         // Correctness-critical interleave state is watermark + interleaved flag (+ counted/raw).
+        // `seenRawTotals` is optional precision only and must not gate incremental resume (#2037).
         let hasIncompleteInterleaveState =
             (cached.hasInterleavedTotals == true && cached.lastRawTotalsWatermark == nil)
             || (cached.lastRawTotalsWatermark != nil && cached.hasInterleavedTotals == nil)
@@ -985,6 +987,7 @@ extension CostUsageScanner {
             initialTotals: initialCountedTotals,
             initialRawTotalsBaseline: initialRawTotalsBaseline,
             initialRawTotalsWatermark: cached.lastRawTotalsWatermark,
+            initialSeenRawTotals: cached.seenRawTotals ?? [],
             initialHasDivergentTotals: initialHasDivergentTotals,
             initialHasInterleavedTotals: cached.hasInterleavedTotals ?? false,
             initialCodexTurnID: cached.lastCodexTurnID,
@@ -1057,6 +1060,7 @@ extension CostUsageScanner {
             lastCountedTotals: delta.lastCountedTotals,
             lastRawTotalsBaseline: delta.lastRawTotalsBaseline,
             lastRawTotalsWatermark: delta.lastRawTotalsWatermark,
+            seenRawTotals: delta.seenRawTotals,
             hasDivergentTotals: delta.hasDivergentTotals,
             hasInterleavedTotals: delta.hasInterleavedTotals,
             lastCodexTurnID: delta.lastCodexTurnID,
@@ -1153,6 +1157,7 @@ extension CostUsageScanner {
             lastCountedTotals: parsed.lastCountedTotals,
             lastRawTotalsBaseline: parsed.lastRawTotalsBaseline,
             lastRawTotalsWatermark: parsed.lastRawTotalsWatermark,
+            seenRawTotals: parsed.seenRawTotals,
             hasDivergentTotals: parsed.hasDivergentTotals,
             hasInterleavedTotals: parsed.hasInterleavedTotals,
             lastCodexTurnID: parsed.lastCodexTurnID,
@@ -1496,24 +1501,16 @@ extension Data {
 
 extension [Int] {
     subscript(safe index: Int) -> Int? {
-        if index < 0 {
-            return nil
-        }
-        if index >= self.count {
-            return nil
-        }
+        if index < 0 { return nil }
+        if index >= self.count { return nil }
         return self[index]
     }
 }
 
 extension [UInt8] {
     subscript(safe index: Int) -> UInt8? {
-        if index < 0 {
-            return nil
-        }
-        if index >= self.count {
-            return nil
-        }
+        if index < 0 { return nil }
+        if index >= self.count { return nil }
         return self[index]
     }
 }

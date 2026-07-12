@@ -135,6 +135,7 @@ struct CostUsageFileUsage: Codable {
     var lastCountedTotals: CostUsageCodexTotals?
     var lastRawTotalsBaseline: CostUsageCodexTotals?
     var lastRawTotalsWatermark: CostUsageCodexTotals?
+    var seenRawTotals: [CostUsageCodexTotals]?
     var hasDivergentTotals: Bool?
     var hasInterleavedTotals: Bool?
     var lastCodexTurnID: String?

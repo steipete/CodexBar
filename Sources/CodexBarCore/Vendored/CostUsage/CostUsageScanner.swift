@@ -56,6 +56,7 @@ enum CostUsageScanner {
         let lastCountedTotals: CostUsageCodexTotals?
         let lastRawTotalsBaseline: CostUsageCodexTotals?
         let lastRawTotalsWatermark: CostUsageCodexTotals?
+        let seenRawTotals: [CostUsageCodexTotals]
         let hasDivergentTotals: Bool
         let hasInterleavedTotals: Bool
         let lastCodexTurnID: String?
@@ -239,17 +240,27 @@ enum CostUsageScanner {
     /// Ultra-mode sessions interleave cumulative snapshots from several fork lineages inside one
     /// session file. The tracker keeps a monotonic high watermark (never lowered). After a drop
     /// latches interleaved mode, deltas use `codexPostLatchEventDelta` so gap recounting is
-    /// impossible.
+    /// impossible. `seenRawTotals` is an optional precision optimization for exact re-emissions;
+    /// correctness does not depend on it once post-latch containment is active.
     struct CodexTotalsTracker {
+        static let seenRawTotalsLimit = 64
+
         private(set) var watermark: CostUsageCodexTotals?
+        private(set) var seenRawTotals: [CostUsageCodexTotals]
         private(set) var sawInterleavedTotals: Bool
 
         init(
             watermark: CostUsageCodexTotals? = nil,
+            seenRawTotals: [CostUsageCodexTotals] = [],
             sawInterleavedTotals: Bool = false)
         {
             self.watermark = watermark
+            self.seenRawTotals = Array(seenRawTotals.suffix(Self.seenRawTotalsLimit))
             self.sawInterleavedTotals = sawInterleavedTotals
+        }
+
+        func isSeen(_ totals: CostUsageCodexTotals) -> Bool {
+            self.seenRawTotals.contains(totals)
         }
 
         /// Latches interleaved mode when any component of an observed cumulative snapshot drops
@@ -265,9 +276,16 @@ enum CostUsageScanner {
             }
         }
 
-        /// Records an observed cumulative snapshot after computing the event's delta.
+        /// Records an observed cumulative snapshot: raises the watermark and remembers the exact
+        /// value for best-effort re-emission suppression. Call after computing the event's delta.
         mutating func commitObserved(_ totals: CostUsageCodexTotals) {
             self.raiseWatermark(to: totals)
+            if !self.seenRawTotals.contains(totals) {
+                self.seenRawTotals.append(totals)
+                if self.seenRawTotals.count > Self.seenRawTotalsLimit {
+                    self.seenRawTotals.removeFirst(self.seenRawTotals.count - Self.seenRawTotalsLimit)
+                }
+            }
         }
 
         /// Raises the watermark for baseline assignments that are not observed raw snapshots
@@ -293,16 +311,13 @@ enum CostUsageScanner {
         {
             let base = self.countedTotals ?? .init(input: 0, cached: 0, output: 0)
             if let total {
-                if CostUsageScanner.codexTotalsEqual(total, self.tracker.watermark) {
-                    return base
-                }
+                // Best-effort exact re-emission suppression (precision only; containment is load-bearing).
+                if self.tracker.isSeen(total) { return base }
                 self.tracker.latchIfBelowWatermark(total)
             }
             let watermarkBaseline = self.tracker.watermark ?? self.rawTotalsBaseline
             defer {
-                if let total {
-                    self.tracker.commitObserved(total)
-                }
+                if let total { self.tracker.commitObserved(total) }
             }
 
             if let last {
@@ -780,12 +795,8 @@ enum CostUsageScanner {
         }
 
         static func isInRange(dayKey: String, since: String, until: String) -> Bool {
-            if dayKey < since {
-                return false
-            }
-            if dayKey > until {
-                return false
-            }
+            if dayKey < since { return false }
+            if dayKey > until { return false }
             return true
         }
     }
@@ -793,9 +804,7 @@ enum CostUsageScanner {
     // MARK: - Codex
 
     private static func defaultCodexSessionsRoot(options: Options) -> URL {
-        if let override = options.codexSessionsRoot {
-            return override
-        }
+        if let override = options.codexSessionsRoot { return override }
         let env = ProcessInfo.processInfo.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let env, !env.isEmpty {
             return URL(fileURLWithPath: env).appendingPathComponent("sessions", isDirectory: true)
@@ -1077,9 +1086,7 @@ enum CostUsageScanner {
         while CostUsageDayRange.dayKey(from: cursor) <= untilKey {
             out.append(CostUsageDayRange.dayKey(from: cursor))
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            if next <= cursor {
-                break
-            }
+            if next <= cursor { break }
             cursor = next
         }
         return out
@@ -1107,9 +1114,7 @@ enum CostUsageScanner {
         let filePath = fileURL.standardizedFileURL.path
         return roots.contains { root in
             let rootPath = root.standardizedFileURL.path
-            if filePath == rootPath {
-                return true
-            }
+            if filePath == rootPath { return true }
             let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
             return filePath.hasPrefix(prefix)
         }
@@ -1635,12 +1640,8 @@ enum CostUsageScanner {
 
                     return false
                 }
-                if let matchedMetadata {
-                    return matchedMetadata
-                }
-                if reachedEOF {
-                    break
-                }
+                if let matchedMetadata { return matchedMetadata }
+                if reachedEOF { break }
             }
         } catch is CancellationError {
             throw CancellationError()
@@ -1737,9 +1738,7 @@ enum CostUsageScanner {
                         guard let timestamp = obj["timestamp"] as? String else { return }
 
                         func toInt(_ value: Any?) -> Int {
-                            if let number = value as? NSNumber {
-                                return number.intValue
-                            }
+                            if let number = value as? NSNumber { return number.intValue }
                             return 0
                         }
 
@@ -1805,6 +1804,7 @@ enum CostUsageScanner {
             lastCountedTotals: initialTotals,
             lastRawTotalsBaseline: initialRawTotalsBaseline,
             lastRawTotalsWatermark: initialRawTotalsBaseline,
+            seenRawTotals: [],
             hasDivergentTotals: initialHasDivergentTotals,
             hasInterleavedTotals: false,
             lastCodexTurnID: initialCodexTurnID,
@@ -1823,6 +1823,7 @@ enum CostUsageScanner {
         initialTotals: CostUsageCodexTotals? = nil,
         initialRawTotalsBaseline: CostUsageCodexTotals? = nil,
         initialRawTotalsWatermark: CostUsageCodexTotals? = nil,
+        initialSeenRawTotals: [CostUsageCodexTotals] = [],
         initialHasDivergentTotals: Bool = false,
         initialHasInterleavedTotals: Bool = false,
         initialCodexTurnID: String? = nil,
@@ -1846,6 +1847,7 @@ enum CostUsageScanner {
         var sawDivergentTotals = initialHasDivergentTotals
         var tracker = CodexTotalsTracker(
             watermark: initialRawTotalsWatermark ?? initialRawTotalsBaseline ?? initialTotals,
+            seenRawTotals: initialSeenRawTotals,
             sawInterleavedTotals: initialHasInterleavedTotals)
         var deferredError: Error?
 
@@ -1943,34 +1945,14 @@ enum CostUsageScanner {
             }
 
             if let adjustedTotal {
-                // An unchanged cumulative snapshot is a replay even when `last_token_usage`
-                // diverges from it. Counting `last` again would inflate usage without advancing
-                // the authoritative cumulative counter.
-                if Self.codexTotalsEqual(adjustedTotal, tracker.watermark) {
-                    if hasUnresolvedForkBaseline, unresolvedForkTotalWatermark == nil {
-                        unresolvedForkTotalWatermark = total
-                    } else if forkedFromId != nil,
-                              !hasUnresolvedForkBaseline,
-                              let total,
-                              let inheritedTotals
-                    {
-                        let remaining = CostUsageCodexTotals(
-                            input: max(0, inheritedTotals.input - total.input),
-                            cached: max(0, inheritedTotals.cached - total.cached),
-                            output: max(0, inheritedTotals.output - total.output))
-                        remainingInheritedTotals = Self.codexTotalsEqual(
-                            remaining,
-                            CostUsageCodexTotals(input: 0, cached: 0, output: 0)) ? nil : remaining
-                    }
-                    return
-                }
+                // Best-effort exact re-emission suppression. Post-latch containment is the
+                // load-bearing guard; the seen-set is only a precision optimization.
+                if tracker.isSeen(adjustedTotal) { return }
                 tracker.latchIfBelowWatermark(adjustedTotal)
             }
             let watermarkBaseline = tracker.watermark ?? rawTotalsBaseline
             defer {
-                if let adjustedTotal {
-                    tracker.commitObserved(adjustedTotal)
-                }
+                if let adjustedTotal { tracker.commitObserved(adjustedTotal) }
             }
 
             func totalsDerivedDelta(to currentTotals: CostUsageCodexTotals) -> CostUsageCodexTotals {
@@ -2089,9 +2071,7 @@ enum CostUsageScanner {
                 return
             }
 
-            if deltaInput == 0, deltaCached == 0, deltaOutput == 0 {
-                return
-            }
+            if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
             let eventIndex = codexUsageRowIndex
             codexUsageRowIndex += 1
             let normModel = CostUsagePricing.normalizeCodexModel(model)
@@ -2160,9 +2140,7 @@ enum CostUsageScanner {
                 prefixBytes: prefixBytes,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    if deferredError != nil {
-                        return
-                    }
+                    if deferredError != nil { return }
                     guard !line.bytes.isEmpty else { return }
                     if line.wasTruncated {
                         // `turn_context` can carry very large prompts, but its model usually appears near the start.
@@ -2264,9 +2242,7 @@ enum CostUsageScanner {
                             ?? Self.codexModelEvidence(obj["model"] as? String)
 
                         func toInt(_ v: Any?) -> Int {
-                            if let n = v as? NSNumber {
-                                return n.intValue
-                            }
+                            if let n = v as? NSNumber { return n.intValue }
                             return 0
                         }
 
@@ -2312,6 +2288,7 @@ enum CostUsageScanner {
             lastCountedTotals: previousTotals,
             lastRawTotalsBaseline: rawTotalsBaseline,
             lastRawTotalsWatermark: tracker.watermark,
+            seenRawTotals: tracker.seenRawTotals,
             hasDivergentTotals: sawDivergentTotals && !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals),
             hasInterleavedTotals: tracker.sawInterleavedTotals,
             lastCodexTurnID: currentTurnID,
