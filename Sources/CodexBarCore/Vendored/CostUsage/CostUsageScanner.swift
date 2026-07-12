@@ -62,6 +62,7 @@ enum CostUsageScanner {
         let lastCodexTurnID: String?
         let sessionId: String?
         let forkedFromId: String?
+        let forkTimestamp: String?
         let projectPath: String?
         let rows: [CodexUsageRow]
     }
@@ -1817,6 +1818,7 @@ enum CostUsageScanner {
             lastCodexTurnID: initialCodexTurnID,
             sessionId: nil,
             forkedFromId: nil,
+            forkTimestamp: nil,
             projectPath: nil,
             rows: [])
     }
@@ -1843,6 +1845,7 @@ enum CostUsageScanner {
         var previousTotals = initialTotals
         var sessionId: String?
         var forkedFromId: String?
+        var forkTimestamp: String?
         var projectPath: String?
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
@@ -1897,6 +1900,9 @@ enum CostUsageScanner {
             }
             if forkedFromId == nil {
                 forkedFromId = metadata.forkedFromId
+            }
+            if forkTimestamp == nil {
+                forkTimestamp = metadata.forkTimestamp
             }
             if projectPath == nil {
                 projectPath = metadata.projectPath
@@ -2315,6 +2321,7 @@ enum CostUsageScanner {
             lastCodexTurnID: currentTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
+            forkTimestamp: forkTimestamp,
             projectPath: projectPath,
             rows: rows)
     }
@@ -2667,6 +2674,12 @@ enum CostUsageScanner {
         roots: [URL],
         checkCancellation: CancellationCheck?) throws -> [String: Set<Int>]
     {
+        struct Candidate {
+            let fileURL: URL
+            let sessionId: String
+            let forkTimestamp: String
+        }
+
         struct Member {
             let fileURL: URL
             let sessionId: String
@@ -2674,16 +2687,46 @@ enum CostUsageScanner {
             let fingerprints: [String]
         }
 
-        var membersByParent: [String: [Member]] = [:]
+        // Metadata first: most missing-parent sessions are lone orphans and should never pay a
+        // full-file fingerprint pass. Reuse cached metadata for unchanged files after the first
+        // scan; the parser hash invalidates caches that predate these fields.
+        var candidatesByParent: [String: [Candidate]] = [:]
         for fileURL in files {
             try checkCancellation?()
-            guard let metadata = try Self.parseCodexSessionMetadata(
+            let fileMetadata = Self.codexFileMetadata(fileURL: fileURL)
+            let cached = cache.files[fileURL.path]
+            let sessionId: String?
+            let parentId: String?
+            let forkTimestamp: String?
+            if let cached,
+               cached.mtimeUnixMs == fileMetadata.mtimeUnixMs,
+               cached.size == fileMetadata.size,
+               cached.sessionId != nil,
+               cached.forkedFromId != nil,
+               cached.forkTimestamp != nil
+            {
+                sessionId = cached.sessionId
+                parentId = cached.forkedFromId
+                forkTimestamp = cached.forkTimestamp
+            } else {
+                let metadata = try Self.parseCodexSessionMetadata(
+                    fileURL: fileURL,
+                    checkCancellation: checkCancellation)
+                sessionId = metadata?.sessionId
+                parentId = metadata?.forkedFromId
+                forkTimestamp = metadata?.forkTimestamp
+            }
+            guard let sessionId, let parentId, !parentId.isEmpty else { continue }
+            candidatesByParent[parentId, default: []].append(Candidate(
                 fileURL: fileURL,
-                checkCancellation: checkCancellation),
-                let sessionId = metadata.sessionId,
-                let parentId = metadata.forkedFromId,
-                !parentId.isEmpty
-            else { continue }
+                sessionId: sessionId,
+                forkTimestamp: forkTimestamp ?? ""))
+        }
+
+        var suppressions: [String: Set<Int>] = [:]
+        for (parentId, candidates) in candidatesByParent {
+            try checkCancellation?()
+            guard candidates.count >= 2 else { continue }
             // Match inheritance discovery against live cache entries + in-scan files only. Avoid
             // `indexRoots()` crawls on every refresh for confirmed-missing parents; previously
             // scanned parents are already seeded into `fileIndex` via `cachedCodexSessionIndex`.
@@ -2693,20 +2736,20 @@ enum CostUsageScanner {
             if try fileIndex.fileURL(for: parentId, searchRoots: false) != nil {
                 continue
             }
-            let fingerprints = try Self.parseCodexTokenUsageFingerprints(
-                fileURL: fileURL,
-                checkCancellation: checkCancellation)
-            guard !fingerprints.isEmpty else { continue }
-            membersByParent[parentId, default: []].append(
-                Member(
-                    fileURL: fileURL,
-                    sessionId: sessionId,
-                    forkTimestamp: metadata.forkTimestamp ?? "",
-                    fingerprints: fingerprints))
-        }
 
-        var suppressions: [String: Set<Int>] = [:]
-        for (_, members) in membersByParent {
+            var members: [Member] = []
+            for candidate in candidates {
+                try checkCancellation?()
+                let fingerprints = try Self.parseCodexTokenUsageFingerprints(
+                    fileURL: candidate.fileURL,
+                    checkCancellation: checkCancellation)
+                guard !fingerprints.isEmpty else { continue }
+                members.append(Member(
+                    fileURL: candidate.fileURL,
+                    sessionId: candidate.sessionId,
+                    forkTimestamp: candidate.forkTimestamp,
+                    fingerprints: fingerprints))
+            }
             guard members.count >= 2 else { continue }
             let sorted = members.sorted { lhs, rhs in
                 if lhs.forkTimestamp != rhs.forkTimestamp {
@@ -2714,11 +2757,29 @@ enum CostUsageScanner {
                 }
                 return lhs.sessionId < rhs.sessionId
             }
-            let sharedPrefixLength = Self.sharedFingerprintPrefixLength(sorted.map(\.fingerprints))
-            guard sharedPrefixLength > 0 else { continue }
-            let suppressed = Set(0..<sharedPrefixLength)
-            for member in sorted.dropFirst() {
-                suppressions[member.fileURL.path] = suppressed
+
+            // Walk an ordered prefix trie one ordinal at a time. Members that diverge never
+            // rejoin, so coincidental suffix equality is not deduplicated. When a shorter branch
+            // ends, the earliest member of each longer shared branch becomes the next owner.
+            var groups = [sorted]
+            var ordinal = 0
+            while !groups.isEmpty {
+                try checkCancellation?()
+                var nextGroups: [[Member]] = []
+                for group in groups {
+                    var membersByFingerprint: [String: [Member]] = [:]
+                    for member in group where member.fingerprints.count > ordinal {
+                        membersByFingerprint[member.fingerprints[ordinal], default: []].append(member)
+                    }
+                    for matchingMembers in membersByFingerprint.values where matchingMembers.count >= 2 {
+                        for member in matchingMembers.dropFirst() {
+                            suppressions[member.fileURL.path, default: []].insert(ordinal)
+                        }
+                        nextGroups.append(matchingMembers)
+                    }
+                }
+                groups = nextGroups
+                ordinal += 1
             }
         }
         return suppressions
@@ -2738,19 +2799,6 @@ enum CostUsageScanner {
             return true
         }
         return false
-    }
-
-    private static func sharedFingerprintPrefixLength(_ streams: [[String]]) -> Int {
-        guard let first = streams.first else { return 0 }
-        var length = 0
-        while length < first.count {
-            let value = first[length]
-            if streams.contains(where: { $0.count <= length || $0[length] != value }) {
-                break
-            }
-            length += 1
-        }
-        return length
     }
 
     /// Builds token-count fingerprints with the same line filters / parsers as

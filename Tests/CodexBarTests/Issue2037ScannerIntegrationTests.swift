@@ -338,4 +338,111 @@ struct Issue2037ScannerIntegrationTests {
             naive=\(scannerOracle.naiveScannerUnits)
             """)
     }
+
+    @Test
+    func `missing parent mixed depth siblings bill each shared segment once`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2030, month: 7, day: 1)
+        let eventTimestamp = env.isoString(for: day)
+
+        func tokenLine(ordinal: Int) -> String {
+            let total = ordinal + 1
+            return "{\"type\":\"event_msg\",\"timestamp\":\"\(eventTimestamp)\",\"payload\":{"
+                + "\"type\":\"token_count\",\"info\":{"
+                + "\"last_token_usage\":{\"input_tokens\":1,\"cached_input_tokens\":0,\"output_tokens\":0},"
+                + "\"total_token_usage\":{\"input_tokens\":\(total),\"cached_input_tokens\":0,"
+                + "\"output_tokens\":0}}}}"
+        }
+
+        func siblingContents(id: String, forkOffset: TimeInterval, eventCount: Int) -> String {
+            let forkTimestamp = env.isoString(for: day.addingTimeInterval(forkOffset))
+            let metadata = "{\"type\":\"session_meta\",\"timestamp\":\"\(forkTimestamp)\",\"payload\":{"
+                + "\"id\":\"\(id)\",\"forked_from_id\":\"missing-parent\","
+                + "\"timestamp\":\"\(forkTimestamp)\"}}"
+            let context = "{\"type\":\"turn_context\",\"timestamp\":\"\(eventTimestamp)\","
+                + "\"payload\":{\"model\":\"fixture-model\"}}"
+            return ([metadata, context] + (0..<eventCount).map(tokenLine)).joined(separator: "\n") + "\n"
+        }
+
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "sibling-a.jsonl",
+            contents: siblingContents(id: "sibling-a", forkOffset: 0, eventCount: 100))
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "sibling-b.jsonl",
+            contents: siblingContents(id: "sibling-b", forkOffset: 1, eventCount: 150))
+        _ = try env.writeCodexArchivedSessionFile(
+            filename: "sibling-c.jsonl",
+            contents: siblingContents(id: "sibling-c", forkOffset: 2, eventCount: 150))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.forceRescan = true
+        options.refreshMinIntervalSeconds = 0
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let scannedUnits = report.data.reduce(0) { partial, row in
+            partial + (row.inputTokens ?? 0) + (row.cacheReadTokens ?? 0) + (row.outputTokens ?? 0)
+        }
+
+        // A owns ordinals 0..<100 (the unresolved-fork path skips ordinal 0), then B owns
+        // 100..<150. C is state-only for the entire 150-event copied prefix.
+        #expect(scannedUnits == 149)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        #expect(cache.files.values.first { $0.sessionId == "sibling-a" }?.codexBillingSuppressionKey == nil)
+        #expect(cache.files.values.first { $0.sessionId == "sibling-b" }?.codexBillingSuppressionKey == "v2:0-99")
+        #expect(cache.files.values.first { $0.sessionId == "sibling-c" }?.codexBillingSuppressionKey == "v2:0-149")
+    }
+
+    @Test
+    func `missing parent suppression removal and restoration match cold scans`() throws {
+        let fixture = try Issue2037FixtureHarness.load(named: "missing-parent-siblings")
+        let scannerOracle = try #require(fixture.manifest.scannerOracle)
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        try Issue2037FixtureHarness.install(fixture, into: env)
+
+        let ownerFile = try #require(fixture.manifest.files.first { $0.alias == "sibling-a" })
+        let ownerSource = fixture.root.appendingPathComponent(ownerFile.relativePath, isDirectory: false)
+        let ownerDestination = env.root.appendingPathComponent(ownerFile.relativePath, isDirectory: false)
+        let since = try env.makeLocalNoon(year: 2030, month: 1, day: 1)
+        let until = try env.makeLocalNoon(year: 2030, month: 1, day: 2)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        func scannedUnits(forceRescan: Bool) -> Int {
+            options.forceRescan = forceRescan
+            let report = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: since,
+                until: until,
+                now: until,
+                options: options)
+            return report.data.reduce(0) { partial, row in
+                partial + (row.inputTokens ?? 0) + (row.cacheReadTokens ?? 0) + (row.outputTokens ?? 0)
+            }
+        }
+
+        #expect(scannedUnits(forceRescan: false) == scannerOracle.dedupedScannerUnits)
+
+        try FileManager.default.removeItem(at: ownerDestination)
+        let warmAfterRemoval = scannedUnits(forceRescan: false)
+        let coldAfterRemoval = scannedUnits(forceRescan: true)
+        #expect(warmAfterRemoval == coldAfterRemoval)
+
+        try FileManager.default.copyItem(at: ownerSource, to: ownerDestination)
+        let warmAfterRestore = scannedUnits(forceRescan: false)
+        let coldAfterRestore = scannedUnits(forceRescan: true)
+        #expect(warmAfterRestore == scannerOracle.dedupedScannerUnits)
+        #expect(warmAfterRestore == coldAfterRestore)
+    }
 }

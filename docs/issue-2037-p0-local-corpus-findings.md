@@ -200,7 +200,7 @@ Fixture `missing-parent-siblings`: two children, shared 135-event prefix, no par
 | Naive (both bill prefix) | ~54.4M |
 | After provisional suppressions | ~28.8M |
 
-Scanner change: `buildProvisionalPrefixBillingSuppressions` groups children by missing `forked_from_id`, picks a deterministic owner, suppresses billing on non-owner prefix ordinals (baselines still advance). Parent-present `#1164` path unchanged.
+Scanner change: `buildProvisionalPrefixBillingSuppressions` groups children by missing `forked_from_id` and walks an ordered prefix trie. At each shared ordinal, one deterministic child owns billing and the other children on that same prefix branch suppress billing; diverged branches never rejoin. This also handles mixed fork depths (for example, one child copies 100 events while two others copy 150) without double-billing the deeper shared segment. Baselines still advance, and the parent-present `#1164` path is unchanged.
 
 **Billing-suppression baseline rule:** after computing a suppressed event's delta via `commitDelta`, do **not** subtract that delta back out of `previousTotals`. State must stay advanced so the next event cannot re-include suppressed growth or falsely trip `sawDivergentTotals`. Billing is omitted only by skipping row emission.
 
@@ -208,8 +208,12 @@ Scanner change: `buildProvisionalPrefixBillingSuppressions` groups children by m
 
 **Parent presence for provisional suppressions:** check **live** cache session ids (path still exists under active Codex roots) and the in-scan / cache-seeded `fileIndex` **without** `indexRoots()` crawls (`fileURL(for:searchRoots: false)`). Do **not** record those probes in `missingSessionIds`, or they poison later `#1164` inheritance lookups that are allowed to crawl. Stale cache rows for deleted/moved parents no longer suppress the missing-parent path.
 
-**Warm-cache family growth:** when provisional suppressions apply to a file, bypass fresh-cache keep/incremental append so a newly discovered sibling owner can force a rescan of previously cached non-owners.
+**Two-pass planning:** collect and group child metadata first, reusing cached `sessionId`, `forkedFromId`, and `forkTimestamp` when mtime and size match. Only groups with at least two children and no live parent pay the aligned full-file fingerprint pass.
+
+**Warm-cache ownership migration:** each cached file persists a compact, versioned suppression-range key. Fresh-cache reuse and incremental append are rejected only when the newly computed key differs from the persisted key. This detects family growth, owner disappearance, owner restoration, and mixed-depth plan changes in both directions while allowing unchanged suppressed siblings to reuse their cache. Fully state-only entries are retained so a completely suppressed sibling is not reparsed every refresh. Integration tests lock warm-cache equality with a cold rescan across owner disappearance/restoration and lock the mixed-depth `100/150/150` ownership shape.
 
 **Open follow-ups:**
 - Optionally cache `usageFingerprints` on `CostUsageFileUsage` when mtime/size match to skip even the aligned fingerprint pass.
+- Build family closure across files outside the reporting window before applying the date filter; this provisional implementation still plans from the scanner's current file set.
+- Widen the production fingerprint to the full P0 identity vector after locking the raw field contract (notably stored `total_tokens` and `reasoning_output_tokens`).
 - Do **not** put model into copy fingerprints yet: P0 lock is usage-vector identity under ancestry; `token_count` rows often omit model (it lives on `turn_context`).
