@@ -904,6 +904,13 @@
 "MiniMax 30 day token usage trend" = "Trend utilizzo token 30 giorni MiniMax";
 "Today cash" = "Spesa di oggi";
 "DeepSeek 30 day token usage trend" = "Trend utilizzo token 30 giorni DeepSeek";
+"DeepSeek this month token usage trend" = "Trend utilizzo token DeepSeek di questo mese";
+"Chrome profile" = "Profilo Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Scegli quale sessione di DeepSeek Platform con accesso effettuato fornisce l'utilizzo dettagliato.";
+"Detailed usage unavailable." = "Utilizzo dettagliato non disponibile.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Accedi a DeepSeek Platform in Chrome per l'utilizzo dettagliato.";
+"Select a DeepSeek Chrome profile in Settings." = "Seleziona un profilo Chrome di DeepSeek nelle Impostazioni.";
+"Select profile…" = "Seleziona profilo…";
 "cache-hit input" = "input cache-hit";
 "cache-miss input" = "input cache-miss";
 "output" = "uscita";

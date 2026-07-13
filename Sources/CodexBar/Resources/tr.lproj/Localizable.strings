@@ -898,6 +898,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax 30 günlük jeton kullanım trendi";
 "Today cash" = "Bugünkü nakit";
 "DeepSeek 30 day token usage trend" = "DeepSeek 30 günlük jeton kullanım trendi";
+"DeepSeek this month token usage trend" = "DeepSeek bu ayki jeton kullanım trendi";
+"Chrome profile" = "Chrome profili";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Ayrıntılı kullanımı sağlayacak, oturum açılmış DeepSeek Platform oturumunu seçin.";
+"Detailed usage unavailable." = "Ayrıntılı kullanım kullanılamıyor.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Ayrıntılı kullanım için Chrome'da DeepSeek Platform'a giriş yapın.";
+"Select a DeepSeek Chrome profile in Settings." = "Ayarlarda bir DeepSeek Chrome profili seçin.";
+"Select profile…" = "Profil seç…";
 "cache-hit input" = "önbellek-isabetli girdi";
 "cache-miss input" = "önbellek-kaçan girdi";
 "output" = "çıktı";

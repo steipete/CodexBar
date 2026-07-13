@@ -4,11 +4,13 @@ public enum DeepSeekProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
     private static let optionalResolutionJoinGrace: Duration = .seconds(5)
+    private static let platformResolutionJoinGrace: Duration = .seconds(20)
 
     struct FetchOperations: Sendable {
         let fetchUsage: @Sendable (String, String?, Bool) async throws -> DeepSeekUsageSnapshot
         let resolveAutomaticSession:
-            @Sendable (String?, Bool, BrowserDetection, Bool) async -> DeepSeekPlatformTokenImporter.Resolution
+            @Sendable (String?, Bool, Bool, Bool, BrowserDetection, Bool) async
+            -> DeepSeekPlatformTokenImporter.Resolution
 
         static var live: FetchOperations {
             FetchOperations(
@@ -18,18 +20,22 @@ public enum DeepSeekProviderDescriptor {
                         platformToken: platformToken,
                         includeOptionalUsage: includeOptionalUsage)
                 },
-                resolveAutomaticSession: { selectedProfileID, requiresExplicitSelection, browserDetection, verbose in
+                resolveAutomaticSession: { profileID, explicit, includeBalance, includeOptional, detection, verbose in
                     if verbose {
                         return await DeepSeekPlatformTokenImporter.resolveAutomaticSession(
-                            selectedProfileID: selectedProfileID,
-                            requiresExplicitSelection: requiresExplicitSelection,
-                            browserDetection: browserDetection,
+                            selectedProfileID: profileID,
+                            requiresExplicitSelection: explicit,
+                            includePlatformBalance: includeBalance,
+                            includeOptionalUsage: includeOptional,
+                            browserDetection: detection,
                             logger: { print($0) })
                     }
                     return await DeepSeekPlatformTokenImporter.resolveAutomaticSession(
-                        selectedProfileID: selectedProfileID,
-                        requiresExplicitSelection: requiresExplicitSelection,
-                        browserDetection: browserDetection)
+                        selectedProfileID: profileID,
+                        requiresExplicitSelection: explicit,
+                        includePlatformBalance: includeBalance,
+                        includeOptionalUsage: includeOptional,
+                        browserDetection: detection)
                 })
         }
     }
@@ -62,21 +68,30 @@ public enum DeepSeekProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
-            fetchPlan: .apiToken(
-                strategyID: "deepseek.api",
-                resolveToken: { ProviderTokenResolver.deepseekToken(environment: $0) },
-                missingCredentialsError: { DeepSeekUsageError.missingCredentials },
-                loadUsage: { apiKey, context in
-                    try await Self.loadUsage(
-                        apiKey: apiKey,
-                        context: context,
-                        optionalResolutionJoinGrace: Self.optionalResolutionJoinGrace,
-                        operations: .live)
-                }),
+            fetchPlan: ProviderFetchPlan(
+                sourceModes: [.auto, .api, .web],
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "deepseek",
                 aliases: ["deep-seek", "ds"],
                 versionDetector: nil))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        switch context.sourceMode {
+        case .api:
+            [DeepSeekAPIFetchStrategy()]
+        case .web:
+            [DeepSeekPlatformFetchStrategy()]
+        case .auto:
+            if ProviderTokenResolver.deepseekToken(environment: context.env) != nil {
+                [DeepSeekAPIFetchStrategy()]
+            } else {
+                [DeepSeekPlatformFetchStrategy()]
+            }
+        case .cli, .oauth:
+            []
+        }
     }
 
     private static func loadUsage(
@@ -99,6 +114,14 @@ public enum DeepSeekProviderDescriptor {
             operations: operations)
     }
 
+    fileprivate static func loadAPIUsage(apiKey: String, context: ProviderFetchContext) async throws -> UsageSnapshot {
+        try await self.loadUsage(
+            apiKey: apiKey,
+            context: context,
+            optionalResolutionJoinGrace: self.optionalResolutionJoinGrace,
+            operations: .live)
+    }
+
     private static func loadAutomaticUsage(
         apiKey: String,
         context: ProviderFetchContext,
@@ -113,6 +136,8 @@ public enum DeepSeekProviderDescriptor {
             await operations.resolveAutomaticSession(
                 profileSelection.profileID,
                 profileSelection.requiresExplicitSelection,
+                false,
+                context.includeOptionalUsage,
                 context.browserDetection,
                 context.verbose)
         }
@@ -156,6 +181,7 @@ public enum DeepSeekProviderDescriptor {
         resolution: DeepSeekPlatformTokenImporter.Resolution) -> UsageSnapshot
     {
         DeepSeekUsageSnapshot(
+            hasBalance: balance.hasBalance,
             isAvailable: balance.isAvailable,
             currency: balance.currency,
             totalBalance: balance.totalBalance,
@@ -165,6 +191,55 @@ public enum DeepSeekProviderDescriptor {
             detailedUsageState: resolution.detailedUsageState,
             platformProfiles: resolution.profiles,
             updatedAt: balance.updatedAt).toUsageSnapshot()
+    }
+
+    fileprivate static func loadPlatformUsage(
+        context: ProviderFetchContext,
+        resolutionJoinGrace: Duration = DeepSeekProviderDescriptor.platformResolutionJoinGrace,
+        operations: FetchOperations = .live) async throws -> UsageSnapshot
+    {
+        if let platformToken = DeepSeekSettingsReader.platformToken(environment: context.env) {
+            return try await DeepSeekUsageFetcher.fetchPlatformUsage(
+                platformToken: platformToken,
+                includeOptionalUsage: context.includeOptionalUsage).toUsageSnapshot()
+        }
+
+        let profileSelection = DeepSeekSettingsReader.profileSelection(
+            environment: context.env,
+            selectedTokenAccountID: nil,
+            apiKey: nil)
+        let resolutionTask = Task<DeepSeekPlatformTokenImporter.Resolution, Error> {
+            await operations.resolveAutomaticSession(
+                profileSelection.profileID,
+                profileSelection.requiresExplicitSelection,
+                true,
+                context.includeOptionalUsage,
+                context.browserDetection,
+                context.verbose)
+        }
+        let resolutionJoin = BoundedTaskJoin(sourceTask: resolutionTask)
+        let resolution: DeepSeekPlatformTokenImporter.Resolution
+        switch await resolutionJoin.value(joinGrace: resolutionJoinGrace) {
+        case let .value(value):
+            resolution = value
+        case .timedOut:
+            throw DeepSeekUsageError.networkError("Chrome session resolution timed out")
+        case let .failure(error):
+            throw error
+        }
+        try Task.checkCancellation()
+        if resolution.selectedBalance == nil, resolution.detailedUsageState == .unavailable {
+            throw DeepSeekUsageError.networkError("Chrome session resolution unavailable")
+        }
+        let balance = resolution.selectedBalance ?? DeepSeekUsageSnapshot(
+            hasBalance: false,
+            isAvailable: false,
+            currency: resolution.selectedSummary?.currency ?? "USD",
+            totalBalance: 0,
+            grantedBalance: 0,
+            toppedUpBalance: 0,
+            updatedAt: resolution.selectedSummary?.updatedAt ?? Date())
+        return self.combinedSnapshot(balance: balance, resolution: resolution)
     }
 
     static func _loadUsageForTesting(
@@ -178,5 +253,55 @@ public enum DeepSeekProviderDescriptor {
             context: context,
             optionalResolutionJoinGrace: optionalResolutionJoinGrace,
             operations: operations)
+    }
+
+    static func _loadPlatformUsageForTesting(
+        context: ProviderFetchContext,
+        resolutionJoinGrace: Duration = DeepSeekProviderDescriptor.platformResolutionJoinGrace,
+        operations: FetchOperations) async throws -> UsageSnapshot
+    {
+        try await self.loadPlatformUsage(
+            context: context,
+            resolutionJoinGrace: resolutionJoinGrace,
+            operations: operations)
+    }
+}
+
+private struct DeepSeekAPIFetchStrategy: ProviderFetchStrategy {
+    let id = "deepseek.api"
+    let kind: ProviderFetchKind = .apiToken
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        context.sourceMode == .api || ProviderTokenResolver.deepseekToken(environment: context.env) != nil
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        guard let apiKey = ProviderTokenResolver.deepseekToken(environment: context.env) else {
+            throw DeepSeekUsageError.missingCredentials
+        }
+        let usage = try await DeepSeekProviderDescriptor.loadAPIUsage(apiKey: apiKey, context: context)
+        return self.makeResult(usage: usage, sourceLabel: "api")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct DeepSeekPlatformFetchStrategy: ProviderFetchStrategy {
+    let id = "deepseek.web"
+    let kind: ProviderFetchKind = .web
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let usage = try await DeepSeekProviderDescriptor.loadPlatformUsage(context: context)
+        return self.makeResult(usage: usage, sourceLabel: "web")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
     }
 }

@@ -14,10 +14,19 @@ struct DeepSeekProviderDescriptorTests {
     private actor ResolutionInputProbe {
         private(set) var profileID: String?
         private(set) var requiresExplicitSelection = false
+        private(set) var includesPlatformBalance = false
+        private(set) var includesOptionalUsage = true
 
-        func record(profileID: String?, requiresExplicitSelection: Bool) {
+        func record(
+            profileID: String?,
+            requiresExplicitSelection: Bool,
+            includesPlatformBalance: Bool = false,
+            includesOptionalUsage: Bool = true)
+        {
             self.profileID = profileID
             self.requiresExplicitSelection = requiresExplicitSelection
+            self.includesPlatformBalance = includesPlatformBalance
+            self.includesOptionalUsage = includesOptionalUsage
         }
     }
 
@@ -28,7 +37,7 @@ struct DeepSeekProviderDescriptorTests {
             fetchUsage: { _, _, _ in
                 throw DeepSeekUsageError.apiError("invalid key")
             },
-            resolveAutomaticSession: { _, _, _, _ in
+            resolveAutomaticSession: { _, _, _, _, _, _ in
                 do {
                     try await Task.sleep(for: .seconds(10))
                 } catch {
@@ -61,7 +70,7 @@ struct DeepSeekProviderDescriptorTests {
         let probe = CancellationProbe()
         let operations = DeepSeekProviderDescriptor.FetchOperations(
             fetchUsage: { _, _, _ in Self.balance },
-            resolveAutomaticSession: { _, _, _, _ in
+            resolveAutomaticSession: { _, _, _, _, _, _ in
                 do {
                     try await Task.sleep(for: .seconds(10))
                 } catch {
@@ -104,7 +113,7 @@ struct DeepSeekProviderDescriptorTests {
             updatedAt: Date(timeIntervalSince1970: 1))
         let operations = DeepSeekProviderDescriptor.FetchOperations(
             fetchUsage: { _, _, _ in Self.balance },
-            resolveAutomaticSession: { _, _, _, _ in
+            resolveAutomaticSession: { _, _, _, _, _, _ in
                 DeepSeekPlatformTokenImporter.Resolution(
                     profiles: [DeepSeekPlatformProfile(id: "chrome:Default", name: "Chrome — Personal")],
                     selectedSummary: summary,
@@ -127,7 +136,7 @@ struct DeepSeekProviderDescriptorTests {
     func `automatic resolution timeout is hard when the resolver ignores cancellation`() async throws {
         let operations = DeepSeekProviderDescriptor.FetchOperations(
             fetchUsage: { _, _, _ in Self.balance },
-            resolveAutomaticSession: { _, _, _, _ in
+            resolveAutomaticSession: { _, _, _, _, _, _ in
                 let deadline = ContinuousClock.now.advanced(by: .milliseconds(500))
                 while ContinuousClock.now < deadline {
                     await Task.yield()
@@ -153,7 +162,7 @@ struct DeepSeekProviderDescriptorTests {
         let otherAccountID = UUID()
         let operations = DeepSeekProviderDescriptor.FetchOperations(
             fetchUsage: { _, _, _ in Self.balance },
-            resolveAutomaticSession: { profileID, requiresExplicitSelection, _, _ in
+            resolveAutomaticSession: { profileID, requiresExplicitSelection, _, _, _, _ in
                 await probe.record(
                     profileID: profileID,
                     requiresExplicitSelection: requiresExplicitSelection)
@@ -183,7 +192,7 @@ struct DeepSeekProviderDescriptorTests {
         let selectedAccountID = UUID()
         let operations = DeepSeekProviderDescriptor.FetchOperations(
             fetchUsage: { _, _, _ in Self.balance },
-            resolveAutomaticSession: { profileID, requiresExplicitSelection, _, _ in
+            resolveAutomaticSession: { profileID, requiresExplicitSelection, _, _, _, _ in
                 await probe.record(profileID: profileID, requiresExplicitSelection: requiresExplicitSelection)
                 return Self.unavailableResolution
             })
@@ -210,7 +219,7 @@ struct DeepSeekProviderDescriptorTests {
         let probe = ResolutionInputProbe()
         let operations = DeepSeekProviderDescriptor.FetchOperations(
             fetchUsage: { _, _, _ in Self.balance },
-            resolveAutomaticSession: { profileID, requiresExplicitSelection, _, _ in
+            resolveAutomaticSession: { profileID, requiresExplicitSelection, _, _, _, _ in
                 await probe.record(profileID: profileID, requiresExplicitSelection: requiresExplicitSelection)
                 return Self.unavailableResolution
             })
@@ -232,6 +241,147 @@ struct DeepSeekProviderDescriptorTests {
         #expect(await probe.requiresExplicitSelection)
     }
 
+    @Test
+    func `browser only mode returns Platform balance and usage without an API key`() async throws {
+        let probe = ResolutionInputProbe()
+        let summary = DeepSeekUsageSummary(
+            todayTokens: 123,
+            currentMonthTokens: 456,
+            todayCost: 0.1,
+            currentMonthCost: 0.2,
+            requestCount: 3,
+            currentMonthRequestCount: 4,
+            topModel: "deepseek-chat",
+            categoryBreakdown: [],
+            daily: [],
+            currency: "USD",
+            updatedAt: Date(timeIntervalSince1970: 1))
+        let operations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, _ in
+                throw DeepSeekUsageError.missingCredentials
+            },
+            resolveAutomaticSession: { profileID, explicit, includeBalance, includeOptional, _, _ in
+                await probe.record(
+                    profileID: profileID,
+                    requiresExplicitSelection: explicit,
+                    includesPlatformBalance: includeBalance,
+                    includesOptionalUsage: includeOptional)
+                return DeepSeekPlatformTokenImporter.Resolution(
+                    profiles: [DeepSeekPlatformProfile(id: "chrome:Default", name: "Chrome — Yuqing")],
+                    selectedSummary: summary,
+                    selectedBalance: Self.balance,
+                    detailedUsageState: .available)
+            })
+
+        let snapshot = try await DeepSeekProviderDescriptor._loadPlatformUsageForTesting(
+            context: Self.makeContext(sourceMode: .auto),
+            operations: operations)
+
+        #expect(snapshot.primary?.resetDescription?.contains("$8.06") == true)
+        #expect(snapshot.deepseekUsage == summary)
+        #expect(snapshot.deepseekDetailedUsageState == .available)
+        #expect(snapshot.deepseekPlatformProfiles.map(\.id) == ["chrome:Default"])
+        #expect(await probe.profileID == nil)
+        #expect(await probe.requiresExplicitSelection == false)
+        #expect(await probe.includesPlatformBalance)
+        #expect(await probe.includesOptionalUsage)
+    }
+
+    @Test
+    func `browser only mode skips optional usage when extras are disabled`() async throws {
+        let probe = ResolutionInputProbe()
+        let operations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, _ in
+                throw DeepSeekUsageError.missingCredentials
+            },
+            resolveAutomaticSession: { profileID, explicit, includeBalance, includeOptional, _, _ in
+                await probe.record(
+                    profileID: profileID,
+                    requiresExplicitSelection: explicit,
+                    includesPlatformBalance: includeBalance,
+                    includesOptionalUsage: includeOptional)
+                return DeepSeekPlatformTokenImporter.Resolution(
+                    profiles: [DeepSeekPlatformProfile(id: "chrome:Default", name: "Chrome — Yuqing")],
+                    selectedSummary: nil,
+                    selectedBalance: Self.balance,
+                    detailedUsageState: .notRequested)
+            })
+
+        let snapshot = try await DeepSeekProviderDescriptor._loadPlatformUsageForTesting(
+            context: Self.makeContext(sourceMode: .auto, includeOptionalUsage: false),
+            operations: operations)
+
+        #expect(snapshot.primary != nil)
+        #expect(snapshot.deepseekUsage == nil)
+        #expect(snapshot.deepseekDetailedUsageState == .notRequested)
+        #expect(await probe.includesPlatformBalance)
+        #expect(await probe.includesOptionalUsage == false)
+    }
+
+    @Test
+    func `browser only resolution timeout is hard when Chrome ignores cancellation`() async throws {
+        let operations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, _ in Self.balance },
+            resolveAutomaticSession: { _, _, _, _, _, _ in
+                let deadline = ContinuousClock.now.advanced(by: .milliseconds(500))
+                while ContinuousClock.now < deadline {
+                    await Task.yield()
+                }
+                return Self.unavailableResolution
+            })
+        let startedAt = ContinuousClock.now
+
+        await #expect {
+            _ = try await DeepSeekProviderDescriptor._loadPlatformUsageForTesting(
+                context: Self.makeContext(sourceMode: .auto),
+                resolutionJoinGrace: .milliseconds(20),
+                operations: operations)
+        } throws: { error in
+            guard case let DeepSeekUsageError.networkError(message) = error else { return false }
+            return message.contains("timed out")
+        }
+        #expect(startedAt.duration(to: .now) < .milliseconds(200))
+    }
+
+    @Test
+    func `browser only mode asks for Chrome sign in instead of an API key`() async throws {
+        let operations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, _ in
+                throw DeepSeekUsageError.missingCredentials
+            },
+            resolveAutomaticSession: { _, _, _, _, _, _ in
+                DeepSeekPlatformTokenImporter.Resolution(
+                    profiles: [],
+                    selectedSummary: nil,
+                    detailedUsageState: .webSessionRequired)
+            })
+
+        let snapshot = try await DeepSeekProviderDescriptor._loadPlatformUsageForTesting(
+            context: Self.makeContext(sourceMode: .auto),
+            operations: operations)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.deepseekDetailedUsageState == .webSessionRequired)
+    }
+
+    @Test
+    func `automatic source uses Chrome session when API key is absent`() async {
+        let strategies = await DeepSeekProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(
+            Self.makeContext(sourceMode: .auto))
+
+        #expect(strategies.map(\.id) == ["deepseek.web"])
+    }
+
+    @Test
+    func `automatic source keeps API path when API key is present`() async {
+        let strategies = await DeepSeekProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(
+            Self.makeContext(
+                environment: [DeepSeekSettingsReader.apiKeyEnvironmentKey: "test-api-key"],
+                sourceMode: .auto))
+
+        #expect(strategies.map(\.id) == ["deepseek.api"])
+    }
+
     private static let balance = DeepSeekUsageSnapshot(
         isAvailable: true,
         currency: "USD",
@@ -247,14 +397,16 @@ struct DeepSeekProviderDescriptorTests {
 
     private static func makeContext(
         environment: [String: String] = [:],
-        selectedTokenAccountID: UUID? = nil) -> ProviderFetchContext
+        selectedTokenAccountID: UUID? = nil,
+        sourceMode: ProviderSourceMode = .api,
+        includeOptionalUsage: Bool = true) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
-            sourceMode: .api,
+            sourceMode: sourceMode,
             includeCredits: false,
-            includeOptionalUsage: true,
+            includeOptionalUsage: includeOptionalUsage,
             webTimeout: 60,
             webDebugDumpHTML: false,
             verbose: false,

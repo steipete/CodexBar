@@ -157,6 +157,90 @@ struct DeepSeekUsageFetcherTests {
     }
 
     @Test
+    func `parses paid and granted balances from Platform session summary`() throws {
+        let json = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": {
+              "normal_wallets": [
+                {"balance": "7.97", "currency": "USD"}
+              ],
+              "bonus_wallets": [
+                {"balance": 0.50, "currency": "USD"}
+              ]
+            }
+          }
+        }
+        """
+
+        let snapshot = try DeepSeekUsageFetcher._parsePlatformBalanceForTesting(Data(json.utf8))
+
+        #expect(snapshot.hasBalance)
+        #expect(snapshot.isAvailable)
+        #expect(snapshot.currency == "USD")
+        #expect(abs(snapshot.totalBalance - 8.47) < 0.000_001)
+        #expect(snapshot.toppedUpBalance == 7.97)
+        #expect(snapshot.grantedBalance == 0.50)
+    }
+
+    @Test
+    func `Platform session summary rejects malformed balance`() {
+        let json = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": {
+              "normal_wallets": [{"balance": "not-a-number", "currency": "USD"}],
+              "bonus_wallets": []
+            }
+          }
+        }
+        """
+
+        #expect(throws: DeepSeekUsageError.self) {
+            try DeepSeekUsageFetcher._parsePlatformBalanceForTesting(Data(json.utf8))
+        }
+    }
+
+    @Test
+    func `Platform session summary maps top level auth envelopes before decoding data`() {
+        let json = """
+        {
+          "code": 40003,
+          "data": "unexpected"
+        }
+        """
+
+        #expect {
+            try DeepSeekUsageFetcher._parsePlatformBalanceForTesting(Data(json.utf8))
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
+    func `Platform session summary maps nested auth envelopes before decoding wallets`() {
+        let json = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 40002,
+            "biz_data": "unexpected"
+          }
+        }
+        """
+
+        #expect {
+            try DeepSeekUsageFetcher._parsePlatformBalanceForTesting(Data(json.utf8))
+        } throws: { error in
+            error as? DeepSeekUsageError == .invalidPlatformToken
+        }
+    }
+
+    @Test
     func `parses CNY balance response`() throws {
         let json = """
         {
@@ -480,6 +564,54 @@ struct DeepSeekUsageFetcherTests {
 
         #expect(snapshot.totalBalance == 50.0)
         #expect(snapshot.usageSummary == nil)
+    }
+
+    @Test
+    func `Platform balance returns when optional usage summary fails`() async throws {
+        let snapshot = try await DeepSeekUsageFetcher._fetchPlatformUsageForTesting(
+            includeOptionalUsage: true,
+            optionalSummaryJoinGrace: .seconds(2),
+            fetchBalance: {
+                DeepSeekUsageSnapshot(
+                    isAvailable: true,
+                    currency: "USD",
+                    totalBalance: 8.06,
+                    grantedBalance: 0,
+                    toppedUpBalance: 8.06,
+                    updatedAt: Date())
+            },
+            fetchSummary: {
+                throw DeepSeekUsageError.networkError("simulated failure")
+            })
+
+        #expect(snapshot.totalBalance == 8.06)
+        #expect(snapshot.usageSummary == nil)
+        #expect(snapshot.detailedUsageState == .unavailable)
+    }
+
+    @Test
+    func `Platform balance skips detailed endpoints when optional usage is disabled`() async throws {
+        let counter = SummaryCallCounter()
+        let snapshot = try await DeepSeekUsageFetcher._fetchPlatformUsageForTesting(
+            includeOptionalUsage: false,
+            fetchBalance: {
+                DeepSeekUsageSnapshot(
+                    isAvailable: true,
+                    currency: "USD",
+                    totalBalance: 8.06,
+                    grantedBalance: 0,
+                    toppedUpBalance: 8.06,
+                    updatedAt: Date())
+            },
+            fetchSummary: {
+                await counter.increment()
+                return Self.sampleSummary()
+            })
+
+        #expect(snapshot.totalBalance == 8.06)
+        #expect(snapshot.usageSummary == nil)
+        #expect(snapshot.detailedUsageState == .notRequested)
+        #expect(await counter.value == 0)
     }
 
     @Test

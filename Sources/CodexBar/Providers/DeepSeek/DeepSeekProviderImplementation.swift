@@ -7,7 +7,9 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "api" }
+        ProviderPresentation { context in
+            context.store.sourceLabel(for: context.provider)
+        }
     }
 
     @MainActor
@@ -31,7 +33,7 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
             },
             set: { profileID in
                 guard !profileID.isEmpty else { return }
-                context.store.beginDeepSeekProfileTransition()
+                context.store.beginDeepSeekProfileTransition(preservingBalance: apiKey != nil)
                 context.settings.setDeepSeekProfileID(profileID, apiKey: apiKey)
             })
         let options = (hasValidSelection
@@ -62,11 +64,8 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        if DeepSeekSettingsReader.apiKey(environment: context.environment) != nil {
-            return true
-        }
-        return !context.settings.tokenAccounts(for: .deepseek).isEmpty
+    func isAvailable(context _: ProviderAvailabilityContext) -> Bool {
+        true
     }
 
     @MainActor
