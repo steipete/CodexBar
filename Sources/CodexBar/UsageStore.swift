@@ -1587,8 +1587,7 @@ extension UsageStore {
                     costScopeSignature: costScopeSignature)
                 return
             }
-            let duration = Date().timeIntervalSince(startedAt)
-            let msg = error.localizedDescription
+            let duration = Date().timeIntervalSince(startedAt), msg = error.localizedDescription
             let durationText = String(format: "%.2f", duration)
             let message = "cost usage failed provider=\(providerText) duration=\(durationText)s error=\(msg)"
             self.tokenCostLogger.error(message)
