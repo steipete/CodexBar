@@ -1829,7 +1829,7 @@ enum CostUsageScanner {
         CodexLineageLedger.Totals(input: totals.input, cached: totals.cached, output: totals.output)
     }
 
-    private static func codexRolloutOwnerID(fileURL: URL) -> String? {
+    static func codexRolloutOwnerID(fileURL: URL) -> String? {
         let stem = fileURL.deletingPathExtension().lastPathComponent
         guard stem.count >= 36 else { return nil }
         let candidate = String(stem.suffix(36))
