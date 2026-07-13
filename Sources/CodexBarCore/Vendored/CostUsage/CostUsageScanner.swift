@@ -2559,6 +2559,7 @@ enum CostUsageScanner {
                 range: range,
                 isForceRescan: options.forceRescan)
 
+            var forkFamiliesNeedingRescan = Set<String>()
             let shouldDropAllUnscannedFiles = options.forceRescan || plan.rootsChanged || cache.files.isEmpty
                 || plan.needsProjectMetadataMigration
             for key in cache.files.keys where !filePathsInScan.contains(key) {
@@ -2566,6 +2567,9 @@ enum CostUsageScanner {
                 let shouldDrop = shouldDropAllUnscannedFiles ||
                     old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
                 guard shouldDrop else { continue }
+                if let forkedFromId = old.forkedFromId {
+                    forkFamiliesNeedingRescan.insert(forkedFromId)
+                }
                 Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                 cache.files.removeValue(forKey: key)
             }
@@ -2576,10 +2580,33 @@ enum CostUsageScanner {
                     guard old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
                     else { continue }
                     guard FileManager.default.fileExists(atPath: key) else {
+                        if let forkedFromId = old.forkedFromId {
+                            forkFamiliesNeedingRescan.insert(forkedFromId)
+                        }
                         Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                         cache.files.removeValue(forKey: key)
                         continue
                     }
+                }
+            }
+
+            if !forkFamiliesNeedingRescan.isEmpty {
+                let siblingPaths = cache.files.compactMap { path, usage in
+                    forkFamiliesNeedingRescan.contains(usage.forkedFromId ?? "") ? path : nil
+                }
+                for path in siblingPaths {
+                    if let old = cache.files.removeValue(forKey: path) {
+                        Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
+                    }
+                }
+                let siblingFiles = files.filter { siblingPaths.contains($0.path) }
+                scanState = CodexScanState()
+                for fileURL in siblingFiles {
+                    try Self.scanCodexFile(
+                        fileURL: fileURL,
+                        context: scanContext,
+                        cache: &cache,
+                        state: &scanState)
                 }
             }
 

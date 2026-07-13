@@ -5789,7 +5789,7 @@ struct CostUsageScannerBreakdownTests {
         let child1TurnId = "turn-child-1"
         let child2TurnId = "turn-child-2"
 
-        _ = try env.writeCodexSessionFile(
+        let child1URL = try env.writeCodexSessionFile(
             day: day,
             filename: "rollout-\(iso0)-child-1.jsonl",
             contents: env.jsonl([
@@ -5856,6 +5856,20 @@ struct CostUsageScannerBreakdownTests {
         #expect(report.data.count == 1)
         #expect(report.data[0].inputTokens == 1050)
         #expect(report.data[0].outputTokens == 111)
+
+        try FileManager.default.removeItem(at: child1URL)
+        options.forceRescan = false
+
+        let afterOwnerRemoval = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+
+        #expect(afterOwnerRemoval.data.count == 1)
+        #expect(afterOwnerRemoval.data[0].inputTokens == 1030)
+        #expect(afterOwnerRemoval.data[0].outputTokens == 106)
     }
 
     private static func modelsDevCatalog(
