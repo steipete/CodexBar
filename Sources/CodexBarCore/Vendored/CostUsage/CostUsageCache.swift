@@ -6,6 +6,8 @@ enum CostUsageCacheIO {
     /// totals are counted, so every earlier cache must be rebuilt.
     private static let compatibleCodexProducerKeys: Set<String> = []
 
+    /// Parser and attribution changes invalidate Codex caches through CodexParserHash (#1042).
+    /// Bump this only for an incompatible on-disk schema or cache filename/layout change.
     private static func artifactVersion(for provider: UsageProvider) -> Int {
         switch provider {
         case .codex:
