@@ -1597,6 +1597,11 @@ extension UsageStore {
                     provider: provider,
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
+            } else {
+                // A scan can run longer than a short configured cadence. Start the timeout
+                // cooldown at completion, not at scan start, so the next timer tick cannot
+                // immediately launch another long-running scan.
+                self.lastTokenFetchAt[provider] = Date()
             }
             let hadPriorData = self.tokenSnapshots[provider] != nil
             let shouldSurface = self.tokenFailureGates[provider]?

@@ -13,7 +13,14 @@ extension UsageStore {
         guard let seconds = self.settings.refreshFrequency.seconds else { return }
         self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(seconds))
+                do {
+                    try await Task.sleep(for: .seconds(seconds))
+                } catch is CancellationError {
+                    return
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
                 await self?.scheduleTokenRefresh()
             }
         }

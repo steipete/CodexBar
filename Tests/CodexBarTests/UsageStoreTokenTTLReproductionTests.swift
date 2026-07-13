@@ -105,6 +105,24 @@ struct UsageStoreTokenTTLReproductionTests {
         #expect(await recorder.calls.isEmpty)
     }
 
+    @Test
+    func `timed out token scan starts its cooldown after completion`() async throws {
+        let store = Self.makeStore()
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, _, _, _ in
+            try await Task.sleep(for: .milliseconds(75))
+            throw CostUsageError.timedOut(seconds: 600)
+        }
+
+        let startedAt = Date()
+        await store.refreshTokenUsage(.codex, force: false)
+        let completedAt = Date()
+        let cooldownStart = try #require(store.lastTokenFetchAt[.codex])
+
+        #expect(cooldownStart >= startedAt.addingTimeInterval(0.05))
+        #expect(cooldownStart <= completedAt)
+        #expect(completedAt.timeIntervalSince(cooldownStart) < 0.05)
+    }
+
     private static func makeStore() -> UsageStore {
         let settings = testSettingsStore(suiteName: "UsageStoreTokenTTLReproductionTests")
         settings.refreshFrequency = .oneMinute
