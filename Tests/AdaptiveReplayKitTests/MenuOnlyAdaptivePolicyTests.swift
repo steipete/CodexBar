@@ -2,7 +2,7 @@ import AdaptiveReplayKit
 import Foundation
 import Testing
 
-struct CodingActivityReplayPolicyTests {
+struct MenuOnlyAdaptivePolicyTests {
     private static let now = Date(timeIntervalSinceReferenceDate: 10000)
 
     private func input(
@@ -19,27 +19,30 @@ struct CodingActivityReplayPolicyTests {
     }
 
     @Test
-    func `active coding caps idle and long-idle decisions at five minutes`() {
-        let policy = CodingActivityAdaptivePolicy()
+    func `production adaptive caps idle and long-idle decisions during coding`() {
+        let policy = AdaptiveReplayPolicy()
 
-        #expect(policy.name == "adaptive-activity")
+        #expect(policy.name == "adaptive")
         #expect(policy.decide(self.input(menuAge: 2 * 3600, activityAge: 10)).delaySeconds == 300)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: 10)).delaySeconds == 300)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: 10)).reason == "codingActivity")
     }
 
     @Test
-    func `existing recent and warm decisions remain unchanged`() {
-        let policy = CodingActivityAdaptivePolicy()
+    func `menu-only baseline preserves the pre-activity policy`() {
+        let policy = MenuOnlyAdaptivePolicy()
 
-        #expect(policy.decide(self.input(menuAge: 60, activityAge: 10)).delaySeconds == 120)
-        #expect(policy.decide(self.input(menuAge: 600, activityAge: 10)).delaySeconds == 300)
+        #expect(policy.name == "adaptive-menu-only")
+        #expect(policy.decide(self.input(menuAge: nil, activityAge: 10)).delaySeconds == 1800)
+        #expect(policy.decide(self.input(menuAge: nil, activityAge: 10)).reason == "longIdle")
     }
 
     @Test
-    func `constrained state wins and exact threshold is inactive`() {
-        let policy = CodingActivityAdaptivePolicy()
+    func `production adaptive preserves recent warm constrained and boundary decisions`() {
+        let policy = AdaptiveReplayPolicy()
 
+        #expect(policy.decide(self.input(menuAge: 60, activityAge: 10)).delaySeconds == 120)
+        #expect(policy.decide(self.input(menuAge: 600, activityAge: 10)).delaySeconds == 300)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: 10, constrained: true)).delaySeconds == 1800)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: 300)).delaySeconds == 1800)
         #expect(policy.decide(self.input(menuAge: nil, activityAge: nil)).delaySeconds == 1800)
@@ -65,7 +68,7 @@ struct CodingActivityReplayPolicyTests {
                 codexActivitySeconds: 0),
         ]
 
-        let metrics = ReplayEngine.run(trace: trace, policy: CodingActivityAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: trace, policy: AdaptiveReplayPolicy())
 
         #expect(metrics.codingActiveDecisionCount == 0)
         #expect(metrics.totalRefreshCount == 0)
@@ -93,7 +96,7 @@ struct CodingActivityReplayPolicyTests {
             .refreshCompleted(timestamp: Self.now.addingTimeInterval(240)),
         ]
 
-        let metrics = ReplayEngine.run(trace: trace, policy: CodingActivityAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: trace, policy: AdaptiveReplayPolicy())
 
         #expect(metrics.totalRefreshCount == 2)
         #expect(metrics.codingActiveDecisionCount == 1)
@@ -113,7 +116,7 @@ struct CodingActivityReplayPolicyTests {
             .refreshCompleted(timestamp: Self.now.addingTimeInterval(1800)),
         ]
 
-        let metrics = ReplayEngine.run(trace: trace, policy: CodingActivityAdaptivePolicy())
+        let metrics = ReplayEngine.run(trace: trace, policy: AdaptiveReplayPolicy())
 
         #expect(metrics.codingActiveDecisionCount == 0)
         #expect(metrics.codingActiveDelayViolationCount == 0)

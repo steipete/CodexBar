@@ -7,12 +7,14 @@ struct AdaptiveRefreshPolicyTests {
 
     private func decision(
         ageSeconds: TimeInterval? = 0,
+        codingActivityAgeSeconds: TimeInterval? = nil,
         lowPowerModeEnabled: Bool,
         thermalState: ProcessInfo.ThermalState) -> AdaptiveRefreshPolicy.Decision
     {
         UsageStore.adaptiveRefreshDecision(
             now: Self.referenceNow,
             lastMenuOpenAt: ageSeconds.map { Self.referenceNow.addingTimeInterval(-$0) },
+            lastCodingActivityAt: codingActivityAgeSeconds.map { Self.referenceNow.addingTimeInterval(-$0) },
             lowPowerModeEnabled: lowPowerModeEnabled,
             thermalState: thermalState)
     }
@@ -57,5 +59,16 @@ struct AdaptiveRefreshPolicyTests {
             thermalState: .nominal)
         #expect(noHistory.reason == .longIdle)
         #expect(noHistory.delay == .seconds(30 * 60))
+    }
+
+    @Test
+    func `app adapter forwards coding activity into the shared core`() {
+        let decision = self.decision(
+            ageSeconds: nil,
+            codingActivityAgeSeconds: 0,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal)
+        #expect(decision.reason == .codingActivity)
+        #expect(decision.delay == .seconds(5 * 60))
     }
 }

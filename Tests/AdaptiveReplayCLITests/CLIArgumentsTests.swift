@@ -44,4 +44,16 @@ struct CLIArgumentsTests {
         }
         #expect(policyNames == ReplayPolicyName.allCases)
     }
+
+    @Test
+    func `released activity candidate name remains an alias for production adaptive`() {
+        let arguments = CLIArguments.parse(["trace.jsonl", "--policy", "adaptive-activity"])
+
+        guard case let .run(_, policyNames, _, _) = arguments else {
+            Issue.record("Expected the released alias to remain accepted")
+            return
+        }
+        #expect(policyNames == [.adaptive])
+        #expect(policyNames.map(\.policy.name) == ["adaptive"])
+    }
 }

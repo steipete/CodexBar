@@ -288,6 +288,9 @@ final class UsageStore {
     @ObservationIgnored private var timerTask: Task<Void, Never>?
     /// In-memory only; resets on every launch.
     @ObservationIgnored private(set) var lastMenuOpenAt: Date?
+    /// Latest local Codex/Claude transcript activity observed by the existing session scanner.
+    /// In-memory only; paths and session identities never enter the refresh policy.
+    @ObservationIgnored private(set) var lastCodingActivityAt: Date?
     @ObservationIgnored var adaptiveRefreshScheduledAt: Date?
     @ObservationIgnored var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored var tokenRefreshSequenceTask: Task<Void, Never>?
@@ -1647,20 +1650,18 @@ extension UsageStore {
 }
 
 extension UsageStore {
+    func retainCodingActivityIfNewer(_ date: Date) {
+        if self.lastCodingActivityAt.map({ date > $0 }) ?? true {
+            self.lastCodingActivityAt = date
+        }
+    }
+
+    func restartAdaptiveTimerPreservingResetBoundary() {
+        self.startTimer(preservingResetBoundaryRefresh: true)
+    }
+
     func noteMenuOpened(at date: Date = Date()) {
         self.lastMenuOpenAt = date
-        guard self.settings.refreshFrequency == .adaptive else { return }
-
-        let decision = Self.adaptiveRefreshDecision(
-            now: date,
-            lastMenuOpenAt: date,
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
-            thermalState: ProcessInfo.processInfo.thermalState)
-        let candidate = date.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
-        guard Self.shouldAdvanceAdaptiveTimer(
-            scheduledAt: self.adaptiveRefreshScheduledAt,
-            candidate: candidate)
-        else { return }
-        self.startTimer(preservingResetBoundaryRefresh: true)
+        self.advanceAdaptiveTimerIfEarlier(at: date)
     }
 }

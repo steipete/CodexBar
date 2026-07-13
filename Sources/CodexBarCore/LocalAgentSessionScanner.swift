@@ -25,8 +25,9 @@ public struct LocalAgentSessionScanner: Sendable {
     {
         let processOutput = await self.processOutput(environment: environment)
         let allProcesses = AgentPSOutputParser.parse(processOutput)
-        let processes = AgentSessionCorrelation.newestProcessesFirst(
+        let processes = Array(AgentSessionCorrelation.newestProcessesFirst(
             AgentPSOutputParser.agentProcesses(from: allProcesses))
+            .prefix(max(0, self.config.maxProcessCount)))
         let codexAppServerPresent = AgentPSOutputParser.hasCodexAppServer(in: allProcesses)
         let cwdByPID = await self.cwdByPID(processes.map(\ .pid), environment: environment)
         let homeDirectory = URL(fileURLWithPath: environment["HOME"] ?? NSHomeDirectory(), isDirectory: true)
@@ -55,7 +56,10 @@ public struct LocalAgentSessionScanner: Sendable {
         let claudeProcesses = processes.filter { AgentPSOutputParser.provider(for: $0) == .claude }
         let claudeCWDs = Set(claudeProcesses.compactMap { cwdByPID[$0.pid] })
         let claudeTranscriptsByCWD = Dictionary(uniqueKeysWithValues: claudeCWDs.map { cwd in
-            (cwd, ClaudeSessionProjectMapper.transcripts(cwd: cwd, homeDirectory: context.homeDirectory))
+            (cwd, ClaudeSessionProjectMapper.transcripts(
+                cwd: cwd,
+                homeDirectory: context.homeDirectory,
+                limit: self.config.maxClaudeTranscriptCountPerProject))
         })
         let claudeTranscripts = AgentSessionCorrelation.assignClaudeTranscripts(
             processes: claudeProcesses,
@@ -193,7 +197,7 @@ public struct LocalAgentSessionScanner: Sendable {
         formatter.dateFormat = "yyyy/MM/dd"
         let fileManager = FileManager.default
 
-        return days.flatMap { day -> [Rollout] in
+        let candidates = days.flatMap { day -> [(url: URL, modifiedAt: Date)] in
             let directory = root.appendingPathComponent(formatter.string(from: day), isDirectory: true)
             guard let files = try? fileManager.contentsOfDirectory(
                 at: directory,
@@ -203,12 +207,18 @@ public struct LocalAgentSessionScanner: Sendable {
             return files.compactMap { file in
                 guard file.lastPathComponent.hasPrefix("rollout-"), file.pathExtension == "jsonl",
                       let modifiedAt = try? file.resourceValues(
-                          forKeys: [.contentModificationDateKey]).contentModificationDate,
-                      let metadata = CodexRolloutFirstLineParser.read(from: file)
+                          forKeys: [.contentModificationDateKey]).contentModificationDate
                 else { return nil }
-                return Rollout(url: file, modifiedAt: modifiedAt, metadata: metadata)
+                return (file, modifiedAt)
             }
         }.sorted { $0.modifiedAt > $1.modifiedAt }
+
+        return candidates
+            .prefix(max(0, self.config.maxCodexRolloutCount))
+            .compactMap { candidate in
+                guard let metadata = CodexRolloutFirstLineParser.read(from: candidate.url) else { return nil }
+                return Rollout(url: candidate.url, modifiedAt: candidate.modifiedAt, metadata: metadata)
+            }
     }
 
     private func findExecutable(_ name: String, environment: [String: String]) -> String? {

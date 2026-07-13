@@ -43,7 +43,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `default refresh frequency is five minutes`() throws {
+    func `default refresh frequency is adaptive`() throws {
         let suite = "SettingsStoreTests-default"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -55,13 +55,13 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.refreshFrequency == .fiveMinutes)
-        #expect(store.refreshFrequency.seconds == 300)
-        #expect(defaults.string(forKey: "refreshFrequency") == RefreshFrequency.fiveMinutes.rawValue)
+        #expect(store.refreshFrequency == .adaptive)
+        #expect(store.refreshFrequency.seconds == nil)
+        #expect(defaults.string(forKey: "refreshFrequency") == RefreshFrequency.adaptive.rawValue)
     }
 
     @Test
-    func `repairs unrecognized refresh frequency raw value`() throws {
+    func `falls back for unrecognized refresh frequency raw value`() throws {
         let suite = "SettingsStoreTests-invalid-refresh"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -74,8 +74,8 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.refreshFrequency == .fiveMinutes)
-        #expect(defaults.string(forKey: "refreshFrequency") == RefreshFrequency.fiveMinutes.rawValue)
+        #expect(store.refreshFrequency == .adaptive)
+        #expect(defaults.string(forKey: "refreshFrequency") == RefreshFrequency.adaptive.rawValue)
     }
 
     @Test
@@ -101,6 +101,24 @@ struct SettingsStoreTests {
 
         #expect(storeB.refreshFrequency == .fifteenMinutes)
         #expect(storeB.refreshFrequency.seconds == 900)
+    }
+
+    @Test
+    func `preserves an explicit five minute selection under the adaptive default`() throws {
+        let suite = "SettingsStoreTests-explicit-five-minute"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(RefreshFrequency.fiveMinutes.rawValue, forKey: "refreshFrequency")
+        let configStore = testConfigStore(suiteName: suite)
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.refreshFrequency == .fiveMinutes)
+        #expect(store.refreshFrequency.seconds == 300)
     }
 
     @Test

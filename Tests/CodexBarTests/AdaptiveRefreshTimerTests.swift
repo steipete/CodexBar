@@ -76,6 +76,36 @@ struct AdaptiveRefreshTimerTests {
     }
 
     @Test
+    func `coding activity advances a long idle timer without postponing an earlier tick`() async throws {
+        let settings = Self.makeSettingsStore(suite: "AdaptiveRefreshTimerTests-activity-advance", frequency: .adaptive)
+        let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
+        store.restartTimerWithSleepOverrideForTesting(.seconds(10))
+        try await Self.waitUntil { store.adaptiveRefreshScheduledAt != nil }
+
+        let longIdleSchedule = try #require(store.adaptiveRefreshScheduledAt)
+        let observedAt = Date()
+        store.noteCodingActivityObserved(at: observedAt, now: observedAt)
+        try await Self.waitUntil {
+            guard let scheduledAt = store.adaptiveRefreshScheduledAt else { return false }
+            return scheduledAt < longIdleSchedule
+        }
+        let activitySchedule = try #require(store.adaptiveRefreshScheduledAt)
+        #expect(store.lastCodingActivityAt == observedAt)
+
+        // An older observation is ignored. A newer observation is retained, but cannot push an
+        // already earlier provider refresh later.
+        store.noteCodingActivityObserved(
+            at: observedAt.addingTimeInterval(-1),
+            now: observedAt.addingTimeInterval(30))
+        #expect(store.lastCodingActivityAt == observedAt)
+        store.noteCodingActivityObserved(
+            at: observedAt.addingTimeInterval(1),
+            now: observedAt.addingTimeInterval(30))
+        #expect(store.lastCodingActivityAt == observedAt.addingTimeInterval(1))
+        #expect(store.adaptiveRefreshScheduledAt == activitySchedule)
+    }
+
+    @Test
     func `noting a menu open records the signal without starting a refresh`() {
         let settings = Self.makeSettingsStore(suite: "AdaptiveRefreshTimerTests-noteMenuOpened", frequency: .manual)
         let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
@@ -88,6 +118,21 @@ struct AdaptiveRefreshTimerTests {
         #expect(store.lastMenuOpenAt != nil)
         #expect(store.completedRefreshCountForTesting == 0)
         #expect(store.isRefreshing == false)
+    }
+
+    @Test
+    func `noting coding activity in fixed mode records only the in-memory signal`() {
+        let settings = Self.makeSettingsStore(
+            suite: "AdaptiveRefreshTimerTests-noteCodingActivity",
+            frequency: .fiveMinutes)
+        let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
+        let observedAt = Date()
+
+        store.noteCodingActivityObserved(at: observedAt)
+
+        #expect(store.lastCodingActivityAt == observedAt)
+        #expect(store.adaptiveRefreshScheduledAt == nil)
+        #expect(store.completedRefreshCountForTesting == 0)
     }
 
     @Test

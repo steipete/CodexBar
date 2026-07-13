@@ -5,6 +5,9 @@
 ### Added
 - sub2api: add group-key usage with daily, weekly, and monthly quotas, multi-account switching, wallet balance, and expiry details. Thanks @weirdo-adam!
 
+### Changed
+- Refresh: make Adaptive the fallback for missing or invalid preferences and use recent local Codex or Claude activity to cap unconstrained idle delays at 5 minutes. Existing installations without a stored cadence move from the old implicit 5-minute fallback; every valid stored cadence remains unchanged. Local session scans are bounded, and remote Agent Sessions stay opt-in.
+
 ### Fixed
 - Startup: load persisted plan-utilization history away from the main thread so mature histories no longer delay app launch. Thanks @Yuxin-Qiao!
 - Provider cleanup: prevent in-flight usage, status, token-cost, and cached-hydration work from republishing stale state after a provider is disabled, unavailable, or re-enabled. Thanks @Yuxin-Qiao!

@@ -3,7 +3,7 @@ import Foundation
 
 enum ReplayPolicyName: String, CaseIterable, Sendable {
     case adaptive
-    case adaptiveActivity = "adaptive-activity"
+    case adaptiveMenuOnly = "adaptive-menu-only"
     case fixed2Minutes = "fixed-2m"
     case fixed5Minutes = "fixed-5m"
     case fixed15Minutes = "fixed-15m"
@@ -14,8 +14,8 @@ enum ReplayPolicyName: String, CaseIterable, Sendable {
         switch self {
         case .adaptive:
             AdaptiveReplayPolicy()
-        case .adaptiveActivity:
-            CodingActivityAdaptivePolicy()
+        case .adaptiveMenuOnly:
+            MenuOnlyAdaptivePolicy()
         case .fixed2Minutes:
             FixedIntervalPolicy(minutes: 2)
         case .fixed5Minutes:
@@ -31,6 +31,15 @@ enum ReplayPolicyName: String, CaseIterable, Sendable {
 
     static var expectedValues: String {
         allCases.map(\.rawValue).joined(separator: ", ")
+    }
+
+    static func parse(_ rawValue: String) -> Self? {
+        // 0.42.1 shipped this name for the activity-aware candidate. That candidate is now the
+        // production adaptive policy, so retain the CLI spelling as a non-enumerated alias.
+        if rawValue == "adaptive-activity" {
+            return .adaptive
+        }
+        return Self(rawValue: rawValue)
     }
 }
 
@@ -72,7 +81,7 @@ enum CLIArguments {
                 index += 1
                 guard index < arguments.count else { return .invalid(message: "--policy requires a value") }
                 let rawPolicyName = arguments[index]
-                guard let policyName = ReplayPolicyName(rawValue: rawPolicyName) else {
+                guard let policyName = ReplayPolicyName.parse(rawPolicyName) else {
                     return .invalid(
                         message: "unknown policy '\(rawPolicyName)' (expected: \(ReplayPolicyName.expectedValues))")
                 }

@@ -7,6 +7,7 @@ struct AdaptiveRefreshPolicyCoreTests {
 
     private func input(
         ageSeconds: TimeInterval?,
+        codingActivityAgeSeconds: TimeInterval? = nil,
         lowPowerModeEnabled: Bool = false,
         thermalPressure: AdaptiveRefreshPolicyCore.ThermalPressure = .nominal)
         -> AdaptiveRefreshPolicyCore.Input
@@ -14,6 +15,7 @@ struct AdaptiveRefreshPolicyCoreTests {
         AdaptiveRefreshPolicyCore.Input(
             now: Self.referenceNow,
             lastMenuOpenAt: ageSeconds.map { Self.referenceNow.addingTimeInterval(-$0) },
+            lastCodingActivityAt: codingActivityAgeSeconds.map { Self.referenceNow.addingTimeInterval(-$0) },
             lowPowerModeEnabled: lowPowerModeEnabled,
             thermalPressure: thermalPressure)
     }
@@ -64,6 +66,49 @@ struct AdaptiveRefreshPolicyCoreTests {
             thermalPressure: .constrained))
         #expect(decision.reason == .constrained)
         #expect(decision.delay == .seconds(30 * 60))
+    }
+
+    @Test(arguments: [TimeInterval(3601), 14400, 100_000])
+    func `recent coding activity caps slower menu decisions at five minutes`(ageSeconds: TimeInterval) {
+        let decision = AdaptiveRefreshPolicyCore().nextDelay(for: self.input(
+            ageSeconds: ageSeconds,
+            codingActivityAgeSeconds: 0))
+        #expect(decision.reason == .codingActivity)
+        #expect(decision.delay == .seconds(5 * 60))
+    }
+
+    @Test
+    func `coding activity does not lengthen recent or warm decisions`() {
+        let recent = AdaptiveRefreshPolicyCore().nextDelay(for: self.input(
+            ageSeconds: 0,
+            codingActivityAgeSeconds: 0))
+        let warm = AdaptiveRefreshPolicyCore().nextDelay(for: self.input(
+            ageSeconds: 301,
+            codingActivityAgeSeconds: 0))
+        #expect(recent.reason == .recentInteraction)
+        #expect(recent.delay == .seconds(2 * 60))
+        #expect(warm.reason == .warm)
+        #expect(warm.delay == .seconds(5 * 60))
+    }
+
+    @Test
+    func `constraints win and the coding activity boundary is exclusive`() {
+        let constrained = AdaptiveRefreshPolicyCore().nextDelay(for: self.input(
+            ageSeconds: nil,
+            codingActivityAgeSeconds: 0,
+            lowPowerModeEnabled: true))
+        let insideBoundary = AdaptiveRefreshPolicyCore().nextDelay(for: self.input(
+            ageSeconds: nil,
+            codingActivityAgeSeconds: 299))
+        let atBoundary = AdaptiveRefreshPolicyCore().nextDelay(for: self.input(
+            ageSeconds: nil,
+            codingActivityAgeSeconds: 300))
+        #expect(constrained.reason == .constrained)
+        #expect(constrained.delay == .seconds(30 * 60))
+        #expect(insideBoundary.reason == .codingActivity)
+        #expect(insideBoundary.delay == .seconds(5 * 60))
+        #expect(atBoundary.reason == .longIdle)
+        #expect(atBoundary.delay == .seconds(30 * 60))
     }
 
     @Test

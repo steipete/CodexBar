@@ -32,5 +32,8 @@ struct ClaudeSessionMappingTests {
         let match = try #require(ClaudeSessionProjectMapper.newestTranscript(cwd: cwd, homeDirectory: home))
         #expect(match.url.lastPathComponent == "newer.jsonl")
         #expect(match.modifiedAt == Date(timeIntervalSince1970: 200))
+
+        let bounded = ClaudeSessionProjectMapper.transcripts(cwd: cwd, homeDirectory: home, limit: 1)
+        #expect(bounded.map(\.url.lastPathComponent) == ["newer.jsonl"])
     }
 }

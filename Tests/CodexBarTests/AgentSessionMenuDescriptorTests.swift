@@ -40,6 +40,68 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
+    func `adaptive refresh enables local monitoring without enabling the Agent Sessions UI`() {
+        let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-adaptive-monitoring")
+        settings.agentSessionsEnabled = false
+        settings.refreshFrequency = .adaptive
+        let sessions = AgentSessionsStore(settings: settings)
+
+        #expect(sessions.localMonitoringEnabled)
+        #expect(settings.agentSessionsEnabled == false)
+
+        settings.refreshFrequency = .fiveMinutes
+        #expect(!sessions.localMonitoringEnabled)
+
+        settings.agentSessionsEnabled = true
+        #expect(sessions.localMonitoringEnabled)
+    }
+
+    @Test
+    func `adaptive-only scan retains a timestamp but not session details`() {
+        let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-adaptive-projection")
+        settings.agentSessionsEnabled = false
+        settings.refreshFrequency = .adaptive
+        let store = AgentSessionsStore(settings: settings)
+        let older = Date(timeIntervalSinceReferenceDate: 100)
+        let newer = Date(timeIntervalSinceReferenceDate: 200)
+        let sessions = [
+            Self.session(id: "older", host: "local", activity: older),
+            Self.session(id: "unknown", host: "local", activity: nil),
+            Self.session(id: "newer", host: "local", activity: newer),
+        ]
+
+        store.applyLocalScanResult(sessions, updatedAt: newer)
+
+        #expect(store.latestLocalActivityAt == newer)
+        #expect(store.localSessions.isEmpty)
+        #expect(store.lastUpdatedAt == newer)
+    }
+
+    @Test
+    func `adaptive-only local scan pauses under power and thermal constraints`() {
+        #expect(AgentSessionsStore.shouldScanLocally(
+            agentSessionsEnabled: false,
+            adaptiveRefreshEnabled: true,
+            lowPowerModeEnabled: false,
+            thermalState: .nominal))
+        #expect(!AgentSessionsStore.shouldScanLocally(
+            agentSessionsEnabled: false,
+            adaptiveRefreshEnabled: true,
+            lowPowerModeEnabled: true,
+            thermalState: .nominal))
+        #expect(!AgentSessionsStore.shouldScanLocally(
+            agentSessionsEnabled: false,
+            adaptiveRefreshEnabled: true,
+            lowPowerModeEnabled: false,
+            thermalState: .serious))
+        #expect(AgentSessionsStore.shouldScanLocally(
+            agentSessionsEnabled: true,
+            adaptiveRefreshEnabled: false,
+            lowPowerModeEnabled: true,
+            thermalState: .critical))
+    }
+
+    @Test
     func `session section counts groups and renders unreachable hosts`() {
         let now = Date(timeIntervalSince1970: 1000)
         let local = Self.session(id: "local", host: "local-mac", activity: now.addingTimeInterval(-60))
@@ -160,7 +222,7 @@ struct AgentSessionMenuDescriptorTests {
         #expect(Self.remotePassCount(for: .settingsChangeDuringFlight) == 2)
     }
 
-    private static func session(id: String, host: String, activity: Date) -> AgentSession {
+    private static func session(id: String, host: String, activity: Date?) -> AgentSession {
         AgentSession(
             id: id,
             provider: .codex,

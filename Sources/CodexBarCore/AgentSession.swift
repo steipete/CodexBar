@@ -60,10 +60,22 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
 public struct SessionScanConfig: Equatable, Sendable {
     public var activeWindow: TimeInterval
     public var fileOnlyWindow: TimeInterval
+    public var maxProcessCount: Int
+    public var maxCodexRolloutCount: Int
+    public var maxClaudeTranscriptCountPerProject: Int
 
-    public init(activeWindow: TimeInterval = 120, fileOnlyWindow: TimeInterval = 30 * 60) {
+    public init(
+        activeWindow: TimeInterval = 120,
+        fileOnlyWindow: TimeInterval = 30 * 60,
+        maxProcessCount: Int = 64,
+        maxCodexRolloutCount: Int = 128,
+        maxClaudeTranscriptCountPerProject: Int = 64)
+    {
         self.activeWindow = activeWindow
         self.fileOnlyWindow = fileOnlyWindow
+        self.maxProcessCount = maxProcessCount
+        self.maxCodexRolloutCount = maxCodexRolloutCount
+        self.maxClaudeTranscriptCountPerProject = maxClaudeTranscriptCountPerProject
     }
 
     public func state(lastActivityAt: Date?, now: Date, hasLiveProcess: Bool) -> AgentSession.State {
@@ -270,9 +282,10 @@ public enum ClaudeSessionProjectMapper {
     public static func transcripts(
         cwd: String,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default) -> [Transcript]
+        fileManager: FileManager = .default,
+        limit: Int? = nil) -> [Transcript]
     {
-        self.projectDirectories(cwd: cwd, homeDirectory: homeDirectory, fileManager: fileManager)
+        let transcripts = self.projectDirectories(cwd: cwd, homeDirectory: homeDirectory, fileManager: fileManager)
             .flatMap { directory -> [(URL, Date)] in
                 guard let files = try? fileManager.contentsOfDirectory(
                     at: directory,
@@ -289,6 +302,8 @@ public enum ClaudeSessionProjectMapper {
             }
             .sorted { $0.1 > $1.1 }
             .map { Transcript(url: $0.0, modifiedAt: $0.1) }
+        guard let limit else { return transcripts }
+        return Array(transcripts.prefix(max(0, limit)))
     }
 }
 
@@ -297,7 +312,9 @@ public enum AgentSessionCorrelation {
         processes.sorted { lhs, rhs in
             let lhsDate = lhs.startedAt ?? .distantPast
             let rhsDate = rhs.startedAt ?? .distantPast
-            if lhsDate != rhsDate { return lhsDate > rhsDate }
+            if lhsDate != rhsDate {
+                return lhsDate > rhsDate
+            }
             return lhs.pid > rhs.pid
         }
     }

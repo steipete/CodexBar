@@ -44,6 +44,7 @@ final class AgentSessionsStore {
     private(set) var localSessions: [AgentSession] = []
     private(set) var remoteHosts: [RemoteSessionHostResult] = []
     private(set) var lastUpdatedAt: Date?
+    private(set) var latestLocalActivityAt: Date?
 
     init(
         settings: SettingsStore,
@@ -57,6 +58,29 @@ final class AgentSessionsStore {
 
     var totalCount: Int {
         self.localSessions.count + self.remoteHosts.reduce(0) { $0 + $1.sessions.count }
+    }
+
+    /// Adaptive refresh uses the local metadata signal only. Remote sessions remain behind the
+    /// explicit Agent Sessions setting because they can involve Tailscale discovery and SSH.
+    var localMonitoringEnabled: Bool {
+        self.settings.agentSessionsEnabled || self.settings.refreshFrequency == .adaptive
+    }
+
+    nonisolated static func latestActivityAt(in sessions: [AgentSession]) -> Date? {
+        sessions.compactMap(\.lastActivityAt).max()
+    }
+
+    nonisolated static func shouldScanLocally(
+        agentSessionsEnabled: Bool,
+        adaptiveRefreshEnabled: Bool,
+        lowPowerModeEnabled: Bool,
+        thermalState: ProcessInfo.ThermalState) -> Bool
+    {
+        if agentSessionsEnabled {
+            return true
+        }
+        guard adaptiveRefreshEnabled, !lowPowerModeEnabled else { return false }
+        return thermalState != .serious && thermalState != .critical
     }
 
     func start() {
@@ -82,26 +106,37 @@ final class AgentSessionsStore {
         self.remoteRefreshTask = nil
     }
 
-    func settingsDidChange() {
-        self.remoteRefreshGate.settingsDidChange()
-        guard self.settings.agentSessionsEnabled else {
+    func settingsDidChange(remoteConfigurationChanged: Bool = true) {
+        if remoteConfigurationChanged {
+            self.remoteRefreshGate.settingsDidChange()
+        }
+        if !self.settings.agentSessionsEnabled {
+            // Adaptive keeps only the timestamp signal. Retained session paths and identities
+            // remain scoped to the explicitly enabled Agent Sessions UI.
             self.localSessions = []
             self.remoteHosts = []
+        }
+        guard self.localMonitoringEnabled else {
+            self.latestLocalActivityAt = nil
             self.onUpdate?()
             return
         }
         guard !SettingsStore.isRunningTests else { return }
         Task { [weak self] in
             await self?.refreshLocal()
-            await self?.refreshRemote()
+            if remoteConfigurationChanged, self?.settings.agentSessionsEnabled == true {
+                await self?.refreshRemote()
+            }
         }
     }
 
     func refreshOnMenuOpen() {
-        guard self.settings.agentSessionsEnabled, !SettingsStore.isRunningTests else { return }
+        guard self.localMonitoringEnabled, !SettingsStore.isRunningTests else { return }
         Task { [weak self] in
             await self?.refreshLocal()
-            await self?.refreshRemote()
+            if self?.settings.agentSessionsEnabled == true {
+                await self?.refreshRemote()
+            }
         }
     }
 
@@ -116,13 +151,25 @@ final class AgentSessionsStore {
     }
 
     private func refreshLocal() async {
-        guard self.settings.agentSessionsEnabled, !self.localRefreshInFlight else { return }
+        guard self.localMonitoringEnabled, !self.localRefreshInFlight else { return }
+        let processInfo = ProcessInfo.processInfo
+        guard Self.shouldScanLocally(
+            agentSessionsEnabled: self.settings.agentSessionsEnabled,
+            adaptiveRefreshEnabled: self.settings.refreshFrequency == .adaptive,
+            lowPowerModeEnabled: processInfo.isLowPowerModeEnabled,
+            thermalState: processInfo.thermalState)
+        else { return }
         self.localRefreshInFlight = true
         let sessions = await self.localScanner.scan()
         self.localRefreshInFlight = false
-        guard !Task.isCancelled, self.settings.agentSessionsEnabled else { return }
-        self.localSessions = sessions
-        self.lastUpdatedAt = Date()
+        guard !Task.isCancelled, self.localMonitoringEnabled else { return }
+        self.applyLocalScanResult(sessions)
+    }
+
+    func applyLocalScanResult(_ sessions: [AgentSession], updatedAt: Date = Date()) {
+        self.latestLocalActivityAt = Self.latestActivityAt(in: sessions)
+        self.localSessions = self.settings.agentSessionsEnabled ? sessions : []
+        self.lastUpdatedAt = updatedAt
         self.onUpdate?()
     }
 

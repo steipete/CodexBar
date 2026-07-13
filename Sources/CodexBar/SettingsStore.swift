@@ -399,7 +399,7 @@ extension SettingsStore {
     private static func loadDefaultsState(userDefaults: UserDefaults) -> SettingsDefaultsState {
         let refreshDefault = userDefaults.string(forKey: "refreshFrequency")
             .flatMap(RefreshFrequency.init(rawValue:))
-        let refreshFrequency = refreshDefault ?? .fiveMinutes
+        let refreshFrequency = refreshDefault ?? .adaptive
         if Self.isRunningTests, refreshDefault == nil {
             userDefaults.set(refreshFrequency.rawValue, forKey: "refreshFrequency")
         }

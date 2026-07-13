@@ -1,5 +1,5 @@
 ---
-summary: "Decision record for an optional deterministic adaptive refresh cadence."
+summary: "Decision record for the deterministic agent-aware adaptive refresh cadence."
 read_when:
   - Planning refresh cadence or background provider updates
   - Evaluating adaptive or predictive refresh behavior
@@ -8,26 +8,32 @@ read_when:
 
 # Adaptive refresh decision record
 
-- **Status:** Accepted and implemented as an opt-in mode in [#1861](https://github.com/steipete/CodexBar/pull/1861)
+- **Status:** Opt-in policy accepted in [#1861](https://github.com/steipete/CodexBar/pull/1861); agent-aware default extension implemented with the evidence below
 - **Decision owner:** Maintainer
-- **Runtime impact:** Bounded opt-in 2–30-minute provider-batch cadence
+- **Runtime impact:** Bounded default 2–30-minute provider-batch cadence plus a 30-second unconstrained local activity scan
 
 ## Decision
 
-CodexBar may offer an opt-in `Adaptive` refresh frequency that adjusts the existing provider-batch timer between 2 and
-30 minutes using the deterministic policy below. Do not implement the broader
-per-account prediction, persistent interaction history, learned ranking, or menu prewarming proposed in the original
-RFC.
+CodexBar uses `Adaptive` when the stored refresh preference is missing or unrecognized. Every valid stored choice,
+including Manual and each fixed interval, remains unchanged. Adaptive adjusts the existing provider-batch timer between
+2 and 30 minutes. Recent local Codex or Claude transcript activity caps otherwise slower unconstrained decisions at 5
+minutes.
 
-This approval covers the bounded design only. Runtime implementation, tests, localization, and packaged proof were
-delivered separately by #1861; changing the default or adding new signals still requires new evidence and review.
+The previous implementation did not persist its implicit 5-minute fallback, so `UserDefaults` cannot distinguish a new
+installation from an existing installation that never stored a cadence. This extension intentionally moves both groups
+to Adaptive. It does not change any valid stored selection; selecting a fixed cadence or Manual remains authoritative.
+
+The original #1861 decision approved a menu-only opt-in policy. The 2026-07-12 extension below adds one local,
+in-memory activity timestamp and changes the fallback after the offline replay, timer integration, privacy projection,
+and scanner-cost proof recorded here. It does not approve per-account prediction, persistent interaction history,
+learned ranking, or menu prewarming.
 
 ## Options considered
 
 | Option | Freshness | Complexity | Provider work | Decision |
 |---|---|---|---|---|
 | Keep fixed frequencies only | Predictable | Lowest | Predictable | Safe fallback |
-| Add bounded adaptive batch cadence | Better while active; quieter while idle | Small | Bounded | Recommended experiment |
+| Use bounded agent-aware adaptive batch cadence by default | Better while active; quieter while idle | Small | Bounded | Selected |
 | Add per-provider/account prediction | Potentially best | High | Harder to reason about | Reject for now |
 | Add learned ranking or contextual bandits | Unproven | Very high | Harder to audit | Reject |
 
@@ -51,20 +57,25 @@ Relevant implementation seams:
   app adapter and offline replay tooling.
 - `Sources/CodexBar/SettingsStore.swift`: `RefreshFrequency` and fixed interval mapping.
 - `Sources/CodexBar/UsageStore.swift`: timer ownership and provider-batch refresh.
+- `Sources/CodexBar/AgentSessionsStore.swift`: 30-second local scan ownership and timestamp-only Adaptive projection.
+- `Sources/CodexBarCore/LocalAgentSessionScanner.swift`: existing local process/transcript correlation reused by
+  Agent Sessions and Adaptive.
 - `Sources/CodexBar/UsageStore+Refresh.swift`: provider refresh coalescing and result application.
 - `Sources/CodexBar/StatusItemController+Menu.swift`: missing/error-only menu-open refresh.
 - `Sources/CodexBar/StatusItemController+MenuInteractionRefresh.swift`: deferred non-interactive refresh safety.
 - `Tests/CodexBarTests/StatusMenuInstantOpenTests.swift`: fresh, missing, in-flight, and close-during-refresh contracts.
 
-The adaptive experiment must change only the first path. It must not alter the menu-open setting, its default, provider
-selection, interaction context, or promise that menu-open refresh does not reset the periodic refresh clock.
+Adaptive changes only the first provider-refresh path. The local scanner supplies an in-memory scheduling signal; it
+does not fetch provider usage. The change does not alter the menu-open setting, its default, provider selection,
+interaction context, or the promise that menu-open refresh does not reset the periodic refresh clock.
 
 ## Accepted product contract
 
-- Add `Adaptive` as a mutually exclusive `RefreshFrequency` choice.
-- Keep `5 minutes` as the default for new and existing users.
-- Never migrate an existing fixed selection to `Adaptive`.
-- Preserve `Manual` and every existing fixed interval exactly.
+- Keep `Adaptive` as a mutually exclusive `RefreshFrequency` choice and use it when the stored preference is missing or
+  unrecognized.
+- Treat a missing value as an intentional transition from the old implicit 5-minute fallback, including on existing
+  installations; do not describe this as a fresh-install-only default.
+- Preserve every valid stored value exactly, including `Manual`, every fixed interval, and `Adaptive`.
 - Schedule the same enabled-provider batch as fixed refresh; do not select accounts, workspaces, or data lanes.
 - Keep manual refresh immediate and user-initiated.
 - When refresh-all-on-open is disabled, keep menu-open refresh missing/error-only and background/non-interactive.
@@ -72,6 +83,10 @@ selection, interaction context, or promise that menu-open refresh does not reset
   not itself fetch, cancel the periodic timer, or count a menu-originated refresh as an adaptive timer tick.
 - Never make an automatic provider, account, workspace, or credential-source selection.
 - Never bypass provider-specific auth, prompt, coalescing, or failure gates.
+- Use only local Agent Sessions activity for scheduling. Remote discovery, Tailscale, and SSH remain behind the
+  explicit Agent Sessions setting.
+- When the Agent Sessions UI is off, discard scanned PID, CWD, project, transcript path, and session identity fields;
+  retain only the newest activity timestamp in memory.
 
 ## Deterministic policy
 
@@ -82,12 +97,14 @@ struct AdaptiveRefreshPolicy: Sendable {
     struct Input: Sendable, Equatable {
         let now: Date
         let lastMenuOpenAt: Date?
+        let lastCodingActivityAt: Date?
         let lowPowerModeEnabled: Bool
         let thermalState: ProcessInfo.ThermalState
     }
 
     enum Reason: String, Sendable {
         case recentInteraction
+        case codingActivity
         case warm
         case idle
         case longIdle
@@ -110,6 +127,7 @@ Policy table, evaluated after startup and after every completed or skipped timer
 | Low Power Mode or serious/critical thermal state | 30 minutes | `constrained` |
 | Menu opened at or after 5 minutes ago, including a future clock-adjusted timestamp | 2 minutes | `recentInteraction` |
 | Menu opened more than 5 minutes and at most 1 hour ago | 5 minutes | `warm` |
+| Local coding activity observed less than 5 minutes ago and the menu-only result would be slower | 5 minutes | `codingActivity` |
 | Menu opened more than 1 hour and less than 4 hours ago | 15 minutes | `idle` |
 | No menu open recorded, or last open at least 4 hours ago | 30 minutes | `longIdle` |
 
@@ -122,9 +140,9 @@ Bounds are part of the contract:
 - canceled timers do not launch work;
 - settings changes cancel and replace the pending timer.
 
-The policy deliberately excludes quota level, provider latency, error count, account choice, time-of-day, and content
-change rate. Those signals require new durable state or provider-specific semantics and do not belong in the first
-experiment.
+The policy deliberately excludes quota level, provider latency, error count, account choice, time-of-day, transcript
+contents, and content-change rate. Those signals require durable state or provider-specific semantics. The activity
+input is only the newest local transcript modification time already derived by the Agent Sessions scanner.
 
 ## Scheduler integration
 
@@ -139,6 +157,8 @@ Keep scheduling inside `UsageStore`; do not add a second scheduler abstraction.
 4. Recompute the next delay after the batch completes.
 5. Record menu-open time through a minimal callback owned by `UsageStore` or a dedicated in-memory signal object. Do
    not couple the policy to `NSMenu`, menu descriptors, account switchers, or rendering state.
+6. Feed the newest local transcript activity timestamp from `AgentSessionsStore` into `UsageStore`. A new observation
+   may replace a pending Adaptive sleep only when its candidate refresh is earlier.
 
 `NSBackgroundActivityScheduler` is out of scope. Current refresh choices include intervals below the range where that
 API is intended to help, and using two scheduling mechanisms would make cancellation and exact timing harder to audit.
@@ -146,13 +166,23 @@ Revisit it only with separate energy measurements and a design for launch/relaun
 
 ## State, privacy, and observability
 
-The first experiment stores no interaction history.
+Adaptive stores no persistent interaction history.
 
-- Keep `lastMenuOpenAt` in memory; reset it on launch.
+- Keep `lastMenuOpenAt` and `lastCodingActivityAt` in memory; reset both on launch.
 - Read Low Power Mode and thermal state at decision time.
 - Log only the selected delay and stable `Reason` code through the existing local logger.
-- Do not log or store provider identity, account identity, email, workspace, path, credentials, response data, or menu
-  content for scheduling.
+- Every 30 seconds, reuse the existing local scanner. It runs `ps` and, when needed, `lsof`; enumerates recent Codex
+  rollouts; reads rollout first-line metadata and mtimes; and inspects Claude transcript metadata. This is a local
+  metadata scan, not a provider request. Pause Adaptive-only scans under Low Power Mode or serious/critical thermal
+  pressure; keep scanning when the user explicitly enables Agent Sessions presentation.
+- Bound each scan to the newest 64 attributable processes, 128 Codex rollout metadata records, and 64 Claude transcript
+  candidates per project. Directory metadata enumeration still scales with those known session directories, but file
+  content parsing and process/transcript correlation do not grow without limit.
+- When Agent Sessions presentation is disabled, discard the full scan result after deriving the newest `Date`. Do not
+  retain or publish its PID, CWD, project, transcript path, or session identity fields.
+- Do not log or persist provider identity, account identity, email, workspace, path, credentials, response data, menu
+  content, or the activity timestamp for scheduling.
+- Do not invoke remote host discovery, Tailscale, or SSH unless Agent Sessions is explicitly enabled.
 - Do not add analytics or send refresh-policy data off device.
 
 This avoids a new retention policy, migration, deletion UI, and behavioral profile. Persistent history requires a new
@@ -175,14 +205,17 @@ need a separate contract for partial batch success.
 
 ## Implementation sequence
 
-Each step should be independently reviewable:
+The work remained independently reviewable:
 
 1. Add the pure policy and table-driven tests; no settings or runtime changes.
-2. Add the `Adaptive` setting and localization, default unchanged.
+2. Add the `Adaptive` setting and localization as an opt-in choice.
 3. Teach the existing timer to request fixed/manual/adaptive delays.
 4. Wire the in-memory menu-open signal without changing `scheduleOpenMenuRefresh(for:)`.
 5. Add local reason-code logging and documentation.
-6. Package and validate the opt-in mode before considering a default change.
+6. Add offline replay tooling and evaluate the frozen trace in #2029.
+7. Reuse the local Agent Sessions scanner, project its output to one in-memory timestamp when presentation is off, and
+   advance only an otherwise later Adaptive timer.
+8. Change the missing/invalid preference fallback after policy, timer, projection, and scanner-cost verification.
 
 Do not add target adapters, outcome databases, account/workspace prediction, learned models, visible ordering changes,
 or menu prewarming as part of these steps.
@@ -196,6 +229,8 @@ or menu prewarming as part of these steps.
 - serious and critical thermal states select 30 minutes;
 - nominal/fair thermal states do not force the constrained branch;
 - future or clock-adjusted menu timestamps are treated as recent and never produce a negative delay;
+- recent coding activity caps only otherwise slower decisions and never overrides a constrained 30-minute decision;
+- the coding-activity threshold is exclusive at exactly 5 minutes;
 - every decision stays within the 2-to-30-minute bounds.
 
 ### Timer integration
@@ -206,6 +241,18 @@ or menu prewarming as part of these steps.
 - overlapping timer ticks do not overlap `UsageStore.refresh()`;
 - launch with no menu history begins at 30 minutes;
 - menu-open signal changes the next decision but does not itself start a batch.
+- a newer coding-activity observation advances a 30-minute sleep to the 5-minute cap without starting a batch;
+- repeated, older, or later observations never postpone an earlier scheduled refresh;
+- fixed and manual modes may record the in-memory signal but never reschedule from it.
+
+### Agent Sessions boundary
+
+- Adaptive enables local monitoring without enabling Agent Sessions presentation;
+- an Adaptive-only scan retains the newest attributable timestamp and discards complete session records;
+- Adaptive-only scans pause under Low Power Mode and serious/critical thermal pressure;
+- scanner limits cap attributable processes, Codex rollout parsing, and Claude transcript candidates;
+- remote fetch remains guarded by the explicit Agent Sessions setting;
+- a refresh-frequency change does not invalidate or retry an in-flight remote refresh.
 
 ### Menu regression
 
@@ -221,24 +268,26 @@ Use stubs and test stores. Do not run live providers, browser-cookie imports, or
 
 ## Acceptance and rollback
 
-Before changing the default, a separate PR updating this decision record must provide measured evidence. Minimum
-evidence:
+The 2026-07-12 extension requires evidence from separate seams rather than treating one replay as end-to-end proof:
 
-- deterministic replay tests show fewer scheduled batches than the 5-minute baseline during idle traces;
-- unconstrained active decisions never schedule slower than the existing 5-minute default; Low Power Mode and
-  serious/critical thermal state retain the 30-minute safety override;
-- no regression in menu-open responsiveness or prompt safety;
-- packaged opt-in use shows understandable reason logs and no timer overlap.
+- deterministic decision-point replay must show fewer scheduled batches than fixed 5 minutes, no unconstrained active
+  decision above 5 minutes, and unchanged 30-minute constrained decisions;
+- timer integration tests must show an activity callback advancing a pending long-idle sleep without starting a batch,
+  postponing an earlier tick, or affecting fixed/manual scheduling;
+- the Adaptive-only scan projection must discard complete session records and retain one in-memory timestamp;
+- remote discovery and SSH must remain guarded by the explicit Agent Sessions setting;
+- the local scanner's cost must be measured and disclosed separately from provider-batch savings.
 
-Rollback is deleting the `Adaptive` option and policy helper. Fixed/manual scheduling and stored fixed selections remain
-valid because the experiment does not migrate them or change their raw values.
+Rollback is restoring the missing/invalid preference fallback to 5 minutes and omitting `lastCodingActivityAt` from the
+policy input. Fixed/manual scheduling and every valid stored selection remain compatible because their raw values do not
+change.
 
 ## Explicit non-decisions
 
-Approval of this document does not approve:
+Approval of this extension does not approve:
 
-- making adaptive refresh the default;
 - changing the refresh-all-on-open default or its existing provider/auth behavior;
+- enabling Agent Sessions presentation or remote discovery by default;
 - per-provider, per-account, per-workspace, or per-source scheduling;
 - persistent interaction or outcome history;
 - `NSBackgroundActivityScheduler` adoption;
@@ -276,3 +325,42 @@ this is not sufficient evidence for a production or default change.
 Replay advances are counterfactual events on a zero-service-time policy clock. They are intentionally not compared by
 count with live `timerAdvanced` events, whose schedule includes real refresh duration and in-flight coalescing. The
 offline audit reports recorded schedule events separately when the supplied trace contains them.
+
+## Agent-aware default follow-up (2026-07-12)
+
+This extension moves the previously replay-only activity cap into `AdaptiveRefreshPolicyCore`, retains the former
+menu-only policy as `adaptive-menu-only`, wires the existing local Agent Sessions scanner into the live timer, and uses
+Adaptive for missing or unrecognized refresh preferences. The `adaptive-activity` CLI spelling remains an alias for the
+production `adaptive` policy so scripts written against 0.42.1 keep working.
+
+The same frozen 1,780-record trace and segmentation settings produce:
+
+| Policy | Simulated refreshes | Per observed 24h | Simulated advances | Unconstrained active over 5m | Menu staleness p50 / p95 |
+|---|---:|---:|---:|---:|---:|
+| Production adaptive | 696 | 143.88 | 53 | 0 / 145 | 139s / 1093s |
+| Historical menu-only adaptive | 694 | 143.47 | 53 | 4 / 145 | 142s / 1093s |
+| Fixed 5m | 1383 | 285.90 | 0 | 0 / 99 | 150s / 281s |
+
+On this trace, production Adaptive schedules 49.7% fewer simulated refreshes than fixed 5 minutes. Compared with the
+historical menu-only policy, it adds 2 simulated refreshes (0.29%) and removes all 4 observed active-delay violations. It
+does not improve p95 menu staleness. Activity fields are present on 462 of 733 decision records (63%); 185 of those 462
+samples (40%) report activity under 5 minutes old. This is one machine's trace, not a population or energy study. The
+SHA-256 remains `b1e4aa33180b7c177293eb9ed16b45e24e026d259600fba2b1b67b931b904f0b`.
+
+Replay proves the policy table at reconstructed decision points. It does not reproduce the new 30-second scanner
+callback, because the frozen trace sampled activity only on decision records. Timer integration tests separately prove
+that a live activity observation can pull a pending 30-minute sleep forward and cannot postpone an earlier refresh.
+
+A 20-run `hyperfine` sample of exact-head `.build/debug/CodexBarCLI sessions --json`, with one attributable Codex
+session, measured 153.0 ms ± 14.4 ms wall time and 134.3 ms combined user plus system CPU time per invocation. At the
+30-second unconstrained cadence, that CPU figure extrapolates to 6.5 CPU-minutes per day. Adaptive-only scans pause under
+Low Power Mode and serious/critical thermal pressure. The CLI process startup is included, so this is a conservative
+same-machine sample for in-process work, not a scanner upper bound or general energy claim. Simulated refresh counts and
+scanner CPU are reported separately; the replay does not claim net energy savings.
+
+An exact-head synthetic stress fixture then exercised 12 agent-like processes and 512 recent Codex rollout entries.
+After bounding the scanner, 20 runs of `.build/debug/CodexBarCLI sessions --json` measured 231.4 ms ± 12.4 ms wall time
+and 209.3 ms combined user plus system CPU time. At a continuous 30-second cadence that CPU figure extrapolates to 10.1
+CPU-minutes per day. The CLI startup is included. This is a stress sample rather than a population or energy claim, and
+directory metadata enumeration still scales; the code-level limits bound process correlation and the number of rollout
+and transcript records parsed on every scan.
