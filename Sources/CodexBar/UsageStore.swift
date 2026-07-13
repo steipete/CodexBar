@@ -352,7 +352,7 @@ final class UsageStore {
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored let accountInfoCacheTTL: TimeInterval = 30
     var tokenFetchTTL: TimeInterval {
-        ProviderRegistry.nominalRefreshInterval(for: self.settings.refreshFrequency) ?? (60 * 60)
+        self.normalRefreshIntervalForHeuristics() ?? (60 * 60)
     }
 
     @ObservationIgnored let tokenFetchTimeout: TimeInterval = 10 * 60

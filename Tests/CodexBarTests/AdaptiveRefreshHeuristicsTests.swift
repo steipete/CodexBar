@@ -53,6 +53,20 @@ struct AdaptiveRefreshHeuristicsTests {
     }
 
     @Test
+    func `adaptive token fetch TTL follows the live adaptive decision delay`() {
+        let store = Self.makeStore(suite: "heuristics-adaptive-token-ttl", frequency: .adaptive)
+
+        #expect(store.tokenFetchTTL == store.normalRefreshIntervalForHeuristics())
+
+        store.noteMenuOpened()
+        let expected = store.normalRefreshIntervalForHeuristics()
+        #expect(store.tokenFetchTTL == expected)
+        if Self.machineIsUnconstrained {
+            #expect(store.tokenFetchTTL == 120.0)
+        }
+    }
+
+    @Test
     func `adaptive cadence schedules a reset-boundary refresh through the refresh pipeline`() async {
         let store = Self.makeStoreWithStubbedCodex(suite: "heuristics-boundary-adaptive", frequency: .adaptive)
 
