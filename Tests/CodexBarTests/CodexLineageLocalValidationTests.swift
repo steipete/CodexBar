@@ -20,6 +20,38 @@ struct CodexLineageLocalValidationTests {
         let finalized: Bool
     }
 
+    @Test
+    func `local reset epoch diagnostic`() throws {
+        guard ProcessInfo.processInfo.environment["CODEXBAR_VALIDATE_RESET_EPOCHS_ONLY"] == "1" else { return }
+        CodexBarLog.setLogLevel(.critical)
+        let root = try #require(ProcessInfo.processInfo.environment["CODEXBAR_LINEAGE_VALIDATION_ROOT"])
+        let snapshotHome = URL(fileURLWithPath: root, isDirectory: true)
+            .appendingPathComponent("codex-home", isDirectory: true)
+        let roots = [
+            snapshotHome.appendingPathComponent("sessions", isDirectory: true),
+            snapshotHome.appendingPathComponent("archived_sessions", isDirectory: true),
+        ]
+        let included = Self.rollouts(roots: roots, days: Self.discoveryDays)
+        let report = try Self.resetEpochDiagnostics(includedFiles: included, roots: roots)
+        let output: [String: Any] = [
+            "strongResetBoundaries": report.strongResetBoundaryCount,
+            "mixedRegressions": report.mixedRegressionCount,
+            "postResetRepeatedFingerprints": report.postResetRepeatedFingerprintCount,
+            "sameOwnerRepeats": report.sameOwnerRepeatCount,
+            "crossOwnerRepeats": report.crossOwnerRepeatCount,
+            "estimatedSuppressedTokens": report.estimatedSuppressed.input + report.estimatedSuppressed.output,
+            "estimatedSuppressedUTC": report.estimatedSuppressedUTC.mapValues { $0.input + $0.output },
+            "sameOwnerEstimatedSuppressedTokens": report.sameOwnerEstimatedSuppressed.input
+                + report.sameOwnerEstimatedSuppressed.output,
+            "sameOwnerEstimatedSuppressedUTC": report.sameOwnerEstimatedSuppressedUTC.mapValues {
+                $0.input + $0.output
+            },
+        ]
+        let data = try JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])
+        let encoded = try #require(String(bytes: data, encoding: .utf8))
+        print("CODEX_LINEAGE_RESET_EPOCHS " + encoded)
+    }
+
     // The opt-in replay is intentionally linear so its immutable snapshot, scan, and comparison
     // lifecycle stays auditable in one place.
     // swiftlint:disable function_body_length
@@ -75,6 +107,14 @@ struct CodexLineageLocalValidationTests {
         let legacyCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: cacheRoot)
         let references = try Self.referenceTotals()
         Self.progress("legacy-ready")
+
+        let resetEpochDiagnostics: CodexLineageResetEpochDiagnostics.Report? = if ProcessInfo.processInfo
+            .environment["CODEXBAR_VALIDATE_RESET_EPOCHS"] == "1"
+        {
+            try Self.resetEpochDiagnostics(includedFiles: included, roots: [sessions, archived])
+        } else {
+            nil
+        }
 
         let directModes: [CodexLineageAccountingMode] = switch ProcessInfo.processInfo
             .environment["CODEXBAR_VALIDATE_SCANNER_MODES"]
@@ -234,6 +274,25 @@ struct CodexLineageLocalValidationTests {
                 "lineageMilliseconds": Self.milliseconds(lineageDuration),
             ],
             "ordinaryDayDivergenceCount": ordinaryDivergenceCount,
+            "resetEpochDiagnostics": [
+                "strongResetBoundaries": resetEpochDiagnostics?.strongResetBoundaryCount ?? 0,
+                "mixedRegressions": resetEpochDiagnostics?.mixedRegressionCount ?? 0,
+                "postResetRepeatedFingerprints": resetEpochDiagnostics?.postResetRepeatedFingerprintCount ?? 0,
+                "sameOwnerRepeats": resetEpochDiagnostics?.sameOwnerRepeatCount ?? 0,
+                "crossOwnerRepeats": resetEpochDiagnostics?.crossOwnerRepeatCount ?? 0,
+                "estimatedSuppressedTokens": resetEpochDiagnostics.map {
+                    $0.estimatedSuppressed.input + $0.estimatedSuppressed.output
+                } ?? 0,
+                "estimatedSuppressedUTC": resetEpochDiagnostics?.estimatedSuppressedUTC.mapValues {
+                    $0.input + $0.output
+                } ?? [:],
+                "sameOwnerEstimatedSuppressedTokens": resetEpochDiagnostics.map {
+                    $0.sameOwnerEstimatedSuppressed.input + $0.sameOwnerEstimatedSuppressed.output
+                } ?? 0,
+                "sameOwnerEstimatedSuppressedUTC": resetEpochDiagnostics?.sameOwnerEstimatedSuppressedUTC.mapValues {
+                    $0.input + $0.output
+                } ?? [:],
+            ],
             "aggregateImproved": classification.improvesAggregateError,
             // This replay is one validation artifact, not permission to remove the rollback path.
             "supportsLegacyRemoval": false,
@@ -263,6 +322,29 @@ struct CodexLineageLocalValidationTests {
             throw ValidationError.invalidReferenceTotals
         }
         return references
+    }
+
+    private static func resetEpochDiagnostics(
+        includedFiles: [URL],
+        roots: [URL]) throws -> CodexLineageResetEpochDiagnostics.Report
+    {
+        self.progress("reset-epoch-start")
+        let discovery = try CodexLineageDiscovery.discover(includedFiles: includedFiles, roots: roots)
+        let documents = discovery.documents.map { document in
+            CodexLineageLedger.Document(
+                ownerID: document.ownerID,
+                metadataSessionID: document.metadataSessionID,
+                parentSessionID: document.parentSessionID,
+                observations: document.observations,
+                scopeID: document.scopeID,
+                incompleteObservationCount: document.incompleteObservationCount)
+        }
+        let families = try CodexLineageEngine.prepareFamilies(
+            documents: documents,
+            unresolvedParents: discovery.unresolvedParents)
+        let report = try CodexLineageResetEpochDiagnostics.analyze(families: families)
+        Self.progress("reset-epoch-ready")
+        return report
     }
 
     private static func rollouts(roots: [URL], days: Set<String>) -> [URL] {
