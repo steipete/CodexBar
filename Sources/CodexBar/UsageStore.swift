@@ -67,6 +67,7 @@ extension UsageStore {
                 self.probeLogs = [:]
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
                 self.startTimer()
+                self.startTokenTimer()
                 self.updateProviderRuntimes()
                 await self.refreshHistoricalDatasetIfNeeded()
                 await self.refreshForSettingsChange()
@@ -350,7 +351,12 @@ final class UsageStore {
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored let accountInfoCacheTTL: TimeInterval = 30
-    @ObservationIgnored let tokenFetchTTL: TimeInterval = 60 * 60
+    var tokenFetchTTL: TimeInterval {
+        if let nominal = ProviderRegistry.nominalRefreshInterval(for: self.settings.refreshFrequency) {
+            return nominal
+        }
+        return 60 * 60
+    }
     @ObservationIgnored let tokenFetchTimeout: TimeInterval = 10 * 60
     @ObservationIgnored let startupBehavior: StartupBehavior
     @ObservationIgnored let planUtilizationPersistenceCoordinator: PlanUtilizationHistoryPersistenceCoordinator
