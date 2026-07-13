@@ -2854,8 +2854,11 @@ enum CostUsageScanner {
                 let documents = family.descriptors.compactMap { descriptor ->
                     CodexLineageAccountingSelector.ContainedDocument? in
                     guard let days = cache.files[descriptor.fileURL.path]?.days else { return nil }
-                    let identity = descriptor.scopeID + "\u{0}"
-                        + (descriptor.metadataSessionID ?? descriptor.ownerID).lowercased()
+                    // Active/archive copies share the filename owner. Fork children can retain an
+                    // ancestor metadata ID, so metadata is not a safe physical-copy identity here.
+                    let identity = Self.codexContainedDocumentIdentity(
+                        scopeID: descriptor.scopeID,
+                        ownerID: descriptor.ownerID)
                     return .init(identity: identity, days: days)
                 }
                 guard documents.count == family.descriptors.count else { return nil }
@@ -2905,6 +2908,10 @@ enum CostUsageScanner {
             self.log.debug("Codex lineage shadow comparison failed; legacy totals remain authoritative")
             #endif
         }
+    }
+
+    static func codexContainedDocumentIdentity(scopeID: String, ownerID: String) -> String {
+        scopeID + "\u{0}" + (UUID(uuidString: ownerID)?.uuidString.lowercased() ?? ownerID)
     }
 
     private static func codexFileScanContext(
