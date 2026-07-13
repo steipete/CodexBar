@@ -15,6 +15,8 @@ import FoundationNetworking
 @main
 enum CodexBarCLI {
     static func main() async {
+        self.configureLinuxTimeZoneIfNeeded()
+
         let rawArgv = Array(CommandLine.arguments.dropFirst())
         let argv = Self.effectiveArgv(rawArgv)
         let outputPreferences = CLIOutputPreferences.from(argv: argv)
@@ -200,6 +202,26 @@ enum CodexBarCLI {
     }
 
     // MARK: - Helpers
+
+    static func linuxTimeZoneFallback(currentValue: String?, localTimeReadable: Bool) -> String? {
+        guard currentValue == nil, localTimeReadable else { return nil }
+        return ":/etc/localtime"
+    }
+
+    private static func configureLinuxTimeZoneIfNeeded() {
+        #if os(Linux)
+        let currentValue = getenv("TZ").map { String(cString: $0) }
+        let localTimeReadable = access("/etc/localtime", R_OK) == 0
+        guard let fallback = self.linuxTimeZoneFallback(
+            currentValue: currentValue,
+            localTimeReadable: localTimeReadable)
+        else { return }
+
+        // Swift Foundation otherwise assumes /usr/share/zoneinfo exists. The absolute TZ file form
+        // preserves the configured local timezone on non-FHS systems such as NixOS.
+        setenv("TZ", fallback, 0)
+        #endif
+    }
 
     private static func bootstrapLogging(path: [String], values: ParsedValues) {
         CodexBarLog.bootstrapIfNeeded(self.loggingConfiguration(path: path, values: values))
