@@ -104,6 +104,16 @@ enum CostUsageScanner {
         let snapshots: [CodexTimestampedTotals]
         let observations: [CodexLineageLedger.Observation]
         let incompleteObservationCount: Int
+        let observationCount: Int
+    }
+
+    struct CodexLineageDocumentSummary: Equatable, Sendable {
+        let ownerID: String
+        let metadataSessionID: String?
+        let parentSessionID: String?
+        let scopeID: String
+        let incompleteObservationCount: Int
+        let observationCount: Int
     }
 
     enum CodexForkBaseline {
@@ -1689,6 +1699,8 @@ enum CostUsageScanner {
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func parseCodexTokenSnapshots(
         fileURL: URL,
+        retainEvidence: Bool = true,
+        suppressScanErrors: Bool = true,
         checkCancellation: CancellationCheck? = nil) throws -> CodexParsedTokenEvidence
     {
         var sessionId: String?
@@ -1698,6 +1710,7 @@ enum CostUsageScanner {
         var snapshots: [CodexTimestampedTotals] = []
         var observations: [CodexLineageLedger.Observation] = []
         var incompleteObservationCount = 0
+        var observationCount = 0
         var warnedAboutUnparsedTimestamp = false
 
         func parsedSnapshotDate(timestamp: String) -> Date? {
@@ -1721,19 +1734,24 @@ enum CostUsageScanner {
             if last == nil || total == nil {
                 incompleteObservationCount += 1
             }
-            let counted = accumulator.apply(last: last, total: total)
-            snapshots.append(CodexTimestampedTotals(
-                timestamp: timestamp,
-                date: parsedSnapshotDate(timestamp: timestamp),
-                totals: counted))
-            if let last, let total {
-                observations.append(CodexLineageLedger.Observation(
+            if retainEvidence {
+                let counted = accumulator.apply(last: last, total: total)
+                snapshots.append(CodexTimestampedTotals(
                     timestamp: timestamp,
-                    model: Self.codexModelEvidence(model)
-                        ?? Self.codexModelEvidence(currentModel)
-                        ?? CostUsagePricing.codexUnattributedModel,
-                    last: Self.lineageTotals(last),
-                    total: Self.lineageTotals(total)))
+                    date: parsedSnapshotDate(timestamp: timestamp),
+                    totals: counted))
+            }
+            if let last, let total {
+                observationCount += 1
+                if retainEvidence {
+                    observations.append(CodexLineageLedger.Observation(
+                        timestamp: timestamp,
+                        model: Self.codexModelEvidence(model)
+                            ?? Self.codexModelEvidence(currentModel)
+                            ?? CostUsagePricing.codexUnattributedModel,
+                        last: Self.lineageTotals(last),
+                        total: Self.lineageTotals(total)))
+                }
             }
         }
 
@@ -1845,6 +1863,9 @@ enum CostUsageScanner {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            if !suppressScanErrors {
+                throw error
+            }
             self.log.warning(
                 "Codex cost usage failed while scanning parent token snapshots",
                 metadata: ["path": fileURL.path, "error": error.localizedDescription])
@@ -1855,7 +1876,8 @@ enum CostUsageScanner {
             forkedFromId: forkedFromId,
             snapshots: snapshots,
             observations: observations,
-            incompleteObservationCount: incompleteObservationCount)
+            incompleteObservationCount: incompleteObservationCount,
+            observationCount: observationCount)
     }
 
     static func parseCodexLineageDocument(
@@ -1864,6 +1886,7 @@ enum CostUsageScanner {
     {
         let parsed = try Self.parseCodexTokenSnapshots(
             fileURL: fileURL,
+            suppressScanErrors: false,
             checkCancellation: checkCancellation)
         return CodexLineageLedger.Document(
             ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
@@ -1872,6 +1895,24 @@ enum CostUsageScanner {
             observations: parsed.observations,
             scopeID: Self.codexLineageScopeID(fileURL: fileURL),
             incompleteObservationCount: parsed.incompleteObservationCount)
+    }
+
+    static func parseCodexLineageDocumentSummary(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexLineageDocumentSummary
+    {
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            retainEvidence: false,
+            suppressScanErrors: false,
+            checkCancellation: checkCancellation)
+        return CodexLineageDocumentSummary(
+            ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
+            metadataSessionID: parsed.sessionId,
+            parentSessionID: parsed.forkedFromId,
+            scopeID: Self.codexLineageScopeID(fileURL: fileURL),
+            incompleteObservationCount: parsed.incompleteObservationCount,
+            observationCount: parsed.observationCount)
     }
 
     static func codexLineageScopeID(fileURL: URL) -> String {

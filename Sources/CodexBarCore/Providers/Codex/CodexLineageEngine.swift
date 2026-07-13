@@ -24,6 +24,14 @@ enum CodexLineageEngine {
         let observationCount: Int
     }
 
+    struct PreparedDescriptorFamily: Equatable, Sendable {
+        let stableID: String
+        let inputFingerprint: Fingerprint
+        let descriptors: [CodexLineageTwoPassDiscovery.Descriptor]
+        let unresolvedParents: Set<CodexLineageLedger.ParentIdentity>
+        let observationCount: Int
+    }
+
     struct FamilyResult: Equatable, Sendable {
         let stableID: String
         let inputFingerprint: Fingerprint
@@ -115,6 +123,134 @@ enum CodexLineageEngine {
                 observationCount: sortedDocuments.reduce(0) { $0 + $1.observations.count }))
         }
         return families.sorted { $0.stableID < $1.stableID }
+    }
+
+    static func prepareDescriptorFamilies(
+        descriptors: [CodexLineageTwoPassDiscovery.Descriptor],
+        unresolvedParents: Set<CodexLineageLedger.ParentIdentity> = [],
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> [PreparedDescriptorFamily]
+    {
+        var graph = DisjointSet()
+        for descriptor in descriptors {
+            try checkCancellation?()
+            let owner = Self.scoped(descriptor.ownerID, scopeID: descriptor.scopeID)
+            graph.insert(owner)
+            if let metadata = Self.nonEmpty(descriptor.metadataSessionID) {
+                graph.union(owner, Self.scoped(metadata, scopeID: descriptor.scopeID))
+            }
+            if let parent = Self.nonEmpty(descriptor.parentSessionID) {
+                graph.union(owner, Self.scoped(parent, scopeID: descriptor.scopeID))
+            }
+        }
+        var descriptorsByRoot: [String: [CodexLineageTwoPassDiscovery.Descriptor]] = [:]
+        for descriptor in descriptors {
+            try checkCancellation?()
+            let root = graph.find(Self.scoped(descriptor.ownerID, scopeID: descriptor.scopeID))
+            descriptorsByRoot[root, default: []].append(descriptor)
+        }
+        var families: [PreparedDescriptorFamily] = []
+        for var familyDescriptors in descriptorsByRoot.values {
+            try checkCancellation?()
+            familyDescriptors.sort { Self.descriptorKey($0) < Self.descriptorKey($1) }
+            let identities = Set(familyDescriptors.flatMap { descriptor in
+                [descriptor.ownerID, descriptor.metadataSessionID, descriptor.parentSessionID].compactMap { value in
+                    Self.nonEmpty(value).map { Self.scoped($0, scopeID: descriptor.scopeID) }
+                }
+            })
+            let familyUnresolved = unresolvedParents.filter {
+                identities.contains(Self.scoped($0.sessionID, scopeID: $0.scopeID))
+            }
+            let fingerprint = Self.descriptorFamilyFingerprint(
+                descriptors: familyDescriptors,
+                unresolvedParents: familyUnresolved)
+            families.append(.init(
+                stableID: identities.min() ?? "",
+                inputFingerprint: fingerprint,
+                descriptors: familyDescriptors,
+                unresolvedParents: familyUnresolved,
+                observationCount: familyDescriptors.reduce(0) { $0 + $1.observationCount }))
+        }
+        return families.sorted { $0.stableID < $1.stableID }
+    }
+
+    static func reconcileStreaming(
+        families: [PreparedDescriptorFamily],
+        previousCache: Cache? = nil,
+        localTimeZone: TimeZone,
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil,
+        loadDocument: ((CodexLineageTwoPassDiscovery.Descriptor) throws -> CodexLineageLedger.Document)? = nil) throws
+        -> Result
+    {
+        let reusable = previousCache?.algorithmVersion == Self.algorithmVersion
+            ? previousCache?.familiesByInputFingerprint ?? [:]
+            : [:]
+        var results: [FamilyResult] = []
+        var recomputed = 0
+        var reused = 0
+        var peakLoadedObservations = 0
+        var peakAccepted = 0
+        for family in families.sorted(by: { $0.stableID < $1.stableID }) {
+            try checkCancellation?()
+            let cacheFingerprint = Self.cacheFingerprint(
+                input: family.inputFingerprint,
+                localTimeZone: localTimeZone)
+            if let cached = reusable[cacheFingerprint], cached.stableID == family.stableID {
+                results.append(cached)
+                reused += 1
+                peakAccepted = max(peakAccepted, cached.report.acceptedObservationCount)
+                continue
+            }
+            var documents: [CodexLineageLedger.Document] = []
+            documents.reserveCapacity(family.descriptors.count)
+            var loadedObservations = 0
+            for descriptor in family.descriptors {
+                try checkCancellation?()
+                let document: CodexLineageLedger.Document = if let loadDocument {
+                    try loadDocument(descriptor)
+                } else {
+                    try CodexLineageTwoPassDiscovery.loadDocument(
+                        descriptor,
+                        checkCancellation: checkCancellation)
+                }
+                loadedObservations += document.observations.count
+                documents.append(document)
+            }
+            peakLoadedObservations = max(peakLoadedObservations, loadedObservations)
+            let conservative = try CodexLineageLedger.reconcileConservatively(
+                documents: documents,
+                unresolvedParents: family.unresolvedParents,
+                localTimeZone: localTimeZone,
+                checkCancellation: checkCancellation)
+            let quality = conservative.families.first?.quality ?? .primary
+            let result = FamilyResult(
+                stableID: family.stableID,
+                inputFingerprint: family.inputFingerprint,
+                familyFingerprint: Self.familyFingerprint(input: cacheFingerprint, quality: quality),
+                quality: quality,
+                report: conservative.primary)
+            results.append(result)
+            recomputed += 1
+            peakAccepted = max(peakAccepted, result.report.acceptedObservationCount)
+        }
+        results.sort { $0.stableID < $1.stableID }
+        let report = try Self.compose(results.map(\.report), checkCancellation: checkCancellation)
+        let candidate = Cache(
+            algorithmVersion: Self.algorithmVersion,
+            familiesByInputFingerprint: Dictionary(uniqueKeysWithValues: results.map {
+                (Self.cacheFingerprint(input: $0.inputFingerprint, localTimeZone: localTimeZone), $0)
+            }))
+        try checkCancellation?()
+        return Result(
+            report: report,
+            families: results,
+            candidateCache: candidate,
+            diagnostics: .init(
+                familyCount: families.count,
+                recomputedFamilyCount: recomputed,
+                reusedFamilyCount: reused,
+                observationCount: families.reduce(0) { $0 + $1.observationCount },
+                peakFamilyObservationCount: peakLoadedObservations,
+                peakAcceptedFingerprintCount: peakAccepted))
     }
 
     static func reconcile(
@@ -298,6 +434,38 @@ enum CodexLineageEngine {
             digest.append(contentsOf: ["unresolved", parent.scopeID, Self.canonical(parent.sessionID)])
         }
         return digest.finalize()
+    }
+
+    private static func descriptorFamilyFingerprint(
+        descriptors: [CodexLineageTwoPassDiscovery.Descriptor],
+        unresolvedParents: Set<CodexLineageLedger.ParentIdentity>) -> Fingerprint
+    {
+        var digest = DigestBuilder()
+        digest.append(contentsOf: ["codex-lineage-descriptor-family", String(Self.algorithmVersion)])
+        for descriptor in descriptors {
+            digest.append(contentsOf: [
+                "descriptor", descriptor.scopeID, Self.canonical(descriptor.ownerID),
+                descriptor.metadataSessionID.map(Self.canonical) ?? "",
+                descriptor.parentSessionID.map(Self.canonical) ?? "",
+                String(descriptor.incompleteObservationCount), String(descriptor.observationCount),
+                String(descriptor.signature.size), String(descriptor.signature.modifiedMilliseconds),
+                descriptor.signature.contentSHA256,
+            ])
+        }
+        for parent in unresolvedParents.sorted(by: { ($0.scopeID, $0.sessionID) < ($1.scopeID, $1.sessionID) }) {
+            digest.append(contentsOf: ["unresolved", parent.scopeID, Self.canonical(parent.sessionID)])
+        }
+        return digest.finalize()
+    }
+
+    private static func descriptorKey(_ descriptor: CodexLineageTwoPassDiscovery.Descriptor) -> String {
+        [
+            descriptor.scopeID, self.canonical(descriptor.ownerID),
+            descriptor.metadataSessionID.map(self.canonical) ?? "",
+            descriptor.parentSessionID.map(self.canonical) ?? "",
+            descriptor.signature.contentSHA256,
+            descriptor.fileURL.standardizedFileURL.path,
+        ].joined(separator: "\u{0}")
     }
 
     private static func familyFingerprint(
