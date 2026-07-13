@@ -8,12 +8,24 @@ import Testing
 struct CostUsageScannerBreakdownTests {
     private typealias Usage = (input: Int, cached: Int, output: Int)
 
-    private func codexTurnContext(timestamp: String, model: String) -> [String: Any] {
+    private func codexTurnContext(timestamp: String, model: String, id: String = UUID().uuidString) -> [String: Any] {
         [
             "type": "turn_context",
             "timestamp": timestamp,
             "payload": [
                 "model": model,
+                "id": id,
+            ],
+        ]
+    }
+
+    private func codexTaskStarted(timestamp: String, turnID: String) -> [String: Any] {
+        [
+            "type": "event_msg",
+            "timestamp": timestamp,
+            "payload": [
+                "type": "task_started",
+                "turn_id": turnID,
             ],
         ]
     }
@@ -5763,6 +5775,87 @@ struct CostUsageScannerBreakdownTests {
 
         #expect(report.data.count == 1)
         #expect(report.data[0].totalTokens == 44)
+    }
+
+    @Test
+    func `codex unresolved fork daily report does not double count replayed last usage when total is missing`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let iso0 = env.isoString(for: day)
+        let model = "openai/gpt-5.2-codex"
+        let parentTurnId = "turn-parent-1"
+        let child1TurnId = "turn-child-1"
+        let child2TurnId = "turn-child-2"
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(iso0)-child-1.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": [
+                        "id": "child-1",
+                        "forked_from_id": "missing-parent",
+                        "timestamp": iso0,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model, id: parentTurnId),
+                self.codexTaskStarted(timestamp: iso0, turnID: parentTurnId),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    last: (input: 1000, cached: 900, output: 100)),
+                self.codexTaskStarted(timestamp: env.isoString(for: day.addingTimeInterval(1.5)), turnID: child1TurnId),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    last: (input: 20, cached: 5, output: 5)),
+            ]))
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(iso0)-child-2.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": [
+                        "id": "child-2",
+                        "forked_from_id": "missing-parent",
+                        "timestamp": iso0,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: iso0, model: model, id: parentTurnId),
+                self.codexTaskStarted(timestamp: iso0, turnID: parentTurnId),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    last: (input: 1000, cached: 900, output: 100)),
+                self.codexTaskStarted(timestamp: env.isoString(for: day.addingTimeInterval(1.5)), turnID: child2TurnId),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    last: (input: 30, cached: 6, output: 6)),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        options.forceRescan = true
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].inputTokens == 1050)
+        #expect(report.data[0].outputTokens == 111)
     }
 
     private static func modelsDevCatalog(

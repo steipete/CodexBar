@@ -627,13 +627,16 @@ extension CostUsageScanner {
     static func uniqueCodexRows(
         rows: [CodexUsageRow],
         sessionId: String?,
+        forkedFromId: String? = nil,
         fileIdentity: String,
         state: inout CodexScanState) -> [CodexUsageRow]
     {
         var unique: [CodexUsageRow] = []
         var acceptedKeys = Set<String>()
         for row in rows {
-            let key = Self.codexUsageRowKey(sessionId: sessionId, fileIdentity: fileIdentity, row: row)
+            let useParentScope = forkedFromId != nil && row.turnID != nil
+            let activeSessionId = useParentScope ? forkedFromId : sessionId
+            let key = Self.codexUsageRowKey(sessionId: activeSessionId, fileIdentity: fileIdentity, row: row)
             if !state.seenCodexUsageRowKeys.contains(key) {
                 unique.append(row)
                 acceptedKeys.insert(key)
@@ -646,12 +649,15 @@ extension CostUsageScanner {
     static func rememberCodexRows(
         _ rows: [CodexUsageRow],
         sessionId: String?,
+        forkedFromId: String? = nil,
         fileIdentity: String,
         state: inout CodexScanState)
     {
         for row in rows {
+            let useParentScope = forkedFromId != nil && row.turnID != nil
+            let activeSessionId = useParentScope ? forkedFromId : sessionId
             state.seenCodexUsageRowKeys.insert(self.codexUsageRowKey(
-                sessionId: sessionId,
+                sessionId: activeSessionId,
                 fileIdentity: fileIdentity,
                 row: row))
         }
@@ -859,6 +865,7 @@ extension CostUsageScanner {
     static func rememberScannedCodexFile(
         input: CodexFileScanInput,
         session: CodexScannedSession,
+        forkedFromId: String? = nil,
         rows: [CodexUsageRow],
         context: CodexFileScanContext,
         state: inout CodexScanState)
@@ -871,7 +878,7 @@ extension CostUsageScanner {
         }
         Self.rememberCodexRows(
             rows,
-            sessionId: session.id,
+            sessionId: forkedFromId ?? session.id,
             fileIdentity: input.metadata.path,
             state: &state)
         if let fileId = input.metadata.fileId {
@@ -893,6 +900,15 @@ extension CostUsageScanner {
               !context.forceFullScan
         else { return false }
 
+        // If this is a child fork session and the parent session file is missing/unresolved,
+        // we must force a rescan to ensure correct deduplication of replayed parent turns.
+        if let forkedFromId = cached.forkedFromId {
+            let parentIsResolved = (try? context.resources.fileIndex.fileURL(for: forkedFromId)) != nil
+            if !parentIsResolved {
+                return false
+            }
+        }
+
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
 
         let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
@@ -905,6 +921,7 @@ extension CostUsageScanner {
             let uniqueRows = Self.uniqueCodexRows(
                 rows: cachedRows,
                 sessionId: cached.sessionId,
+                forkedFromId: cached.forkedFromId,
                 fileIdentity: input.metadata.path,
                 state: &state)
             guard !uniqueRows.isEmpty else {
@@ -918,6 +935,7 @@ extension CostUsageScanner {
             Self.rememberScannedCodexFile(
                 input: input,
                 session: CodexScannedSession(id: cached.sessionId, days: filtered.days),
+                forkedFromId: cached.forkedFromId,
                 rows: uniqueRows,
                 context: context,
                 state: &state)
@@ -933,6 +951,7 @@ extension CostUsageScanner {
         Self.rememberScannedCodexFile(
             input: input,
             session: CodexScannedSession(id: current.sessionId, days: current.days),
+            forkedFromId: current.forkedFromId,
             rows: cachedRows,
             context: context,
             state: &state)
@@ -1120,6 +1139,7 @@ extension CostUsageScanner {
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
         let sessionId = parsed.sessionId ?? input.cached?.sessionId
+        let forkedFromId = parsed.forkedFromId ?? input.cached?.forkedFromId
         let projectPath = parsed.projectPath ?? input.cached?.projectPath
         let canonicalProjectPath = parsed.projectPath.map {
             context.resources.projectPathResolver.canonicalProjectPath(for: $0)
@@ -1128,6 +1148,7 @@ extension CostUsageScanner {
         let uniqueRows = Self.uniqueCodexRows(
             rows: parsed.rows,
             sessionId: sessionId,
+            forkedFromId: forkedFromId,
             fileIdentity: input.metadata.path,
             state: &state)
         if let sessionId,
@@ -1214,6 +1235,7 @@ extension CostUsageScanner {
         Self.rememberScannedCodexFile(
             input: input,
             session: CodexScannedSession(id: sessionId, days: usageDays),
+            forkedFromId: forkedFromId,
             rows: uniqueRows,
             context: context,
             state: &state)
