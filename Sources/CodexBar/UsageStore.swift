@@ -327,6 +327,7 @@ final class UsageStore {
     @ObservationIgnored var codexHistoricalDataset: CodexHistoricalDataset?
     @ObservationIgnored var codexHistoricalDatasetAccountKey: String?
     @ObservationIgnored var lastKnownResetSnapshots: [UsageProvider: UsageSnapshot] = [:]
+    @ObservationIgnored var deepseekProfileTransition: (snapshot: UsageSnapshot, accountID: UUID?)?
     @ObservationIgnored var sessionQuotaTransitionStates: [UsageProvider: SessionQuotaTransitionState] = [:]
     @ObservationIgnored var codexSessionQuotaBaselineRequirement: CodexSessionQuotaBaselineRequirement?
     var codexSessionQuotaBaselineRequired: Bool {

@@ -1,15 +1,17 @@
 ---
-summary: "DeepSeek provider data sources: API key + balance endpoint."
+summary: "DeepSeek provider data sources: API key, balance, and optional detailed usage endpoints."
 read_when:
   - Adding or tweaking DeepSeek balance parsing
+  - Adding or tweaking DeepSeek detailed usage parsing
   - Updating API key handling
   - Documenting new provider behavior
 ---
 
 # DeepSeek provider
 
-DeepSeek is API-only. Balance is reported by `GET https://api.deepseek.com/user/balance`,
-so CodexBar only needs a valid API key to show your remaining credit balance.
+CodexBar uses a DeepSeek API key for the remaining credit balance. Detailed cost and token usage comes from
+the signed-in DeepSeek Platform website and requires a separate web-session token; an API key cannot authenticate
+the private dashboard endpoints.
 
 ## Data sources
 
@@ -19,12 +21,46 @@ so CodexBar only needs a valid API key to show your remaining credit balance.
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
    - Response contains `is_available`, and a `balance_infos` array with per-currency entries
      (`total_balance`, `granted_balance`, `topped_up_balance`).
+3. **Optional detailed usage endpoints**
+   - `GET https://platform.deepseek.com/api/v0/usage/amount?month=<month>&year=<year>`
+   - `GET https://platform.deepseek.com/api/v0/usage/cost?month=<month>&year=<year>`
+   - Request headers: `Authorization: Bearer <platform userToken>`, `Accept: application/json`
+   - These are private dashboard endpoints rather than documented public API endpoints and may change without notice.
+
+## Platform session
+
+CodexBar resolves the Platform `userToken` in this order:
+
+1. `DEEPSEEK_PLATFORM_TOKEN` / `DEEPSEEK_USER_TOKEN`, when explicitly supplied by the process environment.
+2. A prompt-free read of `userToken` from the `https://platform.deepseek.com` local-storage origin in Chrome.
+
+CodexBar checks every Chrome profile containing a parseable `userToken` against DeepSeek. Rejected or expired
+sessions are omitted. Settings shows a **Chrome profile** picker containing only valid sessions. Even when only one
+session is valid, a new or changed API credential requires one explicit selection before website usage is combined
+with its balance. CodexBar persists a stable browser/profile identifier, not an absolute home-directory path, and
+keeps automatically imported tokens in memory only. The choice is scoped to a non-reversible fingerprint of the
+active API credential and saved-account slot, so replacing a key or switching accounts cannot silently reuse an old
+browser session. Validation results are cached briefly so normal
+refreshes do not probe every profile, and a temporary network failure does not erase a previously validated profile.
+If the selected session expires, CodexBar asks before switching to another valid profile.
+
+If no session is valid, the menu keeps the API-key balance and asks the user to sign in to DeepSeek Platform in
+Chrome. Authentication failures returned as top-level or nested DeepSeek codes `40002` and `40003` are treated as
+expired sessions.
 
 ## Usage details
 
 - The menu card shows total balance with the paid vs. granted breakdown:
   e.g. `$50.00 (Paid: $40.00 / Granted: $10.00)`.
 - The API separates granted balance from topped-up balance; CodexBar labels these as granted vs. paid credit.
+- With optional extra usage enabled, the menu shows today's and the current month's cost and tokens,
+  request counts, cache/input/output categories, the top model, and a current-month token chart.
+- The amount and cost requests run concurrently. After balance arrives, CodexBar waits up to five seconds for
+  automatic Chrome resolution and detailed usage. The deadline remains bounded even if a local Chrome read does not
+  respond to cancellation. If the optional work fails or times out, the balance and previously validated profile list
+  remain available while the menu reports that detailed usage is unavailable.
+- With multiple configured API keys, browser-derived detailed usage is shown only with the active API-key account;
+  other account cards remain balance-only so website usage is never duplicated across accounts.
 - When multiple currencies are present, USD is shown preferentially.
 - If total balance is zero, CodexBar shows an add-credits message. If balance is nonzero but `is_available` is false, it shows "Balance unavailable for API calls".
 - There is no session or weekly window — DeepSeek does not expose per-window quota via API.
@@ -34,6 +70,7 @@ so CodexBar only needs a valid API key to show your remaining credit balance.
 
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekProviderDescriptor.swift` (descriptor + fetch strategy)
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekUsageFetcher.swift` (HTTP client + JSON parser)
+- `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekPlatformTokenImporter.swift` (Chrome Platform session import)
 - `Sources/CodexBarCore/Providers/DeepSeek/DeepSeekSettingsReader.swift` (env var resolution)
 - `Sources/CodexBar/Providers/DeepSeek/DeepSeekProviderImplementation.swift` (provider activation and token-account visibility)
 - `Sources/CodexBarCore/TokenAccountSupportCatalog+Data.swift` (DeepSeek token-account injection)

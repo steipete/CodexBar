@@ -902,6 +902,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax روند استفاده ۳۰ روزه از توکن";
 "Today cash" = "امروزه پول نقد";
 "DeepSeek 30 day token usage trend" = "DeepSeek روند استفاده ۳۰ روزه از توکن";
+"Detailed usage unavailable." = "جزئیات استفاده در دسترس نیست.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "برای مشاهده جزئیات استفاده، در Chrome وارد DeepSeek Platform شوید.";
+"Select a DeepSeek Chrome profile in Settings." = "یک نمایه Chrome دیپ‌سیک را در تنظیمات انتخاب کنید.";
+"DeepSeek this month token usage trend" = "روند استفاده از توکن DeepSeek در این ماه";
+"Chrome profile" = "نمایه Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "انتخاب کنید کدام نشست واردشدهٔ DeepSeek Platform جزئیات استفاده را ارائه دهد.";
+"Select profile…" = "انتخاب نمایه…";
 "cache-hit input" = "ورودی کش و ضربه";
 "cache-miss input" = "ورودی کش-خطا";
 "output" = "خروجی";

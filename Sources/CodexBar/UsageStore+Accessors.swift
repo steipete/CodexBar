@@ -14,6 +14,37 @@ extension UsageStore {
         self.snapshots[.claude]
     }
 
+    func presentationSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        if provider == .deepseek,
+           let transition = self.deepseekProfileTransition,
+           transition.accountID == self.settings.selectedTokenAccount(for: .deepseek)?.id
+        {
+            return transition.snapshot
+        }
+        if let snapshot = self.snapshots[provider] {
+            return snapshot
+        }
+        guard provider == .deepseek, self.refreshingProviders.contains(provider) else { return nil }
+        return self.lastKnownResetSnapshots[provider]
+    }
+
+    func beginDeepSeekProfileTransition() {
+        guard self.deepseekProfileTransition == nil,
+              let snapshot = self.snapshots[.deepseek] ?? self.lastKnownResetSnapshots[.deepseek]
+        else { return }
+        self.deepseekProfileTransition = (
+            snapshot: snapshot.withoutDeepSeekDetailedUsage(),
+            accountID: self.settings.selectedTokenAccount(for: .deepseek)?.id)
+    }
+
+    func clearDeepSeekProfileTransition() {
+        self.deepseekProfileTransition = nil
+    }
+
+    var deepseekProfileTransitionSnapshot: UsageSnapshot? {
+        self.deepseekProfileTransition?.snapshot
+    }
+
     var lastCodexError: String? {
         self.errors[.codex]
     }

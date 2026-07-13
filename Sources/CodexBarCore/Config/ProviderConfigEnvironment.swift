@@ -95,6 +95,8 @@ public enum ProviderConfigEnvironment {
             return env
         }
         return switch provider {
+        case .deepseek:
+            self.applyDeepSeekOverrides(base: base, config: config)
         case .deepgram:
             self.applyDeepgramOverrides(base: base, config: config)
         case .azureopenai:
@@ -108,6 +110,20 @@ public enum ProviderConfigEnvironment {
         default:
             nil
         }
+    }
+
+    private static func applyDeepSeekOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        var env = base
+        if let profileID = config?.sanitizedDeepSeekProfileID {
+            env[DeepSeekSettingsReader.profileIDEnvironmentKey] = profileID
+        }
+        if let profileScope = config?.sanitizedDeepSeekProfileScope {
+            env[DeepSeekSettingsReader.profileScopeEnvironmentKey] = profileScope
+        }
+        return env
     }
 
     private static func applyMultiFieldCredentialOverrides(

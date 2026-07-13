@@ -34,7 +34,7 @@ extension StatusItemController {
         let snapshot: UsageSnapshot? = if surface == .overrideCard {
             snapshotOverride
         } else {
-            snapshotOverride ?? self.store.snapshot(for: target)
+            snapshotOverride ?? self.store.presentationSnapshot(for: target)
         }
         let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
         let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)

@@ -86,10 +86,19 @@ extension UsageMenuCardView.Model {
             ]
         }
 
-        if input.provider == .deepseek,
-           input.showOptionalCreditsAndExtraUsage,
-           let usage = input.snapshot?.deepseekUsage
-        {
+        if input.provider == .deepseek, input.showOptionalCreditsAndExtraUsage {
+            if input.isRefreshing {
+                return []
+            }
+            guard let usage = input.snapshot?.deepseekUsage else {
+                if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
+                    return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
+                }
+                if input.snapshot?.deepseekDetailedUsageState == .profileSelectionRequired {
+                    return [L("Select a DeepSeek Chrome profile in Settings.")]
+                }
+                return [L("Detailed usage unavailable.")]
+            }
             let symbol = usage.currency == "CNY" ? "¥" : "$"
             let todayCostStr = usage.todayCost.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
             return [
@@ -226,6 +235,7 @@ extension UsageMenuCardView.Model {
             return Self.minimaxInlineDashboard(billing)
         }
         if input.provider == .deepseek,
+           !input.isRefreshing,
            input.showOptionalCreditsAndExtraUsage,
            let usage = input.snapshot?.deepseekUsage,
            !usage.daily.isEmpty
@@ -673,7 +683,7 @@ extension UsageMenuCardView.Model {
         let monthTokensStr = UsageFormatter.tokenCountString(usage.currentMonthTokens)
 
         return InlineUsageDashboardModel(
-            accessibilityLabel: L("DeepSeek 30 day token usage trend"),
+            accessibilityLabel: L("DeepSeek this month token usage trend"),
             valueStyle: .tokens,
             kpis: [
                 .init(
