@@ -449,6 +449,51 @@ struct CodexLineageLedgerTests {
     }
 
     @Test
+    func `retained metadata across multiple fork generations does not create sibling cycles`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let root = Self.document(owner: "root", metadata: "root", observations: [observation])
+        let firstFork = Self.document(
+            owner: "first-fork",
+            metadata: "root",
+            parent: "root",
+            observations: [observation])
+        let secondFork = Self.document(
+            owner: "second-fork",
+            metadata: "root",
+            parent: "first-fork",
+            observations: [observation])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [root, firstFork, secondFork],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays["2026-07-09"]?.input == 100)
+        #expect(report.families.first?.quality == .primary)
+    }
+
+    @Test
+    func `unique metadata aliases still reveal physical ancestry cycles`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let first = Self.document(
+            owner: "first-owner",
+            metadata: "first-alias",
+            parent: "second-alias",
+            observations: [observation])
+        let second = Self.document(
+            owner: "second-owner",
+            metadata: "second-alias",
+            parent: "first-alias",
+            observations: [observation])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [first, second],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays.isEmpty)
+        #expect(report.families.first?.quality == .contained([.ancestryCycle]))
+    }
+
+    @Test
     func `unrelated owners sharing an ungrounded metadata identity are contained`() throws {
         let first = Self.document(
             owner: "first",

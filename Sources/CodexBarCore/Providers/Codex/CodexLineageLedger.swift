@@ -374,17 +374,26 @@ enum CodexLineageLedger {
     }
 
     private static func hasAncestryCycle(_ documents: [Document]) -> Bool {
+        let owners = Set(documents.map { Self.canonicalIdentity($0.ownerID) })
         let metadataOwners = Dictionary(grouping: documents.compactMap { document in
-            document.metadataSessionID.map { ($0, document.ownerID) }
+            Self.nonEmpty(document.metadataSessionID).map {
+                (Self.canonicalIdentity($0), Self.canonicalIdentity(document.ownerID))
+            }
         }, by: \.0).mapValues { Set($0.map(\.1)) }
         var parents: [String: Set<String>] = [:]
         for document in documents {
             guard let parent = Self.nonEmpty(document.parentSessionID) else { continue }
-            var targets = metadataOwners[parent] ?? [parent]
-            if parent != document.ownerID {
-                targets.remove(document.ownerID)
+            let owner = Self.canonicalIdentity(document.ownerID)
+            let canonicalParent = Self.canonicalIdentity(parent)
+            // Prefer an exact physical owner. A metadata alias may establish an edge only when it
+            // identifies one physical owner; retained aliases shared by fork siblings are ambiguous.
+            if owners.contains(canonicalParent) {
+                parents[owner, default: []].insert(canonicalParent)
+            } else if let targets = metadataOwners[canonicalParent], targets.count == 1,
+                      let target = targets.first
+            {
+                parents[owner, default: []].insert(target)
             }
-            parents[document.ownerID, default: []].formUnion(targets)
         }
         var visiting: Set<String> = []
         var visited: Set<String> = []
@@ -403,7 +412,7 @@ enum CodexLineageLedger {
             visited.insert(owner)
             return false
         }
-        return Set(documents.map(\.ownerID)).contains(where: visit)
+        return owners.contains(where: visit)
     }
 
     /// Duplicate copies can carry different model evidence. Keep the earliest physical copy,

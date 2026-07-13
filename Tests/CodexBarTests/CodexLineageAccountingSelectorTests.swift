@@ -73,6 +73,21 @@ struct CodexLineageAccountingSelectorTests {
     }
 
     @Test
+    func `containment copy identity follows physical owner rather than retained metadata`() {
+        let first = CostUsageScanner.codexContainedDocumentIdentity(
+            scopeID: "home",
+            ownerID: "00000000-0000-4000-8000-000000000001")
+        let sibling = CostUsageScanner.codexContainedDocumentIdentity(
+            scopeID: "home",
+            ownerID: "00000000-0000-4000-8000-000000000002")
+
+        #expect(first != sibling)
+        #expect(first == CostUsageScanner.codexContainedDocumentIdentity(
+            scopeID: "home",
+            ownerID: "00000000-0000-4000-8000-000000000001"))
+    }
+
+    @Test
     func `mode cache suffixes are schema scoped and distinct`() {
         #expect(CodexLineageAccountingMode.defaultMode == .legacy)
         #expect(CodexLineageAccountingMode.shadow.producerKeySuffix != CodexLineageAccountingMode.lineage
