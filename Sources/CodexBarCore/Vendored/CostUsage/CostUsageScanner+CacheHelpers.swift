@@ -896,12 +896,6 @@ extension CostUsageScanner {
               !context.forceFullScan
         else { return false }
 
-        if let parentSessionId = cached.forkedFromId {
-            guard let cachedDependencyKey = cached.forkBaselineDependencyKey,
-                  try cachedDependencyKey == (context.resources.inheritedResolver.dependencyKey(for: parentSessionId))
-            else { return false }
-        }
-
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
 
         let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
@@ -909,8 +903,14 @@ extension CostUsageScanner {
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
         }
+        if sessionAlreadyContributed, cachedRows.isEmpty {
+            return false
+        }
+        if let parentSessionId = cached.forkedFromId {
+            let currentDependencyKey = try context.resources.inheritedResolver.dependencyKey(for: parentSessionId)
+            guard cached.forkBaselineDependencyKey == currentDependencyKey else { return false }
+        }
         if sessionAlreadyContributed {
-            guard !cachedRows.isEmpty else { return false }
             let uniqueRows = Self.uniqueCodexRows(
                 rows: cachedRows,
                 sessionId: cached.sessionId,
