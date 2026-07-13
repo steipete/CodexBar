@@ -28,6 +28,7 @@ enum CodexLineageShadow {
         let containedFamilyCount: Int
         let containmentReasonCounts: [CodexLineageLedger.ContainmentReason: Int]
         let resetEpochDiagnostics: CodexLineageResetEpochDiagnostics.Report
+        let branchFrontierDiagnostics: CodexLineageBranchFrontierDiagnostics.Report
     }
 
     static func run(
@@ -74,6 +75,9 @@ enum CodexLineageShadow {
         let resetEpochDiagnostics = try CodexLineageResetEpochDiagnostics.analyze(
             families: preparedFamilies,
             checkCancellation: checkCancellation)
+        let branchFrontierDiagnostics = try CodexLineageBranchFrontierDiagnostics.analyze(
+            families: preparedFamilies,
+            checkCancellation: checkCancellation)
         let ledger = conservative.primary
         let legacy = Self.legacyTotalsByDay(legacyDays)
         let dayKeys = Set(legacy.keys).union(ledger.localDays.keys)
@@ -101,7 +105,8 @@ enum CodexLineageShadow {
                 return false
             },
             containmentReasonCounts: Self.containmentReasonCounts(conservative.families),
-            resetEpochDiagnostics: resetEpochDiagnostics)
+            resetEpochDiagnostics: resetEpochDiagnostics,
+            branchFrontierDiagnostics: branchFrontierDiagnostics)
     }
 
     private static func containmentReasonCounts(

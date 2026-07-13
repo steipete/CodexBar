@@ -21,6 +21,41 @@ struct CodexLineageLocalValidationTests {
     }
 
     @Test
+    func `local branch frontier diagnostic`() throws {
+        guard ProcessInfo.processInfo.environment["CODEXBAR_VALIDATE_BRANCH_FRONTIERS_ONLY"] == "1" else { return }
+        CodexBarLog.setLogLevel(.critical)
+        let root = try #require(ProcessInfo.processInfo.environment["CODEXBAR_LINEAGE_VALIDATION_ROOT"])
+        let snapshotHome = URL(fileURLWithPath: root, isDirectory: true)
+            .appendingPathComponent("codex-home", isDirectory: true)
+        let roots = [
+            snapshotHome.appendingPathComponent("sessions", isDirectory: true),
+            snapshotHome.appendingPathComponent("archived_sessions", isDirectory: true),
+        ]
+        let included = Self.rollouts(roots: roots, days: Self.discoveryDays)
+        let report = try Self.branchFrontierDiagnostics(includedFiles: included, roots: roots)
+        let output: [String: Any] = [
+            "families": report.familyCount,
+            "eligibleFamilies": report.eligibleFamilyCount,
+            "ambiguousOwnerHistories": report.ambiguousOwnerHistoryCount,
+            "resolvedParentEdges": report.resolvedParentEdgeCount,
+            "unresolvedParentEdges": report.unresolvedParentEdgeCount,
+            "sharedPrefixFingerprints": report.sharedPrefixFingerprintCount,
+            "strongPostFrontierFingerprints": report.strongPostFrontierFingerprintCount,
+            "ambiguousPostFrontierFingerprints": report.ambiguousPostFrontierFingerprintCount,
+            "ambiguousBranchInstances": report.ambiguousPostFrontierBranchInstanceCount,
+            "unknownPostFrontierFingerprints": report.unknownPostFrontierFingerprintCount,
+            "estimatedSuppressedTokens": report.estimatedSuppressed.input + report.estimatedSuppressed.output,
+            "estimatedSuppressedUTC": report.estimatedSuppressedUTC.mapValues { $0.input + $0.output },
+            "peakFamilyObservations": report.peakFamilyObservationCount,
+            "skippedOversizeFamilies": report.skippedOversizeFamilyCount,
+            "overflowedEstimates": report.overflowedEstimateCount,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])
+        let encoded = try #require(String(bytes: data, encoding: .utf8))
+        print("CODEX_LINEAGE_BRANCH_FRONTIERS " + encoded)
+    }
+
+    @Test
     func `local reset epoch diagnostic`() throws {
         guard ProcessInfo.processInfo.environment["CODEXBAR_VALIDATE_RESET_EPOCHS_ONLY"] == "1" else { return }
         CodexBarLog.setLogLevel(.critical)
@@ -344,6 +379,29 @@ struct CodexLineageLocalValidationTests {
             unresolvedParents: discovery.unresolvedParents)
         let report = try CodexLineageResetEpochDiagnostics.analyze(families: families)
         Self.progress("reset-epoch-ready")
+        return report
+    }
+
+    private static func branchFrontierDiagnostics(
+        includedFiles: [URL],
+        roots: [URL]) throws -> CodexLineageBranchFrontierDiagnostics.Report
+    {
+        self.progress("branch-frontier-start")
+        let discovery = try CodexLineageDiscovery.discover(includedFiles: includedFiles, roots: roots)
+        let documents = discovery.documents.map { document in
+            CodexLineageLedger.Document(
+                ownerID: document.ownerID,
+                metadataSessionID: document.metadataSessionID,
+                parentSessionID: document.parentSessionID,
+                observations: document.observations,
+                scopeID: document.scopeID,
+                incompleteObservationCount: document.incompleteObservationCount)
+        }
+        let families = try CodexLineageEngine.prepareFamilies(
+            documents: documents,
+            unresolvedParents: discovery.unresolvedParents)
+        let report = try CodexLineageBranchFrontierDiagnostics.analyze(families: families)
+        Self.progress("branch-frontier-ready")
         return report
     }
 
