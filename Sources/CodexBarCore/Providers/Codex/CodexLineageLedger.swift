@@ -21,20 +21,12 @@ enum CodexLineageLedger {
     }
 
     struct Observation: Equatable, Sendable {
-        let eventID: String?
         let timestamp: String
         let model: String
         let last: Totals
         let total: Totals
 
-        init(
-            eventID: String? = nil,
-            timestamp: String,
-            model: String = CostUsagePricing.codexUnattributedModel,
-            last: Totals,
-            total: Totals)
-        {
-            self.eventID = eventID
+        init(timestamp: String, model: String = CostUsagePricing.codexUnattributedModel, last: Totals, total: Totals) {
             self.timestamp = timestamp
             self.model = CostUsagePricing.normalizeCodexModel(model)
             self.last = last
@@ -136,6 +128,19 @@ enum CodexLineageLedger {
         localTimeZone: TimeZone,
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> Report
     {
+        try self.reconcile(
+            documents: documents,
+            localTimeZone: localTimeZone,
+            checkCancellation: checkCancellation,
+            validatedDates: [:])
+    }
+
+    private static func reconcile(
+        documents: [Document],
+        localTimeZone: TimeZone,
+        checkCancellation: CostUsageScanner.CancellationCheck?,
+        validatedDates: [String: Date]) throws -> Report
+    {
         var graph = DisjointSet()
         for document in documents {
             try checkCancellation?()
@@ -152,10 +157,13 @@ enum CodexLineageLedger {
 
         var documentsByComponent: [String: [Document]] = [:]
         for document in documents {
+            try checkCancellation?()
             let componentID = graph.find(Self.scoped(document.ownerID, document: document))
             documentsByComponent[componentID, default: []].append(document)
         }
+
         var physicalObservationCount = 0
+        var parsedDates = validatedDates
         var utcDays: [String: Totals] = [:]
         var localDays: [String: Totals] = [:]
         var utcRows: [DailyRowKey: DailyRowValue] = [:]
@@ -163,40 +171,33 @@ enum CodexLineageLedger {
         var acceptedObservationCount = 0
         for componentDocuments in documentsByComponent.values {
             try checkCancellation?()
-            let parentByOwner = Self.physicalParents(componentDocuments)
-            var accepted: [ObservationIdentity: AcceptedObservation] = [:]
-            var acceptedByFingerprint: [Fingerprint: [String: ObservationIdentity]] = [:]
-            for document in Self.parentsFirst(componentDocuments, parentByOwner: parentByOwner) {
-                let ownerID = Self.scoped(document.ownerID, document: document)
+            var accepted: [Fingerprint: AcceptedObservation] = [:]
+            for document in componentDocuments {
                 for observation in document.observations {
                     try checkCancellation?()
                     physicalObservationCount += 1
-                    let date = try Self.date(from: observation.timestamp)
+                    let date: Date
+                    if let cached = parsedDates[observation.timestamp] {
+                        date = cached
+                    } else {
+                        date = try Self.date(from: observation.timestamp)
+                        parsedDates[observation.timestamp] = date
+                    }
                     let fingerprint = Fingerprint(last: observation.last, total: observation.total)
-                    let proposedIdentity = ObservationIdentity(
-                        eventID: Self.nonEmpty(observation.eventID),
-                        fingerprint: fingerprint)
-                    let comparableIdentity = Self.comparableIdentity(
-                        ownerID: ownerID,
-                        acceptedByOwner: acceptedByFingerprint[fingerprint],
-                        parentByOwner: parentByOwner)
-                    let identity = accepted[proposedIdentity] == nil ? comparableIdentity ?? proposedIdentity :
-                        proposedIdentity
-                    if let existing = accepted[identity] {
-                        if existing.date < date { continue }
+                    if let existing = accepted[fingerprint] {
+                        if existing.date < date {
+                            continue
+                        }
                         if existing.date == date,
                            !Self.shouldPreferModel(observation.model, over: existing.model)
                         {
                             continue
                         }
                     }
-                    accepted[identity] = AcceptedObservation(
+                    accepted[fingerprint] = AcceptedObservation(
                         date: date,
                         model: observation.model,
                         last: observation.last)
-                    if identity == proposedIdentity {
-                        acceptedByFingerprint[fingerprint, default: [:]][ownerID] = identity
-                    }
                 }
             }
             acceptedObservationCount += accepted.count
@@ -251,9 +252,10 @@ enum CodexLineageLedger {
         var primaryDocuments: [Document] = []
         var containedDocuments: [Document] = []
         var families: [FamilyDisposition] = []
+        var validatedDates: [String: Date] = [:]
         for familyDocuments in documentsByFamily.values {
             try checkCancellation?()
-            let reasons = Self.containmentReasons(in: familyDocuments)
+            let reasons = Self.containmentReasons(in: familyDocuments, validatedDates: &validatedDates)
             let owners = Set(familyDocuments.map(\.ownerID))
             let unresolved = familyDocuments.contains { document in
                 guard let parent = Self.nonEmpty(document.parentSessionID) else { return false }
@@ -284,7 +286,8 @@ enum CodexLineageLedger {
             primary: Self.reconcile(
                 documents: primaryDocuments,
                 localTimeZone: localTimeZone,
-                checkCancellation: checkCancellation),
+                checkCancellation: checkCancellation,
+                validatedDates: validatedDates),
             families: families,
             containedDocuments: containedDocuments)
     }
@@ -292,15 +295,6 @@ enum CodexLineageLedger {
     private struct Fingerprint: Equatable, Hashable {
         let last: Totals
         let total: Totals
-    }
-
-    private enum ObservationIdentity: Equatable, Hashable {
-        case event(String)
-        case fingerprint(Fingerprint)
-
-        init(eventID: String?, fingerprint: Fingerprint) {
-            self = eventID.map(Self.event) ?? .fingerprint(fingerprint)
-        }
     }
 
     private struct AcceptedObservation {
@@ -331,59 +325,6 @@ enum CodexLineageLedger {
 
     private static func canonicalIdentity(_ identity: String) -> String {
         UUID(uuidString: identity)?.uuidString.lowercased() ?? identity
-    }
-
-    private static func physicalParents(_ documents: [Document]) -> [String: String] {
-        let physicalOwners = Set(documents.map { Self.scoped($0.ownerID, document: $0) })
-        var result: [String: String] = [:]
-        for document in documents {
-            guard let parent = Self.nonEmpty(document.parentSessionID) else { continue }
-            let owner = Self.scoped(document.ownerID, document: document)
-            let parentIdentity = Self.scoped(parent, document: document)
-            guard physicalOwners.contains(parentIdentity), parentIdentity != owner else { continue }
-            result[owner] = parentIdentity
-        }
-        return result
-    }
-
-    private static func comparableIdentity(
-        ownerID: String,
-        acceptedByOwner: [String: ObservationIdentity]?,
-        parentByOwner: [String: String]) -> ObservationIdentity?
-    {
-        guard let acceptedByOwner else { return nil }
-        var current: String? = ownerID
-        var visited: Set<String> = []
-        while let candidate = current, visited.insert(candidate).inserted {
-            if let identity = acceptedByOwner[candidate] { return identity }
-            current = parentByOwner[candidate]
-        }
-        return nil
-    }
-
-    private static func parentsFirst(_ documents: [Document], parentByOwner: [String: String]) -> [Document] {
-        var depths: [String: Int] = [:]
-        func depth(_ owner: String) -> Int {
-            if let cached = depths[owner] { return cached }
-            var path: [String] = []
-            var current = owner
-            var seen: Set<String> = []
-            while let parent = parentByOwner[current], seen.insert(current).inserted {
-                path.append(current)
-                current = parent
-            }
-            let base = depths[current] ?? 0
-            for (offset, item) in path.reversed().enumerated() {
-                depths[item] = base + offset + 1
-            }
-            depths[owner] = depths[owner] ?? base
-            return depths[owner] ?? 0
-        }
-        return documents.sorted { lhs, rhs in
-            let lhsDepth = depth(Self.scoped(lhs.ownerID, document: lhs))
-            let rhsDepth = depth(Self.scoped(rhs.ownerID, document: rhs))
-            return lhsDepth == rhsDepth ? Self.documentComesBefore(lhs, rhs) : lhsDepth < rhsDepth
-        }
     }
 
     private static func documentComesBefore(_ lhs: Document, _ rhs: Document) -> Bool {
@@ -419,14 +360,25 @@ enum CodexLineageLedger {
         ].joined(separator: "\u{0}")
     }
 
-    private static func containmentReasons(in documents: [Document]) -> Set<ContainmentReason> {
+    private static func containmentReasons(
+        in documents: [Document],
+        validatedDates: inout [String: Date]) -> Set<ContainmentReason>
+    {
         var reasons: Set<ContainmentReason> = []
         if documents.contains(where: { $0.incompleteObservationCount > 0 }) {
             reasons.insert(.incompleteObservation)
         }
-        if documents.flatMap(\.observations)
-            .contains(where: { CostUsageScanner.dateFromTimestamp($0.timestamp) == nil })
-        {
+        var hasMalformedTimestamp = false
+        timestampValidation: for document in documents {
+            for observation in document.observations where validatedDates[observation.timestamp] == nil {
+                guard let date = CostUsageScanner.dateFromTimestamp(observation.timestamp) else {
+                    hasMalformedTimestamp = true
+                    break timestampValidation
+                }
+                validatedDates[observation.timestamp] = date
+            }
+        }
+        if hasMalformedTimestamp {
             reasons.insert(.malformedTimestamp)
         }
         let ownerGroups = Dictionary(grouping: documents, by: \.ownerID)

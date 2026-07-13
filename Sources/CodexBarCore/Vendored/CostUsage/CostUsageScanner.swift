@@ -1706,8 +1706,10 @@ enum CostUsageScanner {
     private static func parseCodexTokenSnapshots(
         fileURL: URL,
         retainEvidence: Bool = true,
+        retainSnapshots: Bool = true,
         suppressScanErrors: Bool = true,
-        checkCancellation: CancellationCheck? = nil) throws -> CodexParsedTokenEvidence
+        checkCancellation: CancellationCheck? = nil,
+        onChunk: ((Data) -> Void)? = nil) throws -> CodexParsedTokenEvidence
     {
         var sessionId: String?
         var forkedFromId: String?
@@ -1743,7 +1745,7 @@ enum CostUsageScanner {
             if last == nil || total == nil {
                 incompleteObservationCount += 1
             }
-            if retainEvidence {
+            if retainEvidence, retainSnapshots {
                 let counted = accumulator.apply(last: last, total: total)
                 snapshots.append(CodexTimestampedTotals(
                     timestamp: timestamp,
@@ -1776,6 +1778,7 @@ enum CostUsageScanner {
                 maxLineBytes: 512 * 1024,
                 prefixBytes: 512 * 1024,
                 checkCancellation: checkCancellation,
+                onChunk: onChunk,
                 onLine: { line in
                     guard !line.bytes.isEmpty else { return }
                     if line.wasTruncated {
@@ -1911,6 +1914,7 @@ enum CostUsageScanner {
     {
         let parsed = try Self.parseCodexTokenSnapshots(
             fileURL: fileURL,
+            retainSnapshots: false,
             suppressScanErrors: false,
             checkCancellation: checkCancellation)
         return CodexLineageLedger.Document(
@@ -1920,6 +1924,27 @@ enum CostUsageScanner {
             observations: parsed.observations,
             scopeID: Self.codexLineageScopeID(fileURL: fileURL),
             incompleteObservationCount: parsed.incompleteObservationCount)
+    }
+
+    static func parseCodexLineageDocumentWithSHA256(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> (document: CodexLineageLedger.Document, sha256: String)
+    {
+        var hasher = SHA256()
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            retainSnapshots: false,
+            suppressScanErrors: false,
+            checkCancellation: checkCancellation,
+            onChunk: { hasher.update(data: $0) })
+        let document = CodexLineageLedger.Document(
+            ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
+            metadataSessionID: parsed.sessionId,
+            parentSessionID: parsed.forkedFromId,
+            observations: parsed.observations,
+            scopeID: Self.codexLineageScopeID(fileURL: fileURL),
+            incompleteObservationCount: parsed.incompleteObservationCount)
+        return (document, Self.hexDigest(hasher.finalize()))
     }
 
     static func parseCodexLineageDocumentSummary(
@@ -1938,6 +1963,31 @@ enum CostUsageScanner {
             scopeID: Self.codexLineageScopeID(fileURL: fileURL),
             incompleteObservationCount: parsed.incompleteObservationCount,
             observationCount: parsed.observationCount)
+    }
+
+    static func parseCodexLineageDocumentSummaryWithSHA256(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> (summary: CodexLineageDocumentSummary, sha256: String)
+    {
+        var hasher = SHA256()
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            retainEvidence: false,
+            suppressScanErrors: false,
+            checkCancellation: checkCancellation,
+            onChunk: { hasher.update(data: $0) })
+        let summary = CodexLineageDocumentSummary(
+            ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
+            metadataSessionID: parsed.sessionId,
+            parentSessionID: parsed.forkedFromId,
+            scopeID: Self.codexLineageScopeID(fileURL: fileURL),
+            incompleteObservationCount: parsed.incompleteObservationCount,
+            observationCount: parsed.observationCount)
+        return (summary, Self.hexDigest(hasher.finalize()))
+    }
+
+    private static func hexDigest(_ digest: some Sequence<UInt8>) -> String {
+        digest.map { String(format: "%02x", $0) }.joined()
     }
 
     static func codexLineageScopeID(fileURL: URL) -> String {

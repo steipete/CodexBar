@@ -54,6 +54,9 @@ enum CodexLineageEngine {
         let observationCount: Int
         let peakFamilyObservationCount: Int
         let peakAcceptedFingerprintCount: Int
+        let documentLoadMilliseconds: Int64
+        let familyReconciliationMilliseconds: Int64
+        let compositionMilliseconds: Int64
     }
 
     struct Result: Equatable, Sendable {
@@ -189,6 +192,8 @@ enum CodexLineageEngine {
         var reused = 0
         var peakLoadedObservations = 0
         var peakAccepted = 0
+        var documentLoadDuration = Duration.zero
+        var familyReconciliationDuration = Duration.zero
         for family in families.sorted(by: { $0.stableID < $1.stableID }) {
             try checkCancellation?()
             let cacheFingerprint = Self.cacheFingerprint(
@@ -203,6 +208,7 @@ enum CodexLineageEngine {
             var documents: [CodexLineageLedger.Document] = []
             documents.reserveCapacity(family.descriptors.count)
             var loadedObservations = 0
+            let loadStarted = ContinuousClock.now
             for descriptor in family.descriptors {
                 try checkCancellation?()
                 let document: CodexLineageLedger.Document = if let loadDocument {
@@ -215,12 +221,15 @@ enum CodexLineageEngine {
                 loadedObservations += document.observations.count
                 documents.append(document)
             }
+            documentLoadDuration += loadStarted.duration(to: .now)
             peakLoadedObservations = max(peakLoadedObservations, loadedObservations)
+            let reconciliationStarted = ContinuousClock.now
             let conservative = try CodexLineageLedger.reconcileConservatively(
                 documents: documents,
                 unresolvedParents: family.unresolvedParents,
                 localTimeZone: localTimeZone,
                 checkCancellation: checkCancellation)
+            familyReconciliationDuration += reconciliationStarted.duration(to: .now)
             let quality = conservative.families.first?.quality ?? .primary
             let result = FamilyResult(
                 stableID: family.stableID,
@@ -233,7 +242,9 @@ enum CodexLineageEngine {
             peakAccepted = max(peakAccepted, result.report.acceptedObservationCount)
         }
         results.sort { $0.stableID < $1.stableID }
+        let compositionStarted = ContinuousClock.now
         let report = try Self.compose(results.map(\.report), checkCancellation: checkCancellation)
+        let compositionDuration = compositionStarted.duration(to: .now)
         let candidate = Cache(
             algorithmVersion: Self.algorithmVersion,
             familiesByInputFingerprint: Dictionary(uniqueKeysWithValues: results.map {
@@ -250,7 +261,10 @@ enum CodexLineageEngine {
                 reusedFamilyCount: reused,
                 observationCount: families.reduce(0) { $0 + $1.observationCount },
                 peakFamilyObservationCount: peakLoadedObservations,
-                peakAcceptedFingerprintCount: peakAccepted))
+                peakAcceptedFingerprintCount: peakAccepted,
+                documentLoadMilliseconds: Self.milliseconds(documentLoadDuration),
+                familyReconciliationMilliseconds: Self.milliseconds(familyReconciliationDuration),
+                compositionMilliseconds: Self.milliseconds(compositionDuration)))
     }
 
     static func reconcile(
@@ -267,6 +281,7 @@ enum CodexLineageEngine {
         var recomputed = 0
         var reused = 0
         var peakAccepted = 0
+        var familyReconciliationDuration = Duration.zero
 
         for family in families.sorted(by: { $0.stableID < $1.stableID }) {
             try checkCancellation?()
@@ -282,11 +297,13 @@ enum CodexLineageEngine {
                 peakAccepted = max(peakAccepted, cached.report.acceptedObservationCount)
                 continue
             }
+            let reconciliationStarted = ContinuousClock.now
             let conservative = try CodexLineageLedger.reconcileConservatively(
                 documents: family.documents,
                 unresolvedParents: family.unresolvedParents,
                 localTimeZone: localTimeZone,
                 checkCancellation: checkCancellation)
+            familyReconciliationDuration += reconciliationStarted.duration(to: .now)
             let quality = conservative.families.first?.quality ?? .primary
             let familyFingerprint = Self.familyFingerprint(input: cacheFingerprint, quality: quality)
             let result = FamilyResult(
@@ -301,7 +318,9 @@ enum CodexLineageEngine {
         }
 
         results.sort { $0.stableID < $1.stableID }
+        let compositionStarted = ContinuousClock.now
         let report = try Self.compose(results.map(\.report), checkCancellation: checkCancellation)
+        let compositionDuration = compositionStarted.duration(to: .now)
         let candidate = Cache(
             algorithmVersion: Self.algorithmVersion,
             familiesByInputFingerprint: Dictionary(uniqueKeysWithValues: results.map {
@@ -318,7 +337,10 @@ enum CodexLineageEngine {
                 reusedFamilyCount: reused,
                 observationCount: families.reduce(0) { $0 + $1.observationCount },
                 peakFamilyObservationCount: families.map(\.observationCount).max() ?? 0,
-                peakAcceptedFingerprintCount: peakAccepted))
+                peakAcceptedFingerprintCount: peakAccepted,
+                documentLoadMilliseconds: 0,
+                familyReconciliationMilliseconds: Self.milliseconds(familyReconciliationDuration),
+                compositionMilliseconds: Self.milliseconds(compositionDuration)))
     }
 
     static func publish(
@@ -548,6 +570,11 @@ enum CodexLineageEngine {
 
     private static func scoped(_ value: String, scopeID: String) -> String {
         scopeID + "\u{0}" + self.canonical(value)
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Int64 {
+        let components = duration.components
+        return components.seconds * 1000 + Int64(components.attoseconds / 1_000_000_000_000_000)
     }
 
     private struct DisjointSet {

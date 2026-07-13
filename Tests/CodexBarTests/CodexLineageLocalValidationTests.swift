@@ -182,13 +182,17 @@ struct CodexLineageLocalValidationTests {
 
         let lineageStarted = ContinuousClock.now
         Self.progress("discovery-start")
+        let discoveryStarted = ContinuousClock.now
         let discovery = try CodexLineageTwoPassDiscovery.discover(
             includedFiles: included,
             roots: [sessions, archived])
+        let discoveryDuration = discoveryStarted.duration(to: .now)
         Self.progress("discovery-ready")
+        let preparationStarted = ContinuousClock.now
         let families = try CodexLineageEngine.prepareDescriptorFamilies(
             descriptors: discovery.descriptors,
             unresolvedParents: discovery.unresolvedParents)
+        let preparationDuration = preparationStarted.duration(to: .now)
         Self.progress("families-ready")
         let lineage = try CodexLineageEngine.reconcileStreaming(families: families, localTimeZone: .gmt)
         Self.progress("lineage-ready")
@@ -307,6 +311,11 @@ struct CodexLineageLocalValidationTests {
             "performance": [
                 "legacyMilliseconds": Self.milliseconds(legacyDuration),
                 "lineageMilliseconds": Self.milliseconds(lineageDuration),
+                "discoveryMilliseconds": Self.milliseconds(discoveryDuration),
+                "preparationMilliseconds": Self.milliseconds(preparationDuration),
+                "documentLoadMilliseconds": lineage.diagnostics.documentLoadMilliseconds,
+                "familyReconciliationMilliseconds": lineage.diagnostics.familyReconciliationMilliseconds,
+                "compositionMilliseconds": lineage.diagnostics.compositionMilliseconds,
             ],
             "ordinaryDayDivergenceCount": ordinaryDivergenceCount,
             "resetEpochDiagnostics": [

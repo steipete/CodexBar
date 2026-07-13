@@ -105,19 +105,19 @@ enum CodexLineageTwoPassDiscovery {
         // Validate both sides of the parse. A post-parse signature alone can bless a
         // mixed read when a rollout is replaced while the parser has the file open.
         let initialSignature = try Self.signature(fileURL: fileURL, checkCancellation: checkCancellation)
-        let summary = try CostUsageScanner.parseCodexLineageDocumentSummary(
+        let parsed = try CostUsageScanner.parseCodexLineageDocumentSummaryWithSHA256(
             fileURL: fileURL,
             checkCancellation: checkCancellation)
-        let finalSignature = try Self.signature(fileURL: fileURL, checkCancellation: checkCancellation)
+        let finalSignature = try Self.signatureMetadata(fileURL: fileURL, contentSHA256: parsed.sha256)
         guard initialSignature == finalSignature else { throw DiscoveryError.fileChangedDuringScan }
         return Descriptor(
             fileURL: fileURL,
-            ownerID: summary.ownerID,
-            metadataSessionID: summary.metadataSessionID,
-            parentSessionID: summary.parentSessionID,
-            scopeID: summary.scopeID,
-            incompleteObservationCount: summary.incompleteObservationCount,
-            observationCount: summary.observationCount,
+            ownerID: parsed.summary.ownerID,
+            metadataSessionID: parsed.summary.metadataSessionID,
+            parentSessionID: parsed.summary.parentSessionID,
+            scopeID: parsed.summary.scopeID,
+            incompleteObservationCount: parsed.summary.incompleteObservationCount,
+            observationCount: parsed.summary.observationCount,
             signature: finalSignature)
     }
 
@@ -125,16 +125,13 @@ enum CodexLineageTwoPassDiscovery {
         _ descriptor: Descriptor,
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> CodexLineageLedger.Document
     {
-        guard try self.signature(fileURL: descriptor.fileURL, checkCancellation: checkCancellation) == descriptor
-            .signature
-        else { throw DiscoveryError.fileChangedDuringScan }
-        let document = try CostUsageScanner.parseCodexLineageDocument(
+        let parsed = try CostUsageScanner.parseCodexLineageDocumentWithSHA256(
             fileURL: descriptor.fileURL,
             checkCancellation: checkCancellation)
-        guard try Self.signature(fileURL: descriptor.fileURL, checkCancellation: checkCancellation) == descriptor
+        guard try Self.signatureMetadata(fileURL: descriptor.fileURL, contentSHA256: parsed.sha256) == descriptor
             .signature
         else { throw DiscoveryError.fileChangedDuringScan }
-        return document
+        return parsed.document
     }
 
     private static func signature(
@@ -156,6 +153,14 @@ enum CodexLineageTwoPassDiscovery {
             size: Int64(values.fileSize ?? 0),
             modifiedMilliseconds: Int64((values.contentModificationDate?.timeIntervalSince1970 ?? 0) * 1000),
             contentSHA256: digest)
+    }
+
+    private static func signatureMetadata(fileURL: URL, contentSHA256: String) throws -> FileSignature {
+        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        return FileSignature(
+            size: Int64(values.fileSize ?? 0),
+            modifiedMilliseconds: Int64((values.contentModificationDate?.timeIntervalSince1970 ?? 0) * 1000),
+            contentSHA256: contentSHA256)
     }
 
     private struct ScopedIdentity: Equatable, Hashable {

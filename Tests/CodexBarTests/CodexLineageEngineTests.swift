@@ -156,6 +156,26 @@ struct CodexLineageEngineTests {
         #expect(result.diagnostics.peakAcceptedFingerprintCount <= 2000)
     }
 
+    @Test(.timeLimit(.minutes(2)))
+    func `duplicate heavy multi million observation family keeps one accepted fingerprint`() throws {
+        let repeated = Array(repeating: Self.observation(input: 1, total: 1), count: 100_000)
+        let documents = (0..<20).map { index in
+            Self.document(
+                owner: "owner-\(index)",
+                parent: index == 0 ? nil : "owner-0",
+                observations: repeated)
+        }
+        let families = try CodexLineageEngine.prepareFamilies(documents: documents)
+
+        let result = try CodexLineageEngine.reconcile(families: families, localTimeZone: .gmt)
+
+        #expect(result.diagnostics.observationCount == 2_000_000)
+        #expect(result.diagnostics.peakFamilyObservationCount == 2_000_000)
+        #expect(result.diagnostics.peakAcceptedFingerprintCount == 1)
+        #expect(result.report.acceptedObservationCount == 1)
+        #expect(result.report.duplicateObservationCount == 1_999_999)
+    }
+
     @Test
     func `cancellation propagates during preparation and reconciliation without a candidate`() throws {
         let documents = (0..<20).map { index in

@@ -31,6 +31,7 @@ enum CostUsageJsonl {
         maxLineBytes: Int,
         prefixBytes: Int,
         checkCancellation: (() throws -> Void)? = nil,
+        onChunk: ((Data) -> Void)? = nil,
         onLine: (Line) -> Void) throws
         -> Int64
     {
@@ -81,6 +82,7 @@ enum CostUsageJsonl {
                 }
 
                 try checkCancellation?()
+                onChunk?(chunk)
                 bytesRead += Int64(chunk.count)
                 chunk.withUnsafeBytes { rawBuffer in
                     guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
@@ -100,7 +102,9 @@ enum CostUsageJsonl {
                 }
                 return false
             }
-            if reachedEOF { break }
+            if reachedEOF {
+                break
+            }
             try checkCancellation?()
         }
 
