@@ -10,6 +10,11 @@ import Musl
 import Security
 #endif
 
+#if os(Linux)
+@_silgen_name("pipe2")
+private func linuxPipe2(_ pipeDescriptors: UnsafeMutablePointer<Int32>, _ flags: Int32) -> Int32
+#endif
+
 public enum PathPurpose: Hashable, Sendable {
     case rpc
     case tty
@@ -748,7 +753,12 @@ public enum ShellCommandLocator {
 
     private static func makeCloseOnExecPipe() -> (read: Int32, write: Int32)? {
         var fds: (read: Int32, write: Int32) = (-1, -1)
-        #if canImport(Darwin)
+        #if os(Linux)
+        // Glibc and Musl export pipe2, but their Swift modules do not consistently declare it.
+        guard withUnsafeMutablePointer(to: &fds, {
+            $0.withMemoryRebound(to: Int32.self, capacity: 2) { linuxPipe2($0, O_CLOEXEC) == 0 }
+        }) else { return nil }
+        #else
         guard withUnsafeMutablePointer(to: &fds, {
             $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
         }) else { return nil }
@@ -761,10 +771,6 @@ public enum ShellCommandLocator {
                 return nil
             }
         }
-        #else
-        guard withUnsafeMutablePointer(to: &fds, {
-            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe2($0, O_CLOEXEC) == 0 }
-        }) else { return nil }
         #endif
         return fds
     }
@@ -781,9 +787,8 @@ public enum ShellCommandLocator {
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
-        // Darwin lacks pipe2(O_CLOEXEC). Keep raw descriptor creation, flagging,
-        // and spawn inside one lock so another PATH probe cannot exec during the
-        // pipe-to-fcntl window. Linux gets atomic close-on-exec pipe creation too.
+        // Darwin needs a lock around raw descriptor creation, close-on-exec flagging,
+        // and spawn. Linux creates close-on-exec descriptors atomically with pipe2.
         self.shellSpawnLock.lock()
         var shellSpawnLockHeld = true
         defer {
