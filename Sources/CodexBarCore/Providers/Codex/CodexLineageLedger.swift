@@ -69,9 +69,14 @@ enum CodexLineageLedger {
         case invalidTimestamp(String)
     }
 
-    static func reconcile(documents: [Document], localTimeZone: TimeZone) throws -> Report {
+    static func reconcile(
+        documents: [Document],
+        localTimeZone: TimeZone,
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> Report
+    {
         var graph = DisjointSet()
         for document in documents {
+            try checkCancellation?()
             guard !document.ownerID.isEmpty else { throw LedgerError.emptyOwnerID }
             graph.insert(document.ownerID)
             if let metadataSessionID = Self.nonEmpty(document.metadataSessionID) {
@@ -85,9 +90,11 @@ enum CodexLineageLedger {
         var acceptedByComponent: [String: [Fingerprint: AcceptedObservation]] = [:]
         var physicalObservationCount = 0
         for document in documents {
+            try checkCancellation?()
             let componentID = graph.find(document.ownerID)
             var accepted = acceptedByComponent[componentID] ?? [:]
             for observation in document.observations {
+                try checkCancellation?()
                 physicalObservationCount += 1
                 let date = try Self.date(from: observation.timestamp)
                 let fingerprint = Fingerprint(last: observation.last, total: observation.total)
@@ -115,8 +122,10 @@ enum CodexLineageLedger {
         var localRows: [DailyRowKey: DailyRowValue] = [:]
         var acceptedObservationCount = 0
         for accepted in acceptedByComponent.values {
+            try checkCancellation?()
             acceptedObservationCount += accepted.count
             for observation in accepted.values {
+                try checkCancellation?()
                 Self.add(observation.last, on: observation.date, timeZone: .gmt, to: &utcDays)
                 Self.add(observation.last, on: observation.date, timeZone: localTimeZone, to: &localDays)
                 Self.addRow(observation, timeZone: .gmt, to: &utcRows)
