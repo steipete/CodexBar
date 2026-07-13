@@ -352,11 +352,9 @@ final class UsageStore {
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored let accountInfoCacheTTL: TimeInterval = 30
     var tokenFetchTTL: TimeInterval {
-        if let nominal = ProviderRegistry.nominalRefreshInterval(for: self.settings.refreshFrequency) {
-            return nominal
-        }
-        return 60 * 60
+        ProviderRegistry.nominalRefreshInterval(for: self.settings.refreshFrequency) ?? (60 * 60)
     }
+
     @ObservationIgnored let tokenFetchTimeout: TimeInterval = 10 * 60
     @ObservationIgnored let startupBehavior: StartupBehavior
     @ObservationIgnored let planUtilizationPersistenceCoordinator: PlanUtilizationHistoryPersistenceCoordinator
@@ -1645,10 +1643,7 @@ extension UsageStore {
     /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
     /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
     nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
-        if case CostUsageError.timedOut = error {
-            return false
-        }
-        return true
+        if case CostUsageError.timedOut = error { false } else { true }
     }
 }
 

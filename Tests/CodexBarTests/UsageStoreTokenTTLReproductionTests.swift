@@ -56,11 +56,11 @@ private actor TokenRefreshRecorder {
 @Suite(.serialized)
 struct UsageStoreTokenTTLReproductionTests {
     @Test
-    func `token refresh follows configured frequency and cooldown checks`() async {
+    func `token refresh follows configured frequency and cooldown checks`() async throws {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()
         let recorder = TokenRefreshRecorder()
-        
+
         store._test_providerRefreshOverride = { _ in }
         store._test_tokenUsageRefreshOverride = { provider, force in
             await recorder.record(provider: provider, force: force)
@@ -81,23 +81,23 @@ struct UsageStoreTokenTTLReproductionTests {
         #expect(await recorder.calls.isEmpty)
 
         // Test Case 3: Pass 61 seconds (by faking lastTokenFetchAt to be 61s ago) -> triggers fetch
-        let originalLast = store.lastTokenFetchAt[.codex]!
+        let originalLast = try #require(store.lastTokenFetchAt[.codex])
         store.lastTokenFetchAt[.codex] = originalLast.addingTimeInterval(-61)
-        
+
         let gate2 = TokenRefreshGate()
         store._test_tokenUsageRefreshOverride = { provider, force in
             await recorder.record(provider: provider, force: force)
             await gate2.start(provider: provider, force: force)
             await gate2.waitForRelease()
         }
-        
+
         let t2 = Task { @MainActor in await store.refresh(forceTokenUsage: false) }
         await gate2.waitForStart()
         await gate2.release()
         await t2.value
         #expect(await recorder.calls.count == 1)
         await recorder.clear()
-        
+
         // Test Case 4: If refreshFrequency is .thirtyMinutes, 61s elapsed is still within the 30-minute TTL -> skipped
         store.settings.refreshFrequency = .thirtyMinutes
         store.lastTokenFetchAt[.codex] = Date().addingTimeInterval(-61) // 61s ago
