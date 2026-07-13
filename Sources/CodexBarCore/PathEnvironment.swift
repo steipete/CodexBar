@@ -641,10 +641,11 @@ public enum CodexLaunchPreflight {
 
 public enum ShellCommandLocator {
     #if canImport(Darwin)
-    private static let shellSpawnFlags = Int16(POSIX_SPAWN_SETSID)
+    private static let shellSpawnFlags = Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT)
     #else
     private static let shellSpawnFlags: Int16 = 0x80 // glibc/musl POSIX_SPAWN_SETSID.
     #endif
+    private static let shellSpawnLock = NSLock()
 
     static func test_runShellCommand(
         shell: String,
@@ -652,6 +653,10 @@ public enum ShellCommandLocator {
         timeout: TimeInterval) -> Data?
     {
         self.runShellCommand(shell: shell, arguments: arguments, timeout: timeout)
+    }
+
+    static func test_makeCloseOnExecPipe() -> (read: Int32, write: Int32)? {
+        self.makeCloseOnExecPipe()
     }
 
     static var test_shellSpawnFlags: Int16 {
@@ -741,6 +746,29 @@ public enum ShellCommandLocator {
         }
     }
 
+    private static func makeCloseOnExecPipe() -> (read: Int32, write: Int32)? {
+        var fds: (read: Int32, write: Int32) = (-1, -1)
+        #if canImport(Darwin)
+        guard withUnsafeMutablePointer(to: &fds, {
+            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
+        }) else { return nil }
+
+        for fd in [fds.read, fds.write] {
+            let flags = fcntl(fd, F_GETFD)
+            guard flags >= 0, fcntl(fd, F_SETFD, flags | FD_CLOEXEC) == 0 else {
+                close(fds.read)
+                close(fds.write)
+                return nil
+            }
+        }
+        #else
+        guard withUnsafeMutablePointer(to: &fds, {
+            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe2($0, O_CLOEXEC) == 0 }
+        }) else { return nil }
+        #endif
+        return fds
+    }
+
     // swiftlint:disable cyclomatic_complexity
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
@@ -753,16 +781,23 @@ public enum ShellCommandLocator {
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
+        // Darwin lacks pipe2(O_CLOEXEC). Keep raw descriptor creation, flagging,
+        // and spawn inside one lock so another PATH probe cannot exec during the
+        // pipe-to-fcntl window. Linux gets atomic close-on-exec pipe creation too.
+        self.shellSpawnLock.lock()
+        var shellSpawnLockHeld = true
+        defer {
+            if shellSpawnLockHeld {
+                self.shellSpawnLock.unlock()
+            }
+        }
+
         // Pipes for stdout/stderr.  stdin is redirected from /dev/null in the child
-        // via posix_spawn_file_actions_addopen below.
-        var stdoutFds: (read: Int32, write: Int32) = (-1, -1)
-        var stderrFds: (read: Int32, write: Int32) = (-1, -1)
-        guard withUnsafeMutablePointer(to: &stdoutFds, {
-            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
-        }) else { return nil }
-        guard withUnsafeMutablePointer(to: &stderrFds, {
-            $0.withMemoryRebound(to: Int32.self, capacity: 2) { pipe($0) == 0 }
-        }) else {
+        // via posix_spawn_file_actions_addopen below. Close-on-exec prevents a
+        // concurrently spawned probe from retaining these descriptors and being
+        // mistaken for one of this probe's output holders during cleanup.
+        guard let stdoutFds = self.makeCloseOnExecPipe() else { return nil }
+        guard let stderrFds = self.makeCloseOnExecPipe() else {
             close(stdoutFds.read); close(stdoutFds.write)
             return nil
         }
@@ -849,6 +884,8 @@ public enum ShellCommandLocator {
         // once every descendant in the process group also closes them.
         close(stdoutFds.write)
         close(stderrFds.write)
+        self.shellSpawnLock.unlock()
+        shellSpawnLockHeld = false
 
         guard spawnResult == 0 else {
             close(stdoutFds.read); close(stderrFds.read)

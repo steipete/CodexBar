@@ -949,39 +949,6 @@ enum RPCWireError: Error, LocalizedError {
     }
 }
 
-typealias CodexExecutableResolver = @Sendable (_ environment: [String: String], _ executable: String) -> String?
-
-func resolveCodexExecutableForRPC(
-    environment: [String: String],
-    executable: String,
-    captureLoginPATH: () -> [String]?) -> String?
-{
-    // An explicit override is authoritative and should never need a shell probe.
-    if let override = environment["CODEX_CLI_PATH"],
-       FileManager.default.isExecutableFile(atPath: override)
-    {
-        return override
-    }
-
-    // Capture before the general resolver to preserve login-shell PATH precedence
-    // over bundled fallbacks and to make `/usr/bin/env node` launchers usable.
-    let loginPATH = captureLoginPATH()
-    return BinaryLocator.resolveCodexBinary(env: environment, loginPATH: loginPATH)
-        ?? TTYCommandRunner.which(executable)
-}
-
-let defaultCodexExecutableResolver: CodexExecutableResolver = { environment, executable in
-    // Resolve the login-shell PATH at the actual RPC launch boundary. Warming it
-    // from UsageFetcher.init was both racy for env-based launchers and unsafe for
-    // short-lived CLI hosts because the fire-and-forget probe could outlive them.
-    resolveCodexExecutableForRPC(
-        environment: environment,
-        executable: executable,
-        captureLoginPATH: {
-            LoginShellPathCache.shared.currentOrCapture(shell: environment["SHELL"])
-        })
-}
-
 /// RPC helper used on background tasks; safe because we confine it to the owning task.
 private final class CodexRPCClient: @unchecked Sendable {
     private static let log = CodexBarLog.logger(LogCategories.codexRPC)
@@ -1038,16 +1005,19 @@ private final class CodexRPCClient: @unchecked Sendable {
         }
         self.stdoutLineContinuation = stdoutContinuation
 
-        let resolvedExec = resolveExecutable(environment, executable)
+        let resolution = resolveExecutable(environment, executable)
 
-        guard let resolvedExec else {
+        guard let resolution else {
             Self.log.warning("Codex RPC binary not found", metadata: ["binary": executable])
             throw CodexStatusProbeError.codexNotInstalled
         }
+        let resolvedExec = resolution.executable
         var env = environment
+        let loginPATH = resolution.loginPATH ?? LoginShellPathCache.shared.current
         env["PATH"] = PathBuilder.effectivePATH(
             purposes: [.rpc, .nodeTooling],
-            env: env)
+            env: env,
+            loginPATH: loginPATH)
 
         self.process.environment = env
         self.process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
