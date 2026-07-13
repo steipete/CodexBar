@@ -3,7 +3,9 @@ import Testing
 @testable import CodexBarCLI
 @testable import CodexBarCore
 
-@Suite
+// These tests temporarily override the process-wide Claude resolver/probe seams.
+// Keep the suite serial so the CLI-present and CLI-absent cases cannot overlap.
+@Suite(.serialized)
 struct PlatformGatingTests {
     @Test
     func `shell probe requests a detached Linux session`() {
