@@ -17,7 +17,8 @@ struct QuotaWarningAlertPresentationStateTests {
     @Test
     func `manual dismissal clears current alert`() {
         var state = QuotaWarningAlertPresentationState()
-        state.present(title: "Session quota low", message: "20% left")
+        let presentation = state.present(title: "Session quota low", message: "20% left")
+        #expect(state.current == presentation)
 
         state.dismiss()
 
