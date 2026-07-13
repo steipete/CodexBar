@@ -6,7 +6,7 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthCredentialsStoreMCPOnlyGuardTests {
     @Test
-    func `standard reader blocks expired CLI owner in background but preserves user refresh`() async throws {
+    func `standard reader skips MCP keychain probe in background but preserves user refresh`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         let mcpOAuthOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"synthetic"}}}"#.utf8)
         let tempDir = FileManager.default.temporaryDirectory
@@ -37,7 +37,17 @@ struct ClaudeOAuthCredentialsStoreMCPOnlyGuardTests {
                                         keychainAccessDisabled: false,
                                         environment: [:])
                                 }
-                                #expect(isMcpOnly)
+                                #expect(!isMcpOnly)
+
+                                let userInitiatedIsMcpOnly = ProviderInteractionContext.$current
+                                    .withValue(.userInitiated) {
+                                        ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+                                            interaction: .userInitiated,
+                                            readStrategy: .securityFramework,
+                                            keychainAccessDisabled: false,
+                                            environment: [:])
+                                    }
+                                #expect(userInitiatedIsMcpOnly)
 
                                 ClaudeOAuthCredentialsStore.invalidateCache()
                                 let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
@@ -54,10 +64,10 @@ struct ClaudeOAuthCredentialsStoreMCPOnlyGuardTests {
                                         environment: [:],
                                         allowKeychainPrompt: false,
                                         respectKeychainPromptCooldown: true)
-                                    Issue.record("Expected MCP-only keychain failure")
+                                    Issue.record("Expected background refresh delegation")
                                 } catch let error as ClaudeOAuthCredentialsError {
-                                    guard case .mcpOAuthOnlyKeychain = error else {
-                                        Issue.record("Expected .mcpOAuthOnlyKeychain, got \(error)")
+                                    guard case .refreshDelegatedToClaudeCLI = error else {
+                                        Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
                                         return
                                     }
                                 } catch {

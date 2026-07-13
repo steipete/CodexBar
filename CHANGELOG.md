@@ -7,6 +7,7 @@
 - Kimi: reuse fresh signed-in Kimi Code CLI credentials in Auto mode without refreshing or rewriting CLI-owned authentication state. Thanks @Leechael!
 
 ### Fixed
+- Claude: keep MCP-only credential discovery out of background Security.framework reads when Keychain prompts are limited to user actions, preventing recurring macOS password dialogs (#2115).
 - Claude: cache successful CLI version probes for 30 minutes while invalidating on executable changes, avoiding repeated PTY launches without retaining failed or stale wrapper results. Thanks @Yuxin-Qiao!
 - Linux CLI: bootstrap the configured IANA timezone before Foundation startup on non-FHS systems, preventing SIGILL on NixOS (#2127). Thanks @xikhar!
 - Ollama: release temporary dashboard network sessions after each fetch, preventing repeated refreshes from retaining delegates and URL-cache resources. Thanks @astuteprogrammer!

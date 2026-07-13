@@ -357,7 +357,17 @@ extension ClaudeOAuthCredentialsStore {
         guard !keychainAccessDisabled || self.isolatedSecurityCLIKeychainPath(environment: environment) != nil else {
             return false
         }
-        guard ClaudeOAuthKeychainPromptPreference.effectiveMode(readStrategy: readStrategy) != .never else {
+        let promptMode = ClaudeOAuthKeychainPromptPreference.effectiveMode(readStrategy: readStrategy)
+        guard promptMode != .never else {
+            return false
+        }
+        // Security.framework "no UI" queries can still display the legacy Keychain ACL password dialog on some
+        // systems. Do not touch the Claude Code keychain from background discovery when the stored policy only
+        // permits user-initiated access. Explicit refreshes retain MCP-only detection, and `.always` remains opt-in.
+        if readStrategy == .securityFramework,
+           promptMode == .onlyOnUserAction,
+           interaction != .userInitiated
+        {
             return false
         }
         let payload: Data? = switch readStrategy {
