@@ -440,6 +440,56 @@ struct OllamaUsageFetcherRetryMappingTests {
         }
     }
 
+    @Test
+    func `temporary session is finished after a successful request`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let body = """
+            <div>
+              <span>Session usage</span>
+              <span>1.2% used</span>
+              <span>Weekly usage</span>
+              <span>3.4% used</span>
+            </div>
+            """
+            return Self.makeResponse(url: url, body: body, statusCode: 200)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: "session=test-cookie",
+            manualCookieMode: true)
+
+        #expect(recorder.count == 1)
+    }
+
+    @Test
+    func `temporary session is finished after a transport failure`() async {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        await #expect(throws: URLError.self) {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=test-cookie",
+                manualCookieMode: true)
+        }
+        #expect(recorder.count == 1)
+    }
+
     private func makeCookieFetcher(
         finishURLSession: @escaping @Sendable (URLSession) -> Void = { $0.finishTasksAndInvalidate() })
         -> OllamaUsageFetcher
