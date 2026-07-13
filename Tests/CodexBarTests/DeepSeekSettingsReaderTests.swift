@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 
 struct DeepSeekSettingsReaderTests {
@@ -53,6 +54,56 @@ struct DeepSeekSettingsReaderTests {
     func `returns nil for whitespace-only key`() {
         let env = ["DEEPSEEK_API_KEY": "   "]
         #expect(DeepSeekSettingsReader.apiKey(environment: env) == nil)
+    }
+
+    @Test
+    func `reads separate platform session token`() {
+        let env = ["DEEPSEEK_PLATFORM_TOKEN": "  browser-session-token  "]
+        #expect(DeepSeekSettingsReader.platformToken(environment: env) == "browser-session-token")
+    }
+
+    @Test
+    func `falls back to DeepSeek user token environment key`() {
+        let env = ["DEEPSEEK_USER_TOKEN": "browser-user-token"]
+        #expect(DeepSeekSettingsReader.platformToken(environment: env) == "browser-user-token")
+    }
+
+    @Test
+    func `reads selected Chrome profile id`() {
+        let env = [DeepSeekSettingsReader.profileIDEnvironmentKey: "  /profiles/Profile 2  "]
+        #expect(DeepSeekSettingsReader.profileID(environment: env) == "chrome:Profile 2")
+    }
+
+    @Test
+    func `migrates an absolute Chrome profile path to a stable identifier`() {
+        let environment = [
+            DeepSeekSettingsReader.profileIDEnvironmentKey:
+                "/Users/example/Library/Application Support/Google/Chrome/Profile 2",
+        ]
+
+        #expect(DeepSeekSettingsReader.profileID(environment: environment) == "chrome:Profile 2")
+    }
+
+    @Test
+    func `profile scope fingerprints the api credential without storing it`() throws {
+        let accountID = UUID()
+        let first = try #require(DeepSeekSettingsReader.profileScope(
+            selectedTokenAccountID: accountID,
+            apiKey: "secret-api-key"))
+        let repeated = try #require(DeepSeekSettingsReader.profileScope(
+            selectedTokenAccountID: accountID,
+            apiKey: "secret-api-key"))
+        let replacedKey = try #require(DeepSeekSettingsReader.profileScope(
+            selectedTokenAccountID: accountID,
+            apiKey: "replacement-api-key"))
+        let otherAccount = try #require(DeepSeekSettingsReader.profileScope(
+            selectedTokenAccountID: UUID(),
+            apiKey: "secret-api-key"))
+
+        #expect(first == repeated)
+        #expect(first != replacedKey)
+        #expect(first != otherAccount)
+        #expect(!first.contains("secret-api-key"))
     }
 }
 

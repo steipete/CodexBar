@@ -902,6 +902,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax اتجاه استخدام الرموز خلال 30 يوما";
 "Today cash" = "اليوم نقدا";
 "DeepSeek 30 day token usage trend" = "DeepSeek اتجاه استخدام الرموز خلال 30 يوما";
+"Detailed usage unavailable." = "الاستخدام التفصيلي غير متاح.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في Chrome لعرض الاستخدام التفصيلي.";
+"Select a DeepSeek Chrome profile in Settings." = "حدد ملف تعريف Chrome لـ DeepSeek في الإعدادات.";
+"DeepSeek this month token usage trend" = "اتجاه استخدام رموز DeepSeek لهذا الشهر";
+"Chrome profile" = "ملف تعريف Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "اختر جلسة DeepSeek Platform المسجّل دخولها التي توفّر تفاصيل الاستخدام.";
+"Select profile…" = "اختر ملفًا شخصيًا…";
 "cache-hit input" = "إدخال الضربات المؤقتة";
 "cache-miss input" = "إدخال ذاكرة تخزين مؤقت (CACHE-miss)";
 "output" = "الإنتاج";

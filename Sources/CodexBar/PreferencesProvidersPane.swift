@@ -163,7 +163,7 @@ struct ProvidersPane: View {
             usageText = L("last_fetch_failed")
         } else if self.store.knownLimitsAvailability(for: provider)?.isUnavailable == true {
             usageText = L("Limits not available")
-        } else if let snapshot = self.store.snapshot(for: provider) {
+        } else if let snapshot = self.store.presentationSnapshot(for: provider) {
             let relative = snapshot.updatedAt.relativeDescription()
             usageText = relative
         } else {
@@ -189,7 +189,7 @@ struct ProvidersPane: View {
             L("last_fetch_failed")
         } else if self.store.knownLimitsAvailability(for: provider)?.isUnavailable == true {
             L("Limits not available")
-        } else if let snapshot = self.store.snapshot(for: provider) {
+        } else if let snapshot = self.store.presentationSnapshot(for: provider) {
             snapshot.updatedAt.relativeDescription()
         } else {
             L("usage_not_fetched_yet")
@@ -620,7 +620,7 @@ struct ProvidersPane: View {
 
     func menuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
         let metadata = self.store.metadata(for: provider)
-        let snapshot = self.store.snapshot(for: provider)
+        let snapshot = self.store.presentationSnapshot(for: provider)
         let now = Date()
         let codexProjection = self.store.codexConsumerProjectionIfNeeded(
             for: provider,

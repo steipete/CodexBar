@@ -902,6 +902,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax แนวโน้มการใช้โทเค็น 30 วัน";
 "Today cash" = "เงินสดวันนี้";
 "DeepSeek 30 day token usage trend" = "DeepSeek แนวโน้มการใช้โทเค็น 30 วัน";
+"Detailed usage unavailable." = "ไม่มีข้อมูลการใช้งานโดยละเอียด";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "ลงชื่อเข้าใช้ DeepSeek Platform ใน Chrome เพื่อดูรายละเอียดการใช้งาน";
+"Select a DeepSeek Chrome profile in Settings." = "เลือกโปรไฟล์ Chrome ของ DeepSeek ในการตั้งค่า";
+"DeepSeek this month token usage trend" = "แนวโน้มการใช้โทเค็น DeepSeek เดือนนี้";
+"Chrome profile" = "โปรไฟล์ Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "เลือกเซสชัน DeepSeek Platform ที่ลงชื่อเข้าใช้เพื่อแสดงรายละเอียดการใช้งาน";
+"Select profile…" = "เลือกโปรไฟล์…";
 "cache-hit input" = "อินพุต cache-hit";
 "cache-miss input" = "อินพุตแคชพลาด";
 "output" = "เอาท์พุท";

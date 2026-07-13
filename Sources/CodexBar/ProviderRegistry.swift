@@ -56,7 +56,10 @@ struct ProviderRegistry {
                         runtime: .app,
                         sourceMode: sourceMode,
                         includeCredits: false,
-                        includeOptionalUsage: settings.showOptionalCreditsAndExtraUsage,
+                        includeOptionalUsage: ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                            provider: provider,
+                            settings: settings,
+                            override: nil),
                         webTimeout: 60,
                         webDebugDumpHTML: false,
                         verbose: verbose,

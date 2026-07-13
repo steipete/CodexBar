@@ -190,6 +190,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let deepseekUsage: DeepSeekUsageSummary?
+    public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
+    public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
     public let mimoUsage: MiMoUsageSnapshot?
     public let openRouterUsage: OpenRouterUsageSnapshot?
     public let sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot?
@@ -258,6 +260,8 @@ public struct UsageSnapshot: Codable, Sendable {
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         deepseekUsage: DeepSeekUsageSummary? = nil,
+        deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
+        deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
         mimoUsage: MiMoUsageSnapshot? = nil,
         openRouterUsage: OpenRouterUsageSnapshot? = nil,
         sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot? = nil,
@@ -291,6 +295,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
         self.deepseekUsage = deepseekUsage
+        self.deepseekDetailedUsageState = deepseekDetailedUsageState
+        self.deepseekPlatformProfiles = deepseekPlatformProfiles
         self.mimoUsage = mimoUsage
         self.openRouterUsage = openRouterUsage
         self.sakanaPayAsYouGo = sakanaPayAsYouGo
@@ -329,6 +335,24 @@ public struct UsageSnapshot: Codable, Sendable {
             secondary: .value(secondary))
     }
 
+    public func withoutDeepSeekDetailedUsage(
+        state: DeepSeekDetailedUsageState = .unavailable) -> UsageSnapshot
+    {
+        self.replacing(
+            deepseekUsage: .value(nil),
+            deepseekDetailedUsageState: .value(state))
+    }
+
+    public func preservingDeepSeekPlatformProfiles(from previous: UsageSnapshot?) -> UsageSnapshot {
+        guard self.deepseekDetailedUsageState == .unavailable,
+              self.deepseekPlatformProfiles.isEmpty,
+              let previous,
+              !previous.deepseekPlatformProfiles.isEmpty
+        else { return self }
+        return self.replacing(
+            deepseekPlatformProfiles: .value(previous.deepseekPlatformProfiles))
+    }
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
@@ -341,6 +365,8 @@ public struct UsageSnapshot: Codable, Sendable {
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.deepseekUsage = nil // Not persisted, fetched fresh each time
+        self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
+        self.deepseekPlatformProfiles = [] // Live-only browser profile catalog
         self.mimoUsage = try container.decodeIfPresent(MiMoUsageSnapshot.self, forKey: .mimoUsage)
         self.openRouterUsage = try container.decodeIfPresent(OpenRouterUsageSnapshot.self, forKey: .openRouterUsage)
         self.sakanaPayAsYouGo = try container.decodeIfPresent(
@@ -586,6 +612,9 @@ public struct UsageSnapshot: Codable, Sendable {
         secondary: Replacement<RateWindow?> = .unchanged,
         tertiary: Replacement<RateWindow?> = .unchanged,
         extraRateWindows: Replacement<[NamedRateWindow]?> = .unchanged,
+        deepseekUsage: Replacement<DeepSeekUsageSummary?> = .unchanged,
+        deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
+        deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
         identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
         dataConfidence: Replacement<UsageDataConfidence> = .unchanged) -> UsageSnapshot
@@ -600,7 +629,9 @@ public struct UsageSnapshot: Codable, Sendable {
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
-            deepseekUsage: self.deepseekUsage,
+            deepseekUsage: deepseekUsage.resolving(self.deepseekUsage),
+            deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
+            deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),
             mimoUsage: self.mimoUsage,
             openRouterUsage: self.openRouterUsage,
             sakanaPayAsYouGo: self.sakanaPayAsYouGo,
