@@ -416,14 +416,92 @@ struct OllamaUsageFetcherRetryMappingTests {
         }
     }
 
-    private func makeCookieFetcher() -> OllamaUsageFetcher {
+    @Test
+    func `temporary session is finished after a failed request`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let landingURL = try #require(URL(string: "https://ollama.com/settings"))
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            Self.makeResponse(url: landingURL, body: "Service unavailable", statusCode: 503)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        do {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=expired-cookie",
+                manualCookieMode: true)
+            Issue.record("Expected OllamaUsageError.networkError")
+        } catch is OllamaUsageError {
+            #expect(recorder.count == 1)
+        }
+    }
+
+    @Test
+    func `temporary session is finished after a successful request`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let body = """
+            <div>
+              <span>Session usage</span>
+              <span>1.2% used</span>
+              <span>Weekly usage</span>
+              <span>3.4% used</span>
+            </div>
+            """
+            return Self.makeResponse(url: url, body: body, statusCode: 200)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: "session=test-cookie",
+            manualCookieMode: true)
+
+        #expect(recorder.count == 1)
+    }
+
+    @Test
+    func `temporary session is finished after a transport failure`() async {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        let recorder = OllamaSessionFinishRecorder()
+        let fetcher = self.makeCookieFetcher(finishURLSession: { session in
+            recorder.record(session)
+            session.finishTasksAndInvalidate()
+        })
+
+        await #expect(throws: URLError.self) {
+            _ = try await fetcher.fetch(
+                cookieHeaderOverride: "session=test-cookie",
+                manualCookieMode: true)
+        }
+        #expect(recorder.count == 1)
+    }
+
+    private func makeCookieFetcher(
+        finishURLSession: @escaping @Sendable (URLSession) -> Void = { $0.finishTasksAndInvalidate() })
+        -> OllamaUsageFetcher
+    {
         OllamaUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),
             makeURLSession: { delegate in
                 let config = URLSessionConfiguration.ephemeral
                 config.protocolClasses = [OllamaRetryMappingStubURLProtocol.self]
                 return URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
-            })
+            },
+            finishURLSession: finishURLSession)
     }
 
     private static func makeResponse(
@@ -437,6 +515,21 @@ struct OllamaUsageFetcherRetryMappingTests {
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "text/html"])!
         return (response, Data(body.utf8))
+    }
+}
+
+private final class OllamaSessionFinishRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sessions: [URLSession] = []
+
+    var count: Int {
+        self.lock.withLock { self.sessions.count }
+    }
+
+    func record(_ session: URLSession) {
+        self.lock.withLock {
+            self.sessions.append(session)
+        }
     }
 }
 

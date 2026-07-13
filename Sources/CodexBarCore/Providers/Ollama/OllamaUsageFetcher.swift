@@ -250,20 +250,24 @@ public struct OllamaUsageFetcher: Sendable {
 
     public let browserDetection: BrowserDetection
     private let makeURLSession: @Sendable (URLSessionTaskDelegate?) -> URLSession
+    private let finishURLSession: @Sendable (URLSession) -> Void
 
     public init(browserDetection: BrowserDetection) {
         self.browserDetection = browserDetection
         self.makeURLSession = { delegate in
             URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
         }
+        self.finishURLSession = { $0.finishTasksAndInvalidate() }
     }
 
     init(
         browserDetection: BrowserDetection,
-        makeURLSession: @escaping @Sendable (URLSessionTaskDelegate?) -> URLSession)
+        makeURLSession: @escaping @Sendable (URLSessionTaskDelegate?) -> URLSession,
+        finishURLSession: @escaping @Sendable (URLSession) -> Void = { $0.finishTasksAndInvalidate() })
     {
         self.browserDetection = browserDetection
         self.makeURLSession = makeURLSession
+        self.finishURLSession = finishURLSession
     }
 
     public func fetch(
@@ -527,6 +531,7 @@ public struct OllamaUsageFetcher: Sendable {
         request.setValue(Self.settingsURL.absoluteString, forHTTPHeaderField: "referer")
 
         let session = self.makeURLSession(diagnostics)
+        defer { self.finishURLSession(session) }
         let httpResponse = try await session.response(for: request)
         let responseInfo = ResponseInfo(
             statusCode: httpResponse.statusCode,
