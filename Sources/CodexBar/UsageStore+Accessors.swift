@@ -2,6 +2,12 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    struct DeepSeekProfileTransition {
+        var snapshot: UsageSnapshot
+        let accountID: UUID?
+        let hasSyntheticBalance: Bool
+    }
+
     func version(for provider: UsageProvider) -> String? {
         self.versions[provider]
     }
@@ -28,13 +34,38 @@ extension UsageStore {
         return self.lastKnownResetSnapshots[provider]
     }
 
-    func beginDeepSeekProfileTransition() {
+    func beginDeepSeekProfileTransition(preservingBalance: Bool = true) {
         guard self.deepseekProfileTransition == nil,
               let snapshot = self.snapshots[.deepseek] ?? self.lastKnownResetSnapshots[.deepseek]
         else { return }
-        self.deepseekProfileTransition = (
-            snapshot: snapshot.withoutDeepSeekDetailedUsage(),
-            accountID: self.settings.selectedTokenAccount(for: .deepseek)?.id)
+        var transitionSnapshot = snapshot.withoutDeepSeekDetailedUsage()
+        if !preservingBalance {
+            transitionSnapshot = transitionSnapshot.with(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: L("Refreshing")),
+                secondary: nil)
+        }
+        self.deepseekProfileTransition = DeepSeekProfileTransition(
+            snapshot: transitionSnapshot,
+            accountID: self.settings.selectedTokenAccount(for: .deepseek)?.id,
+            hasSyntheticBalance: !preservingBalance)
+    }
+
+    func markDeepSeekProfileTransitionUnavailable() {
+        guard var transition = self.deepseekProfileTransition,
+              transition.hasSyntheticBalance
+        else { return }
+        transition.snapshot = transition.snapshot.with(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: L("Unavailable")),
+            secondary: nil)
+        self.deepseekProfileTransition = transition
     }
 
     func clearDeepSeekProfileTransition() {

@@ -635,8 +635,18 @@ extension UsageStore {
             return
         }
         // Credential-change cleanup already ran above; cancellation is now safe to suppress.
-        guard !Self.errorIsCancellation(error) else { return }
+        if Self.errorIsCancellation(error) {
+            if provider == .deepseek,
+               self.isCurrentProviderRefreshGeneration(provider, generation: context.generation)
+            {
+                self.markDeepSeekProfileTransitionUnavailable()
+            }
+            return
+        }
         guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
+        if provider == .deepseek {
+            self.markDeepSeekProfileTransitionUnavailable()
+        }
         self.bindCodexFailurePublicationOwner(
             provider: provider,
             expectedGuard: context.codexExpectedGuard)

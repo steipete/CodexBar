@@ -29,6 +29,82 @@ public struct DeepSeekBalanceInfo: Decodable, Sendable {
     }
 }
 
+private struct DeepSeekPlatformUserSummaryResponse: Decodable {
+    let code: Int?
+    let data: DeepSeekPlatformUserSummaryData?
+
+    private enum CodingKeys: String, CodingKey {
+        case code, data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.code = try container.decodeIfPresent(Int.self, forKey: .code)
+        if let code, code != 0 {
+            // Error envelopes are not schema-stable. Preserve their code before inspecting `data`.
+            self.data = try? container.decodeIfPresent(DeepSeekPlatformUserSummaryData.self, forKey: .data)
+        } else {
+            self.data = try container.decodeIfPresent(DeepSeekPlatformUserSummaryData.self, forKey: .data)
+        }
+    }
+}
+
+private struct DeepSeekPlatformUserSummaryData: Decodable {
+    let bizCode: Int?
+    let bizData: DeepSeekPlatformUserSummary?
+
+    enum CodingKeys: String, CodingKey {
+        case bizCode = "biz_code"
+        case bizData = "biz_data"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.bizCode = try container.decodeIfPresent(Int.self, forKey: .bizCode)
+        if let bizCode, bizCode != 0 {
+            self.bizData = try? container.decodeIfPresent(DeepSeekPlatformUserSummary.self, forKey: .bizData)
+        } else {
+            self.bizData = try container.decodeIfPresent(DeepSeekPlatformUserSummary.self, forKey: .bizData)
+        }
+    }
+}
+
+private struct DeepSeekPlatformUserSummary: Decodable {
+    let normalWallets: [DeepSeekPlatformWallet]
+    let bonusWallets: [DeepSeekPlatformWallet]
+
+    enum CodingKeys: String, CodingKey {
+        case normalWallets = "normal_wallets"
+        case bonusWallets = "bonus_wallets"
+    }
+}
+
+private struct DeepSeekPlatformWallet: Decodable {
+    let balance: Double
+    let currency: String
+
+    enum CodingKeys: String, CodingKey {
+        case balance, currency
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.currency = try container.decode(String.self, forKey: .currency)
+        if let number = try? container.decode(Double.self, forKey: .balance) {
+            self.balance = number
+            return
+        }
+        let value = try container.decode(String.self, forKey: .balance)
+        guard let number = Double(value) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .balance,
+                in: container,
+                debugDescription: "Expected a numeric wallet balance")
+        }
+        self.balance = number
+    }
+}
+
 // MARK: - Domain snapshot
 
 public enum DeepSeekDetailedUsageState: Sendable, Equatable {
@@ -50,6 +126,7 @@ public struct DeepSeekPlatformProfile: Sendable, Equatable {
 }
 
 public struct DeepSeekUsageSnapshot: Sendable {
+    public let hasBalance: Bool
     public let isAvailable: Bool
     public let currency: String
     public let totalBalance: Double
@@ -61,6 +138,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
     public let updatedAt: Date
 
     public init(
+        hasBalance: Bool = true,
         isAvailable: Bool,
         currency: String,
         totalBalance: Double,
@@ -71,6 +149,7 @@ public struct DeepSeekUsageSnapshot: Sendable {
         platformProfiles: [DeepSeekPlatformProfile] = [],
         updatedAt: Date)
     {
+        self.hasBalance = hasBalance
         self.isAvailable = isAvailable
         self.currency = currency
         self.totalBalance = totalBalance
@@ -106,11 +185,15 @@ public struct DeepSeekUsageSnapshot: Sendable {
             accountEmail: nil,
             accountOrganization: nil,
             loginMethod: nil)
-        let balanceWindow = RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: nil,
-            resetDescription: balanceDetail)
+        let balanceWindow: RateWindow? = if self.hasBalance {
+            RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: balanceDetail)
+        } else {
+            nil
+        }
 
         return UsageSnapshot(
             primary: balanceWindow,
@@ -162,6 +245,8 @@ public struct DeepSeekUsageFetcher: Sendable {
     private static let balanceURL = URL(string: "https://api.deepseek.com/user/balance")!
     private static let usageAmountURL = URL(string: "https://platform.deepseek.com/api/v0/usage/amount")!
     private static let usageCostURL = URL(string: "https://platform.deepseek.com/api/v0/usage/cost")!
+    private static let platformUserSummaryURL = URL(
+        string: "https://platform.deepseek.com/api/v0/users/get_user_summary")!
     private static let timeoutSeconds: TimeInterval = 15
     private static let optionalSummaryJoinGrace: Duration = .seconds(5)
     private static var apiCalendar: Calendar {
@@ -380,6 +465,98 @@ public struct DeepSeekUsageFetcher: Sendable {
             calendar: calendar)
     }
 
+    public static func fetchPlatformUsage(
+        platformToken: String,
+        includeOptionalUsage: Bool = true) async throws -> DeepSeekUsageSnapshot
+    {
+        try await self.fetchPlatformUsage(
+            platformToken: platformToken,
+            includeOptionalUsage: includeOptionalUsage,
+            optionalSummaryJoinGrace: self.optionalSummaryJoinGrace,
+            operations: PlatformFetchOperations(
+                fetchBalance: { token in
+                    try await self.fetchPlatformBalance(platformToken: token)
+                },
+                fetchSummary: { token in
+                    try await self.fetchUsageSummary(platformToken: token)
+                }))
+    }
+
+    static func _fetchPlatformUsageForTesting(
+        includeOptionalUsage: Bool,
+        optionalSummaryJoinGrace: Duration = .zero,
+        fetchBalance: @escaping @Sendable () async throws -> DeepSeekUsageSnapshot,
+        fetchSummary: @escaping @Sendable () async throws -> DeepSeekUsageSummary) async throws
+        -> DeepSeekUsageSnapshot
+    {
+        try await self.fetchPlatformUsage(
+            platformToken: "test-platform-token",
+            includeOptionalUsage: includeOptionalUsage,
+            optionalSummaryJoinGrace: optionalSummaryJoinGrace,
+            operations: PlatformFetchOperations(
+                fetchBalance: { _ in try await fetchBalance() },
+                fetchSummary: { _ in try await fetchSummary() }))
+    }
+
+    private struct PlatformFetchOperations: Sendable {
+        let fetchBalance: @Sendable (String) async throws -> DeepSeekUsageSnapshot
+        let fetchSummary: @Sendable (String) async throws -> DeepSeekUsageSummary
+    }
+
+    private static func fetchPlatformUsage(
+        platformToken: String,
+        includeOptionalUsage: Bool,
+        optionalSummaryJoinGrace: Duration,
+        operations: PlatformFetchOperations) async throws -> DeepSeekUsageSnapshot
+    {
+        let token = platformToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { throw DeepSeekUsageError.invalidPlatformToken }
+
+        let summaryTask: Task<DeepSeekUsageSummary, Error>? = if includeOptionalUsage {
+            Task {
+                try await operations.fetchSummary(token)
+            }
+        } else {
+            nil
+        }
+
+        let balance: DeepSeekUsageSnapshot
+        do {
+            balance = try await withTaskCancellationHandler {
+                try await operations.fetchBalance(token)
+            } onCancel: {
+                summaryTask?.cancel()
+            }
+        } catch {
+            summaryTask?.cancel()
+            throw error
+        }
+
+        var snapshot = DeepSeekUsageSnapshot(
+            isAvailable: balance.isAvailable,
+            currency: balance.currency,
+            totalBalance: balance.totalBalance,
+            grantedBalance: balance.grantedBalance,
+            toppedUpBalance: balance.toppedUpBalance,
+            detailedUsageState: includeOptionalUsage ? .unavailable : .notRequested,
+            updatedAt: balance.updatedAt)
+        if let summaryTask {
+            let completion = try await self.completedOptionalUsageSummary(
+                from: summaryTask,
+                joinGrace: optionalSummaryJoinGrace)
+            snapshot = DeepSeekUsageSnapshot(
+                isAvailable: balance.isAvailable,
+                currency: balance.currency,
+                totalBalance: balance.totalBalance,
+                grantedBalance: balance.grantedBalance,
+                toppedUpBalance: balance.toppedUpBalance,
+                usageSummary: completion.summary,
+                detailedUsageState: completion.state,
+                updatedAt: balance.updatedAt)
+        }
+        return snapshot
+    }
+
     static func _fetchUsagePayloadsForTesting(
         fetchAmount: @escaping @Sendable () async throws -> Data,
         fetchCost: @escaping @Sendable () async throws -> Data) async throws -> (amount: Data, cost: Data)
@@ -457,6 +634,23 @@ public struct DeepSeekUsageFetcher: Sendable {
         return data
     }
 
+    private static func fetchPlatformBalance(platformToken: String) async throws -> DeepSeekUsageSnapshot {
+        var request = URLRequest(url: self.platformUserSummaryURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = Self.timeoutSeconds
+
+        let response = try await ProviderHTTPClient.shared.response(for: request)
+        guard response.statusCode == 200 else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("HTTP \(response.statusCode)")
+        }
+        return try self.parsePlatformBalance(data: response.data)
+    }
+
     private static func fetchCost(platformToken: String, month: Int, year: Int) async throws -> Data {
         guard var components = URLComponents(url: self.usageCostURL, resolvingAgainstBaseURL: false) else {
             throw DeepSeekUsageError.networkError("Invalid URL")
@@ -498,6 +692,69 @@ public struct DeepSeekUsageFetcher: Sendable {
             costData: costData,
             now: now,
             calendar: calendar)
+    }
+
+    static func _parsePlatformBalanceForTesting(_ data: Data) throws -> DeepSeekUsageSnapshot {
+        try self.parsePlatformBalance(data: data)
+    }
+
+    private static func parsePlatformBalance(data: Data) throws -> DeepSeekUsageSnapshot {
+        let payload: DeepSeekPlatformUserSummaryResponse
+        do {
+            payload = try JSONDecoder().decode(DeepSeekPlatformUserSummaryResponse.self, from: data)
+        } catch {
+            throw DeepSeekUsageError.parseFailed(error.localizedDescription)
+        }
+        if let code = payload.code, code != 0 {
+            if self.isPlatformAuthenticationError(code) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("user summary code \(code)")
+        }
+        if let bizCode = payload.data?.bizCode, bizCode != 0 {
+            if self.isPlatformAuthenticationError(bizCode) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("user summary biz_code \(bizCode)")
+        }
+        guard let summary = payload.data?.bizData else {
+            throw DeepSeekUsageError.parseFailed("Missing user summary biz_data")
+        }
+
+        let toppedUp = Dictionary(grouping: summary.normalWallets, by: \.currency)
+            .mapValues { $0.reduce(0) { $0 + $1.balance } }
+        let granted = Dictionary(grouping: summary.bonusWallets, by: \.currency)
+            .mapValues { $0.reduce(0) { $0 + $1.balance } }
+        let currencies = Set(toppedUp.keys).union(granted.keys).sorted()
+        guard !currencies.isEmpty else {
+            return DeepSeekUsageSnapshot(
+                isAvailable: false,
+                currency: "USD",
+                totalBalance: 0,
+                grantedBalance: 0,
+                toppedUpBalance: 0,
+                updatedAt: Date())
+        }
+
+        let selectedCurrency = currencies.first { currency in
+            currency == "USD" && (toppedUp[currency, default: 0] + granted[currency, default: 0]) > 0
+        } ?? currencies.first { currency in
+            toppedUp[currency, default: 0] + granted[currency, default: 0] > 0
+        } ?? currencies.first(where: { $0 == "USD" }) ?? currencies[0]
+        let paidBalance = toppedUp[selectedCurrency, default: 0]
+        let grantedBalance = granted[selectedCurrency, default: 0]
+        let totalBalance = paidBalance + grantedBalance
+        return DeepSeekUsageSnapshot(
+            isAvailable: totalBalance > 0,
+            currency: selectedCurrency,
+            totalBalance: totalBalance,
+            grantedBalance: grantedBalance,
+            toppedUpBalance: paidBalance,
+            updatedAt: Date())
+    }
+
+    private static func isPlatformAuthenticationError(_ code: Int) -> Bool {
+        code == 40002 || code == 40003
     }
 
     private static func parseSnapshot(data: Data) throws -> DeepSeekUsageSnapshot {

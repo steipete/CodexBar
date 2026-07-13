@@ -86,10 +86,19 @@ extension UsageMenuCardView.Model {
             ]
         }
 
-        if input.provider == .deepseek, input.showOptionalCreditsAndExtraUsage {
+        if input.provider == .deepseek {
             if input.isRefreshing {
                 return []
             }
+            if input.snapshot?.primary == nil {
+                if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
+                    return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
+                }
+                if input.snapshot?.deepseekDetailedUsageState == .profileSelectionRequired {
+                    return [L("Select a DeepSeek Chrome profile in Settings.")]
+                }
+            }
+            guard input.showOptionalCreditsAndExtraUsage else { return nil }
             guard let usage = input.snapshot?.deepseekUsage else {
                 if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
                     return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]

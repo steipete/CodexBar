@@ -117,6 +117,9 @@ public enum ProviderConfigEnvironment {
         config: ProviderConfig?) -> [String: String]
     {
         var env = base
+        if let platformToken = config?.sanitizedCookieHeader {
+            env[DeepSeekSettingsReader.platformTokenEnvironmentKey] = platformToken
+        }
         if let profileID = config?.sanitizedDeepSeekProfileID {
             env[DeepSeekSettingsReader.profileIDEnvironmentKey] = profileID
         }

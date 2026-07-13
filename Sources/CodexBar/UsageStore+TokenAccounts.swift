@@ -1508,6 +1508,9 @@ extension UsageStore {
         case let .failure(error):
             await MainActor.run {
                 self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
+                if provider == .deepseek {
+                    self.markDeepSeekProfileTransitionUnavailable()
+                }
                 guard let message = self.tokenAccountErrorMessage(error) else {
                     self.errors[provider] = nil
                     return

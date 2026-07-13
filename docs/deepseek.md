@@ -9,19 +9,23 @@ read_when:
 
 # DeepSeek provider
 
-CodexBar uses a DeepSeek API key for the remaining credit balance. Detailed cost and token usage comes from
-the signed-in DeepSeek Platform website and requires a separate web-session token; an API key cannot authenticate
-the private dashboard endpoints.
+CodexBar can use either a DeepSeek API key or a signed-in DeepSeek Platform session for the remaining credit balance.
+Detailed cost and token usage comes from the Platform session; an API key cannot authenticate the private dashboard
+endpoints.
 
 ## Data sources
 
-1. **API key** supplied via `DEEPSEEK_API_KEY` / `DEEPSEEK_KEY`, or selected from DeepSeek token accounts in `~/.codexbar/config.json`.
-2. **Balance endpoint**
+1. **Optional API key** supplied via `DEEPSEEK_API_KEY` / `DEEPSEEK_KEY`, or selected from DeepSeek token accounts in `~/.codexbar/config.json`.
+2. **API-key balance endpoint**
    - `GET https://api.deepseek.com/user/balance`
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
    - Response contains `is_available`, and a `balance_infos` array with per-currency entries
      (`total_balance`, `granted_balance`, `topped_up_balance`).
-3. **Optional detailed usage endpoints**
+3. **Platform-session balance endpoint**
+   - `GET https://platform.deepseek.com/api/v0/users/get_user_summary`
+   - Request headers: `Authorization: Bearer <platform userToken>`, `Accept: application/json`
+   - Used as the balance source when no API key is configured.
+4. **Optional detailed usage endpoints**
    - `GET https://platform.deepseek.com/api/v0/usage/amount?month=<month>&year=<year>`
    - `GET https://platform.deepseek.com/api/v0/usage/cost?month=<month>&year=<year>`
    - Request headers: `Authorization: Bearer <platform userToken>`, `Accept: application/json`
@@ -31,22 +35,27 @@ the private dashboard endpoints.
 
 CodexBar resolves the Platform `userToken` in this order:
 
-1. `DEEPSEEK_PLATFORM_TOKEN` / `DEEPSEEK_USER_TOKEN`, when explicitly supplied by the process environment.
+1. An explicitly supplied `DEEPSEEK_PLATFORM_TOKEN` / `DEEPSEEK_USER_TOKEN` or a legacy
+   `providers[].cookieHeader` value preserved from an existing config.
 2. A prompt-free read of `userToken` from the `https://platform.deepseek.com` local-storage origin in Chrome.
 
+The legacy config value remains a compatibility fallback so upgrading cannot silently erase a working session. New
+automatic imports are never written back to config.
+
 CodexBar checks every Chrome profile containing a parseable `userToken` against DeepSeek. Rejected or expired
-sessions are omitted. Settings shows a **Chrome profile** picker containing only valid sessions. Even when only one
-session is valid, a new or changed API credential requires one explicit selection before website usage is combined
-with its balance. CodexBar persists a stable browser/profile identifier, not an absolute home-directory path, and
+sessions are omitted. Settings shows a **Chrome profile** picker containing only valid sessions. With no API key, one
+valid session is selected automatically; with multiple valid sessions, CodexBar reuses the saved choice or asks once.
+When an API key supplies the balance, a new or changed API credential requires an explicit session selection before
+website usage is combined with it. CodexBar persists a stable browser/profile identifier, not an absolute home-directory path, and
 keeps automatically imported tokens in memory only. The choice is scoped to a non-reversible fingerprint of the
 active API credential and saved-account slot, so replacing a key or switching accounts cannot silently reuse an old
 browser session. Validation results are cached briefly so normal
 refreshes do not probe every profile, and a temporary network failure does not erase a previously validated profile.
 If the selected session expires, CodexBar asks before switching to another valid profile.
 
-If no session is valid, the menu keeps the API-key balance and asks the user to sign in to DeepSeek Platform in
-Chrome. Authentication failures returned as top-level or nested DeepSeek codes `40002` and `40003` are treated as
-expired sessions.
+If no session is valid, the menu keeps the API-key balance when one exists; otherwise it asks the user to sign in to
+DeepSeek Platform in Chrome. Authentication failures returned as top-level or nested DeepSeek codes `40002` and
+`40003` are treated as expired sessions.
 
 ## Usage details
 

@@ -77,6 +77,18 @@ struct DeepSeekPlatformTokenImporterTests {
     }
 
     @Test
+    func `selected profile preserves its detailed usage state`() async {
+        let resolution = await DeepSeekPlatformTokenImporter._resolveForTesting(
+            candidates: [Self.candidate(id: "profile-1", token: "valid-1")],
+            selectedProfileID: nil,
+            detailedUsageState: .notRequested,
+            validate: { _ in Self.summary(marker: 1) })
+
+        #expect(resolution.selectedSummary?.todayTokens == 1)
+        #expect(resolution.detailedUsageState == .notRequested)
+    }
+
+    @Test
     func `explicit selection requirement does not auto select a single accepted profile`() async {
         let resolution = await DeepSeekPlatformTokenImporter._resolveForTesting(
             candidates: [Self.candidate(id: "profile-1", token: "valid-1")],

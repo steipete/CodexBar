@@ -213,6 +213,45 @@ struct MenuCardDeepSeekTests {
     }
 
     @Test
+    func `browser only sign in remains visible when optional usage is hidden`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = DeepSeekUsageSnapshot(
+            hasBalance: false,
+            isAvailable: false,
+            currency: "USD",
+            totalBalance: 0,
+            grantedBalance: 0,
+            toppedUpBalance: 0,
+            detailedUsageState: .webSessionRequired,
+            updatedAt: now)
+            .toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+    }
+
+    @Test
     func `model asks for a profile when multiple deepseek sessions are valid`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.deepseek])

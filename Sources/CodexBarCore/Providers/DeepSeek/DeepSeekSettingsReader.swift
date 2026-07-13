@@ -15,6 +15,7 @@ public struct DeepSeekSettingsReader: Sendable {
     public static let platformTokenEnvironmentKeys = [Self.platformTokenEnvironmentKey, "DEEPSEEK_USER_TOKEN"]
     public static let profileIDEnvironmentKey = "CODEXBAR_DEEPSEEK_PROFILE_ID"
     public static let profileScopeEnvironmentKey = "CODEXBAR_DEEPSEEK_PROFILE_SCOPE"
+    private static let browserProfileScope = "browser:v1"
 
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
@@ -43,7 +44,7 @@ public struct DeepSeekSettingsReader: Sendable {
 
     public static func profileScope(selectedTokenAccountID: UUID?, apiKey: String?) -> String? {
         guard let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
-            return nil
+            return self.browserProfileScope
         }
         #if canImport(CryptoKit)
         let accountScope = selectedTokenAccountID?.uuidString.lowercased() ?? "environment"
@@ -58,7 +59,7 @@ public struct DeepSeekSettingsReader: Sendable {
     static func profileSelection(
         environment: [String: String],
         selectedTokenAccountID: UUID?,
-        apiKey: String) -> ProfileSelection
+        apiKey: String?) -> ProfileSelection
     {
         let profileID = self.profileID(environment: environment)
         let expectedScope = self.profileScope(selectedTokenAccountID: selectedTokenAccountID, apiKey: apiKey)
@@ -66,6 +67,9 @@ public struct DeepSeekSettingsReader: Sendable {
 
         if let expectedScope, storedScope == expectedScope {
             return ProfileSelection(profileID: profileID, requiresExplicitSelection: false)
+        }
+        if apiKey == nil {
+            return ProfileSelection(profileID: nil, requiresExplicitSelection: false)
         }
         return ProfileSelection(profileID: nil, requiresExplicitSelection: true)
     }

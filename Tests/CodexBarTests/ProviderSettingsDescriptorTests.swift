@@ -375,6 +375,43 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `deepseek browser only profile selection persists without an API key`() async throws {
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-browser-only-profile")
+        fixture.store.snapshots[.deepseek] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "$8.06 (Paid: $8.06 / Granted: $0.00)"),
+            secondary: nil,
+            deepseekPlatformProfiles: [
+                DeepSeekPlatformProfile(id: "chrome:Default", name: "Chrome — Personal"),
+                DeepSeekPlatformProfile(id: "chrome:Profile 2", name: "Chrome — Work"),
+            ],
+            updatedAt: Date())
+
+        let picker = try #require(DeepSeekProviderImplementation()
+            .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
+        picker.binding.wrappedValue = "chrome:Profile 2"
+
+        #expect(fixture.settings.deepseekProfileID(apiKey: nil) == "chrome:Profile 2")
+        #expect(fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileScope != nil)
+        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription == "Refreshing")
+
+        await fixture.store.applySelectedOutcome(
+            ProviderFetchOutcome(
+                result: .failure(DeepSeekUsageError.networkError("offline")),
+                attempts: []),
+            provider: .deepseek,
+            account: nil,
+            fallbackSnapshot: nil)
+
+        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription == "Unavailable")
+        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription?.contains("$8.06") == false)
+    }
+
+    @Test
     func `deepseek profile picker stays visible while switching profiles`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-profile-switch")
         let snapshot = UsageSnapshot(
@@ -395,6 +432,29 @@ struct ProviderSettingsDescriptorTests {
         #expect(picker.binding.wrappedValue.isEmpty)
         #expect(picker.dynamicSubtitle?() == "Refreshing")
         #expect(!(picker.isEnabled?() ?? true))
+    }
+
+    @Test
+    func `deepseek browser profile cancellation does not leave refreshing behind`() async throws {
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-browser-cancelled-transition")
+        fixture.store.snapshots[.deepseek] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "$8.06"),
+            secondary: nil,
+            updatedAt: Date())
+        fixture.store.beginDeepSeekProfileTransition(preservingBalance: false)
+
+        await fixture.store.applySelectedOutcome(
+            ProviderFetchOutcome(result: .failure(CancellationError()), attempts: []),
+            provider: .deepseek,
+            account: nil,
+            fallbackSnapshot: nil)
+
+        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription == "Unavailable")
     }
 
     @Test

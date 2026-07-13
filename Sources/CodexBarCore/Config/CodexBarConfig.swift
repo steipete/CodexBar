@@ -55,7 +55,6 @@ public struct CodexBarConfig: Codable, Sendable {
             guard !seen.contains(provider.id) else { continue }
             seen.insert(provider.id)
             if provider.id == .deepseek {
-                provider.cookieHeader = nil
                 provider.deepseekProfileID = provider.sanitizedDeepSeekProfileID
                 provider.deepseekProfileScope = provider.sanitizedDeepSeekProfileScope
             }

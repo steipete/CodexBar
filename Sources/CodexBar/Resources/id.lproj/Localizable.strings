@@ -904,6 +904,13 @@
 "MiniMax 30 day token usage trend" = "Tren penggunaan token 30 hari MiniMax";
 "Today cash" = "Kas hari ini";
 "DeepSeek 30 day token usage trend" = "Tren penggunaan token 30 hari DeepSeek";
+"DeepSeek this month token usage trend" = "Tren penggunaan token DeepSeek bulan ini";
+"Chrome profile" = "Profil Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Pilih sesi DeepSeek Platform yang telah masuk untuk menyediakan rincian penggunaan.";
+"Detailed usage unavailable." = "Rincian penggunaan tidak tersedia.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Masuk ke DeepSeek Platform di Chrome untuk melihat rincian penggunaan.";
+"Select a DeepSeek Chrome profile in Settings." = "Pilih profil Chrome DeepSeek di Pengaturan.";
+"Select profile…" = "Pilih profil…";
 "cache-hit input" = "input cache-hit";
 "cache-miss input" = "input cache-miss";
 "output" = "output";

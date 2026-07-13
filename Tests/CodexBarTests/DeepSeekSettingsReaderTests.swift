@@ -105,6 +105,15 @@ struct DeepSeekSettingsReaderTests {
         #expect(first != otherAccount)
         #expect(!first.contains("secret-api-key"))
     }
+
+    @Test
+    func `browser only profile scope persists without an API key`() throws {
+        let scope = try #require(DeepSeekSettingsReader.profileScope(
+            selectedTokenAccountID: nil,
+            apiKey: nil))
+
+        #expect(!scope.isEmpty)
+    }
 }
 
 struct DeepSeekProviderTokenResolverTests {
