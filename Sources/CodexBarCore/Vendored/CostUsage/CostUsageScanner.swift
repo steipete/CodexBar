@@ -2459,6 +2459,7 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func loadCodexDaily(
         range: CostUsageDayRange,
         now: Date,
