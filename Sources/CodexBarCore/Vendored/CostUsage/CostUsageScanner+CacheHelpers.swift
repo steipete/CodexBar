@@ -285,6 +285,7 @@ extension CostUsageScanner {
         lastCodexTurnID: String? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
+        forkBaselineDependencyKey: String? = nil,
         projectPath: String? = nil,
         canonicalProjectPath: String? = nil,
         codexCostCacheComplete: Bool? = true,
@@ -314,6 +315,7 @@ extension CostUsageScanner {
             lastCodexTurnID: lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
+            forkBaselineDependencyKey: forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostCacheComplete: codexCostCacheComplete,
@@ -705,6 +707,7 @@ extension CostUsageScanner {
             lastCodexTurnID: usage.lastCodexTurnID,
             sessionId: usage.sessionId,
             forkedFromId: usage.forkedFromId,
+            forkBaselineDependencyKey: usage.forkBaselineDependencyKey,
             projectPath: usage.projectPath,
             canonicalProjectPath: usage.canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
@@ -883,7 +886,7 @@ extension CostUsageScanner {
         input: CodexFileScanInput,
         context: CodexFileScanContext,
         cache: inout CostUsageCache,
-        state: inout CodexScanState) -> Bool
+        state: inout CodexScanState) throws -> Bool
     {
         guard let cached = input.cached else { return false }
         let needsSessionId = cached.sessionId == nil
@@ -892,6 +895,12 @@ extension CostUsageScanner {
               !needsSessionId,
               !context.forceFullScan
         else { return false }
+
+        if let parentSessionId = cached.forkedFromId {
+            guard let cachedDependencyKey = cached.forkBaselineDependencyKey,
+                  try cachedDependencyKey == (context.resources.inheritedResolver.dependencyKey(for: parentSessionId))
+            else { return false }
+        }
 
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
 
@@ -1119,6 +1128,11 @@ extension CostUsageScanner {
             range: context.range,
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
+        let forkBaselineDependencyKey: String? = if let parentSessionId = parsed.forkedFromId {
+            try context.resources.inheritedResolver.dependencyKey(for: parentSessionId)
+        } else {
+            nil
+        }
         let sessionId = parsed.sessionId ?? input.cached?.sessionId
         let projectPath = parsed.projectPath ?? input.cached?.projectPath
         let canonicalProjectPath = parsed.projectPath.map {
@@ -1163,6 +1177,7 @@ extension CostUsageScanner {
             lastCodexTurnID: parsed.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: parsed.forkedFromId,
+            forkBaselineDependencyKey: forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(

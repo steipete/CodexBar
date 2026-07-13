@@ -645,6 +645,21 @@ enum CostUsageScanner {
             return .resolved(inherited)
         }
 
+        func dependencyKey(for sessionId: String) throws -> String {
+            guard let fileURL = try self.fileIndex.fileURL(for: sessionId) else {
+                return "missing:\(sessionId)"
+            }
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+            return [
+                "file",
+                sessionId,
+                fileURL.standardizedFileURL.path,
+                metadata.fileId ?? "unknown",
+                String(metadata.mtimeUnixMs),
+                String(metadata.size),
+            ].joined(separator: "|")
+        }
+
         private func snapshots(for sessionId: String) throws -> [CodexTimestampedTotals]? {
             if let cached = self.snapshotsBySessionId[sessionId] {
                 return cached
@@ -1351,7 +1366,7 @@ enum CostUsageScanner {
         payloadRange: Range<Int>?) -> String?
     {
         if let payloadRange {
-            for key in [self.codexJSONFieldSessionId, self.codexJSONFieldSessionIdCamel, self.codexJSONFieldId] {
+            for key in [self.codexJSONFieldId, self.codexJSONFieldSessionId, self.codexJSONFieldSessionIdCamel] {
                 if let value = extractJSONByteStringField(key, from: bytes, in: payloadRange, atDepth: 1),
                    !value.isEmpty
                 {
@@ -1601,9 +1616,9 @@ enum CostUsageScanner {
                 guard obj["type"] as? String == "session_meta" else { return nil }
                 let payload = obj["payload"] as? [String: Any]
                 return CodexSessionMetadata(
-                    sessionId: payload?["session_id"] as? String
+                    sessionId: payload?["id"] as? String
+                        ?? payload?["session_id"] as? String
                         ?? payload?["sessionId"] as? String
-                        ?? payload?["id"] as? String
                         ?? obj["session_id"] as? String
                         ?? obj["sessionId"] as? String
                         ?? obj["id"] as? String,
@@ -1739,9 +1754,9 @@ enum CostUsageScanner {
                         if obj["type"] as? String == "session_meta" {
                             let payload = obj["payload"] as? [String: Any]
                             if sessionId == nil {
-                                sessionId = payload?["session_id"] as? String
+                                sessionId = payload?["id"] as? String
+                                    ?? payload?["session_id"] as? String
                                     ?? payload?["sessionId"] as? String
-                                    ?? payload?["id"] as? String
                                     ?? obj["session_id"] as? String
                                     ?? obj["sessionId"] as? String
                                     ?? obj["id"] as? String
@@ -2210,9 +2225,9 @@ enum CostUsageScanner {
                         if type == "session_meta" {
                             let payload = obj["payload"] as? [String: Any]
                             if sessionId == nil {
-                                sessionId = payload?["session_id"] as? String
+                                sessionId = payload?["id"] as? String
+                                    ?? payload?["session_id"] as? String
                                     ?? payload?["sessionId"] as? String
-                                    ?? payload?["id"] as? String
                                     ?? obj["session_id"] as? String
                                     ?? obj["sessionId"] as? String
                                     ?? obj["id"] as? String
@@ -2355,7 +2370,7 @@ enum CostUsageScanner {
         let cached = cache.files[metadata.path]
 
         let input = CodexFileScanInput(fileURL: fileURL, metadata: metadata, cached: cached)
-        if Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
+        if try Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
             return
         }
         if try Self.appendCodexFileIncrementIfPossible(input: input, context: context, cache: &cache, state: &state) {

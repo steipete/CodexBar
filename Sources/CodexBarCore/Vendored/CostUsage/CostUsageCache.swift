@@ -141,6 +141,7 @@ struct CostUsageFileUsage: Codable {
     var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
+    var forkBaselineDependencyKey: String?
     var projectPath: String?
     var canonicalProjectPath: String?
     var codexCostCacheComplete: Bool?
