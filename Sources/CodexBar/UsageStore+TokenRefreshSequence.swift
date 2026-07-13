@@ -10,10 +10,10 @@ extension UsageStore {
 
     func startTokenTimer() {
         self.tokenTimerTask?.cancel()
-        let wait = self.tokenFetchTTL
+        guard let seconds = self.settings.refreshFrequency.seconds else { return }
         self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(wait))
+                try? await Task.sleep(for: .seconds(seconds))
                 await self?.scheduleTokenRefresh()
             }
         }
