@@ -1706,8 +1706,7 @@ enum CostUsageScanner {
                 warnedAboutUnparsedTimestamp = true
                 self.log.warning(
                     "Codex cost usage could not parse parent token snapshot timestamp; "
-                        + "falling back to lexical comparison",
-                    metadata: ["path": fileURL.path, "timestamp": timestamp])
+                        + "falling back to lexical comparison")
             }
             return date
         }
@@ -2562,6 +2561,7 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
+    // swiftlint:disable:next function_body_length
     private static func loadCodexDaily(
         range: CostUsageDayRange,
         now: Date,
@@ -2695,6 +2695,12 @@ enum CostUsageScanner {
                 ? [cachedUntilKey, range.scanUntilKey].compactMap(\.self).max() ?? range.scanUntilKey
                 : range.scanUntilKey
             Self.pruneDays(cache: &cache, sinceKey: retainedSinceKey, untilKey: retainedUntilKey)
+            try Self.recordCodexLineageShadow(
+                files: files,
+                roots: plan.roots,
+                cache: cache,
+                range: range,
+                checkCancellation: checkCancellation)
             cache.roots = plan.rootsFingerprint
             cache.scanSinceKey = retainedSinceKey
             cache.scanUntilKey = retainedUntilKey
@@ -2726,6 +2732,51 @@ enum CostUsageScanner {
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
             priorityTurns: plan.priorityTurns)
+    }
+
+    private static func recordCodexLineageShadow(
+        files: [URL],
+        roots: [URL],
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        checkCancellation: CancellationCheck?) throws
+    {
+        do {
+            let report = try CodexLineageShadow.run(
+                includedFiles: files,
+                roots: roots,
+                legacyDays: cache.days,
+                dayRange: range.sinceKey...range.untilKey,
+                localTimeZone: .current,
+                checkCancellation: checkCancellation)
+            self.log.info(
+                "Codex lineage shadow comparison completed",
+                metadata: [
+                    "accepted": "\(report.acceptedObservationCount)",
+                    "components": "\(report.componentCount)",
+                    "days": "\(report.days.count)",
+                    "duplicates": "\(report.duplicateObservationCount)",
+                    "referencedParents": "\(report.referencedParentDocumentCount)",
+                    "rejected": "\(report.rejectedObservationCount)",
+                    "unresolvedParents": "\(report.unresolvedParentCount)",
+                ])
+            for day in report.days where day.delta != .zero {
+                self.log.info(
+                    "Codex lineage shadow daily difference",
+                    metadata: [
+                        "cachedDelta": "\(day.delta.cached)",
+                        "day": "\(day.day)",
+                        "inputDelta": "\(day.delta.input)",
+                        "outputDelta": "\(day.delta.output)",
+                    ])
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            self.log.warning(
+                "Codex lineage shadow comparison failed",
+                metadata: ["errorType": "\(type(of: error))"])
+        }
     }
 
     private static func codexFileScanContext(
