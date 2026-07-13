@@ -103,6 +103,7 @@ enum CostUsageScanner {
         let forkedFromId: String?
         let snapshots: [CodexTimestampedTotals]
         let observations: [CodexLineageLedger.Observation]
+        let incompleteObservationCount: Int
     }
 
     enum CodexForkBaseline {
@@ -1685,7 +1686,7 @@ enum CostUsageScanner {
         return nil
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func parseCodexTokenSnapshots(
         fileURL: URL,
         checkCancellation: CancellationCheck? = nil) throws -> CodexParsedTokenEvidence
@@ -1696,6 +1697,7 @@ enum CostUsageScanner {
         var accumulator = CodexSnapshotAccumulator()
         var snapshots: [CodexTimestampedTotals] = []
         var observations: [CodexLineageLedger.Observation] = []
+        var incompleteObservationCount = 0
         var warnedAboutUnparsedTimestamp = false
 
         func parsedSnapshotDate(timestamp: String) -> Date? {
@@ -1716,6 +1718,9 @@ enum CostUsageScanner {
             total: CostUsageCodexTotals?)
         {
             guard last != nil || total != nil else { return }
+            if last == nil || total == nil {
+                incompleteObservationCount += 1
+            }
             let counted = accumulator.apply(last: last, total: total)
             snapshots.append(CodexTimestampedTotals(
                 timestamp: timestamp,
@@ -1739,7 +1744,13 @@ enum CostUsageScanner {
                 prefixBytes: 512 * 1024,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    guard !line.bytes.isEmpty else { return }
+                    if line.wasTruncated {
+                        if line.bytes.range(of: Data(#""token_count""#.utf8)) != nil {
+                            incompleteObservationCount += 1
+                        }
+                        return
+                    }
                     if let fastLine = Self.parseCodexFastLine(line.bytes) {
                         switch fastLine {
                         case let .sessionMeta(metadata):
@@ -1843,7 +1854,8 @@ enum CostUsageScanner {
             sessionId: sessionId,
             forkedFromId: forkedFromId,
             snapshots: snapshots,
-            observations: observations)
+            observations: observations,
+            incompleteObservationCount: incompleteObservationCount)
     }
 
     static func parseCodexLineageDocument(
@@ -1857,7 +1869,18 @@ enum CostUsageScanner {
             ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
             metadataSessionID: parsed.sessionId,
             parentSessionID: parsed.forkedFromId,
-            observations: parsed.observations)
+            observations: parsed.observations,
+            scopeID: Self.codexLineageScopeID(fileURL: fileURL),
+            incompleteObservationCount: parsed.incompleteObservationCount)
+    }
+
+    static func codexLineageScopeID(fileURL: URL) -> String {
+        let standardized = fileURL.standardizedFileURL
+        let components = standardized.pathComponents
+        if let index = components.lastIndex(where: { $0 == "sessions" || $0 == "archived_sessions" }) {
+            return NSString.path(withComponents: Array(components[..<index]))
+        }
+        return standardized.deletingLastPathComponent().path
     }
 
     private static func lineageTotals(_ totals: CostUsageCodexTotals) -> CodexLineageLedger.Totals {

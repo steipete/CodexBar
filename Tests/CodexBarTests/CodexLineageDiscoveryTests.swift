@@ -41,7 +41,7 @@ struct CodexLineageDiscoveryTests {
         #expect(Set(report.documents.map(\.ownerID)) == [childID, parentID, grandparentID])
         #expect(report.documents.map(\.ownerID).contains(unrelatedID) == false)
         #expect(report.referencedParentDocumentCount == 2)
-        #expect(report.unresolvedParentIDs.isEmpty)
+        #expect(report.unresolvedParents.isEmpty)
         #expect(FileManager.default.fileExists(atPath: parent.path))
         #expect(FileManager.default.fileExists(atPath: grandparent.path))
     }
@@ -63,7 +63,9 @@ struct CodexLineageDiscoveryTests {
 
         #expect(report.documents.count == 1)
         #expect(report.referencedParentDocumentCount == 0)
-        #expect(report.unresolvedParentIDs == ["66666666-6666-4666-8666-666666666666"])
+        #expect(report.unresolvedParents == [.init(
+            scopeID: environment.codexSessionsRoot.deletingLastPathComponent().path,
+            sessionID: "66666666-6666-4666-8666-666666666666")])
     }
 
     @Test
@@ -89,7 +91,100 @@ struct CodexLineageDiscoveryTests {
 
         #expect(report.documents.map(\.ownerID).contains(parentID))
         #expect(report.referencedParentDocumentCount == 1)
-        #expect(report.unresolvedParentIDs.isEmpty)
+        #expect(report.unresolvedParents.isEmpty)
+    }
+
+    @Test
+    func `parent lookup never crosses normalized Codex homes`() throws {
+        let environment = try CostUsageTestEnvironment()
+        defer { environment.cleanup() }
+        let parentID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let otherHomeSessions = environment.root
+            .appendingPathComponent("other-home", isDirectory: true)
+            .appendingPathComponent("sessions", isDirectory: true)
+        _ = try Self.writeRollout(
+            root: otherHomeSessions,
+            relativeDirectory: "2026/07/09",
+            ownerID: parentID,
+            metadataID: parentID)
+        let child = try Self.writeRollout(
+            root: environment.codexSessionsRoot,
+            relativeDirectory: "2026/07/09",
+            ownerID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            metadataID: "child",
+            parentID: parentID)
+
+        let report = try CodexLineageDiscovery.discover(
+            includedFiles: [child],
+            roots: [environment.codexSessionsRoot, otherHomeSessions])
+
+        #expect(report.documents.map(\.ownerID) == ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"])
+        #expect(report.unresolvedParents == [.init(
+            scopeID: environment.codexSessionsRoot.deletingLastPathComponent().path,
+            sessionID: parentID)])
+    }
+
+    @Test
+    func `ambiguous parent identity is unresolved instead of path-order dependent`() throws {
+        let environment = try CostUsageTestEnvironment()
+        defer { environment.cleanup() }
+        let parentAlias = "shared-parent-alias"
+        _ = try Self.writeRollout(
+            root: environment.codexArchivedSessionsRoot,
+            relativeDirectory: "",
+            ownerID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            metadataID: parentAlias)
+        _ = try Self.writeRollout(
+            root: environment.codexSessionsRoot,
+            relativeDirectory: "2025/01/01",
+            ownerID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            metadataID: parentAlias)
+        let child = try Self.writeRollout(
+            root: environment.codexSessionsRoot,
+            relativeDirectory: "2026/07/09",
+            ownerID: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            metadataID: "child",
+            parentID: parentAlias)
+
+        let report = try CodexLineageDiscovery.discover(
+            includedFiles: [child],
+            roots: [environment.codexSessionsRoot, environment.codexArchivedSessionsRoot])
+
+        #expect(report.documents.count == 1)
+        #expect(report.unresolvedParents == [.init(
+            scopeID: environment.codexSessionsRoot.deletingLastPathComponent().path,
+            sessionID: parentAlias)])
+    }
+
+    @Test
+    func `compatible active and archived copies of one parent are both retained`() throws {
+        let environment = try CostUsageTestEnvironment()
+        defer { environment.cleanup() }
+        let parentID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        _ = try Self.writeRollout(
+            root: environment.codexArchivedSessionsRoot,
+            relativeDirectory: "",
+            ownerID: parentID,
+            metadataID: parentID)
+        _ = try Self.writeRollout(
+            root: environment.codexSessionsRoot,
+            relativeDirectory: "2025/01/01",
+            ownerID: parentID,
+            metadataID: parentID)
+        let child = try Self.writeRollout(
+            root: environment.codexSessionsRoot,
+            relativeDirectory: "2026/07/09",
+            ownerID: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            metadataID: "child",
+            parentID: parentID)
+
+        let report = try CodexLineageDiscovery.discover(
+            includedFiles: [child],
+            roots: [environment.codexSessionsRoot, environment.codexArchivedSessionsRoot])
+
+        #expect(report.documents.count == 3)
+        #expect(report.referencedParentDocumentCount == 2)
+        #expect(report.unresolvedParents.isEmpty)
     }
 
     private static func writeRollout(

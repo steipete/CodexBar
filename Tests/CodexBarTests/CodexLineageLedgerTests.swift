@@ -32,6 +32,8 @@ struct CodexLineageLedgerTests {
         #expect(document.metadataSessionID == "metadata-id")
         #expect(document.parentSessionID == "parent-id")
         #expect(document.observations.count == 2)
+        #expect(document.incompleteObservationCount == 1)
+        #expect(document.scopeID == environment.root.path)
         #expect(document.observations[0].model == "gpt-5.4")
         #expect(document.observations[0].last == .init(input: 100, cached: 40, output: 10))
         #expect(document.observations[1].total == .init(input: 150, cached: 60, output: 15))
@@ -307,6 +309,168 @@ struct CodexLineageLedgerTests {
         #expect(forward == reversed)
         #expect(forward.utcDays["2026-07-09"]?.input == 100)
         #expect(forward.utcDays["2026-07-10"] == nil)
+    }
+
+    @Test
+    func `incomplete evidence contains the entire family without primary contribution`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let parent = Self.document(owner: "parent", observations: [observation])
+        let child = CodexLineageLedger.Document(
+            ownerID: "child",
+            metadataSessionID: "child",
+            parentSessionID: "parent",
+            observations: [observation],
+            incompleteObservationCount: 1)
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [parent, child],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays.isEmpty)
+        #expect(report.containedDocuments.count == 2)
+        #expect(report.families == [.init(
+            scopeID: "",
+            ownerIDs: ["parent", "child"],
+            quality: .contained([.incompleteObservation]))])
+    }
+
+    @Test
+    func `missing ancestry lowers provenance without discarding unique descendant usage`() throws {
+        let child = Self.document(
+            owner: "child",
+            parent: "missing-parent",
+            observations: [Self.observation(
+                timestamp: "2026-07-09T12:00:00Z",
+                input: 100,
+                totalInput: 100)])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [child],
+            unresolvedParents: [.init(sessionID: "missing-parent")],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays["2026-07-09"]?.input == 100)
+        #expect(report.containedDocuments.isEmpty)
+        #expect(report.families.first?.quality == .incompleteProvenance)
+    }
+
+    @Test
+    func `malformed timestamps and ancestry cycles route families to containment deterministically`() throws {
+        let malformed = Self.observation(timestamp: "not-a-time", input: 20, totalInput: 20)
+        let first = Self.document(owner: "first", parent: "second", observations: [malformed])
+        let second = Self.document(owner: "second", parent: "first", observations: [])
+
+        let forward = try CodexLineageLedger.reconcileConservatively(
+            documents: [first, second],
+            localTimeZone: .gmt)
+        let reversed = try CodexLineageLedger.reconcileConservatively(
+            documents: [second, first],
+            localTimeZone: .gmt)
+
+        #expect(forward == reversed)
+        #expect(forward.primary.utcDays.isEmpty)
+        #expect(forward.families.first?.quality == .contained([.malformedTimestamp, .ancestryCycle]))
+    }
+
+    @Test
+    func `identical identities in separate Codex homes remain additive`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let first = CodexLineageLedger.Document(
+            ownerID: "same-owner",
+            metadataSessionID: "same-metadata",
+            parentSessionID: nil,
+            observations: [observation],
+            scopeID: "/first-home")
+        let second = CodexLineageLedger.Document(
+            ownerID: "same-owner",
+            metadataSessionID: "same-metadata",
+            parentSessionID: nil,
+            observations: [observation],
+            scopeID: "/second-home")
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [first, second],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays["2026-07-09"]?.input == 200)
+        #expect(report.primary.componentCount == 2)
+        #expect(report.families.count == 2)
+    }
+
+    @Test
+    func `conflicting physical copies of one owner are contained`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let first = Self.document(owner: "same-owner", metadata: "first", observations: [observation])
+        let second = Self.document(owner: "same-owner", metadata: "second", observations: [observation])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [first, second],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays.isEmpty)
+        #expect(report.families.first?.quality == .contained([.conflictingOwnerIdentity]))
+    }
+
+    @Test
+    func `missing optional identity fields remain compatible with a complete copy`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let complete = Self.document(
+            owner: "same-owner",
+            metadata: "metadata",
+            parent: "parent",
+            observations: [observation])
+        let partial = Self.document(owner: "same-owner", observations: [observation])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [partial, complete],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays["2026-07-09"]?.input == 100)
+        #expect(report.containedDocuments.isEmpty)
+        #expect(report.families.first?.quality == .primary)
+    }
+
+    @Test
+    func `retained ancestor metadata does not manufacture an ancestry cycle`() throws {
+        let observation = Self.observation(timestamp: "2026-07-09T12:00:00Z", input: 100, totalInput: 100)
+        let root = Self.document(owner: "root", metadata: "root", observations: [observation])
+        let child = Self.document(
+            owner: "child",
+            metadata: "root",
+            parent: "root",
+            observations: [observation])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [root, child],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays["2026-07-09"]?.input == 100)
+        #expect(report.families.first?.quality == .primary)
+    }
+
+    @Test
+    func `unrelated owners sharing an ungrounded metadata identity are contained`() throws {
+        let first = Self.document(
+            owner: "first",
+            metadata: "shared",
+            observations: [Self.observation(
+                timestamp: "2026-07-09T12:00:00Z",
+                input: 100,
+                totalInput: 100)])
+        let second = Self.document(
+            owner: "second",
+            metadata: "shared",
+            observations: [Self.observation(
+                timestamp: "2026-07-09T12:01:00Z",
+                input: 200,
+                totalInput: 200)])
+
+        let report = try CodexLineageLedger.reconcileConservatively(
+            documents: [first, second],
+            localTimeZone: .gmt)
+
+        #expect(report.primary.utcDays.isEmpty)
+        #expect(report.families.first?.quality == .contained([.identityCollision]))
     }
 
     private static func document(

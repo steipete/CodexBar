@@ -5,7 +5,7 @@ enum CodexLineageDiscovery {
     struct Report: Equatable, Sendable {
         let documents: [CodexLineageLedger.Document]
         let referencedParentDocumentCount: Int
-        let unresolvedParentIDs: Set<String>
+        let unresolvedParents: Set<CodexLineageLedger.ParentIdentity>
     }
 
     static func discover(
@@ -15,20 +15,24 @@ enum CodexLineageDiscovery {
     {
         var locator = ParentFileLocator(roots: roots, checkCancellation: checkCancellation)
         var documents: [CodexLineageLedger.Document] = []
-        var knownIDs: Set<String> = []
+        var knownIDs: Set<ScopedIdentity> = []
         var seenPaths: Set<String> = []
-        var pendingParentIDs: [String] = []
-        var unresolvedParentIDs: Set<String> = []
+        var pendingParentIDs: [ScopedIdentity] = []
+        var unresolvedParents: Set<CodexLineageLedger.ParentIdentity> = []
         var referencedParentDocumentCount = 0
 
         func remember(_ document: CodexLineageLedger.Document) {
             documents.append(document)
-            knownIDs.insert(Self.canonicalSessionID(document.ownerID))
+            knownIDs.insert(.init(scopeID: document.scopeID, sessionID: Self.canonicalSessionID(document.ownerID)))
             if let metadataSessionID = Self.nonEmpty(document.metadataSessionID) {
-                knownIDs.insert(Self.canonicalSessionID(metadataSessionID))
+                knownIDs.insert(.init(
+                    scopeID: document.scopeID,
+                    sessionID: Self.canonicalSessionID(metadataSessionID)))
             }
             if let parentSessionID = Self.nonEmpty(document.parentSessionID) {
-                pendingParentIDs.append(Self.canonicalSessionID(parentSessionID))
+                pendingParentIDs.append(.init(
+                    scopeID: document.scopeID,
+                    sessionID: Self.canonicalSessionID(parentSessionID)))
             }
         }
 
@@ -44,35 +48,46 @@ enum CodexLineageDiscovery {
         var nextParent = 0
         while nextParent < pendingParentIDs.count {
             try checkCancellation?()
-            let parentID = pendingParentIDs[nextParent]
+            let parentIdentity = pendingParentIDs[nextParent]
             nextParent += 1
-            guard !knownIDs.contains(parentID), !unresolvedParentIDs.contains(parentID) else { continue }
-            guard let parentURL = try locator.fileURL(for: parentID) else {
-                unresolvedParentIDs.insert(parentID)
+            let unresolvedIdentity = CodexLineageLedger.ParentIdentity(
+                scopeID: parentIdentity.scopeID,
+                sessionID: parentIdentity.sessionID)
+            guard !knownIDs.contains(parentIdentity), !unresolvedParents.contains(unresolvedIdentity) else {
                 continue
             }
-            let path = parentURL.standardizedFileURL.path
-            guard seenPaths.insert(path).inserted else {
-                unresolvedParentIDs.insert(parentID)
+            guard let parentURLs = try locator.fileURLs(
+                for: parentIdentity.sessionID,
+                scopeID: parentIdentity.scopeID)
+            else {
+                unresolvedParents.insert(unresolvedIdentity)
                 continue
             }
-            let parent = try CostUsageScanner.parseCodexLineageDocument(
-                fileURL: parentURL,
-                checkCancellation: checkCancellation)
-            let ownerID = Self.canonicalSessionID(parent.ownerID)
-            let metadataSessionID = parent.metadataSessionID.map(Self.canonicalSessionID)
-            guard ownerID == parentID || metadataSessionID == parentID else {
-                unresolvedParentIDs.insert(parentID)
-                continue
+            var foundParent = false
+            for parentURL in parentURLs {
+                let path = parentURL.standardizedFileURL.path
+                guard seenPaths.insert(path).inserted else { continue }
+                let parent = try CostUsageScanner.parseCodexLineageDocument(
+                    fileURL: parentURL,
+                    checkCancellation: checkCancellation)
+                let ownerID = Self.canonicalSessionID(parent.ownerID)
+                let metadataSessionID = parent.metadataSessionID.map(Self.canonicalSessionID)
+                guard ownerID == parentIdentity.sessionID || metadataSessionID == parentIdentity.sessionID else {
+                    continue
+                }
+                referencedParentDocumentCount += 1
+                foundParent = true
+                remember(parent)
             }
-            referencedParentDocumentCount += 1
-            remember(parent)
+            if !foundParent {
+                unresolvedParents.insert(unresolvedIdentity)
+            }
         }
 
         return Report(
             documents: documents,
             referencedParentDocumentCount: referencedParentDocumentCount,
-            unresolvedParentIDs: unresolvedParentIDs)
+            unresolvedParents: unresolvedParents)
     }
 
     private static func nonEmpty(_ value: String?) -> String? {
@@ -84,21 +99,38 @@ enum CodexLineageDiscovery {
         UUID(uuidString: value)?.uuidString.lowercased() ?? value
     }
 
+    private struct ScopedIdentity: Equatable, Hashable {
+        let scopeID: String
+        let sessionID: String
+    }
+
     private struct ParentFileLocator {
         let roots: [URL]
         let checkCancellation: CostUsageScanner.CancellationCheck?
         var didIndexRoots = false
-        var filesByID: [String: URL] = [:]
+        var filesByID: [ScopedIdentity: Set<URL>] = [:]
 
-        mutating func fileURL(for sessionID: String) throws -> URL? {
+        mutating func fileURLs(for sessionID: String, scopeID: String) throws -> [URL]? {
             let canonicalID = CodexLineageDiscovery.canonicalSessionID(sessionID)
-            if let known = self.filesByID[canonicalID] {
-                return known
+            let key = ScopedIdentity(scopeID: scopeID, sessionID: canonicalID)
+            if let known = self.filesByID[key] {
+                return Self.unambiguousMatches(known)
             }
             if !self.didIndexRoots {
                 try self.indexRoots()
             }
-            return self.filesByID[canonicalID]
+            guard let matches = self.filesByID[key] else { return nil }
+            return Self.unambiguousMatches(matches)
+        }
+
+        private static func unambiguousMatches(_ matches: Set<URL>) -> [URL]? {
+            guard !matches.isEmpty else { return nil }
+            if matches.count == 1 {
+                return Array(matches)
+            }
+            let ownerIDs = Set(matches.compactMap(CostUsageScanner.codexRolloutOwnerID(fileURL:)))
+            guard ownerIDs.count == 1 else { return nil }
+            return matches.sorted { $0.path < $1.path }
         }
 
         private mutating func indexRoots() throws {
@@ -122,14 +154,20 @@ enum CodexLineageDiscovery {
                 try self.checkCancellation?()
                 if let ownerID = CostUsageScanner.codexRolloutOwnerID(fileURL: fileURL) {
                     let canonicalID = CodexLineageDiscovery.canonicalSessionID(ownerID)
-                    self.filesByID[canonicalID] = self.filesByID[canonicalID] ?? fileURL
+                    let key = ScopedIdentity(
+                        scopeID: CostUsageScanner.codexLineageScopeID(fileURL: fileURL),
+                        sessionID: canonicalID)
+                    self.filesByID[key, default: []].insert(fileURL)
                 }
                 if let metadataID = try CostUsageScanner.parseCodexSessionIdentifier(
                     fileURL: fileURL,
                     checkCancellation: self.checkCancellation)
                 {
                     let canonicalID = CodexLineageDiscovery.canonicalSessionID(metadataID)
-                    self.filesByID[canonicalID] = self.filesByID[canonicalID] ?? fileURL
+                    let key = ScopedIdentity(
+                        scopeID: CostUsageScanner.codexLineageScopeID(fileURL: fileURL),
+                        sessionID: canonicalID)
+                    self.filesByID[key, default: []].insert(fileURL)
                 }
             }
         }

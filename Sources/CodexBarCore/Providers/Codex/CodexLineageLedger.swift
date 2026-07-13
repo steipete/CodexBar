@@ -41,6 +41,60 @@ enum CodexLineageLedger {
         let metadataSessionID: String?
         let parentSessionID: String?
         let observations: [Observation]
+        let scopeID: String
+        let incompleteObservationCount: Int
+
+        init(
+            ownerID: String,
+            metadataSessionID: String?,
+            parentSessionID: String?,
+            observations: [Observation],
+            scopeID: String = "",
+            incompleteObservationCount: Int = 0)
+        {
+            self.ownerID = ownerID
+            self.metadataSessionID = metadataSessionID
+            self.parentSessionID = parentSessionID
+            self.observations = observations
+            self.scopeID = scopeID
+            self.incompleteObservationCount = incompleteObservationCount
+        }
+    }
+
+    enum ContainmentReason: String, CaseIterable, Equatable, Hashable, Sendable {
+        case malformedTimestamp
+        case incompleteObservation
+        case conflictingOwnerIdentity
+        case identityCollision
+        case ancestryCycle
+    }
+
+    enum FamilyQuality: Equatable, Sendable {
+        case primary
+        case incompleteProvenance
+        case contained(Set<ContainmentReason>)
+    }
+
+    struct FamilyDisposition: Equatable, Sendable {
+        let scopeID: String
+        let ownerIDs: Set<String>
+        let quality: FamilyQuality
+    }
+
+    struct ParentIdentity: Equatable, Hashable, Sendable {
+        let scopeID: String
+        let sessionID: String
+
+        init(scopeID: String = "", sessionID: String) {
+            self.scopeID = scopeID
+            self.sessionID = sessionID
+        }
+    }
+
+    struct ConservativeReport: Equatable, Sendable {
+        let primary: Report
+        let families: [FamilyDisposition]
+        let containedDocuments: [Document]
     }
 
     struct Report: Equatable, Sendable {
@@ -78,12 +132,13 @@ enum CodexLineageLedger {
         for document in documents {
             try checkCancellation?()
             guard !document.ownerID.isEmpty else { throw LedgerError.emptyOwnerID }
-            graph.insert(document.ownerID)
+            let ownerID = Self.scoped(document.ownerID, document: document)
+            graph.insert(ownerID)
             if let metadataSessionID = Self.nonEmpty(document.metadataSessionID) {
-                graph.union(document.ownerID, metadataSessionID)
+                graph.union(ownerID, Self.scoped(metadataSessionID, document: document))
             }
             if let parentSessionID = Self.nonEmpty(document.parentSessionID) {
-                graph.union(document.ownerID, parentSessionID)
+                graph.union(ownerID, Self.scoped(parentSessionID, document: document))
             }
         }
 
@@ -91,7 +146,7 @@ enum CodexLineageLedger {
         var physicalObservationCount = 0
         for document in documents {
             try checkCancellation?()
-            let componentID = graph.find(document.ownerID)
+            let componentID = graph.find(Self.scoped(document.ownerID, document: document))
             var accepted = acceptedByComponent[componentID] ?? [:]
             for observation in document.observations {
                 try checkCancellation?()
@@ -138,9 +193,79 @@ enum CodexLineageLedger {
             localDays: localDays,
             utcRows: Self.dailyRows(from: utcRows),
             localRows: Self.dailyRows(from: localRows),
-            componentCount: Set(documents.map { graph.find($0.ownerID) }).count,
+            componentCount: Set(documents.map { graph.find(Self.scoped($0.ownerID, document: $0)) }).count,
             acceptedObservationCount: acceptedObservationCount,
             duplicateObservationCount: physicalObservationCount - acceptedObservationCount)
+    }
+
+    /// Routes every lineage family to either primary ledger accounting or explicit containment.
+    /// Contained documents are returned to the caller for a future family-scoped fallback; they never
+    /// contribute to `primary`, which prevents double accounting by construction.
+    static func reconcileConservatively(
+        documents: [Document],
+        unresolvedParents: Set<ParentIdentity> = [],
+        localTimeZone: TimeZone,
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> ConservativeReport
+    {
+        var graph = DisjointSet()
+        for document in documents {
+            try checkCancellation?()
+            let owner = Self.scoped(document.ownerID, document: document)
+            graph.insert(owner)
+            if let metadata = Self.nonEmpty(document.metadataSessionID) {
+                graph.union(owner, Self.scoped(metadata, document: document))
+            }
+            if let parent = Self.nonEmpty(document.parentSessionID) {
+                graph.union(owner, Self.scoped(parent, document: document))
+            }
+        }
+
+        var documentsByFamily: [String: [Document]] = [:]
+        for document in documents {
+            try checkCancellation?()
+            let family = graph.find(Self.scoped(document.ownerID, document: document))
+            documentsByFamily[family, default: []].append(document)
+        }
+
+        var primaryDocuments: [Document] = []
+        var containedDocuments: [Document] = []
+        var families: [FamilyDisposition] = []
+        for familyDocuments in documentsByFamily.values {
+            try checkCancellation?()
+            let reasons = Self.containmentReasons(in: familyDocuments)
+            let owners = Set(familyDocuments.map(\.ownerID))
+            let unresolved = familyDocuments.contains { document in
+                guard let parent = Self.nonEmpty(document.parentSessionID) else { return false }
+                return unresolvedParents.contains(.init(
+                    scopeID: document.scopeID,
+                    sessionID: Self.canonicalIdentity(parent)))
+            }
+            let quality: FamilyQuality
+            if reasons.isEmpty {
+                quality = unresolved ? .incompleteProvenance : .primary
+                primaryDocuments.append(contentsOf: familyDocuments)
+            } else {
+                quality = .contained(reasons)
+                containedDocuments.append(contentsOf: familyDocuments)
+            }
+            families.append(FamilyDisposition(
+                scopeID: familyDocuments.first?.scopeID ?? "",
+                ownerIDs: owners,
+                quality: quality))
+        }
+
+        families.sort {
+            ($0.scopeID, $0.ownerIDs.sorted().joined(separator: "\u{0}"))
+                < ($1.scopeID, $1.ownerIDs.sorted().joined(separator: "\u{0}"))
+        }
+        containedDocuments.sort(by: Self.documentComesBefore)
+        return try ConservativeReport(
+            primary: Self.reconcile(
+                documents: primaryDocuments,
+                localTimeZone: localTimeZone,
+                checkCancellation: checkCancellation),
+            families: families,
+            containedDocuments: containedDocuments)
     }
 
     private struct Fingerprint: Equatable, Hashable {
@@ -168,6 +293,117 @@ enum CodexLineageLedger {
     private static func nonEmpty(_ value: String?) -> String? {
         guard let value, !value.isEmpty else { return nil }
         return value
+    }
+
+    private static func scoped(_ identity: String, document: Document) -> String {
+        document.scopeID + "\u{0}" + self.canonicalIdentity(identity)
+    }
+
+    private static func canonicalIdentity(_ identity: String) -> String {
+        UUID(uuidString: identity)?.uuidString.lowercased() ?? identity
+    }
+
+    private static func documentComesBefore(_ lhs: Document, _ rhs: Document) -> Bool {
+        let lhsKey = [
+            lhs.scopeID,
+            lhs.ownerID,
+            lhs.metadataSessionID ?? "",
+            lhs.parentSessionID ?? "",
+            String(lhs.incompleteObservationCount),
+            lhs.observations.map(Self.observationSortKey).joined(separator: "\u{1}"),
+        ].joined(separator: "\u{0}")
+        let rhsKey = [
+            rhs.scopeID,
+            rhs.ownerID,
+            rhs.metadataSessionID ?? "",
+            rhs.parentSessionID ?? "",
+            String(rhs.incompleteObservationCount),
+            rhs.observations.map(Self.observationSortKey).joined(separator: "\u{1}"),
+        ].joined(separator: "\u{0}")
+        return lhsKey < rhsKey
+    }
+
+    private static func observationSortKey(_ observation: Observation) -> String {
+        [
+            observation.timestamp,
+            observation.model,
+            String(observation.last.input),
+            String(observation.last.cached),
+            String(observation.last.output),
+            String(observation.total.input),
+            String(observation.total.cached),
+            String(observation.total.output),
+        ].joined(separator: "\u{0}")
+    }
+
+    private static func containmentReasons(in documents: [Document]) -> Set<ContainmentReason> {
+        var reasons: Set<ContainmentReason> = []
+        if documents.contains(where: { $0.incompleteObservationCount > 0 }) {
+            reasons.insert(.incompleteObservation)
+        }
+        if documents.flatMap(\.observations)
+            .contains(where: { CostUsageScanner.dateFromTimestamp($0.timestamp) == nil })
+        {
+            reasons.insert(.malformedTimestamp)
+        }
+        let ownerGroups = Dictionary(grouping: documents, by: \.ownerID)
+        if ownerGroups.values.contains(where: { group in
+            let metadataIDs = Set(group.compactMap { Self.nonEmpty($0.metadataSessionID) })
+            let parentIDs = Set(group.compactMap { Self.nonEmpty($0.parentSessionID) })
+            return metadataIDs.count > 1 || parentIDs.count > 1
+        }) {
+            reasons.insert(.conflictingOwnerIdentity)
+        }
+        let metadataGroups = Dictionary(grouping: documents.compactMap { document in
+            Self.nonEmpty(document.metadataSessionID).map { (Self.canonicalIdentity($0), document) }
+        }, by: \.0)
+        if metadataGroups.contains(where: { metadataID, entries in
+            let documents = entries.map(\.1)
+            let owners = Set(documents.map { Self.canonicalIdentity($0.ownerID) })
+            guard owners.count > 1, !owners.contains(metadataID) else { return false }
+            return !documents.allSatisfy {
+                $0.parentSessionID.map(Self.canonicalIdentity) == metadataID
+            }
+        }) {
+            reasons.insert(.identityCollision)
+        }
+        if Self.hasAncestryCycle(documents) {
+            reasons.insert(.ancestryCycle)
+        }
+        return reasons
+    }
+
+    private static func hasAncestryCycle(_ documents: [Document]) -> Bool {
+        let metadataOwners = Dictionary(grouping: documents.compactMap { document in
+            document.metadataSessionID.map { ($0, document.ownerID) }
+        }, by: \.0).mapValues { Set($0.map(\.1)) }
+        var parents: [String: Set<String>] = [:]
+        for document in documents {
+            guard let parent = Self.nonEmpty(document.parentSessionID) else { continue }
+            var targets = metadataOwners[parent] ?? [parent]
+            if parent != document.ownerID {
+                targets.remove(document.ownerID)
+            }
+            parents[document.ownerID, default: []].formUnion(targets)
+        }
+        var visiting: Set<String> = []
+        var visited: Set<String> = []
+        func visit(_ owner: String) -> Bool {
+            if visiting.contains(owner) {
+                return true
+            }
+            if visited.contains(owner) {
+                return false
+            }
+            visiting.insert(owner)
+            for parent in parents[owner] ?? [] where visit(parent) {
+                return true
+            }
+            visiting.remove(owner)
+            visited.insert(owner)
+            return false
+        }
+        return Set(documents.map(\.ownerID)).contains(where: visit)
     }
 
     /// Duplicate copies can carry different model evidence. Keep the earliest physical copy,

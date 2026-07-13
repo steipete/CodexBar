@@ -36,13 +36,16 @@ struct CodexLineageShadowTests {
         #expect(report.days == [.init(
             day: "2026-07-09",
             legacy: .init(input: 150, cached: 20, output: 10),
-            ledger: .init(input: 100, cached: 0, output: 0))])
-        #expect(report.days[0].delta == .init(input: -50, cached: -20, output: -10))
-        #expect(report.acceptedObservationCount == 1)
-        #expect(report.duplicateObservationCount == 1)
-        #expect(report.componentCount == 1)
+            ledger: .zero)])
+        #expect(report.days[0].delta == .init(input: -150, cached: -20, output: -10))
+        #expect(report.acceptedObservationCount == 0)
+        #expect(report.duplicateObservationCount == 0)
+        #expect(report.componentCount == 0)
         #expect(report.rejectedObservationCount == 1)
         #expect(report.unresolvedParentCount == 0)
+        #expect(report.primaryFamilyCount == 0)
+        #expect(report.containedFamilyCount == 1)
+        #expect(report.containmentReasonCounts == [.malformedTimestamp: 1])
     }
 
     private static func writeRollout(
