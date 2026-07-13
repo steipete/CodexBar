@@ -20,9 +20,11 @@ key for that legacy endpoint to pull your remaining balance and usage.
 
 1) **API key** stored in `~/.codexbar/config.json` or supplied via `KIMI_K2_API_KEY` / `KIMI_API_KEY` / `KIMI_KEY`.
    CodexBar stores the key in config after you paste it in Preferences → Providers → Kimi K2 (unofficial).
+   Surrounding whitespace is ignored before the key is sent.
 2) **Credit endpoint**
    - `GET https://kimi-k2.ai/api/user/credits`
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
+   - HTTP 401 is shown as an invalid or expired key; other failures keep the provider's response details.
    - Response headers may include `X-Credits-Remaining`.
    - JSON payload contains total credits consumed, credits remaining, and optional usage metadata.
      CodexBar scans common keys and falls back to the remaining header when JSON omits it.
@@ -31,7 +33,8 @@ key for that legacy endpoint to pull your remaining balance and usage.
 
 - Credits are the billing unit; CodexBar computes used percent as `consumed / (consumed + remaining)`.
 - There is no explicit reset timestamp in the API, so the snapshot has no reset time.
-- Environment variables take precedence over config.
+- The menu's Usage Dashboard action opens the legacy service's human-facing credits page at `https://kimrel.com/my-credits`.
+- A key saved in Settings takes precedence over environment variables.
 
 ## Key files
 

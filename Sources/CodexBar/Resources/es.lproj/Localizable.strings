@@ -269,7 +269,8 @@
 "Select the IDE to monitor" = "Selecciona el IDE a monitorizar";
 "Session quota notifications" = "Notificaciones de cuota de sesión";
 "Session tokens" = "Tokens de sesión";
-"Settings" = "Ajustes";
+"provider_section_connection" = "Conexión";
+"provider_section_menu_bar" = "Barra de menús";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Mostrar las secciones de Créditos de Codex y Uso adicional de Claude en el menú.";
 "Show Debug Settings" = "Mostrar ajustes de depuración";
 "Show all token accounts" = "Mostrar todas las cuentas con token";
@@ -397,7 +398,14 @@
 /* General Pane */
 "section_system" = "Sistema";
 "section_usage" = "Uso";
-"section_automation" = "Automatización";
+"section_refreshing" = "Actualización";
+"section_alerts" = "Alertas";
+"section_celebrations" = "Celebraciones";
+"section_icon" = "Icono";
+"section_combined_icon" = "Icono combinado";
+"section_animation" = "Animación";
+"section_content" = "Contenido";
+"section_agent_sessions" = "Sesiones de agentes";
 "language_title" = "Idioma";
 "language_subtitle" = "Cambia el idioma de la interfaz. Requiere reiniciar la app para aplicarse por completo.";
 "language_system" = "Sistema";
@@ -419,7 +427,6 @@
 "language_polish" = "Polski";
 "start_at_login_title" = "Abrir al iniciar sesión";
 "start_at_login_subtitle" = "Abre CodexBar automáticamente al iniciar tu Mac.";
-"show_cost_summary" = "Mostrar resumen de coste";
 "show_cost_summary_subtitle" = "Lee los registros de uso locales. Muestra el coste de hoy + la ventana de historial seleccionada en el menú.";
 "cost_summary_style_title" = "Estilo de visualización";
 "cost_summary_style_inline" = "Solo integrado";
@@ -434,17 +441,16 @@
 "cost_auto_refresh_info" = "Actualización automática: cada hora · Tiempo de espera: 10 m";
 "cost_comparison_periods_title" = "Mostrar períodos de comparación más cortos";
 "cost_comparison_periods_subtitle" = "Añade totales de 7, 30 y 90 días cuando quepan en el intervalo de historial seleccionado. Estos totales reutilizan el mismo análisis local.";
-"refresh_cadence_title" = "Frecuencia de actualización";
-"refresh_cadence_subtitle" = "Con qué frecuencia CodexBar consulta a los proveedores en segundo plano.";
+"refresh_interval_title" = "Intervalo de actualización";
 "manual_refresh_hint" = "La actualización automática está desactivada; usa el comando Actualizar del menú.";
 "refresh_on_open_title" = "Actualizar al abrir el menú";
 "refresh_on_open_subtitle" = "Obtén el uso más reciente de cada proveedor cada vez que abres el menú.";
 "check_provider_status_title" = "Comprobar estado del proveedor";
 "check_provider_status_subtitle" = "Consulta las páginas de estado de OpenAI/Claude y Google Workspace para Gemini/Antigravity, mostrando incidencias en el icono y el menú.";
-"session_quota_notifications_title" = "Notificaciones de cuota de sesión";
 "session_quota_notifications_subtitle" = "Avisa cuando la cuota de sesión de 5 horas llega al 0 % y cuando vuelve a estar disponible.";
-"quota_warning_notifications_title" = "Notificaciones de aviso de cuota";
+"quota_depleted_title" = "Cuota agotada y restaurada";
 "quota_warning_notifications_subtitle" = "Avisa cuando la cuota restante de sesión o semanal cruza los umbrales configurados.";
+"threshold_warnings_title" = "Avisos de umbral";
 "quota_warnings_title" = "Avisos de cuota";
 "quota_warning_session" = "sesión";
 "quota_warning_session_capitalized" = "Sesión";
@@ -452,6 +458,12 @@
 "quota_warning_weekly_capitalized" = "Semanal";
 "predictive_pace_warnings_title" = "Avisos predictivos de ritmo";
 "predictive_pace_warnings_subtitle" = "Avisa para Codex y Claude cuando el ritmo de sesión o semanal puede agotar la cuota antes del reinicio.";
+"confetti_on_reset_title" = "Confeti al reiniciar";
+"confetti_on_reset_subtitle" = "Reproduce confeti a pantalla completa cuando se reinicia el uso.";
+"confetti_option_off" = "Desactivado";
+"confetti_option_session" = "Reinicios de sesión";
+"confetti_option_weekly" = "Reinicios semanales";
+"confetti_option_both" = "Ambos";
 "predictive_pace_warning_notification_title" = "%1$@: aviso de ritmo %2$@";
 "predictive_pace_warning_notification_body" = "Al ritmo actual, esta cuota podría agotarse en %1$@, antes de reiniciarse.";
 "predictive_pace_warning_notification_body_with_account" = "Cuenta %1$@. Al ritmo actual, esta cuota podría agotarse en %2$@, antes de reiniciarse.";
@@ -460,6 +472,8 @@
 "quota_warning_sound" = "Reproducir sonido de notificación";
 "quota_warning_onscreen_alert" = "Mostrar alerta de texto en pantalla";
 "quota_warning_provider_inherits" = "Usa los ajustes globales de aviso de cuota salvo que se personalice una ventana aquí.";
+"quota_warning_provider_disabled" = "Las notificaciones de aviso de cuota y los marcadores de las barras de uso están desactivados. Activa una de las dos opciones para editar estos ajustes guardados.";
+"quota_warning_provider_markers_only" = "Las notificaciones de aviso de cuota están desactivadas globalmente. Estos ajustes siguen controlando los marcadores de las barras de uso.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personalizar umbrales de %@";
 "quota_warning_enable_warnings" = "Activar avisos de %@";
@@ -477,7 +491,9 @@
 /* Tab titles */
 "tab_general" = "General";
 "tab_providers" = "Proveedores";
-"tab_display" = "Pantalla";
+"tab_notifications" = "Notificaciones";
+"tab_menu_bar" = "Barra de menús";
+"tab_menu" = "Menú";
 "tab_advanced" = "Avanzado";
 "tab_about" = "Acerca de";
 "tab_debug" = "Depuración";
@@ -506,34 +522,36 @@
 "primary_api_key_limit" = "Principal (límite de la clave de API)";
 
 /* Display Pane */
-"section_menu_bar" = "Barra de menús";
+"menu_bar_style_title" = "Estilo de la barra de menús";
+"menu_bar_style_subtitle" = "Cómo se dibuja el elemento de la barra de menús.";
+"menu_bar_style_critters" = "Bichitos";
+"menu_bar_style_bars" = "Barras de medición";
+"menu_bar_style_icon_percent" = "Icono y porcentaje";
+"switcher_rows_title" = "Filas del selector";
+"switcher_rows_icons" = "Iconos de proveedor";
+"switcher_rows_progress" = "Progreso semanal";
+"usage_bars_fill_title" = "Relleno de las barras de uso";
+"usage_bars_fill_remaining" = "Según lo restante";
+"usage_bars_fill_used" = "Según lo usado";
+"reset_times_title" = "Horas de reinicio";
+"reset_times_countdown" = "Cuenta atrás";
+"reset_times_clock" = "Hora";
+"cost_summary_title" = "Resumen de coste";
+"cost_summary_off" = "Desactivado";
 "merge_icons_title" = "Combinar iconos";
 "merge_icons_subtitle" = "Usar un único icono en la barra de menús con un selector de proveedor.";
-"switcher_shows_icons_title" = "El selector muestra iconos";
-"switcher_shows_icons_subtitle" = "Mostrar los iconos de proveedor en el selector (de lo contrario, mostrar una línea de progreso semanal).";
 "show_most_used_provider_title" = "Mostrar el proveedor más usado";
 "show_most_used_provider_subtitle" = "La barra de menús muestra automáticamente el proveedor más cercano a su límite.";
-"menu_bar_shows_percent_title" = "La barra de menús muestra el porcentaje";
-"menu_bar_shows_percent_subtitle" = "Sustituir las barras de bichitos por iconos de marca del proveedor y un porcentaje.";
-"hide_critters_title" = "Ocultar bichitos";
-"hide_critters_subtitle" = "Mostrar barras de medición simples sin la cara ni las decoraciones.";
 "display_mode_title" = "Modo de visualización";
 "display_mode_subtitle" = "Elige qué mostrar en la barra de menús (Ritmo muestra el uso frente al previsto).";
-"section_menu_content" = "Contenido del menú";
-"show_usage_as_used_title" = "Mostrar el uso como consumido";
-"show_usage_as_used_subtitle" = "Las barras de progreso se llenan a medida que consumes la cuota (en lugar de mostrar lo restante).";
 "show_quota_warning_markers_title" = "Mostrar marcadores de aviso de cuota";
 "show_quota_warning_markers_subtitle" = "Dibuja marcas de umbral en las barras de uso cuando hay avisos de cuota configurados.";
 "weekly_progress_work_days_title" = "Días laborables del progreso semanal";
 "weekly_progress_work_days_subtitle" = "Define los días laborables para los marcadores de las barras de uso semanal y los cálculos de ritmo.";
-"show_reset_time_as_clock_title" = "Mostrar la hora de reinicio como reloj";
-"show_reset_time_as_clock_subtitle" = "Mostrar las horas de reinicio como valores de reloj absolutos en lugar de cuentas atrás.";
 "show_provider_changelog_links_title" = "Mostrar enlaces al registro de cambios del proveedor";
 "show_provider_changelog_links_subtitle" = "Añade al menú enlaces a las notas de versión de los proveedores compatibles basados en CLI.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso adicional";
 "show_credits_extra_usage_subtitle" = "Mostrar las secciones de Créditos de Codex y Uso adicional de Claude en el menú.";
-"show_all_token_accounts_title" = "Mostrar todas las cuentas con token";
-"show_all_token_accounts_subtitle" = "Apilar las cuentas con token en el menú (de lo contrario, mostrar una barra de cambio de cuenta).";
 "multi_account_layout_title" = "Diseño multicuenta";
 "multi_account_layout_subtitle" = "Elige cambio de cuenta segmentado o tarjetas de cuenta apiladas.";
 "multi_account_layout_segmented" = "Segmentado";
@@ -544,6 +562,10 @@
 "overview_no_providers_hint" = "No hay proveedores activados disponibles para Resumen.";
 "overview_rows_follow_order" = "Las filas de Resumen siempre siguen el orden de los proveedores.";
 "overview_no_providers_selected" = "No hay proveedores seleccionados";
+"agent_sessions_title" = "Sesiones de agentes";
+"agent_sessions_subtitle" = "Muestra en el menú las sesiones de Codex y Claude Code locales y detectadas mediante SSH.";
+"agent_sessions_hosts_title" = "Hosts SSH adicionales";
+"agent_sessions_footer" = "Los Mac de tu tailnet se detectan automáticamente. Las sesiones locales se actualizan cada 30 segundos; los hosts remotos, cada 60 segundos y al abrir el menú.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Atajo de teclado";
@@ -558,10 +580,6 @@
 "1.5× headroom" = "margen de 1,5×";
 "surprise_me_title" = "Sorpréndeme";
 "surprise_me_subtitle" = "Actívalo si te gusta que tus agentes se diviertan ahí arriba.";
-"session_limit_confetti_title" = "Confeti del límite de sesión";
-"session_limit_confetti_subtitle" = "Muestra confeti a pantalla completa cuando se restablece el uso de la sesión.";
-"weekly_limit_confetti_title" = "Confeti del límite semanal";
-"weekly_limit_confetti_subtitle" = "Mostrar confeti a pantalla completa cuando se reinicia el uso semanal.";
 "hide_personal_info_title" = "Ocultar información personal";
 "hide_personal_info_subtitle" = "Oculta las direcciones de correo en la barra de menús y la interfaz del menú.";
 "show_provider_storage_usage_title" = "Mostrar uso de almacenamiento del proveedor";
@@ -660,6 +678,8 @@
 "display_mode_pace_desc" = "Mostrar el indicador de ritmo (p. ej. +5 %)";
 "display_mode_both_desc" = "Mostrar porcentaje y ritmo (p. ej. 45 % · +5 %)";
 "display_mode_reset_time_desc" = "Mostrar el tiempo de restablecimiento de la métrica seleccionada (p. ej. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Mostrar la hora de restablecimiento cuando se agote la cuota";
+"menu_bar_reset_when_exhausted_subtitle" = "Con un 0% restante, muestra el tiempo hasta el restablecimiento en lugar del porcentaje";
 
 /* Provider status */
 "status_operational" = "Operativo";
@@ -689,6 +709,8 @@
 /* Popup panels */
 "No usage configured." = "No hay uso configurado.";
 "Quota" = "Cuota";
+"Daily quota" = "Cuota diaria";
+"Total" = "Total";
 "tokens" = "tokens";
 "requests" = "solicitudes";
 "Latest" = "Último";
@@ -1018,4 +1040,5 @@
 "section_links" = "Enlaces";
 "Show Codex Spark usage" = "Mostrar el uso de Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Muestra las filas de cuota de Codex Spark en el menú y en la vista previa del proveedor. Requiere activar «Mostrar créditos + uso adicional» en los ajustes de Pantalla.";
+"Scroll to see more models" = "Desplázate para ver más modelos";
 "%@ this cycle" = "%@ en este ciclo";

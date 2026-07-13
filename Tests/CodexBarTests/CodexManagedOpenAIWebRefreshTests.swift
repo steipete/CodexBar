@@ -190,6 +190,9 @@ struct CodexManagedOpenAIWebRefreshTests {
             settings: settings,
             startupBehavior: .testing)
         store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        let publicationGuard = store.currentCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
 
         let creditsBlocker = BlockingCreditsLoader()
         let saver = BlockingWidgetSnapshotSaver()
@@ -277,6 +280,9 @@ struct CodexManagedOpenAIWebRefreshTests {
         await store.widgetSnapshotPersistTask?.value
         settings.openAIWebAccessEnabled = true
         store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        let publicationGuard = store.currentCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
         store.creditsRefreshTask = Task {}
         store.creditsRefreshTaskKey = store.codexCreditsRefreshKey(
             expectedGuard: store.currentCodexAccountScopedRefreshGuard())
@@ -648,15 +654,7 @@ struct CodexManagedOpenAIWebRefreshTests {
     }
 
     private func makeSettingsStore(suite: String) throws -> SettingsStore {
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        defaults.set(true, forKey: "providerDetectionCompleted")
-        let configStore = testConfigStore(suiteName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(suiteName: suite)
         let codexMetadata = try #require(ProviderDescriptorRegistry.metadata[.codex])
         settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
         settings.providerDetectionCompleted = true
@@ -747,21 +745,36 @@ actor RefreshCompletionProbe {
 }
 
 actor BlockingManagedOpenAIDashboardLoader {
-    private var continuations: [CheckedContinuation<Result<OpenAIDashboardSnapshot, Error>, Never>] = []
+    private typealias ResultContinuation = CheckedContinuation<Result<OpenAIDashboardSnapshot, Error>, Never>
+
+    private var continuations: [(id: UUID, continuation: ResultContinuation)] = []
     private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     private var started: Int = 0
+    private var cancelledIDs: Set<UUID> = []
+    private var rejectsNewCalls = false
 
     func awaitResult() async throws -> OpenAIDashboardSnapshot {
-        let result = await withCheckedContinuation { continuation in
-            self.continuations.append(continuation)
-            self.started += 1
-            self.resumeReadyStartWaiters()
+        let id = UUID()
+        let result = await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: ResultContinuation) in
+                if self.rejectsNewCalls || Task.isCancelled {
+                    continuation.resume(returning: .failure(CancellationError()))
+                } else {
+                    self.continuations.append((id: id, continuation: continuation))
+                    self.started += 1
+                    self.resumeReadyStartWaiters()
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(id: id) }
         }
         return try result.get()
     }
 
     func waitUntilStarted(count: Int = 1) async {
-        if self.started >= count { return }
+        if self.started >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startWaiters.append((count: count, continuation: continuation))
         }
@@ -784,8 +797,17 @@ actor BlockingManagedOpenAIDashboardLoader {
 
     func resumeNext(with result: Result<OpenAIDashboardSnapshot, Error>) {
         guard !self.continuations.isEmpty else { return }
-        let continuation = self.continuations.removeFirst()
-        continuation.resume(returning: result)
+        let record = self.continuations.removeFirst()
+        self.cancelledIDs.remove(record.id)
+        record.continuation.resume(returning: result)
+    }
+
+    func cancelAll() {
+        self.rejectsNewCalls = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        self.cancelledIDs.removeAll()
+        continuations.forEach { $0.continuation.resume(returning: .failure(CancellationError())) }
     }
 
     private func resumeReadyStartWaiters() {
@@ -799,37 +821,100 @@ actor BlockingManagedOpenAIDashboardLoader {
         }
         self.startWaiters = remaining
     }
+
+    private func cancel(id: UUID) {
+        guard self.continuations.contains(where: { $0.id == id }) else { return }
+        _ = self.cancelledIDs.insert(id)
+    }
 }
 
 actor BlockingCreditsLoader {
-    private var continuations: [CheckedContinuation<Result<CreditsSnapshot, Error>, Never>] = []
+    private typealias ResultContinuation = CheckedContinuation<Result<CreditsSnapshot, Error>, Never>
+
+    private var continuations: [(id: UUID, continuation: ResultContinuation)] = []
     private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     private var started = 0
+    private var cancellations = 0
+    private var cancelledIDs: Set<UUID> = []
+    private var rejectsNewCalls = false
 
     func awaitResult() async throws -> CreditsSnapshot {
-        let result = await withCheckedContinuation { continuation in
-            self.continuations.append(continuation)
-            self.started += 1
-            self.resumeReadyStartWaiters()
+        let id = UUID()
+        let result = await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: ResultContinuation) in
+                if self.rejectsNewCalls || Task.isCancelled {
+                    continuation.resume(returning: .failure(CancellationError()))
+                } else {
+                    self.continuations.append((id: id, continuation: continuation))
+                    self.started += 1
+                    self.resumeReadyStartWaiters()
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(id: id) }
         }
         return try result.get()
     }
 
     func waitUntilStarted(count: Int = 1) async {
-        if self.started >= count { return }
+        if self.started >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startWaiters.append((count: count, continuation: continuation))
         }
+    }
+
+    func waitUntilStartedWithin(count: Int = 1, timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while self.started < count {
+            if ContinuousClock.now >= deadline {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
     }
 
     func startedCount() -> Int {
         self.started
     }
 
+    func cancellationCount() -> Int {
+        self.cancellations
+    }
+
+    func waitUntilCancellationCount(_ count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while self.cancellations < count {
+            if ContinuousClock.now >= deadline {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+
     func resumeNext(with result: Result<CreditsSnapshot, Error>) {
         guard !self.continuations.isEmpty else { return }
-        let continuation = self.continuations.removeFirst()
-        continuation.resume(returning: result)
+        let record = self.continuations.removeFirst()
+        self.cancelledIDs.remove(record.id)
+        record.continuation.resume(returning: result)
+    }
+
+    func resumeLast(with result: Result<CreditsSnapshot, Error>) {
+        guard !self.continuations.isEmpty else { return }
+        let record = self.continuations.removeLast()
+        self.cancelledIDs.remove(record.id)
+        record.continuation.resume(returning: result)
+    }
+
+    func cancelAll() {
+        self.rejectsNewCalls = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        self.cancelledIDs.removeAll()
+        continuations.forEach { $0.continuation.resume(returning: .failure(CancellationError())) }
     }
 
     private func resumeReadyStartWaiters() {
@@ -842,6 +927,11 @@ actor BlockingCreditsLoader {
             }
         }
         self.startWaiters = remaining
+    }
+
+    private func cancel(id: UUID) {
+        guard self.continuations.contains(where: { $0.id == id }), self.cancelledIDs.insert(id).inserted else { return }
+        self.cancellations += 1
     }
 }
 
@@ -856,7 +946,9 @@ private actor OpenAIDashboardImportCallTracker {
     }
 
     func waitUntilCalls(count: Int) async {
-        if self.calls >= count { return }
+        if self.calls >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.waiters.append((count: count, continuation: continuation))
         }

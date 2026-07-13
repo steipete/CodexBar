@@ -599,6 +599,31 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies API key override for factory`() {
+        let config = ProviderConfig(id: .factory, apiKey: "fk-config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .factory,
+            config: config)
+
+        #expect(env[FactorySettingsReader.apiTokenKey] == "fk-config-token")
+        #expect(FactorySettingsReader.apiKey(environment: env) == "fk-config-token")
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .factory))
+    }
+
+    @Test
+    func `factory config api key wins over existing FACTORY_API_KEY`() {
+        let config = ProviderConfig(id: .factory, apiKey: "fk-config-token")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [FactorySettingsReader.apiTokenKey: "fk-env-token"],
+            provider: .factory,
+            config: config)
+
+        #expect(env[FactorySettingsReader.apiTokenKey] == "fk-config-token")
+        #expect(FactorySettingsReader.apiKey(environment: env) == "fk-config-token")
+    }
+
+    @Test
     func `open router config override wins over environment token`() {
         let config = ProviderConfig(id: .openrouter, apiKey: "config-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

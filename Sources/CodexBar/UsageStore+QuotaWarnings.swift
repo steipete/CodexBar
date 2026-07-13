@@ -109,6 +109,7 @@ extension UsageStore {
             self.quotaWarningState.removeValue(forKey: key)
             return
         }
+        guard !rateWindow.isSyntheticPlaceholder else { return }
 
         let thresholds = self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
         let currentRemaining = rateWindow.remainingPercent

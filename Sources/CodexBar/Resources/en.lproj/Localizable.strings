@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "Select the IDE to monitor";
 "Session quota notifications" = "Session quota notifications";
 "Session tokens" = "Session tokens";
-"Settings" = "Settings";
+"provider_section_connection" = "Connection";
+"provider_section_menu_bar" = "Menu bar";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Show Codex Credits and Claude Extra usage sections in the menu.";
 "Show Debug Settings" = "Show Debug Settings";
 "Show all token accounts" = "Show all token accounts";
@@ -311,7 +312,7 @@
 "System" = "System";
 "Temporarily shows the loading animation after the next refresh." = "Temporarily shows the loading animation after the next refresh.";
 "terminal_app_subtitle" = "Terminal used by the Open Terminal action";
-"terminal_app_title" = "Default Terminal";
+"terminal_app_title" = "Default terminal";
 "Tertiary (\\(label))" = "Tertiary (\\(label))";
 "Tertiary (\\(tertiaryTitle))" = "Tertiary (\\(tertiaryTitle))";
 "The default Codex account on this Mac." = "The default Codex account on this Mac.";
@@ -396,7 +397,14 @@
 /* General Pane */
 "section_system" = "System";
 "section_usage" = "Usage";
-"section_automation" = "Automation";
+"section_refreshing" = "Refreshing";
+"section_alerts" = "Alerts";
+"section_celebrations" = "Celebrations";
+"section_icon" = "Icon";
+"section_combined_icon" = "Combined icon";
+"section_animation" = "Animation";
+"section_content" = "Content";
+"section_agent_sessions" = "Agent sessions";
 "language_title" = "Language";
 "language_subtitle" = "Change the display language. Requires app restart to take full effect.";
 "language_system" = "System";
@@ -417,14 +425,13 @@
 "language_turkish" = "Türkçe";
 "language_italian" = "Italiano";
 "language_polish" = "Polski";
-"start_at_login_title" = "Start at Login";
+"start_at_login_title" = "Start at login";
 "start_at_login_subtitle" = "Automatically opens CodexBar when you start your Mac.";
-"show_cost_summary" = "Show cost summary";
 "show_cost_summary_subtitle" = "Reads local usage logs. Shows today + the selected history window in the menu.";
 "cost_summary_style_title" = "Display style";
 "cost_summary_style_inline" = "Inline only";
 "cost_summary_style_submenu" = "Submenu only";
-"cost_summary_style_both" = "Both";
+"cost_summary_style_both" = "Inline + submenu";
 "cost_summary_style_inline_help" = "Shows the cost summary directly in the main menu.";
 "cost_summary_style_submenu_help" = "Shows the detailed Cost submenu instead.";
 "cost_summary_style_both_help" = "Shows both the main menu summary and detailed Cost submenu.";
@@ -434,17 +441,16 @@
 "cost_comparison_periods_title" = "Show shorter comparison periods";
 "cost_comparison_periods_subtitle" = "Add 7, 30, and 90-day totals when they fit inside the selected history window. These totals reuse the same local scan.";
 "cost_auto_refresh_info" = "Auto-refresh: hourly · Timeout: 10m";
-"refresh_cadence_title" = "Refresh cadence";
-"refresh_cadence_subtitle" = "How often CodexBar polls providers in the background.";
+"refresh_interval_title" = "Refresh interval";
 "manual_refresh_hint" = "Auto-refresh is off; use the menu's Refresh command.";
 "refresh_on_open_title" = "Refresh when the menu opens";
 "refresh_on_open_subtitle" = "Fetch the latest usage for every provider each time you open the menu.";
 "check_provider_status_title" = "Check provider status";
 "check_provider_status_subtitle" = "Polls OpenAI/Claude status pages and Google Workspace for Gemini/Antigravity, surfacing incidents in the icon and menu.";
-"session_quota_notifications_title" = "Session quota notifications";
 "session_quota_notifications_subtitle" = "Notifies when the 5-hour session quota hits 0% and when it becomes available again.";
-"quota_warning_notifications_title" = "Quota warning notifications";
+"quota_depleted_title" = "Quota depleted & restored";
 "quota_warning_notifications_subtitle" = "Warns when session or weekly quota remaining crosses configured thresholds.";
+"threshold_warnings_title" = "Threshold warnings";
 "quota_warnings_title" = "Quota warnings";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
@@ -453,8 +459,14 @@
 "quota_warning_notification_title" = "%1$@ %2$@ quota low";
 "quota_warning_notification_body" = "%1$@ left. Reached your %2$d%% %3$@ warning threshold.";
 "quota_warning_notification_body_with_account" = "Account %1$@. %2$@ left. Reached your %3$d%% %4$@ warning threshold.";
-"predictive_pace_warnings_title" = "Predictive pace warnings";
+"predictive_pace_warnings_title" = "Pace warnings";
 "predictive_pace_warnings_subtitle" = "Warns for Codex and Claude when session or weekly pace may run out before reset.";
+"confetti_on_reset_title" = "Confetti on reset";
+"confetti_on_reset_subtitle" = "Play full-screen confetti when usage resets.";
+"confetti_option_off" = "Off";
+"confetti_option_session" = "Session resets";
+"confetti_option_weekly" = "Weekly resets";
+"confetti_option_both" = "Both";
 "predictive_pace_warning_notification_title" = "%1$@ %2$@ pace warning";
 "predictive_pace_warning_notification_body" = "At the current pace, this quota may run out in %1$@, before it resets.";
 "predictive_pace_warning_notification_body_with_account" = "Account %1$@. At the current pace, this quota may run out in %2$@, before it resets.";
@@ -467,6 +479,8 @@
 "quota_warning_sound" = "Play notification sound";
 "quota_warning_onscreen_alert" = "Show on-screen text alert";
 "quota_warning_provider_inherits" = "Uses the global quota warning settings unless a window is customized here.";
+"quota_warning_provider_disabled" = "Quota warning notifications and usage-bar markers are disabled. Enable either to edit these saved settings.";
+"quota_warning_provider_markers_only" = "Quota warning notifications are disabled globally. These settings still control usage-bar markers.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Customize %@ thresholds";
 "quota_warning_enable_warnings" = "Enable %@ warnings";
@@ -484,7 +498,9 @@
 /* Tab titles */
 "tab_general" = "General";
 "tab_providers" = "Providers";
-"tab_display" = "Display";
+"tab_notifications" = "Notifications";
+"tab_menu_bar" = "Menu Bar";
+"tab_menu" = "Menu";
 "tab_advanced" = "Advanced";
 "tab_about" = "About";
 "tab_debug" = "Debug";
@@ -515,44 +531,50 @@
 "primary_api_key_limit" = "Primary (API key limit)";
 
 /* Display Pane */
-"section_menu_bar" = "Menu bar";
-"merge_icons_title" = "Merge Icons";
+"menu_bar_style_title" = "Menu bar style";
+"menu_bar_style_subtitle" = "How the menu bar item is drawn.";
+"menu_bar_style_critters" = "Critters";
+"menu_bar_style_bars" = "Meter bars";
+"menu_bar_style_icon_percent" = "Icon & percent";
+"switcher_rows_title" = "Switcher rows";
+"switcher_rows_icons" = "Provider icons";
+"switcher_rows_progress" = "Weekly progress";
+"usage_bars_fill_title" = "Usage bars fill";
+"usage_bars_fill_remaining" = "As remaining";
+"usage_bars_fill_used" = "As used";
+"reset_times_title" = "Reset times";
+"reset_times_countdown" = "Countdown";
+"reset_times_clock" = "Clock time";
+"cost_summary_title" = "Cost summary";
+"cost_summary_off" = "Off";
+"merge_icons_title" = "Merge icons";
 "merge_icons_subtitle" = "Use a single menu bar icon with a provider switcher.";
-"switcher_shows_icons_title" = "Switcher shows icons";
-"switcher_shows_icons_subtitle" = "Show provider icons in the switcher (otherwise show a weekly progress line).";
 "show_most_used_provider_title" = "Show most-used provider";
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
-"menu_bar_shows_percent_title" = "Menu bar shows percent";
-"menu_bar_shows_percent_subtitle" = "Replace critter bars with provider branding icons and a percentage.";
-"hide_critters_title" = "Hide critters";
-"hide_critters_subtitle" = "Show plain meter bars without the face and decorations.";
 "display_mode_title" = "Display mode";
 "display_mode_subtitle" = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
-"section_menu_content" = "Menu content";
-"show_usage_as_used_title" = "Show usage as used";
-"show_usage_as_used_subtitle" = "Progress bars fill as you consume quota (instead of showing remaining).";
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
-"weekly_progress_work_days_title" = "Weekly progress work days";
+"weekly_progress_work_days_title" = "Work days";
 "weekly_progress_work_days_subtitle" = "Set work days for weekly usage-bar markers and pace calculations.";
-"show_reset_time_as_clock_title" = "Show reset time as clock";
-"show_reset_time_as_clock_subtitle" = "Display reset times as absolute clock values instead of countdowns.";
 "show_provider_changelog_links_title" = "Show provider changelog links";
 "show_provider_changelog_links_subtitle" = "Adds release-notes links for supported CLI-backed providers to the menu.";
-"show_credits_extra_usage_title" = "Show credits + extra usage";
+"show_credits_extra_usage_title" = "Show credits & extra usage";
 "show_credits_extra_usage_subtitle" = "Show Codex Credits and Claude Extra usage sections in the menu.";
-"show_all_token_accounts_title" = "Show all token accounts";
-"show_all_token_accounts_subtitle" = "Stack token accounts in the menu (otherwise show an account switcher bar).";
 "multi_account_layout_title" = "Multi-account layout";
 "multi_account_layout_subtitle" = "Choose segmented account switching or stacked account cards.";
 "multi_account_layout_segmented" = "Segmented";
 "multi_account_layout_stacked" = "Stacked";
-"overview_tab_providers_title" = "Overview tab providers";
+"overview_tab_providers_title" = "Overview providers";
 "configure" = "Configure…";
-"overview_enable_merge_icons_hint" = "Enable Merge Icons to configure Overview tab providers.";
+"overview_enable_merge_icons_hint" = "Turn on Merge icons to configure Overview providers.";
 "overview_no_providers_hint" = "No enabled providers available for Overview.";
 "overview_rows_follow_order" = "Overview rows always follow provider order.";
 "overview_no_providers_selected" = "No providers selected";
+"agent_sessions_title" = "Agent sessions";
+"agent_sessions_subtitle" = "Show local and SSH-discovered Codex and Claude Code sessions in the menu.";
+"agent_sessions_hosts_title" = "Additional SSH hosts";
+"agent_sessions_footer" = "Macs on your tailnet are discovered automatically. Local sessions refresh every 30 seconds; remote hosts every 60 seconds and when the menu opens.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Keyboard shortcut";
@@ -562,14 +584,10 @@
 "install_cli_subtitle" = "Symlink CodexBarCLI to /usr/local/bin and /opt/homebrew/bin as codexbar.";
 "cli_not_found" = "CodexBarCLI not found in app bundle.";
 "no_writable_bin_dirs" = "No writable bin dirs found.";
-"show_debug_settings_title" = "Show Debug Settings";
+"show_debug_settings_title" = "Show debug settings";
 "show_debug_settings_subtitle" = "Expose troubleshooting tools in the Debug tab.";
 "surprise_me_title" = "Surprise me";
 "surprise_me_subtitle" = "Check if you like your agents having some fun up there.";
-"session_limit_confetti_title" = "Session limit confetti";
-"session_limit_confetti_subtitle" = "Play full-screen confetti when session usage resets.";
-"weekly_limit_confetti_title" = "Weekly limit confetti";
-"weekly_limit_confetti_subtitle" = "Play full-screen confetti when weekly usage resets.";
 "hide_personal_info_title" = "Hide personal information";
 "hide_personal_info_subtitle" = "Obscure email addresses in the menu bar and menu UI.";
 "show_provider_storage_usage_title" = "Show provider storage usage";
@@ -586,7 +604,7 @@
 "link_twitter" = "Twitter";
 "link_email" = "Email";
 "check_updates_auto" = "Check for updates automatically";
-"update_channel" = "Update Channel";
+"update_channel" = "Update channel";
 "check_for_updates" = "Check for Updates…";
 "updates_unavailable" = "Updates unavailable in this build.";
 "copyright" = "© 2026 Peter Steinberger. MIT License.";
@@ -668,6 +686,8 @@
 "display_mode_pace_desc" = "Show pace indicator (e.g. +5%)";
 "display_mode_both_desc" = "Show both percentage and pace (e.g. 45% · +5%)";
 "display_mode_reset_time_desc" = "Show the reset time for the selected metric (e.g. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Show reset time when quota runs out";
+"menu_bar_reset_when_exhausted_subtitle" = "At 0% remaining, show the time until reset instead of the percentage";
 
 /* Provider status */
 "status_operational" = "Operational";
@@ -813,6 +833,8 @@
 /* Popup panels */
 "No usage configured." = "No usage configured.";
 "Quota" = "Quota";
+"Daily quota" = "Daily quota";
+"Total" = "Total";
 "tokens" = "tokens";
 "requests" = "requests";
 "Latest" = "Latest";
@@ -1165,3 +1187,4 @@
 "section_links" = "Links";
 "Show Codex Spark usage" = "Show Codex Spark usage";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings.";
+"Scroll to see more models" = "Scroll to see more models";

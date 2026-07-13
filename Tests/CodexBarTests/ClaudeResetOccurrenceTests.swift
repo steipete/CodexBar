@@ -46,6 +46,12 @@ struct ClaudeResetOccurrenceTests {
             from: "Resets Nov 1, 1:30am (America/New_York)",
             now: second.addingTimeInterval(60),
             expectedWindow: 7 * 24 * 60 * 60) == second)
+        #expect(ClaudeStatusProbe.parseResetDate(
+            from: "Resets Nov 1, 2026, 1:30am (America/New_York)",
+            now: betweenOccurrences) == second)
+        #expect(ClaudeStatusProbe.parseResetDate(
+            from: "Resets Nov 1, 2026, 1:30am (America/New_York)",
+            now: second.addingTimeInterval(60)) == second)
     }
 
     @Test
@@ -73,5 +79,44 @@ struct ClaudeResetOccurrenceTests {
             from: "Resets Feb 29, 9am (UTC)",
             now: shortlyAfter,
             expectedWindow: 7 * 24 * 60 * 60) == currentLeapReset)
+    }
+
+    @Test
+    func `parser keeps explicit years authoritative across supported time forms`() throws {
+        let now = try Self.isoDate("2025-01-01T00:00:00Z")
+        let cases = [
+            (
+                text: "Resets Jan 2, 2026, 10:59pm (Europe/Helsinki)",
+                expected: "2026-01-02T20:59:00Z"),
+            (text: "Resets Jan 2 2026 10pm (UTC)", expected: "2026-01-02T22:00:00Z"),
+            (text: "Resets Jan 2, 2026, 22:15 (UTC)", expected: "2026-01-02T22:15:00Z"),
+            (text: "Resets Jan 2, 2026, 22 (UTC)", expected: "2026-01-02T22:00:00Z"),
+        ]
+
+        for item in cases {
+            let expected = try Self.isoDate(item.expected)
+            #expect(ClaudeStatusProbe.parseResetDate(
+                from: item.text,
+                now: now) == expected)
+        }
+
+        let afterStatedYear = try Self.isoDate("2027-01-01T00:00:00Z")
+        let statedReset = try Self.isoDate(cases[0].expected)
+        #expect(ClaudeStatusProbe.parseResetDate(
+            from: cases[0].text,
+            now: afterStatedYear) == statedReset)
+    }
+
+    @Test
+    func `parser rejects nonexistent explicit local time`() throws {
+        let now = try Self.isoDate("2026-01-01T00:00:00Z")
+        #expect(ClaudeStatusProbe.parseResetDate(
+            from: "Resets Mar 8, 2026, 2:30am (America/New_York)",
+            now: now) == nil)
+    }
+
+    private static func isoDate(_ text: String) throws -> Date {
+        let formatter = ISO8601DateFormatter()
+        return try #require(formatter.date(from: text))
     }
 }

@@ -742,7 +742,7 @@ struct CostUsageFetcherTests {
     }
 
     @Test
-    func `force refresh keeps incremental cost cache`() async throws {
+    func `app refresh bypasses scanner debounce without changing direct callers`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -810,10 +810,17 @@ struct CostUsageFetcherTests {
         try env.jsonl([turnContext, firstTokenCount, appendedTokenCount])
             .write(to: fileURL, atomically: true, encoding: .utf8)
 
+        let debounced = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            scannerOptions: nativeOptions,
+            piScannerOptions: piOptions)
+        #expect(debounced.daily.first?.totalTokens == 110)
+
         let refreshed = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
-            forceRefresh: true,
+            bypassScannerDebounce: true,
             scannerOptions: nativeOptions,
             piScannerOptions: piOptions)
 

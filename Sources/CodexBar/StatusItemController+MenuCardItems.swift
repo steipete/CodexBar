@@ -53,18 +53,22 @@ extension StatusItemController {
             // Selection is painted by AppKit/GPU, so the SwiftUI content is pinned to its normal
             // appearance via a `highlightState` that is never flipped; these rows skip hosting-view
             // recycling because the recycler is typed to `MenuCardItemHostingView`.
+            let interactiveRegionStore = MenuCardInteractiveRegionStore()
             let wrapped = MenuCardSectionContainerView(
                 highlightState: MenuCardHighlightState(),
                 showsSubmenuIndicator: submenu != nil,
                 submenuIndicatorAlignment: submenuIndicatorAlignment,
                 submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor)
+                refreshMonitor: self.menuCardRefreshMonitor,
+                interactiveRegionStore: interactiveRegionStore)
             {
                 view
             }
             let gpuHosting = GPUSelectionHostingView(
                 rootView: wrapped,
                 allowsMenuHighlight: allowsMenuHighlight,
+                containsInteractiveControls: containsInteractiveControls,
+                interactiveRegionStore: interactiveRegionStore,
                 onClick: onClick)
             let gpuHeight = self.cachedMenuCardHeight(
                 for: id,
@@ -92,23 +96,27 @@ extension StatusItemController {
                 showsSubmenuIndicator: submenu != nil,
                 submenuIndicatorAlignment: submenuIndicatorAlignment,
                 submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor)
+                refreshMonitor: self.menuCardRefreshMonitor,
+                interactiveRegionStore: recycled.interactiveRegionStore)
             {
                 view
             }
             recycled.prepareForReuse(
                 rootView: wrapped,
                 allowsMenuHighlight: allowsMenuHighlight,
+                containsInteractiveControls: containsInteractiveControls,
                 onClick: onClick)
             hosting = recycled
         } else {
             let highlightState = MenuCardHighlightState()
+            let interactiveRegionStore = MenuCardInteractiveRegionStore()
             let wrapped = MenuCardSectionContainerView(
                 highlightState: highlightState,
                 showsSubmenuIndicator: submenu != nil,
                 submenuIndicatorAlignment: submenuIndicatorAlignment,
                 submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor)
+                refreshMonitor: self.menuCardRefreshMonitor,
+                interactiveRegionStore: interactiveRegionStore)
             {
                 view
             }
@@ -116,6 +124,8 @@ extension StatusItemController {
                 rootView: wrapped,
                 highlightState: highlightState,
                 allowsMenuHighlight: allowsMenuHighlight,
+                containsInteractiveControls: containsInteractiveControls,
+                interactiveRegionStore: interactiveRegionStore,
                 onClick: onClick)
         }
         let height = self.cachedMenuCardHeight(

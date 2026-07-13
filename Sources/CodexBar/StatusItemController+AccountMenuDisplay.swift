@@ -65,10 +65,23 @@ extension StatusItemController {
         matching accounts: [ProviderTokenAccount]) -> [TokenAccountUsageSnapshot]
     {
         var snapshotsByID: [UUID: TokenAccountUsageSnapshot] = [:]
-        for snapshot in self.store.accountSnapshots[provider] ?? [] {
+        for snapshot in self.store.validTokenAccountSnapshots(provider: provider, accounts: accounts) {
             snapshotsByID[snapshot.account.id] = snapshot
         }
         return accounts.compactMap { snapshotsByID[$0.id] }
+    }
+
+    func tokenAccountMenuCardModel(
+        for provider: UsageProvider,
+        accountSnapshot: TokenAccountUsageSnapshot) -> UsageMenuCardView.Model?
+    {
+        let label = accountSnapshot.account.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return self.menuCardModel(
+            for: provider,
+            snapshotOverride: accountSnapshot.snapshot,
+            errorOverride: accountSnapshot.error,
+            forceOverrideCard: true,
+            accountOverride: AccountInfo(email: label.isEmpty ? nil : label, plan: nil))
     }
 
     func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {
@@ -116,11 +129,12 @@ extension StatusItemController {
     }
 
     private func codexAccountSnapshots(matching accounts: [CodexVisibleAccount]) -> [CodexAccountUsageSnapshot] {
-        var snapshotsByID: [String: CodexAccountUsageSnapshot] = [:]
-        for snapshot in self.store.codexAccountSnapshots {
-            snapshotsByID[snapshot.id] = snapshot
+        accounts.compactMap { account in
+            self.store.codexAccountSnapshots.first { snapshot in
+                snapshot.id == account.id &&
+                    UsageStore.codexPriorSnapshotAccountMatches(snapshot.account, account: account)
+            }
         }
-        return accounts.compactMap { snapshotsByID[$0.id] }
     }
 
     func stableCodexAccountMenuDisplay(

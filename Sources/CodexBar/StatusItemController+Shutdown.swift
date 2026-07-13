@@ -33,6 +33,8 @@ extension StatusItemController {
             task.cancel()
         }
         self.manualRefreshTasks.removeAll()
+        self.store.cancelForcedRefreshEnrichment()
+        self.store.cancelRequiredRefresh()
         self.menuCardRefreshMonitor.resetManualRefresh()
         self.screenChangeVisibilityTask?.cancel()
         self.screenChangeVisibilityTask = nil
@@ -78,8 +80,12 @@ extension StatusItemController {
         self.openMenuRebuildRequests.cancelAll()
         self.openMenuRebuildsClosingHostedSubviewMenus.removeAll(keepingCapacity: false)
         self.menuSession.clearMenuTracking()
+        self.manualRefreshViewportRestoreState.deferredUntilRebuild.removeAll(keepingCapacity: false)
+        self.manualRefreshViewportRestoreState.stopAllMovementTracking()
         self.openMenus.removeAll(keepingCapacity: false)
         self.highlightedMenuItems.removeAll(keepingCapacity: false)
+        self.nativeHighlightDeferredMenuRebuilds.removeAll(keepingCapacity: false)
+        self.pendingMenuBaselineResyncs.removeAll(keepingCapacity: false)
         self.menuCardHeightCache.removeAll(keepingCapacity: false)
         self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: false)
         self.mergedSwitcherContentCaches.removeAll(keepingCapacity: false)

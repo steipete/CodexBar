@@ -68,17 +68,37 @@ extension CodexAccountScopedRefreshTests {
     }
 
     func makeUsageStore(settings: SettingsStore, environmentBase: [String: String] = [:]) -> UsageStore {
-        UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-tests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        var environment = [
+            "HOME": root.path,
+            "CODEX_HOME": root.appendingPathComponent(".codex", isDirectory: true).path,
+            "XDG_CONFIG_HOME": root.appendingPathComponent(".config", isDirectory: true).path,
+        ]
+        if let reconciliationEnvironment = settings._test_codexReconciliationEnvironment {
+            environment.merge(reconciliationEnvironment) { _, override in override }
+        }
+        environment.merge(environmentBase) { _, override in override }
+        settings._test_codexReconciliationEnvironment = environment
+        return UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(homeDirectory: environment["HOME"] ?? root.path, cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing,
-            environmentBase: environmentBase)
+            environmentBase: environment)
     }
 
     func liveAccount(email: String, identity: CodexIdentity = .unresolved) -> ObservedSystemCodexAccount {
-        ObservedSystemCodexAccount(
+        let workspaceAccountID: String? = switch identity {
+        case let .providerAccount(id):
+            id
+        case .emailOnly, .unresolved:
+            nil
+        }
+        return ObservedSystemCodexAccount(
             email: email,
+            workspaceAccountID: workspaceAccountID,
             codexHomePath: "/Users/test/.codex",
             observedAt: Date(),
             identity: identity)
@@ -402,7 +422,9 @@ actor BlockingCodexFetchStrategy {
     }
 
     func waitUntilStarted() async {
-        if self.didStart { return }
+        if self.didStart {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startedWaiters.append(continuation)
         }
@@ -411,6 +433,195 @@ actor BlockingCodexFetchStrategy {
     func resume(with result: Result<UsageSnapshot, Error>) {
         self.waiters.forEach { $0.resume(returning: result) }
         self.waiters.removeAll()
+    }
+}
+
+struct SequencedCodexSnapshotLoadStep: Sendable {
+    let result: Result<UsageSnapshot, TestRefreshError>
+    let isGated: Bool
+
+    static func success(_ snapshot: UsageSnapshot, gated: Bool = false) -> Self {
+        Self(result: .success(snapshot), isGated: gated)
+    }
+
+    static func failure(_ message: String, gated: Bool = false) -> Self {
+        Self(result: .failure(TestRefreshError(message: message)), isGated: gated)
+    }
+}
+
+actor SequencedCodexSnapshotLoader {
+    private let steps: [SequencedCodexSnapshotLoadStep]
+    private var completedCallCount = 0
+    private var startedCallCount = 0
+    private var releasedCalls: Set<Int> = []
+    private var gateWaiters: [Int: CheckedContinuation<Void, Never>] = [:]
+
+    init(steps: [SequencedCodexSnapshotLoadStep]) {
+        self.steps = steps
+    }
+
+    var callCount: Int {
+        self.startedCallCount
+    }
+
+    func load() async throws -> UsageSnapshot {
+        let call = self.startedCallCount + 1
+        self.startedCallCount = call
+
+        guard self.steps.indices.contains(call - 1) else {
+            throw TestRefreshError(message: "Unexpected Codex fetch call \(call)")
+        }
+        let step = self.steps[call - 1]
+        if step.isGated, !self.releasedCalls.contains(call) {
+            await withCheckedContinuation { continuation in
+                self.gateWaiters[call] = continuation
+            }
+        }
+        self.completedCallCount += 1
+        return try step.result.get()
+    }
+
+    @discardableResult
+    func waitUntilCallCount(_ count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.startedCallCount < count {
+            guard startedAt.duration(to: .now) < timeout else { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+
+    func release(call: Int) {
+        self.releasedCalls.insert(call)
+        self.gateWaiters.removeValue(forKey: call)?.resume()
+    }
+
+    @discardableResult
+    func waitUntilCompletedCallCount(_ count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.completedCallCount < count {
+            guard startedAt.duration(to: .now) < timeout else { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+}
+
+extension CodexAccountScopedRefreshTests {
+    func codexWeeklySnapshot(
+        email: String,
+        weeklyUsedPercent: Double?,
+        weeklyReset: Date?,
+        updatedAt: Date,
+        sessionUsedPercent: Double = 25) -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: sessionUsedPercent,
+                windowMinutes: 300,
+                resetsAt: updatedAt.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: weeklyUsedPercent.map {
+                RateWindow(
+                    usedPercent: $0,
+                    windowMinutes: 10080,
+                    resetsAt: weeklyReset,
+                    resetDescription: nil)
+            },
+            updatedAt: updatedAt,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: email,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+    }
+
+    func makeCodexWeeklyPublicationStore(
+        settings: SettingsStore,
+        suite: String,
+        snapshotStore: (any CodexAccountUsageSnapshotStoring)? = nil) -> UsageStore
+    {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-weekly-publication-tests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let environment = [
+            "HOME": root.path,
+            "CODEX_HOME": root.appendingPathComponent(".codex", isDirectory: true).path,
+            "XDG_CONFIG_HOME": root.appendingPathComponent(".config", isDirectory: true).path,
+            "CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS": "1",
+        ]
+        settings._test_codexReconciliationEnvironment = environment
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),
+            settings: settings,
+            planUtilizationHistoryStore: testPlanUtilizationHistoryStore(suiteName: suite),
+            codexAccountUsageSnapshotStore: snapshotStore,
+            startupBehavior: .testing,
+            environmentBase: environment)
+        store._cancelPlanUtilizationHistoryLoadForTesting()
+        store._test_codexResetCreditsFetcherOverride = { _ in nil }
+        return store
+    }
+
+    func makeManagedCodexWeeklyPublicationAccount(
+        id: UUID,
+        email: String,
+        workspaceID: String,
+        workspaceLabel: String,
+        homeURL: URL) throws -> ManagedCodexAccount
+    {
+        try Self.writeCodexAuthFile(
+            homeURL: homeURL,
+            email: email,
+            plan: "Pro",
+            accountId: workspaceID)
+        let fingerprint = try #require(CodexAuthFingerprint.fingerprint(homePath: homeURL.path))
+        return ManagedCodexAccount(
+            id: id,
+            email: email,
+            providerAccountID: workspaceID,
+            workspaceLabel: workspaceLabel,
+            workspaceAccountID: workspaceID,
+            authFingerprint: fingerprint,
+            managedHomePath: homeURL.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+    }
+
+    func seedCodexWeeklyPublicationState(
+        store: UsageStore,
+        settings: SettingsStore,
+        snapshot: UsageSnapshot,
+        error: String? = "prior error") async -> Int
+    {
+        store.snapshots[.codex] = snapshot
+        store.lastKnownResetSnapshots[.codex] = snapshot
+        store.lastSourceLabels[.codex] = "prior-source"
+        if let error {
+            store.errors[.codex] = error
+        } else {
+            store.errors.removeValue(forKey: .codex)
+        }
+        store.lastFetchAttempts[.codex] = [ProviderFetchAttempt(
+            strategyID: "prior-strategy",
+            kind: .cli,
+            wasAvailable: true,
+            errorDescription: "prior diagnostic")]
+
+        let guardValue = store.currentCodexAccountScopedRefreshGuard(preferCurrentSnapshot: false)
+        store.lastCodexUsagePublicationGuard = guardValue
+        store.lastCodexAccountScopedRefreshGuard = guardValue
+        let ownerKey = store.codexLimitResetOwnerKey(
+            expectedGuard: guardValue,
+            visibleAccounts: settings.codexVisibleAccountProjection.visibleAccounts)
+        await store.recordPlanUtilizationHistorySample(
+            provider: .codex,
+            snapshot: snapshot,
+            codexLimitResetOwnerKey: ownerKey,
+            now: snapshot.updatedAt)
+        return store.planUtilizationHistoryRevision
     }
 }
 
@@ -430,7 +641,9 @@ actor BlockingOpenAIDashboardLoader {
     }
 
     func waitUntilStarted() async {
-        if self.didStart { return }
+        if self.didStart {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startedWaiters.append(continuation)
         }
@@ -457,7 +670,9 @@ actor BlockingWidgetSnapshotSaver {
     }
 
     func waitUntilStarted(count: Int) async {
-        if self.snapshots.count >= count { return }
+        if self.snapshots.count >= count {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.startedWaiters.append(continuation)
         }

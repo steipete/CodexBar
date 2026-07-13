@@ -3,6 +3,86 @@ import Testing
 @testable import CodexBarCore
 
 struct KimiK2UsageFetcherTests {
+    @Test(arguments: [nil, "  \n"] as [String?])
+    func `provider reports a missing or blank API key instead of a generic unavailable strategy`(
+        apiKey: String?) async
+    {
+        let environment = apiKey.map { ["KIMI_K2_API_KEY": $0] } ?? [:]
+        let context = Self.makeContext(environment: environment)
+
+        let outcome = await KimiK2ProviderDescriptor.descriptor.fetchOutcome(context: context)
+
+        guard case let .failure(error) = outcome.result else {
+            Issue.record("Expected missing credentials failure")
+            return
+        }
+        #expect(error.localizedDescription == "Missing Kimi K2 API key.")
+        #expect(outcome.attempts.count == 1)
+        #expect(outcome.attempts.first?.wasAvailable == true)
+    }
+
+    @Test
+    func `trims API key before sending authorization`() async throws {
+        let fixtureKey = "test-token"
+        let paddedKey = "  \(fixtureKey)\n"
+        let transport = ProviderHTTPTransportHandler { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == ["Bearer", fixtureKey].joined(separator: " "))
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{"credits_remaining":10}"#.utf8), response)
+        }
+
+        let snapshot = try await KimiK2UsageFetcher.fetchUsage(
+            apiKey: paddedKey,
+            transport: transport)
+
+        #expect(snapshot.summary.remaining == 10)
+    }
+
+    @Test
+    func `maps rejected API key to invalid credentials`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{\"error\":\"fixture_unauthorized\"}"#.utf8), response)
+        }
+
+        await #expect {
+            try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
+        } throws: { error in
+            guard case KimiK2UsageError.invalidCredentials = error else { return false }
+            return error.localizedDescription == "Kimi K2 API key is invalid or expired."
+        }
+    }
+
+    @Test(arguments: [403, 500])
+    func `preserves non-credential responses as API errors`(statusCode: Int) async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{"error":"fixture_failure"}"#.utf8), response)
+        }
+
+        await #expect {
+            try await KimiK2UsageFetcher.fetchUsage(apiKey: "test-token", transport: transport)
+        } throws: { error in
+            guard case let KimiK2UsageError.apiError(message) = error else { return false }
+            return message.contains("fixture_failure")
+        }
+    }
+
     @Test
     func `parses usage from nested usage`() throws {
         let json = """
@@ -173,5 +253,34 @@ struct KimiK2UsageFetcherTests {
         #expect(usage.primary == nil)
         #expect(usage.identity?.providerID == .kimik2)
         #expect(usage.identity?.loginMethod == "Credits: 25 left")
+    }
+
+    private static func makeContext(environment: [String: String]) -> ProviderFetchContext {
+        ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .api,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: environment,
+            settings: nil,
+            fetcher: UsageFetcher(environment: environment),
+            claudeFetcher: KimiK2StubClaudeFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0))
+    }
+}
+
+private struct KimiK2StubClaudeFetcher: ClaudeUsageFetching {
+    func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
+        throw KimiK2UsageError.missingCredentials
+    }
+
+    func debugRawProbe(model _: String) async -> String {
+        "stub"
+    }
+
+    func detectVersion() -> String? {
+        nil
     }
 }

@@ -47,6 +47,22 @@ struct APITokenFetchStrategyTests {
         #expect(strategy.shouldFallback(on: APITokenStrategyTestError.missingCredentials, context: context) == false)
     }
 
+    @Test
+    func `required token strategy surfaces its missing credential error`() async {
+        let strategy = APITokenFetchStrategy(
+            id: "test.required-api",
+            reportsMissingCredentials: true,
+            resolveToken: { $0["TEST_API_KEY"] },
+            missingCredentialsError: { APITokenStrategyTestError.missingCredentials },
+            loadUsage: { _, _ in UsageSnapshot(primary: nil, secondary: nil, updatedAt: .now) })
+        let context = Self.makeContext(environment: [:])
+
+        #expect(await strategy.isAvailable(context))
+        await #expect(throws: APITokenStrategyTestError.missingCredentials) {
+            try await strategy.fetch(context)
+        }
+    }
+
     private static func makeStrategy() -> APITokenFetchStrategy {
         APITokenFetchStrategy(
             id: "test.api",

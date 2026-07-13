@@ -115,8 +115,11 @@ Example:
 - App-server errors are terminal for the CLI strategy, except when Codex includes a recoverable `wham/usage` JSON body in the error text.
 - If macOS blocks or quarantines the `codex` executable, CodexBar records the launch failure and skips background CLI
   launches for 30 minutes. Use a manual refresh after reinstalling or unblocking `codex` to retry immediately.
-- If managed Codex account login fails after macOS moved `codex` to Trash, first confirm `codex --version` works in
-  Terminal. Check `which -a codex` for stale duplicate installs, then run
+- CodexBar also discovers the Codex CLI bundled with current ChatGPT and legacy Codex desktop apps, even when `codex`
+  is absent from the shell PATH.
+- If managed Codex account login still reports a missing executable, turn on **Show debug settings** in
+  **Settings > Advanced**, then check **Settings > Debug > CLI Paths**. When no Codex binary appears there, confirm
+  `codex --version` works in Terminal, check `which -a codex` for stale duplicate installs, then run
   `npm install -g --include=optional @openai/codex@latest` before retrying Add Account.
 
 ### Codex CLI PTY diagnostics (`/status`)

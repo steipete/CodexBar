@@ -232,11 +232,17 @@ struct ProviderSettingsOrganizationsDescriptor: Identifiable {
 }
 
 /// Shared picker descriptor rendered in the Providers settings pane.
+enum ProviderSettingsPickerPlacement: Equatable {
+    case menuBar
+    case connection
+}
+
 @MainActor
 struct ProviderSettingsPickerDescriptor: Identifiable {
     let id: String
     let title: String
     let subtitle: String
+    let placement: ProviderSettingsPickerPlacement
     let dynamicSubtitle: (() -> String?)?
     let binding: Binding<String>
     let options: [ProviderSettingsPickerOption]
@@ -249,6 +255,7 @@ struct ProviderSettingsPickerDescriptor: Identifiable {
         id: String,
         title: String,
         subtitle: String,
+        placement: ProviderSettingsPickerPlacement = .connection,
         dynamicSubtitle: (() -> String?)? = nil,
         binding: Binding<String>,
         options: [ProviderSettingsPickerOption],
@@ -260,6 +267,7 @@ struct ProviderSettingsPickerDescriptor: Identifiable {
         self.id = id
         self.title = title
         self.subtitle = subtitle
+        self.placement = placement
         self.dynamicSubtitle = dynamicSubtitle
         self.binding = binding
         self.options = options

@@ -141,6 +141,9 @@ struct CodexAccountScopedRefreshTests {
         settings._test_liveSystemCodexAccount = self.liveAccount(email: "beta@example.com")
         let freshSnapshot = self.codexSnapshot(email: "beta@example.com", usedPercent: 5)
         store._setSnapshotForTesting(freshSnapshot, provider: .codex)
+        let betaGuard = store.freshCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = betaGuard
+        store.lastCodexAccountScopedRefreshGuard = betaGuard
         await blocker.resume(with: .failure(TestRefreshError(message: "stale failure")))
         await refreshTask.value
 
@@ -379,6 +382,12 @@ struct CodexAccountScopedRefreshTests {
             self.codexSnapshot(email: "trusted@example.com", usedPercent: 12),
             provider: .codex)
         store.lastSourceLabels[.codex] = "codex-cli"
+        let trustedGuard = CodexAccountScopedRefreshGuard(
+            source: .liveSystem,
+            identity: .emailOnly(normalizedEmail: "trusted@example.com"),
+            accountKey: "trusted@example.com")
+        store.lastCodexUsagePublicationGuard = trustedGuard
+        store.lastCodexAccountScopedRefreshGuard = trustedGuard
         store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
             self.dashboard(email: "trusted@example.com", creditsRemaining: 33, usedPercent: 12)
         }

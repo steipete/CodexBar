@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "Wybierz IDE do monitorowania";
 "Session quota notifications" = "Powiadomienia o limicie sesji";
 "Session tokens" = "Tokeny sesji";
-"Settings" = "Ustawienia";
+"provider_section_connection" = "Połączenie";
+"provider_section_menu_bar" = "Pasek menu";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Pokazuj w menu sekcje Codex Credits i Claude Extra usage.";
 "Show Debug Settings" = "Pokaż ustawienia debugowania";
 "Show all token accounts" = "Pokaż wszystkie konta tokenów";
@@ -396,7 +397,14 @@
 /* General Pane */
 "section_system" = "System";
 "section_usage" = "Zużycie";
-"section_automation" = "Automatyzacja";
+"section_refreshing" = "Odświeżanie";
+"section_alerts" = "Alerty";
+"section_celebrations" = "Świętowanie";
+"section_icon" = "Ikona";
+"section_combined_icon" = "Połączona ikona";
+"section_animation" = "Animacja";
+"section_content" = "Zawartość";
+"section_agent_sessions" = "Sesje agentów";
 "language_title" = "Język";
 "language_subtitle" = "Zmień język interfejsu. Aby zmiana zaczęła w pełni obowiązywać, uruchom aplikację ponownie.";
 "language_system" = "System";
@@ -421,7 +429,6 @@
 "language_turkish" = "Turecki";
 "start_at_login_title" = "Uruchamiaj przy logowaniu";
 "start_at_login_subtitle" = "Automatycznie uruchamia CodexBar podczas startu Maca.";
-"show_cost_summary" = "Pokaż podsumowanie kosztów";
 "show_cost_summary_subtitle" = "Odczytuje lokalne logi użycia. Pokazuje dziś + wybrany zakres historii w menu.";
 "cost_summary_style_title" = "Styl wyświetlania";
 "cost_summary_style_inline" = "Tylko wbudowane";
@@ -436,17 +443,16 @@
 "cost_comparison_periods_title" = "Pokaż krótsze okresy porównawcze";
 "cost_comparison_periods_subtitle" = "Dodaj sumy z 7, 30 i 90 dni, gdy mieszczą się w wybranym zakresie historii. Sumy te wykorzystują to samo skanowanie lokalne.";
 "cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
-"refresh_cadence_title" = "Częstotliwość odświeżania";
-"refresh_cadence_subtitle" = "Jak często CodexBar odpyta dostawców w tle.";
+"refresh_interval_title" = "Częstotliwość odświeżania";
 "manual_refresh_hint" = "Auto-odświeżanie jest wyłączone; użyj polecenia Odśwież w menu.";
 "refresh_on_open_title" = "Odśwież po otwarciu menu";
 "refresh_on_open_subtitle" = "Pobiera najnowsze zużycie każdego dostawcy przy każdym otwarciu menu.";
 "check_provider_status_title" = "Sprawdzaj status dostawców";
 "check_provider_status_subtitle" = "Sprawdza status OpenAI/Claude oraz Google Workspace dla Gemini/Antigravity i pokazuje incydenty na ikonie i w menu.";
-"session_quota_notifications_title" = "Powiadomienia o limicie sesji";
 "session_quota_notifications_subtitle" = "Powiadamia, gdy limit 5-godzinnej sesji spadnie do 0% i gdy znów będzie dostępny.";
-"quota_warning_notifications_title" = "Powiadomienia o ostrzeżeniach limitu";
+"quota_depleted_title" = "Wyczerpanie i przywrócenie limitu";
 "quota_warning_notifications_subtitle" = "Ostrzega, gdy pozostały limit sesji lub tygodnia przekroczy skonfigurowane progi.";
+"threshold_warnings_title" = "Ostrzeżenia progowe";
 "quota_warnings_title" = "Ostrzeżenia limitu";
 "quota_warning_session" = "sesja";
 "quota_warning_session_capitalized" = "Sesja";
@@ -457,6 +463,12 @@
 "quota_warning_notification_body_with_account" = "Konto %1$@. Pozostało %2$@. Osiągnięto próg ostrzeżenia %3$d%% dla %4$@.";
 "predictive_pace_warnings_title" = "Predykcyjne ostrzeżenia tempa";
 "predictive_pace_warnings_subtitle" = "Ostrzega dla Codex i Claude, gdy tempo sesji lub tygodnia może wyczerpać limit przed resetem.";
+"confetti_on_reset_title" = "Konfetti po resecie";
+"confetti_on_reset_subtitle" = "Wyświetlaj pełnoekranowe konfetti po zresetowaniu użycia.";
+"confetti_option_off" = "Wyłączone";
+"confetti_option_session" = "Resety sesji";
+"confetti_option_weekly" = "Resety tygodniowe";
+"confetti_option_both" = "Oba";
 "predictive_pace_warning_notification_title" = "%1$@ ostrzeżenie tempa %2$@";
 "predictive_pace_warning_notification_body" = "Przy obecnym tempie ten limit może wyczerpać się za %1$@, przed resetem.";
 "predictive_pace_warning_notification_body_with_account" = "Konto %1$@. Przy obecnym tempie ten limit może wyczerpać się za %2$@, przed resetem.";
@@ -469,6 +481,8 @@
 "quota_warning_sound" = "Odtwarzaj dźwięk powiadomienia";
 "quota_warning_onscreen_alert" = "Pokaż alert tekstowy na ekranie";
 "quota_warning_provider_inherits" = "Używa globalnych ustawień ostrzeżeń limitu, chyba że to okno jest tutaj dostosowane.";
+"quota_warning_provider_disabled" = "Powiadomienia o ostrzeżeniach limitu i znaczniki na paskach użycia są wyłączone. Włącz dowolną z tych funkcji, aby edytować zapisane ustawienia.";
+"quota_warning_provider_markers_only" = "Powiadomienia o ostrzeżeniach limitu są globalnie wyłączone. Te ustawienia nadal sterują znacznikami na paskach użycia.";
 "quota_warning_global" = "Globalne";
 "quota_warning_customize_thresholds" = "Dostosuj progi dla %@";
 "quota_warning_enable_warnings" = "Włącz ostrzeżenia dla %@";
@@ -486,7 +500,9 @@
 /* Tab titles */
 "tab_general" = "Ogólne";
 "tab_providers" = "Dostawcy";
-"tab_display" = "Wygląd";
+"tab_notifications" = "Powiadomienia";
+"tab_menu_bar" = "Pasek menu";
+"tab_menu" = "Menu";
 "tab_advanced" = "Zaawansowane";
 "tab_about" = "O aplikacji";
 "tab_debug" = "Debugowanie";
@@ -517,34 +533,36 @@
 "primary_api_key_limit" = "Główny (limit klucza API)";
 
 /* Display Pane */
-"section_menu_bar" = "Pasek menu";
+"menu_bar_style_title" = "Styl paska menu";
+"menu_bar_style_subtitle" = "Sposób rysowania elementu paska menu.";
+"menu_bar_style_critters" = "Stworki";
+"menu_bar_style_bars" = "Paski miernika";
+"menu_bar_style_icon_percent" = "Ikona i procent";
+"switcher_rows_title" = "Wiersze przełącznika";
+"switcher_rows_icons" = "Ikony dostawców";
+"switcher_rows_progress" = "Postęp tygodniowy";
+"usage_bars_fill_title" = "Wypełnienie pasków użycia";
+"usage_bars_fill_remaining" = "Pozostały limit";
+"usage_bars_fill_used" = "Wykorzystany limit";
+"reset_times_title" = "Czasy resetu";
+"reset_times_countdown" = "Odliczanie";
+"reset_times_clock" = "Godzina";
+"cost_summary_title" = "Podsumowanie kosztów";
+"cost_summary_off" = "Wyłączone";
 "merge_icons_title" = "Scal ikony";
 "merge_icons_subtitle" = "Używaj jednej ikony paska menu z przełącznikiem dostawcy.";
-"switcher_shows_icons_title" = "Przełącznik pokazuje ikony";
-"switcher_shows_icons_subtitle" = "Pokazuj ikony dostawców w przełączniku (w przeciwnym razie linię postępu tygodniowego).";
 "show_most_used_provider_title" = "Pokaż najczęściej używanego dostawcę";
 "show_most_used_provider_subtitle" = "Pasek menu automatycznie pokazuje dostawcę najbliżej limitu.";
-"menu_bar_shows_percent_title" = "Pokaż procent na pasku menu";
-"menu_bar_shows_percent_subtitle" = "Pokazuje procent zużycia/pozostałego limitu obok ikony.";
-"hide_critters_title" = "Ukryj stworki";
-"hide_critters_subtitle" = "Pokaż zwykłe paski miernika bez twarzy i ozdób.";
 "display_mode_title" = "Tryb wyświetlania";
 "display_mode_subtitle" = "Wybierz, co pokazywać na pasku menu (Tempo pokazuje użycie względem oczekiwanego).";
-"section_menu_content" = "Zawartość menu";
-"show_usage_as_used_title" = "Pokazuj zużycie jako wykorzystane";
-"show_usage_as_used_subtitle" = "Zamiast pozostałego limitu pokazuje wartość już wykorzystaną.";
 "show_quota_warning_markers_title" = "Pokaż znaczniki ostrzeżeń limitu";
 "show_quota_warning_markers_subtitle" = "Rysuje znaczniki progów na paskach użycia, gdy skonfigurowano ostrzeżenia limitu.";
 "weekly_progress_work_days_title" = "Dni robocze postępu tygodniowego";
 "weekly_progress_work_days_subtitle" = "Rysuje znaczniki granic dni na tygodniowych paskach użycia.";
-"show_reset_time_as_clock_title" = "Pokaż czas resetu jako godzinę";
-"show_reset_time_as_clock_subtitle" = "Pokazuje reset jako godzinę zegarową zamiast względnego czasu.";
 "show_provider_changelog_links_title" = "Pokaż linki do changelogów dostawców";
 "show_provider_changelog_links_subtitle" = "Dodaje linki do informacji o wydaniach dla obsługiwanych dostawców CLI w menu.";
 "show_credits_extra_usage_title" = "Pokaż kredyty + dodatkowe użycie";
 "show_credits_extra_usage_subtitle" = "Pokazuje sekcje Codex Credits i Claude Extra usage w menu.";
-"show_all_token_accounts_title" = "Pokaż wszystkie konta tokenów";
-"show_all_token_accounts_subtitle" = "Układa konta tokenów w stos w menu (w przeciwnym razie pokazuje pasek przełączania kont).";
 "multi_account_layout_title" = "Układ wielu kont";
 "multi_account_layout_subtitle" = "Wybierz przełączanie segmentowe kont lub ułożone karty kont.";
 "multi_account_layout_segmented" = "Segmentowy";
@@ -555,6 +573,10 @@
 "overview_no_providers_hint" = "Brak włączonych dostawców dla Przeglądu.";
 "overview_rows_follow_order" = "Wiersze Przeglądu zawsze podążają za kolejnością dostawców.";
 "overview_no_providers_selected" = "Nie wybrano dostawców";
+"agent_sessions_title" = "Sesje agentów";
+"agent_sessions_subtitle" = "Pokazuj w menu lokalne oraz wykryte przez SSH sesje Codex i Claude Code.";
+"agent_sessions_hosts_title" = "Dodatkowe hosty SSH";
+"agent_sessions_footer" = "Komputery Mac w twojej sieci tailnet są wykrywane automatycznie. Sesje lokalne są odświeżane co 30 sekund; hosty zdalne co 60 sekund i po otwarciu menu.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Skrót klawiaturowy";
@@ -568,10 +590,6 @@
 "show_debug_settings_subtitle" = "Pokazuje dodatkowe ustawienia debugowania i diagnostyki.";
 "surprise_me_title" = "Zaskocz mnie";
 "surprise_me_subtitle" = "Sprawdź, czy lubisz, gdy twoi agenci trochę się tam bawią.";
-"session_limit_confetti_title" = "Konfetti limitu sesji";
-"session_limit_confetti_subtitle" = "Wyświetl konfetti na pełnym ekranie po zresetowaniu użycia sesji.";
-"weekly_limit_confetti_title" = "Konfetti limitu tygodniowego";
-"weekly_limit_confetti_subtitle" = "Odtwórz pełnoekranowe konfetti, gdy tygodniowe użycie się resetuje.";
 "hide_personal_info_title" = "Ukryj dane osobowe";
 "hide_personal_info_subtitle" = "Ukrywa adresy e-mail na pasku menu i w interfejsie menu.";
 "show_provider_storage_usage_title" = "Pokaż użycie dysku dostawców";
@@ -670,6 +688,8 @@
 "display_mode_pace_desc" = "Pokaż wskaźnik tempa (np. +5%)";
 "display_mode_both_desc" = "Pokaż jednocześnie procent i tempo (np. 45% · +5%)";
 "display_mode_reset_time_desc" = "Pokaż godzinę resetu dla wybranej metryki (np. ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Pokaż czas resetu, gdy limit się wyczerpie";
+"menu_bar_reset_when_exhausted_subtitle" = "Przy 0% pozostałych pokazuje czas do resetu zamiast wartości procentowej";
 
 /* Provider status */
 "status_operational" = "Operacyjne";
@@ -815,6 +835,8 @@
 /* Popup panels */
 "No usage configured." = "Nie skonfigurowano użycia.";
 "Quota" = "Limit";
+"Daily quota" = "Limit dzienny";
+"Total" = "Łącznie";
 "tokens" = "tokeny";
 "requests" = "żądania";
 "Latest" = "Najnowsze";
@@ -1164,3 +1186,4 @@
 "section_links" = "Linki";
 "Show Codex Spark usage" = "Pokaż użycie Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Pokazuje wiersze limitu Codex Spark w menu i podglądzie dostawcy. Wymaga włączenia opcji „Pokaż kredyty + dodatkowe użycie” w ustawieniach Wyświetlanie.";
+"Scroll to see more models" = "Przewiń, aby zobaczyć więcej modeli";

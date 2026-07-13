@@ -1115,6 +1115,10 @@ extension UsageStorePlanUtilizationTests {
             startupBehavior: .testing)
         isolatedSettings._test_managedCodexAccountStoreURL = managedStoreURL
         isolatedSettings.codexActiveSource = .liveSystem
+        // Cancel the background plan-utilization decode so it cannot race the
+        // explicit empty assignment below. Production paths still load on the
+        // utility queue; this only short-circuits the test setup.
+        store._cancelPlanUtilizationHistoryLoadForTesting()
         store.planUtilizationHistory = [:]
         return store
     }
@@ -1144,6 +1148,29 @@ extension UsageStorePlanUtilizationTests {
             preferredAccountKey: document.preferredAccountKey,
             unscoped: document.unscoped,
             accounts: document.accounts)
+    }
+}
+
+extension UsageStorePlanUtilizationTests {
+    @MainActor
+    @Test
+    func `global refresh tail does not keep completed provider plan card loading`() {
+        let store = Self.makeStore()
+        store._setSnapshotForTesting(nil, provider: .claude)
+        store.isRefreshing = true
+        store.refreshingProviders.insert(.claude)
+
+        #expect(store.shouldShowRefreshingMenuCard(for: .claude))
+        #expect(store.shouldShowRefreshingMenuCardIndicator(for: .claude))
+        #expect(store.shouldHidePlanUtilizationMenuItem(for: .claude))
+
+        store.refreshingProviders.remove(.claude)
+
+        #expect(store.isRefreshing)
+        #expect(store.refreshingProviders.isEmpty)
+        #expect(!store.shouldShowRefreshingMenuCard(for: .claude))
+        #expect(!store.shouldShowRefreshingMenuCardIndicator(for: .claude))
+        #expect(!store.shouldHidePlanUtilizationMenuItem(for: .claude))
     }
 }
 

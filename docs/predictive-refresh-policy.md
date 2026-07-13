@@ -8,9 +8,9 @@ read_when:
 
 # Adaptive refresh decision record
 
-- **Status:** Accepted design; not implemented
+- **Status:** Accepted and implemented as an opt-in mode in [#1861](https://github.com/steipete/CodexBar/pull/1861)
 - **Decision owner:** Maintainer
-- **Runtime impact:** None until separately implemented
+- **Runtime impact:** Bounded opt-in 2–30-minute provider-batch cadence
 
 ## Decision
 
@@ -19,8 +19,8 @@ CodexBar may offer an opt-in `Adaptive` refresh frequency that adjusts the exist
 per-account prediction, persistent interaction history, learned ranking, or menu prewarming proposed in the original
 RFC.
 
-This approval covers the bounded design only. Runtime implementation, tests, localization, and packaged proof remain a
-separate change.
+This approval covers the bounded design only. Runtime implementation, tests, localization, and packaged proof were
+delivered separately by #1861; changing the default or adding new signals still requires new evidence and review.
 
 ## Options considered
 
@@ -47,6 +47,8 @@ Current `main` has two independent refresh paths:
 
 Relevant implementation seams:
 
+- `Sources/AdaptiveRefreshCore/AdaptiveRefreshPolicyCore.swift`: canonical package-internal policy table shared by the
+  app adapter and offline replay tooling.
 - `Sources/CodexBar/SettingsStore.swift`: `RefreshFrequency` and fixed interval mapping.
 - `Sources/CodexBar/UsageStore.swift`: timer ownership and provider-batch refresh.
 - `Sources/CodexBar/UsageStore+Refresh.swift`: provider refresh coalescing and result application.
@@ -219,10 +221,12 @@ Use stubs and test stores. Do not run live providers, browser-cookie imports, or
 
 ## Acceptance and rollback
 
-Before changing the default, a separate proposal must provide measured evidence. Minimum evidence:
+Before changing the default, a separate PR updating this decision record must provide measured evidence. Minimum
+evidence:
 
 - deterministic replay tests show fewer scheduled batches than the 5-minute baseline during idle traces;
-- active traces never schedule slower than the existing 5-minute default;
+- unconstrained active decisions never schedule slower than the existing 5-minute default; Low Power Mode and
+  serious/critical thermal state retain the 30-minute safety override;
 - no regression in menu-open responsiveness or prompt safety;
 - packaged opt-in use shows understandable reason logs and no timer overlap.
 
@@ -243,3 +247,32 @@ Approval of this document does not approve:
 - new telemetry collection or external analytics.
 
 Any of those requires its own evidence and product/privacy review.
+
+## Local replay follow-up (2026-07-10, evidence only)
+
+This follow-up adds offline replay tooling only. It does not add app-side recording, persistent diagnostic storage,
+transcript-directory scanning, or a new production-policy input. The evaluated 1,780-record snapshot came from local
+experimental instrumentation that is not part of this change. Its SHA-256 is
+`b1e4aa33180b7c177293eb9ed16b45e24e026d259600fba2b1b67b931b904f0b`; the raw trace remains local.
+
+The app and replay adapter call the same package-internal policy core. Platform-specific adapters normalize thermal
+state and output units; they do not copy the policy thresholds or decision table.
+
+The replay splits legacy deadline-overrun gaps five minutes after the most recent recorded timer deadline. It found 28
+observed segments and excluded 26.10 hours of unobserved wall time. The heuristic cannot distinguish sleep or reboot from
+a long refresh or event-loop stall, so the excluded time is not a causal classification.
+
+| Policy | Simulated refreshes | Per observed 24h | Simulated advances | Unconstrained active over 5m | Menu staleness p50 / p95 |
+|---|---:|---:|---:|---:|---:|
+| Current adaptive | 694 | 143.47 | 53 | 4 / 145 | 142s / 1093s |
+| Activity-cap candidate | 696 | 143.88 | 53 | 0 / 145 | 139s / 1093s |
+| Fixed 5m | 1383 | 285.90 | 0 | 0 / 99 | 150s / 281s |
+
+The replay-only candidate caps an otherwise slower adaptive decision at five minutes when an input trace reports recent
+coding activity. It adds two simulated refreshes and removes the four active-delay violations in this snapshot, but does
+not improve p95 menu staleness. The sample is one machine and the candidate changes only a small number of decisions, so
+this is not sufficient evidence for a production or default change.
+
+Replay advances are counterfactual events on a zero-service-time policy clock. They are intentionally not compared by
+count with live `timerAdvanced` events, whose schedule includes real refresh duration and in-flight coalescing. The
+offline audit reports recorded schedule events separately when the supplied trace contains them.

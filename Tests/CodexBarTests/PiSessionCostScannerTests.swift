@@ -691,11 +691,410 @@ struct PiSessionCostScannerTests {
         #expect(FileManager.default.fileExists(atPath: newCacheURL.path))
         let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
         let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
-        #expect(newCacheURL.lastPathComponent == "pi-sessions-v4.json")
-        #expect(newCache.version == 4)
+        #expect(newCacheURL.lastPathComponent == "pi-sessions-v5.json")
+        #expect(newCache.version == 5)
         #expect(rebuilt?.usageSampleCount == 1)
         #expect(rebuilt?.costSampleCount == 1)
         #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
+    }
+
+    @Test
+    func `pi scanner ignores v4 cache with stale gpt56 cache write pricing`() throws {
+        // v4 stored complete costNanos before cache-write rates existed; v5 must reprice.
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let model = "gpt-5.6-sol"
+        let assistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": model,
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": [
+                    "input": 70,
+                    "cacheRead": 10,
+                    "cacheWrite": 20,
+                    "output": 5,
+                    "totalTokens": 105,
+                ],
+            ],
+        ]
+
+        let fileURL = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_cache-write.jsonl",
+            contents: env.jsonl([assistant]))
+        let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let mtime = try #require(attrs[.modificationDate] as? Date)
+        let size = try #require((attrs[.size] as? NSNumber)?.int64Value)
+
+        let expectedCost = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        // Stale: writes folded into uncached input at 1× (pre-v5 behavior).
+        let staleCost = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: env.cacheRoot) ?? 0
+        #expect(abs(expectedCost - staleCost) > 0.000001)
+
+        let stalePacked = PiPackedUsage(
+            inputTokens: 70,
+            cacheReadTokens: 10,
+            cacheWriteTokens: 20,
+            outputTokens: 5,
+            totalTokens: 105,
+            costNanos: Int64((staleCost * 1_000_000_000).rounded()),
+            costSampleCount: 1,
+            usageSampleCount: 1)
+        let dayKey = "2026-07-10"
+        let contributions = [
+            UsageProvider.codex.rawValue: [
+                dayKey: [
+                    model: stalePacked,
+                ],
+            ],
+        ]
+        let oldFileUsage = PiSessionFileUsage(
+            mtimeUnixMs: Int64(mtime.timeIntervalSince1970 * 1000),
+            size: size,
+            parsedBytes: size,
+            lastModelContext: nil,
+            contributions: contributions)
+        var oldCache = PiSessionCostCache(version: 4)
+        oldCache.lastScanUnixMs = Int64(day.timeIntervalSince1970 * 1000)
+        oldCache.scanSinceKey = dayKey
+        oldCache.scanUntilKey = dayKey
+        oldCache.daysByProvider = contributions
+        oldCache.files = [fileURL.path: oldFileUsage]
+        let oldCacheURL = env.cacheRoot
+            .appendingPathComponent("cost-usage", isDirectory: true)
+            .appendingPathComponent("pi-sessions-v4.json", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: oldCacheURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try JSONEncoder().encode(oldCache).write(to: oldCacheURL)
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 3600))
+
+        #expect(report.data.count == 1)
+        #expect(abs((report.data.first?.costUSD ?? 0) - expectedCost) < 0.000001)
+        #expect(abs((report.data.first?.costUSD ?? 0) - staleCost) > 0.000001)
+
+        let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
+        #expect(newCache.version == 5)
+        #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
+    }
+}
+
+extension PiSessionCostScannerTests {
+    @Test
+    func `pi scanner reprices unchanged files when catalog rates change`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let model = "gpt-5.6-sol"
+        func assistant(at timestamp: Date) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": model,
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": 150_000,
+                        "output": 0,
+                        "totalTokens": 150_000,
+                    ],
+                ],
+            ]
+        }
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_catalog-change.jsonl",
+            contents: env.jsonl([
+                assistant(at: day.addingTimeInterval(-1)),
+                assistant(at: day),
+            ]))
+
+        let firstCatalog = try Self.modelsDevCatalog(inputCostPerMillion: 4)
+        #expect(ModelsDevCache.save(catalog: firstCatalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 3600)
+        let firstReport = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        let firstPricingKey = try #require(firstCache.pricingKey)
+        #expect(firstReport.data.first?.totalTokens == 300_000)
+        #expect(abs((firstReport.data.first?.costUSD ?? 0) - 1.2) < 0.0000001)
+
+        let secondCatalog = try Self.modelsDevCatalog(inputCostPerMillion: 8)
+        #expect(ModelsDevCache.save(
+            catalog: secondCatalog,
+            fetchedAt: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot))
+        #expect(PiSessionCostScanner.loadCachedDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot) == nil)
+
+        let secondReport = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        #expect(secondCache.pricingKey != firstPricingKey)
+        // Each 150K message stays below the 272K threshold. The 300K daily aggregate must be the
+        // sum of two short-context costs, proving the pricing change triggered a full-file reparse.
+        #expect(secondReport.data.first?.totalTokens == 300_000)
+        #expect(abs((secondReport.data.first?.costUSD ?? 0) - 2.4) < 0.0000001)
+    }
+
+    @Test
+    func `pi scanner reprices unchanged claude files when anthropic rates change`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let model = "claude-fable-5"
+        func assistant(at timestamp: Date) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "anthropic",
+                    "model": model,
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": 150_000,
+                        "output": 0,
+                        "totalTokens": 150_000,
+                    ],
+                ],
+            ]
+        }
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_anthropic-catalog-change.jsonl",
+            contents: env.jsonl([
+                assistant(at: day.addingTimeInterval(-1)),
+                assistant(at: day),
+            ]))
+
+        let firstCatalog = try Self.anthropicModelsDevCatalog(inputCostPerMillion: 4)
+        #expect(ModelsDevCache.save(catalog: firstCatalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 3600)
+        let firstReport = PiSessionCostScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        let firstPricingKey = try #require(firstCache.pricingKey)
+        #expect(firstReport.data.first?.totalTokens == 300_000)
+        #expect(abs((firstReport.data.first?.costUSD ?? 0) - 1.2) < 0.0000001)
+
+        let secondCatalog = try Self.anthropicModelsDevCatalog(inputCostPerMillion: 8)
+        #expect(ModelsDevCache.save(
+            catalog: secondCatalog,
+            fetchedAt: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot))
+        #expect(PiSessionCostScanner.loadCachedDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot) == nil)
+
+        let secondReport = PiSessionCostScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        #expect(secondCache.pricingKey != firstPricingKey)
+        #expect(secondReport.data.first?.totalTokens == 300_000)
+        #expect(abs((secondReport.data.first?.costUSD ?? 0) - 2.4) < 0.0000001)
+    }
+
+    @Test
+    func `pi pricing key ignores catalog fetch time when rates are unchanged`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let catalog = try Self.modelsDevCatalog(inputCostPerMillion: 4)
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+        let assistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.6-sol",
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": ["input": 100, "output": 0, "totalTokens": 100],
+            ],
+        ]
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_catalog-fetch-time.jsonl",
+            contents: env.jsonl([assistant]))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 3600)
+        _ = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+
+        #expect(ModelsDevCache.save(
+            catalog: catalog,
+            fetchedAt: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot))
+        _ = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+
+        #expect(secondCache.pricingKey == firstCache.pricingKey)
+        #expect(secondCache.lastScanUnixMs == firstCache.lastScanUnixMs)
+    }
+
+    @Test
+    func `pi pricing key ignores unrelated providers and non pricing context metadata`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let firstCatalog = try Self.modelsDevCatalog("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "limit": { "context": 1000000 },
+                "cost": { "input": 4, "output": 30 }
+              }
+            }
+          },
+          "google": {
+            "id": "google",
+            "models": {
+              "gemini-test": {
+                "id": "gemini-test",
+                "cost": { "input": 1, "output": 2 }
+              }
+            }
+          }
+        }
+        """)
+        #expect(ModelsDevCache.save(catalog: firstCatalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+        let assistant: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.6-sol",
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": ["input": 100, "output": 0, "totalTokens": 100],
+            ],
+        ]
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_catalog-metadata.jsonl",
+            contents: env.jsonl([assistant]))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 3600)
+        _ = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+
+        let metadataOnlyChange = try Self.modelsDevCatalog("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "limit": { "context": 2000000 },
+                "cost": { "input": 4, "output": 30 }
+              }
+            }
+          },
+          "google": {
+            "id": "google",
+            "models": {
+              "gemini-test": {
+                "id": "gemini-test",
+                "cost": { "input": 99, "output": 199 }
+              }
+            }
+          }
+        }
+        """)
+        #expect(ModelsDevCache.save(
+            catalog: metadataOnlyChange,
+            fetchedAt: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot))
+        _ = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+
+        #expect(secondCache.pricingKey == firstCache.pricingKey)
+        #expect(secondCache.lastScanUnixMs == firstCache.lastScanUnixMs)
     }
 
     @Test
@@ -761,5 +1160,53 @@ struct PiSessionCostScannerTests {
             options: options)
         #expect(expandedReport.data.map(\.date) == ["2026-04-02", "2026-04-08"])
         #expect(expandedReport.summary?.totalTokens == 45)
+    }
+
+    private static func modelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
+        let json = """
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": {
+                  "input": \(inputCostPerMillion),
+                  "output": 30,
+                  "cache_read": 0.5,
+                  "cache_write": 6.25
+                }
+              }
+            }
+          }
+        }
+        """
+        return try self.modelsDevCatalog(json)
+    }
+
+    private static func anthropicModelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
+        let json = """
+        {
+          "anthropic": {
+            "id": "anthropic",
+            "models": {
+              "claude-fable-5": {
+                "id": "claude-fable-5",
+                "cost": {
+                  "input": \(inputCostPerMillion),
+                  "output": 15,
+                  "cache_read": 0.3,
+                  "cache_write": 3.75
+                }
+              }
+            }
+          }
+        }
+        """
+        return try self.modelsDevCatalog(json)
+    }
+
+    private static func modelsDevCatalog(_ json: String) throws -> ModelsDevCatalog {
+        try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
     }
 }

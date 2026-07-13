@@ -11,9 +11,12 @@ struct MenuCardLiveSubtitle {
 @Observable
 final class MenuCardRefreshMonitor {
     typealias ModelResolver = @MainActor (UsageProvider) -> UsageMenuCardView.Model?
+    typealias ProviderRefreshStateResolver = @MainActor (UsageProvider) -> Bool
 
     private let resolveModel: ModelResolver
-    /// Set while an all-providers refresh is running; it freezes every provider's card.
+    private let isProviderRefreshActive: ProviderRefreshStateResolver
+    /// Set while an all-providers refresh is running; individual cards freeze only while their
+    /// provider has active refresh work.
     private var globalManualRefreshInFlight = false
     /// Providers with an individual manual refresh in flight. Concurrent entries are allowed so
     /// refreshing one provider does not stall or unfreeze another.
@@ -25,8 +28,12 @@ final class MenuCardRefreshMonitor {
         self.globalManualRefreshInFlight || !self.manualRefreshProviders.isEmpty
     }
 
-    init(resolveModel: @escaping ModelResolver) {
+    init(
+        resolveModel: @escaping ModelResolver,
+        isProviderRefreshActive: @escaping ProviderRefreshStateResolver)
+    {
         self.resolveModel = resolveModel
+        self.isProviderRefreshActive = isProviderRefreshActive
     }
 
     func beginManualRefresh(
@@ -60,7 +67,8 @@ final class MenuCardRefreshMonitor {
     }
 
     func isManualRefreshInFlight(for provider: UsageProvider) -> Bool {
-        self.globalManualRefreshInFlight || self.manualRefreshProviders.contains(provider)
+        self.manualRefreshProviders.contains(provider) ||
+            (self.globalManualRefreshInFlight && self.isProviderRefreshActive(provider))
     }
 
     func model(

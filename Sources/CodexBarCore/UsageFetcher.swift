@@ -72,7 +72,9 @@ public struct RateWindow: Codable, Equatable, Sendable {
     }
 
     public func backfillingResetTime(from cached: RateWindow?, now: Date = .init()) -> RateWindow {
-        if self.resetsAt != nil { return self }
+        if self.resetsAt != nil {
+            return self
+        }
         guard let cachedReset = cached?.resetsAt, cachedReset > now else { return self }
         let windowMinutes = if let windowMinutes = self.windowMinutes, windowMinutes > 0 {
             windowMinutes
@@ -155,7 +157,9 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
     }
 
     public func scoped(to provider: UsageProvider) -> ProviderIdentitySnapshot {
-        if self.providerID == provider { return self }
+        if self.providerID == provider {
+            return self
+        }
         return ProviderIdentitySnapshot(
             providerID: provider,
             accountEmail: self.accountEmail,
@@ -187,6 +191,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot?
     public let crossModelUsage: CrossModelUsageSnapshot?
     public let clawRouterUsage: ClawRouterUsageSnapshot?
+    public let sub2APIUsage: Sub2APIUsageDetails?
     public let wayfinderUsage: WayfinderUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
@@ -222,6 +227,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case sakanaPayAsYouGo
         case crossModelUsage
         case clawRouterUsage
+        case sub2APIUsage
         case wayfinderUsage
         case openAIAPIUsage
         case codexResetCredits
@@ -255,6 +261,7 @@ public struct UsageSnapshot: Codable, Sendable {
         sakanaPayAsYouGo: SakanaPayAsYouGoSnapshot? = nil,
         crossModelUsage: CrossModelUsageSnapshot? = nil,
         clawRouterUsage: ClawRouterUsageSnapshot? = nil,
+        sub2APIUsage: Sub2APIUsageDetails? = nil,
         wayfinderUsage: WayfinderUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
@@ -288,6 +295,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.sakanaPayAsYouGo = sakanaPayAsYouGo
         self.crossModelUsage = crossModelUsage
         self.clawRouterUsage = clawRouterUsage
+        self.sub2APIUsage = sub2APIUsage
         self.wayfinderUsage = wayfinderUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
@@ -340,6 +348,7 @@ public struct UsageSnapshot: Codable, Sendable {
             forKey: .sakanaPayAsYouGo)
         self.crossModelUsage = try container.decodeIfPresent(CrossModelUsageSnapshot.self, forKey: .crossModelUsage)
         self.clawRouterUsage = try container.decodeIfPresent(ClawRouterUsageSnapshot.self, forKey: .clawRouterUsage)
+        self.sub2APIUsage = try container.decodeIfPresent(Sub2APIUsageDetails.self, forKey: .sub2APIUsage)
         self.wayfinderUsage = try container.decodeIfPresent(WayfinderUsageSnapshot.self, forKey: .wayfinderUsage)
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
@@ -397,6 +406,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.sakanaPayAsYouGo, forKey: .sakanaPayAsYouGo)
         try container.encodeIfPresent(self.crossModelUsage, forKey: .crossModelUsage)
         try container.encodeIfPresent(self.clawRouterUsage, forKey: .clawRouterUsage)
+        try container.encodeIfPresent(self.sub2APIUsage, forKey: .sub2APIUsage)
         try container.encodeIfPresent(self.wayfinderUsage, forKey: .wayfinderUsage)
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
@@ -505,14 +515,25 @@ public struct UsageSnapshot: Codable, Sendable {
     public func scoped(to provider: UsageProvider) -> UsageSnapshot {
         guard let identity else { return self }
         let scopedIdentity = identity.scoped(to: provider)
-        if scopedIdentity.providerID == identity.providerID { return self }
+        if scopedIdentity.providerID == identity.providerID {
+            return self
+        }
         return self.withIdentity(scopedIdentity)
     }
 
     public func backfillingResetTimes(from cached: UsageSnapshot?, now: Date = .init()) -> UsageSnapshot {
         guard let cached else { return self }
         guard Self.identitiesMatch(self.identity, cached.identity) else { return self }
-        let primary = self.primary?.backfillingResetTime(from: cached.primary, now: now)
+        // Amp's percentage-based daily quota supersedes the legacy rolling-replenishment cadence. Do not attach
+        // that older exact reset to the new daily window; other providers retain the shared backfill behavior.
+        let cachedPrimary: RateWindow? = if self.identity?.providerID == .amp,
+                                            self.primary?.resetDescription == "resets daily"
+        {
+            nil
+        } else {
+            cached.primary
+        }
+        let primary = self.primary?.backfillingResetTime(from: cachedPrimary, now: now)
         let secondary = self.secondary?.backfillingResetTime(from: cached.secondary, now: now)
         let tertiary = self.tertiary?.backfillingResetTime(from: cached.tertiary, now: now)
         if primary == self.primary, secondary == self.secondary, tertiary == self.tertiary {
@@ -532,7 +553,9 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     private static func identitiesMatch(_ lhs: ProviderIdentitySnapshot?, _ rhs: ProviderIdentitySnapshot?) -> Bool {
-        if lhs == nil, rhs == nil { return true }
+        if lhs == nil, rhs == nil {
+            return true
+        }
         guard let lhs, let rhs else { return false }
         let lhsEmail = lhs.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let rhsEmail = rhs.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -579,6 +602,7 @@ public struct UsageSnapshot: Codable, Sendable {
             sakanaPayAsYouGo: self.sakanaPayAsYouGo,
             crossModelUsage: self.crossModelUsage,
             clawRouterUsage: self.clawRouterUsage,
+            sub2APIUsage: self.sub2APIUsage,
             wayfinderUsage: self.wayfinderUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
@@ -1176,7 +1200,9 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     private func readNextMessage() async throws -> [String: Any] {
         for await lineData in self.stdoutLineStream {
-            if lineData.isEmpty { continue }
+            if lineData.isEmpty {
+                continue
+            }
             if let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] {
                 return json
             }
@@ -1266,11 +1292,19 @@ public struct UsageFetcher: Sendable {
             let identity = ProviderIdentitySnapshot(
                 providerID: .codex,
                 accountEmail: account?.account.flatMap { details in
-                    if case let .chatgpt(email, _) = details { email } else { nil }
+                    if case let .chatgpt(email, _) = details {
+                        email
+                    } else {
+                        nil
+                    }
                 },
                 accountOrganization: nil,
                 loginMethod: account?.account.flatMap { details in
-                    if case let .chatgpt(_, plan) = details { plan } else { nil }
+                    if case let .chatgpt(_, plan) = details {
+                        plan
+                    } else {
+                        nil
+                    }
                 } ?? rateLimitsPlan)
             let credits = Self.makeCredits(from: limits, rateLimitsByLimitId: limitsResponse.rateLimitsByLimitId)
             let shouldReturnUnavailableUsage = credits == nil || rateLimitsPlan != nil
@@ -1458,7 +1492,9 @@ public struct UsageFetcher: Sendable {
 
     private static func codexCreditLimitTitle(from limitName: String?) -> String {
         let trimmed = limitName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmed.isEmpty { return "Monthly credit limit" }
+        if trimmed.isEmpty {
+            return "Monthly credit limit"
+        }
         return trimmed
     }
 

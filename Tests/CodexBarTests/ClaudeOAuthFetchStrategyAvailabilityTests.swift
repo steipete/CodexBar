@@ -63,6 +63,57 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
     }
 
     @Test
+    func `auto mode expired CLI creds with MCP-only keychain returns unavailable in background`() async {
+        let available = await self.expiredCLIAvailability(
+            sourceMode: .auto,
+            interaction: .background,
+            keychainData: self.mcpOAuthOnlyKeychainPayload)
+
+        #expect(!available)
+    }
+
+    @Test
+    func `auto mode expired CLI creds with MCP-only keychain remains available for user action`() async {
+        let available = await self.expiredCLIAvailability(
+            sourceMode: .auto,
+            interaction: .userInitiated,
+            keychainData: self.mcpOAuthOnlyKeychainPayload)
+
+        #expect(available)
+    }
+
+    @Test
+    func `explicit O auth keeps expired CLI credentials available with MCP-only keychain`() async {
+        let available = await self.expiredCLIAvailability(
+            sourceMode: .oauth,
+            interaction: .background,
+            keychainData: self.mcpOAuthOnlyKeychainPayload)
+
+        #expect(available)
+    }
+
+    @Test
+    func `auto mode keeps expired CLI credentials available with ordinary O auth keychain`() async {
+        let available = await self.expiredCLIAvailability(
+            sourceMode: .auto,
+            interaction: .background,
+            keychainData: self.ordinaryOAuthKeychainPayload)
+
+        #expect(available)
+    }
+
+    @Test
+    func `auto mode ignores MCP-only keychain when keychain access is disabled`() async {
+        let available = await self.expiredCLIAvailability(
+            sourceMode: .auto,
+            interaction: .background,
+            keychainData: self.mcpOAuthOnlyKeychainPayload,
+            keychainAccessDisabled: true)
+
+        #expect(available)
+    }
+
+    @Test
     func `auto mode expired creds cli unavailable returns unavailable`() async {
         let context = self.makeContext(sourceMode: .auto)
         let strategy = ClaudeOAuthFetchStrategy()
@@ -380,6 +431,41 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         return try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(
             true,
             operation: operation)
+    }
+
+    private var mcpOAuthOnlyKeychainPayload: Data {
+        Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"fixture"}}}"#.utf8)
+    }
+
+    private var ordinaryOAuthKeychainPayload: Data {
+        Data(#"{"claudeAiOauth":{"accessToken":"fixture"}}"#.utf8)
+    }
+
+    private func expiredCLIAvailability(
+        sourceMode: ProviderSourceMode,
+        interaction: ProviderInteraction,
+        keychainData: Data,
+        keychainAccessDisabled: Bool = false) async -> Bool
+    {
+        let context = self.makeContext(sourceMode: sourceMode)
+        let strategy = ClaudeOAuthFetchStrategy()
+        return await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
+            .withValue(self.expiredRecord()) {
+                await ClaudeOAuthFetchStrategy.$claudeCLIAvailableOverride.withValue(true) {
+                    await KeychainAccessGate.withTaskOverrideForTesting(keychainAccessDisabled) {
+                        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(.securityFramework) {
+                            await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: keychainData,
+                                fingerprint: nil)
+                            {
+                                await ProviderInteractionContext.$current.withValue(interaction) {
+                                    await strategy.isAvailable(context)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
     }
 }
 #endif

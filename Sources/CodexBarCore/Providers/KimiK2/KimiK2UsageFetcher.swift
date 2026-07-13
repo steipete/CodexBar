@@ -46,6 +46,7 @@ public struct KimiK2UsageSummary: Sendable {
 
 public enum KimiK2UsageError: LocalizedError, Sendable {
     case missingCredentials
+    case invalidCredentials
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
@@ -54,6 +55,8 @@ public enum KimiK2UsageError: LocalizedError, Sendable {
         switch self {
         case .missingCredentials:
             "Missing Kimi K2 API key."
+        case .invalidCredentials:
+            "Kimi K2 API key is invalid or expired."
         case let .networkError(message):
             "Kimi K2 network error: \(message)"
         case let .apiError(message):
@@ -117,18 +120,24 @@ public struct KimiK2UsageFetcher: Sendable {
         apiKey: String,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiK2UsageSnapshot
     {
-        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
             throw KimiK2UsageError.missingCredentials
         }
 
         var request = URLRequest(url: self.creditsURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let response = try await transport.response(for: request)
         let data = response.data
-        guard response.statusCode == 200 else {
+        switch response.statusCode {
+        case 200:
+            break
+        case 401:
+            throw KimiK2UsageError.invalidCredentials
+        default:
             let body = String(data: data, encoding: .utf8) ?? "HTTP \(response.statusCode)"
             Self.log.error("Kimi K2 API returned \(response.statusCode): \(body)")
             throw KimiK2UsageError.apiError(body)

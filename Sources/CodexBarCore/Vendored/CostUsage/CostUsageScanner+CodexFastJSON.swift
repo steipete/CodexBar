@@ -18,6 +18,22 @@ extension CostUsageScanner {
         }
     }
 
+    static func extractJSONByteStringFieldAllowingEmpty(
+        _ field: [UInt8],
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in range: Range<Int>,
+        atDepth targetDepth: Int) -> String?
+    {
+        self.extractJSONByteField(field, from: bytes, in: range, atDepth: targetDepth) { valueIndex in
+            guard let parsed = parseJSONByteStringRange(in: bytes, index: &valueIndex, limit: range.upperBound)
+            else { return nil }
+            if parsed.hasEscapes {
+                return self.decodeEscapedJSONByteString(from: bytes, in: parsed.range)
+            }
+            return String(bytes: bytes[parsed.range], encoding: .utf8)
+        }
+    }
+
     static func extractJSONByteObjectField(
         _ field: [UInt8],
         from bytes: UnsafeBufferPointer<UInt8>,

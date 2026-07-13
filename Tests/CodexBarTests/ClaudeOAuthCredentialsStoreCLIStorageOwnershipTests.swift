@@ -478,22 +478,84 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             expiresAt: Date(timeIntervalSinceNow: 3600),
                             refreshToken: "keychain-refresh-token")
 
-                        let record = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                            try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                data: keychainData,
-                                fingerprint: nil)
-                            {
-                                try ClaudeOAuthCredentialsStore.loadRecord(
-                                    environment: [:],
-                                    allowKeychainPrompt: false,
-                                    respectKeychainPromptCooldown: true,
-                                    allowClaudeKeychainRepairWithoutPrompt: false)
+                        let record = try ClaudeOAuthKeychainPromptPreference
+                            .withTaskOverrideForTesting(.onlyOnUserAction) {
+                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                    data: keychainData,
+                                    fingerprint: nil)
+                                {
+                                    try ClaudeOAuthCredentialsStore.loadRecord(
+                                        environment: [:],
+                                        allowKeychainPrompt: false,
+                                        respectKeychainPromptCooldown: true,
+                                        allowClaudeKeychainRepairWithoutPrompt: false)
+                                }
                             }
-                        }
 
                         #expect(record.credentials.accessToken == "codexbar-cache")
                         #expect(record.owner == .claudeCLI)
                         #expect(record.source == .cacheKeychain)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `load record ignores codexbar cache in never prompt mode`() throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            let fileURL = tempDir.appendingPathComponent("credentials.json")
+            let pendingStore = ClaudeOAuthCredentialsStore.PendingCacheClearMemoryStore()
+            try ClaudeOAuthCredentialsStore.withPendingCacheClearStoreOverrideForTesting(pendingStore) {
+                try ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                    try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                        try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                            let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                            defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                            let cachedData = self.makeCredentialsData(
+                                accessToken: "codexbar-cache",
+                                expiresAt: Date(timeIntervalSinceNow: 3600),
+                                refreshToken: "cached-refresh-token")
+                            KeychainCacheStore.store(
+                                key: cacheKey,
+                                entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                    data: cachedData,
+                                    storedAt: Date(),
+                                    owner: .codexbar))
+
+                            do {
+                                _ = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                        data: self.makeCredentialsData(
+                                            accessToken: "claude-keychain",
+                                            expiresAt: Date(timeIntervalSinceNow: 3600),
+                                            refreshToken: "keychain-refresh-token"),
+                                        fingerprint: nil)
+                                    {
+                                        try ClaudeOAuthCredentialsStore.loadRecord(
+                                            environment: [:],
+                                            allowKeychainPrompt: false,
+                                            respectKeychainPromptCooldown: true,
+                                            allowClaudeKeychainRepairWithoutPrompt: false)
+                                    }
+                                }
+                                Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
+                            } catch let error as ClaudeOAuthCredentialsError {
+                                guard case .notFound = error else {
+                                    Issue.record("Expected .notFound, got \(error)")
+                                    return
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -70,6 +70,8 @@ public enum ProviderConfigEnvironment {
             LiteLLMSettingsReader.baseURLEnvironmentKey
         case .clawrouter:
             ClawRouterSettingsReader.baseURLEnvironmentKey
+        case .sub2api:
+            Sub2APISettingsReader.baseURLEnvironmentKey
         case .wayfinder:
             WayfinderSettingsReader.baseURLEnvironmentKey
         default:
@@ -161,7 +163,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm, .crossmodel, .clawrouter:
+        case .chutes, .poe, .litellm, .crossmodel, .clawrouter, .factory, .sub2api:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -180,6 +182,10 @@ public enum ProviderConfigEnvironment {
             CrossModelSettingsReader.envKey
         case .clawrouter:
             ClawRouterSettingsReader.apiKeyEnvironmentKey
+        case .sub2api:
+            Sub2APISettingsReader.apiKeyEnvironmentKey
+        case .factory:
+            FactorySettingsReader.apiTokenKey
         default:
             nil
         }

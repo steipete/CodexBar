@@ -127,6 +127,29 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `exhausted reset time display defaults off and persists`() throws {
+        let suite = "SettingsStoreTests-exhausted-reset-time"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.menuBarShowsResetTimeWhenExhausted == false)
+        store.menuBarShowsResetTimeWhenExhausted = true
+
+        let reloaded = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(reloaded.menuBarShowsResetTimeWhenExhausted == true)
+    }
+
+    @Test
     func `weekly confetti setting defaults off and persists`() throws {
         let suite = "SettingsStoreTests-weekly-confetti"
         let defaultsA = try #require(UserDefaults(suiteName: suite))

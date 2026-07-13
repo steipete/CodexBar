@@ -22,7 +22,9 @@ final class ProviderRefreshCoordinator<Key: Hashable> {
 
     func coalescingState(for key: Key) -> ProviderRefreshTaskState? {
         guard let latestGeneration = self.latestGenerations[key] else { return nil }
-        return self.states[key]?.last { $0.generation == latestGeneration }
+        return self.states[key]?.last { state in
+            state.generation == latestGeneration && !state.isCompleted
+        }
     }
 
     func beginReplacingRequest(for key: Key) -> Request {
@@ -39,6 +41,16 @@ final class ProviderRefreshCoordinator<Key: Hashable> {
             generation: generation,
             state: state,
             predecessorStates: predecessorStates)
+    }
+
+    /// Invalidates in-flight work without creating a replacement request. Existing states stay
+    /// registered until their tasks and waiters drain, but their generations can no longer publish.
+    func invalidateRequests(for key: Key) {
+        self.nextGeneration &+= 1
+        self.latestGenerations[key] = self.nextGeneration
+        for state in self.states[key] ?? [] {
+            state.cancelTask()
+        }
     }
 
     func wait(for key: Key, state: ProviderRefreshTaskState) async -> WaitResult {
@@ -175,6 +187,10 @@ final class ProviderRefreshTaskState: @unchecked Sendable {
 
     fileprivate var shouldRetry: Bool {
         self.lock.withLock { self.retryRequired }
+    }
+
+    fileprivate var isCompleted: Bool {
+        self.lock.withLock { self.completed }
     }
 
     var canRemove: Bool {

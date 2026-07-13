@@ -113,6 +113,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 id: "copilot-icon-secondary-window",
                 title: "Menu bar secondary metric",
                 subtitle: "Choose the second meter shown in the menu bar icon.",
+                placement: .menuBar,
                 dynamicSubtitle: {
                     extraWindows.isEmpty
                         ? "Budget options appear after a refresh finds configured Copilot budgets."

@@ -366,6 +366,7 @@ struct StatusMenuSwitcherRefreshTests {
 
         controller.refreshNow()
         #expect(controller.menuCardRefreshMonitor.isManualRefreshInFlight)
+        store.refreshingProviders.insert(.codex)
 
         store._setSnapshotForTesting(
             UsageSnapshot(primary: nil, secondary: nil, updatedAt: now.addingTimeInterval(1)),
@@ -401,6 +402,7 @@ struct StatusMenuSwitcherRefreshTests {
         #expect(inFlight.metrics.first?.percentLabel == "79% left")
 
         gate.resume()
+        store.refreshingProviders.remove(.codex)
         await controller.manualRefreshTasks[.global]?.value
         #expect(!controller.menuCardRefreshMonitor.isManualRefreshInFlight)
         let completed = controller.menuCardRefreshMonitor.model(for: .codex, fallback: emptyFallback)

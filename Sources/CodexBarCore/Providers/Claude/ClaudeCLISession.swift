@@ -174,7 +174,9 @@ actor ClaudeCLISession {
                 buffer.append(newData)
                 lastOutputAt = Date()
                 Self.appendScanText(newData: newData, scanTailText: &scanTailText, utf8Carry: &utf8Carry)
-                if scanTailText.count > 8192 { scanTailText = String(scanTailText.suffix(8192)) }
+                if scanTailText.count > 8192 {
+                    scanTailText = String(scanTailText.suffix(8192))
+                }
                 normalizedScan = Self.normalizedNeedle(TextParsing.stripANSICodes(scanTailText))
 
                 let scanData = scanBuffer.append(newData)
@@ -221,7 +223,9 @@ actor ClaudeCLISession {
                 let settleDeadline = Date().addingTimeInterval(settle)
                 while Date() < settleDeadline {
                     let newData = self.readChunk()
-                    if !newData.isEmpty { buffer.append(newData) }
+                    if !newData.isEmpty {
+                        buffer.append(newData)
+                    }
                     try await Task.sleep(nanoseconds: 50_000_000)
                 }
             }
@@ -353,7 +357,10 @@ actor ClaudeCLISession {
     }
 
     static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-        self.scrubbedClaudeEnvironment(from: TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv))
+        var env = self.scrubbedClaudeEnvironment(from: TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv))
+        // Passive status and auth probes must not mutate or update the user's Claude CLI installation.
+        env["DISABLE_AUTOUPDATER"] = "1"
+        return env
     }
 
     private static func scrubbedClaudeEnvironment(from base: [String: String]) -> [String: String] {
@@ -472,7 +479,9 @@ actor ClaudeCLISession {
                     retries = 0
                     continue
                 }
-                if written == 0 { break }
+                if written == 0 {
+                    break
+                }
 
                 let err = errno
                 if err == EINTR || err == EAGAIN || err == EWOULDBLOCK {

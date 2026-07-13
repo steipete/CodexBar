@@ -3,6 +3,7 @@ import SwiftUI
 import Testing
 @testable import CodexBar
 
+@MainActor
 struct CostHistoryChartMenuViewTests {
     @Test
     @MainActor
@@ -26,6 +27,8 @@ struct CostHistoryChartMenuViewTests {
         ])
         #expect(CostHistoryChartMenuView.detailViewportRowCount(itemCount: ordered.count) == 4)
         #expect(CostHistoryChartMenuView.detailRowsNeedScrolling(itemCount: ordered.count))
+        #expect(CostHistoryChartMenuView.detailOverflowHint(itemCount: ordered.count) == "Scroll to see more models")
+        #expect(CostHistoryChartMenuView.detailOverflowHint(itemCount: 4) == nil)
     }
 
     @Test
@@ -70,21 +73,47 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `cost history detail height follows visible rows and caps at viewport limit`() {
-        let singleRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(modeSubtitlePresence: [false])
-        let twoRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(modeSubtitlePresence: [false, true])
-        let fourRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(
-            modeSubtitlePresence: [false, false, false, false])
-        let fiveRowHeight = CostHistoryChartMenuView._detailViewportHeightForTesting(
-            modeSubtitlePresence: [false, false, false, false, true])
+    func `cost history sizes its viewport to the largest breakdown in the range`() {
+        let threeRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 1), Self.entry(date: "2026-06-08", modelCount: 3)])
+        let cappedRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 6)])
+        let mixedRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 6), Self.entry(date: "2026-06-08", modelCount: 1)])
+        let noRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 0)])
 
-        #expect(singleRowHeight < twoRowHeight)
-        #expect(twoRowHeight < fourRowHeight)
-        #expect(fiveRowHeight == fourRowHeight)
+        #expect(threeRows.rowCount == 3)
+        #expect(!threeRows.hasOverflow)
+        #expect(threeRows.rowHeight == 36)
+        #expect(cappedRows.rowCount == 4)
+        #expect(cappedRows.hasOverflow)
+        #expect(mixedRows.rowCount == 4)
+        #expect(mixedRows.hasOverflow)
+        #expect(noRows.rowCount == 0)
+        #expect(!noRows.hasOverflow)
+    }
 
-        let emptyBlockHeight = CostHistoryChartMenuView._detailBlockHeightForTesting(modeSubtitlePresence: [])
-        let populatedBlockHeight = CostHistoryChartMenuView._detailBlockHeightForTesting(modeSubtitlePresence: [false])
-        #expect(emptyBlockHeight < populatedBlockHeight)
+    @Test
+    @MainActor
+    func `cost history expands every row only when the range contains mode details`() {
+        let compact = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [Self.entry(date: "2026-06-07", modelCount: 2)])
+        let expanded = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: [
+                Self.entry(date: "2026-06-07", modelCount: 2),
+                Self.entry(date: "2026-06-08", modelCount: 1, hasModeDetails: true),
+            ])
+
+        #expect(compact.rowHeight == 36)
+        #expect(expanded.rowHeight == 44)
+        #expect(compact.rowCount == expanded.rowCount)
     }
 
     @Test
@@ -202,34 +231,50 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `cost history total card height grows with rows and the total line`() {
-        let oneRow = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: false)
-        let threeRows = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false, false, false],
-            hasTotal: false)
-        #expect(oneRow < threeRows)
+    func `cost history fitting height stays stable across compact overflow and mode selections`() {
+        let compactLatestHasOneModel = [
+            Self.entry(date: "2026-06-07", modelCount: 3),
+            Self.entry(date: "2026-06-08", modelCount: 1),
+        ]
+        let compactLatestHasThreeModels = [
+            Self.entry(date: "2026-06-07", modelCount: 1),
+            Self.entry(date: "2026-06-08", modelCount: 3),
+        ]
+        let overflowLatestHasFourModels = [
+            Self.entry(date: "2026-06-07", modelCount: 6),
+            Self.entry(date: "2026-06-08", modelCount: 4),
+        ]
+        let overflowLatestHasSixModels = [
+            Self.entry(date: "2026-06-07", modelCount: 4),
+            Self.entry(date: "2026-06-08", modelCount: 6),
+        ]
+        let modeLatestHasOneModel = [
+            Self.entry(date: "2026-06-07", modelCount: 6),
+            Self.entry(date: "2026-06-08", modelCount: 1, hasModeDetails: true),
+        ]
+        let modeLatestHasSixModels = [
+            Self.entry(date: "2026-06-07", modelCount: 1, hasModeDetails: true),
+            Self.entry(date: "2026-06-08", modelCount: 6),
+        ]
 
-        let withoutTotal = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: false)
-        let withTotal = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: true)
-        #expect(withTotal > withoutTotal)
+        let compactHeight = Self.renderedHeight(daily: compactLatestHasOneModel)
+        let overflowHeight = Self.renderedHeight(daily: overflowLatestHasFourModels)
+        let modeHeight = Self.renderedHeight(daily: modeLatestHasOneModel)
 
-        let withProjects = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: true,
-            projectCount: 3)
-        #expect(withProjects > withTotal)
+        #expect(compactHeight == Self.renderedHeight(daily: compactLatestHasThreeModels))
+        #expect(overflowHeight == Self.renderedHeight(daily: overflowLatestHasSixModels))
+        #expect(modeHeight == Self.renderedHeight(daily: modeLatestHasSixModels))
+        #expect(compactHeight < overflowHeight)
+        #expect(overflowHeight < modeHeight)
+    }
 
-        let withProjectSources = CostHistoryChartMenuView._totalCardHeightForTesting(
-            modeSubtitlePresence: [false],
-            hasTotal: true,
-            projectSourceCounts: [3])
-        #expect(withProjectSources > withProjects)
+    @Test
+    @MainActor
+    func `cost history without model breakdown stays compact`() {
+        let noBreakdown = [Self.entry(date: "2026-06-07", modelCount: 0)]
+        let withBreakdown = [Self.entry(date: "2026-06-07", modelCount: 1)]
+
+        #expect(Self.renderedHeight(daily: noBreakdown) < Self.renderedHeight(daily: withBreakdown))
     }
 
     @Test
@@ -240,6 +285,368 @@ struct CostHistoryChartMenuViewTests {
 
         #expect(CostHistoryChartMenuView.visibleProjectSources(matching).isEmpty)
         #expect(CostHistoryChartMenuView.visibleProjectSources(differing).compactMap(\.path) == ["/tmp/worktree"])
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint is stable for identical snapshots`() {
+        let snapshot = Self.makeSnapshot(dailyCost: 1.23, projectCount: 5)
+        let first = CostHistoryChartMenuView.renderFingerprint(from: snapshot, provider: .codex)
+        let second = CostHistoryChartMenuView.renderFingerprint(from: snapshot, provider: .codex)
+
+        #expect(first == second)
+        #expect(first.projects.count == 5)
+        #expect(first.projects.allSatisfy { $0.sources.count <= 2 })
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint changes when daily cost changes`() {
+        let before = CostHistoryChartMenuView.renderFingerprint(
+            from: Self.makeSnapshot(dailyCost: 1.0),
+            provider: .codex)
+        let after = CostHistoryChartMenuView.renderFingerprint(
+            from: Self.makeSnapshot(dailyCost: 2.0),
+            provider: .codex)
+
+        #expect(before != after)
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint changes for total currency history window and label`() {
+        let base = Self.makeSnapshot(dailyCost: 1.0)
+        #expect(
+            CostHistoryChartMenuView.renderFingerprint(from: base, provider: .codex)
+                != CostHistoryChartMenuView.renderFingerprint(from: Self.makeSnapshot(
+                    dailyCost: 1.0,
+                    totalCostUSD: 9.99), provider: .codex))
+        #expect(
+            CostHistoryChartMenuView.renderFingerprint(from: base, provider: .codex)
+                != CostHistoryChartMenuView.renderFingerprint(from: Self.makeSnapshot(
+                    dailyCost: 1.0,
+                    currencyCode: "EUR"), provider: .codex))
+        #expect(
+            CostHistoryChartMenuView.renderFingerprint(from: base, provider: .codex)
+                != CostHistoryChartMenuView.renderFingerprint(from: Self.makeSnapshot(
+                    dailyCost: 1.0,
+                    historyDays: 7), provider: .codex))
+        #expect(
+            CostHistoryChartMenuView.renderFingerprint(from: base, provider: .codex)
+                != CostHistoryChartMenuView.renderFingerprint(from: Self.makeSnapshot(
+                    dailyCost: 1.0,
+                    historyLabel: "Last week"), provider: .codex))
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint tracks daily token request and model breakdown fields`() {
+        let baseDaily = [Self.entry(date: "2026-06-07", modelCount: 1)]
+        let base = Self.fingerprint(dailyCost: 1.0, daily: baseDaily, projects: [])
+
+        var changedTokens = baseDaily
+        changedTokens[0] = CostUsageDailyReport.Entry(
+            date: "2026-06-07",
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 999,
+            costUSD: 1,
+            modelsUsed: ["model-0"],
+            modelBreakdowns: changedTokens[0].modelBreakdowns)
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: changedTokens, projects: []))
+
+        var changedRequests = baseDaily
+        changedRequests[0] = CostUsageDailyReport.Entry(
+            date: "2026-06-07",
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            requestCount: 42,
+            costUSD: 1,
+            modelsUsed: ["model-0"],
+            modelBreakdowns: changedRequests[0].modelBreakdowns)
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: changedRequests, projects: []))
+
+        let changedModel = [
+            Self.entry(date: "2026-06-07", modelCount: 1, modelNamePrefix: "other"),
+        ]
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: changedModel, projects: []))
+
+        let changedMode = [
+            Self.entry(date: "2026-06-07", modelCount: 1, hasModeDetails: true),
+        ]
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: changedMode, projects: []))
+
+        let reorderedDaily = [
+            Self.entry(date: "2026-06-08", modelCount: 1),
+            Self.entry(date: "2026-06-07", modelCount: 1),
+        ]
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: reorderedDaily, projects: []))
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint ignores hidden daily accounting fields and source order`() {
+        let visibleModel = CostUsageDailyReport.ModelBreakdown(
+            modelName: "model-visible",
+            costUSD: 0.75,
+            totalTokens: 120,
+            requestCount: 1,
+            standardCostUSD: 0.5,
+            priorityCostUSD: 0.25,
+            standardTokens: 80,
+            priorityTokens: 40)
+        let base = CostUsageDailyReport.Entry(
+            date: "2026-06-07",
+            inputTokens: 100,
+            outputTokens: 50,
+            cacheReadTokens: 20,
+            cacheCreationTokens: 10,
+            totalTokens: 150,
+            requestCount: 2,
+            costUSD: 1,
+            modelsUsed: ["model-visible"],
+            modelBreakdowns: [visibleModel])
+        let hiddenFieldsChanged = CostUsageDailyReport.Entry(
+            date: base.date,
+            inputTokens: 999,
+            outputTokens: 888,
+            cacheReadTokens: 777,
+            cacheCreationTokens: 666,
+            totalTokens: base.totalTokens,
+            requestCount: base.requestCount,
+            costUSD: base.costUSD,
+            modelsUsed: ["unused-model-name"],
+            modelBreakdowns: [CostUsageDailyReport.ModelBreakdown(
+                modelName: visibleModel.modelName,
+                costUSD: visibleModel.costUSD,
+                totalTokens: visibleModel.totalTokens,
+                requestCount: 999,
+                standardCostUSD: visibleModel.standardCostUSD,
+                priorityCostUSD: visibleModel.priorityCostUSD,
+                standardTokens: visibleModel.standardTokens,
+                priorityTokens: visibleModel.priorityTokens)])
+
+        #expect(Self.fingerprint(daily: [base]) == Self.fingerprint(daily: [hiddenFieldsChanged]))
+
+        let secondDay = Self.entry(date: "2026-06-08", modelCount: 1)
+        #expect(
+            Self.fingerprint(daily: [base, secondDay])
+                == Self.fingerprint(daily: [secondDay, base]))
+
+        let hiddenModeTokens = CostUsageDailyReport.ModelBreakdown(
+            modelName: visibleModel.modelName,
+            costUSD: visibleModel.costUSD,
+            totalTokens: visibleModel.totalTokens,
+            standardTokens: 1,
+            priorityTokens: 2)
+        let changedHiddenModeTokens = CostUsageDailyReport.ModelBreakdown(
+            modelName: visibleModel.modelName,
+            costUSD: visibleModel.costUSD,
+            totalTokens: visibleModel.totalTokens,
+            standardTokens: 999,
+            priorityTokens: 888)
+        #expect(
+            Self.fingerprint(daily: [Self.entry(modelBreakdowns: [hiddenModeTokens])])
+                == Self.fingerprint(daily: [Self.entry(modelBreakdowns: [changedHiddenModeTokens])]))
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint excludes invalid daily rows that the chart drops`() {
+        let invalidRows = [
+            Self.dailyEntry(date: "2026-06-07", costUSD: nil),
+            Self.dailyEntry(date: "2026-06-08", costUSD: -1),
+            Self.dailyEntry(date: "not-a-date", costUSD: 1),
+        ]
+        let differentInvalidRows = [
+            Self.dailyEntry(date: "2026-06-09", costUSD: nil),
+            Self.dailyEntry(date: "2026-06-10", costUSD: -99),
+            Self.dailyEntry(date: "still-not-a-date", costUSD: 99),
+        ]
+        let empty = Self.fingerprint(daily: [])
+
+        #expect(Self.fingerprint(daily: invalidRows) == Self.fingerprint(daily: differentInvalidRows))
+        #expect(Self.fingerprint(daily: invalidRows) != empty)
+        #expect(Self.fingerprint(daily: [Self.dailyEntry(date: "2026-06-07", costUSD: 1)]) != empty)
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint tracks every visible model breakdown field`() {
+        let base = CostUsageDailyReport.ModelBreakdown(
+            modelName: "model-visible",
+            costUSD: 1,
+            totalTokens: 100,
+            standardCostUSD: 0.75,
+            priorityCostUSD: 0.25,
+            standardTokens: 75,
+            priorityTokens: 25)
+        let variants = [
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: "model-renamed",
+                costUSD: base.costUSD,
+                totalTokens: base.totalTokens,
+                standardCostUSD: base.standardCostUSD,
+                priorityCostUSD: base.priorityCostUSD,
+                standardTokens: base.standardTokens,
+                priorityTokens: base.priorityTokens),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: base.modelName,
+                costUSD: 2,
+                totalTokens: base.totalTokens,
+                standardCostUSD: base.standardCostUSD,
+                priorityCostUSD: base.priorityCostUSD,
+                standardTokens: base.standardTokens,
+                priorityTokens: base.priorityTokens),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: base.modelName,
+                costUSD: base.costUSD,
+                totalTokens: 200,
+                standardCostUSD: base.standardCostUSD,
+                priorityCostUSD: base.priorityCostUSD,
+                standardTokens: base.standardTokens,
+                priorityTokens: base.priorityTokens),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: base.modelName,
+                costUSD: base.costUSD,
+                totalTokens: base.totalTokens,
+                standardCostUSD: 0.5,
+                priorityCostUSD: base.priorityCostUSD,
+                standardTokens: base.standardTokens,
+                priorityTokens: base.priorityTokens),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: base.modelName,
+                costUSD: base.costUSD,
+                totalTokens: base.totalTokens,
+                standardCostUSD: base.standardCostUSD,
+                priorityCostUSD: 0.5,
+                standardTokens: base.standardTokens,
+                priorityTokens: base.priorityTokens),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: base.modelName,
+                costUSD: base.costUSD,
+                totalTokens: base.totalTokens,
+                standardCostUSD: base.standardCostUSD,
+                priorityCostUSD: base.priorityCostUSD,
+                standardTokens: 50,
+                priorityTokens: base.priorityTokens),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: base.modelName,
+                costUSD: base.costUSD,
+                totalTokens: base.totalTokens,
+                standardCostUSD: base.standardCostUSD,
+                priorityCostUSD: base.priorityCostUSD,
+                standardTokens: base.standardTokens,
+                priorityTokens: 50),
+        ]
+        let baseFingerprint = Self.fingerprint(daily: [Self.entry(modelBreakdowns: [base])])
+
+        for variant in variants {
+            #expect(baseFingerprint != Self.fingerprint(daily: [Self.entry(modelBreakdowns: [variant])]))
+        }
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint excludes projects hidden for non-codex providers`() {
+        let first = Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 2)],
+            provider: .claude)
+        let changed = Self.fingerprint(
+            projects: [Self.makeProject(index: 0, sourceCount: 2, totalCostUSD: 99)],
+            provider: .claude)
+
+        #expect(first.projects.isEmpty)
+        #expect(first == changed)
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint tracks visible project and source fields only`() {
+        let daily = [Self.entry(date: "2026-06-07", modelCount: 1)]
+        let projects = Self.makeProjects(count: 6, sourcesPerProject: 3)
+        let base = Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: projects)
+
+        var sixthProjectNestedDaily = projects
+        sixthProjectNestedDaily[5] = Self.makeProject(
+            index: 5,
+            sourceCount: 3,
+            nestedDailyCost: 99.0)
+        #expect(base == Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: sixthProjectNestedDaily))
+
+        var topProjectNestedDaily = projects
+        topProjectNestedDaily[0] = Self.makeProject(
+            index: 0,
+            sourceCount: 3,
+            nestedDailyCost: 99.0)
+        #expect(base == Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: topProjectNestedDaily))
+
+        var renamedTopProject = projects
+        renamedTopProject[0] = Self.makeProject(index: 0, sourceCount: 3, nameSuffix: "-renamed")
+        #expect(base != Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: renamedTopProject))
+
+        var changedTopProjectPath = projects
+        changedTopProjectPath[0] = Self.makeProject(index: 0, sourceCount: 3, pathSuffix: "-renamed")
+        #expect(base != Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: changedTopProjectPath))
+
+        var changedTopProjectTotals = projects
+        changedTopProjectTotals[0] = Self.makeProject(index: 0, sourceCount: 3, totalCostUSD: 42.0, totalTokens: 9999)
+        #expect(base != Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: changedTopProjectTotals))
+
+        let reorderedProjects = Array(projects.reversed())
+        #expect(base != Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: reorderedProjects))
+
+        var promotedHiddenProject = projects
+        let promoted = Self.makeProject(
+            index: 5,
+            sourceCount: 3,
+            totalCostUSD: 1000.0)
+        promotedHiddenProject.remove(at: 5)
+        promotedHiddenProject.insert(promoted, at: 0)
+        #expect(base != Self.fingerprint(totalCostUSD: 6.0, daily: daily, projects: promotedHiddenProject))
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint tracks source visibility and overflow count`() {
+        let daily = [Self.entry(date: "2026-06-07", modelCount: 1)]
+        let twoSources = [
+            Self.makeProject(index: 0, sourceCount: 2),
+        ]
+        let threeSources = [
+            Self.makeProject(index: 0, sourceCount: 3),
+        ]
+        let base = Self.fingerprint(dailyCost: 1.0, daily: daily, projects: twoSources)
+
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: daily, projects: threeSources))
+
+        var thirdSourceRenamed = threeSources
+        thirdSourceRenamed[0] = Self.makeProject(index: 0, sourceCount: 3, renameThirdSource: true)
+        #expect(Self.fingerprint(dailyCost: 1.0, daily: daily, projects: threeSources)
+            == Self.fingerprint(dailyCost: 1.0, daily: daily, projects: thirdSourceRenamed))
+
+        var firstSourceRenamed = twoSources
+        firstSourceRenamed[0] = Self.makeProject(index: 0, sourceCount: 2, renameFirstSource: true)
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: daily, projects: firstSourceRenamed))
+
+        var firstSourceTotals = twoSources
+        firstSourceTotals[0] = Self.makeProject(
+            index: 0,
+            sourceCount: 2,
+            firstSourceCostUSD: 9.99,
+            firstSourceTokens: 8888)
+        #expect(base != Self.fingerprint(dailyCost: 1.0, daily: daily, projects: firstSourceTotals))
+
+        let hiddenSingleSource = [
+            Self.project(path: "/tmp/main", sourcePath: "/tmp/main"),
+        ]
+        let visibleSingleSource = [
+            Self.project(path: "/tmp/main", sourcePath: "/tmp/worktree"),
+        ]
+        #expect(
+            Self.fingerprint(dailyCost: 1.0, daily: daily, projects: hiddenSingleSource)
+                != Self.fingerprint(dailyCost: 1.0, daily: daily, projects: visibleSingleSource))
     }
 
     private static func project(path: String, sourcePath: String) -> CostUsageProjectBreakdown {
@@ -259,5 +666,188 @@ struct CostHistoryChartMenuViewTests {
                     daily: [],
                     modelBreakdowns: nil),
             ])
+    }
+
+    @MainActor
+    private static func renderedHeight(daily: [CostUsageDailyReport.Entry]) -> CGFloat {
+        let hosting = MenuHostingView(rootView: CostHistoryChartMenuView(
+            provider: .codex,
+            daily: daily,
+            totalCostUSD: nil,
+            width: 320))
+        hosting.frame = CGRect(x: 0, y: 0, width: 320, height: 1)
+        hosting.layoutSubtreeIfNeeded()
+        return ceil(hosting.fittingSize.height)
+    }
+
+    private static func entry(
+        date: String,
+        modelCount: Int,
+        hasModeDetails: Bool = false,
+        modelNamePrefix: String = "model") -> CostUsageDailyReport.Entry
+    {
+        CostUsageDailyReport.Entry(
+            date: date,
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            costUSD: 1,
+            modelsUsed: modelCount > 0 ? (0..<modelCount).map { "\(modelNamePrefix)-\($0)" } : nil,
+            modelBreakdowns: modelCount > 0
+                ? (0..<modelCount).map {
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: "\(modelNamePrefix)-\($0)",
+                        costUSD: Double($0 + 1),
+                        totalTokens: ($0 + 1) * 100,
+                        standardCostUSD: hasModeDetails ? Double($0 + 1) * 0.75 : nil)
+                }
+                : nil)
+    }
+
+    private static func entry(
+        modelBreakdowns: [CostUsageDailyReport.ModelBreakdown]) -> CostUsageDailyReport.Entry
+    {
+        CostUsageDailyReport.Entry(
+            date: "2026-06-07",
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            costUSD: 1,
+            modelsUsed: modelBreakdowns.map(\.modelName),
+            modelBreakdowns: modelBreakdowns)
+    }
+
+    private static func dailyEntry(date: String, costUSD: Double?) -> CostUsageDailyReport.Entry {
+        CostUsageDailyReport.Entry(
+            date: date,
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            costUSD: costUSD,
+            modelsUsed: nil,
+            modelBreakdowns: nil)
+    }
+
+    private static func makeSnapshot(
+        dailyCost: Double = 1.0,
+        projectCount: Int = 0,
+        totalCostUSD: Double? = nil,
+        currencyCode: String = "USD",
+        historyDays: Int = 30,
+        historyLabel: String? = nil,
+        daily: [CostUsageDailyReport.Entry]? = nil,
+        projects: [CostUsageProjectBreakdown]? = nil) -> CostUsageTokenSnapshot
+    {
+        CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 123,
+            last30DaysCostUSD: totalCostUSD ?? dailyCost,
+            currencyCode: currencyCode,
+            historyDays: historyDays,
+            historyLabel: historyLabel,
+            daily: daily ?? [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 123,
+                    costUSD: dailyCost,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            projects: projects ?? self.makeProjects(count: projectCount, sourcesPerProject: 1),
+            updatedAt: Date())
+    }
+
+    private static func fingerprint(
+        dailyCost: Double = 1.0,
+        totalCostUSD: Double? = nil,
+        currencyCode: String = "USD",
+        historyDays: Int = 30,
+        historyLabel: String? = nil,
+        daily: [CostUsageDailyReport.Entry]? = nil,
+        projects: [CostUsageProjectBreakdown]? = nil,
+        provider: UsageProvider = .codex) -> CostHistoryChartMenuView.RenderFingerprint
+    {
+        CostHistoryChartMenuView.renderFingerprint(from: self.makeSnapshot(
+            dailyCost: dailyCost,
+            totalCostUSD: totalCostUSD,
+            currencyCode: currencyCode,
+            historyDays: historyDays,
+            historyLabel: historyLabel,
+            daily: daily,
+            projects: projects), provider: provider)
+    }
+
+    private static func makeProjects(count: Int, sourcesPerProject: Int) -> [CostUsageProjectBreakdown] {
+        (0..<count).map { Self.makeProject(index: $0, sourceCount: sourcesPerProject) }
+    }
+
+    private static func makeProject(
+        index: Int,
+        sourceCount: Int,
+        totalCostUSD: Double = 1.0,
+        totalTokens: Int? = nil,
+        nestedDailyCost: Double = 0.01,
+        nameSuffix: String = "",
+        pathSuffix: String = "",
+        renameThirdSource: Bool = false,
+        renameFirstSource: Bool = false,
+        firstSourceCostUSD: Double? = nil,
+        firstSourceTokens: Int? = nil) -> CostUsageProjectBreakdown
+    {
+        let nestedDaily = [
+            CostUsageDailyReport.Entry(
+                date: "2025-12-23",
+                inputTokens: 1,
+                outputTokens: 1,
+                totalTokens: 10,
+                costUSD: nestedDailyCost,
+                modelsUsed: ["nested"],
+                modelBreakdowns: [
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: "nested-model",
+                        costUSD: nestedDailyCost,
+                        totalTokens: 10),
+                ]),
+        ]
+        let sources = (0..<sourceCount).map { sourceIndex in
+            CostUsageProjectSourceBreakdown(
+                name: {
+                    if renameThirdSource, sourceIndex == 2 {
+                        return "Renamed Source"
+                    }
+                    if renameFirstSource, sourceIndex == 0 {
+                        return "Renamed Source"
+                    }
+                    return "Source-\(sourceIndex)"
+                }(),
+                path: "/tmp/project-\(index)\(pathSuffix)/source-\(sourceIndex)",
+                totalTokens: sourceIndex == 0 ? (firstSourceTokens ?? 10 + sourceIndex) : 10 + sourceIndex,
+                totalCostUSD: sourceIndex == 0
+                    ? (firstSourceCostUSD ?? totalCostUSD / Double(sourceCount))
+                    : totalCostUSD / Double(sourceCount),
+                daily: nestedDaily,
+                modelBreakdowns: [
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: "source-model",
+                        costUSD: nestedDailyCost,
+                        totalTokens: 10),
+                ])
+        }
+        return CostUsageProjectBreakdown(
+            name: "Project-\(index)\(nameSuffix)",
+            path: "/tmp/project-\(index)\(pathSuffix)",
+            totalTokens: totalTokens ?? 100 + index,
+            totalCostUSD: totalCostUSD + Double(index),
+            daily: nestedDaily,
+            modelBreakdowns: [
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: "project-model",
+                    costUSD: nestedDailyCost,
+                    totalTokens: 10),
+            ],
+            sources: sources)
     }
 }

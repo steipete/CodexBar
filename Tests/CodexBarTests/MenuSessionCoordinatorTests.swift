@@ -64,11 +64,56 @@ struct MenuSessionCoordinatorTests {
         coordinator.markFresh(menu)
         coordinator.deferUntilNextOpen(menu)
         coordinator.deferParentRebuild(menu)
+        _ = coordinator.beginTrackingSession(menu)
+        _ = coordinator.armViewportRestore(menu)
         coordinator.removeMenu(menu)
 
         #expect(coordinator.renderedVersion(for: menu) == nil)
         #expect(!coordinator.isDeferredUntilNextOpen(menu))
         #expect(!coordinator.isParentRebuildDeferred(menu))
+        #expect(coordinator.menuInteractionGeneration(for: menu) == nil)
+        #expect(coordinator.pendingViewportRestores.isEmpty)
+    }
+
+    @Test
+    func `reopening a persistent menu replaces its tracking session token`() {
+        var coordinator = MenuSessionCoordinator<String>()
+
+        let closedSession = coordinator.beginTrackingSession("menu")
+        coordinator.endTrackingSession("menu")
+        let reopenedSession = coordinator.beginTrackingSession("menu")
+
+        #expect(closedSession != reopenedSession)
+        #expect(!coordinator.isCurrentMenuInteraction(closedSession, for: "menu"))
+        #expect(coordinator.isCurrentMenuInteraction(reopenedSession, for: "menu"))
+    }
+
+    @Test
+    func `menu interaction token advances within one tracking session`() throws {
+        var coordinator = MenuSessionCoordinator<String>()
+        let initial = coordinator.beginTrackingSession("menu")
+
+        let advanced = coordinator.advanceMenuInteraction(for: "menu")
+        let replacement = try #require(advanced)
+
+        #expect(!coordinator.isCurrentMenuInteraction(initial, for: "menu"))
+        #expect(coordinator.isCurrentMenuInteraction(replacement, for: "menu"))
+    }
+
+    @Test
+    func `replacement viewport restore token rejects stale completion`() {
+        var coordinator = MenuSessionCoordinator<String>()
+
+        let stale = coordinator.armViewportRestore("menu")
+        let current = coordinator.armViewportRestore("menu")
+
+        #expect(!coordinator.isCurrentViewportRestore(stale, for: "menu"))
+        let staleConsumed = coordinator.consumeViewportRestore("menu", generation: stale)
+        #expect(!staleConsumed)
+        #expect(coordinator.isCurrentViewportRestore(current, for: "menu"))
+        let currentConsumed = coordinator.consumeViewportRestore("menu", generation: current)
+        #expect(currentConsumed)
+        #expect(coordinator.pendingViewportRestores.isEmpty)
     }
 }
 

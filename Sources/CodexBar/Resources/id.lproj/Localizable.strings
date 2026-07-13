@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "Pilih IDE yang dipantau";
 "Session quota notifications" = "Notifikasi kuota sesi";
 "Session tokens" = "Token sesi";
-"Settings" = "Pengaturan";
+"provider_section_connection" = "Koneksi";
+"provider_section_menu_bar" = "Menu bar";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Tampilkan bagian Kredit Codex dan penggunaan Ekstra Claude di menu.";
 "Show Debug Settings" = "Tampilkan Pengaturan Debug";
 "Show all token accounts" = "Tampilkan semua akun token";
@@ -396,7 +397,14 @@
 /* General Pane */
 "section_system" = "Sistem";
 "section_usage" = "Penggunaan";
-"section_automation" = "Otomatisasi";
+"section_refreshing" = "Penyegaran";
+"section_alerts" = "Peringatan";
+"section_celebrations" = "Perayaan";
+"section_icon" = "Ikon";
+"section_combined_icon" = "Ikon gabungan";
+"section_animation" = "Animasi";
+"section_content" = "Konten";
+"section_agent_sessions" = "Sesi agen";
 "language_title" = "Bahasa";
 "language_subtitle" = "Ubah bahasa tampilan. Memerlukan restart aplikasi agar berlaku penuh.";
 "language_system" = "Sistem";
@@ -421,7 +429,6 @@
 "language_polish" = "Bahasa Polandia";
 "start_at_login_title" = "Mulai saat Login";
 "start_at_login_subtitle" = "Otomatis membuka CodexBar saat Anda menyalakan Mac.";
-"show_cost_summary" = "Tampilkan ringkasan biaya";
 "show_cost_summary_subtitle" = "Membaca log penggunaan lokal. Menampilkan hari ini + jendela riwayat yang dipilih di menu.";
 "cost_summary_style_title" = "Gaya tampilan";
 "cost_summary_style_inline" = "Hanya sebaris";
@@ -436,17 +443,16 @@
 "cost_comparison_periods_title" = "Tampilkan periode perbandingan yang lebih singkat";
 "cost_comparison_periods_subtitle" = "Tambahkan total 7, 30, dan 90 hari jika termasuk dalam rentang riwayat yang dipilih. Total ini menggunakan kembali pemindaian lokal yang sama.";
 "cost_auto_refresh_info" = "Penyegaran otomatis: per jam · Batas waktu: 10m";
-"refresh_cadence_title" = "Frekuensi penyegaran";
-"refresh_cadence_subtitle" = "Seberapa sering CodexBar memeriksa penyedia di latar belakang.";
+"refresh_interval_title" = "Interval penyegaran";
 "manual_refresh_hint" = "Penyegaran otomatis nonaktif; gunakan perintah Segarkan di menu.";
 "refresh_on_open_title" = "Segarkan saat menu dibuka";
 "refresh_on_open_subtitle" = "Ambil penggunaan terbaru untuk setiap penyedia setiap kali Anda membuka menu.";
 "check_provider_status_title" = "Periksa status penyedia";
 "check_provider_status_subtitle" = "Memeriksa halaman status OpenAI/Claude dan Google Workspace untuk Gemini/Antigravity, menampilkan insiden di ikon dan menu.";
-"session_quota_notifications_title" = "Notifikasi kuota sesi";
 "session_quota_notifications_subtitle" = "Memberi tahu saat kuota sesi 5 jam mencapai 0% dan saat tersedia kembali.";
-"quota_warning_notifications_title" = "Notifikasi peringatan kuota";
+"quota_depleted_title" = "Kuota habis & tersedia kembali";
 "quota_warning_notifications_subtitle" = "Memperingatkan saat sisa kuota sesi atau mingguan melewati ambang batas yang dikonfigurasi.";
+"threshold_warnings_title" = "Peringatan ambang batas";
 "quota_warnings_title" = "Peringatan kuota";
 "quota_warning_session" = "sesi";
 "quota_warning_session_capitalized" = "Sesi";
@@ -457,6 +463,12 @@
 "quota_warning_notification_body_with_account" = "Akun %1$@. %2$@ tersisa. Mencapai ambang batas peringatan %4$@ %3$d%% Anda.";
 "predictive_pace_warnings_title" = "Peringatan prediktif laju pemakaian";
 "predictive_pace_warnings_subtitle" = "Memperingatkan untuk Codex dan Claude saat laju sesi atau mingguan dapat menghabiskan kuota sebelum reset.";
+"confetti_on_reset_title" = "Konfeti saat reset";
+"confetti_on_reset_subtitle" = "Mainkan konfeti layar penuh saat penggunaan direset.";
+"confetti_option_off" = "Mati";
+"confetti_option_session" = "Reset sesi";
+"confetti_option_weekly" = "Reset mingguan";
+"confetti_option_both" = "Keduanya";
 "predictive_pace_warning_notification_title" = "%1$@ peringatan laju %2$@";
 "predictive_pace_warning_notification_body" = "Dengan laju saat ini, kuota ini dapat habis dalam %1$@, sebelum direset.";
 "predictive_pace_warning_notification_body_with_account" = "Akun %1$@. Dengan laju saat ini, kuota ini dapat habis dalam %2$@, sebelum direset.";
@@ -469,6 +481,8 @@
 "quota_warning_sound" = "Mainkan suara notifikasi";
 "quota_warning_onscreen_alert" = "Tampilkan peringatan teks di layar";
 "quota_warning_provider_inherits" = "Menggunakan pengaturan peringatan kuota global kecuali jendela dikustomisasi di sini.";
+"quota_warning_provider_disabled" = "Notifikasi peringatan kuota dan penanda bilah penggunaan dinonaktifkan. Aktifkan salah satunya untuk mengedit pengaturan yang tersimpan ini.";
+"quota_warning_provider_markers_only" = "Notifikasi peringatan kuota dinonaktifkan secara global. Pengaturan ini tetap mengontrol penanda bilah penggunaan.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Kustomisasi ambang batas %@";
 "quota_warning_enable_warnings" = "Aktifkan peringatan %@";
@@ -486,7 +500,9 @@
 /* Tab titles */
 "tab_general" = "Umum";
 "tab_providers" = "Penyedia";
-"tab_display" = "Tampilan";
+"tab_notifications" = "Notifikasi";
+"tab_menu_bar" = "Menu bar";
+"tab_menu" = "Menu";
 "tab_advanced" = "Lanjutan";
 "tab_about" = "Tentang";
 "tab_debug" = "Debug";
@@ -517,34 +533,36 @@
 "primary_api_key_limit" = "Utama (batas kunci API)";
 
 /* Display Pane */
-"section_menu_bar" = "Menu bar";
+"menu_bar_style_title" = "Gaya menu bar";
+"menu_bar_style_subtitle" = "Cara item menu bar digambar.";
+"menu_bar_style_critters" = "Critter";
+"menu_bar_style_bars" = "Bilah meter";
+"menu_bar_style_icon_percent" = "Ikon & persentase";
+"switcher_rows_title" = "Baris pengalih";
+"switcher_rows_icons" = "Ikon penyedia";
+"switcher_rows_progress" = "Progres mingguan";
+"usage_bars_fill_title" = "Pengisian bilah penggunaan";
+"usage_bars_fill_remaining" = "Berdasarkan sisa kuota";
+"usage_bars_fill_used" = "Berdasarkan kuota terpakai";
+"reset_times_title" = "Waktu reset";
+"reset_times_countdown" = "Hitung mundur";
+"reset_times_clock" = "Waktu absolut";
+"cost_summary_title" = "Ringkasan biaya";
+"cost_summary_off" = "Mati";
 "merge_icons_title" = "Gabung Ikon";
 "merge_icons_subtitle" = "Gunakan satu ikon menu bar dengan pengalih penyedia.";
-"switcher_shows_icons_title" = "Pengalih tampilkan ikon";
-"switcher_shows_icons_subtitle" = "Tampilkan ikon penyedia di pengalih (jika tidak, tampilkan garis progres mingguan).";
 "show_most_used_provider_title" = "Tampilkan penyedia paling sering digunakan";
 "show_most_used_provider_subtitle" = "Menu bar otomatis menampilkan penyedia yang paling dekat batas penggunaannya.";
-"menu_bar_shows_percent_title" = "Menu bar tampilkan persen";
-"menu_bar_shows_percent_subtitle" = "Ganti bilah critter dengan ikon merek penyedia dan persentase.";
-"hide_critters_title" = "Sembunyikan critter";
-"hide_critters_subtitle" = "Tampilkan bilah meter polos tanpa wajah dan dekorasi.";
 "display_mode_title" = "Mode tampilan";
 "display_mode_subtitle" = "Pilih apa yang ditampilkan di menu bar (Pace menampilkan penggunaan vs. perkiraan).";
-"section_menu_content" = "Konten menu";
-"show_usage_as_used_title" = "Tampilkan penggunaan sebagai terpakai";
-"show_usage_as_used_subtitle" = "Bilah progres terisi saat Anda menggunakan kuota (alih-alih menampilkan sisa).";
 "show_quota_warning_markers_title" = "Tampilkan penanda peringatan kuota";
 "show_quota_warning_markers_subtitle" = "Gambar tanda centang ambang batas pada bilah penggunaan saat peringatan kuota dikonfigurasi.";
 "weekly_progress_work_days_title" = "Hari kerja progres mingguan";
 "weekly_progress_work_days_subtitle" = "Atur hari kerja untuk penanda bilah penggunaan mingguan dan perhitungan pace.";
-"show_reset_time_as_clock_title" = "Tampilkan waktu reset sebagai jam";
-"show_reset_time_as_clock_subtitle" = "Tampilkan waktu reset sebagai nilai jam absolut alih-alih hitung mundur.";
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";
 "show_credits_extra_usage_title" = "Tampilkan kredit + penggunaan ekstra";
 "show_credits_extra_usage_subtitle" = "Tampilkan bagian Kredit Codex dan penggunaan Ekstra Claude di menu.";
-"show_all_token_accounts_title" = "Tampilkan semua akun token";
-"show_all_token_accounts_subtitle" = "Tumpuk akun token di menu (jika tidak, tampilkan bilah pengalih akun).";
 "multi_account_layout_title" = "Tata letak multi-akun";
 "multi_account_layout_subtitle" = "Pilih pengalihan akun tersegmentasi atau kartu akun bertumpuk.";
 "multi_account_layout_segmented" = "Tersegmentasi";
@@ -555,6 +573,10 @@
 "overview_no_providers_hint" = "Tidak ada penyedia aktif untuk Ikhtisar.";
 "overview_rows_follow_order" = "Baris ikhtisar selalu mengikuti urutan penyedia.";
 "overview_no_providers_selected" = "Tidak ada penyedia dipilih";
+"agent_sessions_title" = "Sesi agen";
+"agent_sessions_subtitle" = "Tampilkan sesi Codex dan Claude Code lokal serta yang ditemukan melalui SSH di menu.";
+"agent_sessions_hosts_title" = "Host SSH tambahan";
+"agent_sessions_footer" = "Mac di tailnet Anda ditemukan secara otomatis. Sesi lokal disegarkan setiap 30 detik; host jarak jauh setiap 60 detik dan saat menu dibuka.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Pintasan keyboard";
@@ -568,10 +590,6 @@
 "show_debug_settings_subtitle" = "Tampilkan alat pemecahan masalah di tab Debug.";
 "surprise_me_title" = "Kejutkan saya";
 "surprise_me_subtitle" = "Centang jika Anda suka agen bersenang-senang di atas sana.";
-"session_limit_confetti_title" = "Konfeti batas sesi";
-"session_limit_confetti_subtitle" = "Tampilkan konfeti layar penuh saat penggunaan sesi direset.";
-"weekly_limit_confetti_title" = "Confetti batas mingguan";
-"weekly_limit_confetti_subtitle" = "Mainkan confetti layar penuh saat penggunaan mingguan direset.";
 "hide_personal_info_title" = "Sembunyikan informasi pribadi";
 "hide_personal_info_subtitle" = "Samarkan alamat email di menu bar dan antarmuka menu.";
 "show_provider_storage_usage_title" = "Tampilkan penggunaan penyimpanan penyedia";
@@ -670,6 +688,8 @@
 "display_mode_pace_desc" = "Tampilkan indikator pace (mis. +5%)";
 "display_mode_both_desc" = "Tampilkan persentase dan pace (mis. 45% · +5%)";
 "display_mode_reset_time_desc" = "Tampilkan waktu reset untuk metrik yang dipilih (mis. ↻ 3:56 PM)";
+"menu_bar_reset_when_exhausted_title" = "Tampilkan waktu reset saat kuota habis";
+"menu_bar_reset_when_exhausted_subtitle" = "Saat tersisa 0%, tampilkan waktu hingga reset alih-alih persentase";
 
 /* Provider status */
 "status_operational" = "Operasional";
@@ -815,6 +835,8 @@
 /* Popup panels */
 "No usage configured." = "Tidak ada penggunaan dikonfigurasi.";
 "Quota" = "Kuota";
+"Daily quota" = "Kuota harian";
+"Total" = "Total";
 "tokens" = "token";
 "requests" = "permintaan";
 "Latest" = "Terbaru";
@@ -1164,3 +1186,4 @@
 "section_links" = "Tautan";
 "Show Codex Spark usage" = "Tampilkan penggunaan Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Menampilkan baris kuota Codex Spark di menu dan pratinjau penyedia. Mengharuskan “Tampilkan kredit + penggunaan ekstra” diaktifkan di pengaturan Tampilan.";
+"Scroll to see more models" = "Gulir untuk melihat model lainnya";

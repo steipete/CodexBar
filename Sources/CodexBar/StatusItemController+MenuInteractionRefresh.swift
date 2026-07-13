@@ -128,7 +128,10 @@ extension StatusItemController {
             let hasProviderRefreshInFlight = pendingProviders.contains {
                 self.store.refreshingProviders.contains($0)
             }
-            guard !self.store.isRefreshing, !hasProviderRefreshInFlight else {
+            guard !self.store.isRefreshing,
+                  !self.store.hasForcedRefreshEnrichmentInFlight,
+                  !hasProviderRefreshInFlight
+            else {
                 self.deferredMenuInteractionRefreshTask = nil
                 self.scheduleDeferredMenuInteractionRefreshIfNeeded(
                     delay: Self.defaultDeferredMenuInteractionRefreshDelay)

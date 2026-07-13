@@ -270,7 +270,8 @@
 "Select the IDE to monitor" = "اختر IDE للمراقبة";
 "Session quota notifications" = "إشعارات حصص الجلسة";
 "Session tokens" = "رموز الجلسة";
-"Settings" = "الإعدادات";
+"provider_section_connection" = "الاتصال";
+"provider_section_menu_bar" = "شريط القوائم";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "عرض أقسام Codex الاعتمادات و Claude الاستخدام الإضافي في القائمة.";
 "Show Debug Settings" = "عرض إعدادات التصحيح";
 "Show all token accounts" = "عرض جميع حسابات الرموز";
@@ -396,7 +397,14 @@
 /* General Pane */
 "section_system" = "النظام";
 "section_usage" = "الاستخدام";
-"section_automation" = "الأتمتة";
+"section_refreshing" = "التحديث";
+"section_alerts" = "التنبيهات";
+"section_celebrations" = "الاحتفالات";
+"section_icon" = "الأيقونة";
+"section_combined_icon" = "الأيقونة المدمجة";
+"section_animation" = "الحركة";
+"section_content" = "المحتوى";
+"section_agent_sessions" = "جلسات الوكلاء";
 "language_title" = "اللغة";
 "language_subtitle" = "غير لغة العرض. يتطلب إعادة تشغيل التطبيق ليكون مفعوله بالكامل.";
 "language_system" = "النظام";
@@ -419,7 +427,6 @@
 "language_polish" = "بولسكي";
 "start_at_login_title" = "ابدأ عند تسجيل الدخول";
 "start_at_login_subtitle" = "يفتح تلقائيا CodexBar عند تشغيل جهاز الماك.";
-"show_cost_summary" = "ملخص تكلفة العرض";
 "show_cost_summary_subtitle" = "يقرأ سجلات الاستخدام المحلية. يعرض اليوم + نافذة التاريخ المحددة في القائمة.";
 "cost_summary_style_title" = "نمط العرض";
 "cost_summary_style_inline" = "مضمن فقط";
@@ -434,17 +441,16 @@
 "cost_comparison_periods_title" = "إظهار فترات مقارنة أقصر";
 "cost_comparison_periods_subtitle" = "أضف إجماليات 7 و30 و90 يومًا عندما تقع ضمن نافذة التاريخ المحددة. تعيد هذه الإجماليات استخدام الفحص المحلي نفسه.";
 "cost_auto_refresh_info" = "تحديث تلقائي: كل ساعة · وقت الاستراحة: 10m";
-"refresh_cadence_title" = "وتيرة التحديث";
-"refresh_cadence_subtitle" = "كم مرة CodexBar استطلاعات في الخلفية.";
+"refresh_interval_title" = "فاصل التحديث";
 "manual_refresh_hint" = "التحديث التلقائي مغلق؛ استخدم أمر التحديث في القائمة.";
 "refresh_on_open_title" = "التحديث عند فتح القائمة";
 "refresh_on_open_subtitle" = "جلب أحدث بيانات الاستخدام لكل مزوّد في كل مرة تفتح فيها القائمة.";
 "check_provider_status_title" = "تحقق من حالة المزود";
 "check_provider_status_subtitle" = "استطلاعات OpenAI/Claude صفحات الحالة و Google مساحة العمل Gemini/Antigravity، وتظهر الحوادث في الأيقونة والقائمة.";
-"session_quota_notifications_title" = "إشعارات حصص الجلسة";
 "session_quota_notifications_subtitle" = "يرسل إشعارًا عندما تصل حصة جلسة الخمس ساعات إلى 0% وعندما تصبح متاحة مجددًا.";
-"quota_warning_notifications_title" = "إشعارات تحذير الحصص";
+"quota_depleted_title" = "نفاد الحصة واستعادتها";
 "quota_warning_notifications_subtitle" = "يحذر عندما يتجاوز الحصة المتبقية من الجلسة أو الحصة الأسبوعية العتبات المكونة.";
+"threshold_warnings_title" = "تحذيرات العتبة";
 "quota_warnings_title" = "تحذيرات الحصص";
 "quota_warning_session" = "الجلسة";
 "quota_warning_session_capitalized" = "الجلسة";
@@ -455,6 +461,12 @@
 "quota_warning_notification_body_with_account" = "الحساب %1$@. متبقٍ %2$@. تم بلوغ حد التحذير البالغ %3$d%% لحصة %4$@.";
 "predictive_pace_warnings_title" = "تحذيرات تنبؤية للوتيرة";
 "predictive_pace_warnings_subtitle" = "يُحذّر لـ Codex وClaude عندما قد تؤدي وتيرة الجلسة أو الأسبوع إلى نفاد الحصة قبل إعادة التعيين.";
+"confetti_on_reset_title" = "قصاصات ورقية عند إعادة التعيين";
+"confetti_on_reset_subtitle" = "تشغيل قصاصات ورقية بملء الشاشة عند إعادة تعيين الاستخدام.";
+"confetti_option_off" = "إيقاف";
+"confetti_option_session" = "إعادة تعيين الجلسة";
+"confetti_option_weekly" = "إعادة التعيين الأسبوعي";
+"confetti_option_both" = "كلاهما";
 "predictive_pace_warning_notification_title" = "%1$@: تحذير وتيرة %2$@";
 "predictive_pace_warning_notification_body" = "بالوتيرة الحالية، قد تنفد هذه الحصة خلال %1$@ قبل إعادة تعيينها.";
 "predictive_pace_warning_notification_body_with_account" = "الحساب %1$@. بالوتيرة الحالية، قد تنفد هذه الحصة خلال %2$@ قبل إعادة تعيينها.";
@@ -467,6 +479,8 @@
 "quota_warning_sound" = "تشغيل صوت الإشعار";
 "quota_warning_onscreen_alert" = "إظهار تنبيه نصي على الشاشة";
 "quota_warning_provider_inherits" = "يستخدم إعدادات تحذير الحصص العامة إلا إذا تم تخصيص نافذة هنا.";
+"quota_warning_provider_disabled" = "إشعارات تحذير الحصة وعلامات أشرطة الاستخدام معطّلة. فعّل أيًا منهما لتعديل هذه الإعدادات المحفوظة.";
+"quota_warning_provider_markers_only" = "تم تعطيل إشعارات تحذير الحصة على مستوى التطبيق. لا تزال هذه الإعدادات تتحكم في علامات أشرطة الاستخدام.";
 "quota_warning_global" = "عام";
 "quota_warning_customize_thresholds" = "تخصيص عتبات %@";
 "quota_warning_enable_warnings" = "تفعيل تحذيرات %@";
@@ -484,7 +498,9 @@
 /* Tab titles */
 "tab_general" = "عام";
 "tab_providers" = "مقدمو الخدمات";
-"tab_display" = "العرض";
+"tab_notifications" = "الإشعارات";
+"tab_menu_bar" = "شريط القوائم";
+"tab_menu" = "القائمة";
 "tab_advanced" = "متقدمة";
 "tab_about" = "حول";
 "tab_debug" = "تصحيح الأخطاء";
@@ -515,34 +531,36 @@
 "primary_api_key_limit" = "الحد الأساسي (API المفاتيح)";
 
 /* Display Pane */
-"section_menu_bar" = "شريط القوائم";
+"menu_bar_style_title" = "نمط شريط القوائم";
+"menu_bar_style_subtitle" = "كيفية رسم عنصر شريط القوائم.";
+"menu_bar_style_critters" = "الكائنات الصغيرة";
+"menu_bar_style_bars" = "أشرطة القياس";
+"menu_bar_style_icon_percent" = "الأيقونة والنسبة المئوية";
+"switcher_rows_title" = "صفوف المحوّل";
+"switcher_rows_icons" = "أيقونات المزودين";
+"switcher_rows_progress" = "التقدم الأسبوعي";
+"usage_bars_fill_title" = "تعبئة أشرطة الاستخدام";
+"usage_bars_fill_remaining" = "حسب المتبقي";
+"usage_bars_fill_used" = "حسب المستهلك";
+"reset_times_title" = "أوقات إعادة التعيين";
+"reset_times_countdown" = "العد التنازلي";
+"reset_times_clock" = "وقت الساعة";
+"cost_summary_title" = "ملخص التكلفة";
+"cost_summary_off" = "إيقاف";
 "merge_icons_title" = "أيقونات الدمج";
 "merge_icons_subtitle" = "استخدم أيقونة شريط قائمة واحدة مع محول المزود.";
-"switcher_shows_icons_title" = "المحول يعرض الأيقونات";
-"switcher_shows_icons_subtitle" = "عرض أيقونات المزودين في جهاز التبديل (وإلا اعرض خط تقدم أسبوعي).";
 "show_most_used_provider_title" = "عرض المزود الأكثر استخداما";
 "show_most_used_provider_subtitle" = "شريط القوائم يعرض تلقائيا مزود الخدمة الأقرب إلى حد السعر.";
-"menu_bar_shows_percent_title" = "شريط القائمة يعرض النسبة المئوية";
-"menu_bar_shows_percent_subtitle" = "استبدل ألواح الحيوانات بأيقونات علامة مزودة ونسبة مئوية.";
-"hide_critters_title" = "إخفاء الكائنات الصغيرة";
-"hide_critters_subtitle" = "عرض أشرطة القياس البسيطة بدون الوجه والزخارف.";
 "display_mode_title" = "وضع العرض";
 "display_mode_subtitle" = "اختر ما تريد عرضه في شريط القائمة (Pace يظهر الاستخدام مقابل المتوقع).";
-"section_menu_content" = "محتوى القائمة";
-"show_usage_as_used_title" = "استخدام العرض كما هو مستخدم";
-"show_usage_as_used_subtitle" = "تمتلئ أشرطة التقدم كلما استهلكت الحصة (بدلا من إظهار الحصة المتبقية).";
 "show_quota_warning_markers_title" = "عرض علامات التحذير من الحصص";
 "show_quota_warning_markers_subtitle" = "ارسم علامات عتبة على أشرطة الاستخدام عند تكوين تحذيرات الحصص.";
 "weekly_progress_work_days_title" = "أيام العمل الأسبوعية للتقدم";
 "weekly_progress_work_days_subtitle" = "حدد أيام عمل لمؤشرات شريط الاستخدام الأسبوعي وحسابات السرعة.";
-"show_reset_time_as_clock_title" = "عرض وقت إعادة التعيين كساعة";
-"show_reset_time_as_clock_subtitle" = "عرض أوقات إعادة الضبط كقيم ساعة مطلقة بدلا من العد التنازلي.";
 "show_provider_changelog_links_title" = "اعرض روابط سجل التغييرات لمزود الخدمة";
 "show_provider_changelog_links_subtitle" = "يضيف روابط ملاحظات الإصدار لمزودي الخدمة المدعومين بدعم CLI إلى القائمة.";
 "show_credits_extra_usage_title" = "اعتمادات العرض + الاستخدام الإضافي";
 "show_credits_extra_usage_subtitle" = "عرض أقسام Codex الاعتمادات و Claude الاستخدام الإضافي في القائمة.";
-"show_all_token_accounts_title" = "عرض جميع حسابات الرموز";
-"show_all_token_accounts_subtitle" = "قم بتكديس حسابات الرموز في القائمة (وإلا اعرض شريط تبديل الحسابات).";
 "multi_account_layout_title" = "تخطيط الحسابات المتعددة";
 "multi_account_layout_subtitle" = "اختر تبديل الحسابات المجزأة أو بطاقات الحساب المكدسة.";
 "multi_account_layout_segmented" = "مقسم";
@@ -553,6 +571,10 @@
 "overview_no_providers_hint" = "لا يوجد مزودون مفعلون متاحون للنظرة العامة.";
 "overview_rows_follow_order" = "الصفوف العامة دائما تتبع ترتيب مقدم الخدمة.";
 "overview_no_providers_selected" = "لم يتم اختيار أي مقدمي خدمة";
+"agent_sessions_title" = "جلسات الوكلاء";
+"agent_sessions_subtitle" = "إظهار جلسات Codex وClaude Code المحلية والمكتشفة عبر SSH في القائمة.";
+"agent_sessions_hosts_title" = "مضيفو SSH إضافيون";
+"agent_sessions_footer" = "يتم اكتشاف أجهزة Mac على شبكة tailnet تلقائيًا. يتم تحديث الجلسات المحلية كل 30 ثانية؛ والمضيفون البعيدون كل 60 ثانية وعند فتح القائمة.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "اختصار لوحة المفاتيح";
@@ -566,10 +588,6 @@
 "show_debug_settings_subtitle" = "اعرض أدوات استكشاف الأخطاء في تبويب التصحيح.";
 "surprise_me_title" = "فاجئني";
 "surprise_me_subtitle" = "تحقق إذا كنت تحب وكلائنك يستمتعون هناك.";
-"session_limit_confetti_title" = "قصاصات ورقية لحد الجلسة";
-"session_limit_confetti_subtitle" = "اعرض قصاصات ورقية بملء الشاشة عند إعادة تعيين استخدام الجلسة.";
-"weekly_limit_confetti_title" = "قصاصات كونفيتي أسبوعية محدودة";
-"weekly_limit_confetti_subtitle" = "شغل ورق الورق الورقية بملء الشاشة عند إعادة ضبط الاستخدام الأسبوعي.";
 "hide_personal_info_title" = "إخفاء المعلومات الشخصية";
 "hide_personal_info_subtitle" = "عناوين بريد إلكتروني غامضة في شريط القائمة وواجهة القائمة.";
 "show_provider_storage_usage_title" = "عرض استخدام التخزين لمزود الخدمة";
@@ -668,6 +686,8 @@
 "display_mode_pace_desc" = "مؤشر السرعة (مثلا +5%)";
 "display_mode_both_desc" = "أظهر كل من النسبة المئوية والسرعة (مثلا 45% · +5%)";
 "display_mode_reset_time_desc" = "عرض وقت إعادة الضبط للمقياس المحدد (مثلا ↻ 3:56 مساء)";
+"menu_bar_reset_when_exhausted_title" = "عرض وقت إعادة التعيين عند نفاد الحصة";
+"menu_bar_reset_when_exhausted_subtitle" = "عند تبقّي 0%، اعرض الوقت حتى إعادة التعيين بدلًا من النسبة المئوية";
 
 /* Provider status */
 "status_operational" = "التشغيل";
@@ -813,6 +833,8 @@
 /* Popup panels */
 "No usage configured." = "لا يوجد استخدام محدد.";
 "Quota" = "الحصة";
+"Daily quota" = "الحصة اليومية";
+"Total" = "الإجمالي";
 "tokens" = "الرموز";
 "requests" = "الطلبات";
 "Latest" = "أحدث الإصدارات";
@@ -1165,3 +1187,4 @@
 "section_links" = "روابط";
 "Show Codex Spark usage" = "عرض استخدام Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "يعرض صفوف حصة Codex Spark في القائمة ومعاينة المزوّد. يتطلب تفعيل «عرض الاعتمادات + الاستخدام الإضافي» في إعدادات العرض.";
+"Scroll to see more models" = "مرر لرؤية المزيد من النماذج";

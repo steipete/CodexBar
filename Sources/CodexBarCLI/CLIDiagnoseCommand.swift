@@ -239,6 +239,8 @@ extension CodexBarCLI {
             GroqSettingsReader.apiKey(environment: environment) != nil
         case .kilo:
             KiloSettingsReader.apiKey(environment: environment) != nil
+        case .factory:
+            FactorySettingsReader.apiKey(environment: environment) != nil
         default:
             false
         }
@@ -257,6 +259,8 @@ extension CodexBarCLI {
             LLMProxySettingsReader.apiKey(environment: environment) != nil
         case .clawrouter:
             ClawRouterSettingsReader.apiKey(environment: environment) != nil
+        case .sub2api:
+            Sub2APISettingsReader.apiKey(environment: environment) != nil
         case .moonshot:
             MoonshotSettingsReader.apiKey(environment: environment) != nil
         case .ollama:

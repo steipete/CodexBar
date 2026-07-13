@@ -236,6 +236,19 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `german manual action labels do not describe a handbook`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let germanURL = root.appendingPathComponent("Sources/CodexBar/Resources/de.lproj/Localizable.strings")
+        let german = try #require(NSDictionary(contentsOf: germanURL) as? [String: String])
+
+        #expect(german["Manual"] == "Manuell")
+        #expect(german["refresh_manual"] == "Manuell")
+    }
+
+    @Test
     func `galician localization matches the English catalog`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -471,6 +484,7 @@ struct LocalizationLanguageCatalogTests {
             "link_github",
             "ory_session_…=…; csrftoken=…",
             "section_privacy",
+            "tab_menu",
         ]
         let unchanged = Set(english.keys.filter { italian[$0] == english[$0] })
         #expect(unchanged == intentionallyUnchanged)

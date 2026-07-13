@@ -34,6 +34,50 @@ extension UsageStore {
         return candidate < scheduledAt
     }
 
+    /// Advances a fixed timer from the last scheduled tick instead of the refresh completion time.
+    /// Missed ticks are skipped so a refresh that runs longer than its interval does not create
+    /// overlapping catch-up refreshes.
+    nonisolated static func nextFixedTimerScheduledAt(
+        previousScheduledAt: ContinuousClock.Instant,
+        completedAt: ContinuousClock.Instant,
+        interval: Duration) -> ContinuousClock.Instant
+    {
+        precondition(interval > .zero)
+        var scheduledAt = previousScheduledAt + interval
+        while scheduledAt <= completedAt {
+            scheduledAt += interval
+        }
+        return scheduledAt
+    }
+
+    nonisolated static func runFixedRefreshTimer(
+        interval: Duration,
+        sleepOverride: Duration? = nil,
+        now: @escaping @Sendable () async -> ContinuousClock.Instant = { ContinuousClock.now },
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { duration in
+            try await Task.sleep(for: duration)
+        },
+        refresh: @escaping @Sendable () async -> Void) async
+    {
+        precondition(interval > .zero)
+        var scheduledAt = await now() + interval
+        while !Task.isCancelled {
+            let current = await now()
+            let computedSleep = current >= scheduledAt ? .zero : scheduledAt - current
+            do {
+                try await sleep(sleepOverride ?? computedSleep)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await refresh()
+            scheduledAt = await self.nextFixedTimerScheduledAt(
+                previousScheduledAt: scheduledAt,
+                completedAt: now(),
+                interval: interval)
+        }
+    }
+
     func logAdaptiveRefreshDecision(_ decision: AdaptiveRefreshPolicy.Decision) {
         // Reason and delay only; never provider/account/email/path/credential/response data.
         // No "adaptive refresh: " prefix — the adaptiveRefresh log category already identifies the source.

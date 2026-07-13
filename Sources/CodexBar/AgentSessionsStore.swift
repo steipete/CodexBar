@@ -14,7 +14,6 @@ struct AgentSessionRemoteRefreshGate {
 
     mutating func begin() -> Int? {
         guard !self.isInFlight else {
-            self.isPending = true
             return nil
         }
         self.isInFlight = true

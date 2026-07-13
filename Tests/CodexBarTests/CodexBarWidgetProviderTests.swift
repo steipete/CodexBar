@@ -413,6 +413,7 @@ struct CodexBarWidgetProviderTests {
     @Test
     func `provider choice excludes unsupported Chutes widgets`() {
         #expect(ProviderChoice(provider: .chutes) == nil)
+        #expect(ProviderChoice(provider: .sub2api) == nil)
     }
 
     @Test
@@ -875,6 +876,30 @@ struct CodexBarWidgetProviderTests {
 }
 
 extension CodexBarWidgetProviderTests {
+    @Test
+    func `provider choice supports Cursor`() {
+        #expect(ProviderChoice(provider: .cursor) == .cursor)
+        #expect(ProviderChoice.cursor.provider == .cursor)
+    }
+
+    @Test
+    func `supported providers keep Cursor when it is the only enabled provider`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = WidgetSnapshot.ProviderEntry(
+            provider: .cursor,
+            updatedAt: now,
+            primary: RateWindow(usedPercent: 25, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
+        let snapshot = WidgetSnapshot(entries: [entry], enabledProviders: [.cursor], generatedAt: now)
+
+        #expect(CodexBarSwitcherTimelineProvider.supportedProviders(from: snapshot) == [.cursor])
+    }
+
     @Test
     func `widget token titles disclose stale age for today and history rows`() {
         let entryUpdatedAt = Date()

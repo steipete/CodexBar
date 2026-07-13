@@ -74,6 +74,7 @@ public enum KeychainAccessGate {
 
     static func withTaskOverrideForTesting<T>(
         _ disabled: Bool?,
+        isolation _: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskOverrideValue.withValue(disabled) {

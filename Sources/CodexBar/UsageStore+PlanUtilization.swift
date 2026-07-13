@@ -78,6 +78,7 @@ extension UsageStore {
         let snapshot: UsageSnapshot
         let accountKey: String?
         let capturedAt: Date
+        let codexLimitResetOwnerKey: CodexLimitResetOwnerKey?
     }
 
     private struct LimitResetObservation {
@@ -100,6 +101,15 @@ extension UsageStore {
     func planUtilizationHistorySelection(for provider: UsageProvider)
         -> (accountKey: String?, histories: [PlanUtilizationSeriesHistory])
     {
+        // The persisted history has not been read yet. Return the in-memory
+        // stub (empty) without performing account migration or enqueueing an
+        // empty persistence snapshot — otherwise a startup refresh racing the
+        // background load would record samples against an empty bucket and
+        // overwrite real disk history.
+        if !self.planUtilizationHistoryLoaded {
+            let providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+            return (nil, providerBuckets.histories(for: nil))
+        }
         var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
         if provider == .claude,
            providerBuckets.preferredAccountKey == Self.planUtilizationUnscopedPreferredKey
@@ -129,6 +139,12 @@ extension UsageStore {
     func codexPlanUtilizationHistories(forVisibleAccount account: CodexVisibleAccount)
         -> [PlanUtilizationSeriesHistory]
     {
+        // Same gate as `planUtilizationHistorySelection`: defer ownership
+        // migration until the persisted history has been read.
+        if !self.planUtilizationHistoryLoaded {
+            let providerBuckets = self.planUtilizationHistory[.codex] ?? PlanUtilizationHistoryBuckets()
+            return providerBuckets.histories(for: nil)
+        }
         var providerBuckets = self.planUtilizationHistory[.codex] ?? PlanUtilizationHistoryBuckets()
         let originalProviderBuckets = providerBuckets
         let ownership = self.codexOwnershipContext(forVisibleAccount: account)
@@ -155,15 +171,13 @@ extension UsageStore {
     }
 
     func shouldShowRefreshingMenuCard(for provider: UsageProvider) -> Bool {
-        let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
-        return isRefreshing
+        self.refreshingProviders.contains(provider)
             && self.snapshots[provider] == nil
             && self.error(for: provider) == nil
     }
 
     func shouldShowRefreshingMenuCardIndicator(for provider: UsageProvider) -> Bool {
-        let isRefreshing = self.isRefreshing || self.refreshingProviders.contains(provider)
-        return isRefreshing && self.error(for: provider) == nil
+        self.refreshingProviders.contains(provider) && self.error(for: provider) == nil
     }
 
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
@@ -184,6 +198,7 @@ extension UsageStore {
         isClaudeOAuthSample: Bool = false,
         shouldUpdatePreferredAccountKey: Bool = true,
         shouldAdoptUnscopedHistory: Bool = true,
+        codexLimitResetOwnerKey: CodexLimitResetOwnerKey? = nil,
         now: Date = Date())
         async
     {
@@ -218,7 +233,8 @@ extension UsageStore {
             account: account,
             snapshot: snapshot,
             accountKey: detectorAccountKey,
-            capturedAt: now)
+            capturedAt: now,
+            codexLimitResetOwnerKey: codexLimitResetOwnerKey)
         await MainActor.run {
             self.postLimitResetCelebrationsIfNeeded(
                 context: detectorContext,
@@ -228,6 +244,20 @@ extension UsageStore {
         guard !samples.isEmpty else { return }
         guard self.shouldRecordPlanUtilizationHistory(for: provider) else { return }
         guard !self.shouldDeferClaudePlanUtilizationHistory(provider: provider) else { return }
+
+        // Wait for the persisted history to finish loading before mutating
+        // `self.planUtilizationHistory`. A startup refresh racing the
+        // background decode would otherwise record samples against an empty
+        // bucket and overwrite real disk history on the next persistence
+        // enqueue.
+        if !self.planUtilizationHistoryLoaded {
+            // `_cancelPlanUtilizationHistoryLoadForTesting` cancels the task
+            // and flips `loaded` to true; this branch only runs when the load
+            // is still pending. Cancellation here (deinit during a startup
+            // refresh) means the in-memory dictionary is empty — proceeding
+            // is the safer choice than discarding the sample.
+            _ = await self.planUtilizationHistoryLoadTask?.result
+        }
 
         var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
         await MainActor.run {
@@ -451,6 +481,7 @@ extension UsageStore {
     private static func isSemanticSessionResetWindow(
         _ resolved: (window: RateWindow, source: SessionQuotaWindowSource)) -> Bool
     {
+        guard !resolved.window.isSyntheticPlaceholder else { return false }
         switch resolved.source {
         case .primary:
             guard let minutes = resolved.window.windowMinutes else { return false }
@@ -468,11 +499,15 @@ extension UsageStore {
     {
         guard let observation else { return }
 
-        let accountIdentifier = self.limitResetAccountIdentifier(
+        guard let accountIdentifier = self.limitResetAccountIdentifier(
             provider: context.provider,
             account: context.account,
             snapshot: context.snapshot,
-            accountKey: context.accountKey)
+            accountKey: context.accountKey,
+            codexLimitResetOwnerKey: context.codexLimitResetOwnerKey)
+        else {
+            return
+        }
         let detectorKey = Self.limitResetDetectorStateKey(
             provider: context.provider,
             accountIdentifier: accountIdentifier)
@@ -489,14 +524,26 @@ extension UsageStore {
         let sourceRawValue = observation.source?.rawValue
         let sourceChanged = descriptor.seriesName == .session && previousState?.sourceRawValue != nil
             && previousState?.sourceRawValue != sourceRawValue
-        let resetBoundaryAllowsPost = descriptor.seriesName != .session
-            || Self.limitResetBoundaryAdvanced(
+        let resetBoundaryAllowsPost = if descriptor.seriesName == .session {
+            Self.limitResetBoundaryAdvanced(
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary)
+        } else if context.provider == .codex, descriptor.seriesName == .weekly {
+            Self.limitResetBoundaryAdvanced(
+                previous: previousState?.resetBoundary,
+                current: observation.resetBoundary,
+                requiresPreviousBoundary: true)
+        } else {
+            true
+        }
         let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
+        let suppressedGuardedCrossing = crossedBelowThreshold && !resetBoundaryAllowsPost
+        // Sessions retain the last non-regressed boundary on every guarded sample. Codex weekly crossings
+        // adopt a newly appearing boundary so a later genuine advance can still trigger once.
         let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
-        let shouldPreserveBaseline = crossedBelowThreshold && shouldPreserveBoundary
+            && (descriptor.seriesName == .session || previousState?.resetBoundary != nil)
+        let shouldPreserveBaseline = suppressedGuardedCrossing
         states[detectorKey] = LimitResetDetectorState(
             // A transient zero must not erase the baseline needed to recognize the real reset that follows.
             wasAboveThreshold: shouldPreserveBaseline ? true : wasAboveThreshold,
@@ -544,12 +591,6 @@ extension UsageStore {
         }
     }
 
-    private nonisolated static func limitResetBoundaryAdvanced(previous: Date?, current: Date?) -> Bool {
-        guard let previous else { return true }
-        guard let current else { return false }
-        return !self.areEquivalentPlanUtilizationResetBoundaries(previous, current) && current > previous
-    }
-
     private func planUtilizationSeriesSamples(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
@@ -560,6 +601,7 @@ extension UsageStore {
         func appendWindow(_ window: RateWindow?, name: PlanUtilizationSeriesName?) {
             guard let name,
                   let window,
+                  !window.isSyntheticPlaceholder,
                   let windowMinutes = window.windowMinutes,
                   windowMinutes > 0,
                   let usedPercent = Self.clampedPercent(window.usedPercent)
@@ -865,31 +907,6 @@ extension UsageStore {
 
     private func shouldDeferClaudePlanUtilizationHistory(provider: UsageProvider) -> Bool {
         provider == .claude && self.shouldHidePlanUtilizationMenuItem(for: .claude)
-    }
-
-    private func limitResetAccountIdentifier(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        snapshot: UsageSnapshot,
-        accountKey: String?) -> String
-    {
-        let identity = snapshot.identity(for: provider)
-        return account?.id.uuidString.lowercased()
-            ?? accountKey
-            ?? identity?.accountEmail
-            ?? identity?.accountOrganization
-            ?? provider.rawValue
-    }
-
-    private func limitResetAccountLabel(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        snapshot: UsageSnapshot) -> String?
-    {
-        let identity = snapshot.identity(for: provider)
-        return account?.label
-            ?? identity?.accountEmail
-            ?? identity?.accountOrganization
     }
 
     private nonisolated static func limitResetDetectorStateKey(
@@ -1457,7 +1474,7 @@ extension UsageStore {
         return true
     }
 
-    private nonisolated static func areEquivalentPlanUtilizationResetBoundaries(_ lhs: Date?, _ rhs: Date?) -> Bool {
+    nonisolated static func areEquivalentPlanUtilizationResetBoundaries(_ lhs: Date?, _ rhs: Date?) -> Bool {
         guard let lhs, let rhs else { return false }
         return abs(lhs.timeIntervalSince(rhs)) < self.planUtilizationResetEquivalenceToleranceSeconds
     }

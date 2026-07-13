@@ -42,7 +42,9 @@ final class ProviderSwitcherEventPeekGate {
         }
         // CoreGraphics does not count key autorepeat events. Keep peeking while a key is
         // held so repeated provider-navigation events are still handled.
-        if !self.heldKeyCodes.isEmpty { return true }
+        if !self.heldKeyCodes.isEmpty {
+            return true
+        }
         return self.emptyPeekBudget > 0
     }
 
@@ -237,9 +239,10 @@ extension StatusItemController {
 
         self.removeProviderSwitcherShortcutMonitor()
         self.resetOverviewScrollAccumulation()
-        let eventMask: NSEvent.EventTypeMask = hasProviderSwitcher
-            ? [.keyDown, .keyUp, .scrollWheel]
-            : [.keyDown, .keyUp]
+        // Every tracked menu observes wheel events so a manual scroll made after Refresh
+        // invalidates that refresh's pending viewport restore. Unhandled wheel events remain
+        // queued for AppKit's native menu scroller.
+        let eventMask: NSEvent.EventTypeMask = [.keyDown, .keyUp, .scrollWheel]
         let monitor = ProviderSwitcherShortcutEventMonitor(
             events: eventMask)
         { [weak self, weak menu] event in
@@ -266,10 +269,17 @@ extension StatusItemController {
 
     @discardableResult
     func handleMenuTrackingShortcutEvent(_ event: NSEvent, menu: NSMenu) -> Bool {
+        if event.type == .scrollWheel {
+            self.advanceMenuInteraction(for: menu)
+        }
         if StatusItemMenu.isPersistentRefreshShortcut(for: event),
            menu.items.contains(where: self.isPersistentRefreshItem)
         {
-            self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+            if let menu = menu as? StatusItemMenu {
+                menu.requestPersistentRefreshAction()
+            } else {
+                self.performPersistentRefreshAction(in: ObjectIdentifier(menu))
+            }
             return true
         }
         guard menu.items.first?.view is ProviderSwitcherView else { return false }

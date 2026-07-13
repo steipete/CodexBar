@@ -24,6 +24,8 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     private var tintFilter: CIFilter?
     private var isRowHighlighted = false
     private var onClick: (() -> Void)?
+    private let containsInteractiveControls: Bool
+    private let interactiveRegionStore: MenuCardInteractiveRegionStore?
 
     private(set) var allowsMenuHighlight: Bool
 
@@ -51,10 +53,14 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
     init(
         rootView: MenuCardSectionContainerView<Content>,
         allowsMenuHighlight: Bool,
+        containsInteractiveControls: Bool = false,
+        interactiveRegionStore: MenuCardInteractiveRegionStore? = nil,
         onClick: (() -> Void)?)
     {
         self.hosting = NSHostingView(rootView: rootView)
         self.allowsMenuHighlight = allowsMenuHighlight
+        self.containsInteractiveControls = containsInteractiveControls
+        self.interactiveRegionStore = interactiveRegionStore
         self.onClick = onClick
         self.tintFilter = nil
         super.init(frame: .zero)
@@ -62,9 +68,6 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         self.refreshTintFilter()
         self.setupSelectionView()
         self.setupHosting()
-        if onClick != nil {
-            self.installClickRecognizer()
-        }
     }
 
     @available(*, unavailable)
@@ -100,6 +103,87 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         }
         onClick()
         return true
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if let descendant {
+            var current: NSView? = descendant
+            while let view = current, view !== self {
+                if view is NSButton || view is NSControl {
+                    return descendant
+                }
+                current = view.superview
+            }
+            if self.hitsHostedInteractiveControl(at: point) {
+                return descendant
+            }
+            if descendant !== self, self.onClick != nil {
+                return self
+            }
+        }
+        return descendant
+    }
+
+    private func hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
+        guard self.containsInteractiveControls else { return false }
+        let hostedPoint = self.hosting.convert(point, from: self)
+        return self.interactiveRegionStore?.contains(
+            hostedPoint,
+            hostingBounds: self.hosting.bounds,
+            fittedSize: self.hosting.fittingSize) == true
+    }
+
+    private func locationInView(for event: NSEvent) -> NSPoint {
+        guard self.window != nil else {
+            return event.locationInWindow
+        }
+        return self.convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown, self.onClick != nil else {
+            super.mouseDown(with: event)
+            return
+        }
+        guard self.bounds.contains(self.locationInView(for: event)), let window = self.window else { return }
+
+        // A submenu-backed NSMenuItem consumes mouseUp in its nested tracking loop before a custom
+        // view receives it. Track the drag/up sequence directly so release-inside cancellation stays
+        // native while the menu never gets a chance to close before the row action runs.
+        var shouldInvoke = false
+        window.trackEvents(
+            matching: [.leftMouseDragged, .leftMouseUp],
+            timeout: NSEvent.foreverDuration,
+            mode: .eventTracking)
+        { [weak self] trackedEvent, stop in
+            guard let self, let trackedEvent else {
+                stop.pointee = true
+                return
+            }
+            if self.primaryPressShouldYieldToMenu(for: trackedEvent) {
+                // We dequeued this drag from the window; put it back so NSMenu's tracking loop can
+                // continue native drag-to-submenu selection from the same event.
+                window.postEvent(trackedEvent, atStart: true)
+                stop.pointee = true
+                return
+            }
+            guard let decision = self.primaryPressDecision(for: trackedEvent) else { return }
+            shouldInvoke = decision
+            stop.pointee = true
+        }
+        if shouldInvoke {
+            self.onClick?()
+        }
+    }
+
+    private func primaryPressDecision(for event: NSEvent) -> Bool? {
+        guard event.type == .leftMouseUp else { return nil }
+        return self.bounds.contains(self.locationInView(for: event))
+    }
+
+    private func primaryPressShouldYieldToMenu(for event: NSEvent) -> Bool {
+        event.type == .leftMouseDragged && !self.bounds.contains(self.locationInView(for: event))
     }
 
     override func layout() {
@@ -172,17 +256,6 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         self.addSubview(self.hosting)
     }
 
-    private func installClickRecognizer() {
-        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
-        recognizer.buttonMask = 0x1
-        self.addGestureRecognizer(recognizer)
-    }
-
-    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
-        guard recognizer.state == .ended else { return }
-        self.onClick?()
-    }
-
     /// Maps every pixel's RGB to the system selected-menu-item text color while preserving alpha,
     /// reproducing the appearance the SwiftUI rows already adopt when highlighted. The bias is read
     /// from `NSColor.selectedMenuItemTextColor` rather than hard-coded to white so graphite/
@@ -211,3 +284,27 @@ final class GPUSelectionHostingView<Content: View>: NSView, MenuCardHighlighting
         return filter
     }
 }
+
+#if DEBUG
+extension GPUSelectionHostingView {
+    func _test_hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
+        self.hitsHostedInteractiveControl(at: point)
+    }
+
+    func _test_simulateRuntimeClick(at point: NSPoint? = nil) -> Bool {
+        let clickPoint = point ?? NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+        guard let onClick = self.onClick, self.hitTest(clickPoint) === self else { return false }
+        guard self.bounds.contains(clickPoint) else { return false }
+        onClick()
+        return true
+    }
+
+    func _test_primaryPressDecision(for event: NSEvent) -> Bool? {
+        self.primaryPressDecision(for: event)
+    }
+
+    func _test_primaryPressShouldYieldToMenu(for event: NSEvent) -> Bool {
+        self.primaryPressShouldYieldToMenu(for: event)
+    }
+}
+#endif

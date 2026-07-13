@@ -2,6 +2,28 @@ import AppKit
 import CodexBarCore
 
 extension StatusItemController {
+    func beginMenuTrackingSession(for menu: NSMenu) {
+        if menu.supermenu != nil, !self.isHostedSubviewMenu(menu) {
+            self.advanceMenuInteraction(for: self.rootMenu(for: menu))
+        }
+        let menuID = ObjectIdentifier(menu)
+        let generation = self.menuSession.beginTrackingSession(menuID)
+        (menu as? StatusItemMenu)?.menuInteractionGeneration = generation
+    }
+
+    func endMenuTrackingSession(for menu: NSMenu) {
+        (menu as? StatusItemMenu)?.menuInteractionGeneration = nil
+        self.menuSession.endTrackingSession(ObjectIdentifier(menu))
+    }
+
+    private func rootMenu(for menu: NSMenu) -> NSMenu {
+        var root = menu
+        while let parent = root.supermenu {
+            root = parent
+        }
+        return root
+    }
+
     private static let defaultClosedMenuPreparationDelay: Duration = .milliseconds(350)
 
     var isMenuRefreshEnabled: Bool {
@@ -130,12 +152,15 @@ extension StatusItemController {
         self.openMenuRebuildTasks.removeValue(forKey: key)?.cancel()
         self.openMenuRebuildRequests.cancel(for: key)
         self.openMenuRebuildsClosingHostedSubviewMenus.remove(key)
+        self.pendingMenuBaselineResyncs.remove(key)
+        self.cancelManualRefreshViewportRestore(for: key)
     }
 
     func clearMenuHighlight(_ key: ObjectIdentifier) {
         if let highlightedView = self.highlightedMenuItems.removeValue(forKey: key)?.view {
             (highlightedView as? MenuCardHighlighting)?.setHighlighted(false)
         }
+        self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
     }
 
     func removeMenuLifecycleState(_ key: ObjectIdentifier) {
@@ -378,6 +403,10 @@ extension StatusItemController {
         self.openMenus.values.contains { self.isHostedSubviewMenu($0) }
     }
 
+    func hasOpenNonHostedChildMenu() -> Bool {
+        self.openMenus.values.contains { $0.supermenu != nil && !self.isHostedSubviewMenu($0) }
+    }
+
     func refreshOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
         let key = ObjectIdentifier(menu)
         guard self.openMenus[key] != nil else { return }
@@ -394,14 +423,47 @@ extension StatusItemController {
     func rebuildOpenMenuIfStillVisible(_ menu: NSMenu, provider: UsageProvider?) {
         let key = ObjectIdentifier(menu)
         guard self.openMenus[key] != nil else { return }
-        guard self.isHostedSubviewMenu(menu) || !self.hasOpenHostedSubviewMenu() else { return }
-        self.populateMenu(menu, provider: provider)
-        self.markMenuFresh(menu)
-        self.menuSession.clearParentRebuildDeferral(key)
-        self.applyIcon(phase: nil)
+        let isHostedSubviewMenu = self.isHostedSubviewMenu(menu)
+        guard isHostedSubviewMenu || !self.hasOpenHostedSubviewMenu() else { return }
+        guard !self.isNativeMenuItemHighlighted(in: menu) else {
+            self.nativeHighlightDeferredMenuRebuilds[key] = NativeHighlightDeferredMenuRebuild(provider: provider)
+            return
+        }
+        self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
+        if isHostedSubviewMenu {
+            self.refreshHostedSubviewMenu(menu)
+        } else {
+            self.populateMenu(menu, provider: provider)
+            self.markMenuFresh(menu)
+            self.menuSession.clearParentRebuildDeferral(key)
+            self.applyIcon(phase: nil)
+            self.scheduleDeferredManualRefreshViewportRestoreAfterRebuild(for: menu)
+        }
         #if DEBUG
         self._test_openMenuRebuildObserver?(menu)
         #endif
+    }
+
+    func isNativeMenuItemHighlighted(in menu: NSMenu) -> Bool {
+        let key = ObjectIdentifier(menu)
+        guard let item = self.highlightedMenuItems[key], item.menu === menu else { return false }
+        return item.isEnabled && item.view == nil
+    }
+
+    func resumeMenuRebuildDeferredForNativeHighlightIfNeeded(_ menu: NSMenu) {
+        let key = ObjectIdentifier(menu)
+        guard let deferredRebuild = self.nativeHighlightDeferredMenuRebuilds[key] else { return }
+        guard self.openMenus[key] === menu else {
+            self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
+            self.pendingMenuBaselineResyncs.remove(key)
+            return
+        }
+        let isHostedSubviewMenu = self.isHostedSubviewMenu(menu)
+        guard isHostedSubviewMenu || !self.hasOpenHostedSubviewMenu() else { return }
+        self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
+        self.scheduleOpenMenuRebuildIfStillVisible(
+            menu,
+            provider: deferredRebuild.provider)
     }
 
     func refreshOpenMenusIfNeeded() {
@@ -423,6 +485,21 @@ extension StatusItemController {
         }
         self.parentMenuRebuildPendingAfterHostedSubviewClose = false
         self.refreshOpenMenusIfNeeded(allowsParentRebuild: true)
+        self.resumeParentMenuRebuildsDeferredForNativeHighlightAfterHostedSubviewClose()
+    }
+
+    private func resumeParentMenuRebuildsDeferredForNativeHighlightAfterHostedSubviewClose() {
+        guard !self.hasOpenHostedSubviewMenu() else { return }
+        let deferredParents = self.openMenus.values.filter { menu in
+            let key = ObjectIdentifier(menu)
+            return !self.isHostedSubviewMenu(menu) &&
+                self.nativeHighlightDeferredMenuRebuilds[key] != nil
+        }
+        // Schedule the saved explicit request after the generic dirty-menu pass, even when the native
+        // highlight is still active. The scheduled rebuild will defer again, preserving its provider.
+        for menu in deferredParents {
+            self.resumeMenuRebuildDeferredForNativeHighlightIfNeeded(menu)
+        }
     }
 
     func completeParentMenuRebuildAfterHostedSubviewCloseIfNeeded() {
@@ -485,7 +562,7 @@ extension StatusItemController {
         hasOpenHostedSubviewMenu: Bool)
     {
         if self.isHostedSubviewMenu(menu) {
-            self.refreshHostedSubviewMenu(menu)
+            self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: self.menuProvider(for: menu))
             return
         }
         guard allowsParentRebuild else { return }

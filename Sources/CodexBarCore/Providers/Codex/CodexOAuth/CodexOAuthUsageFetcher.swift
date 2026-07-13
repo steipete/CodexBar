@@ -351,9 +351,24 @@ public enum CodexOAuthUsageFetcher {
         accountId: String?,
         env: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexUsageResponse
     {
-        var request = URLRequest(url: Self.resolveUsageURL(env: env))
+        try await self.fetchUsage(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func fetchUsage(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        session transport: any ProviderHTTPTransport) async throws -> CodexUsageResponse
+    {
+        var request = URLRequest(
+            url: Self.resolveUsageURL(env: env),
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 30)
         request.httpMethod = "GET"
-        request.timeoutInterval = 30
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -363,7 +378,7 @@ public enum CodexOAuthUsageFetcher {
         }
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             let data = response.data
 
             switch response.statusCode {
@@ -395,11 +410,28 @@ public enum CodexOAuthUsageFetcher {
         accessToken: String,
         accountId: String?,
         env: [String: String] = ProcessInfo.processInfo.environment,
+        timeout: TimeInterval = 4) async throws -> CodexRateLimitResetCreditsSnapshot
+    {
+        try await self.fetchRateLimitResetCredits(
+            accessToken: accessToken,
+            accountId: accountId,
+            env: env,
+            timeout: timeout,
+            session: CodexAuthenticatedHTTPTransport.current)
+    }
+
+    public static func fetchRateLimitResetCredits(
+        accessToken: String,
+        accountId: String?,
+        env: [String: String] = ProcessInfo.processInfo.environment,
         timeout: TimeInterval = 4,
-        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        session transport: any ProviderHTTPTransport) async throws
         -> CodexRateLimitResetCreditsSnapshot
     {
-        var request = URLRequest(url: Self.resolveRateLimitResetCreditsURL(env: env), timeoutInterval: timeout)
+        var request = URLRequest(
+            url: Self.resolveRateLimitResetCreditsURL(env: env),
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeout)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")

@@ -37,6 +37,7 @@ struct ProviderIconResourcesTests {
             "deepgram",
             "ollama",
             "clawrouter",
+            "sub2api",
             "wayfinder",
         ]
         for slug in slugs {

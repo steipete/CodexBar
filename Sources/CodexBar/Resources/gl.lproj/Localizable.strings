@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "Selecciona o IDE que desexas monitorizar";
 "Session quota notifications" = "Notificacións de cota de sesión";
 "Session tokens" = "Tokens de sesión";
-"Settings" = "Axustes";
+"provider_section_connection" = "Conexión";
+"provider_section_menu_bar" = "Barra de menús";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Amosa as seccións de Créditos de Codex e Uso adicional de Claude no menú.";
 "Show Debug Settings" = "Amosar os axustes de depuración";
 "Show all token accounts" = "Amosar todas as contas con token";
@@ -391,7 +392,14 @@
 /* General Pane */
 "section_system" = "Sistema";
 "section_usage" = "Uso";
-"section_automation" = "Automatización";
+"section_refreshing" = "Actualización";
+"section_alerts" = "Alertas";
+"section_celebrations" = "Celebracións";
+"section_icon" = "Icona";
+"section_combined_icon" = "Icona combinada";
+"section_animation" = "Animación";
+"section_content" = "Contido";
+"section_agent_sessions" = "Sesións de axentes";
 "language_title" = "Idioma";
 "language_subtitle" = "Cambia o idioma da interface. Cómpre reiniciar a aplicación para que se aplique por completo.";
 "language_system" = "Sistema";
@@ -415,7 +423,6 @@
 "terminal_app_subtitle" = "Terminal usado pola acción Abrir terminal";
 "start_at_login_title" = "Abrir ao iniciar a sesión";
 "start_at_login_subtitle" = "Abre CodexBar automaticamente ao iniciar o teu Mac.";
-"show_cost_summary" = "Amosar o resumo de custos";
 "show_cost_summary_subtitle" = "Le os rexistros de uso locais. Amosa o custo de hoxe + a xanela de historial seleccionada no menú.";
 "cost_summary_style_title" = "Estilo de visualización";
 "cost_summary_style_inline" = "Só integrado";
@@ -430,15 +437,14 @@
 "cost_auto_refresh_info" = "Actualización automática: cada hora · Tempo de espera: 10 m";
 "cost_comparison_periods_title" = "Mostrar períodos de comparación máis curtos";
 "cost_comparison_periods_subtitle" = "Engade totais de 7, 30 e 90 días cando caiban na xanela de historial seleccionada. Estes totais reutilizan a mesma análise local.";
-"refresh_cadence_title" = "Frecuencia de actualización";
-"refresh_cadence_subtitle" = "Con que frecuencia CodexBar consulta os provedores en segundo plano.";
+"refresh_interval_title" = "Intervalo de actualización";
 "manual_refresh_hint" = "A actualización automática está desactivada; usa a orde Actualizar do menú.";
 "check_provider_status_title" = "Comprobar o estado do provedor";
 "check_provider_status_subtitle" = "Consulta as páxinas de estado de OpenAI/Claude e Google Workspace para Gemini/Antigravity, amosando incidencias na icona e no menú.";
-"session_quota_notifications_title" = "Notificacións de cota de sesión";
 "session_quota_notifications_subtitle" = "Avisa cando a cota de sesión de 5 horas chega ao 0% e cando volve estar dispoñible.";
-"quota_warning_notifications_title" = "Notificacións de aviso de cota";
+"quota_depleted_title" = "Cota esgotada e restaurada";
 "quota_warning_notifications_subtitle" = "Avisa cando a cota restante de sesión ou semanal supera os limiares configurados.";
+"threshold_warnings_title" = "Avisos de limiar";
 "quota_warnings_title" = "Avisos de cota";
 "quota_warning_session" = "sesión";
 "quota_warning_session_capitalized" = "Sesión";
@@ -448,6 +454,8 @@
 "quota_warning_global_threshold_subtitle" = "Porcentaxes restantes para as xanelas de sesión e semanal, a menos que un provedor as substitúa.";
 "quota_warning_sound" = "Reproducir o son de notificación";
 "quota_warning_provider_inherits" = "Usa a configuración global de aviso de cota a menos que se personalice unha xanela aquí.";
+"quota_warning_provider_disabled" = "As notificacións de aviso de cota e os marcadores das barras de uso están desactivados. Activa unha das dúas opcións para editar estes axustes gardados.";
+"quota_warning_provider_markers_only" = "As notificacións de aviso de cota están desactivadas globalmente. Esta configuración segue controlando os marcadores das barras de uso.";
 "quota_warning_global" = "Global";
 "quota_warning_customize_thresholds" = "Personalizar os limiares de %@";
 "quota_warning_enable_warnings" = "Activar os avisos de %@";
@@ -465,7 +473,9 @@
 /* Tab titles */
 "tab_general" = "Xeral";
 "tab_providers" = "Provedores";
-"tab_display" = "Pantalla";
+"tab_notifications" = "Notificacións";
+"tab_menu_bar" = "Barra de menús";
+"tab_menu" = "Menú";
 "tab_advanced" = "Avanzado";
 "tab_about" = "Acerca de";
 "tab_debug" = "Depuración";
@@ -494,34 +504,36 @@
 "primary_api_key_limit" = "Principal (límite da chave de API)";
 
 /* Display Pane */
-"section_menu_bar" = "Barra de menús";
+"menu_bar_style_title" = "Estilo da barra de menús";
+"menu_bar_style_subtitle" = "Como se debuxa o elemento da barra de menús.";
+"menu_bar_style_critters" = "Animaliños";
+"menu_bar_style_bars" = "Barras de medición";
+"menu_bar_style_icon_percent" = "Icona e porcentaxe";
+"switcher_rows_title" = "Filas do selector";
+"switcher_rows_icons" = "Iconas de provedores";
+"switcher_rows_progress" = "Progreso semanal";
+"usage_bars_fill_title" = "Recheo das barras de uso";
+"usage_bars_fill_remaining" = "Como restante";
+"usage_bars_fill_used" = "Como consumido";
+"reset_times_title" = "Horas de reinicio";
+"reset_times_countdown" = "Conta atrás";
+"reset_times_clock" = "Hora do reloxo";
+"cost_summary_title" = "Resumo de custos";
+"cost_summary_off" = "Desactivado";
 "merge_icons_title" = "Combinar iconas";
 "merge_icons_subtitle" = "Usa unha única icona na barra de menús cun selector de provedor.";
-"switcher_shows_icons_title" = "O selector amosa iconas";
-"switcher_shows_icons_subtitle" = "Amosa as iconas de provedor no selector (se non, amosa unha liña de progreso semanal).";
 "show_most_used_provider_title" = "Amosar o provedor máis usado";
 "show_most_used_provider_subtitle" = "A barra de menús amosa automaticamente o provedor máis próximo ao seu límite.";
-"menu_bar_shows_percent_title" = "A barra de menús amosa a porcentaxe";
-"menu_bar_shows_percent_subtitle" = "Substitúe as barras de progreso por iconas de marca do provedor e unha porcentaxe.";
-"hide_critters_title" = "Ocultar animaliños";
-"hide_critters_subtitle" = "Amosar barras de medición simples sen a cara nin os adornos.";
 "display_mode_title" = "Modo de visualización";
 "display_mode_subtitle" = "Escolle que amosar na barra de menús (Ritmo amosa o uso fronte ao previsto).";
-"section_menu_content" = "Contido do menú";
-"show_usage_as_used_title" = "Amosar o uso como consumido";
-"show_usage_as_used_subtitle" = "As barras de progreso énchense a medida que consomes a cota (en vez de amosar o que queda).";
 "show_quota_warning_markers_title" = "Amosar os marcadores de aviso de cota";
 "show_quota_warning_markers_subtitle" = "Debuxa marcas de limiar nas barras de uso cando hai avisos de cota configurados.";
 "weekly_progress_work_days_title" = "Días laborables do progreso semanal";
 "weekly_progress_work_days_subtitle" = "Define os días laborables para os marcadores das barras de uso semanal e os cálculos de ritmo.";
-"show_reset_time_as_clock_title" = "Amosar a hora de reinicio como reloxo";
-"show_reset_time_as_clock_subtitle" = "Amosa as horas de reinicio como valores de reloxo absolutos en vez de contas atrás.";
 "show_provider_changelog_links_title" = "Amosar as ligazóns ao rexistro de cambios do provedor";
 "show_provider_changelog_links_subtitle" = "Engade ao menú enlaces ás notas de versión dos provedores compatibles baseados en CLI.";
 "show_credits_extra_usage_title" = "Amosar créditos + uso adicional";
 "show_credits_extra_usage_subtitle" = "Amosa as seccións de Créditos de Codex e Uso adicional de Claude no menú.";
-"show_all_token_accounts_title" = "Amosar todas as contas con token";
-"show_all_token_accounts_subtitle" = "Apila as contas con token no menú (se non, amosa unha barra de cambio de conta).";
 "multi_account_layout_title" = "Disposición multiconta";
 "multi_account_layout_subtitle" = "Escolle o cambio de conta segmentado ou tarxetas de conta apiladas.";
 "multi_account_layout_segmented" = "Segmentado";
@@ -532,6 +544,10 @@
 "overview_no_providers_hint" = "Non hai provedores activados dispoñibles para o Resumo.";
 "overview_rows_follow_order" = "As filas de Resumo sempre seguen a orde dos provedores.";
 "overview_no_providers_selected" = "Non se seleccionou ningún provedor";
+"agent_sessions_title" = "Sesións de axentes";
+"agent_sessions_subtitle" = "Amosa no menú as sesións de Codex e Claude Code locais e descubertas mediante SSH.";
+"agent_sessions_hosts_title" = "Hosts SSH adicionais";
+"agent_sessions_footer" = "Os Mac da túa tailnet descóbrense automaticamente. As sesións locais actualízanse cada 30 segundos; os hosts remotos cada 60 segundos e cando se abre o menú.";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Atallo de teclado";
@@ -545,8 +561,6 @@
 "show_debug_settings_subtitle" = "Amosa ferramentas de diagnose na lapela Depuración.";
 "surprise_me_title" = "Sorpréndeme";
 "surprise_me_subtitle" = "Actívao se che gusta que os teus axentes se divirtan aí arriba.";
-"weekly_limit_confetti_title" = "Confeti do límite semanal";
-"weekly_limit_confetti_subtitle" = "Amosa confeti a pantalla completa cando se reinicie o uso semanal.";
 "hide_personal_info_title" = "Ocultar información persoal";
 "hide_personal_info_subtitle" = "Oculta os enderezos de correo na barra de menús e na interface do menú.";
 "show_provider_storage_usage_title" = "Amosar o uso de almacenamento do provedor";
@@ -645,6 +659,8 @@
 "display_mode_pace_desc" = "Amosa o indicador de ritmo (ex. +5 %)";
 "display_mode_both_desc" = "Amosa a porcentaxe e o ritmo (ex. 45 % · +5 %)";
 "display_mode_reset_time_desc" = "Amosa o tempo de restablecemento da métrica seleccionada (p. ex. ↻ 15:56)";
+"menu_bar_reset_when_exhausted_title" = "Mostrar a hora de restablecemento cando se esgote a cota";
+"menu_bar_reset_when_exhausted_subtitle" = "Cun 0% restante, mostra o tempo ata o restablecemento en lugar da porcentaxe";
 
 /* Provider status */
 "status_operational" = "Operativo";
@@ -673,6 +689,8 @@
 /* Popup panels */
 "No usage configured." = "Non hai ningún uso configurado.";
 "Quota" = "Cota";
+"Daily quota" = "Cota diaria";
+"Total" = "Total";
 "tokens" = "tokens";
 "requests" = "solicitudes";
 "Latest" = "Máis recente";
@@ -1133,6 +1151,12 @@
 "quota_warning_notification_body_with_account" = "Conta %1$@. Queda %2$@. Acadaches o limiar de aviso do %3$d%% para a cota %4$@.";
 "predictive_pace_warnings_title" = "Avisos preditivos de ritmo";
 "predictive_pace_warnings_subtitle" = "Avisa para Codex e Claude cando o ritmo de sesión ou semanal pode esgotar a cota antes do reinicio.";
+"confetti_on_reset_title" = "Confeti ao reiniciar";
+"confetti_on_reset_subtitle" = "Amosa confeti a pantalla completa cando se reinicie o uso.";
+"confetti_option_off" = "Desactivado";
+"confetti_option_session" = "Reinicios da sesión";
+"confetti_option_weekly" = "Reinicios semanais";
+"confetti_option_both" = "Ambos";
 "predictive_pace_warning_notification_title" = "%1$@: aviso de ritmo %2$@";
 "predictive_pace_warning_notification_body" = "Ao ritmo actual, esta cota podería esgotarse en %1$@, antes de reiniciarse.";
 "predictive_pace_warning_notification_body_with_account" = "Conta %1$@. Ao ritmo actual, esta cota podería esgotarse en %2$@, antes de reiniciarse.";
@@ -1149,8 +1173,6 @@
 "section_updates" = "Actualizacións";
 "session_depleted_notification_body" = "Queda un 0%. Avisarémoste cando volva estar dispoñible.";
 "session_depleted_notification_title" = "Sesión de %@ esgotada";
-"session_limit_confetti_subtitle" = "Amosa confeti a pantalla completa cando se restableza o uso da sesión.";
-"session_limit_confetti_title" = "Confeti do límite da sesión";
 "session_restored_notification_body" = "A cota da sesión volve estar dispoñible.";
 "session_restored_notification_title" = "Sesión de %@ restaurada";
 "today" = "hoxe";
@@ -1160,3 +1182,4 @@
 "≈ %d%% run-out risk" = "≈ %d%% de risco de esgotamento";
 "Show Codex Spark usage" = "Amosar o uso de Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Amosa as filas de cota de Codex Spark no menú e na previsualización do provedor. Require activar «Amosar créditos + uso adicional» nos axustes de Pantalla.";
+"Scroll to see more models" = "Desprázate para ver máis modelos";

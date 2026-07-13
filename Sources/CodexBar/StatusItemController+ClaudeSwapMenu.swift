@@ -2,7 +2,11 @@ import AppKit
 import CodexBarCore
 
 extension StatusItemController {
-    func addClaudeSwapMenuCards(to menu: NSMenu, context: MenuCardContext) {
+    func addClaudeSwapMenuCards(
+        to menu: NSMenu,
+        captureMenu: NSMenu,
+        context: MenuCardContext)
+    {
         let cardRows = self.store.claudeSwapAccountSnapshots.compactMap { account ->
             (account: ProviderAccountUsageSnapshot, model: UsageMenuCardView.Model)? in
             guard let model = self.menuCardModel(
@@ -30,22 +34,32 @@ extension StatusItemController {
             context: context,
             planAction: { [weak self] index in
                 guard cardRows.indices.contains(index) else { return nil }
-                return self?.claudeSwapAccountSwitchAction(cardRows[index].account)
+                return self?.claudeSwapAccountSwitchAction(cardRows[index].account, menu: captureMenu)
             })
     }
 
     private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {
-        if account.isActive { return L("Active") }
-        if self.store.claudeSwapTransientState.switchingAccountID == account.id { return L("Loading…") }
+        if account.isActive {
+            return L("Active")
+        }
+        if self.store.claudeSwapTransientState.switchingAccountID == account.id {
+            return L("Loading…")
+        }
         guard self.store.claudeSwapTransientState.task == nil, account.canActivate else { return nil }
         return L("Switch Account...")
     }
 
-    private func claudeSwapAccountSwitchAction(_ account: ProviderAccountUsageSnapshot) -> (() -> Void)? {
+    private func claudeSwapAccountSwitchAction(
+        _ account: ProviderAccountUsageSnapshot,
+        menu: NSMenu)
+        -> (() -> Void)?
+    {
         guard self.store.claudeSwapTransientState.task == nil, account.canActivate else { return nil }
         let accountID = account.id
-        return { [weak self] in
-            self?.store.switchClaudeSwapAccount(accountID)
+        return { [weak self, weak menu] in
+            guard let self else { return }
+            self.advanceMenuInteraction(for: menu)
+            self.store.switchClaudeSwapAccount(accountID)
         }
     }
 }

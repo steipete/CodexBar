@@ -61,7 +61,9 @@ extension UsageStore {
             do {
                 try await self.sleepForStartupConnectivityRetry(delay)
                 guard !Task.isCancelled else { return }
-                await self.runRefresh(startupConnectivityRetryAttempt: attempt)
+                await self.runRefresh(
+                    startupConnectivityRetryAttempt: attempt,
+                    waitForRefreshAvailability: true)
             } catch {
                 return
             }

@@ -215,7 +215,9 @@ struct MenuDescriptor {
         let meta = store.metadata(for: provider)
         var entries: [Entry] = []
         let headlineText: String = {
-            if let ver = Self.versionNumber(for: provider, store: store) { return "\(meta.displayName) \(ver)" }
+            if let ver = Self.versionNumber(for: provider, store: store) {
+                return "\(meta.displayName) \(ver)"
+            }
             return meta.displayName
         }()
         entries.append(.text(headlineText, .headline))
@@ -226,7 +228,8 @@ struct MenuDescriptor {
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
-                    provider == .deepseek || provider == .azureopenai || provider == .mimo || provider == .qoder
+                    provider == .deepseek || provider == .azureopenai || provider == .mimo || provider == .qoder ||
+                    provider == .sub2api
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -269,7 +272,8 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof
+                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof ||
+                        provider == .sub2api
                     else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
@@ -299,7 +303,7 @@ struct MenuDescriptor {
             }
             if labels.showsTertiary, let opus = snap.tertiary {
                 // Perplexity purchased credits don't reset; show the balance as plain text.
-                let opusResetOverride: String? = provider == .perplexity
+                let opusResetOverride: String? = provider == .perplexity || provider == .sub2api
                     ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     : nil
                 Self.appendRateWindow(
@@ -628,8 +632,12 @@ struct MenuDescriptor {
     }
 
     private static func switchAccountTarget(for provider: UsageProvider?, store: UsageStore) -> MenuAction {
-        if let provider { return .switchAccount(provider) }
-        if let enabled = store.enabledProviders().first { return .switchAccount(enabled) }
+        if let provider {
+            return .switchAccount(provider)
+        }
+        if let enabled = store.enabledProviders().first {
+            return .switchAccount(enabled)
+        }
         return .switchAccount(.codex)
     }
 
@@ -662,6 +670,8 @@ struct MenuDescriptor {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
+        } else if provider == .sub2api {
+            Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? metadata.sessionLabel
         } else {
             metadata.sessionLabel
         }

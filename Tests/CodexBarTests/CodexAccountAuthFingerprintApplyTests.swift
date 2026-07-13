@@ -63,7 +63,9 @@ extension CodexAccountScopedRefreshTests {
             identity: .providerAccount(id: "acct-alpha"))
         let store = self.makeUsageStore(settings: settings)
         let resetsAt = Date().addingTimeInterval(45 * 60)
-        store.lastCodexAccountScopedRefreshGuard = store.freshCodexAccountScopedRefreshGuard()
+        let publicationGuard = store.freshCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
         store.lastKnownResetSnapshots[.codex] = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 10,
@@ -1382,7 +1384,12 @@ extension CodexAccountScopedRefreshTests {
         await refreshTask.value
 
         #expect(store.snapshots[.codex]?.primary?.usedPercent == 25)
+        #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "email-less-managed@example.com")
         #expect(store.errors[.codex] == nil)
+        #expect(store.lastCodexAccountScopedRefreshGuard?.accountKey == "email-less-managed@example.com")
+        #expect(store.codexAccountSnapshots.first?.account.email == "email-less-managed@example.com")
+        #expect(store.codexAccountSnapshots.first?.snapshot?.accountEmail(for: .codex) ==
+            "email-less-managed@example.com")
     }
 
     @Test

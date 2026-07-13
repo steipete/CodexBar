@@ -821,7 +821,8 @@ extension ClaudeStatusProbe {
         return cleaned
     }
 
-    /// Parses a Claude reset string as its next calendar occurrence in any explicit timezone.
+    /// Parses explicit-year resets at their stated occurrence; recurring forms resolve forward in any explicit
+    /// timezone.
     public static func parseResetDate(from text: String?, now: Date = .init()) -> Date? {
         self.parseResetDate(from: text, now: now, expectedWindow: nil)
     }
@@ -843,6 +844,12 @@ extension ClaudeStatusProbe {
         // Parse yearless Feb 29 independently of the current year, then resolve validated calendar occurrences.
         formatter.defaultDate = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1))
 
+        if let date = self.parseDate(raw, formats: Self.resetDateTimeWithExplicitYear, formatter: formatter) {
+            return self.resolveOccurrence(
+                self.explicitOccurrences(for: date, calendar: calendar),
+                now: now,
+                expectedWindow: expectedWindow)
+        }
         if let date = self.parseDate(raw, formats: Self.resetDateTimeWithMinutes, formatter: formatter) {
             let comps = calendar.dateComponents([.month, .day, .hour, .minute], from: date)
             return self.resolveOccurrence(
@@ -872,6 +879,26 @@ extension ClaudeStatusProbe {
             self.dailyOccurrences(for: comps, now: now, calendar: calendar),
             now: now,
             expectedWindow: expectedWindow)
+    }
+
+    private static func explicitOccurrences(for date: Date, calendar: Calendar) -> [Date] {
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day,
+              let hour = components.hour,
+              let minute = components.minute
+        else { return [] }
+        return self.exactLocalOccurrences(
+            DateComponents(
+                timeZone: calendar.timeZone,
+                year: year,
+                month: month,
+                day: day,
+                hour: hour,
+                minute: minute,
+                second: 0),
+            calendar: calendar)
     }
 
     private static func resolveOccurrence(
@@ -992,6 +1019,27 @@ extension ClaudeStatusProbe {
 
     private static let resetTimeWithMinutes = ["h:mma", "h:mm a", "HH:mm", "H:mm"]
     private static let resetTimeHourOnly = ["ha", "h a"]
+
+    private static let resetDateTimeWithExplicitYear = [
+        "MMM d, yyyy, h:mma",
+        "MMM d, yyyy, h:mm a",
+        "MMM d, yyyy, HH:mm",
+        "MMM d, yyyy h:mma",
+        "MMM d, yyyy h:mm a",
+        "MMM d, yyyy HH:mm",
+        "MMM d yyyy h:mma",
+        "MMM d yyyy h:mm a",
+        "MMM d yyyy HH:mm",
+        "MMM d, yyyy, ha",
+        "MMM d, yyyy, h a",
+        "MMM d, yyyy, HH",
+        "MMM d, yyyy ha",
+        "MMM d, yyyy h a",
+        "MMM d, yyyy HH",
+        "MMM d yyyy ha",
+        "MMM d yyyy h a",
+        "MMM d yyyy HH",
+    ]
 
     private static let resetDateTimeWithMinutes = [
         "MMM d, h:mma",

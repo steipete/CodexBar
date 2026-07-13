@@ -91,12 +91,12 @@ struct AdaptiveRefreshTimerTests {
     }
 
     @Test
-    func `refresh call is a no-op while another refresh is already in flight`() async {
+    func `opportunistic timer refresh is a no-op while another refresh is already in flight`() async {
         let settings = Self.makeSettingsStore(suite: "AdaptiveRefreshTimerTests-coalesce", frequency: .manual)
         let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
 
         store.isRefreshing = true
-        await store.refresh()
+        await store.refresh(enrichmentMode: .automatic)
 
         // The guard at the top of runRefresh() returned immediately: no completion was recorded and the
         // flag was left untouched by this call. This is the invariant every timer tick (fixed or
@@ -128,6 +128,57 @@ struct AdaptiveRefreshTimerTests {
         // seconds of wall time even with every provider disabled, so the timeout is generous.
         try await Self.waitUntil(timeout: .seconds(45)) { store.completedRefreshCountForTesting >= 2 }
         #expect(store.completedRefreshCountForTesting >= 2)
+    }
+
+    @Test
+    func `fixed cadence advances from scheduled tick instead of refresh completion`() {
+        let interval = Duration.milliseconds(100)
+        let start = ContinuousClock.now
+        let firstScheduledAt = start + interval
+
+        let nextAfterExactTick = UsageStore.nextFixedTimerScheduledAt(
+            previousScheduledAt: firstScheduledAt,
+            completedAt: firstScheduledAt,
+            interval: interval)
+        #expect(nextAfterExactTick == start + .milliseconds(200))
+
+        let nextJustBeforeFollowingTick = UsageStore.nextFixedTimerScheduledAt(
+            previousScheduledAt: firstScheduledAt,
+            completedAt: firstScheduledAt + .milliseconds(100) - .nanoseconds(1),
+            interval: interval)
+        #expect(nextJustBeforeFollowingTick == start + .milliseconds(200))
+
+        let nextAtFollowingTick = UsageStore.nextFixedTimerScheduledAt(
+            previousScheduledAt: firstScheduledAt,
+            completedAt: firstScheduledAt + .milliseconds(100),
+            interval: interval)
+        #expect(nextAtFollowingTick == start + .milliseconds(300))
+
+        let nextAfterSlowRefresh = UsageStore.nextFixedTimerScheduledAt(
+            previousScheduledAt: firstScheduledAt,
+            completedAt: firstScheduledAt + .milliseconds(60),
+            interval: interval)
+        #expect(nextAfterSlowRefresh == start + .milliseconds(200))
+
+        let nextAfterMissedTicks = UsageStore.nextFixedTimerScheduledAt(
+            previousScheduledAt: firstScheduledAt,
+            completedAt: firstScheduledAt + .milliseconds(260),
+            interval: interval)
+        #expect(nextAfterMissedTicks == start + .milliseconds(400))
+    }
+
+    @Test
+    func `fixed timer loop stays interval aligned after a slow refresh`() async {
+        let harness = FixedTimerLoopHarness()
+
+        await UsageStore.runFixedRefreshTimer(
+            interval: .milliseconds(100),
+            now: { await harness.now() },
+            sleep: { duration in await harness.sleep(for: duration) },
+            refresh: { await harness.refresh() })
+
+        #expect(await harness.recordedStarts() == [.milliseconds(100), .milliseconds(300)])
+        #expect(await harness.maximumConcurrentRefreshes() == 1)
     }
 
     @Test
@@ -311,5 +362,42 @@ struct AdaptiveRefreshTimerTests {
             settings: settings,
             startupBehavior: startupBehavior,
             environmentBase: [:])
+    }
+}
+
+private actor FixedTimerLoopHarness {
+    private let origin = ContinuousClock.now
+    private var elapsed = Duration.zero
+    private var starts: [Duration] = []
+    private var activeRefreshes = 0
+    private var maximumActiveRefreshes = 0
+
+    func now() -> ContinuousClock.Instant {
+        self.origin + self.elapsed
+    }
+
+    func sleep(for duration: Duration) {
+        self.elapsed += duration
+    }
+
+    func refresh() {
+        self.activeRefreshes += 1
+        self.maximumActiveRefreshes = max(self.maximumActiveRefreshes, self.activeRefreshes)
+        self.starts.append(self.elapsed)
+        if self.starts.count == 1 {
+            self.elapsed += .milliseconds(160)
+        }
+        self.activeRefreshes -= 1
+        if self.starts.count == 2 {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+    }
+
+    func recordedStarts() -> [Duration] {
+        self.starts
+    }
+
+    func maximumConcurrentRefreshes() -> Int {
+        self.maximumActiveRefreshes
     }
 }

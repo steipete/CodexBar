@@ -59,6 +59,7 @@ public enum BrowserCookieAccessGate {
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
     private static let log = CodexBarLog.logger(LogCategories.browserCookieGate)
     @TaskLocal private static var explicitRetryScope: ExplicitRetryScope?
+    @TaskLocal private static var deniedBrowsersForTesting: [Browser]?
 
     static let allowTestCookieAccessEnvironmentKey = "CODEXBAR_ALLOW_TEST_BROWSER_COOKIE_ACCESS"
 
@@ -81,6 +82,9 @@ public enum BrowserCookieAccessGate {
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
         guard browser.usesKeychainForCookieDecryption else { return true }
         guard !KeychainAccessGate.isDisabled else { return false }
+        if self.deniedBrowsersForTesting?.contains(browser) == true {
+            return self.isExplicitRetryAllowed(for: browser)
+        }
         let shouldCheckKeychain = self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] {
@@ -142,6 +146,16 @@ public enum BrowserCookieAccessGate {
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$explicitRetryScope.withValue(ExplicitRetryScope()) {
+            try await operation()
+        }
+    }
+
+    static func withDeniedBrowsersForTesting<T>(
+        _ browsers: [Browser],
+        isolation _: isolated (any Actor)? = #isolation,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$deniedBrowsersForTesting.withValue(browsers) {
             try await operation()
         }
     }
@@ -321,6 +335,14 @@ public enum BrowserCookieAccessGate {
 
     public static func withExplicitRetry<T>(
         isolation: isolated (any Actor)? = #isolation,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await operation()
+    }
+
+    static func withDeniedBrowsersForTesting<T>(
+        _: [Browser],
+        isolation _: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
         try await operation()

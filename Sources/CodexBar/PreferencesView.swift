@@ -5,7 +5,9 @@ import SwiftUI
 /// Sidebar destinations of the settings window: fixed app panes plus one entry per provider.
 enum SettingsPane: Hashable {
     case general
-    case display
+    case notifications
+    case menuBar
+    case menu
     case advanced
     case about
     case debug
@@ -21,7 +23,9 @@ enum SettingsPane: Hashable {
     var title: String {
         switch self {
         case .general: L("tab_general")
-        case .display: L("tab_display")
+        case .notifications: L("tab_notifications")
+        case .menuBar: L("tab_menu_bar")
+        case .menu: L("tab_menu")
         case .advanced: L("tab_advanced")
         case .about: L("tab_about")
         case .debug: L("tab_debug")
@@ -66,29 +70,18 @@ struct PreferencesView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ZStack {
-                SettingsSidebarMaterial()
-                    .blur(radius: 20)
-                self.sidebarWashColor
+            // Golden Gate-style sidebar: edge-to-edge material with a hairline separator,
+            // no floating card chrome. The material ignores the safe area so it runs up
+            // behind the transparent titlebar.
+            SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
+                .frame(width: SettingsPane.sidebarWidth)
+                .background {
+                    SettingsSidebarMaterial()
+                        .ignoresSafeArea()
+                }
 
-                SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
-            .shadow(color: Color.black.opacity(0.22), radius: 20, x: 0, y: 6)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.22), lineWidth: 0.75))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(
-                        self.colorScheme == .dark ? Color.white.opacity(0.27) : Color.white.opacity(0.72),
-                        lineWidth: 0.85))
-            .frame(width: SettingsPane.sidebarWidth)
-            .padding(.leading, 12)
-            .padding(.top, 0)
-            .padding(.bottom, 12)
-            .padding(.trailing, 4)
+            Divider()
+                .ignoresSafeArea()
 
             self.detailView
                 .frame(
@@ -122,8 +115,12 @@ struct PreferencesView: View {
         switch self.selection.pane {
         case .general:
             GeneralPane(settings: self.settings)
-        case .display:
-            DisplayPane(settings: self.settings, store: self.store)
+        case .notifications:
+            NotificationsPane(settings: self.settings)
+        case .menuBar:
+            MenuBarPane(settings: self.settings, store: self.store)
+        case .menu:
+            MenuPane(settings: self.settings, store: self.store)
         case .advanced:
             AdvancedPane(settings: self.settings, store: self.store)
         case .about:
@@ -140,12 +137,6 @@ struct PreferencesView: View {
                 runProviderLoginFlow: self.runProviderLoginFlow)
                 .id(provider)
         }
-    }
-
-    private var sidebarWashColor: Color {
-        self.colorScheme == .dark
-            ? Color.black.opacity(0.60)
-            : Color.white.opacity(0.60)
     }
 
     private func ensureValidSelection() {
@@ -308,8 +299,11 @@ final class SettingsWindowAppearanceView: NSView {
         if window.toolbar != nil {
             window.toolbar = nil
         }
-        if window.styleMask.contains(.fullSizeContentView) {
-            window.styleMask.remove(.fullSizeContentView)
+        // Full-size content lets the sidebar material extend behind the titlebar so the
+        // edge-to-edge sidebar reaches the top of the window; content stays below the
+        // titlebar via the safe area.
+        if !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.insert(.fullSizeContentView)
         }
     }
 }

@@ -27,13 +27,24 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
   from the Gemini CLI install (see below).
 
 ## OAuth client ID/secret extraction
+- Resolution order:
+  1. `GEMINI_OAUTH_CLIENT_ID` + `GEMINI_OAUTH_CLIENT_SECRET` environment override.
+  2. `GEMINI_OAUTH2_JS_PATH` pointing at a readable `oauth2.js` file.
+  3. Installed Gemini CLI package (`oauth2.js` / bundle regex extraction).
+  4. Known global Gemini CLI install paths (Homebrew npm prefix layouts, then
+     Homebrew Cellar/`opt` `libexec` package roots when the GUI cannot resolve
+     the `gemini` binary).
 - We locate the installed `gemini` binary, then search for:
   - Homebrew nested path:
     - `.../libexec/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js`
+  - Homebrew Cellar/opt package root (no-binary fallback):
+    - `/opt/homebrew/Cellar/gemini-cli/<version>/libexec/lib/node_modules/@google/gemini-cli`
+    - `/opt/homebrew/opt/gemini-cli/libexec/lib/node_modules/@google/gemini-cli`
+    - same under `/usr/local`
   - Bun/npm sibling path:
     - `.../node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js`
 - Regex extraction:
-  - `OAUTH_CLIENT_ID` and `OAUTH_CLIENT_SECRET` from `oauth2.js`.
+  - `OAUTH_CLIENT_ID` and `OAUTH_CLIENT_SECRET` from `oauth2.js` or Homebrew bundle chunks.
 
 ## API endpoints
 - Quota:
@@ -83,6 +94,8 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
 - The action is explicit: CodexBar never automatically enables Antigravity or falls back to it.
 - Ordinary Gemini login, `notLoggedIn`, and Antigravity setup errors remain unchanged. CodexBar does not
   capture Terminal `gemini` OAuth output, so Terminal-only failures cannot activate the migration action.
+- Workspace and education Google accounts are outside the June 2026 consumer shutdown; keep using the
+  Gemini provider. Antigravity remains the consumer replacement path for individual, AI Pro, and Ultra.
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Gemini/GeminiStatusProbe.swift`

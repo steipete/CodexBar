@@ -140,6 +140,9 @@ extension UsageStore {
         }
 
         let attachedAccountEmail = self.codexDashboardAttachmentEmail(from: authority.input)
+        self.reconcileCodexPublishedUsageOwner(with: self.freshCodexAccountScopedRefreshGuard(
+            preferCurrentSnapshot: true,
+            allowLastKnownLiveFallback: false))
 
         await self.applyOpenAIDashboardAuthorityDecision(
             authority.decision,
@@ -255,12 +258,16 @@ extension UsageStore {
             if decision.allowedEffects.contains(.usageBackfill),
                allowCodexUsageBackfill,
                self.snapshots[.codex] == nil,
-               let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: attachedAccountEmail)
+               let usage = dashboard.toUsageSnapshot(provider: .codex, accountEmail: attachedAccountEmail),
+               CodexWeeklyResetConfirmation.initialDecision(previous: nil, initial: usage) == .publishInitial
             {
                 self.snapshots[.codex] = usage
                 self.errors[.codex] = nil
                 self.failureGates[.codex]?.recordSuccess()
                 self.lastSourceLabels[.codex] = "openai-web"
+                self.lastCodexUsagePublicationGuard = self.currentCodexAccountScopedRefreshGuard(
+                    preferCurrentSnapshot: true,
+                    allowLastKnownLiveFallback: false)
             }
 
             if decision.allowedEffects.contains(.creditsAttachment),
@@ -336,15 +343,7 @@ extension UsageStore {
 
     private func clearDashboardDerivedCodexUsageIfNeeded() {
         guard self.lastSourceLabels[.codex] == "openai-web" else { return }
-        self.snapshots.removeValue(forKey: .codex)
-        self.errors[.codex] = nil
-        self.lastSourceLabels.removeValue(forKey: .codex)
-        self.lastFetchAttempts.removeValue(forKey: .codex)
-        self.accountSnapshots.removeValue(forKey: .codex)
-        self.codexAccountSnapshots = []
-        self.failureGates[.codex]?.reset()
-        self.lastKnownSessionRemaining.removeValue(forKey: .codex)
-        self.lastKnownSessionWindowSource.removeValue(forKey: .codex)
+        self.clearCodexPublishedUsageState()
     }
 
     private func clearDashboardDerivedCreditsIfNeeded() {
@@ -358,9 +357,17 @@ extension UsageStore {
     }
 
     private func clearDashboardRefreshGuardSeedIfNeeded() {
-        self.lastCodexAccountScopedRefreshGuard = self.currentCodexAccountScopedRefreshGuard(
+        let currentGuard = self.currentCodexAccountScopedRefreshGuard(
             preferCurrentSnapshot: false,
             allowLastKnownLiveFallback: false)
+        if self.snapshots[.codex] != nil,
+           self.lastCodexUsagePublicationGuard.map({
+               !Self.codexScopedRefreshGuardsMatchAccount($0, currentGuard)
+           }) ?? true
+        {
+            self.clearCodexPublishedUsageState()
+        }
+        self.lastCodexAccountScopedRefreshGuard = currentGuard
     }
 
     private func openAIDashboardPolicyFailureMessage(
@@ -429,6 +436,10 @@ extension UsageStore {
         {
             await task.value
             return
+        }
+        if bypassCoalescing {
+            self.openAIDashboardBackgroundRefreshTask?.cancel()
+            self.openAIDashboardRefreshTask?.cancel()
         }
         self.handleOpenAIWebTargetEmailChangeIfNeeded(
             targetEmail: targetEmail,
@@ -503,6 +514,7 @@ extension UsageStore {
                 }
             }
 
+            guard !Task.isCancelled else { return }
             await self.refreshOpenAIDashboardIfNeeded(force: false, expectedGuard: expectedGuard)
             guard !Task.isCancelled else { return }
             self.persistWidgetSnapshot(reason: "dashboard")
@@ -895,7 +907,9 @@ extension UsageStore {
 
             if allowLastKnownLiveFallback {
                 let lastKnown = self.lastKnownLiveSystemCodexEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-                if let lastKnown, !lastKnown.isEmpty { return lastKnown }
+                if let lastKnown, !lastKnown.isEmpty {
+                    return lastKnown
+                }
             }
             return nil
         case .managedAccount:
@@ -1249,7 +1263,9 @@ extension UsageStore {
                 } else {
                     found
                         .sorted { lhs, rhs in
-                            if lhs.sourceLabel == rhs.sourceLabel { return lhs.email < rhs.email }
+                            if lhs.sourceLabel == rhs.sourceLabel {
+                                return lhs.email < rhs.email
+                            }
                             return lhs.sourceLabel < rhs.sourceLabel
                         }
                         .map { "\($0.sourceLabel): \($0.email)" }
@@ -1377,7 +1393,9 @@ extension UsageStore {
 
             guard allowLastKnownLiveFallback else { return nil }
             let lastKnown = self.lastKnownLiveSystemCodexEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let lastKnown, !lastKnown.isEmpty { return lastKnown }
+            if let lastKnown, !lastKnown.isEmpty {
+                return lastKnown
+            }
             return nil
         case .managedAccount:
             if self.openAIWebManagedTargetStoreIsUnreadable() {
@@ -1386,12 +1404,16 @@ extension UsageStore {
 
             let managed = self.currentManagedCodexRuntimeEmail()?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if let managed, !managed.isEmpty { return managed }
+            if let managed, !managed.isEmpty {
+                return managed
+            }
             return nil
         case let .profileHome(path):
             let profile = self.currentProfileCodexRuntimeEmail(path: path)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            if let profile, !profile.isEmpty { return profile }
+            if let profile, !profile.isEmpty {
+                return profile
+            }
             return nil
         }
     }
@@ -1422,7 +1444,9 @@ extension UsageStore {
     }
 
     nonisolated static func shouldSkipOpenAIWebRefresh(_ context: OpenAIWebRefreshGateContext) -> Bool {
-        if context.force || context.accountDidChange { return false }
+        if context.force || context.accountDidChange {
+            return false
+        }
         if let lastAttemptAt = context.lastAttemptAt,
            context.now.timeIntervalSince(lastAttemptAt) < context.refreshInterval
         {
@@ -1438,7 +1462,9 @@ extension UsageStore {
     }
 
     nonisolated static func shouldSkipOpenAIWebEmptyHistoryRetry(_ context: OpenAIWebRefreshGateContext) -> Bool {
-        if context.force || context.accountDidChange { return false }
+        if context.force || context.accountDidChange {
+            return false
+        }
         guard let lastAttemptAt = context.lastAttemptAt,
               context.now.timeIntervalSince(lastAttemptAt) < context.refreshInterval
         else { return false }

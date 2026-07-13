@@ -6,6 +6,9 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
+#if os(macOS)
+import Security
+#endif
 
 public enum PathPurpose: Hashable, Sendable {
     case rpc
@@ -43,6 +46,10 @@ public struct PathDebugSnapshot: Equatable, Sendable {
 }
 
 public enum BinaryLocator {
+    /// Test-only override so parallel Gemini suites can point at fake binaries
+    /// without mutating process-wide `GEMINI_CLI_PATH`.
+    @TaskLocal public static var geminiBinaryPathOverrideForTesting: String?
+
     public static func resolveClaudeBinary(
         env: [String: String] = ProcessInfo.processInfo.environment,
         loginPATH: [String]? = LoginShellPathCache.shared.current,
@@ -127,12 +134,14 @@ public enum BinaryLocator {
             home: home)
     }
 
-    /// Well-known installation paths for the signed Codex desktop app CLI.
+    /// Well-known installation paths for the signed Codex CLI bundled with current and legacy desktop apps.
     /// Keep these after PATH lookups, but use them as a safe fallback when a PATH shim is blocked.
     static func codexWellKnownPaths(home: String) -> [String] {
         #if os(macOS)
         [
+            "\(home)/Applications/ChatGPT.app/Contents/Resources/codex",
             "\(home)/Applications/Codex.app/Contents/Resources/codex",
+            "/Applications/ChatGPT.app/Contents/Resources/codex",
             "/Applications/Codex.app/Contents/Resources/codex",
         ]
         #else
@@ -149,7 +158,12 @@ public enum BinaryLocator {
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
-        self.resolveBinary(
+        if let override = self.geminiBinaryPathOverrideForTesting,
+           fileManager.isExecutableFile(atPath: override)
+        {
+            return override
+        }
+        return self.resolveBinary(
             name: "gemini",
             overrideKey: "GEMINI_CLI_PATH",
             env: env,
@@ -370,6 +384,11 @@ public enum BinaryLocator {
 }
 
 public enum CodexLaunchPreflight {
+    struct GatekeeperAssessment {
+        let output: String
+        let exitStatus: Int32
+    }
+
     public static func isLaunchCandidateAllowed(path: String, fileManager: FileManager = .default) -> Bool {
         #if os(macOS)
         self.isLaunchCandidateAllowed(
@@ -377,6 +396,7 @@ public enum CodexLaunchPreflight {
             fileManager: fileManager,
             hasExtendedAttribute: self.hasExtendedAttribute,
             spctlAssessment: { self.spctlAssessment(path: $0) },
+            appSignatureIsTrusted: self.isExpectedOpenAIAppSignature,
             isMachOExecutable: self.isMachOExecutable)
         #else
         _ = path
@@ -386,23 +406,50 @@ public enum CodexLaunchPreflight {
     }
 
     #if os(macOS)
+    // Keep each security boundary injectable so preflight tests never inspect or launch host binaries.
+    // swiftlint:disable:next function_parameter_count
     static func isLaunchCandidateAllowed(
         path: String,
         fileManager: FileManager,
         hasExtendedAttribute: (String, String) -> Bool,
-        spctlAssessment: (String) -> String?,
+        spctlAssessment: (String) -> GatekeeperAssessment?,
+        appSignatureIsTrusted: (String) -> Bool,
         isMachOExecutable: (String) -> Bool) -> Bool
     {
         let realPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        let pathsToCheck = [path, realPath] + self.nativeCodexExecutableCandidates(
-            for: realPath,
-            fileManager: fileManager)
+        let sourceAppBundlePath = self.containingAppBundlePath(for: path)
+        let resolvedAppBundlePath = self.containingAppBundlePath(for: realPath)
+        let appBundlePath: String?
+        if let sourceAppBundlePath {
+            let resolvedSourceBundle = URL(fileURLWithPath: sourceAppBundlePath).resolvingSymlinksInPath().path
+            guard resolvedAppBundlePath == resolvedSourceBundle else { return false }
+            appBundlePath = resolvedSourceBundle
+        } else {
+            appBundlePath = resolvedAppBundlePath
+        }
+        let appBundlePaths = [sourceAppBundlePath, appBundlePath].compactMap(\.self)
+        let pathsToCheck = [path, realPath] + appBundlePaths + self
+            .nativeCodexExecutableCandidates(
+                for: realPath,
+                fileManager: fileManager)
 
         for candidate in Set(pathsToCheck) where hasExtendedAttribute(candidate, "com.apple.malware") {
             return false
         }
 
         let hasQuarantine = Set(pathsToCheck).contains { hasExtendedAttribute($0, "com.apple.quarantine") }
+        if let appBundlePath {
+            guard appSignatureIsTrusted(appBundlePath),
+                  let assessment = spctlAssessment(appBundlePath),
+                  assessment.exitStatus == 0,
+                  self.isAcceptedAssessment(assessment.output, path: appBundlePath),
+                  !self.isExplicitlyBlockedAssessment(assessment.output, path: appBundlePath)
+            else {
+                return false
+            }
+            return true
+        }
+
         guard let native = pathsToCheck.first(where: isMachOExecutable) else {
             return !hasQuarantine
         }
@@ -412,7 +459,20 @@ public enum CodexLaunchPreflight {
             return !hasQuarantine
         }
 
-        return !self.isExplicitlyBlockedAssessment(assessment, path: native)
+        return !self.isExplicitlyBlockedAssessment(assessment.output, path: native)
+    }
+
+    private static func containingAppBundlePath(for path: String) -> String? {
+        var candidate = URL(fileURLWithPath: path).standardizedFileURL
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                return candidate.path
+            }
+            let parent = candidate.deletingLastPathComponent()
+            guard parent.path != candidate.path else { return nil }
+            candidate = parent
+        }
+        return nil
     }
 
     private static func nativeCodexExecutableCandidates(for path: String, fileManager: FileManager) -> [String] {
@@ -475,7 +535,7 @@ public enum CodexLaunchPreflight {
             bytes == [0xCA, 0xFE, 0xBA, 0xBF]
     }
 
-    private static func spctlAssessment(path: String, timeout: TimeInterval = 2.0) -> String? {
+    private static func spctlAssessment(path: String, timeout: TimeInterval = 2.0) -> GatekeeperAssessment? {
         let spctlPath = "/usr/sbin/spctl"
         guard FileManager.default.isExecutableFile(atPath: spctlPath) else { return nil }
 
@@ -502,7 +562,44 @@ public enum CodexLaunchPreflight {
         }
 
         let data = output.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        return GatekeeperAssessment(output: text, exitStatus: process.terminationStatus)
+    }
+
+    private static func isExpectedOpenAIAppSignature(path: String) -> Bool {
+        let requirementText =
+            "identifier \"com.openai.codex\" and anchor apple generic " +
+            "and certificate leaf[subject.OU] = \"2DC432GLL2\""
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(
+            URL(fileURLWithPath: path) as CFURL,
+            SecCSFlags(),
+            &staticCode) == errSecSuccess,
+            let staticCode
+        else {
+            return false
+        }
+
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(
+            requirementText as CFString,
+            SecCSFlags(),
+            &requirement) == errSecSuccess
+        else {
+            return false
+        }
+
+        // Pin the publisher and bundle identity here; the Gatekeeper assessment below performs full bundle validation.
+        let validationFlags = SecCSFlags(rawValue: kSecCSBasicValidateOnly)
+        return SecStaticCodeCheckValidity(staticCode, validationFlags, requirement) == errSecSuccess
+    }
+
+    private static func isAcceptedAssessment(_ assessment: String, path: String) -> Bool {
+        self.assessmentDiagnosticText(assessment, path: path)
+            .split(whereSeparator: \.isNewline)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare("accepted") == .orderedSame
     }
 
     private static func isExplicitlyBlockedAssessment(_ assessment: String, path: String) -> Bool {
@@ -543,12 +640,22 @@ public enum CodexLaunchPreflight {
 }
 
 public enum ShellCommandLocator {
+    #if canImport(Darwin)
+    private static let shellSpawnFlags = Int16(POSIX_SPAWN_SETSID)
+    #else
+    private static let shellSpawnFlags: Int16 = 0x80 // glibc/musl POSIX_SPAWN_SETSID.
+    #endif
+
     static func test_runShellCommand(
         shell: String,
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
         self.runShellCommand(shell: shell, arguments: arguments, timeout: timeout)
+    }
+
+    static var test_shellSpawnFlags: Int16 {
+        self.shellSpawnFlags
     }
 
     public static func commandV(
@@ -626,20 +733,22 @@ public enum ShellCommandLocator {
         func fire() -> Bool {
             self.lock.lock()
             defer { self.lock.unlock() }
-            if self.fired { return false }
+            if self.fired {
+                return false
+            }
             self.fired = true
             return true
         }
     }
 
-    // swiftlint:disable cyclomatic_complexity
+    // swiftlint:disable cyclomatic_complexity function_body_length
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  The child is launched via `posix_spawn` with
-    /// `POSIX_SPAWN_SETPGROUP` so it becomes its own process-group leader *before*
-    /// `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach any
-    /// background helpers spawned by shell init, on both the timeout-kill path and
-    /// after normal completion.
+    /// `POSIX_SPAWN_SETSID` so it cannot take ownership of the caller's controlling
+    /// terminal. The new session also makes the child its own process-group leader
+    /// before `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach
+    /// background helpers spawned by shell init, both after timeout and normal exit.
     fileprivate static func runShellCommand(
         shell: String,
         arguments: [String],
@@ -682,8 +791,9 @@ public enum ShellCommandLocator {
         posix_spawn_file_actions_addclose(&fileActions, stderrFds.read)
         posix_spawn_file_actions_addclose(&fileActions, stderrFds.write)
 
-        // Build attributes: set the child's process group to itself in the child,
-        // before exec, eliminating the race that an after-launch setpgid(2) has.
+        // Build attributes: detach the child into a new session before exec. This
+        // prevents interactive shell startup from changing the caller's foreground
+        // process group while retaining a stable process group for cleanup.
         #if canImport(Darwin)
         var attr: posix_spawnattr_t?
         #else
@@ -695,8 +805,11 @@ public enum ShellCommandLocator {
             return nil
         }
         defer { posix_spawnattr_destroy(&attr) }
-        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
-        posix_spawnattr_setpgroup(&attr, 0) // 0 = child becomes its own pgid leader
+        guard posix_spawnattr_setflags(&attr, self.shellSpawnFlags) == 0 else {
+            close(stdoutFds.read); close(stdoutFds.write)
+            close(stderrFds.read); close(stderrFds.write)
+            return nil
+        }
 
         // Build argv (argv[0] is conventionally the executable path).
         var cArgs: [UnsafeMutablePointer<CChar>?] = []
@@ -743,7 +856,7 @@ public enum ShellCommandLocator {
             return nil
         }
 
-        // POSIX_SPAWN_SETPGROUP with pgroup=0 guarantees the child's pgid == its pid.
+        // POSIX_SPAWN_SETSID guarantees the child's session ID and pgid equal its pid.
         let pgid: pid_t = pid
 
         // Track EOF on each pipe so we can wait for full drain instead of sleeping.
@@ -761,7 +874,9 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                if stdoutDone.fire() { drainGroup.leave() }
+                if stdoutDone.fire() {
+                    drainGroup.leave()
+                }
             } else {
                 stdoutCollector.append(data)
             }
@@ -772,7 +887,9 @@ public enum ShellCommandLocator {
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                if stderrDone.fire() { drainGroup.leave() }
+                if stderrDone.fire() {
+                    drainGroup.leave()
+                }
             }
         }
 
@@ -799,8 +916,12 @@ public enum ShellCommandLocator {
             }
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() { drainGroup.leave() }
-            if stderrDone.fire() { drainGroup.leave() }
+            if stdoutDone.fire() {
+                drainGroup.leave()
+            }
+            if stderrDone.fire() {
+                drainGroup.leave()
+            }
             return nil
         }
 
@@ -817,13 +938,17 @@ public enum ShellCommandLocator {
         if drainGroup.wait(timeout: .now() + 0.6) != .success {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() { drainGroup.leave() }
-            if stderrDone.fire() { drainGroup.leave() }
+            if stdoutDone.fire() {
+                drainGroup.leave()
+            }
+            if stderrDone.fire() {
+                drainGroup.leave()
+            }
         }
         return stdoutCollector.drain()
     }
 
-    // swiftlint:enable cyclomatic_complexity
+    // swiftlint:enable cyclomatic_complexity function_body_length
 
     private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"
@@ -888,8 +1013,12 @@ public enum ShellCommandLocator {
     }
 
     private static func expandPath(_ raw: String, home: String) -> String {
-        if raw == "~" { return home }
-        if raw.hasPrefix("~/") { return home + String(raw.dropFirst()) }
+        if raw == "~" {
+            return home
+        }
+        if raw.hasPrefix("~/") {
+            return home + String(raw.dropFirst())
+        }
         return raw
     }
 }

@@ -59,6 +59,68 @@ struct AmpUsageParserTests {
     }
 
     @Test
+    func `parses percentage based amp free usage`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let output = """
+        Signed in as user@example.com (example)
+        Amp Free: 61% remaining today (resets daily) - https://ampcode.com/settings#amp-free
+        Individual credits: $9.86 remaining (set up automatic top-up to avoid running out)
+        Workspace example: $5.33 remaining (set up automatic top-up to avoid running out)
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.freeQuota == 100)
+        #expect(snapshot.freeUsed == 39)
+        #expect(snapshot.hourlyReplenishment == 0)
+        #expect(snapshot.windowHours == 24)
+        #expect(snapshot.individualCredits == 9.86)
+        #expect(snapshot.workspaceBalances == [AmpWorkspaceBalance(name: "example", remaining: 5.33)])
+        #expect(snapshot.accountEmail == "user@example.com")
+        #expect(snapshot.accountOrganization == "example")
+        #expect(usage.primary?.usedPercent == 39)
+        #expect(usage.primary?.windowMinutes == 1440)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == "resets daily")
+    }
+
+    @Test
+    func `legacy amp free usage keeps replenishment reset when percentage text also exists`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let output = """
+        Signed in as user@example.com
+        Amp Free: $6/$10 remaining (replenishes +$0.5/hour)
+        Amp Free: 61% remaining today (resets daily)
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.freeUsed == 4)
+        #expect(snapshot.freeResetDescription == nil)
+        #expect(usage.primary?.resetsAt == now.addingTimeInterval(8 * 3600))
+        #expect(usage.primary?.resetDescription == nil)
+    }
+
+    @Test
+    func `daily amp usage rejects cached rolling reset`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let legacy = try AmpUsageParser.parse(
+            displayText: "Signed in as user@example.com\nAmp Free: $6/$10 remaining (replenishes +$0.5/hour)",
+            now: now).toUsageSnapshot(now: now)
+        let daily = try AmpUsageParser.parse(
+            displayText: "Signed in as user@example.com\nAmp Free: 61% remaining today (resets daily)",
+            now: now).toUsageSnapshot(now: now)
+
+        let published = daily.backfillingResetTimes(from: legacy, now: now)
+
+        #expect(legacy.primary?.resetsAt == now.addingTimeInterval(8 * 3600))
+        #expect(published.primary?.resetsAt == nil)
+        #expect(published.primary?.resetDescription == "resets daily")
+    }
+
+    @Test
     func `parses individual credits without free tier usage`() throws {
         let output = """
         Signed in as paid@example.com

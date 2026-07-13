@@ -29,7 +29,7 @@ struct AdvancedPane: View {
                 Text(L("section_command_line"))
             } footer: {
                 if let status = self.cliStatus {
-                    Text(status)
+                    SettingsSectionFooter(status)
                 }
             }
 
@@ -46,7 +46,7 @@ struct AdvancedPane: View {
             } header: {
                 Text(L("section_privacy"))
             } footer: {
-                Text(L("keychain_access_caption"))
+                SettingsSectionFooter(L("keychain_access_caption"))
             }
 
             Section {

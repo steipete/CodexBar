@@ -334,7 +334,10 @@ private struct UsageMenuCardHeaderView: View {
                 Spacer()
                 if usesErrorLayout {
                     let showsCopyButton = liveSubtitle.style == .error && !liveSubtitle.text.isEmpty
-                    CopyIconButton(copyText: liveSubtitle.text, isHighlighted: self.isHighlighted)
+                    CopyIconButton(
+                        copyText: liveSubtitle.text,
+                        isHighlighted: self.isHighlighted,
+                        isInteractive: showsCopyButton)
                         .opacity(showsCopyButton ? 1 : 0)
                         .allowsHitTesting(showsCopyButton)
                         .accessibilityHidden(!showsCopyButton)
@@ -346,6 +349,7 @@ private struct UsageMenuCardHeaderView: View {
                                 Text(plan)
                             }
                             .buttonStyle(.plain)
+                            .menuCardInteractiveControl()
                             .accessibilityLabel(plan)
                         } else {
                             Text(plan)
@@ -392,6 +396,7 @@ private struct CopyIconButtonStyle: ButtonStyle {
 private struct CopyIconButton: View {
     let copyText: String
     let isHighlighted: Bool
+    let isInteractive: Bool
 
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
@@ -406,6 +411,7 @@ private struct CopyIconButton: View {
                 .frame(width: 18, height: 18)
         }
         .buttonStyle(CopyIconButtonStyle(isHighlighted: self.isHighlighted))
+        .menuCardInteractiveControl(isEnabled: self.isInteractive)
         .accessibilityLabel(self.didCopy ? L("Copied") : L("Copy error"))
     }
 
@@ -683,14 +689,18 @@ private struct CreditsBarContent: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     private var percentLeft: Double? {
-        if let progressPercent { return min(100, max(0, progressPercent)) }
+        if let progressPercent {
+            return min(100, max(0, progressPercent))
+        }
         guard let creditsRemaining else { return nil }
         let percent = (creditsRemaining / Self.fullScaleTokens) * 100
         return min(100, max(0, percent))
     }
 
     private var effectiveScaleText: String {
-        if let scaleText { return scaleText }
+        if let scaleText {
+            return scaleText
+        }
         let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
         return "\(scale) \(L("tokens"))"
     }
@@ -915,58 +925,7 @@ extension UsageMenuCardView.Model {
             progressColor: Self.progressColor(for: input.provider))
     }
 
-    private static func usageNotes(input: Input) -> [String] {
-        let subscriptionNotes = self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider)
-
-        if input.provider == .kiro {
-            return kiroUsageNotes(input: input) + subscriptionNotes
-        }
-
-        if input.provider == .kilo {
-            var notes = Self.kiloLoginDetails(snapshot: input.snapshot)
-            let resolvedSource = input.sourceLabel?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            if input.kiloAutoMode,
-               resolvedSource == "cli",
-               !notes.contains(where: { $0.caseInsensitiveCompare("Using CLI fallback") == .orderedSame })
-            {
-                notes.append(L("Using CLI fallback"))
-            }
-            return notes + subscriptionNotes
-        }
-
-        if input.provider == .mimo, input.snapshot != nil {
-            return Self.mimoUsageNotes(input: input, subscriptionNotes: subscriptionNotes)
-        }
-
-        if let notes = apiProviderUsageNotes(input: input) {
-            return notes + subscriptionNotes
-        }
-
-        if input.provider == .crossmodel, let crossModel = input.snapshot?.crossModelUsage {
-            return Self.crossModelSpendNotes(crossModel) + subscriptionNotes
-        }
-
-        guard input.provider == .openrouter,
-              let openRouter = input.snapshot?.openRouterUsage
-        else {
-            return subscriptionNotes
-        }
-
-        var notes = Self.openRouterSpendNotes(openRouter)
-        switch openRouter.keyQuotaStatus {
-        case .available:
-            break
-        case .noLimitConfigured:
-            notes.append(L("No limit set for the API key"))
-        case .unavailable:
-            notes.append(L("API key limit unavailable right now"))
-        }
-        return notes + subscriptionNotes
-    }
-
-    private static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
+    static func openRouterSpendNotes(_ usage: OpenRouterUsageSnapshot) -> [String] {
         var parts: [String] = []
         if let daily = usage.keyUsageDaily {
             parts.append("\(L("Today")): \(Self.openRouterCurrencyString(daily))")
@@ -989,7 +948,9 @@ extension UsageMenuCardView.Model {
         metadata: ProviderMetadata,
         accountIsAuthoritative: Bool) -> String
     {
-        if let email = snapshot?.accountEmail(for: provider), !email.isEmpty { return email }
+        if let email = snapshot?.accountEmail(for: provider), !email.isEmpty {
+            return email
+        }
         if metadata.usesAccountFallback || accountIsAuthoritative,
            let email = account.email, !email.isEmpty
         {
@@ -1061,7 +1022,7 @@ extension UsageMenuCardView.Model {
         self.kiloLoginParts(snapshot: snapshot).pass
     }
 
-    private static func kiloLoginDetails(snapshot: UsageSnapshot?) -> [String] {
+    static func kiloLoginDetails(snapshot: UsageSnapshot?) -> [String] {
         self.kiloLoginParts(snapshot: snapshot).details
     }
 
@@ -1231,7 +1192,7 @@ extension UsageMenuCardView.Model {
                 tertiaryDetailText = detail
             }
             // Perplexity purchased credits don't reset; show balance without "Resets" prefix.
-            let opusResetText: String? = input.provider == .perplexity
+            let opusResetText: String? = input.provider == .perplexity || input.provider == .sub2api
                 ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 : Self.resetText(for: opus, style: input.resetTimeDisplayStyle, now: input.now)
             let tertiaryPaceDetail = Self.resetWindowPaceDetail(window: opus, input: input)
@@ -1319,12 +1280,14 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailLeft = detail
         }
-        if input.provider == .warp || input.provider == .kilo || input.provider == .mimo || input.provider == .deepseek
-            || input.provider == .qoder || input.provider == .mistral || input.provider == .litellm,
-            let detail = primary.resetDescription,
-            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if [.warp, .kilo, .mimo, .deepseek, .qoder, .mistral, .litellm].contains(input.provider),
+           let detail = primary.resetDescription,
+           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
+        }
+        if input.provider == .sub2api {
+            primaryResetText = primary.resetDescription
         }
         if let balance = Self.poeBalanceDetailText(input: input) {
             primaryDetailText = balance
@@ -1342,7 +1305,9 @@ extension UsageMenuCardView.Model {
            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             primaryDetailText = detail
-            if input.provider == .manus { primaryResetText = nil }
+            if input.provider == .manus {
+                primaryResetText = nil
+            }
         }
         if [.warp, .kilo, .mimo, .deepseek, .qoder, .mistral, .litellm].contains(input.provider),
            primary.resetsAt == nil
@@ -1465,6 +1430,9 @@ extension UsageMenuCardView.Model {
             if weekly.resetsAt == nil {
                 weeklyResetText = nil
             }
+        }
+        if input.provider == .sub2api {
+            weeklyResetText = weekly.resetDescription
         }
         if input.provider == .kiro,
            let kiroUsage = input.snapshot?.kiroUsage,

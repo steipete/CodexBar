@@ -54,7 +54,9 @@ extension CodexAccountScopedRefreshTests {
         await store.refreshProvider(.codex, allowDisabled: true)
 
         #expect(store.snapshots[.codex]?.primary?.usedPercent == 42)
-        #expect(store.codexAccountSnapshots.isEmpty)
+        #expect(store.codexAccountSnapshots.count == 1)
+        #expect(store.codexAccountSnapshots.first?.account.email == "live-collapse@example.com")
+        #expect(store.codexAccountSnapshots.first?.snapshot?.primary?.usedPercent == 42)
     }
 
     @Test
@@ -156,7 +158,7 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
-    func `startup snapshot hydration refreshes managed auth fingerprint from disk`() throws {
+    func `startup snapshot hydration refreshes managed auth fingerprint with composite disk owner`() throws {
         let settings = self.makeSettingsStore(
             suite: "CodexAccountScopedRefreshTests-startup-managed-auth-hydration")
         settings.refreshFrequency = .manual
@@ -168,7 +170,8 @@ extension CodexAccountScopedRefreshTests {
         try Self.writeCodexAuthFile(
             homeURL: managedHome,
             email: "managed-startup@example.com",
-            plan: "Pro")
+            plan: "Pro",
+            accountId: "acct-managed-startup")
         let oldFingerprint = try #require(CodexAuthFingerprint.fingerprint(homePath: managedHome.path))
         let managedAccount = ManagedCodexAccount(
             id: accountID,
@@ -193,11 +196,13 @@ extension CodexAccountScopedRefreshTests {
         let staleAccount = try #require(settings.codexVisibleAccountProjection.visibleAccounts
             .first { $0.storedAccountID == accountID })
         #expect(staleAccount.authFingerprint == oldFingerprint)
+        #expect(staleAccount.workspaceAccountID == "acct-managed-startup")
 
         try Self.writeCodexAuthFile(
             homeURL: managedHome,
             email: "managed-startup@example.com",
-            plan: "Team")
+            plan: "Team",
+            accountId: "acct-managed-startup")
         let newFingerprint = try #require(CodexAuthFingerprint.fingerprint(homePath: managedHome.path))
         #expect(newFingerprint != oldFingerprint)
 
@@ -221,7 +226,7 @@ extension CodexAccountScopedRefreshTests {
                 error: nil,
                 sourceLabel: "cached"),
         ])
-        #expect(snapshotStore.load(for: [staleAccount]).isEmpty)
+        #expect(snapshotStore.load(for: [staleAccount]).count == 1)
 
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
@@ -235,5 +240,43 @@ extension CodexAccountScopedRefreshTests {
         #expect(hydrated.id == freshAccount.id)
         #expect(hydrated.account.authFingerprint == newFingerprint)
         #expect(hydrated.snapshot?.primary?.usedPercent == 64)
+    }
+
+    @Test
+    func `snapshot hydration never crosses members of the same provider workspace`() {
+        let snapshotURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-provider-member-isolation-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: snapshotURL) }
+
+        let priorAccount = CodexVisibleAccount(
+            id: "shared-row-id",
+            email: "first-member@example.com",
+            workspaceAccountID: "workspace-shared-by-members",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
+        let otherMember = CodexVisibleAccount(
+            id: "shared-row-id",
+            email: "second-member@example.com",
+            workspaceAccountID: "workspace-shared-by-members",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
+        let snapshotStore = FileCodexAccountUsageSnapshotStore(fileURL: snapshotURL)
+        snapshotStore.store([
+            CodexAccountUsageSnapshot(
+                account: priorAccount,
+                snapshot: self.codexSnapshot(email: priorAccount.email, usedPercent: 64),
+                error: nil,
+                sourceLabel: "cached"),
+        ])
+
+        #expect(snapshotStore.load(for: [otherMember]).isEmpty)
     }
 }

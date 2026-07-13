@@ -93,8 +93,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard-index: [0, 1, 2, 3]
-        shard-count: [4]
+        # Two shards amortize SwiftPM's per-shard discovery/cold build.
+        # Each shard remains within the 50-minute Swift Test timeout.
+        shard-index: [0, 1]
+        shard-count: [2]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -123,11 +125,12 @@ jobs:
         run: ./Scripts/lint.sh lint-macos
 
       - name: Swift Test
-        # Intel cold builds can spend ~26 minutes compiling the full test target before isolated suites start.
+        # Keep small batches to reduce SwiftPM process overhead without returning to one aggregate run.
         timeout-minutes: 50
         run: |
-          CODEXBAR_TEST_GROUP_SIZE=1 \
+          CODEXBAR_TEST_GROUP_SIZE=4 \
             CODEXBAR_TEST_SUITE_TIMEOUT=120 \
+            CODEXBAR_TEST_RETRY_NON_TIMEOUT_FAILURES=0 \
             CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }} \
             CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
             ./Scripts/test.sh
@@ -141,12 +144,13 @@ jobs:
           RUNS_LINT_MACOS: ${{ matrix.shard-index == 0 }}
         run: |
           set -euo pipefail
+          display_shard_index=$((SHARD_INDEX + 1))
           xcode_version="$(/usr/bin/xcodebuild -version 2>/dev/null | tr '\n' ' ' || true)"
           {
             printf '### macOS Swift shard\n\n'
             printf '| Field | Value |\n'
             printf '| --- | --- |\n'
-            printf '| Shard | `%s / %s` |\n' "$SHARD_INDEX" "$SHARD_COUNT"
+            printf '| Shard | `%s / %s` |\n' "$display_shard_index" "$SHARD_COUNT"
             printf '| Runner | `%s` |\n' "${RUNNER_NAME:-unknown}"
             printf '| Xcode | `%s` |\n' "${xcode_version:-unknown}"
             printf '| Runs lint-macos | `%s` |\n' "$RUNS_LINT_MACOS"

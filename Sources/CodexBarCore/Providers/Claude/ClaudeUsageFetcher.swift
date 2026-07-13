@@ -712,11 +712,15 @@ extension ClaudeUsageFetcher {
     // MARK: - Parsing helpers
 
     public static func parse(json: Data) -> ClaudeUsageSnapshot? {
-        guard let output = String(data: json, encoding: .utf8) else { return nil }
-        return try? Self.parse(output: output)
+        self.parse(json: json, now: .init())
     }
 
-    private static func parse(output: String) throws -> ClaudeUsageSnapshot {
+    package static func parse(json: Data, now: Date) -> ClaudeUsageSnapshot? {
+        guard let output = String(data: json, encoding: .utf8) else { return nil }
+        return try? Self.parse(output: output, now: now)
+    }
+
+    private static func parse(output: String, now: Date) throws -> ClaudeUsageSnapshot {
         guard
             let data = output.data(using: .utf8),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -745,7 +749,10 @@ extension ClaudeUsageFetcher {
             return RateWindow(
                 usedPercent: pct,
                 windowMinutes: windowMinutes,
-                resetsAt: Self.parseReset(text: resetText),
+                resetsAt: ClaudeStatusProbe.parseResetDate(
+                    from: resetText,
+                    now: now,
+                    expectedWindow: TimeInterval(windowMinutes * 60)),
                 resetDescription: resetText)
         }
 
@@ -767,53 +774,23 @@ extension ClaudeUsageFetcher {
         let org = (rawOrg?.isEmpty ?? true) ? nil : rawOrg
         let loginMethod = (obj["login_method"] as? String)?.trimmingCharacters(
             in: .whitespacesAndNewlines)
-        let opusWindow: RateWindow? = {
-            let candidates = firstWindowDict([
+        let opusWindow = makeWindow(
+            firstWindowDict([
                 "week_sonnet",
                 "week_sonnet_only",
                 "week_opus",
-            ])
-            guard let opus = candidates else { return nil }
-            let pct = (opus["pct_used"] as? NSNumber)?.doubleValue ?? 0
-            let resets = opus["resets"] as? String
-            return RateWindow(
-                usedPercent: pct,
-                windowMinutes: Self.weeklyWindowMinutes,
-                resetsAt: Self.parseReset(text: resets),
-                resetDescription: resets)
-        }()
+            ]),
+            windowMinutes: Self.weeklyWindowMinutes)
         return ClaudeUsageSnapshot(
             primary: session,
             secondary: weekAll,
             opus: opusWindow,
             providerCost: nil,
-            updatedAt: Date(),
+            updatedAt: now,
             accountEmail: email,
             accountOrganization: org,
             loginMethod: loginMethod,
             rawText: output)
-    }
-
-    private static func parseReset(text: String?) -> Date? {
-        guard let text, !text.isEmpty else { return nil }
-        let parts = text.split(separator: "(")
-        let timePart = parts.first?.trimmingCharacters(in: .whitespaces)
-        let tzPart =
-            parts.count > 1
-                ? parts[1].replacingOccurrences(of: ")", with: "").trimmingCharacters(in: .whitespaces)
-                : nil
-        let tz = tzPart.flatMap(TimeZone.init(identifier:))
-        let formats = ["ha", "h:mma", "MMM d 'at' ha", "MMM d 'at' h:mma"]
-        for format in formats {
-            let df = DateFormatter()
-            df.locale = Locale(identifier: "en_US_POSIX")
-            df.timeZone = tz ?? TimeZone.current
-            df.dateFormat = format
-            if let t = timePart, let date = df.date(from: t) {
-                return date
-            }
-        }
-        return nil
     }
 
     // MARK: - Public API
@@ -1329,7 +1306,10 @@ extension ClaudeUsageFetcher {
         return try Self.makeSnapshot(from: snap)
     }
 
-    private static func makeSnapshot(from snap: ClaudeStatusSnapshot) throws -> ClaudeUsageSnapshot {
+    private static func makeSnapshot(
+        from snap: ClaudeStatusSnapshot,
+        now: Date = .init()) throws -> ClaudeUsageSnapshot
+    {
         guard let sessionPctLeft = snap.sessionPercentLeft else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
@@ -1343,6 +1323,7 @@ extension ClaudeUsageFetcher {
                 windowMinutes: windowMinutes,
                 resetsAt: ClaudeStatusProbe.parseResetDate(
                     from: resetClean,
+                    now: now,
                     expectedWindow: TimeInterval(windowMinutes * 60)),
                 resetDescription: resetClean)
         }
@@ -1366,7 +1347,7 @@ extension ClaudeUsageFetcher {
             opus: opus,
             extraRateWindows: snap.extraRateWindows,
             providerCost: nil,
-            updatedAt: Date(),
+            updatedAt: now,
             accountEmail: snap.accountEmail,
             accountOrganization: snap.accountOrganization,
             loginMethod: snap.loginMethod,

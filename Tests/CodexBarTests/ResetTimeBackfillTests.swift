@@ -139,4 +139,37 @@ final class ResetTimeBackfillTests: XCTestCase {
 
         XCTAssertNil(result.primary?.resetsAt)
     }
+
+    func test_snapshotBackfillKeepsOtherProviderResetWhenDescriptionChanges() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let reset = now.addingTimeInterval(3600)
+        let identity = ProviderIdentitySnapshot(
+            providerID: .claude,
+            accountEmail: "user@example.com",
+            accountOrganization: nil,
+            loginMethod: nil)
+        let cached = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: reset,
+                resetDescription: "40 / 100 used"),
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(-300),
+            identity: identity)
+        let fresh = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: "50 / 100 used"),
+            secondary: nil,
+            updatedAt: now,
+            identity: identity)
+
+        let result = fresh.backfillingResetTimes(from: cached, now: now)
+
+        XCTAssertEqual(result.primary?.resetsAt, reset)
+        XCTAssertEqual(result.primary?.resetDescription, "50 / 100 used")
+    }
 }

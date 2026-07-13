@@ -10,6 +10,7 @@ enum ProviderChoice: String, AppEnum {
     case alibaba
     case alibabatokenplan
     case antigravity
+    case cursor
     case zai
     case copilot
     case devin
@@ -29,6 +30,7 @@ enum ProviderChoice: String, AppEnum {
         .alibaba: DisplayRepresentation(title: "Alibaba"),
         .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
+        .cursor: DisplayRepresentation(title: "Cursor"),
         .zai: DisplayRepresentation(title: "z.ai"),
         .copilot: DisplayRepresentation(title: "Copilot"),
         .devin: DisplayRepresentation(title: "Devin"),
@@ -48,6 +50,7 @@ enum ProviderChoice: String, AppEnum {
         case .alibaba: .alibaba
         case .alibabatokenplan: .alibabatokenplan
         case .antigravity: .antigravity
+        case .cursor: .cursor
         case .zai: .zai
         case .copilot: .copilot
         case .devin: .devin
@@ -71,7 +74,7 @@ enum ProviderChoice: String, AppEnum {
         case .alibaba: self = .alibaba
         case .alibabatokenplan: self = .alibabatokenplan
         case .antigravity: self = .antigravity
-        case .cursor: return nil // Cursor not yet supported in widgets
+        case .cursor: self = .cursor
         case .opencode: self = .opencode
         case .opencodego: self = .opencodego
         case .zai: self = .zai
@@ -95,6 +98,7 @@ enum ProviderChoice: String, AppEnum {
         case .openrouter: return nil // OpenRouter not yet supported in widgets
         case .crossmodel: return nil // CrossModel not yet supported in widgets
         case .clawrouter: return nil // ClawRouter not yet supported in widgets
+        case .sub2api: return nil // sub2api not yet supported in widgets
         case .wayfinder: return nil // Wayfinder not yet supported in widgets
         case .elevenlabs: return nil // ElevenLabs not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets

@@ -134,7 +134,14 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
     let highlightState: MenuCardHighlightState
     private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
-    private var hasClickRecognizer = false
+    private var containsInteractiveControls: Bool
+    let interactiveRegionStore: MenuCardInteractiveRegionStore?
+    private var isPressed = false
+    private var isForwardingHostedControlPress = false
+    #if DEBUG
+    private var testForwardedHostedControlMouseDown = false
+    private var testForwardedHostedControlMouseUp = false
+    #endif
 
     override var allowsVibrancy: Bool {
         true
@@ -150,28 +157,34 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         rootView: Content,
         highlightState: MenuCardHighlightState,
         allowsMenuHighlight: Bool,
+        containsInteractiveControls: Bool = false,
+        interactiveRegionStore: MenuCardInteractiveRegionStore? = nil,
         onClick: (() -> Void)? = nil)
     {
         self.highlightState = highlightState
         self.allowsMenuHighlight = allowsMenuHighlight
+        self.containsInteractiveControls = containsInteractiveControls
+        self.interactiveRegionStore = interactiveRegionStore
         self.onClick = onClick
         super.init(rootView: rootView)
-        if onClick != nil {
-            self.installClickRecognizer()
-        }
     }
 
     /// Reuses this hosting view for a rebuilt card with the same identity: the replaced
     /// `rootView` is diffed in place by SwiftUI instead of tearing down and recreating the
     /// hosting view and its graph. Callers must construct `rootView` around this view's own
     /// `highlightState` so menu hover highlighting keeps driving the rendered content.
-    func prepareForReuse(rootView: Content, allowsMenuHighlight: Bool, onClick: (() -> Void)?) {
+    func prepareForReuse(
+        rootView: Content,
+        allowsMenuHighlight: Bool,
+        containsInteractiveControls: Bool = false,
+        onClick: (() -> Void)?)
+    {
         self.rootView = rootView
         self.allowsMenuHighlight = allowsMenuHighlight
+        self.containsInteractiveControls = containsInteractiveControls
         self.onClick = onClick
-        if onClick != nil, !self.hasClickRecognizer {
-            self.installClickRecognizer()
-        }
+        self.isPressed = false
+        self.isForwardingHostedControlPress = false
     }
 
     /// `NSMenu` tracking consumes keyboard events before they reach a menu item's custom view, so
@@ -190,16 +203,11 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         return true
     }
 
-    private func installClickRecognizer() {
-        let recognizer = NSClickGestureRecognizer(target: self, action: #selector(self.handlePrimaryClick(_:)))
-        recognizer.buttonMask = 0x1
-        self.addGestureRecognizer(recognizer)
-        self.hasClickRecognizer = true
-    }
-
     required init(rootView: Content) {
         self.highlightState = MenuCardHighlightState()
         self.allowsMenuHighlight = false
+        self.containsInteractiveControls = false
+        self.interactiveRegionStore = nil
         self.onClick = nil
         super.init(rootView: rootView)
     }
@@ -213,9 +221,90 @@ final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, Menu
         true
     }
 
-    @objc private func handlePrimaryClick(_ recognizer: NSClickGestureRecognizer) {
-        guard recognizer.state == .ended else { return }
-        self.onClick?()
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let descendant = super.hitTest(point)
+        if let descendant {
+            var current: NSView? = descendant
+            while let view = current, view !== self {
+                if view is NSButton || view is NSControl {
+                    return descendant
+                }
+                current = view.superview
+            }
+            if self.hitsHostedInteractiveControl(at: point) {
+                return descendant
+            }
+            if descendant !== self, self.onClick != nil {
+                return self
+            }
+        }
+        return descendant
+    }
+
+    private func locationInView(for event: NSEvent) -> NSPoint {
+        guard self.window != nil else {
+            return event.locationInWindow
+        }
+        return self.convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.type == .leftMouseDown, self.onClick != nil else {
+            super.mouseDown(with: event)
+            return
+        }
+        let localPoint = self.locationInView(for: event)
+        if self.beginPrimaryPress(at: localPoint) {
+            #if DEBUG
+            self.testForwardedHostedControlMouseDown = true
+            #endif
+            super.mouseDown(with: event)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard event.type == .leftMouseUp, self.onClick != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        let result = self.endPrimaryPress(at: self.locationInView(for: event))
+        if result.forwardToHostedControl {
+            #if DEBUG
+            self.testForwardedHostedControlMouseUp = true
+            #endif
+            super.mouseUp(with: event)
+            return
+        }
+        if result.invokeRowAction {
+            self.onClick?()
+        }
+    }
+
+    /// Returns whether AppKit should forward the press into a nested SwiftUI control.
+    private func beginPrimaryPress(at point: NSPoint) -> Bool {
+        if self.hitsHostedInteractiveControl(at: point) {
+            self.isForwardingHostedControlPress = true
+            return true
+        }
+        self.isPressed = self.bounds.contains(point)
+        return false
+    }
+
+    private func endPrimaryPress(at point: NSPoint) -> (forwardToHostedControl: Bool, invokeRowAction: Bool) {
+        if self.isForwardingHostedControlPress {
+            self.isForwardingHostedControlPress = false
+            return (true, false)
+        }
+        defer { self.isPressed = false }
+        return (false, self.isPressed && self.bounds.contains(point))
+    }
+
+    private func hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
+        self.containsInteractiveControls &&
+            (self.interactiveRegionStore?.contains(
+                point,
+                hostingBounds: self.bounds,
+                fittedSize: self.fittingSize) == true)
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
@@ -289,7 +378,12 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
         self.titleField.stringValue
     }
 
+    override func isAccessibilityEnabled() -> Bool {
+        self.isRowEnabled
+    }
+
     override func accessibilityPerformPress() -> Bool {
+        guard self.isRowEnabled else { return false }
         guard let onClick = self.onClick else {
             return super.accessibilityPerformPress()
         }
@@ -470,18 +564,66 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     }
 }
 
+#if DEBUG
+extension MenuCardItemHostingView {
+    var _test_forwardedHostedControlEvents: (mouseDown: Bool, mouseUp: Bool) {
+        (self.testForwardedHostedControlMouseDown, self.testForwardedHostedControlMouseUp)
+    }
+
+    func _test_hitsHostedInteractiveControl(at point: NSPoint) -> Bool {
+        self.hitsHostedInteractiveControl(at: point)
+    }
+
+    func _test_simulateRuntimeClick(at point: NSPoint? = nil) -> Bool {
+        let clickPoint = point ?? NSPoint(x: self.bounds.midX, y: self.bounds.midY)
+        guard let onClick = self.onClick else { return false }
+        guard !self.beginPrimaryPress(at: clickPoint) else {
+            _ = self.endPrimaryPress(at: clickPoint)
+            return false
+        }
+        let result = self.endPrimaryPress(at: clickPoint)
+        guard result.invokeRowAction else { return false }
+        onClick()
+        return true
+    }
+}
+#endif
+
 struct MenuCardSectionContainerView<Content: View>: View {
     @Bindable var highlightState: MenuCardHighlightState
     let showsSubmenuIndicator: Bool
     let submenuIndicatorAlignment: Alignment
     let submenuIndicatorTopPadding: CGFloat
     var refreshMonitor: MenuCardRefreshMonitor?
+    var interactiveRegionStore: MenuCardInteractiveRegionStore?
     @ViewBuilder let content: () -> Content
+
+    init(
+        highlightState: MenuCardHighlightState,
+        showsSubmenuIndicator: Bool,
+        submenuIndicatorAlignment: Alignment,
+        submenuIndicatorTopPadding: CGFloat,
+        refreshMonitor: MenuCardRefreshMonitor?,
+        interactiveRegionStore: MenuCardInteractiveRegionStore? = nil,
+        @ViewBuilder content: @escaping () -> Content)
+    {
+        self.highlightState = highlightState
+        self.showsSubmenuIndicator = showsSubmenuIndicator
+        self.submenuIndicatorAlignment = submenuIndicatorAlignment
+        self.submenuIndicatorTopPadding = submenuIndicatorTopPadding
+        self.refreshMonitor = refreshMonitor
+        self.interactiveRegionStore = interactiveRegionStore
+        self.content = content
+    }
 
     var body: some View {
         self.content()
             .environment(\.menuItemHighlighted, self.highlightState.isHighlighted)
             .environment(\.menuCardRefreshMonitor, self.refreshMonitor)
+            .coordinateSpace(name: MenuCardInteractiveRegionPreferenceKey.coordinateSpaceName)
+            .onPreferenceChange(MenuCardInteractiveRegionPreferenceKey.self) { regions in
+                self.interactiveRegionStore?.regions = regions
+            }
             .foregroundStyle(MenuHighlightStyle.primary(self.highlightState.isHighlighted))
             .background(alignment: .topLeading) {
                 if self.highlightState.isHighlighted {
@@ -500,5 +642,44 @@ struct MenuCardSectionContainerView<Content: View>: View {
                         .padding(.trailing, 10)
                 }
             }
+    }
+}
+
+@MainActor
+@Observable
+final class MenuCardInteractiveRegionStore {
+    var regions: [CGRect] = []
+
+    func contains(_ point: CGPoint, hostingBounds: CGRect, fittedSize: CGSize) -> Bool {
+        // NSHostingView centers intrinsic-height SwiftUI content in the menu item's padded frame.
+        // Preference rectangles use the SwiftUI root's coordinates, so remove that AppKit offset.
+        let contentOrigin = CGPoint(
+            x: max(0, (hostingBounds.width - fittedSize.width) / 2),
+            y: max(0, (hostingBounds.height - fittedSize.height) / 2))
+        let contentPoint = CGPoint(x: point.x - contentOrigin.x, y: point.y - contentOrigin.y)
+        return self.regions.contains { $0.contains(contentPoint) }
+    }
+}
+
+struct MenuCardInteractiveRegionPreferenceKey: PreferenceKey {
+    static let coordinateSpaceName = "MenuCardInteractiveRegion"
+    static let defaultValue: [CGRect] = []
+
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+extension View {
+    func menuCardInteractiveControl(isEnabled: Bool = true) -> some View {
+        self.background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: MenuCardInteractiveRegionPreferenceKey.self,
+                    value: isEnabled
+                        ? [proxy.frame(in: .named(MenuCardInteractiveRegionPreferenceKey.coordinateSpaceName))]
+                        : [])
+            }
+        }
     }
 }

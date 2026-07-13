@@ -79,7 +79,8 @@ Admin API key setup:
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
-- Successful OAuth login enables Claude and selects OAuth as the usage source.
+- Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
+  remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
   Max/Pro/Team/Enterprise. When a Max `rate_limit_tier` carries a usage multiplier
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".

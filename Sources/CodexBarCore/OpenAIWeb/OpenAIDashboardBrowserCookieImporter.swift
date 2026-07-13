@@ -675,7 +675,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
-    private func fetchSignedInEmailFromAPI(
+    func fetchSignedInEmailFromAPI(
         cookies: [HTTPCookie],
         deadline: Date?,
         logger: (String) -> Void) async throws -> String?
@@ -695,14 +695,13 @@ public struct OpenAIDashboardBrowserCookieImporter {
         for urlString in endpoints {
             let requestTimeout = try Self.remainingTimeout(until: deadline, cappedAt: 10)
             guard let url = URL(string: urlString) else { continue }
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = requestTimeout
-            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            let request = OpenAIDashboardFetcher.dashboardIdentityAPIRequest(
+                url: url,
+                cookieHeader: cookieHeader,
+                timeout: requestTimeout)
 
             do {
-                let (data, response) = try await ProviderHTTPClient.shared.data(for: request)
+                let (data, response) = try await CodexAuthenticatedHTTPTransport.current.data(for: request)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? -1
                 logger("API \(url.host ?? "chatgpt.com") \(url.path) status=\(status)")
                 guard status >= 200, status < 300 else { continue }

@@ -268,7 +268,8 @@
 "Select the IDE to monitor" = "監視する IDE を選択";
 "Session quota notifications" = "セッションクォータ通知";
 "Session tokens" = "セッショントークン";
-"Settings" = "設定";
+"provider_section_connection" = "接続";
+"provider_section_menu_bar" = "メニューバー";
 "Show Codex Credits and Claude Extra usage sections in the menu." = "Codex クレジットと Claude 追加使用量のセクションをメニューに表示します。";
 "Show Debug Settings" = "デバッグ設定を表示";
 "Show all token accounts" = "すべてのトークンアカウントを表示";
@@ -393,7 +394,14 @@
 /* General Pane */
 "section_system" = "システム";
 "section_usage" = "使用量";
-"section_automation" = "自動化";
+"section_refreshing" = "更新";
+"section_alerts" = "アラート";
+"section_celebrations" = "お祝い";
+"section_icon" = "アイコン";
+"section_combined_icon" = "統合アイコン";
+"section_animation" = "アニメーション";
+"section_content" = "メニューの内容";
+"section_agent_sessions" = "エージェントセッション";
 "language_title" = "言語";
 "language_subtitle" = "表示言語を変更します。完全に反映するにはアプリの再起動が必要です。";
 "language_system" = "システム";
@@ -415,7 +423,6 @@
 "language_polish" = "ポーランド語";
 "start_at_login_title" = "ログイン時に起動";
 "start_at_login_subtitle" = "Mac の起動時に CodexBar を自動的に開きます。";
-"show_cost_summary" = "コスト概要を表示";
 "show_cost_summary_subtitle" = "ローカルの使用ログを読み取り、今日分と選択した履歴期間をメニューに表示します。";
 "cost_summary_style_title" = "表示スタイル";
 "cost_summary_style_inline" = "インラインのみ";
@@ -430,17 +437,16 @@
 "cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
 "cost_comparison_periods_title" = "短い比較期間を表示";
 "cost_comparison_periods_subtitle" = "選択した履歴期間に収まる場合、7日、30日、90日の合計を追加します。これらの合計には同じローカルスキャンを再利用します。";
-"refresh_cadence_title" = "更新間隔";
-"refresh_cadence_subtitle" = "CodexBar がバックグラウンドでプロバイダをポーリングする頻度です。";
+"refresh_interval_title" = "更新間隔";
 "manual_refresh_hint" = "自動更新はオフです。メニューの「更新」コマンドを使用してください。";
 "refresh_on_open_title" = "メニューを開いたときに更新";
 "refresh_on_open_subtitle" = "メニューを開くたびに、すべてのプロバイダーの最新の使用状況を取得します。";
 "check_provider_status_title" = "プロバイダのステータスを確認";
 "check_provider_status_subtitle" = "OpenAI/Claude のステータスページと Gemini/Antigravity 用の Google Workspace をポーリングし、障害情報をアイコンとメニューに表示します。";
-"session_quota_notifications_title" = "セッションクォータ通知";
 "session_quota_notifications_subtitle" = "5 時間のセッションクォータが 0% になったとき、および再び利用可能になったときに通知します。";
-"quota_warning_notifications_title" = "クォータ警告通知";
+"quota_depleted_title" = "クォータの枯渇と回復";
 "quota_warning_notifications_subtitle" = "セッションまたは週間クォータの残量が設定したしきい値を下回ったときに警告します。";
+"threshold_warnings_title" = "しきい値警告";
 "quota_warnings_title" = "クォータ警告";
 "quota_warning_session" = "セッション";
 "quota_warning_session_capitalized" = "セッション";
@@ -451,6 +457,12 @@
 "quota_warning_notification_body_with_account" = "アカウント %1$@。残り %2$@。設定した %3$d%% の%4$@警告しきい値に達しました。";
 "predictive_pace_warnings_title" = "予測ペース警告";
 "predictive_pace_warnings_subtitle" = "Codex と Claude で、セッションまたは週間のペースではリセット前にクォータが尽きる可能性がある場合に警告します。";
+"confetti_on_reset_title" = "リセット時の紙吹雪";
+"confetti_on_reset_subtitle" = "使用量がリセットされたときに全画面の紙吹雪を再生します。";
+"confetti_option_off" = "オフ";
+"confetti_option_session" = "セッションのリセット";
+"confetti_option_weekly" = "週間リセット";
+"confetti_option_both" = "両方";
 "predictive_pace_warning_notification_title" = "%1$@ の%2$@ペース警告";
 "predictive_pace_warning_notification_body" = "現在のペースでは、リセット前にこのクォータがあと %1$@ で尽きる可能性があります。";
 "predictive_pace_warning_notification_body_with_account" = "アカウント %1$@。現在のペースでは、リセット前にこのクォータがあと %2$@ で尽きる可能性があります。";
@@ -463,6 +475,8 @@
 "quota_warning_sound" = "通知音を再生";
 "quota_warning_onscreen_alert" = "画面上にテキストアラートを表示";
 "quota_warning_provider_inherits" = "ここでウインドウをカスタマイズしない限り、グローバルのクォータ警告設定を使用します。";
+"quota_warning_provider_disabled" = "クォータ警告通知と使用量バーのマーカーはオフです。保存済みの設定を編集するには、どちらかをオンにしてください。";
+"quota_warning_provider_markers_only" = "クォータ警告通知はグローバルでオフです。これらの設定は引き続き使用量バーのマーカーを制御します。";
 "quota_warning_global" = "グローバル";
 "quota_warning_customize_thresholds" = "%@ のしきい値をカスタマイズ";
 "quota_warning_enable_warnings" = "%@ の警告を有効にする";
@@ -480,7 +494,9 @@
 /* Tab titles */
 "tab_general" = "一般";
 "tab_providers" = "プロバイダ";
-"tab_display" = "表示";
+"tab_notifications" = "通知";
+"tab_menu_bar" = "メニューバー";
+"tab_menu" = "メニュー";
 "tab_advanced" = "詳細";
 "tab_about" = "情報";
 "tab_debug" = "デバッグ";
@@ -511,34 +527,36 @@
 "primary_api_key_limit" = "プライマリ（API キー上限）";
 
 /* Display Pane */
-"section_menu_bar" = "メニューバー";
+"menu_bar_style_title" = "メニューバーのスタイル";
+"menu_bar_style_subtitle" = "メニューバー項目の表示方法です。";
+"menu_bar_style_critters" = "クリッター";
+"menu_bar_style_bars" = "メーターバー";
+"menu_bar_style_icon_percent" = "アイコンとパーセント";
+"switcher_rows_title" = "切替バーの表示";
+"switcher_rows_icons" = "プロバイダアイコン";
+"switcher_rows_progress" = "週間進捗";
+"usage_bars_fill_title" = "使用量バーの表示";
+"usage_bars_fill_remaining" = "残量として";
+"usage_bars_fill_used" = "消費量として";
+"reset_times_title" = "リセット時刻";
+"reset_times_countdown" = "カウントダウン";
+"reset_times_clock" = "時計表示";
+"cost_summary_title" = "コスト概要";
+"cost_summary_off" = "オフ";
 "merge_icons_title" = "アイコンを統合";
 "merge_icons_subtitle" = "プロバイダ切替付きの単一のメニューバーアイコンを使用します。";
-"switcher_shows_icons_title" = "切替バーにアイコンを表示";
-"switcher_shows_icons_subtitle" = "切替バーにプロバイダのアイコンを表示します（オフの場合は週間進捗ラインを表示します）。";
 "show_most_used_provider_title" = "最も使用中のプロバイダを表示";
 "show_most_used_provider_subtitle" = "レート制限に最も近いプロバイダをメニューバーに自動表示します。";
-"menu_bar_shows_percent_title" = "メニューバーにパーセントを表示";
-"menu_bar_shows_percent_subtitle" = "クリッターバーをプロバイダのブランドアイコンとパーセント表示に置き換えます。";
-"hide_critters_title" = "クリッターを非表示";
-"hide_critters_subtitle" = "顔や装飾のないシンプルなメーターバーを表示します。";
 "display_mode_title" = "表示モード";
 "display_mode_subtitle" = "メニューバーに表示する内容を選択します（ペースは使用量と想定値の比較を表示します）。";
-"section_menu_content" = "メニューの内容";
-"show_usage_as_used_title" = "使用量を消費分で表示";
-"show_usage_as_used_subtitle" = "プログレスバーが（残量ではなく）クォータの消費に応じて増えていきます。";
 "show_quota_warning_markers_title" = "クォータ警告マーカーを表示";
 "show_quota_warning_markers_subtitle" = "クォータ警告が設定されている場合、使用量バーにしきい値の目盛りを描画します。";
 "weekly_progress_work_days_title" = "週間進捗の作業日";
 "weekly_progress_work_days_subtitle" = "週間使用量バーの目盛りとペース計算に使用する作業日を設定します。";
-"show_reset_time_as_clock_title" = "リセット時刻を時計表示";
-"show_reset_time_as_clock_subtitle" = "リセット時刻をカウントダウンではなく絶対時刻で表示します。";
 "show_provider_changelog_links_title" = "プロバイダの変更履歴リンクを表示";
 "show_provider_changelog_links_subtitle" = "対応する CLI ベースのプロバイダのリリースノートへのリンクをメニューに追加します。";
 "show_credits_extra_usage_title" = "クレジットと追加使用量を表示";
 "show_credits_extra_usage_subtitle" = "Codex クレジットと Claude 追加使用量のセクションをメニューに表示します。";
-"show_all_token_accounts_title" = "すべてのトークンアカウントを表示";
-"show_all_token_accounts_subtitle" = "メニューにトークンアカウントを積み重ねて表示します（オフの場合はアカウント切替バーを表示します）。";
 "multi_account_layout_title" = "複数アカウントのレイアウト";
 "multi_account_layout_subtitle" = "セグメント式のアカウント切替か、積み重ね式のアカウントカードを選択します。";
 "multi_account_layout_segmented" = "セグメント";
@@ -549,6 +567,10 @@
 "overview_no_providers_hint" = "概要に使用できる有効なプロバイダがありません。";
 "overview_rows_follow_order" = "概要の行は常にプロバイダの並び順に従います。";
 "overview_no_providers_selected" = "プロバイダが選択されていません";
+"agent_sessions_title" = "エージェントセッション";
+"agent_sessions_subtitle" = "ローカルおよび SSH で検出された Codex と Claude Code のセッションをメニューに表示します。";
+"agent_sessions_hosts_title" = "追加の SSH ホスト";
+"agent_sessions_footer" = "tailnet 上の Mac は自動的に検出されます。ローカルセッションは 30 秒ごと、リモートホストは 60 秒ごと、およびメニューを開いたときに更新されます。";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "キーボードショートカット";
@@ -562,10 +584,6 @@
 "show_debug_settings_subtitle" = "デバッグタブにトラブルシューティングツールを表示します。";
 "surprise_me_title" = "サプライズ";
 "surprise_me_subtitle" = "エージェントたちがメニューバーで少し遊ぶのが好きか試してみてください。";
-"session_limit_confetti_title" = "セッション上限の紙吹雪";
-"session_limit_confetti_subtitle" = "セッション使用量がリセットされたときに全画面の紙吹雪を表示します。";
-"weekly_limit_confetti_title" = "週間上限の紙吹雪";
-"weekly_limit_confetti_subtitle" = "週間使用量がリセットされたときに全画面の紙吹雪を再生します。";
 "hide_personal_info_title" = "個人情報を隠す";
 "hide_personal_info_subtitle" = "メニューバーとメニュー UI のメールアドレスを伏せ字にします。";
 "show_provider_storage_usage_title" = "プロバイダのストレージ使用量を表示";
@@ -664,6 +682,8 @@
 "display_mode_pace_desc" = "ペースインジケータを表示（例: +5%）";
 "display_mode_both_desc" = "パーセンテージとペースの両方を表示（例: 45% · +5%）";
 "display_mode_reset_time_desc" = "選択した指標のリセット時刻を表示（例: ↻ 15:56）";
+"menu_bar_reset_when_exhausted_title" = "クォータを使い切ったらリセット時刻を表示";
+"menu_bar_reset_when_exhausted_subtitle" = "残り0%のとき、パーセントの代わりにリセットまでの時間を表示します";
 
 /* Provider status */
 "status_operational" = "正常稼働中";
@@ -808,6 +828,8 @@
 /* Popup panels */
 "No usage configured." = "使用状況が設定されていません。";
 "Quota" = "クォータ";
+"Daily quota" = "日次クォータ";
+"Total" = "合計";
 "tokens" = "トークン";
 "requests" = "リクエスト";
 "Latest" = "最新";
@@ -1159,3 +1181,4 @@
 "section_links" = "リンク";
 "Show Codex Spark usage" = "Codex Spark の使用量を表示";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "メニューとプロバイダのプレビューに Codex Spark のクォータ行を表示します。表示設定で「クレジットと追加使用量を表示」を有効にする必要があります。";
+"Scroll to see more models" = "スクロールして他のモデルを表示";

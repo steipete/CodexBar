@@ -159,6 +159,7 @@ extension UsageStore {
         let now = snapshot.updatedAt
 
         if let sessionWindow = self.predictivePaceWarningSessionWindow(provider: provider, snapshot: snapshot),
+           !sessionWindow.isSyntheticPlaceholder,
            let sessionPace = UsagePaceText.sessionPace(provider: provider, window: sessionWindow, now: now)
         {
             candidates.append((window: .session, rateWindow: sessionWindow, pace: sessionPace))

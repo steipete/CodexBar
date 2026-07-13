@@ -1,15 +1,15 @@
 import Foundation
 
 enum CostUsageCacheIO {
-    private static let compatibleCodexProducerKeys: Set<String> = [
-        "codex:cu:p3c27f997569eb3c5",
-        "codex:cu:pc54070a94f6419ea",
-    ]
+    /// Producer keys from older parser hashes whose caches are still valid under the current
+    /// delta semantics. Cleared for #2037: interleave containment changed how cumulative
+    /// totals are counted, so every earlier cache must be rebuilt.
+    private static let compatibleCodexProducerKeys: Set<String> = []
 
     private static func artifactVersion(for provider: UsageProvider) -> Int {
         switch provider {
         case .codex:
-            8
+            9
         case .claude, .vertexai:
             4
         default:
@@ -134,7 +134,10 @@ struct CostUsageFileUsage: Codable {
     var lastTotals: CostUsageCodexTotals?
     var lastCountedTotals: CostUsageCodexTotals?
     var lastRawTotalsBaseline: CostUsageCodexTotals?
+    var lastRawTotalsWatermark: CostUsageCodexTotals?
+    var seenRawTotals: [CostUsageCodexTotals]?
     var hasDivergentTotals: Bool?
+    var hasInterleavedTotals: Bool?
     var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
@@ -152,7 +155,7 @@ struct CostUsageFileUsage: Codable {
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
 }
 
-struct CostUsageCodexTotals: Codable {
+struct CostUsageCodexTotals: Codable, Equatable {
     var input: Int
     var cached: Int
     var output: Int
