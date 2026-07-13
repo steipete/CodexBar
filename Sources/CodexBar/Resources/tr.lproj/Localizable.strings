@@ -441,6 +441,7 @@
 "cost_comparison_periods_title" = "Daha kısa karşılaştırma dönemlerini göster";
 "cost_comparison_periods_subtitle" = "Seçilen geçmiş aralığına sığdığında 7, 30 ve 90 günlük toplamları ekler. Bu toplamlar aynı yerel taramayı yeniden kullanır.";
 "cost_auto_refresh_info" = "Otomatik yenileme: saatlik · Zaman aşımı: 10 dk";
+"cost_auto_refresh_info_fmt" = "Otomatik yenileme: %@ · Zaman aşımı: 10 dk";
 "refresh_interval_title" = "Yenileme aralığı";
 "manual_refresh_hint" = "Otomatik yenileme kapalı; menüdeki Yenile komutunu kullanın.";
 "refresh_on_open_title" = "Menü açıldığında yenile";

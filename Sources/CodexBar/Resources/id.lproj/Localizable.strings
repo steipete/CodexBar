@@ -443,6 +443,7 @@
 "cost_comparison_periods_title" = "Tampilkan periode perbandingan yang lebih singkat";
 "cost_comparison_periods_subtitle" = "Tambahkan total 7, 30, dan 90 hari jika termasuk dalam rentang riwayat yang dipilih. Total ini menggunakan kembali pemindaian lokal yang sama.";
 "cost_auto_refresh_info" = "Penyegaran otomatis: per jam · Batas waktu: 10m";
+"cost_auto_refresh_info_fmt" = "Penyegaran otomatis: %@ · Batas waktu: 10m";
 "refresh_interval_title" = "Interval penyegaran";
 "manual_refresh_hint" = "Penyegaran otomatis nonaktif; gunakan perintah Segarkan di menu.";
 "refresh_on_open_title" = "Segarkan saat menu dibuka";

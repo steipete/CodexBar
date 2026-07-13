@@ -441,6 +441,7 @@
 "cost_comparison_periods_title" = "แสดงช่วงเปรียบเทียบที่สั้นกว่า";
 "cost_comparison_periods_subtitle" = "เพิ่มยอดรวม 7, 30 และ 90 วันเมื่ออยู่ภายในกรอบเวลาประวัติที่เลือก โดยใช้การสแกนในเครื่องเดียวกัน";
 "cost_auto_refresh_info" = "รีเฟรชอัตโนมัติ: รายชั่วโมง · หมดเวลา: 10m";
+"cost_auto_refresh_info_fmt" = "รีเฟรชอัตโนมัติ: %@ · หมดเวลา: 10m";
 "refresh_interval_title" = "ช่วงเวลาการรีเฟรช";
 "manual_refresh_hint" = "การรีเฟรชอัตโนมัติปิดอยู่ ใช้คําสั่งรีเฟรชของเมนู";
 "refresh_on_open_title" = "รีเฟรชเมื่อเปิดเมนู";

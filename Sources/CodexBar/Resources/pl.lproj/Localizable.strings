@@ -443,6 +443,7 @@
 "cost_comparison_periods_title" = "Pokaż krótsze okresy porównawcze";
 "cost_comparison_periods_subtitle" = "Dodaj sumy z 7, 30 i 90 dni, gdy mieszczą się w wybranym zakresie historii. Sumy te wykorzystują to samo skanowanie lokalne.";
 "cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
+"cost_auto_refresh_info_fmt" = "Auto-odświeżanie: %@ · Limit czasu: 10 min";
 "refresh_interval_title" = "Częstotliwość odświeżania";
 "manual_refresh_hint" = "Auto-odświeżanie jest wyłączone; użyj polecenia Odśwież w menu.";
 "refresh_on_open_title" = "Odśwież po otwarciu menu";

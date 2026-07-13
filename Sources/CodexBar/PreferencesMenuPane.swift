@@ -172,25 +172,8 @@ struct CostSummarySettingsSection: View {
     }
 
     private func localizedCostAutoRefreshInfo() -> String {
-        let original = L("cost_auto_refresh_info")
-        let components = original.components(separatedBy: " · ")
-        guard components.count >= 2 else { return original }
-
-        let firstPart = components[0]
-        let remainingParts = components.dropFirst().joined(separator: " · ")
-
-        let colonSeparators = [":", "："]
-        for separator in colonSeparators {
-            if let range = firstPart.range(of: separator) {
-                let prefix = firstPart[..<range.lowerBound]
-                let frequencyLabel = self.settings.refreshFrequency.label
-                let displayLabel = self.settings.refreshFrequency == .manual ? frequencyLabel : frequencyLabel
-                    .lowercased()
-                let separatorWithSpacing = separator == ":" ? ": " : "："
-                return "\(prefix)\(separatorWithSpacing)\(displayLabel) · \(remainingParts)"
-            }
-        }
-        return original
+        let frequencyLabel = self.settings.refreshFrequency.label
+        return L("cost_auto_refresh_info_fmt", frequencyLabel)
     }
 }
 

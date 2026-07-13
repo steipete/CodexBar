@@ -434,6 +434,7 @@
 "cost_history_window_help" = "Đặt số ngày nhật ký sử dụng cục bộ xuất hiện trong menu.";
 "cost_history_days_title" = "Cửa sổ lịch sử: %d ngày";
 "cost_auto_refresh_info" = "Tự động làm mới: hàng giờ · Thời gian chờ: 10 phút";
+"cost_auto_refresh_info_fmt" = "Tự động làm mới: %@ · Thời gian chờ: 10 phút";
 "cost_comparison_periods_title" = "Hiển thị các khoảng so sánh ngắn hơn";
 "cost_comparison_periods_subtitle" = "Thêm tổng 7, 30 và 90 ngày khi nằm trong cửa sổ lịch sử đã chọn. Các tổng này dùng lại cùng một lần quét cục bộ.";
 "refresh_interval_title" = "Khoảng thời gian làm mới";
