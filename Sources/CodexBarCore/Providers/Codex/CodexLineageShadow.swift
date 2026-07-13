@@ -27,6 +27,7 @@ enum CodexLineageShadow {
         let incompleteProvenanceFamilyCount: Int
         let containedFamilyCount: Int
         let containmentReasonCounts: [CodexLineageLedger.ContainmentReason: Int]
+        let resetEpochDiagnostics: CodexLineageResetEpochDiagnostics.Report
     }
 
     static func run(
@@ -66,6 +67,13 @@ enum CodexLineageShadow {
             unresolvedParents: discovery.unresolvedParents,
             localTimeZone: localTimeZone,
             checkCancellation: checkCancellation)
+        let preparedFamilies = try CodexLineageEngine.prepareFamilies(
+            documents: documents,
+            unresolvedParents: discovery.unresolvedParents,
+            checkCancellation: checkCancellation)
+        let resetEpochDiagnostics = try CodexLineageResetEpochDiagnostics.analyze(
+            families: preparedFamilies,
+            checkCancellation: checkCancellation)
         let ledger = conservative.primary
         let legacy = Self.legacyTotalsByDay(legacyDays)
         let dayKeys = Set(legacy.keys).union(ledger.localDays.keys)
@@ -92,7 +100,8 @@ enum CodexLineageShadow {
                 }
                 return false
             },
-            containmentReasonCounts: Self.containmentReasonCounts(conservative.families))
+            containmentReasonCounts: Self.containmentReasonCounts(conservative.families),
+            resetEpochDiagnostics: resetEpochDiagnostics)
     }
 
     private static func containmentReasonCounts(
