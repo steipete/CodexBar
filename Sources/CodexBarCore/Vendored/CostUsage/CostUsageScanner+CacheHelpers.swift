@@ -878,7 +878,8 @@ extension CostUsageScanner {
         }
         Self.rememberCodexRows(
             rows,
-            sessionId: forkedFromId ?? session.id,
+            sessionId: session.id,
+            forkedFromId: forkedFromId,
             fileIdentity: input.metadata.path,
             state: &state)
         if let fileId = input.metadata.fileId {
@@ -900,28 +901,27 @@ extension CostUsageScanner {
               !context.forceFullScan
         else { return false }
 
-        // If this is a child fork session and the parent session file is missing/unresolved,
-        // we must force a rescan to ensure correct deduplication of replayed parent turns.
-        if let forkedFromId = cached.forkedFromId {
-            let parentIsResolved = (try? context.resources.fileIndex.fileURL(for: forkedFromId)) != nil
-            if !parentIsResolved {
-                return false
-            }
-        }
-
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
 
         let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
-        let cachedRows = cached.codexRows ?? []
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
         }
-        if sessionAlreadyContributed {
+        let current = if Self.needsCodexCostCache(cached, range: context.range) {
+            Self.codexFileUsageWithCostCache(cached, context: context)
+        } else {
+            cached
+        }
+        let cachedRows = current.codexRows ?? []
+        // Fork rows share parent-scoped identity for provenance-backed turns. Always filter
+        // them against rows remembered from earlier parent or sibling files, even when this
+        // child session has not itself contributed yet.
+        if sessionAlreadyContributed || current.forkedFromId != nil {
             guard !cachedRows.isEmpty else { return false }
             let uniqueRows = Self.uniqueCodexRows(
                 rows: cachedRows,
-                sessionId: cached.sessionId,
-                forkedFromId: cached.forkedFromId,
+                sessionId: current.sessionId,
+                forkedFromId: current.forkedFromId,
                 fileIdentity: input.metadata.path,
                 state: &state)
             guard !uniqueRows.isEmpty else {
@@ -929,24 +929,19 @@ extension CostUsageScanner {
                 return true
             }
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
-            let filtered = Self.codexFileUsageByFilteringRows(cached, rows: uniqueRows, context: context)
+            let filtered = Self.codexFileUsageByFilteringRows(current, rows: uniqueRows, context: context)
             cache.files[input.metadata.path] = filtered
             Self.applyFileDays(cache: &cache, fileDays: filtered.days, sign: 1)
             Self.rememberScannedCodexFile(
                 input: input,
-                session: CodexScannedSession(id: cached.sessionId, days: filtered.days),
-                forkedFromId: cached.forkedFromId,
+                session: CodexScannedSession(id: current.sessionId, days: filtered.days),
+                forkedFromId: current.forkedFromId,
                 rows: uniqueRows,
                 context: context,
                 state: &state)
             return true
         }
 
-        let current = if Self.needsCodexCostCache(cached, range: context.range) {
-            Self.codexFileUsageWithCostCache(cached, context: context)
-        } else {
-            cached
-        }
         cache.files[input.metadata.path] = current
         Self.rememberScannedCodexFile(
             input: input,

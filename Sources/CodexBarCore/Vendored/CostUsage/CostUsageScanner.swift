@@ -2593,7 +2593,9 @@ enum CostUsageScanner {
 
             if !forkFamiliesNeedingRescan.isEmpty {
                 let siblingPaths = cache.files.compactMap { path, usage in
-                    forkFamiliesNeedingRescan.contains(usage.forkedFromId ?? "") ? path : nil
+                    forkFamiliesNeedingRescan.contains(usage.forkedFromId ?? "") && filePathsInScan.contains(path)
+                        ? path
+                        : nil
                 }
                 for path in siblingPaths {
                     if let old = cache.files.removeValue(forKey: path) {
