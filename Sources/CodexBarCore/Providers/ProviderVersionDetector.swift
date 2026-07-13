@@ -15,31 +15,48 @@ public enum ProviderVersionDetector {
         let inode: UInt64
     }
 
+    private struct ClaudeVersionCacheEntry {
+        let fingerprint: ClaudeExecutableFingerprint
+        let version: String
+        let cachedAt: Date
+    }
+
     private final class PendingDetection {
         let group = DispatchGroup()
         var result: String?
     }
 
+    static let claudeVersionCacheTTL: TimeInterval = 30 * 60
     private static let lock = NSLock()
-    private nonisolated(unsafe) static var claudeVersionCache: [ClaudeExecutableFingerprint: String] = [:]
+    private nonisolated(unsafe) static var claudeVersionCache: ClaudeVersionCacheEntry?
     private nonisolated(unsafe) static var claudePendingDetections: [ClaudeExecutableFingerprint: PendingDetection] =
         [:]
 
     #if DEBUG
     public nonisolated(unsafe) static var whichHook: ((String) -> String?)?
     public nonisolated(unsafe) static var attributesHook: ((String) -> [FileAttributeKey: Any]?)?
-    public nonisolated(unsafe) static var runClaudeVersionHook: ((String) throws -> String?)?
+    public nonisolated(unsafe) static var runClaudeVersionHook: ((String) throws -> TTYCommandRunner.Result?)?
+    public nonisolated(unsafe) static var nowHook: (() -> Date)?
 
     public static func resetHooksAndCache() {
         self.lock.lock()
-        self.claudeVersionCache.removeAll()
+        self.claudeVersionCache = nil
         self.claudePendingDetections.removeAll()
         self.whichHook = nil
         self.attributesHook = nil
         self.runClaudeVersionHook = nil
+        self.nowHook = nil
         self.lock.unlock()
     }
     #endif
+
+    private static func currentDate() -> Date {
+        #if DEBUG
+        return self.nowHook?() ?? Date()
+        #else
+        return Date()
+        #endif
+    }
 
     private static func resolveRealPath(_ path: String) -> String {
         var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
@@ -77,45 +94,48 @@ public enum ProviderVersionDetector {
     }
 
     private static func runClaudeVersionCommand(path: String) -> String? {
-        let rawOut: String?
+        let commandResult: TTYCommandRunner.Result?
         #if DEBUG
         if let hook = runClaudeVersionHook {
             do {
-                rawOut = try hook(path)
+                commandResult = try hook(path)
             } catch {
-                rawOut = nil
+                commandResult = nil
             }
         } else {
             do {
-                rawOut = try TTYCommandRunner().run(
+                commandResult = try TTYCommandRunner().run(
                     binary: path,
                     send: "",
                     options: TTYCommandRunner.Options(
                         timeout: 5.0,
                         extraArgs: ["--version"],
                         initialDelay: 0.0,
-                        useClaudeProbeWorkingDirectory: true)).text
+                        useClaudeProbeWorkingDirectory: true))
             } catch {
-                rawOut = nil
+                commandResult = nil
             }
         }
         #else
         do {
-            rawOut = try TTYCommandRunner().run(
+            commandResult = try TTYCommandRunner().run(
                 binary: path,
                 send: "",
                 options: TTYCommandRunner.Options(
                     timeout: 5.0,
                     extraArgs: ["--version"],
                     initialDelay: 0.0,
-                    useClaudeProbeWorkingDirectory: true)).text
+                    useClaudeProbeWorkingDirectory: true))
         } catch {
-            rawOut = nil
+            commandResult = nil
         }
         #endif
 
-        guard let out = rawOut else { return nil }
-        let trimmed = TextParsing.stripANSICodes(out).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let commandResult,
+              commandResult.completion == .processExited(status: 0)
+        else { return nil }
+        let trimmed = TextParsing.stripANSICodes(commandResult.text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
@@ -130,12 +150,19 @@ public enum ProviderVersionDetector {
         guard let fingerprint = getClaudeFingerprint(forPath: path) else {
             return self.runClaudeVersionCommand(path: path)
         }
-
         self.lock.lock()
-        if let cached = claudeVersionCache[fingerprint] {
+        let now = self.currentDate()
+        let cacheAge = self.claudeVersionCache.map { now.timeIntervalSince($0.cachedAt) }
+        if let cached = claudeVersionCache,
+           cached.fingerprint == fingerprint,
+           let cacheAge,
+           cacheAge >= 0,
+           cacheAge < self.claudeVersionCacheTTL
+        {
             self.lock.unlock()
-            return cached
+            return cached.version
         }
+        self.claudeVersionCache = nil
 
         if let pending = claudePendingDetections[fingerprint] {
             self.lock.unlock()
@@ -152,11 +179,15 @@ public enum ProviderVersionDetector {
         self.lock.unlock()
 
         let result = self.runClaudeVersionCommand(path: path)
+        let completedAt = self.currentDate()
 
         self.lock.lock()
         pending.result = result
         if let version = result {
-            self.claudeVersionCache[fingerprint] = version
+            self.claudeVersionCache = ClaudeVersionCacheEntry(
+                fingerprint: fingerprint,
+                version: version,
+                cachedAt: completedAt)
         }
         self.claudePendingDetections.removeValue(forKey: fingerprint)
         pending.group.leave()
@@ -173,7 +204,9 @@ public enum ProviderVersionDetector {
             ["-v"],
         ]
         for args in candidates {
-            if let version = Self.run(path: path, args: args) { return version }
+            if let version = Self.run(path: path, args: args) {
+                return version
+            }
         }
         return nil
     }
@@ -187,7 +220,9 @@ public enum ProviderVersionDetector {
             ["-v"],
         ]
         for args in candidates {
-            if let version = Self.run(path: path, args: args) { return version }
+            if let version = Self.run(path: path, args: args) {
+                return version
+            }
         }
         return nil
     }

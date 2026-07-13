@@ -81,10 +81,12 @@ final class ProviderVersionDetectorTests: XCTestCase {
     private final class MockDetectorState {
         var callCount = 0
         var runDelay: TimeInterval?
-        var runnerResult: String? = "claude-code 2.1.70"
+        var runnerResult: TTYCommandRunner.Result? = .init(
+            text: "claude-code 2.1.70",
+            completion: .processExited(status: 0))
         let lock = NSLock()
 
-        func increment() -> String? {
+        func increment() -> TTYCommandRunner.Result? {
             self.lock.lock()
             self.callCount += 1
             let delay = self.runDelay
@@ -94,6 +96,12 @@ final class ProviderVersionDetectorTests: XCTestCase {
                 Thread.sleep(forTimeInterval: delay)
             }
             return res
+        }
+
+        func setResult(text: String, completion: TTYCommandRunner.Result.Completion = .processExited(status: 0)) {
+            self.lock.lock()
+            self.runnerResult = .init(text: text, completion: completion)
+            self.lock.unlock()
         }
     }
 
@@ -152,6 +160,9 @@ final class ProviderVersionDetectorTests: XCTestCase {
     }
 
     func test_claudeVersion_realExecutableProof() throws {
+        guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_TTY"] == "1" else {
+            throw XCTSkip("Set LIVE_CLAUDE_TTY=1 to probe the installed Claude executable")
+        }
         guard let path = TTYCommandRunner.which("claude") else {
             throw XCTSkip("claude executable is not installed in PATH")
         }
@@ -281,9 +292,7 @@ final class ProviderVersionDetectorTests: XCTestCase {
         XCTAssertNil(ProviderVersionDetector.claudeVersion())
         XCTAssertEqual(state.callCount, 2)
 
-        state.lock.lock()
-        state.runnerResult = "claude-code 2.1.70"
-        state.lock.unlock()
+        state.setResult(text: "claude-code 2.1.70")
 
         XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 3)
@@ -294,7 +303,7 @@ final class ProviderVersionDetectorTests: XCTestCase {
 
     func test_claudeVersion_doesNotCacheEmptyOutput() {
         let state = MockDetectorState()
-        state.runnerResult = "  "
+        state.setResult(text: "  ")
         ProviderVersionDetector.whichHook = { _ in "/mock/bin/claude" }
         ProviderVersionDetector.attributesHook = { _ in
             [
@@ -311,6 +320,102 @@ final class ProviderVersionDetectorTests: XCTestCase {
         XCTAssertEqual(state.callCount, 1)
 
         XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertEqual(state.callCount, 2)
+    }
+
+    func test_claudeVersion_doesNotCacheNonzeroExitDiagnostics() {
+        let state = MockDetectorState()
+        state.setResult(
+            text: "claude-code 2.1.70 failed to load",
+            completion: .processExited(status: 1))
+        ProviderVersionDetector.whichHook = { _ in "/mock/bin/claude" }
+        ProviderVersionDetector.attributesHook = { _ in
+            [
+                .modificationDate: Date(timeIntervalSince1970: 1000),
+                .size: NSNumber(value: 5000),
+                .systemFileNumber: NSNumber(value: 99),
+            ]
+        }
+        ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
+
+        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertEqual(state.callCount, 1)
+
+        state.setResult(text: "claude-code 2.1.70")
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 2)
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 2)
+    }
+
+    func test_claudeVersion_doesNotCacheDeadlineOutput() {
+        let state = MockDetectorState()
+        state.setResult(text: "claude-code 2.1.70", completion: .deadlineExceeded)
+        ProviderVersionDetector.whichHook = { _ in "/mock/bin/claude" }
+        ProviderVersionDetector.attributesHook = { _ in
+            [
+                .modificationDate: Date(timeIntervalSince1970: 1000),
+                .size: NSNumber(value: 5000),
+                .systemFileNumber: NSNumber(value: 99),
+            ]
+        }
+        ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
+
+        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertEqual(state.callCount, 1)
+
+        state.setResult(text: "claude-code 2.1.70")
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 2)
+    }
+
+    func test_claudeVersion_refreshesStableWrapperAfterTTL() {
+        let state = MockDetectorState()
+        var now = Date(timeIntervalSince1970: 10000)
+        ProviderVersionDetector.nowHook = { now }
+        ProviderVersionDetector.whichHook = { _ in "/mock/bin/claude" }
+        ProviderVersionDetector.attributesHook = { _ in
+            [
+                .modificationDate: Date(timeIntervalSince1970: 1000),
+                .size: NSNumber(value: 5000),
+                .systemFileNumber: NSNumber(value: 99),
+            ]
+        }
+        ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
+
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 1)
+
+        state.setResult(text: "claude-code 2.1.71")
+        now.addTimeInterval(ProviderVersionDetector.claudeVersionCacheTTL - 1)
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 1)
+
+        now.addTimeInterval(2)
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.71")
+        XCTAssertEqual(state.callCount, 2)
+    }
+
+    func test_claudeVersion_refreshesAfterClockRollback() {
+        let state = MockDetectorState()
+        var now = Date(timeIntervalSince1970: 10000)
+        ProviderVersionDetector.nowHook = { now }
+        ProviderVersionDetector.whichHook = { _ in "/mock/bin/claude" }
+        ProviderVersionDetector.attributesHook = { _ in
+            [
+                .modificationDate: Date(timeIntervalSince1970: 1000),
+                .size: NSNumber(value: 5000),
+                .systemFileNumber: NSNumber(value: 99),
+            ]
+        }
+        ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
+
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 1)
+
+        state.setResult(text: "claude-code 2.1.71")
+        now.addTimeInterval(-1)
+        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.71")
         XCTAssertEqual(state.callCount, 2)
     }
 
