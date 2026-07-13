@@ -951,9 +951,35 @@ enum RPCWireError: Error, LocalizedError {
 
 typealias CodexExecutableResolver = @Sendable (_ environment: [String: String], _ executable: String) -> String?
 
-let defaultCodexExecutableResolver: CodexExecutableResolver = { environment, executable in
-    BinaryLocator.resolveCodexBinary(env: environment)
+func resolveCodexExecutableForRPC(
+    environment: [String: String],
+    executable: String,
+    captureLoginPATH: () -> [String]?) -> String?
+{
+    // An explicit override is authoritative and should never need a shell probe.
+    if let override = environment["CODEX_CLI_PATH"],
+       FileManager.default.isExecutableFile(atPath: override)
+    {
+        return override
+    }
+
+    // Capture before the general resolver to preserve login-shell PATH precedence
+    // over bundled fallbacks and to make `/usr/bin/env node` launchers usable.
+    let loginPATH = captureLoginPATH()
+    return BinaryLocator.resolveCodexBinary(env: environment, loginPATH: loginPATH)
         ?? TTYCommandRunner.which(executable)
+}
+
+let defaultCodexExecutableResolver: CodexExecutableResolver = { environment, executable in
+    // Resolve the login-shell PATH at the actual RPC launch boundary. Warming it
+    // from UsageFetcher.init was both racy for env-based launchers and unsafe for
+    // short-lived CLI hosts because the fire-and-forget probe could outlive them.
+    resolveCodexExecutableForRPC(
+        environment: environment,
+        executable: executable,
+        captureLoginPATH: {
+            LoginShellPathCache.shared.currentOrCapture(shell: environment["SHELL"])
+        })
 }
 
 /// RPC helper used on background tasks; safe because we confine it to the owning task.
@@ -1240,7 +1266,6 @@ public struct UsageFetcher: Sendable {
         self.requestTimeoutSeconds = 3.0
         self.codexExecutableResolver = defaultCodexExecutableResolver
         self.codexArguments = ["-s", "read-only", "-a", "untrusted", "app-server"]
-        LoginShellPathCache.shared.captureOnce()
     }
 
     init(
@@ -1255,7 +1280,6 @@ public struct UsageFetcher: Sendable {
         self.requestTimeoutSeconds = requestTimeoutSeconds
         self.codexExecutableResolver = codexExecutableResolver
         self.codexArguments = codexArguments
-        LoginShellPathCache.shared.captureOnce()
     }
 
     public func loadLatestUsage(keepCLISessionsAlive: Bool = false) async throws -> UsageSnapshot {

@@ -741,14 +741,13 @@ public enum ShellCommandLocator {
         }
     }
 
-    // swiftlint:disable cyclomatic_complexity function_body_length
+    // swiftlint:disable cyclomatic_complexity
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  The child is launched via `posix_spawn` with
     /// `POSIX_SPAWN_SETSID` so it cannot take ownership of the caller's controlling
-    /// terminal. The new session also makes the child its own process-group leader
-    /// before `exec`, which guarantees that subsequent `kill(-pgid, ...)` calls reach
-    /// background helpers spawned by shell init, both after timeout and normal exit.
+    /// terminal. The new session also makes the child its own process-group leader;
+    /// cleanup tracks both that group and helpers retaining the command's output pipes.
     fileprivate static func runShellCommand(
         shell: String,
         arguments: [String],
@@ -856,9 +855,6 @@ public enum ShellCommandLocator {
             return nil
         }
 
-        // POSIX_SPAWN_SETSID guarantees the child's session ID and pgid equal its pid.
-        let pgid: pid_t = pid
-
         // Track EOF on each pipe so we can wait for full drain instead of sleeping.
         // The readability handler fires with empty data when every writer end is
         // closed (i.e. the child *and* any inheriting background helpers are gone).
@@ -893,27 +889,18 @@ public enum ShellCommandLocator {
             }
         }
 
-        // Reap the child on a background queue and signal a semaphore on exit.
-        let exitSemaphore = DispatchSemaphore(value: 0)
-        let waitPid = pid
-        DispatchQueue.global(qos: .userInitiated).async {
-            var status: Int32 = 0
-            while waitpid(waitPid, &status, 0) == -1, errno == EINTR {
-                // retry
-            }
-            exitSemaphore.signal()
+        // Adopt the already-spawned session so cleanup can also discover helpers
+        // that escape into a new process group while retaining our output pipes.
+        let process = SpawnedProcessGroup.adopt(
+            pid: pid,
+            outputFileDescriptors: [stdoutFds.read, stderrFds.read])
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            usleep(10000)
         }
 
-        let finishedInTime = exitSemaphore.wait(timeout: .now() + timeout) == .success
-
-        if !finishedInTime {
-            kill(-pgid, SIGTERM)
-            kill(pid, SIGTERM)
-            if exitSemaphore.wait(timeout: .now() + 0.4) != .success {
-                kill(-pgid, SIGKILL)
-                kill(pid, SIGKILL)
-                _ = exitSemaphore.wait(timeout: .now() + 1.0)
-            }
+        if process.isRunning {
+            process.terminateSynchronously()
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
             if stdoutDone.fire() {
@@ -925,15 +912,14 @@ public enum ShellCommandLocator {
             return nil
         }
 
-        // Normal completion — clean up any background children spawned by shell init.
-        // Without this, helpers that inherited stdout/stderr keep the pipe write ends
-        // open and we never see EOF on the read ends.
-        kill(-pgid, SIGTERM)
+        // Normal completion — clean up background children spawned by shell init,
+        // including session-escaped helpers that still hold our output pipes open.
+        process.terminateSynchronously()
 
         // Wait for both pipes to deliver EOF so no buffered bytes are lost.
         // Bounded so a stuck handler can't hang the caller indefinitely.
         if drainGroup.wait(timeout: .now() + 0.4) != .success {
-            kill(-pgid, SIGKILL)
+            process.terminateSynchronously(grace: 0)
         }
         if drainGroup.wait(timeout: .now() + 0.6) != .success {
             stdoutHandle.readabilityHandler = nil
@@ -948,7 +934,7 @@ public enum ShellCommandLocator {
         return stdoutCollector.drain()
     }
 
-    // swiftlint:enable cyclomatic_complexity function_body_length
+    // swiftlint:enable cyclomatic_complexity
 
     private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"

@@ -322,6 +322,14 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         self.startWaiter()
     }
 
+    package static func adopt(
+        pid: pid_t,
+        outputFileDescriptors: [Int32]) -> SpawnedProcessGroup
+    {
+        let outputPipes = Set(outputFileDescriptors.compactMap(OutputPipeIdentity.resolve(fileDescriptor:)))
+        return SpawnedProcessGroup(pid: pid, outputPipes: outputPipes)
+    }
+
     package static func launch(
         binary: String,
         arguments: [String],
@@ -531,7 +539,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         let deadline = Date().addingTimeInterval(max(0, grace))
         var processIdentities = self.currentResidualProcessIdentities(includeDescendants: true)
         processIdentities.formUnion(self.currentProcessGroupMemberIdentities())
-        if let rootIdentity = self.rootIdentity {
+        if self.isRunning, let rootIdentity = self.rootIdentity {
             processIdentities.insert(rootIdentity)
         }
         Self.signal(processIdentities: processIdentities, signal: SIGTERM)
@@ -546,6 +554,8 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         processIdentities.formUnion(self.currentProcessGroupMemberIdentities())
         if self.isRunning, let rootIdentity = self.rootIdentity {
             processIdentities.insert(rootIdentity)
+        } else if let rootIdentity = self.rootIdentity {
+            processIdentities.remove(rootIdentity)
         }
         Self.signal(processIdentities: processIdentities, signal: SIGKILL)
 
