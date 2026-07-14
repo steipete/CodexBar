@@ -272,71 +272,76 @@ struct CodexLineageLocalValidationTests {
             return abs((selectedTokens[day] ?? 0) - legacyTokens) > Int(Double(legacyTokens) * 0.01)
         }
 
+        let dayRows: [[String: Any]] = Self.referenceDays.map { day in
+            let result = classification.days.first { $0.day == day }
+            return [
+                "day": day,
+                "legacy": legacy[day] ?? 0,
+                "primary": primary[day] ?? 0,
+                "contained": contained[day] ?? 0,
+                "selected": selectedTokens[day] ?? 0,
+                "shadow": directReports[CodexLineageAccountingMode.shadow.rawValue]?[day] ?? 0,
+                "scannerLineage": directReports[CodexLineageAccountingMode.lineage.rawValue]?[day] ?? 0,
+                "reference": references[day]?.tokens ?? 0,
+                "finalized": references[day]?.finalized ?? false,
+                "classification": result?.classification.rawValue ?? "missing",
+            ] as [String: Any]
+        }
+        let ordinaryDayRows: [[String: Any]] = Self.ordinaryDays.map { day in
+            [
+                "day": day,
+                "legacy": legacy[day] ?? 0,
+                "selected": selectedTokens[day] ?? 0,
+            ] as [String: Any]
+        }
+        let coverage: [String: Any] = [
+            "documents": discovery.descriptors.count,
+            "families": lineage.diagnostics.familyCount,
+            "containedFamilies": containedFamilyCount,
+            "selectableContainedFamilies": selectableContainedFamilies.count,
+            "containedObservations": containedObservationCount,
+            "containmentReasons": containmentReasons,
+            "referencedParents": discovery.referencedParentDocumentCount,
+            "unresolvedParents": discovery.unresolvedParents.count,
+            "observations": lineage.diagnostics.observationCount,
+            "peakFamilyObservations": lineage.diagnostics.peakFamilyObservationCount,
+            "duplicateObservations": lineage.report.duplicateObservationCount,
+        ]
+        let performance: [String: Any] = [
+            "legacyMilliseconds": Self.milliseconds(legacyDuration),
+            "lineageMilliseconds": Self.milliseconds(lineageDuration),
+            "discoveryMilliseconds": Self.milliseconds(discoveryDuration),
+            "preparationMilliseconds": Self.milliseconds(preparationDuration),
+            "documentLoadMilliseconds": lineage.diagnostics.documentLoadMilliseconds,
+            "familyReconciliationMilliseconds": lineage.diagnostics.familyReconciliationMilliseconds,
+            "compositionMilliseconds": lineage.diagnostics.compositionMilliseconds,
+        ]
+        let resetDiagnostics: [String: Any] = [
+            "strongResetBoundaries": resetEpochDiagnostics?.strongResetBoundaryCount ?? 0,
+            "mixedRegressions": resetEpochDiagnostics?.mixedRegressionCount ?? 0,
+            "postResetRepeatedFingerprints": resetEpochDiagnostics?.postResetRepeatedFingerprintCount ?? 0,
+            "sameOwnerRepeats": resetEpochDiagnostics?.sameOwnerRepeatCount ?? 0,
+            "crossOwnerRepeats": resetEpochDiagnostics?.crossOwnerRepeatCount ?? 0,
+            "estimatedSuppressedTokens": resetEpochDiagnostics.map {
+                $0.estimatedSuppressed.input + $0.estimatedSuppressed.output
+            } ?? 0,
+            "estimatedSuppressedUTC": resetEpochDiagnostics?.estimatedSuppressedUTC.mapValues {
+                $0.input + $0.output
+            } ?? [:],
+            "sameOwnerEstimatedSuppressedTokens": resetEpochDiagnostics.map {
+                $0.sameOwnerEstimatedSuppressed.input + $0.sameOwnerEstimatedSuppressed.output
+            } ?? 0,
+            "sameOwnerEstimatedSuppressedUTC": resetEpochDiagnostics?.sameOwnerEstimatedSuppressedUTC.mapValues {
+                $0.input + $0.output
+            } ?? [:],
+        ]
         let output: [String: Any] = [
-            "days": Self.referenceDays.map { day in
-                let result = classification.days.first { $0.day == day }
-                return [
-                    "day": day,
-                    "legacy": legacy[day] ?? 0,
-                    "primary": primary[day] ?? 0,
-                    "contained": contained[day] ?? 0,
-                    "selected": selectedTokens[day] ?? 0,
-                    "shadow": directReports[CodexLineageAccountingMode.shadow.rawValue]?[day] ?? 0,
-                    "scannerLineage": directReports[CodexLineageAccountingMode.lineage.rawValue]?[day] ?? 0,
-                    "reference": references[day]?.tokens ?? 0,
-                    "finalized": references[day]?.finalized ?? false,
-                    "classification": result?.classification.rawValue ?? "missing",
-                ] as [String: Any]
-            },
-            "ordinaryDays": Self.ordinaryDays.map { day in
-                [
-                    "day": day,
-                    "legacy": legacy[day] ?? 0,
-                    "selected": selectedTokens[day] ?? 0,
-                ] as [String: Any]
-            },
-            "coverage": [
-                "documents": discovery.descriptors.count,
-                "families": lineage.diagnostics.familyCount,
-                "containedFamilies": containedFamilyCount,
-                "selectableContainedFamilies": selectableContainedFamilies.count,
-                "containedObservations": containedObservationCount,
-                "containmentReasons": containmentReasons,
-                "referencedParents": discovery.referencedParentDocumentCount,
-                "unresolvedParents": discovery.unresolvedParents.count,
-                "observations": lineage.diagnostics.observationCount,
-                "peakFamilyObservations": lineage.diagnostics.peakFamilyObservationCount,
-                "duplicateObservations": lineage.report.duplicateObservationCount,
-            ],
-            "performance": [
-                "legacyMilliseconds": Self.milliseconds(legacyDuration),
-                "lineageMilliseconds": Self.milliseconds(lineageDuration),
-                "discoveryMilliseconds": Self.milliseconds(discoveryDuration),
-                "preparationMilliseconds": Self.milliseconds(preparationDuration),
-                "documentLoadMilliseconds": lineage.diagnostics.documentLoadMilliseconds,
-                "familyReconciliationMilliseconds": lineage.diagnostics.familyReconciliationMilliseconds,
-                "compositionMilliseconds": lineage.diagnostics.compositionMilliseconds,
-            ],
+            "days": dayRows,
+            "ordinaryDays": ordinaryDayRows,
+            "coverage": coverage,
+            "performance": performance,
             "ordinaryDayDivergenceCount": ordinaryDivergenceCount,
-            "resetEpochDiagnostics": [
-                "strongResetBoundaries": resetEpochDiagnostics?.strongResetBoundaryCount ?? 0,
-                "mixedRegressions": resetEpochDiagnostics?.mixedRegressionCount ?? 0,
-                "postResetRepeatedFingerprints": resetEpochDiagnostics?.postResetRepeatedFingerprintCount ?? 0,
-                "sameOwnerRepeats": resetEpochDiagnostics?.sameOwnerRepeatCount ?? 0,
-                "crossOwnerRepeats": resetEpochDiagnostics?.crossOwnerRepeatCount ?? 0,
-                "estimatedSuppressedTokens": resetEpochDiagnostics.map {
-                    $0.estimatedSuppressed.input + $0.estimatedSuppressed.output
-                } ?? 0,
-                "estimatedSuppressedUTC": resetEpochDiagnostics?.estimatedSuppressedUTC.mapValues {
-                    $0.input + $0.output
-                } ?? [:],
-                "sameOwnerEstimatedSuppressedTokens": resetEpochDiagnostics.map {
-                    $0.sameOwnerEstimatedSuppressed.input + $0.sameOwnerEstimatedSuppressed.output
-                } ?? 0,
-                "sameOwnerEstimatedSuppressedUTC": resetEpochDiagnostics?.sameOwnerEstimatedSuppressedUTC.mapValues {
-                    $0.input + $0.output
-                } ?? [:],
-            ],
+            "resetEpochDiagnostics": resetDiagnostics,
             "aggregateImproved": classification.improvesAggregateError,
             // This replay is one validation artifact, not permission to remove the rollback path.
             "supportsLegacyRemoval": false,
