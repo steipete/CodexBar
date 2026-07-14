@@ -152,8 +152,18 @@ struct CodexLineageAccountingSelectorTests {
     func `scanner cache follows current lineage authorization and narrowed bounds`() throws {
         let environment = try CostUsageTestEnvironment()
         defer { environment.cleanup() }
+        let retainedDay = try environment.makeLocalNoon(year: 2026, month: 7, day: 7)
         let day = try environment.makeLocalNoon(year: 2026, month: 7, day: 9)
-        try Self.writeRollout(environment: environment)
+        try Self.writeRollout(
+            environment: environment,
+            ownerID: "00000000-0000-4000-8000-000000000097",
+            day: "2026-07-07",
+            inputTokens: 40)
+        try Self.writeRollout(
+            environment: environment,
+            ownerID: "00000000-0000-4000-8000-000000000099",
+            day: "2026-07-09",
+            inputTokens: 100)
         var options = CostUsageScanner.Options(
             codexSessionsRoot: environment.codexSessionsRoot,
             claudeProjectsRoots: nil,
@@ -165,7 +175,7 @@ struct CodexLineageAccountingSelectorTests {
 
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
-            since: day.addingTimeInterval(-86400),
+            since: retainedDay,
             until: day,
             now: day,
             options: options)
@@ -186,9 +196,27 @@ struct CodexLineageAccountingSelectorTests {
         let narrowRange = CostUsageScanner.CostUsageDayRange(since: day, until: day)
         #expect(authorizedCache.scanSinceKey == narrowRange.scanSinceKey)
         #expect(authorizedCache.scanUntilKey == narrowRange.scanUntilKey)
+        #expect(authorizedCache.days["2026-07-07"] == nil)
+
+        options.refreshMinIntervalSeconds = 3600
+        let rebuiltRetainedDay = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: retainedDay,
+            until: retainedDay,
+            now: day,
+            options: options)
+        #expect(rebuiltRetainedDay.summary?.totalTokens == 45)
+
+        let rebuiltCache = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: environment.cacheRoot,
+            producerKey: authorizedKey)
+        let retainedDayRange = CostUsageScanner.CostUsageDayRange(since: retainedDay, until: retainedDay)
+        #expect(rebuiltCache.scanSinceKey == retainedDayRange.scanSinceKey)
+        #expect(rebuiltCache.scanUntilKey == retainedDayRange.scanUntilKey)
+        #expect(rebuiltCache.days["2026-07-07"] != nil)
 
         options.codexLineagePromotionAuthorization = nil
-        options.refreshMinIntervalSeconds = 3600
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: day,
@@ -209,16 +237,20 @@ struct CodexLineageAccountingSelectorTests {
         ["2026-07-09": ["gpt-5.4": [input, 0, 0]]]
     }
 
-    private static func writeRollout(environment: CostUsageTestEnvironment) throws {
+    private static func writeRollout(
+        environment: CostUsageTestEnvironment,
+        ownerID: String,
+        day: String,
+        inputTokens: Int) throws
+    {
         try FileManager.default.createDirectory(at: environment.codexSessionsRoot, withIntermediateDirectories: true)
-        let ownerID = "00000000-0000-4000-8000-000000000099"
         let fileURL = environment.codexSessionsRoot
-            .appendingPathComponent("rollout-2026-07-09T12-00-00-\(ownerID).jsonl")
+            .appendingPathComponent("rollout-\(day)T12-00-00-\(ownerID).jsonl")
         let contents = [
             #"{"type":"session_meta","payload":{"id":"\#(ownerID)"}}"#,
-            #"{"type":"event_msg","timestamp":"2026-07-09T12:00:00Z","payload":{"type":"token_count","info":{"#
-                + #""last_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
-                + #""total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10}}}}"#,
+            #"{"type":"event_msg","timestamp":"\#(day)T12:00:00Z","payload":{"type":"token_count","info":{"#
+                + #""last_token_usage":{"input_tokens":\#(inputTokens),"cached_input_tokens":5,"output_tokens":5},"#
+                + #""total_token_usage":{"input_tokens":\#(inputTokens),"cached_input_tokens":5,"output_tokens":5}}}}"#,
         ].joined(separator: "\n")
         try contents.write(to: fileURL, atomically: true, encoding: .utf8)
     }
