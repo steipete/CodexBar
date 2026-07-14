@@ -1,13 +1,10 @@
 import Foundation
 
 public enum AnyRouterSettingsError: LocalizedError, Equatable, Sendable {
-    case missingCredentials
     case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
-        case .missingCredentials:
-            "AnyRouter API key not configured. Set ANYROUTER_API_KEY or add a key in Settings."
         case let .invalidEndpointOverride(key):
             "AnyRouter endpoint override \(key) must use HTTPS or a bare host."
         }

@@ -1034,7 +1034,7 @@ enum WidgetColors {
         case .sub2api:
             Color(red: 45 / 255, green: 198 / 255, blue: 216 / 255)
         case .anyrouter:
-            Color(red: 246 / 255, green: 130 / 255, blue: 31 / 255)
+            Color(red: 26 / 255, green: 26 / 255, blue: 46 / 255)
         case .wayfinder:
             Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255)
         case .elevenlabs:
