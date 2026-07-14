@@ -2823,6 +2823,7 @@ enum CostUsageScanner {
         mode != .legacy
     }
 
+    // swiftlint:disable:next function_parameter_count
     private static func applyCodexLineageAccounting(
         mode: CodexLineageAccountingMode,
         authorization: CodexLineagePromotionEvaluator.Authorization?,
