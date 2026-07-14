@@ -633,6 +633,8 @@ public enum ClaudeWebFetchStrategyError: LocalizedError, Equatable, Sendable {
 }
 
 struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
+    private static let log = CodexBarLog.logger(LogCategories.claudeCLI)
+
     let id: String = "claude.cli"
     let kind: ProviderFetchKind = .cli
     let useWebExtras: Bool
@@ -643,13 +645,34 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI runtime and background
         // app Auto refreshes must establish authentication through the non-interactive status command first.
-        let requiresAuthPreflight = context.runtime == .cli || (
-            context.runtime == .app &&
-                context.sourceMode == .auto &&
-                ProviderInteractionContext.current == .background)
+        let isBackgroundAppAuto = context.runtime == .app &&
+            context.sourceMode == .auto &&
+            ProviderInteractionContext.current == .background
+        let requiresAuthPreflight = context.runtime == .cli || isBackgroundAppAuto
         guard requiresAuthPreflight else { return true }
+        if isBackgroundAppAuto,
+           let blockedUntil = ClaudeCLIAuthPreflightGate.blockedUntil()
+        {
+            Self.log.debug(
+                "Claude CLI background auth preflight skipped by cooldown",
+                metadata: ["until": "\(blockedUntil.timeIntervalSince1970)"])
+            return false
+        }
         guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
-        return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
+        let outcome = await ClaudeCLIAuthStatusProbe.probe(binary: binary, environment: context.env)
+        if isBackgroundAppAuto {
+            switch outcome {
+            case .loggedIn:
+                ClaudeCLIAuthPreflightGate.clear()
+            case .timedOut:
+                ClaudeCLIAuthPreflightGate.recordTimeout()
+            case .failed:
+                ClaudeCLIAuthPreflightGate.recordFailure()
+            case .loggedOut, .cancelled:
+                break
+            }
+        }
+        return outcome == .loggedIn
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -663,6 +686,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             webOrganizationID: context.settings?.claude?.organizationID,
             keepCLISessionsAlive: keepAlive)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        if context.runtime == .app {
+            ClaudeCLIAuthPreflightGate.clear()
+        }
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
             sourceLabel: "claude")

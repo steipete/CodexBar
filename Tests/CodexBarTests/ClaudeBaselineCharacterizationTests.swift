@@ -150,10 +150,15 @@ struct ClaudeBaselineCharacterizationTests {
         ]
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let context = self.makeContext(runtime: .app, sourceMode: .cli, env: env, settings: settings)
-        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        let gateStore = ClaudeCLIAuthPreflightGate.BlockedUntilStore(
+            blockedUntil: Date().addingTimeInterval(3600))
 
-        #expect(strategies.map(\.id) == ["claude.cli"])
-        #expect(await strategies[0].isAvailable(context))
+        await ClaudeCLIAuthPreflightGate.withBlockedUntilStoreOverrideForTesting(gateStore) {
+            let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+
+            #expect(strategies.map(\.id) == ["claude.cli"])
+            #expect(await strategies[0].isAvailable(context))
+        }
     }
 
     @Test
@@ -200,16 +205,25 @@ struct ClaudeBaselineCharacterizationTests {
             .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
         let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let gateStore = ClaudeCLIAuthPreflightGate.BlockedUntilStore()
 
-        await self.withNoOAuthCredentials {
-            let outcome = await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+        await ClaudeCLIAuthPreflightGate.withBlockedUntilStoreOverrideForTesting(gateStore) {
+            await self.withNoOAuthCredentials {
+                for _ in 0..<2 {
+                    let outcome = await self.fetchOutcome(
+                        runtime: .app,
+                        sourceMode: .auto,
+                        env: env,
+                        settings: settings)
 
-            #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-            #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                    #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+                    #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                }
+            }
         }
 
         let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
-        #expect(invocations == "auth status --json\n")
+        #expect(invocations == "auth status --json\nauth status --json\n")
     }
 
     @Test(arguments: ["nonzero", "timeout", "malformed"])
@@ -235,6 +249,7 @@ struct ClaudeBaselineCharacterizationTests {
             authStatusScript: authStatusScript,
             invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let gateStore = ClaudeCLIAuthPreflightGate.BlockedUntilStore()
         let usageLoader: ClaudeWebFetchStrategy.UsageLoader = { _ in
             ClaudeUsageSnapshot(
                 primary: RateWindow(
@@ -251,16 +266,28 @@ struct ClaudeBaselineCharacterizationTests {
                 rawText: nil)
         }
 
-        let outcome = await self.withNoOAuthCredentials {
-            await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(usageLoader) {
-                await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+        let outcomes = await ClaudeCLIAuthPreflightGate.withBlockedUntilStoreOverrideForTesting(gateStore) {
+            await self.withNoOAuthCredentials {
+                await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(usageLoader) {
+                    var outcomes: [ProviderFetchOutcome] = []
+                    for _ in 0..<2 {
+                        await outcomes.append(self.fetchOutcome(
+                            runtime: .app,
+                            sourceMode: .auto,
+                            env: env,
+                            settings: settings))
+                    }
+                    return outcomes
+                }
             }
         }
-        let result = try outcome.result.get()
 
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
-        #expect(result.strategyID == "claude.web")
+        for outcome in outcomes {
+            let result = try outcome.result.get()
+            #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+            #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
+            #expect(result.strategyID == "claude.web")
+        }
         let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
         #expect(invocations == "auth status --json\n")
     }
@@ -274,19 +301,60 @@ struct ClaudeBaselineCharacterizationTests {
             manualCookieHeader: nil))
         let invocationLog = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
-        let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
+        let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: true, invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let context = self.makeContext(runtime: .app, sourceMode: .auto, env: env, settings: settings)
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
         let cli = try #require(strategies.first { $0.id == "claude.cli" })
+        let gateStore = ClaudeCLIAuthPreflightGate.BlockedUntilStore(
+            blockedUntil: Date().addingTimeInterval(3600))
 
-        let cliAvailable = await ProviderInteractionContext.$current.withValue(.userInitiated) {
-            await cli.isAvailable(context)
+        try await ClaudeCLIAuthPreflightGate.withBlockedUntilStoreOverrideForTesting(gateStore) {
+            let cliAvailable = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await cli.isAvailable(context)
+            }
+
+            #expect(cliAvailable)
+            #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
+
+            _ = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                try await cli.fetch(context)
+            }
+            #expect(gateStore.blockedUntil == nil)
+
+            let backgroundAvailable = await ProviderInteractionContext.$current.withValue(.background) {
+                await cli.isAvailable(context)
+            }
+            #expect(backgroundAvailable)
+        }
+    }
+
+    @Test
+    func `CLI runtime ignores app background auth cooldown`() async throws {
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: false,
+            cookieSource: .off,
+            manualCookieHeader: nil))
+        let invocationLog = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
+        let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: true, invocationLog: invocationLog)
+        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let context = self.makeContext(runtime: .cli, sourceMode: .auto, env: env, settings: settings)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        let cli = try #require(strategies.first { $0.id == "claude.cli" })
+        let gateStore = ClaudeCLIAuthPreflightGate.BlockedUntilStore(
+            blockedUntil: Date().addingTimeInterval(3600))
+
+        await ClaudeCLIAuthPreflightGate.withBlockedUntilStoreOverrideForTesting(gateStore) {
+            #expect(await cli.isAvailable(context))
+            #expect(gateStore.blockedUntil != nil)
         }
 
-        #expect(cliAvailable)
-        #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
+        let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
+        #expect(invocations == "auth status --json\n")
     }
 
     @Test
@@ -332,40 +400,43 @@ struct ClaudeBaselineCharacterizationTests {
             manualCookieHeader: nil))
         let stubCLIPath = try self.makeStubClaudeCLI()
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let gateStore = ClaudeCLIAuthPreflightGate.BlockedUntilStore()
 
-        await self.withNoOAuthCredentials {
-            let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
-                -> ClaudeStatusSnapshot = { binary, _, _ in
-                    #expect(binary == stubCLIPath)
-                    return ClaudeStatusSnapshot(
-                        sessionPercentLeft: 88,
-                        weeklyPercentLeft: 60,
-                        opusPercentLeft: 95,
-                        accountEmail: "user@example.com",
-                        accountOrganization: "Example Org",
-                        loginMethod: nil,
-                        primaryResetDescription: "Resets 11am",
-                        secondaryResetDescription: "Resets Nov 21",
-                        opusResetDescription: "Resets Nov 21",
-                        rawText: "stub")
+        await ClaudeCLIAuthPreflightGate.withBlockedUntilStoreOverrideForTesting(gateStore) {
+            await self.withNoOAuthCredentials {
+                let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
+                    -> ClaudeStatusSnapshot = { binary, _, _ in
+                        #expect(binary == stubCLIPath)
+                        return ClaudeStatusSnapshot(
+                            sessionPercentLeft: 88,
+                            weeklyPercentLeft: 60,
+                            opusPercentLeft: 95,
+                            accountEmail: "user@example.com",
+                            accountOrganization: "Example Org",
+                            loginMethod: nil,
+                            primaryResetDescription: "Resets 11am",
+                            secondaryResetDescription: "Resets Nov 21",
+                            opusResetDescription: "Resets Nov 21",
+                            rawText: "stub")
+                    }
+                let outcome = await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                    await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
                 }
-            let outcome = await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
-                await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
-            }
 
-            #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
-            #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+                #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+                #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
 
-            switch outcome.result {
-            case let .success(result):
-                #expect(result.strategyID == "claude.cli")
-                #expect(result.sourceLabel == "claude")
-                #expect(result.usage.primary?.usedPercent == 12)
-                #expect(result.usage.secondary?.usedPercent == 40)
-                #expect(result.usage.tertiary?.usedPercent == 5)
-                #expect(result.usage.identity?.accountEmail == "user@example.com")
-            case let .failure(error):
-                Issue.record("Unexpected failure: \(error)")
+                switch outcome.result {
+                case let .success(result):
+                    #expect(result.strategyID == "claude.cli")
+                    #expect(result.sourceLabel == "claude")
+                    #expect(result.usage.primary?.usedPercent == 12)
+                    #expect(result.usage.secondary?.usedPercent == 40)
+                    #expect(result.usage.tertiary?.usedPercent == 5)
+                    #expect(result.usage.identity?.accountEmail == "user@example.com")
+                case let .failure(error):
+                    Issue.record("Unexpected failure: \(error)")
+                }
             }
         }
     }
