@@ -72,6 +72,7 @@ enum ProviderImplementationRegistry {
         case .clawrouter: ClawRouterProviderImplementation()
         case .sub2api: Sub2APIProviderImplementation()
         case .wayfinder: WayfinderProviderImplementation()
+        case .anyrouter: AnyRouterProviderImplementation()
         case .zenmux: ZenMuxProviderImplementation()
         }
     }

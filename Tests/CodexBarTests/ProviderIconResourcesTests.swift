@@ -39,6 +39,7 @@ struct ProviderIconResourcesTests {
             "clawrouter",
             "sub2api",
             "wayfinder",
+            "anyrouter",
             "zenmux",
         ]
         for slug in slugs {

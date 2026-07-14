@@ -320,6 +320,7 @@ private struct ProviderSwitchChip: View {
         case .crossmodel: "CrossModel"
         case .clawrouter: "ClawRouter"
         case .sub2api: "sub2api"
+        case .anyrouter: "AnyRouter"
         case .wayfinder: "Wayfinder"
         case .elevenlabs: "ElevenLabs"
         case .warp: "Warp"
@@ -1032,6 +1033,8 @@ enum WidgetColors {
             Color(red: 89 / 255, green: 110 / 255, blue: 246 / 255)
         case .sub2api:
             Color(red: 45 / 255, green: 198 / 255, blue: 216 / 255)
+        case .anyrouter:
+            Color(red: 246 / 255, green: 130 / 255, blue: 31 / 255)
         case .wayfinder:
             Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255)
         case .elevenlabs:

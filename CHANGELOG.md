@@ -3,6 +3,7 @@
 ## 0.43.1 — Unreleased
 
 ### Added
+- AnyRouter: add credit balance, lifetime spend, and multi-account API keys from the AnyRouter credits API. Thanks @duyet!
 - ZenMux: add Management API usage with five-hour and weekly quotas, subscription expiry, and USD PAYG balance. Thanks @kays0x!
 
 ### Fixed

@@ -107,6 +107,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Warp](docs/warp.md) — API token for GraphQL request limits and monthly credits.
 - [ElevenLabs](docs/elevenlabs.md) — API key for character credits and voice slot usage.
 - [OpenRouter](docs/openrouter.md) — API token for credit-based usage tracking across multiple AI providers.
+- [AnyRouter](docs/anyrouter.md) — API key for credit balance and spend across the AnyRouter gateway.
 - [CrossModel](docs/crossmodel.md) — API key wallet balance with daily, weekly, and monthly spend.
 - [Windsurf](docs/windsurf.md) — Browser localStorage session import or local SQLite cache for plan usage.
 - [Zed](docs/zed.md) — Zed editor Keychain session for plan, edit-prediction quota, billing cycle, and overdue invoices.

@@ -53,6 +53,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
+| AnyRouter | API key (config, overrides env) → credits API (`api`). |
 | CrossModel | API key from config/env → credits + usage API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
@@ -316,6 +317,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
+
+## AnyRouter
+- API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `ANYROUTER_API_KEY` env var.
+- Reads spendable balance, lifetime spend, and today's spend from the credits API (`/api/v1/credits`).
+- Primary meter is lifetime spend against total credit granted; balance is shown in the identity section.
+- Override base URL with `ANYROUTER_API_URL` env var (HTTPS only).
+- Details: `docs/anyrouter.md`.
 
 ## CrossModel
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `CROSSMODEL_API_KEY` env var.
