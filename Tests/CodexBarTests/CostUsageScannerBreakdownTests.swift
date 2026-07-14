@@ -4013,6 +4013,44 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex turn context establishes the active turn identity`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 3, day: 11)
+        let timestamp = env.isoString(for: day)
+        let model = "openai/gpt-5.4"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "turn-context-id.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": ["id": "child-session"],
+                ],
+                [
+                    "type": "turn_context",
+                    "timestamp": timestamp,
+                    "payload": [
+                        "turn_id": "child-turn",
+                        "model": model,
+                    ],
+                ],
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 10, cached: 0, output: 1)),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+
+        #expect(parsed.rows.count == 1)
+        #expect(parsed.rows.first?.turnID == "child-turn")
+    }
+
+    @Test
     func `codex fork with total usage ignores replayed last snapshots`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

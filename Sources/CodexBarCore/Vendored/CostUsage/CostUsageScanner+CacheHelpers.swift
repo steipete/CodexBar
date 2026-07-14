@@ -887,6 +887,23 @@ extension CostUsageScanner {
         }
     }
 
+    static func codexScanStateFromCachedFiles(_ cache: CostUsageCache) -> CodexScanState {
+        var state = CodexScanState()
+        for (path, usage) in cache.files {
+            guard let sessionId = usage.sessionId else { continue }
+            if !usage.days.isEmpty {
+                state.contributingSessionIds.insert(sessionId)
+            }
+            Self.rememberCodexRows(
+                usage.codexRows ?? [],
+                sessionId: sessionId,
+                forkedFromId: usage.forkedFromId,
+                fileIdentity: path,
+                state: &state)
+        }
+        return state
+    }
+
     static func keepCachedCodexFileIfFresh(
         input: CodexFileScanInput,
         context: CodexFileScanContext,

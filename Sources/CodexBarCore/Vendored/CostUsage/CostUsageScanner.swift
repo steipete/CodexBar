@@ -1247,7 +1247,7 @@ enum CostUsageScanner {
 
     private enum CodexFastLine {
         case sessionMeta(CodexSessionMetadata)
-        case turnContext(model: String?)
+        case turnContext(model: String?, turnID: String?)
         case taskStarted(turnID: String?)
         case tokenCount(CodexTokenCountRecord)
     }
@@ -1453,7 +1453,7 @@ enum CostUsageScanner {
                     from: rawBuffer,
                     in: objectRange,
                     atDepth: 1)
-                else { return .turnContext(model: nil) }
+                else { return .turnContext(model: nil, turnID: nil) }
                 let infoRange = Self.extractJSONByteObjectField(
                     Self.codexJSONFieldInfo,
                     from: rawBuffer,
@@ -1484,7 +1484,9 @@ enum CostUsageScanner {
                             in: $0,
                             atDepth: 1)
                     })
-                return .turnContext(model: model)
+                return .turnContext(
+                    model: model,
+                    turnID: Self.codexTurnID(from: rawBuffer, in: payloadRange))
 
             case "event_msg":
                 guard let payloadRange = Self.extractJSONByteObjectField(
@@ -2128,9 +2130,12 @@ enum CostUsageScanner {
             switch fastLine {
             case let .sessionMeta(metadata):
                 try handleSessionMetadata(metadata)
-            case let .turnContext(model):
+            case let .turnContext(model, turnID):
                 if let model {
                     currentModel = model
+                }
+                if let turnID {
+                    currentTurnID = turnID
                 }
             case let .taskStarted(turnID):
                 currentTurnID = turnID
@@ -2251,6 +2256,9 @@ enum CostUsageScanner {
                                     infoModelName: info?["model_name"] as? String)
                                 {
                                     currentModel = model
+                                }
+                                if let turnID = Self.codexTurnID(from: payload) {
+                                    currentTurnID = turnID
                                 }
                             }
                             return
@@ -2570,6 +2578,9 @@ enum CostUsageScanner {
                 guard shouldDrop else { continue }
                 if let forkedFromId = old.forkedFromId {
                     forkFamiliesNeedingRescan.insert(forkedFromId)
+                } else if let sessionId = old.sessionId {
+                    // A removed parent changes the inherited baseline of every cached child.
+                    forkFamiliesNeedingRescan.insert(sessionId)
                 }
                 Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                 cache.files.removeValue(forKey: key)
@@ -2583,6 +2594,8 @@ enum CostUsageScanner {
                     guard FileManager.default.fileExists(atPath: key) else {
                         if let forkedFromId = old.forkedFromId {
                             forkFamiliesNeedingRescan.insert(forkedFromId)
+                        } else if let sessionId = old.sessionId {
+                            forkFamiliesNeedingRescan.insert(sessionId)
                         }
                         Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                         cache.files.removeValue(forKey: key)
@@ -2603,7 +2616,9 @@ enum CostUsageScanner {
                     }
                 }
                 let siblingFiles = files.filter { siblingPaths.contains($0.path) }
-                scanState = CodexScanState()
+                // Keep the row identities contributed by retained files (especially a
+                // real parent) while letting the removed siblings be parsed afresh.
+                scanState = Self.codexScanStateFromCachedFiles(cache)
                 for fileURL in siblingFiles {
                     try Self.scanCodexFile(
                         fileURL: fileURL,
