@@ -35,8 +35,15 @@ printf '%s' "$ANYROUTER_API_KEY" | codexbar config set-api-key --provider anyrou
 
 ## Data source
 
-The provider reads the credits API (`GET /api/v1/credits`), which is the only endpoint an inference key can reach.
-It returns the spendable balance, the lifetime spend, and today's spend:
+The provider reads the credits API (`GET /api/v1/credits`) with your `sk-ar-v1-…` inference key. AnyRouter
+authenticates that key on this route directly (`extractApiKey` accepts only `sk-ar-`-prefixed keys, then validates
+it), so no separate management key is needed.
+
+One caveat: a key can carry an endpoint allow-list. If that list omits `/api/v1/credits`, AnyRouter returns
+403 `insufficient_scope` and CodexBar tells you to allow the endpoint on the key. Keys with no allow-list —
+the default — have full access and just work.
+
+The response returns the spendable balance, the lifetime spend, and today's spend:
 
 | Field | Meaning |
 |-------|---------|
@@ -46,8 +53,8 @@ It returns the spendable balance, the lifetime spend, and today's spend:
 | `used` | Cumulative lifetime spend |
 | `today_cost` | Spend so far today |
 
-AnyRouter's `/api/v1/key` endpoint needs dashboard session auth rather than an inference key, so key-scoped rate
-limits are not available to CodexBar today.
+AnyRouter's `/api/v1/key` endpoint needs dashboard session auth (or a Clerk `ak_` management key) rather than an
+inference key, so key-scoped rate limits are not available to CodexBar today.
 
 ## Display
 
