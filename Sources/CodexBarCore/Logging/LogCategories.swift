@@ -4,6 +4,7 @@ public enum LogCategories {
     public static let adaptiveRefresh = "adaptive-refresh"
     public static let amp = "amp"
     public static let antigravity = "antigravity"
+    public static let anyRouterUsage = "anyrouter-usage"
     public static let app = "app"
     public static let auggieCLI = "auggie-cli"
     public static let augment = "augment"

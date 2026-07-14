@@ -63,6 +63,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case clawrouter
     case sub2api
     case wayfinder
+    case anyrouter
     case zenmux
 }
 
@@ -127,6 +128,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case clawrouter
     case sub2api
     case wayfinder
+    case anyrouter
     case zenmux
     case combined
 }

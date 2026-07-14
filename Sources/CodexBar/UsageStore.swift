@@ -1030,6 +1030,7 @@ extension UsageStore {
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
         let crossModelDebugContext = self.crossModelAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let anyRouterDebugContext = self.anyRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
         let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
@@ -1136,6 +1137,8 @@ extension UsageStore {
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
                     return Self.apiKeyDebugLine(openRouterDebugContext)
+                case .anyrouter:
+                    return Self.apiKeyDebugLine(anyRouterDebugContext)
                 case .crossmodel:
                     return Self.apiKeyDebugLine(crossModelDebugContext)
                 case .elevenlabs:

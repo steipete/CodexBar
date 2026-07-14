@@ -122,6 +122,8 @@ extension UsageStore {
             return ZaiSettingsError.missingToken.errorDescription
         case .openrouter:
             return OpenRouterSettingsError.missingToken.errorDescription
+        case .anyrouter:
+            return AnyRouterUsageError.missingCredentials.errorDescription
         case .crossmodel:
             return CrossModelSettingsError.missingToken.errorDescription
         case .clawrouter:

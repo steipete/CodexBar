@@ -129,6 +129,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: VeniceSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .anyrouter: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store one labeled AnyRouter inference key per environment you want to monitor.",
+            placeholder: "Paste AnyRouter API key (sk-ar-v1-…)…",
+            injection: .environment(key: AnyRouterSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .elevenlabs: TokenAccountSupport(
             title: "API keys",
             subtitle: "Store multiple ElevenLabs API keys.",

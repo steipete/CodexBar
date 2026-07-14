@@ -42,6 +42,15 @@ extension UsageStore {
             hasEnvToken: { OpenRouterSettingsReader.apiToken(environment: $0) != nil })
     }
 
+    func anyRouterAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
+        self.apiKeyDebugContext(
+            provider: .anyrouter,
+            label: "ANYROUTER_API_KEY",
+            processEnvironment: processEnvironment,
+            resolution: ProviderTokenResolver.anyRouterResolution,
+            hasEnvToken: { AnyRouterSettingsReader.apiKey(environment: $0) != nil })
+    }
+
     func crossModelAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
         self.apiKeyDebugContext(
             provider: .crossmodel,
