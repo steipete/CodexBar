@@ -24,53 +24,30 @@ public enum AnyRouterUsageError: LocalizedError, Equatable, Sendable {
 }
 
 /// `GET /api/v1/credits` response. AnyRouter returns the balance fields at the top level
-/// (unlike OpenRouter, which wraps them in a `data` object).
+/// (unlike OpenRouter, which wraps them in a `data` object). The payload also carries
+/// `monthly_balance`, `topup_balance`, and `today_cost`, which nothing displays yet.
 private struct AnyRouterCreditsResponse: Decodable {
     let balance: Double
-    let monthlyBalance: Double
-    let topupBalance: Double
     let used: Double
-    let todayCost: Double
     let currency: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case balance
-        case monthlyBalance = "monthly_balance"
-        case topupBalance = "topup_balance"
-        case used
-        case todayCost = "today_cost"
-        case currency
-    }
 }
 
 public struct AnyRouterUsageSnapshot: Codable, Sendable, Equatable {
-    /// Total credit available to spend, in `currencyCode` (monthly + top-up).
+    /// Total credit available to spend, in `currencyCode` (AnyRouter-issued plus purchased).
     public let balance: Double
-    /// AnyRouter-issued credit: signup bonus, plan grants, referrals. Spent before top-up credit.
-    public let monthlyBalance: Double
-    /// User-purchased credit. Spent after monthly credit runs out; never expires.
-    public let topupBalance: Double
     /// Cumulative lifetime spend.
     public let used: Double
-    /// Spend so far today.
-    public let todayCost: Double
     public let currencyCode: String
     public let updatedAt: Date
 
     public init(
         balance: Double,
-        monthlyBalance: Double,
-        topupBalance: Double,
         used: Double,
-        todayCost: Double,
         currencyCode: String,
         updatedAt: Date)
     {
         self.balance = balance
-        self.monthlyBalance = monthlyBalance
-        self.topupBalance = topupBalance
         self.used = used
-        self.todayCost = todayCost
         self.currencyCode = currencyCode
         self.updatedAt = updatedAt
     }
@@ -92,7 +69,7 @@ public struct AnyRouterUsageSnapshot: Codable, Sendable, Equatable {
             providerID: .anyrouter,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: "Balance: \(Self.formatAmount(self.balance, currencyCode: self.currencyCode))")
+            loginMethod: "Balance: \(UsageFormatter.currencyString(self.balance, currencyCode: self.currencyCode))")
 
         return UsageSnapshot(
             primary: RateWindow(
@@ -110,14 +87,6 @@ public struct AnyRouterUsageSnapshot: Codable, Sendable, Equatable {
             updatedAt: self.updatedAt,
             identity: identity,
             dataConfidence: .exact)
-    }
-
-    static func formatAmount(_ amount: Double, currencyCode: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currencyCode
-        formatter.locale = Locale(identifier: "en_US")
-        return formatter.string(from: NSNumber(value: amount)) ?? String(format: "%.2f", amount)
     }
 }
 
@@ -164,10 +133,7 @@ public enum AnyRouterUsageFetcher {
             let response = try JSONDecoder().decode(AnyRouterCreditsResponse.self, from: data)
             return AnyRouterUsageSnapshot(
                 balance: response.balance,
-                monthlyBalance: response.monthlyBalance,
-                topupBalance: response.topupBalance,
                 used: response.used,
-                todayCost: response.todayCost,
                 currencyCode: response.currency?.uppercased() ?? "USD",
                 updatedAt: updatedAt)
         } catch {

@@ -25,7 +25,7 @@ public enum AnyRouterProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .anyrouter,
                 iconResourceName: "ProviderIcon-anyrouter",
-                color: ProviderColor(red: 246 / 255, green: 130 / 255, blue: 31 / 255)),
+                color: ProviderColor(red: 26 / 255, green: 26 / 255, blue: 46 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "AnyRouter spend is reported by its credits API." }),

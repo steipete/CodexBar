@@ -17,18 +17,17 @@ struct AnyRouterUsageFetcherTests {
     }
     """#
 
+    /// The payload carries fields we do not display (`monthly_balance`, `topup_balance`,
+    /// `today_cost`, `billing_provider`); decoding must ignore them rather than fail.
     @Test
-    func `parses flat credits payload`() throws {
+    func `parses flat credits payload and ignores undisplayed fields`() throws {
         let updatedAt = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = try AnyRouterUsageFetcher._parseSnapshotForTesting(
             Data(Self.creditsJSON.utf8),
             updatedAt: updatedAt)
 
         #expect(snapshot.balance == 4.2)
-        #expect(snapshot.monthlyBalance == 3)
-        #expect(snapshot.topupBalance == 1.2)
         #expect(snapshot.used == 0.8)
-        #expect(snapshot.todayCost == 0.5)
         #expect(snapshot.currencyCode == "USD")
         #expect(snapshot.updatedAt == updatedAt)
     }
@@ -46,8 +45,7 @@ struct AnyRouterUsageFetcherTests {
     @Test
     func `used percent is zero when no credit was ever granted`() throws {
         let snapshot = try AnyRouterUsageFetcher._parseSnapshotForTesting(
-            Data(#"{"balance":0,"monthly_balance":0,"topup_balance":0,"used":0,"today_cost":0,"currency":"usd"}"#
-                .utf8),
+            Data(#"{"balance":0,"used":0,"currency":"usd"}"#.utf8),
             updatedAt: Date())
 
         #expect(snapshot.totalCredits == 0)
@@ -78,7 +76,7 @@ struct AnyRouterUsageFetcherTests {
     @Test
     func `defaults currency to USD when omitted`() throws {
         let snapshot = try AnyRouterUsageFetcher._parseSnapshotForTesting(
-            Data(#"{"balance":1,"monthly_balance":1,"topup_balance":0,"used":0,"today_cost":0}"#.utf8),
+            Data(#"{"balance":1,"used":0}"#.utf8),
             updatedAt: Date())
 
         #expect(snapshot.currencyCode == "USD")
