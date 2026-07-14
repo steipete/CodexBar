@@ -31,8 +31,10 @@ public enum KiroProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Kiro cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KiroCLIFetchStrategy()] })),
+                sourceModes: [.auto, .api, .cli],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [KiroAPIFetchStrategy(), KiroCLIFetchStrategy()]
+                })),
             cli: ProviderCLIConfig(
                 name: "kiro",
                 aliases: ["kiro-cli"],
