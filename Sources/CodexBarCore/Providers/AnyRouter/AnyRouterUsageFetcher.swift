@@ -6,6 +6,7 @@ import FoundationNetworking
 public enum AnyRouterUsageError: LocalizedError, Equatable, Sendable {
     case missingCredentials
     case invalidCredentials
+    case insufficientScope
     case apiError(Int)
     case parseFailed(String)
 
@@ -15,6 +16,9 @@ public enum AnyRouterUsageError: LocalizedError, Equatable, Sendable {
             "Missing AnyRouter API key. Add one in Settings or set ANYROUTER_API_KEY."
         case .invalidCredentials:
             "AnyRouter rejected the API key. Check the key on the AnyRouter dashboard."
+        case .insufficientScope:
+            "This AnyRouter key is not permitted to read credits. Allow the /api/v1/credits endpoint "
+                + "on the key, or use a key without an endpoint allow-list."
         case let .apiError(statusCode):
             "AnyRouter API returned HTTP \(statusCode)."
         case let .parseFailed(message):
@@ -111,7 +115,13 @@ public enum AnyRouterUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let response = try await transport.response(for: request)
-        if response.statusCode == 401 || response.statusCode == 403 {
+        // A key carrying an `allowed_endpoints` list that omits /api/v1/credits is valid but
+        // scoped out, which AnyRouter reports as 403 insufficient_scope — a different fix for
+        // the user than a rejected key.
+        if response.statusCode == 403 {
+            throw AnyRouterUsageError.insufficientScope
+        }
+        if response.statusCode == 401 {
             throw AnyRouterUsageError.invalidCredentials
         }
         guard (200..<300).contains(response.statusCode) else {
