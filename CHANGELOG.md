@@ -7,6 +7,7 @@
 - Kimi: reuse fresh signed-in Kimi Code CLI credentials in Auto mode without refreshing or rewriting CLI-owned authentication state. Thanks @Leechael!
 
 ### Fixed
+- Kiro: clear inherited signal masks in spawned pipe and PTY probes, preventing the CLI from ignoring termination under a blocked parent mask. Thanks @txarly89!
 - Quota warnings: isolate threshold episodes by stable account ownership so one account cannot duplicate or suppress another account's alert. Thanks @vincent-peng!
 - Claude: cache successful CLI version probes for 30 minutes while invalidating on executable changes, avoiding repeated PTY launches without retaining failed or stale wrapper results. Thanks @Yuxin-Qiao!
 - Linux CLI: bootstrap the configured IANA timezone before Foundation startup on non-FHS systems, preventing SIGILL on NixOS (#2127). Thanks @xikhar!

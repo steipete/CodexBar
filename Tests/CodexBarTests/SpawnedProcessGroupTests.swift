@@ -72,6 +72,81 @@ struct SpawnedProcessGroupTests {
     }
 
     @Test
+    func `launch clears the parent thread signal mask`() throws {
+        var blockedMask = sigset_t()
+        var previousMask = sigset_t()
+        sigemptyset(&blockedMask)
+        sigaddset(&blockedMask, SIGTERM)
+        try #require(pthread_sigmask(SIG_BLOCK, &blockedMask, &previousMask) == 0)
+        defer { pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        let script = """
+        import signal
+        import sys
+
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, set())
+        sys.exit(1 if signal.SIGTERM in blocked else 0)
+        """
+        let process = try SpawnedProcessGroup.launch(
+            binary: "/usr/bin/python3",
+            arguments: ["-c", script],
+            environment: ProcessInfo.processInfo.environment,
+            stdoutPipe: stdoutPipe,
+            stderrPipe: stderrPipe)
+
+        while process.isRunning {
+            usleep(20000)
+        }
+        process.finishSynchronously()
+
+        #expect(process.terminationStatus == 0)
+    }
+
+    @Test
+    func `PTY launch clears the parent thread signal mask`() throws {
+        var blockedMask = sigset_t()
+        var previousMask = sigset_t()
+        sigemptyset(&blockedMask)
+        sigaddset(&blockedMask, SIGTERM)
+        try #require(pthread_sigmask(SIG_BLOCK, &blockedMask, &previousMask) == 0)
+        defer { pthread_sigmask(SIG_SETMASK, &previousMask, nil) }
+
+        var primaryFD: Int32 = -1
+        var secondaryFD: Int32 = -1
+        try #require(openpty(&primaryFD, &secondaryFD, nil, nil, nil) == 0)
+        let primaryHandle = FileHandle(fileDescriptor: primaryFD, closeOnDealloc: true)
+        let secondaryHandle = FileHandle(fileDescriptor: secondaryFD, closeOnDealloc: true)
+        defer {
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+        }
+
+        let script = """
+        import signal
+        import sys
+
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, set())
+        sys.exit(1 if signal.SIGTERM in blocked else 0)
+        """
+        let process = try SpawnedProcessGroup.launchPTY(
+            binary: "/usr/bin/python3",
+            arguments: ["-c", script],
+            environment: ProcessInfo.processInfo.environment,
+            workingDirectory: nil,
+            fileDescriptors: (primary: primaryFD, secondary: secondaryFD))
+        try? secondaryHandle.close()
+
+        while process.isRunning {
+            usleep(20000)
+        }
+        process.finishSynchronously()
+
+        #expect(process.terminationStatus == 0)
+    }
+
+    @Test
     func `launch closes unrelated parent descriptors`() async throws {
         let sourceFD = open("/dev/null", O_RDONLY)
         let inheritedFD = fcntl(sourceFD, F_DUPFD, 200)
@@ -118,12 +193,12 @@ struct SpawnedProcessGroupTests {
             [
                 sys.executable,
                 "-c",
-                "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)",
+                "import os,signal,sys,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(30)",
+                sys.argv[1],
             ],
             start_new_session=True,
         )
-        with open(sys.argv[1], "w") as handle:
-            handle.write(str(child.pid))
         time.sleep(30)
         """
         let stdoutPipe = Pipe()

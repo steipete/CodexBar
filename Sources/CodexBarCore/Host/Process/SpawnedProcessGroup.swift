@@ -390,10 +390,16 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         }
         defer { posix_spawnattr_destroy(&attributes) }
 
+        var emptySignalMask = sigset_t()
+        guard sigemptyset(&emptySignalMask) == 0,
+              posix_spawnattr_setsigmask(&attributes, &emptySignalMask) == 0
+        else {
+            throw LaunchError.setupFailed("posix_spawn signal mask")
+        }
         #if canImport(Darwin)
-        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_CLOEXEC_DEFAULT
         #else
-        let flags = POSIX_SPAWN_SETPGROUP
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK
         #endif
         guard posix_spawnattr_setflags(&attributes, Int16(flags)) == 0,
               posix_spawnattr_setpgroup(&attributes, 0) == 0
@@ -489,10 +495,16 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         }
         defer { posix_spawnattr_destroy(&attributes) }
 
+        var emptySignalMask = sigset_t()
+        guard sigemptyset(&emptySignalMask) == 0,
+              posix_spawnattr_setsigmask(&attributes, &emptySignalMask) == 0
+        else {
+            throw LaunchError.setupFailed("posix_spawn PTY signal mask")
+        }
         #if canImport(Darwin)
-        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_CLOEXEC_DEFAULT
         #else
-        let flags = POSIX_SPAWN_SETPGROUP
+        let flags = POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK
         #endif
         guard posix_spawnattr_setflags(&attributes, Int16(flags)) == 0,
               posix_spawnattr_setpgroup(&attributes, 0) == 0
