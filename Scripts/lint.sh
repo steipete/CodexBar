@@ -116,18 +116,22 @@ case "$cmd" in
     ;;
   lint-linux)
     run_portable_checks
+    run_swiftformat_lint
     run_swiftlint
     ;;
   lint-macos)
     check_app_locales
     run_swiftformat_lint
     ;;
+  lint-macos-locales)
+    check_app_locales
+    ;;
   format)
     ensure_swiftformat
     "${BIN_DIR}/swiftformat" Sources Tests
     ;;
   *)
-    printf 'Usage: %s [lint|lint-linux|lint-macos|format]\n' "$(basename "$0")" >&2
+    printf 'Usage: %s [lint|lint-linux|lint-macos|lint-macos-locales|format]\n' "$(basename "$0")" >&2
     exit 2
     ;;
 esac

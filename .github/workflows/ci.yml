@@ -80,9 +80,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install lint tools
-        run: ./Scripts/install_lint_tools.sh swiftlint
+        run: ./Scripts/install_lint_tools.sh all
 
       - name: Lint
+        # SwiftFormat is portable; keep it off the scarce macOS runners.
         run: ./Scripts/lint.sh lint-linux
 
   swift-test-macos:
@@ -120,9 +121,9 @@ jobs:
           swift --version
           swift package --version
 
-      - name: Check app locales and Swift formatting
+      - name: Check app locales
         if: ${{ matrix.shard-index == 0 }}
-        run: ./Scripts/lint.sh lint-macos
+        run: ./Scripts/lint.sh lint-macos-locales
 
       - name: Swift Test
         # Keep small batches to reduce SwiftPM process overhead without returning to one aggregate run.
@@ -141,7 +142,6 @@ jobs:
         env:
           SHARD_INDEX: ${{ matrix.shard-index }}
           SHARD_COUNT: ${{ matrix.shard-count }}
-          RUNS_LINT_MACOS: ${{ matrix.shard-index == 0 }}
         run: |
           set -euo pipefail
           display_shard_index=$((SHARD_INDEX + 1))
@@ -153,7 +153,6 @@ jobs:
             printf '| Shard | `%s / %s` |\n' "$display_shard_index" "$SHARD_COUNT"
             printf '| Runner | `%s` |\n' "${RUNNER_NAME:-unknown}"
             printf '| Xcode | `%s` |\n' "${xcode_version:-unknown}"
-            printf '| Runs lint-macos | `%s` |\n' "$RUNS_LINT_MACOS"
           } >> "$GITHUB_STEP_SUMMARY"
 
   lint-build-test:

@@ -116,6 +116,17 @@ if "CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }}" not in job:
     raise SystemExit("swift-test-macos must pass matrix.shard-index to Scripts/test.sh")
 if "CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }}" not in job:
     raise SystemExit("swift-test-macos must pass matrix.shard-count to Scripts/test.sh")
+if "lint-macos" in job and "lint-macos-locales" not in job:
+    raise SystemExit("only the macOS-specific locale check may run in a macOS shard")
+
+lint_match = re.search(r"(?ms)^  lint:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:|\Z)", workflow)
+if not lint_match:
+    raise SystemExit("lint job not found in CI workflow")
+lint_job = lint_match.group("body")
+if "./Scripts/install_lint_tools.sh all" not in lint_job:
+    raise SystemExit("lint job must install both portable lint tools")
+if "./Scripts/lint.sh lint-linux" not in lint_job:
+    raise SystemExit("lint job must run the portable static-check suite")
 PY
 
 reset_case retry
