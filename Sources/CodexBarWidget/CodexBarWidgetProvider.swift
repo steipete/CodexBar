@@ -99,6 +99,7 @@ enum ProviderChoice: String, AppEnum {
         case .crossmodel: return nil // CrossModel not yet supported in widgets
         case .clawrouter: return nil // ClawRouter not yet supported in widgets
         case .sub2api: return nil // sub2api not yet supported in widgets
+        case .anyrouter: return nil // AnyRouter not yet supported in widgets
         case .wayfinder: return nil // Wayfinder not yet supported in widgets
         case .elevenlabs: return nil // ElevenLabs not yet supported in widgets
         case .warp: return nil // Warp not yet supported in widgets

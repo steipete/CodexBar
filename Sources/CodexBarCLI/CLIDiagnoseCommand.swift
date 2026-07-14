@@ -261,6 +261,8 @@ extension CodexBarCLI {
             ClawRouterSettingsReader.apiKey(environment: environment) != nil
         case .sub2api:
             Sub2APISettingsReader.apiKey(environment: environment) != nil
+        case .anyrouter:
+            AnyRouterSettingsReader.apiKey(environment: environment) != nil
         case .moonshot:
             MoonshotSettingsReader.apiKey(environment: environment) != nil
         case .ollama:

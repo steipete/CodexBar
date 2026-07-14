@@ -2,6 +2,9 @@
 
 ## 0.43.1 — Unreleased
 
+### Added
+- AnyRouter: add credit balance, lifetime spend, and multi-account API keys from the AnyRouter credits API. Thanks @duyet!
+
 ## 0.43.0 — 2026-07-14
 
 ### Added
