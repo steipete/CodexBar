@@ -27,22 +27,40 @@ public enum TailscaleStatusParser {
     /// non-Tailscale `tailscale` binary — so callers can fall through to the next candidate. Returns a
     /// possibly-empty list for a valid status that simply has no eligible peers (a real answer, stop).
     package static func parseHosts(from data: Data, excludingLocalHost localHost: String? = nil) -> [String]? {
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              root["Self"] != nil || root["Version"] != nil || root["BackendState"] != nil || root["Peer"] != nil
-        else { return nil }
-        if let backendState = root["BackendState"] as? String,
-           backendState.caseInsensitiveCompare("Running") != .orderedSame
-        {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        if let rawBackendState = root["BackendState"] {
+            guard let backendState = rawBackendState as? String,
+                  backendState.caseInsensitiveCompare("Running") == .orderedSame
+            else { return nil }
+        }
+
+        let selfStatus: [String: Any]?
+        if let rawSelf = root["Self"] {
+            guard let parsedSelf = rawSelf as? [String: Any] else { return nil }
+            selfStatus = parsedSelf
+        } else {
+            selfStatus = nil
+        }
+
+        let peers: [[String: Any]]
+        let hasPeerShape: Bool
+        switch root["Peer"] {
+        case let dictionary as [String: [String: Any]]:
+            peers = Array(dictionary.values)
+            hasPeerShape = true
+        case let array as [[String: Any]]:
+            peers = array
+            hasPeerShape = true
+        case is NSNull:
+            peers = []
+            hasPeerShape = true
+        case nil:
+            peers = []
+            hasPeerShape = false
+        default:
             return nil
         }
-        let peers: [[String: Any]] = if let dictionary = root["Peer"] as? [String: [String: Any]] {
-            Array(dictionary.values)
-        } else if let array = root["Peer"] as? [[String: Any]] {
-            array
-        } else {
-            []
-        }
-        let selfStatus = root["Self"] as? [String: Any]
+        guard selfStatus != nil || hasPeerShape else { return nil }
         let localLabels = Set([
             localHost,
             selfStatus?["DNSName"] as? String,

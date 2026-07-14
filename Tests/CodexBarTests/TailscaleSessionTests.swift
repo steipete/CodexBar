@@ -67,7 +67,7 @@ struct TailscaleSessionTests {
             localHost: "local-mac")
         { binary in
             probed.append(binary)
-            return binary == "/first/tailscale" ? Data("command not found".utf8) : validStatus
+            return binary == "/first/tailscale" ? Data(#"{"Version":"1.0"}"#.utf8) : validStatus
         }
 
         #expect(hosts == ["linuxbox"])
@@ -108,6 +108,9 @@ struct TailscaleSessionTests {
         // Non-status output -> nil so the caller falls through to the next candidate…
         #expect(TailscaleStatusParser.parseHosts(from: Data("not json".utf8)) == nil)
         #expect(TailscaleStatusParser.parseHosts(from: Data("Tailscale help text".utf8)) == nil)
+        #expect(TailscaleStatusParser.parseHosts(from: Data(#"{"Version":"1.0"}"#.utf8)) == nil)
+        #expect(TailscaleStatusParser.parseHosts(from: Data(#"{"Self":null}"#.utf8)) == nil)
+        #expect(TailscaleStatusParser.parseHosts(from: Data(#"{"Peer":"error"}"#.utf8)) == nil)
         // …a valid status with no eligible peers -> [] (a real answer, stop probing).
         let empty = TailscaleStatusParser.parseHosts(
             from: Data(#"{"Version":"1.0","BackendState":"Running","Self":{},"Peer":null}"#.utf8))
