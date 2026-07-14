@@ -354,7 +354,9 @@ struct TTYCommandRunnerEnvTests {
         TTYCommandRunner.drainRemainingOutput(
             until: Date().addingTimeInterval(1),
             readChunk: {
-                if reads.isEmpty { return .closed }
+                if reads.isEmpty {
+                    return .closed
+                }
                 return reads.removeFirst()
             },
             processChunk: { data in
@@ -382,7 +384,9 @@ struct TTYCommandRunnerEnvTests {
             until: Date().addingTimeInterval(1),
             readChunk: {
                 readCount += 1
-                if reads.isEmpty { return .closed }
+                if reads.isEmpty {
+                    return .closed
+                }
                 return reads.removeFirst()
             },
             processChunk: { data in
@@ -411,7 +415,7 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
-    func `deadline drain preserves prompt output when first poll misses it`() throws {
+    func `deadline drain preserves prompt output emitted after deadline`() throws {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("codexbar-tty-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -420,6 +424,7 @@ struct TTYCommandRunnerEnvTests {
         let scriptURL = dir.appendingPathComponent("late-output.sh")
         let script = """
         #!/bin/sh
+        /bin/sleep 0.05
         printf 'https://claude.ai/oauth/authorize?test=late\\n'
         /bin/sleep 5
         """
