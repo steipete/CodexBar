@@ -148,6 +148,25 @@ struct AnyRouterUsageFetcherTests {
         }
     }
 
+    /// A key restricted to an endpoint allow-list that omits /api/v1/credits is valid but
+    /// scoped out. AnyRouter answers 403 insufficient_scope, and the fix differs from a bad key.
+    @Test
+    func `fetch reports a scoped-out key separately from a rejected one`() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let requestURL = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: requestURL,
+                statusCode: 403,
+                httpVersion: nil,
+                headerFields: nil))
+            return (Data(#"{"error":{"code":"insufficient_scope"}}"#.utf8), response)
+        }
+
+        await #expect(throws: AnyRouterUsageError.insufficientScope) {
+            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "sk-ar-v1-scoped", transport: transport)
+        }
+    }
+
     @Test
     func `fetch surfaces server errors`() async throws {
         let transport = ProviderHTTPTransportHandler { request in
