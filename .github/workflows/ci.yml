@@ -238,8 +238,14 @@ jobs:
             fi
           done
           if [[ "${#missing_packages[@]}" -gt 0 ]]; then
-            sudo apt-get update
-            sudo apt-get install -y "${missing_packages[@]}"
+            # GitHub's arm64 image uses the HTTP-only ports mirror, which can be
+            # unavailable even when HTTPS egress is healthy.
+            if [[ "$(uname -m)" == "aarch64" && -f /etc/apt/sources.list.d/ubuntu.sources ]]; then
+              sudo sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://ports.ubuntu.com/ubuntu-ports|g' \
+                /etc/apt/sources.list.d/ubuntu.sources
+            fi
+            sudo apt-get -o Acquire::Retries=3 update
+            sudo apt-get -o Acquire::Retries=3 install -y "${missing_packages[@]}"
           fi
 
           SWIFTLY_ARCH="$(uname -m)"
