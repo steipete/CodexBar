@@ -147,7 +147,7 @@ public enum AnyRouterUsageFetcher {
                 currencyCode: response.currency?.uppercased() ?? "USD",
                 updatedAt: updatedAt)
         } catch {
-            Self.log.error("AnyRouter credits parsing failed: \(error.localizedDescription)")
+            self.log.error("AnyRouter credits parsing failed: \(error.localizedDescription)")
             throw AnyRouterUsageError.parseFailed(error.localizedDescription)
         }
     }
