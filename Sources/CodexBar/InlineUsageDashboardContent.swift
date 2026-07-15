@@ -381,8 +381,9 @@ extension UsageMenuCardView.Model {
         if let requestCount = snapshot.last30DaysRequests {
             details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
         }
-        if let hint = Self.tokenUsageHint(provider: provider) {
-            details.append(hint)
+        let hintLines = Self.tokenUsageHintLines(provider: provider)
+        if hintLines.isEmpty == false {
+            details.append(contentsOf: hintLines)
         } else {
             details.append(L("cost_estimate_hint"))
         }

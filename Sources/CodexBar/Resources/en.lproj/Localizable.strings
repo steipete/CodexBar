@@ -715,8 +715,11 @@
 "not_found" = "Not found";
 
 /* Cost estimation */
-"cost_header_estimated" = "API-equivalent estimate";
-"cost_estimate_hint" = "Local usage × public API prices · not a subscription bill or plan value";
+"cost_header_estimated" = "Cost (estimated)";
+"cost_estimate_hint" = "Estimated from local logs · may differ from your bill";
+"codex_api_estimate_header" = "API-equivalent estimate";
+"codex_api_estimate_hint" = "Local usage × public API prices · not a subscription bill or plan value";
+"codex_api_estimate_not_billed" = "not a subscription bill or plan value";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY.";

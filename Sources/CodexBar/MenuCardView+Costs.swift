@@ -169,24 +169,34 @@ extension UsageMenuCardView.Model {
     }
 
     static func tokenUsageHint(provider: UsageProvider) -> String? {
+        let lines = Self.tokenUsageHintLines(provider: provider)
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    static func tokenUsageHeader(provider: UsageProvider) -> String {
+        provider == .codex ? L("codex_api_estimate_header") : L("cost_header_estimated")
+    }
+
+    static func tokenUsageHintLines(provider: UsageProvider) -> [String] {
         switch provider {
         case .codex:
             [
                 L("Estimated from local Codex logs for the selected account."),
-                L("cost_estimate_hint"),
-            ].joined(separator: "\n")
+                L("codex_api_estimate_not_billed"),
+                L("codex_api_estimate_hint"),
+            ]
         case .claude:
-            UsageFormatter.costEstimateHint(provider: provider)
+            [UsageFormatter.costEstimateHint(provider: provider)]
         case .vertexai:
-            L("cost_estimate_hint")
+            [L("cost_estimate_hint")]
         case .bedrock:
-            L("AWS Cost Explorer billing can lag.")
+            [L("AWS Cost Explorer billing can lag.")]
         case .openai:
-            L("Reported by OpenAI Admin API organization usage.")
+            [L("Reported by OpenAI Admin API organization usage.")]
         case .mistral:
-            L("Reported by Mistral billing usage.")
+            [L("Reported by Mistral billing usage.")]
         default:
-            nil
+            []
         }
     }
 

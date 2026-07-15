@@ -97,7 +97,7 @@ struct CLICostTests {
         #expect(output.contains("  - client-a: $2.25 · 2K tokens"))
         #expect(output.contains("/Users/test/.codex/worktrees/abcd/client-a"))
         #expect(output.contains("Unknown project: $2.49 · 2K tokens"))
-        #expect(output.contains("Local usage × public API prices · not a subscription bill or plan value"))
+        #expect(output.contains("Not a subscription bill or plan value · local usage × public API prices"))
     }
 
     @Test
@@ -294,8 +294,7 @@ struct CLICostTests {
     func `cost estimate hint is stable string`() {
         let hint = UsageFormatter.costEstimateHint
         #expect(!hint.isEmpty)
-        #expect(hint.contains("public API prices"))
-        #expect(hint.contains("not a subscription bill"))
+        #expect(hint.contains("Estimated"))
         #expect(UsageFormatter.costEstimateHint(provider: .claude).contains("cache read/write tokens"))
     }
 }

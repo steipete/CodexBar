@@ -693,8 +693,11 @@
 "not_found" = "No trobat";
 
 /* Cost estimation */
-"cost_header_estimated" = "Estimació equivalent a l'API";
-"cost_estimate_hint" = "Ús local × preus públics de l'API · no és una factura de subscripció ni el valor d'un pla";
+"cost_header_estimated" = "Cost (estimat)";
+"cost_estimate_hint" = "Estimat a partir de registres locals · pot diferir de la vostra factura";
+"codex_api_estimate_header" = "Estimació equivalent a l'API";
+"codex_api_estimate_hint" = "Ús local × preus públics de l'API · no és una factura de subscripció ni el valor d'un pla";
+"codex_api_estimate_not_billed" = "no és una factura de subscripció ni el valor d'un pla";
 
 /* Popup panels */
 "No usage configured." = "No hi ha cap ús configurat.";

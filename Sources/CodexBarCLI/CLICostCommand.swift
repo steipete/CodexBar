@@ -125,7 +125,7 @@ extension CodexBarCLI {
             "\(historyLabel): \(monthCost) · \($0) tokens"
         } ?? "\(historyLabel): \(monthCost)"
 
-        let hintLine = UsageFormatter.costEstimateHint(provider: provider)
+        let hintLine = Self.costEstimateHint(provider: provider)
         return [header, todayLine, monthLine, hintLine].joined(separator: "\n")
     }
 
@@ -135,7 +135,7 @@ extension CodexBarCLI {
         var lines = [header, "Projects (\(historyLabel)):"]
         guard !snapshot.projects.isEmpty else {
             lines.append("—")
-            lines.append(UsageFormatter.costEstimateHint(provider: .codex))
+            lines.append(Self.costEstimateHint(provider: .codex))
             return lines.joined(separator: "\n")
         }
         for project in snapshot.projects {
@@ -158,8 +158,14 @@ extension CodexBarCLI {
                 }
             }
         }
-        lines.append(UsageFormatter.costEstimateHint(provider: .codex))
+        lines.append(Self.costEstimateHint(provider: .codex))
         return lines.joined(separator: "\n")
+    }
+
+    private static func costEstimateHint(provider: UsageProvider) -> String {
+        provider == .codex
+            ? "Not a subscription bill or plan value · local usage × public API prices"
+            : UsageFormatter.costEstimateHint(provider: provider)
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {

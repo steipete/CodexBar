@@ -230,7 +230,7 @@ public enum UsageFormatter {
         value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
     }
 
-    public static let costEstimateHint = "Local usage × public API prices · not a subscription bill or plan value"
+    public static let costEstimateHint = "Estimated from local logs · may differ from your bill"
 
     public static func costEstimateHint(provider: UsageProvider) -> String {
         switch provider {

@@ -703,8 +703,11 @@
 "not_found" = "No encontrado";
 
 /* Cost estimation */
-"cost_header_estimated" = "Estimación equivalente a la API";
-"cost_estimate_hint" = "Uso local × precios públicos de la API · no es una factura de suscripción ni el valor de un plan";
+"cost_header_estimated" = "Coste (estimado)";
+"cost_estimate_hint" = "Estimado a partir de registros locales · puede diferir de tu factura";
+"codex_api_estimate_header" = "Estimación equivalente a la API";
+"codex_api_estimate_hint" = "Uso local × precios públicos de la API · no es una factura de suscripción ni el valor de un plan";
+"codex_api_estimate_not_billed" = "no es una factura de suscripción ni el valor de un plan";
 
 /* Popup panels */
 "No usage configured." = "No hay uso configurado.";

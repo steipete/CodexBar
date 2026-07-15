@@ -7,7 +7,7 @@ struct InlineCostHistoryDashboardLabelTests {
     @Test
     func `local cost history Today KPI uses current day session value`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
-        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
         let tokenSnapshot = CostUsageTokenSnapshot(
             sessionTokens: 0,
             sessionCostUSD: 0,
@@ -26,7 +26,7 @@ struct InlineCostHistoryDashboardLabelTests {
             updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
-            provider: .claude,
+            provider: .codex,
             metadata: metadata,
             snapshot: UsageSnapshot(
                 primary: nil,
@@ -218,6 +218,9 @@ struct InlineCostHistoryDashboardLabelTests {
 
         let dashboard = try #require(model.inlineUsageDashboard)
         #expect(dashboard.currencyCode == "USD")
+        #expect(dashboard.detailLines.contains("not a subscription bill or plan value"))
+        #expect(dashboard.detailLines.contains(
+            "Local usage × public API prices · not a subscription bill or plan value"))
     }
 
     @Test
