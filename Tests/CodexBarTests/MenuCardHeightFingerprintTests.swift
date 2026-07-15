@@ -48,10 +48,42 @@ struct MenuCardHeightFingerprintTests {
         #expect(one.heightFingerprint(section: "card") != two.heightFingerprint(section: "card"))
     }
 
+    @Test
+    func `height fingerprint ignores reset-credit text when item count is unchanged`() {
+        func items(fifthCompactExpiryText: String) -> [CodexResetCreditPresentationItem] {
+            (1...4).map { day in
+                CodexResetCreditPresentationItem(expiryText: "Expires in \(day)d", compactExpiryText: "\(day)d")
+            } + [CodexResetCreditPresentationItem(
+                expiryText: "Expires in 5d",
+                compactExpiryText: fifthCompactExpiryText)]
+        }
+        let one = Self.model(resetCredits: CodexResetCreditsPresentation(
+            text: "5 available",
+            items: items(fifthCompactExpiryText: "5d")))
+        let two = Self.model(resetCredits: CodexResetCreditsPresentation(
+            text: "5 available",
+            items: items(fifthCompactExpiryText: "6d")))
+
+        #expect(one.heightFingerprint(section: "card") == two.heightFingerprint(section: "card"))
+    }
+
+    @Test
+    func `height fingerprint changes when detail right secondary text changes`() {
+        let withoutRisk = Self.model(detailRightSecondaryText: nil).heightFingerprint(section: "card")
+        let withRisk = Self.model(detailRightSecondaryText: "≈ 45% run-out risk").heightFingerprint(section: "card")
+        let withChangedRisk = Self.model(detailRightSecondaryText: "≈ 70% run-out risk")
+            .heightFingerprint(section: "card")
+
+        #expect(withoutRisk != withRisk)
+        #expect(withRisk == withChangedRisk)
+        #expect(!withRisk.contains("45% run-out risk"))
+    }
+
     private static func model(
         percent: Double = 42,
         percentStyle: UsageMenuCardView.Model.PercentStyle = .left,
-        resetCredits: CodexResetCreditsPresentation? = nil) -> UsageMenuCardView.Model
+        resetCredits: CodexResetCreditsPresentation? = nil,
+        detailRightSecondaryText: String? = nil) -> UsageMenuCardView.Model
     {
         UsageMenuCardView.Model(
             provider: .codex,
@@ -71,6 +103,7 @@ struct MenuCardHeightFingerprintTests {
                     detailText: nil,
                     detailLeftText: nil,
                     detailRightText: nil,
+                    detailRightSecondaryText: detailRightSecondaryText,
                     pacePercent: nil,
                     paceOnTop: true),
             ],

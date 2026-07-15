@@ -486,18 +486,29 @@ private struct ProviderMetricInlineRow: View {
                             Text(leftDetail)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                         Spacer(minLength: 8)
                         if let rightDetail = self.metric.detailRightText, !rightDetail.isEmpty {
                             Text(rightDetail)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         } else if !resetText.isEmpty {
                             Text(resetText)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
+                }
+
+                if let secondaryRightDetail = self.metric.detailRightSecondaryText, !secondaryRightDetail.isEmpty {
+                    Text(secondaryRightDetail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
                 if hasRightDetail, !resetText.isEmpty {
@@ -531,19 +542,24 @@ private struct ProviderCodexResetCreditsInlineRow: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .top, spacing: 4) {
                 Image(systemName: "clock")
                     .font(.caption2)
-                Text(self.presentation.expirySummaryText)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(self.presentation.items.indices, id: \.self) { index in
+                        Text(self.presentation.items[index].compactExpiryText)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .accessibilityHidden(true)
         }
         .padding(.vertical, 2)
+        .help(self.presentation.helpText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(self.presentation.accessibilityLabel)
     }

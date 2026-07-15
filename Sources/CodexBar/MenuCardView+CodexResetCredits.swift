@@ -10,11 +10,8 @@ struct CodexResetCreditsPresentation: Equatable {
     let text: String
     let items: [CodexResetCreditPresentationItem]
 
-    var expirySummaryText: String {
-        let visibleItems = self.items.prefix(4).map(\.compactExpiryText)
-        let hiddenCount = self.items.count - visibleItems.count
-        let suffix = hiddenCount > 0 ? ["+\(hiddenCount)"] : []
-        return (visibleItems + suffix).joined(separator: " · ")
+    var compactExpiryTexts: [String] {
+        self.items.map(\.compactExpiryText)
     }
 
     var helpText: String {
@@ -57,12 +54,35 @@ struct CodexResetCreditsPresentation: Equatable {
             return CodexResetCreditPresentationItem(expiryText: L("No expiry"), compactExpiryText: L("No expiry"))
         }
         let formattedTime = Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now)
-        let compactExpiryText = resetStyle == .countdown && formattedTime.hasPrefix("in ")
-            ? String(formattedTime.dropFirst(3))
-            : formattedTime
+        let compactExpiryText = Self.compactExpiryText(
+            expiresAt,
+            resetStyle: resetStyle,
+            formattedTime: formattedTime)
         return CodexResetCreditPresentationItem(
             expiryText: String(format: L("Expires %@"), formattedTime),
             compactExpiryText: compactExpiryText)
+    }
+
+    private static func compactExpiryText(
+        _ expiresAt: Date,
+        resetStyle: ResetTimeDisplayStyle,
+        formattedTime: String) -> String
+    {
+        switch resetStyle {
+        case .absolute:
+            self.fixedCompactDateText(expiresAt)
+        case .countdown:
+            formattedTime.hasPrefix("in ") ? String(formattedTime.dropFirst(3)) : formattedTime
+        }
+    }
+
+    private static func fixedCompactDateText(_ date: Date) -> String {
+        let components = Calendar.current.dateComponents([.month, .day, .hour, .minute], from: date)
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        return String(format: "%02d/%02d %02d:%02d", month, day, hour, minute)
     }
 
     private static func formattedTime(
@@ -90,21 +110,25 @@ struct CodexResetCreditsContent: View {
                 .font(.body)
                 .fontWeight(.medium)
                 .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 Text(self.presentation.text)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
                     .lineLimit(1)
                     .layoutPriority(1)
                 Spacer(minLength: 8)
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .top, spacing: 4) {
                     Image(systemName: "clock")
                         .font(.caption2)
-                    Text(self.presentation.expirySummaryText)
-                        .font(.caption)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(self.presentation.items.indices, id: \.self) { index in
+                            Text(self.presentation.items[index].compactExpiryText)
+                                .font(.caption)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
                 .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                 .accessibilityHidden(true)

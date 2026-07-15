@@ -23,7 +23,7 @@ struct CodexResetCreditsMenuCardTests {
 
         #expect(presentation.text == "3 available")
         #expect(presentation.items.map(\.expiryText) == ["Expires in 1d", "Expires in 2d", "No expiry"])
-        #expect(presentation.expirySummaryText == "1d · 2d · No expiry")
+        #expect(presentation.compactExpiryTexts == ["1d", "2d", "No expiry"])
         #expect(presentation.helpText == "1. Expires in 1d\n2. Expires in 2d\n3. No expiry")
         #expect(presentation.accessibilityLabel.contains(presentation.helpText))
     }
@@ -40,14 +40,21 @@ struct CodexResetCreditsMenuCardTests {
 
         #expect(presentation.text == "1 available")
         #expect(presentation.items.map(\.expiryText) == ["No expiry"])
-        #expect(presentation.expirySummaryText == "No expiry")
+        #expect(presentation.compactExpiryTexts == ["No expiry"])
         #expect(model.hasUsageContent)
     }
 
     @Test
     func `inventory respects absolute reset-time style`() throws {
-        let now = Date(timeIntervalSince1970: 1_781_726_400)
-        let expiresAt = now.addingTimeInterval(86400)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let expiresAt = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 7,
+            day: 18,
+            hour: 8,
+            minute: 36)))
+        let now = expiresAt.addingTimeInterval(-86400)
         let model = try Self.model(
             snapshot: Self.snapshot(
                 now: now,
@@ -58,7 +65,7 @@ struct CodexResetCreditsMenuCardTests {
         let formatted = UsageFormatter.resetDescription(from: expiresAt, now: now)
 
         #expect(presentation.items.map(\.expiryText) == ["Expires \(formatted)"])
-        #expect(presentation.expirySummaryText == formatted)
+        #expect(presentation.compactExpiryTexts == ["07/18 08:36"])
     }
 
     @Test
@@ -72,11 +79,11 @@ struct CodexResetCreditsMenuCardTests {
             now: now)
 
         #expect(model.codexResetCredits?.text == "1 available")
-        #expect(model.codexResetCredits?.expirySummaryText == "1d")
+        #expect(model.codexResetCredits?.compactExpiryTexts == ["1d"])
     }
 
     @Test
-    func `compact expiry summary caps visible dates`() throws {
+    func `compact expiry texts preserve full inventory`() throws {
         let now = Date(timeIntervalSince1970: 1_781_726_400)
         let credits = (1...6).map { day in
             Self.credit(id: "day-\(day)", status: .available, now: now, expiresIn: Double(day * 86400))
@@ -84,7 +91,7 @@ struct CodexResetCreditsMenuCardTests {
         let model = try Self.model(snapshot: Self.snapshot(now: now, credits: credits), now: now)
 
         let presentation = try #require(model.codexResetCredits)
-        #expect(presentation.expirySummaryText == "1d · 2d · 3d · 4d · +2")
+        #expect(presentation.compactExpiryTexts == ["1d", "2d", "3d", "4d", "5d", "6d"])
         #expect(presentation.helpText.split(separator: "\n").count == 6)
     }
 

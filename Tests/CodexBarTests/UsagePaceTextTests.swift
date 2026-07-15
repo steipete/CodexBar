@@ -161,7 +161,8 @@ struct UsagePaceTextTests {
 
         let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
 
-        #expect(detail.rightLabel == "Runs out in 2d · ≈ 70% run-out risk")
+        #expect(detail.rightLabel == "Runs out in 2d")
+        #expect(detail.riskLabel == "≈ 70% run-out risk")
     }
 
     @Test
@@ -179,7 +180,8 @@ struct UsagePaceTextTests {
         let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
 
         #expect(detail.leftLabel == "9% in reserve")
-        #expect(detail.rightLabel == "≈ 45% run-out risk")
+        #expect(detail.rightLabel == nil)
+        #expect(detail.riskLabel == "≈ 45% run-out risk")
     }
 
     @Test
@@ -197,7 +199,8 @@ struct UsagePaceTextTests {
 
         let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
 
-        #expect(detail.rightLabel == "Lasts until reset · 1.5× headroom · ≈ 0% run-out risk")
+        #expect(detail.rightLabel == "Lasts until reset · 1.5× headroom")
+        #expect(detail.riskLabel == "≈ 0% run-out risk")
     }
 
     @Test
@@ -214,7 +217,8 @@ struct UsagePaceTextTests {
 
         let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
 
-        #expect(detail.rightLabel == "≈ 5% run-out risk")
+        #expect(detail.rightLabel == nil)
+        #expect(detail.riskLabel == "≈ 5% run-out risk")
     }
 
     // MARK: - Session pace (5-hour window)

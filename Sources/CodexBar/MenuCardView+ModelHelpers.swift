@@ -5,6 +5,7 @@ extension UsageMenuCardView.Model {
     struct PaceDetail {
         let leftLabel: String
         let rightLabel: String?
+        var riskLabel: String?
         let pacePercent: Double?
         let paceOnTop: Bool
     }
@@ -41,6 +42,9 @@ extension UsageMenuCardView.Model {
                     metricID: metric.id),
                 detailLeftText: PersonalInfoRedactor.redactEmails(in: metric.detailLeftText, isEnabled: true),
                 detailRightText: PersonalInfoRedactor.redactEmails(in: metric.detailRightText, isEnabled: true),
+                detailRightSecondaryText: PersonalInfoRedactor.redactEmails(
+                    in: metric.detailRightSecondaryText,
+                    isEnabled: true),
                 pacePercent: metric.pacePercent,
                 paceOnTop: metric.paceOnTop,
                 warningMarkerPercents: metric.warningMarkerPercents,
@@ -185,6 +189,7 @@ extension UsageMenuCardView.Model {
             (current.detailText == nil) == (candidate.detailText == nil) &&
             (current.detailLeftText == nil) == (candidate.detailLeftText == nil) &&
             (current.detailRightText == nil) == (candidate.detailRightText == nil) &&
+            (current.detailRightSecondaryText == nil) == (candidate.detailRightSecondaryText == nil) &&
             current.cardStyle == candidate.cardStyle
     }
 
@@ -453,6 +458,7 @@ extension UsageMenuCardView.Model {
         return PaceDetail(
             leftLabel: detail.leftLabel,
             rightLabel: detail.rightLabel,
+            riskLabel: detail.riskLabel,
             pacePercent: pacePercent,
             paceOnTop: paceOnTop)
     }
@@ -482,6 +488,7 @@ extension UsageMenuCardView.Model {
         return PaceDetail(
             leftLabel: detail.leftLabel,
             rightLabel: detail.rightLabel,
+            riskLabel: detail.riskLabel,
             pacePercent: pacePercent,
             paceOnTop: paceOnTop)
     }
@@ -668,6 +675,7 @@ extension UsageMenuCardView.Model {
                 detailText: usageKnown ? detailText : nil,
                 detailLeftText: usageKnown ? paceDetail?.leftLabel : nil,
                 detailRightText: usageKnown ? paceDetail?.rightLabel : nil,
+                detailRightSecondaryText: usageKnown ? paceDetail?.riskLabel : nil,
                 pacePercent: usageKnown ? paceDetail?.pacePercent : nil,
                 paceOnTop: paceDetail?.paceOnTop ?? true)
         }
@@ -819,6 +827,7 @@ extension UsageMenuCardView.Model {
             detailText: nil,
             detailLeftText: paceDetail?.leftLabel,
             detailRightText: paceDetail?.rightLabel,
+            detailRightSecondaryText: paceDetail?.riskLabel,
             pacePercent: paceDetail?.pacePercent,
             paceOnTop: paceDetail?.paceOnTop ?? true)
     }
