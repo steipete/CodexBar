@@ -181,7 +181,11 @@ extension UsageMenuCardView.Model {
     }
 
     private static func hasCompatibleMetricLayout(_ current: Metric, _ candidate: Metric) -> Bool {
-        current.id == candidate.id &&
+        // Adaptive detail text can cross the one-row/two-row boundary without changing nil presence.
+        let hasCompatibleAdaptiveDetailText = current.detailRightSecondaryText != nil ||
+            (current.detailLeftText == candidate.detailLeftText &&
+                current.detailRightText == candidate.detailRightText)
+        return current.id == candidate.id &&
             current.title == candidate.title &&
             current.percentStyle == candidate.percentStyle &&
             (current.statusText == nil) == (candidate.statusText == nil) &&
@@ -190,6 +194,7 @@ extension UsageMenuCardView.Model {
             (current.detailLeftText == nil) == (candidate.detailLeftText == nil) &&
             (current.detailRightText == nil) == (candidate.detailRightText == nil) &&
             (current.detailRightSecondaryText == nil) == (candidate.detailRightSecondaryText == nil) &&
+            hasCompatibleAdaptiveDetailText &&
             current.cardStyle == candidate.cardStyle
     }
 

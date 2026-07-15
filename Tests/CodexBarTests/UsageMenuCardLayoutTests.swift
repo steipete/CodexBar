@@ -123,6 +123,31 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
+    func `tracked metric layout rejects adaptive detail text changes`() {
+        func metricModel(detailLeftText: String, detailRightText: String) -> UsageMenuCardView.Model {
+            Self.model(metrics: [
+                UsageMenuCardView.Model.Metric(
+                    id: "session",
+                    title: "Session",
+                    percent: 37,
+                    percentStyle: .left,
+                    resetText: "Resets in 41m",
+                    detailText: nil,
+                    detailLeftText: detailLeftText,
+                    detailRightText: detailRightText,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ])
+        }
+        let shortModel = metricModel(detailLeftText: "5% ahead", detailRightText: "Done in 1d")
+        let longModel = metricModel(
+            detailLeftText: "5% more than current pace",
+            detailRightText: "Done in 1d 36m · about 75% likely to finish")
+
+        #expect(!shortModel.hasCompatibleTrackedLayout(with: longModel))
+    }
+
+    @Test
     func `metric detail with risk stays at most two rows regardless of secondary length`() {
         let width: CGFloat = 296
         func metricModel(detailRightSecondaryText: String) -> UsageMenuCardView.Model {
