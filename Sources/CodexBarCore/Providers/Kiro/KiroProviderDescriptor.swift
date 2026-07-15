@@ -32,8 +32,17 @@ public enum KiroProviderDescriptor {
                 noDataMessage: { "Kiro cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .cli],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-                    [KiroAPIFetchStrategy(), KiroCLIFetchStrategy()]
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    switch context.sourceMode {
+                    case .auto:
+                        [KiroAPIFetchStrategy(), KiroCLIFetchStrategy()]
+                    case .api:
+                        [KiroAPIFetchStrategy()]
+                    case .cli:
+                        [KiroCLIFetchStrategy()]
+                    case .web, .oauth:
+                        []
+                    }
                 })),
             cli: ProviderCLIConfig(
                 name: "kiro",
@@ -58,7 +67,7 @@ struct KiroCLIFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "cli")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
     }
 }

@@ -39,11 +39,18 @@ struct KiroAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        // Fall back to CLI if API fails
-        true
+        // Only fall back to CLI in auto mode
+        context.sourceMode == .auto
     }
 
     // MARK: - Credential Resolution
+
+    /// Credential keys to try, in order of preference
+    private static let credentialKeys = [
+        "kirocli:odic:token",   // Current (typo in kiro-cli, kept for compat)
+        "kirocli:oidc:token",   // Correct spelling, newer versions
+        "kirocli:social:token", // Social login (GitHub/Google)
+    ]
 
     /// Read credentials from kiro-cli's SQLite database
     private static func resolveCredentials() -> KiroCLICredentials? {
@@ -61,13 +68,27 @@ struct KiroAPIFetchStrategy: ProviderFetchStrategy {
         }
         defer { sqlite3_close(db) }
 
-        let query = "SELECT value FROM auth_kv WHERE key = 'kirocli:odic:token'"
+        // Try each credential key until we find one with a valid token
+        for key in credentialKeys {
+            if let creds = queryCredentials(db: db, key: key) {
+                return creds
+            }
+        }
+
+        return nil
+    }
+
+    private static func queryCredentials(db: OpaquePointer?, key: String) -> KiroCLICredentials? {
+        guard let db else { return nil }
+        let query = "SELECT value FROM auth_kv WHERE key = ?"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else {
             sqlite3_finalize(stmt)
             return nil
         }
         defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, key, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
 
         guard sqlite3_step(stmt) == SQLITE_ROW,
               let blob = sqlite3_column_text(stmt, 0)
