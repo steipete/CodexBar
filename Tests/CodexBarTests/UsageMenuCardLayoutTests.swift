@@ -123,7 +123,7 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
-    func `tracked metric layout rejects adaptive detail text changes`() {
+    func `tracked metric layout distinguishes adaptive detail text shapes`() {
         func metricModel(detailLeftText: String, detailRightText: String) -> UsageMenuCardView.Model {
             Self.model(metrics: [
                 UsageMenuCardView.Model.Metric(
@@ -140,10 +140,12 @@ struct UsageMenuCardLayoutTests {
             ])
         }
         let shortModel = metricModel(detailLeftText: "5% ahead", detailRightText: "Done in 1d")
+        let sameShapeModel = metricModel(detailLeftText: "6% ahead", detailRightText: "Done in 2d")
         let longModel = metricModel(
             detailLeftText: "5% more than current pace",
             detailRightText: "Done in 1d 36m · about 75% likely to finish")
 
+        #expect(shortModel.hasCompatibleTrackedLayout(with: sameShapeModel))
         #expect(!shortModel.hasCompatibleTrackedLayout(with: longModel))
     }
 

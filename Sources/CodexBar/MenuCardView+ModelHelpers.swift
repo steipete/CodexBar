@@ -181,10 +181,12 @@ extension UsageMenuCardView.Model {
     }
 
     private static func hasCompatibleMetricLayout(_ current: Metric, _ candidate: Metric) -> Bool {
-        // Adaptive detail text can cross the one-row/two-row boundary without changing nil presence.
+        // Numeric substitutions retain the same text shape; wording changes can cross the one-row/two-row boundary.
         let hasCompatibleAdaptiveDetailText = current.detailRightSecondaryText != nil ||
-            (current.detailLeftText == candidate.detailLeftText &&
-                current.detailRightText == candidate.detailRightText)
+            (Self.adaptiveDetailTextShape(current.detailLeftText) ==
+                Self.adaptiveDetailTextShape(candidate.detailLeftText) &&
+                Self.adaptiveDetailTextShape(current.detailRightText) ==
+                Self.adaptiveDetailTextShape(candidate.detailRightText))
         return current.id == candidate.id &&
             current.title == candidate.title &&
             current.percentStyle == candidate.percentStyle &&
@@ -196,6 +198,10 @@ extension UsageMenuCardView.Model {
             (current.detailRightSecondaryText == nil) == (candidate.detailRightSecondaryText == nil) &&
             hasCompatibleAdaptiveDetailText &&
             current.cardStyle == candidate.cardStyle
+    }
+
+    private static func adaptiveDetailTextShape(_ text: String?) -> String? {
+        text.map { String($0.map { character in character.isNumber ? "#" : character }) }
     }
 
     private static func hasCompatibleCreditsLayout(
