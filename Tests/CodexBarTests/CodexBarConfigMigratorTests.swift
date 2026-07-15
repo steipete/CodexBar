@@ -6,6 +6,31 @@ import Testing
 @Suite(.serialized)
 struct CodexBarConfigMigratorTests {
     @Test
+    func `legacy provider toggles migrate into config`() throws {
+        let suite = "CodexBarConfigMigratorTests-toggles-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(
+            [
+                "codex": false,
+                "claude": true,
+            ],
+            forKey: "providerToggles")
+
+        let config = CodexBarConfigMigrator.loadOrMigrate(
+            configStore: testConfigStore(suiteName: suite),
+            userDefaults: defaults,
+            stores: Self.legacyStores(
+                secrets: CountingLegacySecretStore(),
+                accountStore: CountingTokenAccountStore()))
+
+        #expect(config.providerConfig(for: .codex)?.enabled == false)
+        #expect(config.providerConfig(for: .claude)?.enabled == true)
+    }
+
+    @Test
     func `legacy secret migration completion flag skips repeated scans`() throws {
         let suite = "CodexBarConfigMigratorTests-skip-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
