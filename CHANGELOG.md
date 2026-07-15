@@ -3,6 +3,7 @@
 ## 0.43.1 — Unreleased
 
 ### Fixed
+- Copilot: hide explicitly unlimited Chat quota markers instead of rendering a permanently empty usage bar.
 - Ollama: explain that API-key verification cannot show Cloud quota limits and direct users to browser-cookie mode (#2159). Thanks @kiranmagic7!
 - Claude: suppress duplicate all-model scoped quota rows that could appear as “All models only” beside Weekly.
 

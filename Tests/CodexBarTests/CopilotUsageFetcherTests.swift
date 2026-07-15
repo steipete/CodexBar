@@ -68,7 +68,7 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
-    func `fetch keeps explicitly unlimited chat quota`() async throws {
+    func `fetch omits explicitly unlimited only chat quota without failing`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
             let response = try HTTPURLResponse(
@@ -98,9 +98,51 @@ struct CopilotUsageFetcherTests {
         let snapshot = try await fetcher.fetch()
 
         #expect(snapshot.primary == nil)
-        #expect(snapshot.secondary?.usedPercent == 0)
-        #expect(snapshot.secondary?.resetsAt == nil)
+        #expect(snapshot.secondary == nil)
         #expect(snapshot.identity?.loginMethod == "Individual")
+    }
+
+    @Test
+    func `fetch keeps finite premium quota and omits unlimited chat quota`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "individual",
+                  "quota_reset_date": "2026-08-01T00:00:00Z",
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 200,
+                      "remaining": 156.2,
+                      "percent_remaining": 78.1,
+                      "quota_id": "premium_interactions"
+                    },
+                    "chat_messages": {
+                      "entitlement": 0,
+                      "remaining": 0,
+                      "quota_id": "chat_messages",
+                      "unlimited": true
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+        let fetcher = CopilotUsageFetcher(token: "gh-token", transport: transport)
+        let expectedReset = try #require(CopilotUsageFetcher.parseQuotaResetDate("2026-08-01T00:00:00Z"))
+
+        let snapshot = try await fetcher.fetch()
+
+        let usedPercent = try #require(snapshot.primary?.usedPercent)
+        #expect(abs(usedPercent - 21.9) < 0.0001)
+        #expect(snapshot.primary?.resetsAt == expectedReset)
+        #expect(snapshot.secondary == nil)
     }
 
     @Test
@@ -156,6 +198,18 @@ struct CopilotUsageFetcherTests {
             percentRemaining: 100,
             quotaId: "premium_interactions")
         #expect(CopilotUsageFetcher.makeRateWindow(from: placeholder) == nil)
+    }
+
+    @Test
+    func `makeRateWindow drops unlimited quota`() {
+        let unlimited = CopilotUsageResponse.QuotaSnapshot(
+            entitlement: 0,
+            remaining: 0,
+            percentRemaining: 0,
+            quotaId: "chat_messages",
+            unlimited: true)
+
+        #expect(CopilotUsageFetcher.makeRateWindow(from: unlimited) == nil)
     }
 
     @Test
