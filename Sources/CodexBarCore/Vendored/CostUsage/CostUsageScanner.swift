@@ -28,6 +28,8 @@ enum CostUsageScanner {
         var codexTraceDatabaseURL: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
+        var codexLineageAccountingMode: CodexLineageAccountingMode = .defaultMode
+        var codexLineagePromotionAuthorization: CodexLineagePromotionEvaluator.Authorization?
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
 
@@ -37,6 +39,8 @@ enum CostUsageScanner {
             cacheRoot: URL? = nil,
             codexTraceDatabaseURL: URL? = nil,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
+            codexLineageAccountingMode: CodexLineageAccountingMode = .defaultMode,
+            codexLineagePromotionAuthorization: CodexLineagePromotionEvaluator.Authorization? = nil,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
@@ -44,6 +48,8 @@ enum CostUsageScanner {
             self.cacheRoot = cacheRoot
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
             self.claudeLogProviderFilter = claudeLogProviderFilter
+            self.codexLineageAccountingMode = codexLineageAccountingMode
+            self.codexLineagePromotionAuthorization = codexLineagePromotionAuthorization
             self.forceRescan = forceRescan
         }
     }
@@ -80,6 +86,7 @@ enum CostUsageScanner {
         var contributingSessionIds: Set<String> = []
         var seenFileIds: Set<String> = []
         var seenCodexUsageRowKeys: Set<String> = []
+        var changedLineageInputs = false
     }
 
     struct CodexScannedSession {
@@ -96,6 +103,24 @@ enum CostUsageScanner {
         let timestamp: String
         let date: Date?
         let totals: CostUsageCodexTotals
+    }
+
+    private struct CodexParsedTokenEvidence {
+        let sessionId: String?
+        let forkedFromId: String?
+        let snapshots: [CodexTimestampedTotals]
+        let observations: [CodexLineageLedger.Observation]
+        let incompleteObservationCount: Int
+        let observationCount: Int
+    }
+
+    struct CodexLineageDocumentSummary: Equatable, Sendable {
+        let ownerID: String
+        let metadataSessionID: String?
+        let parentSessionID: String?
+        let scopeID: String
+        let incompleteObservationCount: Int
+        let observationCount: Int
     }
 
     enum CodexForkBaseline {
@@ -1678,16 +1703,25 @@ enum CostUsageScanner {
         return nil
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func parseCodexTokenSnapshots(
         fileURL: URL,
-        checkCancellation: CancellationCheck? = nil) throws -> (
-        sessionId: String?,
-        snapshots: [CodexTimestampedTotals])
+        retainEvidence: Bool = true,
+        collectLineageObservations: Bool = false,
+        suppressScanErrors: Bool = true,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexParsedTokenEvidence
     {
         var sessionId: String?
+        var forkedFromId: String?
+        var currentModel: String?
         var accumulator = CodexSnapshotAccumulator()
         var snapshots: [CodexTimestampedTotals] = []
+        var observations: [CodexLineageLedger.Observation] = []
+        var incompleteObservationCount = 0
+        var observationCount = 0
         var warnedAboutUnparsedTimestamp = false
+        var currentTurnID: String?
+        var tokenEventCountByTurn: [String: Int] = [:]
 
         func parsedSnapshotDate(timestamp: String) -> Date? {
             let date = Self.dateFromTimestamp(timestamp)
@@ -1695,19 +1729,47 @@ enum CostUsageScanner {
                 warnedAboutUnparsedTimestamp = true
                 self.log.warning(
                     "Codex cost usage could not parse parent token snapshot timestamp; "
-                        + "falling back to lexical comparison",
-                    metadata: ["path": fileURL.path, "timestamp": timestamp])
+                        + "falling back to lexical comparison")
             }
             return date
         }
 
-        func appendSnapshot(timestamp: String, last: CostUsageCodexTotals?, total: CostUsageCodexTotals?) {
+        func appendSnapshot(
+            timestamp: String,
+            model: String?,
+            turnID: String?,
+            last: CostUsageCodexTotals?,
+            total: CostUsageCodexTotals?)
+        {
             guard last != nil || total != nil else { return }
-            let counted = accumulator.apply(last: last, total: total)
-            snapshots.append(CodexTimestampedTotals(
-                timestamp: timestamp,
-                date: parsedSnapshotDate(timestamp: timestamp),
-                totals: counted))
+            if last == nil || total == nil {
+                incompleteObservationCount += 1
+            }
+            if retainEvidence {
+                let counted = accumulator.apply(last: last, total: total)
+                snapshots.append(CodexTimestampedTotals(
+                    timestamp: timestamp,
+                    date: parsedSnapshotDate(timestamp: timestamp),
+                    totals: counted))
+            }
+            let eventID = collectLineageObservations ? turnID.map { turnID in
+                let ordinal = tokenEventCountByTurn[turnID, default: 0]
+                tokenEventCountByTurn[turnID] = ordinal + 1
+                return "\(turnID):\(ordinal)"
+            } : nil
+            if let last, let total {
+                observationCount += 1
+                if collectLineageObservations {
+                    observations.append(CodexLineageLedger.Observation(
+                        eventID: eventID,
+                        timestamp: timestamp,
+                        model: Self.codexModelEvidence(model)
+                            ?? Self.codexModelEvidence(currentModel)
+                            ?? CostUsagePricing.codexUnattributedModel,
+                        last: Self.lineageTotals(last),
+                        total: Self.lineageTotals(total)))
+                }
+            }
         }
 
         do {
@@ -1717,17 +1779,35 @@ enum CostUsageScanner {
                 prefixBytes: 512 * 1024,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
+                    guard !line.bytes.isEmpty else { return }
+                    if line.wasTruncated {
+                        if line.bytes.range(of: Data(#""token_count""#.utf8)) != nil {
+                            incompleteObservationCount += 1
+                        }
+                        return
+                    }
                     if let fastLine = Self.parseCodexFastLine(line.bytes) {
                         switch fastLine {
                         case let .sessionMeta(metadata):
                             if sessionId == nil {
                                 sessionId = metadata.sessionId
                             }
+                            if forkedFromId == nil {
+                                forkedFromId = metadata.forkedFromId
+                            }
                         case let .tokenCount(record):
-                            appendSnapshot(timestamp: record.timestamp, last: record.last, total: record.total)
-                        case .turnContext, .taskStarted:
-                            break
+                            appendSnapshot(
+                                timestamp: record.timestamp,
+                                model: record.model,
+                                turnID: record.turnID ?? currentTurnID,
+                                last: record.last,
+                                total: record.total)
+                        case let .turnContext(model):
+                            if let model {
+                                currentModel = model
+                            }
+                        case let .taskStarted(turnID):
+                            currentTurnID = turnID
                         }
                         return
                     }
@@ -1746,11 +1826,32 @@ enum CostUsageScanner {
                                     ?? obj["sessionId"] as? String
                                     ?? obj["id"] as? String
                             }
+                            if forkedFromId == nil {
+                                forkedFromId = Self.codexForkParentId(from: payload)
+                            }
+                            return
+                        }
+
+                        if obj["type"] as? String == "turn_context" {
+                            let payload = obj["payload"] as? [String: Any]
+                            let info = payload?["info"] as? [String: Any]
+                            if let model = Self.codexTurnContextModel(
+                                payloadModel: payload?["model"] as? String,
+                                payloadModelName: payload?["model_name"] as? String,
+                                infoModel: info?["model"] as? String,
+                                infoModelName: info?["model_name"] as? String)
+                            {
+                                currentModel = model
+                            }
                             return
                         }
 
                         guard obj["type"] as? String == "event_msg" else { return }
                         guard let payload = obj["payload"] as? [String: Any] else { return }
+                        if payload["type"] as? String == "task_started" {
+                            currentTurnID = Self.codexTurnID(from: payload)
+                            return
+                        }
                         guard payload["type"] as? String == "token_count" else { return }
                         guard let info = payload["info"] as? [String: Any] else { return }
                         guard let timestamp = obj["timestamp"] as? String else { return }
@@ -1774,18 +1875,103 @@ enum CostUsageScanner {
                                 cached: max(0, toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"])),
                                 output: max(0, toInt($0["output_tokens"])))
                         }
-                        appendSnapshot(timestamp: timestamp, last: last, total: total)
+                        let model = Self.codexModelEvidence(info["model"] as? String)
+                            ?? Self.codexModelEvidence(info["model_name"] as? String)
+                            ?? Self.codexModelEvidence(payload["model"] as? String)
+                            ?? Self.codexModelEvidence(obj["model"] as? String)
+                        appendSnapshot(
+                            timestamp: timestamp,
+                            model: model,
+                            turnID: Self.codexTurnID(from: payload) ?? currentTurnID,
+                            last: last,
+                            total: total)
                     }
                 })
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            if !suppressScanErrors {
+                throw error
+            }
             self.log.warning(
                 "Codex cost usage failed while scanning parent token snapshots",
                 metadata: ["path": fileURL.path, "error": error.localizedDescription])
         }
 
-        return (sessionId, snapshots)
+        return CodexParsedTokenEvidence(
+            sessionId: sessionId,
+            forkedFromId: forkedFromId,
+            snapshots: snapshots,
+            observations: observations,
+            incompleteObservationCount: incompleteObservationCount,
+            observationCount: observationCount)
+    }
+
+    static func parseCodexLineageDocument(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexLineageLedger.Document
+    {
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            retainEvidence: true,
+            collectLineageObservations: true,
+            suppressScanErrors: false,
+            checkCancellation: checkCancellation)
+        return CodexLineageLedger.Document(
+            ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
+            metadataSessionID: parsed.sessionId,
+            parentSessionID: parsed.forkedFromId,
+            observations: parsed.observations,
+            scopeID: Self.codexLineageScopeID(fileURL: fileURL),
+            incompleteObservationCount: parsed.incompleteObservationCount)
+    }
+
+    static func parseCodexLineageDocumentSummary(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexLineageDocumentSummary
+    {
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            retainEvidence: false,
+            suppressScanErrors: false,
+            checkCancellation: checkCancellation)
+        return CodexLineageDocumentSummary(
+            ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
+            metadataSessionID: parsed.sessionId,
+            parentSessionID: parsed.forkedFromId,
+            scopeID: Self.codexLineageScopeID(fileURL: fileURL),
+            incompleteObservationCount: parsed.incompleteObservationCount,
+            observationCount: parsed.observationCount)
+    }
+
+    static func parseCodexTokenEvidenceCountsForTesting(
+        fileURL: URL,
+        collectLineageObservations: Bool) throws -> (snapshots: Int, observations: Int)
+    {
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            collectLineageObservations: collectLineageObservations)
+        return (parsed.snapshots.count, parsed.observations.count)
+    }
+
+    static func codexLineageScopeID(fileURL: URL) -> String {
+        let standardized = fileURL.standardizedFileURL
+        let components = standardized.pathComponents
+        if let index = components.lastIndex(where: { $0 == "sessions" || $0 == "archived_sessions" }) {
+            return NSString.path(withComponents: Array(components[..<index]))
+        }
+        return standardized.deletingLastPathComponent().path
+    }
+
+    private static func lineageTotals(_ totals: CostUsageCodexTotals) -> CodexLineageLedger.Totals {
+        CodexLineageLedger.Totals(input: totals.input, cached: totals.cached, output: totals.output)
+    }
+
+    static func codexRolloutOwnerID(fileURL: URL) -> String? {
+        let stem = fileURL.deletingPathExtension().lastPathComponent
+        guard stem.count >= 36 else { return nil }
+        let candidate = String(stem.suffix(36))
+        return UUID(uuidString: candidate) == nil ? nil : candidate.lowercased()
     }
 
     static func parseCodexFile(
@@ -2358,6 +2544,7 @@ enum CostUsageScanner {
         if Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
             return
         }
+        state.changedLineageInputs = true
         if try Self.appendCodexFileIncrementIfPossible(input: input, context: context, cache: &cache, state: &state) {
             return
         }
@@ -2459,13 +2646,20 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
+    // swiftlint:disable:next function_body_length
     private static func loadCodexDaily(
         range: CostUsageDayRange,
         now: Date,
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
+        let accountingProducerKey = Self.codexAccountingProducerKey(
+            mode: options.codexLineageAccountingMode,
+            authorization: options.codexLineagePromotionAuthorization)
+        var cache = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: options.cacheRoot,
+            producerKey: accountingProducerKey)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
 
@@ -2566,6 +2760,7 @@ enum CostUsageScanner {
                 let shouldDrop = shouldDropAllUnscannedFiles ||
                     old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
                 guard shouldDrop else { continue }
+                scanState.changedLineageInputs = true
                 Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                 cache.files.removeValue(forKey: key)
             }
@@ -2576,6 +2771,7 @@ enum CostUsageScanner {
                     guard old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
                     else { continue }
                     guard FileManager.default.fileExists(atPath: key) else {
+                        scanState.changedLineageInputs = true
                         Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                         cache.files.removeValue(forKey: key)
                         continue
@@ -2583,7 +2779,9 @@ enum CostUsageScanner {
                 }
             }
 
-            let shouldRetainWiderWindow = !options.forceRescan && !plan.pricingChanged && !plan
+            let usesLineageAuthority = options.codexLineageAccountingMode == .lineage
+                && options.codexLineagePromotionAuthorization != nil
+            let shouldRetainWiderWindow = !usesLineageAuthority && !options.forceRescan && !plan.pricingChanged && !plan
                 .priorityMetadataChanged && !plan.needsTurnIDCacheMigration && !plan.needsProjectMetadataMigration
             let retainedSinceKey = shouldRetainWiderWindow
                 ? [cachedSinceKey, range.scanSinceKey].compactMap(\.self).min() ?? range.scanSinceKey
@@ -2591,6 +2789,16 @@ enum CostUsageScanner {
             let retainedUntilKey = shouldRetainWiderWindow
                 ? [cachedUntilKey, range.scanUntilKey].compactMap(\.self).max() ?? range.scanUntilKey
                 : range.scanUntilKey
+            Self.pruneDays(cache: &cache, sinceKey: retainedSinceKey, untilKey: retainedUntilKey)
+            if options.codexLineageAccountingMode != .shadow || scanState.changedLineageInputs {
+                try Self.applyCodexLineageAccounting(
+                    mode: options.codexLineageAccountingMode,
+                    authorization: options.codexLineagePromotionAuthorization,
+                    files: files,
+                    roots: plan.roots,
+                    cache: &cache,
+                    checkCancellation: checkCancellation)
+            }
             Self.pruneDays(cache: &cache, sinceKey: retainedSinceKey, untilKey: retainedUntilKey)
             cache.roots = plan.rootsFingerprint
             cache.scanSinceKey = retainedSinceKey
@@ -2614,7 +2822,11 @@ enum CostUsageScanner {
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
+            CostUsageCacheIO.save(
+                provider: .codex,
+                cache: cache,
+                cacheRoot: options.cacheRoot,
+                producerKey: accountingProducerKey)
         }
 
         return Self.buildCodexReportFromCache(
@@ -2623,6 +2835,104 @@ enum CostUsageScanner {
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
             priorityTurns: plan.priorityTurns)
+    }
+
+    static func codexAccountingProducerKey(
+        mode: CodexLineageAccountingMode,
+        authorization: CodexLineagePromotionEvaluator.Authorization? = nil) -> String
+    {
+        let base = CostUsageCacheIO.currentProducerKey(provider: .codex) ?? "codex"
+        guard mode != .legacy, mode != .lineage || authorization != nil else { return base }
+        return base + ":" + mode.producerKeySuffix
+    }
+
+    static func shouldRunCodexLineage(mode: CodexLineageAccountingMode) -> Bool {
+        mode != .legacy
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private static func applyCodexLineageAccounting(
+        mode: CodexLineageAccountingMode,
+        authorization: CodexLineagePromotionEvaluator.Authorization?,
+        files: [URL],
+        roots: [URL],
+        cache: inout CostUsageCache,
+        checkCancellation: CancellationCheck?) throws
+    {
+        guard self.shouldRunCodexLineage(mode: mode) else { return }
+        guard mode != .lineage || authorization != nil else { return }
+        do {
+            let discovery = try CodexLineageTwoPassDiscovery.discover(
+                includedFiles: files,
+                roots: roots,
+                checkCancellation: checkCancellation)
+            let families = try CodexLineageEngine.prepareDescriptorFamilies(
+                descriptors: discovery.descriptors,
+                unresolvedParents: discovery.unresolvedParents,
+                checkCancellation: checkCancellation)
+            let lineage = try CodexLineageEngine.reconcileStreaming(
+                families: families,
+                localTimeZone: .current,
+                checkCancellation: checkCancellation)
+            let resultsByStableID = Dictionary(uniqueKeysWithValues: lineage.families.map { ($0.stableID, $0) })
+            let contained = families.compactMap { family -> CodexLineageAccountingSelector.ContainedFamily? in
+                guard let result = resultsByStableID[family.stableID], case .contained = result.quality else {
+                    return nil
+                }
+                let documents = family.descriptors.compactMap { descriptor ->
+                    CodexLineageAccountingSelector.ContainedDocument? in
+                    guard let days = cache.files[descriptor.fileURL.path]?.days else { return nil }
+                    let identity = descriptor.scopeID + "\u{0}"
+                        + (descriptor.metadataSessionID ?? descriptor.ownerID).lowercased()
+                    return .init(identity: identity, days: days)
+                }
+                guard documents.count == family.descriptors.count else { return nil }
+                return .init(documents: documents)
+            }
+            let expectedContainedCount = lineage.families.count {
+                if case .contained = $0.quality {
+                    return true
+                }
+                return false
+            }
+            if mode == .lineage, contained.count != expectedContainedCount {
+                throw CodexLineageAccountingSelector.SelectionError.missingContainedFamilyEvidence
+            }
+            let selection = CodexLineageAccountingSelector.select(
+                mode: mode,
+                authorization: authorization,
+                legacyDays: cache.days,
+                primaryRows: lineage.report.localRows,
+                containedFamilies: contained)
+            try checkCancellation?()
+
+            #if DEBUG
+            self.log.debug(
+                "Codex lineage accounting comparison completed",
+                metadata: [
+                    "containedFamilies": "\(contained.count)",
+                    "families": "\(lineage.diagnostics.familyCount)",
+                    "mode": mode.rawValue,
+                    "recomputedFamilies": "\(lineage.diagnostics.recomputedFamilyCount)",
+                ])
+            #endif
+
+            if selection.usedLineageAuthority {
+                cache.days = selection.days
+                // Legacy per-file rows are not valid pricing/project evidence for ledger totals.
+                // Dropping them also makes rollback and the next mode-specific refresh rebuild safely.
+                cache.files = [:]
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if mode == .lineage {
+                throw error
+            }
+            #if DEBUG
+            self.log.debug("Codex lineage shadow comparison failed; legacy totals remain authoritative")
+            #endif
+        }
     }
 
     private static func codexFileScanContext(
