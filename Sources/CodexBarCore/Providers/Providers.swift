@@ -7,6 +7,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case openai
     case azureopenai
     case claude
+    case clinepass
     case cursor
     case opencode
     case opencodego
@@ -73,6 +74,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case codex
     case openai
     case claude
+    case clinepass
     case zai
     case minimax
     case manus

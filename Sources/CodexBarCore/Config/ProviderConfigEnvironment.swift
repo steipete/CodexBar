@@ -144,6 +144,7 @@ public enum ProviderConfigEnvironment {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
         switch provider {
         case .amp:
@@ -154,6 +155,8 @@ public enum ProviderConfigEnvironment {
             AzureOpenAISettingsReader.apiKeyEnvironmentKey
         case .claude:
             ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey
+        case .clinepass:
+            ClinePassSettingsReader.apiKeyEnvironmentKey
         case .zai:
             ZaiSettingsReader.apiTokenKey
         case .minimax:

@@ -57,6 +57,7 @@ public enum ProviderDescriptorRegistry {
         .openai: OpenAIAPIProviderDescriptor.descriptor,
         .azureopenai: AzureOpenAIProviderDescriptor.descriptor,
         .claude: ClaudeProviderDescriptor.descriptor,
+        .clinepass: ClinePassProviderDescriptor.descriptor,
         .cursor: CursorProviderDescriptor.descriptor,
         .opencode: OpenCodeProviderDescriptor.descriptor,
         .opencodego: OpenCodeGoProviderDescriptor.descriptor,

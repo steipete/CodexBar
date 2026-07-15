@@ -17,6 +17,7 @@ enum ProviderImplementationRegistry {
         case .openai: OpenAIAPIProviderImplementation()
         case .azureopenai: AzureOpenAIProviderImplementation()
         case .claude: ClaudeProviderImplementation()
+        case .clinepass: ClinePassProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()
         case .opencodego: OpenCodeGoProviderImplementation()

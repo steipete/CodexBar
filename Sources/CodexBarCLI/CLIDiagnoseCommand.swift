@@ -219,6 +219,8 @@ extension CodexBarCLI {
             BedrockSettingsReader.hasCredentials(environment: environment)
         case .claude:
             ClaudeAdminAPISettingsReader.apiKey(environment: environment) != nil
+        case .clinepass:
+            ClinePassSettingsReader.apiKey(environment: environment) != nil
         case .codebuff:
             CodebuffSettingsReader.apiKey(environment: environment) != nil
         case .chutes:
