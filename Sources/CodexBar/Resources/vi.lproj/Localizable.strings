@@ -881,7 +881,7 @@
 "Hourly Usage" = "Hàng giờ Mức sử dụng";
 "Usage remaining" = "Mức sử dụng";
 "Usage used" = "Mức sử dụng đã sử dụng khóa";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API đã được xác minh. Ollama không đưa ra các giới hạn Hạn mức của Đám mây thông qua API .";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "Đã xác minh khóa API. Hạn mức Cloud yêu cầu cookie trình duyệt. Hãy đăng nhập vào Ollama.";
 "Last 30 days: %@ tokens" = "30 ngày qua: %@ mã thông báo";
 "7d spend" = "chi tiêu 7 ngày";
 "30d spend" = "chi tiêu 30 ngày";

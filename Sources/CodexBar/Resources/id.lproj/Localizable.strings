@@ -889,7 +889,7 @@
 "Hourly Usage" = "Penggunaan Per Jam";
 "Usage remaining" = "Penggunaan tersisa";
 "Usage used" = "Penggunaan terpakai";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "Kunci API terverifikasi. Ollama tidak menampilkan batas kuota Cloud melalui API.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "Kunci API terverifikasi. Kuota Cloud memerlukan cookie browser. Masuk ke Ollama.";
 "Last 30 days: %@ tokens" = "30 hari terakhir: %@ token";
 "7d spend" = "Pengeluaran 7 hari";
 "30d spend" = "Pengeluaran 30 hari";

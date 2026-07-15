@@ -887,7 +887,7 @@
 "Hourly Usage" = "การใช้งานรายชั่วโมง";
 "Usage remaining" = "การใช้งานที่เหลืออยู่";
 "Usage used" = "การใช้งานที่ใช้";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API คีย์ที่ตรวจสอบแล้ว Ollama ไม่เปิดเผยขีดจํากัดโควต้าระบบคลาวด์ผ่าน API";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "ยืนยันคีย์ API แล้ว โควตา Cloud ต้องใช้คุกกี้ของเบราว์เซอร์ ลงชื่อเข้าใช้ Ollama";
 "Last 30 days: %@ tokens" = "30 วันที่ผ่านมา: %@ โทเค็น";
 "7d spend" = "7d ใช้จ่าย";
 "30d spend" = "30d ใช้จ่าย";

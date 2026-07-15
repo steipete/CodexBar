@@ -883,7 +883,7 @@
 "Hourly Usage" = "Saatlik Kullanım";
 "Usage remaining" = "Kalan kullanım";
 "Usage used" = "Harcanan kullanım";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API anahtarı doğrulandı. Ollama, Cloud kota limitlerini API üzerinden göstermez.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API anahtarı doğrulandı. Cloud kotaları için tarayıcı çerezleri gerekir. Ollama'da oturum açın.";
 "Last 30 days: %@ tokens" = "Son 30 gün: %@ jeton";
 "7d spend" = "7 günlük harcama";
 "30d spend" = "30 günlük harcama";

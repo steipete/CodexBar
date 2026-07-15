@@ -1101,7 +1101,7 @@
 "Username" = "Användarnamn";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din MiniMax-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "30d spend" = "30 d kostnad";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API-nyckeln har verifierats. Ollama exponerar inte Cloud-kvotgränser via API:t.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API-nyckeln har verifierats. Cloud-kvoter kräver webbläsarcookies. Logga in på Ollama.";
 "Series" = "Serie";
 "Total (30d): %@ credits" = "Totalt (30 d): %@ krediter";
 "Paste a Cookie header or full cURL capture from T3 Chat settings." = "Klistra in en Cookie-header eller fullständig cURL-fångst från T3 Chat-inställningarna.";

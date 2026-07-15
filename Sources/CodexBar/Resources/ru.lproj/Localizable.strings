@@ -887,7 +887,7 @@
 "Hourly Usage" = "Использование по часам";
 "Usage remaining" = "Осталось";
 "Usage used" = "Использовано";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API-ключ проверен. Ollama не раскрывает лимиты квот Cloud через API.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API-ключ проверен. Для квот Cloud нужны файлы cookie браузера. Войдите в Ollama.";
 "Last 30 days: %@ tokens" = "За последние 30 дней: %@ токенов";
 "7d spend" = "Расходы за 7 дн.";
 "30d spend" = "Расходы за 30 дн.";

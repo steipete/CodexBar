@@ -67,6 +67,41 @@ struct MenuCardProviderRegressionTests {
     }
 
     @Test
+    func `ollama api key model explains browser session quota requirement`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.ollama])
+        let snapshot = OllamaAPIUsageSnapshot(modelCount: 3, updatedAt: now).toUsageSnapshot()
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .ollama,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            sourceLabel: "api",
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.placeholder == nil)
+        #expect(model.planText == "API key")
+        #expect(model.usageNotes == [
+            "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
+        ])
+    }
+
+    @Test
     func `wayfinder model shows gateway routing savings and latency`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.wayfinder])

@@ -851,7 +851,7 @@
 "Hourly Usage" = "每小时用量";
 "Usage remaining" = "剩余用量";
 "Usage used" = "已使用用量";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API 密钥已验证。Ollama 不会通过 API 暴露 Cloud 配额限制。";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API 密钥已验证。Cloud 配额需要浏览器 Cookie。请登录 Ollama。";
 "Last 30 days: %@ tokens" = "近 30 天：%@ token";
 "7d spend" = "7 天支出";
 "30d spend" = "30 天支出";

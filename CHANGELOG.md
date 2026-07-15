@@ -3,6 +3,7 @@
 ## 0.43.1 — Unreleased
 
 ### Fixed
+- Ollama: explain that API-key verification cannot show Cloud quota limits and direct users to browser-cookie mode (#2159). Thanks @kiranmagic7!
 - Claude: suppress duplicate all-model scoped quota rows that could appear as “All models only” beside Weekly.
 
 ## 0.43.0 — 2026-07-14
