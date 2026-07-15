@@ -98,6 +98,13 @@ enum CostUsageScanner {
         let totals: CostUsageCodexTotals
     }
 
+    private struct CodexParsedTokenEvidence {
+        let sessionId: String?
+        let forkedFromId: String?
+        let snapshots: [CodexTimestampedTotals]
+        let observations: [CodexLineageLedger.Observation]
+    }
+
     enum CodexForkBaseline {
         case resolved(CostUsageCodexTotals?)
         case unresolved
@@ -1680,14 +1687,17 @@ enum CostUsageScanner {
 
     private static func parseCodexTokenSnapshots(
         fileURL: URL,
-        checkCancellation: CancellationCheck? = nil) throws -> (
-        sessionId: String?,
-        snapshots: [CodexTimestampedTotals])
+        collectLineageObservations: Bool = false,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexParsedTokenEvidence
     {
         var sessionId: String?
+        var forkedFromId: String?
         var accumulator = CodexSnapshotAccumulator()
         var snapshots: [CodexTimestampedTotals] = []
+        var observations: [CodexLineageLedger.Observation] = []
         var warnedAboutUnparsedTimestamp = false
+        var currentTurnID: String?
+        var tokenEventCountByTurn: [String: Int] = [:]
 
         func parsedSnapshotDate(timestamp: String) -> Date? {
             let date = Self.dateFromTimestamp(timestamp)
@@ -1701,13 +1711,31 @@ enum CostUsageScanner {
             return date
         }
 
-        func appendSnapshot(timestamp: String, last: CostUsageCodexTotals?, total: CostUsageCodexTotals?) {
+        func appendSnapshot(
+            timestamp: String,
+            turnID: String?,
+            last: CostUsageCodexTotals?,
+            total: CostUsageCodexTotals?)
+        {
             guard last != nil || total != nil else { return }
             let counted = accumulator.apply(last: last, total: total)
             snapshots.append(CodexTimestampedTotals(
                 timestamp: timestamp,
                 date: parsedSnapshotDate(timestamp: timestamp),
                 totals: counted))
+            guard collectLineageObservations else { return }
+            let eventID = turnID.map { turnID in
+                let ordinal = tokenEventCountByTurn[turnID, default: 0]
+                tokenEventCountByTurn[turnID] = ordinal + 1
+                return "\(turnID):\(ordinal)"
+            }
+            if let last, let total {
+                observations.append(CodexLineageLedger.Observation(
+                    eventID: eventID,
+                    timestamp: timestamp,
+                    last: Self.lineageTotals(last),
+                    total: Self.lineageTotals(total)))
+            }
         }
 
         do {
@@ -1724,9 +1752,18 @@ enum CostUsageScanner {
                             if sessionId == nil {
                                 sessionId = metadata.sessionId
                             }
+                            if forkedFromId == nil {
+                                forkedFromId = metadata.forkedFromId
+                            }
                         case let .tokenCount(record):
-                            appendSnapshot(timestamp: record.timestamp, last: record.last, total: record.total)
-                        case .turnContext, .taskStarted:
+                            appendSnapshot(
+                                timestamp: record.timestamp,
+                                turnID: record.turnID ?? currentTurnID,
+                                last: record.last,
+                                total: record.total)
+                        case let .taskStarted(turnID):
+                            currentTurnID = turnID
+                        case .turnContext:
                             break
                         }
                         return
@@ -1746,11 +1783,18 @@ enum CostUsageScanner {
                                     ?? obj["sessionId"] as? String
                                     ?? obj["id"] as? String
                             }
+                            if forkedFromId == nil {
+                                forkedFromId = Self.codexForkParentId(from: payload)
+                            }
                             return
                         }
 
                         guard obj["type"] as? String == "event_msg" else { return }
                         guard let payload = obj["payload"] as? [String: Any] else { return }
+                        if payload["type"] as? String == "task_started" {
+                            currentTurnID = Self.codexTurnID(from: payload)
+                            return
+                        }
                         guard payload["type"] as? String == "token_count" else { return }
                         guard let info = payload["info"] as? [String: Any] else { return }
                         guard let timestamp = obj["timestamp"] as? String else { return }
@@ -1774,7 +1818,11 @@ enum CostUsageScanner {
                                 cached: max(0, toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"])),
                                 output: max(0, toInt($0["output_tokens"])))
                         }
-                        appendSnapshot(timestamp: timestamp, last: last, total: total)
+                        appendSnapshot(
+                            timestamp: timestamp,
+                            turnID: Self.codexTurnID(from: payload) ?? currentTurnID,
+                            last: last,
+                            total: total)
                     }
                 })
         } catch is CancellationError {
@@ -1785,7 +1833,47 @@ enum CostUsageScanner {
                 metadata: ["path": fileURL.path, "error": error.localizedDescription])
         }
 
-        return (sessionId, snapshots)
+        return CodexParsedTokenEvidence(
+            sessionId: sessionId,
+            forkedFromId: forkedFromId,
+            snapshots: snapshots,
+            observations: observations)
+    }
+
+    static func parseCodexLineageDocument(
+        fileURL: URL,
+        checkCancellation: CancellationCheck? = nil) throws -> CodexLineageLedger.Document
+    {
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            collectLineageObservations: true,
+            checkCancellation: checkCancellation)
+        return CodexLineageLedger.Document(
+            ownerID: Self.codexRolloutOwnerID(fileURL: fileURL) ?? parsed.sessionId ?? fileURL.standardizedFileURL.path,
+            metadataSessionID: parsed.sessionId,
+            parentSessionID: parsed.forkedFromId,
+            observations: parsed.observations)
+    }
+
+    static func parseCodexTokenEvidenceCountsForTesting(
+        fileURL: URL,
+        collectLineageObservations: Bool) throws -> (snapshots: Int, observations: Int)
+    {
+        let parsed = try Self.parseCodexTokenSnapshots(
+            fileURL: fileURL,
+            collectLineageObservations: collectLineageObservations)
+        return (parsed.snapshots.count, parsed.observations.count)
+    }
+
+    private static func lineageTotals(_ totals: CostUsageCodexTotals) -> CodexLineageLedger.Totals {
+        CodexLineageLedger.Totals(input: totals.input, cached: totals.cached, output: totals.output)
+    }
+
+    private static func codexRolloutOwnerID(fileURL: URL) -> String? {
+        let stem = fileURL.deletingPathExtension().lastPathComponent
+        guard stem.count >= 36 else { return nil }
+        let candidate = String(stem.suffix(36))
+        return UUID(uuidString: candidate) == nil ? nil : candidate.lowercased()
     }
 
     static func parseCodexFile(
