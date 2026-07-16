@@ -57,10 +57,7 @@ struct UsageStoreNeuralWattAccountRefreshTests {
     func `multi-account refresh respects Neuralwatt quota rate limit`() async throws {
         let recorder = NeuralWattAccountRefreshRecorder()
         let store = try Self.makeStore(recorder: recorder)
-        let accounts = [
-            ProviderTokenAccount(id: UUID(), label: "First", token: "sk-first", addedAt: 0, lastUsed: nil),
-            ProviderTokenAccount(id: UUID(), label: "Second", token: "sk-second", addedAt: 0, lastUsed: nil),
-        ]
+        let accounts = Self.addAccounts(to: store, count: 2)
 
         await store.refreshTokenAccounts(provider: .neuralwatt, accounts: accounts)
 
@@ -73,14 +70,7 @@ struct UsageStoreNeuralWattAccountRefreshTests {
     func `cancelled delayed refresh preserves every prior account snapshot`() async throws {
         let recorder = NeuralWattAccountRefreshRecorder()
         let store = try Self.makeStore(recorder: recorder)
-        let accounts = (0..<3).map { index in
-            ProviderTokenAccount(
-                id: UUID(),
-                label: "Account \(index)",
-                token: "sk-\(index)",
-                addedAt: 0,
-                lastUsed: nil)
-        }
+        let accounts = Self.addAccounts(to: store, count: 3)
         store.accountSnapshots[.neuralwatt] = accounts.map { account in
             TokenAccountUsageSnapshot(
                 account: account,
@@ -119,7 +109,7 @@ struct UsageStoreNeuralWattAccountRefreshTests {
         let strategy = NeuralWattAccountRefreshStrategy(recorder: recorder)
         store.providerSpecs[.neuralwatt] = ProviderSpec(
             style: baseSpec.style,
-            isEnabled: baseSpec.isEnabled,
+            isEnabled: { true },
             descriptor: ProviderDescriptor(
                 id: .neuralwatt,
                 metadata: baseDescriptor.metadata,
@@ -131,6 +121,16 @@ struct UsageStoreNeuralWattAccountRefreshTests {
                 cli: baseDescriptor.cli),
             makeFetchContext: baseSpec.makeFetchContext)
         return store
+    }
+
+    private static func addAccounts(to store: UsageStore, count: Int) -> [ProviderTokenAccount] {
+        for index in 0..<count {
+            store.settings.addTokenAccount(
+                provider: .neuralwatt,
+                label: "Account \(index)",
+                token: "sk-\(index)")
+        }
+        return store.settings.tokenAccounts(for: .neuralwatt)
     }
 
     private static func snapshot() -> UsageSnapshot {
