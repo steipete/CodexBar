@@ -10,6 +10,20 @@ struct AnyRouterSettingsReaderTests {
     }
 
     @Test
+    func `token account copy requests a management key`() throws {
+        let support = try #require(TokenAccountSupportCatalog.support(for: .anyrouter))
+
+        #expect(support.title == "Management keys")
+        #expect(support.subtitle.contains("management key"))
+        #expect(support.subtitle.contains("read:credits"))
+        #expect(support.placeholder.contains("ak_"))
+        #expect(!support.placeholder.contains("sk-ar-v1"))
+        #expect(TokenAccountSupportCatalog.envOverride(for: .anyrouter, token: "ak_abc") == [
+            "ANYROUTER_API_KEY": "ak_abc",
+        ])
+    }
+
+    @Test
     func `trims whitespace and strips quotes`() {
         #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "  ak_a  "]) == "ak_a")
         #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "\"ak_b\""]) == "ak_b")

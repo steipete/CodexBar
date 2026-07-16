@@ -130,9 +130,9 @@ extension TokenAccountSupportCatalog {
             requiresManualCookieSource: false,
             cookieName: nil),
         .anyrouter: TokenAccountSupport(
-            title: "API keys",
-            subtitle: "Store one labeled AnyRouter inference key per environment you want to monitor.",
-            placeholder: "Paste AnyRouter API key (sk-ar-v1-…)…",
+            title: "Management keys",
+            subtitle: "Store one labeled AnyRouter management key with read:credits per environment.",
+            placeholder: "Paste AnyRouter management key (ak_…)…",
             injection: .environment(key: AnyRouterSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
