@@ -76,6 +76,32 @@ struct UsageOptions: CommanderParsable {
     var augmentDebug: Bool = false
 }
 
+struct GuardOptions: CommanderParsable {
+    @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
+    var verbose: Bool = false
+
+    @Flag(name: .long("json-output"), help: "Emit machine-readable logs")
+    var jsonOutput: Bool = false
+
+    @Option(name: .long("log-level"), help: "Set log level (trace|verbose|debug|info|warning|error|critical)")
+    var logLevel: String?
+
+    @Option(name: .long("provider"), help: ProviderHelp.optionHelp)
+    var provider: ProviderSelection?
+
+    @Option(name: .long("need"), help: "Minimum remaining headroom required, as a percent (default 10)")
+    var need: Double?
+
+    @Option(name: .long("window"), help: "Window to check: session (primary) | weekly (secondary)")
+    var window: String?
+
+    @Flag(name: .long("json"), help: "Emit machine-readable decision JSON")
+    var json: Bool = false
+
+    @Flag(name: .long("fail-open"), help: "Exit 0 instead of 2 when quota is unknown/unreachable")
+    var failOpen: Bool = false
+}
+
 enum ProviderSelection: ExpressibleFromArgument {
     case single(UsageProvider)
     case both

@@ -81,6 +81,8 @@ enum CodexBarCLI {
                 }
                 defer { signalMonitor.cancel() }
                 await self.runDiagnose(invocation.parsedValues)
+            case ["guard"]:
+                await self.runGuard(invocation.parsedValues)
             default:
                 Self.exit(
                     code: .failure,
@@ -109,6 +111,7 @@ enum CodexBarCLI {
         let diagnoseSignature = CommandSignature.describe(DiagnoseOptions())
         let hooksSignature = CommandSignature.describe(HooksOptions())
         let hooksTestSignature = CommandSignature.describe(HooksTestOptions())
+        let guardSignature = CommandSignature.describe(GuardOptions())
 
         return [
             CommandDescriptor(
@@ -121,6 +124,11 @@ enum CodexBarCLI {
                 abstract: "Print usage as text or JSON",
                 discussion: nil,
                 signature: usageSignature),
+            CommandDescriptor(
+                name: "guard",
+                abstract: "Exit non-zero when a provider lacks quota headroom (for gating scripts)",
+                discussion: nil,
+                signature: guardSignature),
             CommandDescriptor(
                 name: "cost",
                 abstract: "Print local cost usage as text or JSON",

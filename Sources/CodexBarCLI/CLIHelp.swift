@@ -302,6 +302,41 @@ extension CodexBarCLI {
         """
     }
 
+    static func guardHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar guard --provider \(ProviderHelp.list)
+                        [--need <percent>] [--window session|weekly]
+                        [--json] [--fail-open]
+                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
+
+        Description:
+          Exit non-zero when a provider lacks quota headroom, for use in gating scripts.
+          Exit codes: 0 = safe (relevant window has at least --need% remaining),
+                      1 = insufficient headroom, 2 = unknown/unreachable.
+          --need defaults to 10 (percent). --window defaults to session (the primary window);
+          weekly checks the secondary window.
+          --fail-open exits 0 instead of 2 when quota is unknown or unreachable.
+          Human output is a single line to stdout; --json emits a machine-readable decision object.
+
+        Global flags:
+          -h, --help      Show help
+          -V, --version   Show version
+          -v, --verbose   Enable verbose logging
+          --log-level <trace|verbose|debug|info|warning|error|critical>
+          --json-output   Emit machine-readable logs (JSONL) to stderr
+
+        Examples:
+          codexbar guard --provider claude
+          codexbar guard --provider codex --need 20
+          codexbar guard --provider claude --window weekly --need 5
+          codexbar guard --provider claude --json
+          codexbar guard --provider codex --fail-open
+        """
+    }
+
     static func rootHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -343,6 +378,7 @@ extension CodexBarCLI {
           codexbar hooks test <event> --provider <name>
           codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
           codexbar diagnose --provider <name|all> --format json [--redact] [--output <path>] [--pretty]
+          codexbar guard --provider <name> [--need <percent>] [--window session|weekly] [--json] [--fail-open]
 
         Global flags:
           -h, --help      Show help
@@ -370,6 +406,7 @@ extension CodexBarCLI {
           codexbar diagnose --provider minimax --format json --redact --output diagnostic.json
           codexbar diagnose --provider minimax --format json --pretty
           codexbar diagnose --provider all --format json
+          codexbar guard --provider claude --need 20
         """
     }
 }
