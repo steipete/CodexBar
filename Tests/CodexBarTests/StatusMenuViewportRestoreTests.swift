@@ -321,6 +321,7 @@ extension StatusMenuViewportRestoreTests {
 
         var restoredMenus: [ObjectIdentifier] = []
         var rebuildCount = 0
+        let gate = ViewportRefreshGate()
         controller._test_menuViewportRestoreObserver = { restoredMenus.append(ObjectIdentifier($0)) }
         controller._test_openMenuRebuildObserver = { rebuiltMenu in
             if rebuiltMenu === menu {
@@ -328,6 +329,7 @@ extension StatusMenuViewportRestoreTests {
             }
         }
         controller._test_manualRefreshOperation = {
+            await gate.wait()
             controller.refreshOpenMenusAfterExplicitStoreAction()
         }
         #expect(try controller.handleMenuTrackingShortcutEvent(self.keyEvent("r", keyCode: 15), menu: menu))
@@ -335,6 +337,7 @@ extension StatusMenuViewportRestoreTests {
             await Task.yield()
         }
         let task = try #require(controller.manualRefreshTasks[.provider(.codex)])
+        gate.resume()
         await task.value
 
         #expect(controller.menuNeedsRefresh(menu))
