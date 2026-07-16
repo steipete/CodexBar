@@ -148,6 +148,45 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
+    func `fetch uses finite monthly chat quota when direct chat quota is unlimited`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "individual",
+                  "quota_snapshots": {
+                    "chat_messages": {
+                      "entitlement": 0,
+                      "remaining": 0,
+                      "quota_id": "chat_messages",
+                      "unlimited": true
+                    }
+                  },
+                  "monthly_quotas": {
+                    "chat": 100
+                  },
+                  "limited_user_quotas": {
+                    "chat": 60
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+        let fetcher = CopilotUsageFetcher(token: "test-token-placeholder", transport: transport)
+
+        let snapshot = try await fetcher.fetch()
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary?.usedPercent == 40)
+    }
+
+    @Test
     func `fetch attaches quota reset date to copilot windows`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")

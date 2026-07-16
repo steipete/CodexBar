@@ -335,7 +335,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     }
 
     private static func usableQuotaSnapshot(from snapshot: QuotaSnapshot?) -> QuotaSnapshot? {
-        guard let snapshot, !snapshot.isPlaceholder, snapshot.hasPercentRemaining else {
+        guard let snapshot, !snapshot.unlimited, !snapshot.isPlaceholder, snapshot.hasPercentRemaining else {
             return nil
         }
         return snapshot
