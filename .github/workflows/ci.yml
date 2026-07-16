@@ -231,6 +231,19 @@ jobs:
         run: |
           set -euo pipefail
 
+          apt_with_retry() {
+            local attempt
+            for attempt in 1 2 3; do
+              if sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 "$@"; then
+                return 0
+              fi
+              if [[ "$attempt" -eq 3 ]]; then
+                return 1
+              fi
+              sleep "$((attempt * 5))"
+            done
+          }
+
           missing_packages=()
           for package in ca-certificates gpg libcurl4-openssl-dev; do
             if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"; then
@@ -238,8 +251,8 @@ jobs:
             fi
           done
           if [[ "${#missing_packages[@]}" -gt 0 ]]; then
-            sudo apt-get update
-            sudo apt-get install -y "${missing_packages[@]}"
+            apt_with_retry update
+            apt_with_retry install -y "${missing_packages[@]}"
           fi
 
           SWIFTLY_ARCH="$(uname -m)"
@@ -272,7 +285,7 @@ jobs:
 
           swiftly install "$SWIFT_VERSION" --use --assume-yes --verify --post-install-file "$POST_INSTALL_SCRIPT"
           if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
-            sudo apt-get update
+            apt_with_retry update
             sudo bash "$POST_INSTALL_SCRIPT"
           fi
 
