@@ -63,6 +63,7 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[CrossModelSettingsReader.envKey] == "cm-token")
         #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .crossmodel))
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .zenmux))
     }
 
     @Test

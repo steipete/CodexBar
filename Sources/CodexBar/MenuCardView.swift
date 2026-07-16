@@ -1274,7 +1274,7 @@ extension UsageMenuCardView.Model {
         {
             primaryResetText = openRouterQuotaDetail
         }
-        if input.provider == .copilot,
+        if [.copilot, .zenmux].contains(input.provider),
            let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
            !detail.isEmpty
         {
@@ -1309,7 +1309,7 @@ extension UsageMenuCardView.Model {
                 primaryResetText = nil
             }
         }
-        if [.warp, .kilo, .mimo, .deepseek, .qoder, .mistral, .litellm].contains(input.provider),
+        if [.warp, .kilo, .mimo, .deepseek, .qoder, .mistral, .litellm, .zenmux].contains(input.provider),
            primary.resetsAt == nil
         {
             primaryResetText = nil
@@ -1465,11 +1465,14 @@ extension UsageMenuCardView.Model {
         {
             weeklyResetText = detail
         }
-        if input.provider == .copilot,
+        if [.copilot, .zenmux].contains(input.provider),
            let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
            !detail.isEmpty
         {
             paceDetail = PaceDetail(leftLabel: detail, rightLabel: nil, pacePercent: nil, paceOnTop: true)
+        }
+        if input.provider == .zenmux, weekly.resetsAt == nil {
+            weeklyResetText = nil
         }
         if let cursorPaceDetail = Self.resetWindowPaceDetail(
             window: weekly,

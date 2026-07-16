@@ -311,6 +311,15 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
+        if provider == .zenmux {
+            let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return ProviderCostSection(
+                title: L("metric_mistral_payg"),
+                percentUsed: nil,
+                spendLine: "\(L("Balance")): \(balance)",
+                percentLine: nil)
+        }
+
         if provider == .openai || provider == .claude || provider == .litellm, cost.limit <= 0 {
             let spend = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
