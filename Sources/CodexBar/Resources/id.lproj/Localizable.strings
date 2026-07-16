@@ -58,13 +58,16 @@
 "Check for updates automatically" = "Periksa pembaruan secara otomatis";
 "Check if you like your agents having some fun up there." = "Centang jika Anda suka agen bersenang-senang di atas sana.";
 "Check provider status" = "Periksa status penyedia";
+"Choose a supported browser so CodexBar can read the matching account." = "Pilih browser yang didukung agar CodexBar dapat membaca akun yang sesuai.";
 "Choose Codex workspace" = "Pilih workspace Codex";
+"Choose Cursor account" = "Pilih akun Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "Pilih host MiniMax (global .io atau Tiongkok daratan .com).";
 "Choose up to " = "Pilih hingga ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "Pilih hingga \\(Self.maxOverviewProviders) penyedia";
 "Choose up to \\(count) providers" = "Pilih hingga \\(count) penyedia";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Pilih apa yang ditampilkan di menu bar (Pace menampilkan penggunaan vs. perkiraan).";
 "Choose which Codex account CodexBar should follow." = "Pilih akun Codex mana yang harus diikuti CodexBar.";
+"Choose which Cursor account CodexBar should use." = "Pilih akun Cursor yang harus digunakan CodexBar.";
 "Choose which window drives the menu bar percent." = "Pilih jendela mana yang menggerakkan persentase menu bar.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI tidak ditemukan";
@@ -330,6 +333,7 @@
 "Usage breakdown" = "Rincian penggunaan";
 "Usage history (30 days)" = "Riwayat penggunaan";
 "Usage source" = "Sumber penggunaan";
+"Use Account" = "Gunakan Akun";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Gunakan BigModel untuk endpoint Tiongkok daratan (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Gunakan satu ikon menu bar dengan pengalih penyedia.";
 "Use international or China mainland console gateways for quota fetches." = "Gunakan gateway konsol internasional atau Tiongkok daratan untuk pengambilan kuota.";
@@ -1186,3 +1190,6 @@
 "Show Codex Spark usage" = "Tampilkan penggunaan Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Menampilkan baris kuota Codex Spark di menu dan pratinjau penyedia. Mengharuskan “Tampilkan kredit + penggunaan ekstra” diaktifkan di pengaturan Tampilan.";
 "Scroll to see more models" = "Gulir untuk melihat model lainnya";
+"Finish switching to a different Cursor account in your browser, then try again." = "Selesaikan peralihan ke akun Cursor lain di browser Anda, lalu coba lagi.";
+"Timed out waiting for Cursor account switch. %@" = "Waktu tunggu untuk beralih akun Cursor habis. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Waktu tunggu untuk beralih akun Cursor habis. %@ Kesalahan terakhir: %@";

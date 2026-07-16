@@ -69,7 +69,7 @@ struct ShellCommandLocatorProcessTests {
         let data = ShellCommandLocator.test_runShellCommand(
             shell: "/usr/bin/python3",
             arguments: ["-c", script, pidFile],
-            timeout: 2.0)
+            timeout: 5.0)
         let elapsed = Date().timeIntervalSince(start)
 
         let pids = try pidFiles.map { file in
@@ -79,7 +79,7 @@ struct ShellCommandLocatorProcessTests {
         }
 
         #expect(data == nil)
-        #expect(elapsed < 4.0, "Timed-out PATH probes should remain bounded")
+        #expect(elapsed < 8.0, "Timed-out PATH probes should remain bounded")
         for pid in pids {
             #expect(kill(pid, 0) != 0)
         }

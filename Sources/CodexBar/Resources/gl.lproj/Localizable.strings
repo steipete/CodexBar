@@ -57,13 +57,16 @@
 "Check for updates automatically" = "Buscar actualizacións automaticamente";
 "Check if you like your agents having some fun up there." = "Actívao se che gusta que os teus axentes se divirtan aí arriba.";
 "Check provider status" = "Comprobar o estado do provedor";
+"Choose a supported browser so CodexBar can read the matching account." = "Escolle un navegador compatible para que CodexBar poida ler a conta correspondente.";
 "Choose Codex workspace" = "Escoller espazo de traballo de Codex";
+"Choose Cursor account" = "Escoller conta de Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "Escolle o servidor de MiniMax (global .io ou China continental .com).";
 "Choose up to " = "Escolle ata ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "Escolle ata \\(Self.maxOverviewProviders) provedores";
 "Choose up to \\(count) providers" = "Escolle ata \\(count) provedores";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Escolle que amosar na barra de menús (Ritmo amosa o uso fronte ao previsto).";
 "Choose which Codex account CodexBar should follow." = "Escolle que conta de Codex debe seguir CodexBar.";
+"Choose which Cursor account CodexBar should use." = "Escolle que conta de Cursor debe usar CodexBar.";
 "Choose which window drives the menu bar percent." = "Escolle que xanela determina a porcentaxe da barra de menús.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Non se atopou a CLI de Claude";
@@ -325,6 +328,7 @@
 "Usage breakdown" = "Desglose de uso";
 "Usage history (30 days)" = "Historial de uso (30 días)";
 "Usage source" = "Orixe de uso";
+"Use Account" = "Usar conta";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Usa BigModel para os endpoints de China continental (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Usa unha única icona na barra de menús cun selector de provedor.";
 "Use international or China mainland console gateways for quota fetches." = "Usa pasarelas de consola internacionais ou de China continental para a obtención de cotas.";
@@ -1182,3 +1186,6 @@
 "Show Codex Spark usage" = "Amosar o uso de Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Amosa as filas de cota de Codex Spark no menú e na previsualización do provedor. Require activar «Amosar créditos + uso adicional» nos axustes de Pantalla.";
 "Scroll to see more models" = "Desprázate para ver máis modelos";
+"Finish switching to a different Cursor account in your browser, then try again." = "Completa o cambio a outra conta de Cursor no navegador e téntao de novo.";
+"Timed out waiting for Cursor account switch. %@" = "Esgotouse o tempo de espera para cambiar de conta de Cursor. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Esgotouse o tempo de espera para cambiar de conta de Cursor. %@ Último erro: %@";

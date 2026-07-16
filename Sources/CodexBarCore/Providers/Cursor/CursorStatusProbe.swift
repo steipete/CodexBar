@@ -57,14 +57,38 @@ public enum CursorCookieImporter {
         }
     }
 
+    /// Whether Cursor cookie import may inspect this browser. This only checks browser/profile availability and the
+    /// cookie-access circuit breaker; it does not read cookies or request Keychain access.
+    static func isCookieSourceAvailable(
+        browser: Browser,
+        applicationURL: URL? = nil,
+        browserDetection: BrowserDetection) -> Bool
+    {
+        browserDetection.isCookieSourceAvailable(browser, applicationURL: applicationURL)
+            && BrowserCookieAccessGate.shouldAttempt(browser)
+    }
+
+    /// Interactive login may create a profile or cookie store after the browser opens, but must not pin a known
+    /// profile that CodexBar cannot read. Ordinary background imports remain stricter.
+    static func isInteractiveLoginSourceAvailable(
+        browser: Browser,
+        applicationURL: URL,
+        browserDetection: BrowserDetection) -> Bool
+    {
+        browserDetection.isInteractiveCookieSourceAvailable(browser, applicationURL: applicationURL)
+            && BrowserCookieAccessGate.shouldAttempt(browser)
+    }
+
     /// Reads Cursor session cookies from one browser if present (no fallback to other browsers).
     static func importSessionIfPresent(
         browser: Browser,
+        applicationURL: URL? = nil,
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> SessionInfo?
     {
         self.importSessionsIfPresent(
             browser: browser,
+            applicationURL: applicationURL,
             browserDetection: browserDetection,
             logger: logger).first
     }
@@ -72,11 +96,13 @@ public enum CursorCookieImporter {
     /// Reads all Cursor session-cookie candidates from one browser source order.
     static func importSessionsIfPresent(
         browser: Browser,
+        applicationURL: URL? = nil,
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
         self.importCookiesFromBrowser(
             browser: browser,
+            applicationURL: applicationURL,
             browserDetection: browserDetection,
             requireKnownSessionName: true,
             logger: logger)
@@ -86,11 +112,13 @@ public enum CursorCookieImporter {
     /// (used after the strict name pass fails — e.g. new cookie names or host-only cookies).
     static func importDomainCookiesIfPresent(
         browser: Browser,
+        applicationURL: URL? = nil,
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> SessionInfo?
     {
         self.importDomainCookieSessionsIfPresent(
             browser: browser,
+            applicationURL: applicationURL,
             browserDetection: browserDetection,
             logger: logger).first
     }
@@ -98,11 +126,13 @@ public enum CursorCookieImporter {
     /// Reads fallback cookie candidates whose names are not already covered by the strict session-cookie pass.
     static func importDomainCookieSessionsIfPresent(
         browser: Browser,
+        applicationURL: URL? = nil,
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
         self.importCookiesFromBrowser(
             browser: browser,
+            applicationURL: applicationURL,
             browserDetection: browserDetection,
             requireKnownSessionName: false,
             logger: logger)
@@ -110,13 +140,19 @@ public enum CursorCookieImporter {
 
     private static func importCookiesFromBrowser(
         browser: Browser,
+        applicationURL: URL?,
         browserDetection: BrowserDetection,
         requireKnownSessionName: Bool,
         logger: ((String) -> Void)?) -> [SessionInfo]
     {
         let log: (String) -> Void = { msg in logger?("[cursor-cookie] \(msg)") }
-        guard browserDetection.isCookieSourceAvailable(browser) else { return [] }
-        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
+        guard self.isCookieSourceAvailable(
+            browser: browser,
+            applicationURL: applicationURL,
+            browserDetection: browserDetection)
+        else {
+            return []
+        }
 
         do {
             let query = BrowserCookieQuery(domains: Self.cookieDomains)
@@ -486,7 +522,9 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT)
         let stepResult = sqlite3_step(stmt)
         guard stepResult == SQLITE_ROW else {
-            if stepResult == SQLITE_DONE { return nil }
+            if stepResult == SQLITE_DONE {
+                return nil
+            }
             let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
             throw CursorStatusProbeError.networkError("SQLite error reading Cursor app auth: \(message)")
         }
@@ -541,6 +579,8 @@ public struct CursorStatusSnapshot: Sendable {
     public let membershipType: String?
     /// User email
     public let accountEmail: String?
+    /// Stable Cursor user ID from /api/auth/me
+    public let accountID: String?
     /// User name
     public let accountName: String?
     /// Raw API response for debugging
@@ -572,6 +612,7 @@ public struct CursorStatusSnapshot: Sendable {
         billingCycleEnd: Date?,
         membershipType: String?,
         accountEmail: String?,
+        accountID: String? = nil,
         accountName: String?,
         rawJSON: String?,
         requestsUsed: Int? = nil,
@@ -590,6 +631,7 @@ public struct CursorStatusSnapshot: Sendable {
         self.billingCycleEnd = billingCycleEnd
         self.membershipType = membershipType
         self.accountEmail = accountEmail
+        self.accountID = accountID
         self.accountName = accountName
         self.rawJSON = rawJSON
         self.requestsUsed = requestsUsed
@@ -683,7 +725,8 @@ public struct CursorStatusSnapshot: Sendable {
             providerID: .cursor,
             accountEmail: self.accountEmail,
             accountOrganization: nil,
-            loginMethod: self.membershipType.map { Self.formatMembershipType($0) })
+            loginMethod: self.membershipType.map { Self.formatMembershipType($0) },
+            accountID: self.accountID)
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
@@ -864,7 +907,9 @@ public actor CursorSessionStore {
             var cookieProps: [HTTPCookiePropertyKey: Any] = [:]
             for (key, value) in props {
                 // Skip marker keys
-                if key.hasSuffix("_isDate") || key.hasSuffix("_isURL") { continue }
+                if key.hasSuffix("_isDate") || key.hasSuffix("_isURL") {
+                    continue
+                }
 
                 let propKey = HTTPCookiePropertyKey(key)
 
@@ -953,6 +998,12 @@ public struct CursorStatusProbe: Sendable {
             return try await self.fetchWithCookieHeader(override)
         }
 
+        #if os(macOS)
+        // Capture before any authentication request can suspend. A later browser fallback must not replace an
+        // interactive login that commits while this refresh is awaiting an earlier cached-session request.
+        let cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor)
+        #endif
+
         if allowCachedSessions,
            let cached = CookieHeaderCache.load(provider: .cursor),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -974,6 +1025,7 @@ public struct CursorStatusProbe: Sendable {
         #if os(macOS)
         // Try each browser in order. The first browser that *has* session cookie names is not always valid
         // (e.g. stale Chrome tokens); keep trying until the API accepts a session or we run out of browsers.
+        // The refresh-start observation prevents this asynchronous fallback from overwriting an interactive login.
         let browserCandidates = self.browserCookieImportOrder.cookieImportCandidates(using: self.browserDetection)
         switch await self.scanBrowsers(
             browserCandidates,
@@ -984,7 +1036,10 @@ public struct CursorStatusProbe: Sendable {
                     logger: log)
             },
             attemptFetch: { session in
-                await self.fetchIfSessionAccepted(session, log: log)
+                await self.fetchIfSessionAccepted(
+                    session,
+                    log: log,
+                    cacheObservation: cacheObservation)
             })
         {
         case let .succeeded(snapshot):
@@ -1002,7 +1057,10 @@ public struct CursorStatusProbe: Sendable {
                     logger: log)
             },
             attemptFetch: { session in
-                await self.fetchIfSessionAccepted(session, log: log)
+                await self.fetchIfSessionAccepted(
+                    session,
+                    log: log,
+                    cacheObservation: cacheObservation)
             })
         {
         case let .succeeded(snapshot):
@@ -1068,6 +1126,126 @@ public struct CursorStatusProbe: Sendable {
         throw CursorStatusProbeError.noSessionCookie
     }
 
+    /// Fetch every API-valid session from the exact browser that opened an interactive login URL.
+    /// Results remain uncommitted until the caller chooses one and calls ``commitBrowserLoginSession(_:)``.
+    public func fetchBrowserLoginCandidates(
+        browserApplicationURL: URL,
+        timeout: TimeInterval = 120) async throws -> [BrowserLoginResult]
+    {
+        #if os(macOS)
+        guard let browser = Self.interactiveBrowser(forApplicationURL: browserApplicationURL) else {
+            throw CursorStatusProbeError.noSessionCookie
+        }
+        guard timeout > 0 else { throw Self.browserLoginTimeoutError() }
+        // Login may have created the selected browser's first cookie store since the previous poll.
+        self.browserDetection.clearCache()
+        let deadline = Date().addingTimeInterval(timeout)
+        return try await self.fetchBrowserLoginCandidates(
+            browser: browser,
+            importSessions: { browser in
+                CursorCookieImporter.importSessionsIfPresent(
+                    browser: browser,
+                    applicationURL: browserApplicationURL,
+                    browserDetection: self.browserDetection)
+            },
+            importDomainSessions: { browser in
+                CursorCookieImporter.importDomainCookieSessionsIfPresent(
+                    browser: browser,
+                    applicationURL: browserApplicationURL,
+                    browserDetection: self.browserDetection)
+            },
+            fetchSnapshot: { cookieHeader in
+                try await self.fetchWithCookieHeader(cookieHeader, deadline: deadline)
+            },
+            deadline: deadline)
+        #else
+        _ = browserApplicationURL
+        _ = timeout
+        throw CursorStatusProbeError.noSessionCookie
+        #endif
+    }
+
+    #if os(macOS)
+    func fetchBrowserLoginCandidates(
+        browser: Browser,
+        importSessions: (Browser) -> [CursorCookieImporter.SessionInfo],
+        importDomainSessions: (Browser) -> [CursorCookieImporter.SessionInfo],
+        fetchSnapshot: @escaping @Sendable (String) async throws -> CursorStatusSnapshot,
+        deadline: Date? = nil) async throws
+        -> [BrowserLoginResult]
+    {
+        try Self.checkBrowserLoginDeadline(deadline)
+        var importedSessions = importSessions(browser)
+        try Self.checkBrowserLoginDeadline(deadline)
+        importedSessions.append(contentsOf: importDomainSessions(browser))
+        try Self.checkBrowserLoginDeadline(deadline)
+
+        var seenCookieHeaders: Set<String> = []
+        var results: [BrowserLoginResult] = []
+        var firstRecoverableError: CursorStatusProbeError?
+
+        for importedSession in importedSessions {
+            do {
+                try Self.checkBrowserLoginDeadline(deadline)
+            } catch {
+                guard results.isEmpty else { return results }
+                throw error
+            }
+            let session = BrowserLoginSession(
+                cookieHeader: importedSession.cookieHeader,
+                sourceLabel: importedSession.sourceLabel)
+            guard seenCookieHeaders.insert(session.cookieHeader).inserted else { continue }
+
+            let outcome = await self.fetchIfSessionAccepted(
+                importedSession,
+                log: { _ in },
+                fetchSnapshot: fetchSnapshot,
+                // Candidate discovery must not decide which credential owns the cache.
+                cacheAcceptedSession: { _ in })
+            do {
+                try Self.checkBrowserLoginDeadline(deadline)
+            } catch {
+                guard results.isEmpty else { return results }
+                throw error
+            }
+
+            switch outcome {
+            case let .succeeded(snapshot):
+                guard Self.hasAccountIdentity(snapshot) else {
+                    firstRecoverableError = firstRecoverableError ?? .parseFailed(
+                        "Cursor session from \(session.sourceLabel) did not include an account identity")
+                    continue
+                }
+                results.append(BrowserLoginResult(snapshot: snapshot, session: session))
+            case .tryNextBrowser:
+                continue
+            case let .failed(error):
+                firstRecoverableError = firstRecoverableError ?? error
+            }
+        }
+
+        if !results.isEmpty {
+            return results
+        }
+        if let firstRecoverableError {
+            throw firstRecoverableError
+        }
+        throw CursorStatusProbeError.noSessionCookie
+    }
+
+    private static func hasAccountIdentity(_ snapshot: CursorStatusSnapshot) -> Bool {
+        self.normalizedAccountIdentityValue(snapshot.accountID) != nil ||
+            self.normalizedAccountIdentityValue(snapshot.accountEmail) != nil
+    }
+
+    private static func normalizedAccountIdentityValue(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+    #endif
+
     #if os(macOS)
     enum ImportedSessionFetchOutcome {
         case succeeded(CursorStatusSnapshot)
@@ -1127,17 +1305,44 @@ public struct CursorStatusProbe: Sendable {
         return .exhausted(firstFailure)
     }
 
-    private func fetchIfSessionAccepted(
+    func fetchIfSessionAccepted(
         _ session: CursorCookieImporter.SessionInfo,
-        log: @escaping (String) -> Void) async -> ImportedSessionFetchOutcome
+        log: @escaping (String) -> Void,
+        acceptSnapshot: (@Sendable (CursorStatusSnapshot) -> Bool)? = nil,
+        fetchSnapshot: (@Sendable (String) async throws -> CursorStatusSnapshot)? = nil,
+        cacheObservation: CookieHeaderCache.ConditionalMutationObservation? = nil,
+        cacheAcceptedSession: (@Sendable (CursorCookieImporter.SessionInfo) -> Void)? = nil) async
+        -> ImportedSessionFetchOutcome
     {
         log("Trying Cursor session from \(session.sourceLabel)")
         do {
-            let snapshot = try await self.fetchWithCookieHeader(session.cookieHeader)
-            CookieHeaderCache.store(
-                provider: .cursor,
-                cookieHeader: session.cookieHeader,
-                sourceLabel: session.sourceLabel)
+            let snapshot: CursorStatusSnapshot = if let fetchSnapshot {
+                try await fetchSnapshot(session.cookieHeader)
+            } else {
+                try await self.fetchWithCookieHeader(session.cookieHeader)
+            }
+            guard acceptSnapshot?(snapshot) != false else {
+                log("Cursor session from \(session.sourceLabel) did not match the requested account; trying next")
+                return .tryNextBrowser
+            }
+            if let cacheAcceptedSession {
+                cacheAcceptedSession(session)
+            } else if let cacheObservation {
+                let stored = CookieHeaderCache.storeIfObservationCurrent(
+                    provider: .cursor,
+                    expected: cacheObservation,
+                    cookieHeader: session.cookieHeader,
+                    sourceLabel: session.sourceLabel)
+                guard stored else {
+                    log("Cursor session from \(session.sourceLabel) lost cache ownership; discarding snapshot")
+                    return .tryNextBrowser
+                }
+            } else {
+                CookieHeaderCache.store(
+                    provider: .cursor,
+                    cookieHeader: session.cookieHeader,
+                    sourceLabel: session.sourceLabel)
+            }
             return .succeeded(snapshot)
         } catch let error as CursorStatusProbeError {
             if case .notLoggedIn = error {
@@ -1155,23 +1360,28 @@ public struct CursorStatusProbe: Sendable {
 
     private func fetchWithCookieHeader(
         _ cookieHeader: String,
-        requestUsageUserIDFallback: String? = nil) async throws -> CursorStatusSnapshot
+        requestUsageUserIDFallback: String? = nil,
+        deadline: Date? = nil) async throws -> CursorStatusSnapshot
     {
         enum FetchPart: Sendable {
             case usageSummary((CursorUsageSummary, String))
             case userInfo(Result<CursorUserInfo, Error>)
         }
 
+        try Self.checkBrowserLoginDeadline(deadline)
+
         var usageSummaryResult: (CursorUsageSummary, String)?
         var userInfo: CursorUserInfo?
 
         try await withThrowingTaskGroup(of: FetchPart.self) { group in
             group.addTask {
-                try await .usageSummary(self.fetchUsageSummary(cookieHeader: cookieHeader))
+                try await .usageSummary(self.fetchUsageSummary(cookieHeader: cookieHeader, deadline: deadline))
             }
             group.addTask {
                 do {
-                    return try await .userInfo(.success(self.fetchUserInfo(cookieHeader: cookieHeader)))
+                    return try await .userInfo(.success(self.fetchUserInfo(
+                        cookieHeader: cookieHeader,
+                        deadline: deadline)))
                 } catch {
                     return .userInfo(.failure(error))
                 }
@@ -1186,6 +1396,7 @@ public struct CursorStatusProbe: Sendable {
                 }
             }
         }
+        try Self.checkBrowserLoginDeadline(deadline)
 
         guard let usageSummaryResult else {
             throw CursorStatusProbeError.networkError("Cursor usage summary fetch did not complete")
@@ -1199,7 +1410,10 @@ public struct CursorStatusProbe: Sendable {
         var requestUsageRawJSON: String?
         if let userId = userInfo?.sub ?? requestUsageUserIDFallback {
             do {
-                let (usage, usageRawJSON) = try await self.fetchRequestUsage(userId: userId, cookieHeader: cookieHeader)
+                let (usage, usageRawJSON) = try await self.fetchRequestUsage(
+                    userId: userId,
+                    cookieHeader: cookieHeader,
+                    deadline: deadline)
                 requestUsage = usage
                 requestUsageRawJSON = usageRawJSON
             } catch {
@@ -1220,10 +1434,13 @@ public struct CursorStatusProbe: Sendable {
             requestUsage: requestUsage)
     }
 
-    private func fetchUsageSummary(cookieHeader: String) async throws -> (CursorUsageSummary, String) {
+    private func fetchUsageSummary(
+        cookieHeader: String,
+        deadline: Date?) async throws -> (CursorUsageSummary, String)
+    {
         let url = self.baseURL.appendingPathComponent("/api/usage-summary")
         var request = URLRequest(url: url)
-        request.timeoutInterval = self.timeout
+        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
@@ -1253,10 +1470,10 @@ public struct CursorStatusProbe: Sendable {
         }
     }
 
-    private func fetchUserInfo(cookieHeader: String) async throws -> CursorUserInfo {
+    private func fetchUserInfo(cookieHeader: String, deadline: Date?) async throws -> CursorUserInfo {
         let url = self.baseURL.appendingPathComponent("/api/auth/me")
         var request = URLRequest(url: url)
-        request.timeoutInterval = self.timeout
+        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
@@ -1272,12 +1489,13 @@ public struct CursorStatusProbe: Sendable {
 
     private func fetchRequestUsage(
         userId: String,
-        cookieHeader: String) async throws -> (CursorUsageResponse, String)
+        cookieHeader: String,
+        deadline: Date?) async throws -> (CursorUsageResponse, String)
     {
         let url = self.baseURL.appendingPathComponent("/api/usage")
             .appending(queryItems: [URLQueryItem(name: "user", value: userId)])
         var request = URLRequest(url: url)
-        request.timeoutInterval = self.timeout
+        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
 
@@ -1291,6 +1509,22 @@ public struct CursorStatusProbe: Sendable {
         let decoder = JSONDecoder()
         let usage = try decoder.decode(CursorUsageResponse.self, from: data)
         return (usage, rawJSON)
+    }
+
+    private func requestTimeout(deadline: Date?) throws -> TimeInterval {
+        guard let deadline else { return self.timeout }
+        let remainingTime = deadline.timeIntervalSinceNow
+        guard remainingTime > 0 else { throw Self.browserLoginTimeoutError() }
+        return min(self.timeout, remainingTime)
+    }
+
+    private static func checkBrowserLoginDeadline(_ deadline: Date?) throws {
+        guard let deadline else { return }
+        guard deadline.timeIntervalSinceNow > 0 else { throw self.browserLoginTimeoutError() }
+    }
+
+    private static func browserLoginTimeoutError() -> CursorStatusProbeError {
+        .networkError("Timed out while validating Cursor browser sessions")
     }
 
     func parseUsageSummary(
@@ -1314,8 +1548,12 @@ public struct CursorStatusProbe: Sendable {
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
         func normPct(_ value: Double?) -> Double? {
             guard let v = value else { return nil }
-            if v < 0 { return 0 }
-            if v > 100 { return 100 }
+            if v < 0 {
+                return 0
+            }
+            if v > 100 {
+                return 100
+            }
             return v
         }
 
@@ -1406,6 +1644,7 @@ public struct CursorStatusProbe: Sendable {
             billingCycleEnd: billingCycleEnd,
             membershipType: summary.membershipType,
             accountEmail: userInfo?.email,
+            accountID: userInfo?.sub,
             accountName: userInfo?.name,
             rawJSON: rawJSON,
             requestsUsed: requestsUsed,
@@ -1466,9 +1705,18 @@ public struct CursorStatusProbe: Sendable {
     public func fetch(
         cookieHeaderOverride _: String? = nil,
         allowCachedSessions _: Bool = true,
+        allowAppAuthFallback _: Bool = true,
         logger: ((String) -> Void)? = nil) async throws -> CursorStatusSnapshot
     {
-        try await self.fetch(logger: logger)
+        _ = logger
+        throw CursorStatusProbeError.notSupported
+    }
+
+    public func fetchBrowserLoginCandidates(
+        browserApplicationURL _: URL,
+        timeout _: TimeInterval = 120) async throws -> [BrowserLoginResult]
+    {
+        throw CursorStatusProbeError.notSupported
     }
 }
 

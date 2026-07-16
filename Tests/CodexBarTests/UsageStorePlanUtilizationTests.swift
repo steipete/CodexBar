@@ -541,6 +541,44 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `cursor automatic history ignores dormant saved token account`() async throws {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        store.settings.addTokenAccount(
+            provider: .cursor,
+            label: "Dormant manual account",
+            token: "fixture")
+        let dormantAccount = try #require(store.settings.selectedTokenAccount(for: .cursor))
+        let dormantAccountKey = try #require(
+            UsageStore._planUtilizationTokenAccountKeyForTesting(
+                provider: .cursor,
+                account: dormantAccount))
+        store.settings.cursorCookieSource = .auto
+
+        let browserSnapshot = Self.makeSnapshot(provider: .cursor, email: "browser@example.com")
+        let browserAccountKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(
+                provider: .cursor,
+                snapshot: browserSnapshot))
+        store._setSnapshotForTesting(browserSnapshot, provider: .cursor)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .cursor,
+            snapshot: browserSnapshot,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let histories = store.planUtilizationHistory(for: .cursor)
+        let buckets = try #require(store.planUtilizationHistory[.cursor])
+        #expect(store.settings.selectedTokenAccount(for: .cursor)?.id == dormantAccount.id)
+        #expect(store.settings.effectiveSelectedTokenAccount(for: .cursor) == nil)
+        #expect(buckets.preferredAccountKey == browserAccountKey)
+        #expect(buckets.accounts[dormantAccountKey] == nil)
+        #expect(histories == buckets.accounts[browserAccountKey])
+        #expect(!histories.isEmpty)
+    }
+
+    @MainActor
+    @Test
     func `plan utilization menu hides while refreshing without current snapshot`() throws {
         let store = Self.makeStore()
         let claudeKey = try #require(

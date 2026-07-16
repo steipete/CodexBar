@@ -2,8 +2,6 @@ import Foundation
 
 #if DEBUG
 extension ClaudeOAuthCredentialsStore {
-    nonisolated(unsafe) static var claudeKeychainDataOverride: Data?
-    nonisolated(unsafe) static var claudeKeychainFingerprintOverride: ClaudeKeychainFingerprint?
     @TaskLocal static var taskClaudeKeychainDataOverride: Data?
     @TaskLocal static var taskClaudeKeychainFingerprintOverride: ClaudeKeychainFingerprint?
     @TaskLocal static var taskMemoryCacheStoreOverride: MemoryCacheStore?
@@ -51,14 +49,6 @@ extension ClaudeOAuthCredentialsStore {
     final class MemoryCacheStore: @unchecked Sendable {
         var record: ClaudeOAuthCredentialRecord?
         var timestamp: Date?
-    }
-
-    static func setClaudeKeychainDataOverrideForTesting(_ data: Data?) {
-        self.claudeKeychainDataOverride = data
-    }
-
-    static func setClaudeKeychainFingerprintOverrideForTesting(_ fingerprint: ClaudeKeychainFingerprint?) {
-        self.claudeKeychainFingerprintOverride = fingerprint
     }
 
     static func withClaudeKeychainOverridesForTesting<T>(

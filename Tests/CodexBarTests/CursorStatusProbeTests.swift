@@ -324,7 +324,7 @@ struct CursorStatusProbeTests {
     }
 
     @Test
-    func `converts snapshot to usage snapshot`() {
+    func `converts snapshot to usage snapshot`() throws {
         let snapshot = CursorStatusSnapshot(
             planPercentUsed: 45.0,
             autoPercentUsed: 5.0,
@@ -339,6 +339,7 @@ struct CursorStatusProbeTests {
             billingCycleEnd: Date(timeIntervalSince1970: 1_738_368_000), // Feb 1, 2025
             membershipType: "pro",
             accountEmail: "user@example.com",
+            accountID: "auth0|12345",
             accountName: "Test User",
             rawJSON: nil)
 
@@ -346,6 +347,7 @@ struct CursorStatusProbeTests {
 
         #expect(usageSnapshot.primary?.usedPercent == 45.0)
         #expect(usageSnapshot.accountEmail(for: .cursor) == "user@example.com")
+        #expect(usageSnapshot.identity(for: .cursor)?.accountID == "auth0|12345")
         #expect(usageSnapshot.loginMethod(for: .cursor) == "Cursor Pro")
         #expect(usageSnapshot.secondary != nil)
         #expect(usageSnapshot.secondary?.usedPercent == 5.0)
@@ -354,6 +356,11 @@ struct CursorStatusProbeTests {
         #expect(usageSnapshot.providerCost?.used == 5.0)
         #expect(usageSnapshot.providerCost?.limit == 100.0)
         #expect(usageSnapshot.providerCost?.currencyCode == "USD")
+
+        let roundTripped = try JSONDecoder().decode(
+            UsageSnapshot.self,
+            from: JSONEncoder().encode(usageSnapshot))
+        #expect(roundTripped.identity(for: .cursor)?.accountID == "auth0|12345")
     }
 
     @Test
@@ -583,199 +590,6 @@ struct CursorStatusProbeTests {
         #expect(snapshot.requestsLimit == 500)
     }
 
-    // MARK: - Imported Session Scanning
-
-    @Test
-    func `imported session scan continues after non auth failure until later success`() async {
-        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
-        let expected = CursorStatusSnapshot(
-            planPercentUsed: 0.441025641025641,
-            autoPercentUsed: 0.36,
-            apiPercentUsed: 0.7111111111111111,
-            planUsedUSD: 0.86,
-            planLimitUSD: 20.0,
-            onDemandUsedUSD: 0,
-            onDemandLimitUSD: nil,
-            teamOnDemandUsedUSD: nil,
-            teamOnDemandLimitUSD: nil,
-            billingCycleEnd: nil,
-            membershipType: "pro",
-            accountEmail: nil,
-            accountName: nil,
-            rawJSON: nil)
-
-        let result = await probe.scanImportedSessions([
-            Self.makeSessionInfo(sourceLabel: "Chrome"),
-            Self.makeSessionInfo(sourceLabel: "Safari"),
-        ]) { session in
-            switch session.sourceLabel {
-            case "Chrome":
-                .failed(.networkError("HTTP 500"))
-            case "Safari":
-                .succeeded(expected)
-            default:
-                .tryNextBrowser
-            }
-        }
-
-        switch result {
-        case let .succeeded(snapshot):
-            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
-            #expect(snapshot.autoPercentUsed == expected.autoPercentUsed)
-            #expect(snapshot.apiPercentUsed == expected.apiPercentUsed)
-        case .exhausted:
-            Issue.record("Expected scan to continue to the later successful browser session")
-        }
-    }
-
-    @Test
-    func `imported session scan preserves first non auth failure after exhausting sessions`() async {
-        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
-
-        let result = await probe.scanImportedSessions([
-            Self.makeSessionInfo(sourceLabel: "Chrome"),
-            Self.makeSessionInfo(sourceLabel: "Safari"),
-            Self.makeSessionInfo(sourceLabel: "Arc"),
-        ]) { session in
-            switch session.sourceLabel {
-            case "Chrome":
-                .failed(.networkError("HTTP 500"))
-            case "Safari":
-                .tryNextBrowser
-            case "Arc":
-                .failed(.parseFailed("bad payload"))
-            default:
-                .tryNextBrowser
-            }
-        }
-
-        switch result {
-        case .succeeded:
-            Issue.record("Expected scan to report the first recoverable error after exhausting sessions")
-        case let .exhausted(error):
-            guard let error else {
-                Issue.record("Expected first recoverable error to be preserved")
-                return
-            }
-            guard case let .networkError(message) = error else {
-                Issue.record("Expected first recoverable error to be the Chrome network failure")
-                return
-            }
-            #expect(message == "HTTP 500")
-        }
-    }
-
-    @Test
-    func `browser scan stops importing after later browser succeeds`() async {
-        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
-        let expected = CursorStatusSnapshot(
-            planPercentUsed: 42,
-            autoPercentUsed: 12,
-            apiPercentUsed: 85,
-            planUsedUSD: 8.4,
-            planLimitUSD: 20,
-            onDemandUsedUSD: 0,
-            onDemandLimitUSD: nil,
-            teamOnDemandUsedUSD: nil,
-            teamOnDemandLimitUSD: nil,
-            billingCycleEnd: nil,
-            membershipType: "pro",
-            accountEmail: nil,
-            accountName: nil,
-            rawJSON: nil)
-        var importedLabels: [String] = []
-
-        let result = await probe.scanBrowsers(
-            [.chrome, .safari, .chromeBeta],
-            importSessions: { browser in
-                importedLabels.append(browser.displayName)
-                switch browser {
-                case .chrome:
-                    return [Self.makeSessionInfo(sourceLabel: "Chrome")]
-                case .safari:
-                    return [Self.makeSessionInfo(sourceLabel: "Safari")]
-                case .chromeBeta:
-                    return [Self.makeSessionInfo(sourceLabel: "Chrome Beta")]
-                default:
-                    return []
-                }
-            },
-            attemptFetch: { session in
-                switch session.sourceLabel {
-                case "Chrome":
-                    .failed(.networkError("HTTP 500"))
-                case "Safari":
-                    .succeeded(expected)
-                default:
-                    .tryNextBrowser
-                }
-            })
-
-        switch result {
-        case let .succeeded(snapshot):
-            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
-            #expect(importedLabels == ["Chrome", "Safari"])
-        case .exhausted:
-            Issue.record("Expected browser scan to stop after the later successful browser")
-        }
-    }
-
-    @Test
-    func `browser scan keeps trying later sources within the same browser`() async {
-        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
-        let expected = CursorStatusSnapshot(
-            planPercentUsed: 12,
-            autoPercentUsed: 3,
-            apiPercentUsed: 45,
-            planUsedUSD: 2.4,
-            planLimitUSD: 20,
-            onDemandUsedUSD: 0,
-            onDemandLimitUSD: nil,
-            teamOnDemandUsedUSD: nil,
-            teamOnDemandLimitUSD: nil,
-            billingCycleEnd: nil,
-            membershipType: "pro",
-            accountEmail: nil,
-            accountName: nil,
-            rawJSON: nil)
-        var attemptedSources: [String] = []
-
-        let result = await probe.scanBrowsers(
-            [.chrome, .safari],
-            importSessions: { browser in
-                switch browser {
-                case .chrome:
-                    [
-                        Self.makeSessionInfo(sourceLabel: "Chrome Profile 1"),
-                        Self.makeSessionInfo(sourceLabel: "Chrome Profile 2 (domain cookies)"),
-                    ]
-                case .safari:
-                    [Self.makeSessionInfo(sourceLabel: "Safari")]
-                default:
-                    []
-                }
-            },
-            attemptFetch: { session in
-                attemptedSources.append(session.sourceLabel)
-                switch session.sourceLabel {
-                case "Chrome Profile 1":
-                    return CursorStatusProbe.ImportedSessionFetchOutcome.failed(.networkError("HTTP 500"))
-                case "Chrome Profile 2 (domain cookies)":
-                    return CursorStatusProbe.ImportedSessionFetchOutcome.succeeded(expected)
-                default:
-                    return CursorStatusProbe.ImportedSessionFetchOutcome.tryNextBrowser
-                }
-            })
-
-        switch result {
-        case let .succeeded(snapshot):
-            #expect(snapshot.planPercentUsed == expected.planPercentUsed)
-            #expect(attemptedSources == ["Chrome Profile 1", "Chrome Profile 2 (domain cookies)"])
-        case .exhausted:
-            Issue.record("Expected browser scan to continue to later sources within the same browser")
-        }
-    }
-
     @Test
     func `detects non legacy plan`() {
         let snapshot = CursorStatusSnapshot(
@@ -893,19 +707,6 @@ struct CursorStatusProbeTests {
         #expect(hasSession)
 
         await store.clearCookies()
-    }
-
-    private static func makeSessionInfo(sourceLabel: String) -> CursorCookieImporter.SessionInfo {
-        let cookieProps: [HTTPCookiePropertyKey: Any] = [
-            .name: "WorkosCursorSessionToken",
-            .value: sourceLabel.lowercased(),
-            .domain: "cursor.com",
-            .path: "/",
-            .secure: true,
-        ]
-
-        let cookie = HTTPCookie(properties: cookieProps)!
-        return CursorCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: sourceLabel)
     }
 }
 
@@ -1102,7 +903,7 @@ extension CursorStatusProbeTests {
             case "/api/auth/me":
                 return makeCursorStatusProbeResponse(
                     url: requestURL,
-                    body: #"{"email":"user@example.com","name":"Test User"}"#,
+                    body: #"{"email":"user@example.com","name":"Test User","sub":"auth0|user_test"}"#,
                     statusCode: 200)
             case "/api/usage":
                 return makeCursorStatusProbeResponse(
@@ -1129,6 +930,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.onDemandUsedUSD == 4.5)
         #expect(snapshot.onDemandLimitUSD == 10.0)
         #expect(snapshot.membershipType == "pro")
+        #expect(snapshot.accountID == "auth0|user_test")
         #expect(snapshot.accountEmail == "user@example.com")
         #expect(snapshot.accountName == "Test User")
         #expect(testSession.requestPaths.sorted() == [

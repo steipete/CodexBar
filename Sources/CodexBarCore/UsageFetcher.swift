@@ -143,17 +143,20 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
     public let accountEmail: String?
     public let accountOrganization: String?
     public let loginMethod: String?
+    public let accountID: String?
 
     public init(
         providerID: UsageProvider?,
         accountEmail: String?,
         accountOrganization: String?,
-        loginMethod: String?)
+        loginMethod: String?,
+        accountID: String? = nil)
     {
         self.providerID = providerID
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
         self.loginMethod = loginMethod
+        self.accountID = accountID
     }
 
     public func scoped(to provider: UsageProvider) -> ProviderIdentitySnapshot {
@@ -164,7 +167,8 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
             providerID: provider,
             accountEmail: self.accountEmail,
             accountOrganization: self.accountOrganization,
-            loginMethod: self.loginMethod)
+            loginMethod: self.loginMethod,
+            accountID: self.accountID)
     }
 }
 
@@ -552,6 +556,11 @@ public struct UsageSnapshot: Codable, Sendable {
             return true
         }
         guard let lhs, let rhs else { return false }
+        let lhsAccountID = lhs.accountID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhsAccountID = rhs.accountID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let lhsAccountID, let rhsAccountID, !lhsAccountID.isEmpty, !rhsAccountID.isEmpty {
+            return lhsAccountID == rhsAccountID
+        }
         let lhsEmail = lhs.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let rhsEmail = rhs.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let lhsEmail, let rhsEmail, !lhsEmail.isEmpty, !rhsEmail.isEmpty {

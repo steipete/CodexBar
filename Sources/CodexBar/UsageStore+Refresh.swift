@@ -331,7 +331,7 @@ extension UsageStore {
         let claudeAuthStateBeforeFetch = provider == .claude
             ? await Self.captureClaudeRefreshAuthState(invalidateCredentialsFile: true)
             : nil
-        let tokenAccount = self.settings.selectedTokenAccount(for: provider)
+        let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
         let fetchContext = self.makeFetchContext(provider: provider, override: nil)
         let descriptor = spec.descriptor
         let codexResetCreditsFetcher = self.codexResetCreditsFetcher()

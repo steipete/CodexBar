@@ -58,13 +58,16 @@
 "Check for updates automatically" = "Güncellemeleri otomatik denetle";
 "Check if you like your agents having some fun up there." = "Ajanlarınızın yukarıda biraz eğlenmesini istiyorsanız işaretleyin.";
 "Check provider status" = "Sağlayıcı durumunu denetle";
+"Choose a supported browser so CodexBar can read the matching account." = "CodexBar'ın eşleşen hesabı okuyabilmesi için desteklenen bir tarayıcı seçin.";
 "Choose Codex workspace" = "Codex çalışma alanını seçin";
+"Choose Cursor account" = "Cursor hesabını seçin";
 "Choose the MiniMax host (global .io or China mainland .com)." = "MiniMax sunucusunu seçin (küresel .io veya Çin anakarası .com).";
 "Choose up to " = "En fazla seçin ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "En fazla \\(Self.maxOverviewProviders) sağlayıcı seçin";
 "Choose up to \\(count) providers" = "En fazla \\(count) sağlayıcı seçin";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Menü çubuğunda ne gösterileceğini seçin (Hız, kullanımı beklentiyle karşılaştırır).";
 "Choose which Codex account CodexBar should follow." = "CodexBar'ın hangi Codex hesabını izleyeceğini seçin.";
+"Choose which Cursor account CodexBar should use." = "CodexBar'ın hangi Cursor hesabını kullanacağını seçin.";
 "Choose which window drives the menu bar percent." = "Menü çubuğu yüzdesini hangi pencerenin belirleyeceğini seçin.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI bulunamadı";
@@ -328,6 +331,7 @@
 "Usage breakdown" = "Kullanım dağılımı";
 "Usage history (30 days)" = "Kullanım geçmişi";
 "Usage source" = "Kullanım kaynağı";
+"Use Account" = "Hesabı Kullan";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Çin anakarası uç noktaları için BigModel kullanın (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Sağlayıcı değiştiricisiyle tek bir menü çubuğu simgesi kullan.";
 "Use international or China mainland console gateways for quota fetches." = "Kota getirmeleri için uluslararası veya Çin anakarası konsol ağ geçitlerini kullan.";
@@ -1184,3 +1188,6 @@
 "Show Codex Spark usage" = "Codex Spark kullanımını göster";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Codex Spark kota satırlarını menüde ve sağlayıcı önizlemesinde gösterir. Görünüm ayarlarında “Krediler + ekstra kullanımı göster” seçeneğinin etkin olmasını gerektirir.";
 "Scroll to see more models" = "Daha fazla model görmek için kaydırın";
+"Finish switching to a different Cursor account in your browser, then try again." = "Tarayıcınızda farklı bir Cursor hesabına geçişi tamamlayın, ardından yeniden deneyin.";
+"Timed out waiting for Cursor account switch. %@" = "Cursor hesap değişikliği beklenirken zaman aşımına uğradı. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Cursor hesap değişikliği beklenirken zaman aşımına uğradı. %@ Son hata: %@";

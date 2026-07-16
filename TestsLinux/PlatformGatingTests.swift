@@ -34,10 +34,12 @@ struct PlatformGatingTests {
         let cliFetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in
             Self.makeClaudeStatus()
         }
-        let outcome = await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
-            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
-                context: context,
-                provider: .claude)
+        let outcome = await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(binaryURL.path) {
+            await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
+                await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                    context: context,
+                    provider: .claude)
+            }
         }
         let result = try outcome.result.get()
 

@@ -140,6 +140,38 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertNil(result.primary?.resetsAt)
     }
 
+    func test_snapshotBackfillSkipsSameEmailWithDifferentStableAccountIDs() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let cached = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "Soon"),
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(-300),
+            identity: ProviderIdentitySnapshot(
+                providerID: .cursor,
+                accountEmail: "shared@example.com",
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: "account-a"))
+        let fresh = UsageSnapshot(
+            primary: RateWindow(usedPercent: 66, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .cursor,
+                accountEmail: "shared@example.com",
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: "account-b"))
+
+        let result = fresh.backfillingResetTimes(from: cached, now: now)
+
+        XCTAssertNil(result.primary?.resetsAt)
+    }
+
     func test_snapshotBackfillKeepsOtherProviderResetWhenDescriptionChanges() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let reset = now.addingTimeInterval(3600)

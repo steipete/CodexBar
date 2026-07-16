@@ -263,7 +263,7 @@ extension UsageStore {
         await MainActor.run {
             var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
             let originalProviderBuckets = providerBuckets
-            let preferredAccount = account ?? self.settings.selectedTokenAccount(for: provider)
+            let preferredAccount = account ?? self.settings.effectiveSelectedTokenAccount(for: provider)
             let accountKey = self.resolvePlanUtilizationAccountKey(
                 provider: provider,
                 snapshot: snapshot,
@@ -799,7 +799,7 @@ extension UsageStore {
         snapshot: UsageSnapshot? = nil,
         preferredAccount: ProviderTokenAccount? = nil) -> String?
     {
-        let account = preferredAccount ?? self.settings.selectedTokenAccount(for: provider)
+        let account = preferredAccount ?? self.settings.effectiveSelectedTokenAccount(for: provider)
         let accountKey = Self.planUtilizationAccountKey(provider: provider, account: account)
         if let accountKey {
             return accountKey
@@ -1179,7 +1179,7 @@ extension UsageStore {
             return nil
         }
 
-        let resolvedAccount = preferredAccount ?? self.settings.selectedTokenAccount(for: provider)
+        let resolvedAccount = preferredAccount ?? self.settings.effectiveSelectedTokenAccount(for: provider)
         if let tokenAccountKey = Self.planUtilizationAccountKey(provider: provider, account: resolvedAccount) {
             if shouldUpdatePreferredAccountKey {
                 providerBuckets.preferredAccountKey = tokenAccountKey

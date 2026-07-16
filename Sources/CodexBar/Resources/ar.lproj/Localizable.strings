@@ -58,13 +58,16 @@
 "Check for updates automatically" = "تحقق تلقائيا من التحديثات";
 "Check if you like your agents having some fun up there." = "تحقق إذا كنت تحب وكلائنك يستمتعون هناك.";
 "Check provider status" = "تحقق من حالة المزود";
+"Choose a supported browser so CodexBar can read the matching account." = "اختر متصفحًا مدعومًا حتى يتمكن CodexBar من قراءة الحساب المطابق.";
 "Choose Codex workspace" = "اختر Codex مساحة العمل";
+"Choose Cursor account" = "اختر حساب Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "اختر المضيف MiniMax (.io العالمي أو .com البر الرئيسي الصيني).";
 "Choose up to " = "اختر حتى  ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "اختر حتى \\(Self.maxOverviewProviders) المزودين";
 "Choose up to \\(count) providers" = "اختر حتى \\(count) المزودين";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "اختر ما تريد عرضه في شريط القائمة (Pace يظهر الاستخدام مقابل المتوقع).";
 "Choose which Codex account CodexBar should follow." = "اختر أي حساب Codex يجب CodexBar اتباعه.";
+"Choose which Cursor account CodexBar should use." = "اختر حساب Cursor الذي يجب أن يستخدمه CodexBar.";
 "Choose which window drives the menu bar percent." = "اختر أي نافذة تحدد نسبة شريط القوائم.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI لم يعثر عليه";
@@ -330,6 +333,7 @@
 "Usage breakdown" = "تفصيل الاستخدام";
 "Usage history (30 days)" = "تاريخ الاستخدام";
 "Usage source" = "مصدر الاستخدام";
+"Use Account" = "استخدام الحساب";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "استخدم BigModel لنقاط نهاية البر الرئيسي للصين (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "استخدم أيقونة شريط قائمة واحدة مع محول المزود.";
 "Use international or China mainland console gateways for quota fetches." = "استخدم بوابات الكونسول الدولية أو الصينية لجلب الحصص.";
@@ -1187,3 +1191,6 @@
 "Show Codex Spark usage" = "عرض استخدام Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "يعرض صفوف حصة Codex Spark في القائمة ومعاينة المزوّد. يتطلب تفعيل «عرض الاعتمادات + الاستخدام الإضافي» في إعدادات العرض.";
 "Scroll to see more models" = "مرر لرؤية المزيد من النماذج";
+"Finish switching to a different Cursor account in your browser, then try again." = "أكمل التبديل إلى حساب Cursor مختلف في متصفحك، ثم حاول مرة أخرى.";
+"Timed out waiting for Cursor account switch. %@" = "انتهت مهلة انتظار تبديل حساب Cursor. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "انتهت مهلة انتظار تبديل حساب Cursor. %@ آخر خطأ: %@";

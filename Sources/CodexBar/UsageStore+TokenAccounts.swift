@@ -44,6 +44,7 @@ struct CodexAccountUsageSnapshot: Identifiable {
 
 extension UsageStore {
     func activateCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID) {
+        guard self.settings.effectiveSelectedTokenAccount(for: provider)?.id == accountID else { return }
         self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
         self.tokenAccountLiveStateProviders.insert(provider)
         guard let account = self.uniqueTokenAccount(provider: provider, accountID: accountID),
@@ -81,6 +82,7 @@ extension UsageStore {
         snapshot: UsageSnapshot,
         sourceLabel: String?)
     {
+        guard provider != .cursor || self.settings.cursorCookieSource != .auto else { return }
         let cached = TokenAccountUsageSnapshot(
             account: account,
             snapshot: snapshot,
@@ -110,7 +112,7 @@ extension UsageStore {
         accounts: [ProviderTokenAccount])
     {
         self.pruneTokenAccountSnapshots(provider: provider, accounts: accounts)
-        guard let selectedAccount = self.settings.selectedTokenAccount(for: provider) else {
+        guard let selectedAccount = self.settings.effectiveSelectedTokenAccount(for: provider) else {
             if self.tokenAccountLiveStateProviders.remove(provider) != nil {
                 self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
                 self.clearTokenAccountLiveSnapshot(provider: provider)
@@ -202,6 +204,7 @@ extension UsageStore {
 
     func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
+        guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return false }
         return self.settings.multiAccountMenuLayout == .stacked && accounts.count > 1
     }
 
@@ -556,9 +559,16 @@ extension UsageStore {
         accounts: [ProviderTokenAccount],
         generation: UInt64? = nil) async
     {
-        let selectedAccount = self.settings.selectedTokenAccount(for: provider)
+        guard let selectedAccount = self.settings.effectiveSelectedTokenAccount(for: provider) else {
+            await MainActor.run {
+                self.reconcileSelectedTokenAccountSnapshotBeforeRefresh(
+                    provider: provider,
+                    accounts: accounts)
+            }
+            return
+        }
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
-        let effectiveSelected = selectedAccount ?? limitedAccounts.first
+        let effectiveSelected = selectedAccount
 
         // Capture the prior per-account snapshot state so we can preserve last-good
         // data when an in-flight refresh is cancelled (e.g. menu tab switches). Without
@@ -566,9 +576,7 @@ extension UsageStore {
         // misleading cards for accounts that previously had valid data.
         let priorSnapshots = await MainActor.run {
             self.pruneTokenAccountSnapshots(provider: provider, accounts: accounts)
-            if let effectiveSelected {
-                self.activateCachedTokenAccountSnapshot(provider: provider, accountID: effectiveSelected.id)
-            }
+            self.activateCachedTokenAccountSnapshot(provider: provider, accountID: effectiveSelected.id)
             return self.accountSnapshots[provider] ?? []
         }
         let priorByAccountID = Dictionary(uniqueKeysWithValues: priorSnapshots.map { ($0.account.id, $0) })
@@ -600,7 +608,7 @@ extension UsageStore {
             if let usage = resolved.usage {
                 historySamples.append((account: account, snapshot: usage))
             }
-            if account.id == effectiveSelected?.id {
+            if account.id == effectiveSelected.id {
                 selectedOutcome = outcome
                 selectedSnapshot = resolved.usage
             }

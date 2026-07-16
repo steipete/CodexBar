@@ -58,13 +58,16 @@
 "Check for updates automatically" = "Check for updates automatically";
 "Check if you like your agents having some fun up there." = "Check if you like your agents having some fun up there.";
 "Check provider status" = "Check provider status";
+"Choose a supported browser so CodexBar can read the matching account." = "Choose a supported browser so CodexBar can read the matching account.";
 "Choose Codex workspace" = "Choose Codex workspace";
+"Choose Cursor account" = "Choose Cursor account";
 "Choose the MiniMax host (global .io or China mainland .com)." = "Choose the MiniMax host (global .io or China mainland .com).";
 "Choose up to " = "Choose up to ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "Choose up to \\(Self.maxOverviewProviders) providers";
 "Choose up to \\(count) providers" = "Choose up to \\(count) providers";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
 "Choose which Codex account CodexBar should follow." = "Choose which Codex account CodexBar should follow.";
+"Choose which Cursor account CodexBar should use." = "Choose which Cursor account CodexBar should use.";
 "Choose which window drives the menu bar percent." = "Choose which window drives the menu bar percent.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI not found";
@@ -330,6 +333,7 @@
 "Usage breakdown" = "Usage breakdown";
 "Usage history (30 days)" = "Usage history";
 "Usage source" = "Usage source";
+"Use Account" = "Use Account";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Use BigModel for the China mainland endpoints (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Use a single menu bar icon with a provider switcher.";
 "Use international or China mainland console gateways for quota fetches." = "Use international or China mainland console gateways for quota fetches.";
@@ -1187,3 +1191,6 @@
 "Show Codex Spark usage" = "Show Codex Spark usage";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings.";
 "Scroll to see more models" = "Scroll to see more models";
+"Finish switching to a different Cursor account in your browser, then try again." = "Finish switching to a different Cursor account in your browser, then try again.";
+"Timed out waiting for Cursor account switch. %@" = "Timed out waiting for Cursor account switch. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Timed out waiting for Cursor account switch. %@ Last error: %@";

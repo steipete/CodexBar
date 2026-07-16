@@ -58,13 +58,16 @@
 "Check for updates automatically" = "به طور خودکار به روزرسانی ها را بررسی کنید";
 "Check if you like your agents having some fun up there." = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
 "Check provider status" = "وضعیت ارائه دهنده را بررسی کنید";
+"Choose a supported browser so CodexBar can read the matching account." = "یک مرورگر پشتیبانی‌شده انتخاب کنید تا CodexBar بتواند حساب منطبق را بخواند.";
 "Choose Codex workspace" = "فضای کاری Codex را انتخاب کنید";
+"Choose Cursor account" = "حساب Cursor را انتخاب کنید";
 "Choose the MiniMax host (global .io or China mainland .com)." = "میزبان MiniMax را انتخاب کنید (جهانی .io یا .com سرزمین اصلی چین).";
 "Choose up to " = "تا   انتخاب کنید";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "تا \\(Self.maxOverviewProviders) ارائه دهنده را انتخاب کنید";
 "Choose up to \\(count) providers" = "تا \\(count) ارائه دهنده را انتخاب کنید";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
 "Choose which Codex account CodexBar should follow." = "انتخاب کنید که کدام حساب Codex را دنبال CodexBar.";
+"Choose which Cursor account CodexBar should use." = "انتخاب کنید CodexBar از کدام حساب Cursor استفاده کند.";
 "Choose which window drives the menu bar percent." = "انتخاب کنید کدام پنجره درصد نوار منو را تنظیم کند.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI پیدا نشد";
@@ -330,6 +333,7 @@
 "Usage breakdown" = "تفکیک استفاده";
 "Usage history (30 days)" = "تاریخچه استفاده";
 "Usage source" = "منبع استفاده";
+"Use Account" = "استفاده از حساب";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "برای نقاط پایانی سرزمین اصلی چین از BigModel استفاده کنید (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "از یک آیکون نوار منو با یک تغییر دهنده ارائه دهنده استفاده کنید.";
 "Use international or China mainland console gateways for quota fetches." = "برای دریافت سهمیه از دروازه های کنسول بین المللی یا چین استفاده کنید.";
@@ -1187,3 +1191,6 @@
 "Show Codex Spark usage" = "نمایش استفاده از Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "ردیف‌های سهمیه Codex Spark را در منو و پیش‌نمایش ارائه‌دهنده نمایش می‌دهد. لازم است «نمایش اعتبارها + استفاده اضافی» در تنظیمات نمایش فعال باشد.";
 "Scroll to see more models" = "برای دیدن مدل‌های بیشتر پیمایش کنید";
+"Finish switching to a different Cursor account in your browser, then try again." = "تغییر به یک حساب Cursor دیگر را در مرورگر کامل کنید، سپس دوباره تلاش کنید.";
+"Timed out waiting for Cursor account switch. %@" = "مهلت انتظار برای تغییر حساب Cursor به پایان رسید. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "مهلت انتظار برای تغییر حساب Cursor به پایان رسید. %@ آخرین خطا: %@";

@@ -543,6 +543,66 @@ struct BrowserDetectionTests {
     }
 
     @Test
+    func `interactive source accepts an installed browser before its cookie store exists`() {
+        let home = "/tmp/codexbar-fresh-browser-profile"
+        let profileRoot = "\(home)/Library/Application Support/Google/Chrome"
+        let applicationPath = "/Applications/Google Chrome.app"
+        let freshInstall = BrowserDetection(
+            homeDirectory: home,
+            cacheTTL: 600,
+            now: Date.init,
+            fileExists: { $0 == applicationPath },
+            directoryContents: { _ in nil },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in nil })
+
+        #expect(!freshInstall.isCookieSourceAvailable(.chrome))
+        #expect(freshInstall.isInteractiveCookieSourceAvailable(.chrome))
+
+        let inaccessibleProfile = BrowserDetection(
+            homeDirectory: home,
+            cacheTTL: 600,
+            now: Date.init,
+            fileExists: { $0 == applicationPath },
+            directoryContents: { _ in nil },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in .accessDenied })
+
+        #expect(!inaccessibleProfile.isInteractiveCookieSourceAvailable(.chrome))
+
+        let emptyReadableProfile = BrowserDetection(
+            homeDirectory: home,
+            cacheTTL: 600,
+            now: Date.init,
+            fileExists: { $0 == applicationPath || $0 == profileRoot },
+            directoryContents: { $0 == profileRoot ? [] : nil },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in nil })
+
+        #expect(!emptyReadableProfile.isCookieSourceAvailable(.chrome))
+        #expect(emptyReadableProfile.isInteractiveCookieSourceAvailable(.chrome))
+    }
+
+    @Test
+    func `interactive source treats a missing production profile path as fresh`() throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let detection = BrowserDetection(
+            homeDirectory: temp.path,
+            cacheTTL: 0,
+            fileExists: { path in
+                path == "/Applications/Google Chrome.app" || FileManager.default.fileExists(atPath: path)
+            },
+            directoryContents: { path in
+                try? FileManager.default.contentsOfDirectory(atPath: path)
+            })
+
+        #expect(detection.isInteractiveCookieSourceAvailable(.chrome))
+    }
+
+    @Test
     func `stale registered browser outside Applications is not a candidate`() throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let cookies = temp
@@ -592,6 +652,7 @@ struct BrowserDetectionTests {
 
         #expect(detection.cookieSourceProfileAccessIssue(.chrome) == .accessDenied)
         #expect(!detection.isCookieSourceAvailable(.chrome))
+        #expect(!detection.isInteractiveCookieSourceAvailable(.chrome))
     }
 
     @Test

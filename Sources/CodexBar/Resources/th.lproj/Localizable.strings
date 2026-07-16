@@ -58,13 +58,16 @@
 "Check for updates automatically" = "ตรวจสอบการอัปเดตโดยอัตโนมัติ";
 "Check if you like your agents having some fun up there." = "ตรวจสอบว่าคุณชอบให้ตัวแทนของคุณสนุกสนานที่นั่นหรือไม่";
 "Check provider status" = "ตรวจสอบสถานะผู้ให้บริการ";
+"Choose a supported browser so CodexBar can read the matching account." = "เลือกเบราว์เซอร์ที่รองรับเพื่อให้ CodexBar อ่านบัญชีที่ตรงกันได้";
 "Choose Codex workspace" = "เลือกพื้นที่ทํางาน Codex";
+"Choose Cursor account" = "เลือกบัญชี Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "เลือกโฮสต์ MiniMax (.io ทั่วโลกหรือจีนแผ่นดินใหญ่ .com)";
 "Choose up to " = "เลือกได้ถึง  ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "เลือกผู้ให้บริการได้สูงสุด \\(Self.maxOverviewProviders) ราย";
 "Choose up to \\(count) providers" = "เลือกผู้ให้บริการได้สูงสุด \\(count) ราย";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "เลือกสิ่งที่จะแสดงในแถบเมนู (อัตราก้าวแสดงการใช้งานเทียบกับที่คาดไว้)";
 "Choose which Codex account CodexBar should follow." = "เลือกบัญชี Codex CodexBar ควรติดตาม";
+"Choose which Cursor account CodexBar should use." = "เลือกบัญชี Cursor ที่ CodexBar ควรใช้";
 "Choose which window drives the menu bar percent." = "เลือกหน้าต่างที่จะขับเคลื่อนเปอร์เซ็นต์ของแถบเมนู";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "ไม่พบ Claude CLI";
@@ -330,6 +333,7 @@
 "Usage breakdown" = "รายละเอียดการใช้งาน";
 "Usage history (30 days)" = "ประวัติการใช้งาน";
 "Usage source" = "แหล่งที่มาของการใช้งาน";
+"Use Account" = "ใช้บัญชี";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "ใช้ BigModel สําหรับปลายทางจีนแผ่นดินใหญ่ (open.bigmodel.cn)";
 "Use a single menu bar icon with a provider switcher." = "ใช้ไอคอนแถบเมนูเดียวกับตัวสลับผู้ให้บริการ";
 "Use international or China mainland console gateways for quota fetches." = "ใช้เกตเวย์คอนโซลระหว่างประเทศหรือจีนแผ่นดินใหญ่สําหรับการดึงข้อมูลโควต้า";
@@ -1187,3 +1191,6 @@
 "Show Codex Spark usage" = "แสดงการใช้งาน Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "แสดงแถวโควตา Codex Spark ในเมนูและตัวอย่างผู้ให้บริการ ต้องเปิดใช้ “แสดงเครดิต + การใช้งานเพิ่มเติม” ในการตั้งค่าการแสดงผล";
 "Scroll to see more models" = "เลื่อนเพื่อดูโมเดลเพิ่มเติม";
+"Finish switching to a different Cursor account in your browser, then try again." = "สลับไปยังบัญชี Cursor อื่นในเบราว์เซอร์ให้เสร็จ แล้วลองอีกครั้ง";
+"Timed out waiting for Cursor account switch. %@" = "หมดเวลารอการสลับบัญชี Cursor %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "หมดเวลารอการสลับบัญชี Cursor %@ ข้อผิดพลาดล่าสุด: %@";

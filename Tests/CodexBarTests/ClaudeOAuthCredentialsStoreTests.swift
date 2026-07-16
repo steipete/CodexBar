@@ -505,8 +505,6 @@ struct ClaudeOAuthCredentialsStoreTests {
                     defer {
                         ClaudeOAuthCredentialsStore.invalidateCache()
                         ClaudeOAuthCredentialsStore._resetClaudeKeychainChangeTrackingForTesting()
-                        ClaudeOAuthCredentialsStore.setClaudeKeychainDataOverrideForTesting(nil)
-                        ClaudeOAuthCredentialsStore.setClaudeKeychainFingerprintOverrideForTesting(nil)
                     }
 
                     // Avoid cross-suite interference from UserDefaults fingerprint persistence.
@@ -599,8 +597,6 @@ struct ClaudeOAuthCredentialsStoreTests {
                     ClaudeOAuthCredentialsStore.invalidateCache()
                     ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
                     ClaudeOAuthCredentialsStore._resetClaudeKeychainChangeTrackingForTesting()
-                    ClaudeOAuthCredentialsStore.setClaudeKeychainDataOverrideForTesting(nil)
-                    ClaudeOAuthCredentialsStore.setClaudeKeychainFingerprintOverrideForTesting(nil)
                 }
 
                 let tempDir = FileManager.default.temporaryDirectory
