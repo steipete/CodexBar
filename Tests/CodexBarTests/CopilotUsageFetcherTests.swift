@@ -6,7 +6,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetchGitHubIdentity uses shared client`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            guard request.value(forHTTPHeaderField: "Authorization") == "token abc123" else {
+            guard request.value(forHTTPHeaderField: "Authorization") == "token x" else {
                 throw URLError(.userAuthenticationRequired)
             }
             let response = try HTTPURLResponse(
@@ -17,7 +17,7 @@ struct CopilotUsageFetcherTests {
             return (Data(#"{"login":"testuser","id":123}"#.utf8), response)
         }
 
-        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: "abc123", transport: transport)
+        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: "x", transport: transport)
 
         #expect(identity.login == "testuser")
         #expect(identity.id == 123)
