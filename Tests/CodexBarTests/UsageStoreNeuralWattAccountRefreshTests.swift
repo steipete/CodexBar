@@ -86,7 +86,8 @@ struct UsageStoreNeuralWattAccountRefreshTests {
                 account: account,
                 snapshot: Self.snapshot(),
                 error: nil,
-                sourceLabel: "prior")
+                sourceLabel: "prior",
+                cacheKey: account.id.uuidString)
         }
 
         let task = Task { @MainActor in
