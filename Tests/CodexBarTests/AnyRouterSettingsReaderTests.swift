@@ -5,15 +5,15 @@ import Testing
 struct AnyRouterSettingsReaderTests {
     @Test
     func `reads ANYROUTER_API_KEY`() {
-        let env = ["ANYROUTER_API_KEY": "sk-ar-v1-abc"]
-        #expect(AnyRouterSettingsReader.apiKey(environment: env) == "sk-ar-v1-abc")
+        let env = ["ANYROUTER_API_KEY": "ak_abc"]
+        #expect(AnyRouterSettingsReader.apiKey(environment: env) == "ak_abc")
     }
 
     @Test
     func `trims whitespace and strips quotes`() {
-        #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "  sk-ar-v1-a  "]) == "sk-ar-v1-a")
-        #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "\"sk-ar-v1-b\""]) == "sk-ar-v1-b")
-        #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "'sk-ar-v1-c'"]) == "sk-ar-v1-c")
+        #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "  ak_a  "]) == "ak_a")
+        #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "\"ak_b\""]) == "ak_b")
+        #expect(AnyRouterSettingsReader.apiKey(environment: ["ANYROUTER_API_KEY": "'ak_c'"]) == "ak_c")
     }
 
     @Test

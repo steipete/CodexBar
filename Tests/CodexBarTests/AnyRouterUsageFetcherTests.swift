@@ -96,7 +96,7 @@ struct AnyRouterUsageFetcherTests {
         let transport = ProviderHTTPTransportHandler { request in
             let requestURL = try #require(request.url)
             #expect(requestURL.absoluteString == "https://anyrouter.dev/api/v1/credits")
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-ar-v1-test")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer ak_test")
             let response = try #require(HTTPURLResponse(
                 url: requestURL,
                 statusCode: 200,
@@ -106,7 +106,7 @@ struct AnyRouterUsageFetcherTests {
         }
 
         let snapshot = try await AnyRouterUsageFetcher.fetchUsage(
-            apiKey: "sk-ar-v1-test",
+            apiKey: "ak_test",
             transport: transport)
 
         #expect(snapshot.balance == 4.2)
@@ -126,7 +126,7 @@ struct AnyRouterUsageFetcherTests {
         }
 
         _ = try await AnyRouterUsageFetcher.fetchUsage(
-            apiKey: "sk-ar-v1-test",
+            apiKey: "ak_test",
             baseURL: #require(URL(string: "https://gateway.example.com/api/v1")),
             transport: transport)
     }
@@ -144,14 +144,14 @@ struct AnyRouterUsageFetcherTests {
         }
 
         await #expect(throws: AnyRouterUsageError.invalidCredentials) {
-            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "sk-ar-v1-revoked", transport: transport)
+            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "ak_revoked", transport: transport)
         }
     }
 
-    /// A key restricted to an endpoint allow-list that omits /api/v1/credits is valid but
-    /// scoped out. AnyRouter answers 403 insufficient_scope, and the fix differs from a bad key.
+    /// A management key that is revoked, lacks account access, or is missing read:credits is
+    /// scoped out. AnyRouter answers 403 forbidden, and the fix differs from a bad bearer token.
     @Test
-    func `fetch reports a scoped-out key separately from a rejected one`() async throws {
+    func `fetch reports missing credits scope separately from rejected keys`() async throws {
         let transport = ProviderHTTPTransportHandler { request in
             let requestURL = try #require(request.url)
             let response = try #require(HTTPURLResponse(
@@ -159,11 +159,11 @@ struct AnyRouterUsageFetcherTests {
                 statusCode: 403,
                 httpVersion: nil,
                 headerFields: nil))
-            return (Data(#"{"error":{"code":"insufficient_scope"}}"#.utf8), response)
+            return (Data(#"{"error":{"code":"forbidden"}}"#.utf8), response)
         }
 
         await #expect(throws: AnyRouterUsageError.insufficientScope) {
-            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "sk-ar-v1-scoped", transport: transport)
+            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "ak_missing_scope", transport: transport)
         }
     }
 
@@ -180,7 +180,7 @@ struct AnyRouterUsageFetcherTests {
         }
 
         await #expect(throws: AnyRouterUsageError.apiError(500)) {
-            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "sk-ar-v1-test", transport: transport)
+            try await AnyRouterUsageFetcher.fetchUsage(apiKey: "ak_test", transport: transport)
         }
     }
 

@@ -12,14 +12,14 @@ across many upstream providers through a single endpoint, billed from a shared c
 
 ## Authentication
 
-AnyRouter uses API key authentication. Create an inference key on the
-[AnyRouter dashboard](https://anyrouter.dev/dashboard/keys). Inference keys are prefixed with `sk-ar-v1-`, which
-distinguishes them from upstream provider keys.
+AnyRouter uses management-key authentication for the credits endpoint. Create a management key on the
+[AnyRouter dashboard](https://anyrouter.dev/dashboard/management-keys) with the `read:credits` scope. Management
+keys are prefixed with `ak_`; LLM/inference keys such as `sk-ar-v1-...` are not accepted by the credits API.
 
 ### Environment variable
 
 ```bash
-export ANYROUTER_API_KEY="sk-ar-v1-..."
+export ANYROUTER_API_KEY="ak_..."
 ```
 
 ### Settings
@@ -35,13 +35,8 @@ printf '%s' "$ANYROUTER_API_KEY" | codexbar config set-api-key --provider anyrou
 
 ## Data source
 
-The provider reads the credits API (`GET /api/v1/credits`) with your `sk-ar-v1-…` inference key. AnyRouter
-authenticates that key on this route directly (`extractApiKey` accepts only `sk-ar-`-prefixed keys, then validates
-it), so no separate management key is needed.
-
-One caveat: a key can carry an endpoint allow-list. If that list omits `/api/v1/credits`, AnyRouter returns
-403 `insufficient_scope` and CodexBar tells you to allow the endpoint on the key. Keys with no allow-list —
-the default — have full access and just work.
+The provider reads the credits API (`GET /api/v1/credits`) with your `ak_...` management key. A `403` response means
+the key is revoked, has no account access, or is missing the `read:credits` scope.
 
 The response returns the spendable balance, the lifetime spend, and today's spend:
 
@@ -53,8 +48,7 @@ The response returns the spendable balance, the lifetime spend, and today's spen
 | `used` | Cumulative lifetime spend |
 | `today_cost` | Spend so far today |
 
-AnyRouter's `/api/v1/key` endpoint needs dashboard session auth (or a Clerk `ak_` management key) rather than an
-inference key, so key-scoped rate limits are not available to CodexBar today.
+The credits endpoint returns balance and spend only; key-scoped rate limits are not available to CodexBar today.
 
 ## Display
 
@@ -76,5 +70,5 @@ codexbar -p ar  # alias
 
 | Variable | Description |
 |----------|-------------|
-| `ANYROUTER_API_KEY` | AnyRouter inference key (required) |
+| `ANYROUTER_API_KEY` | AnyRouter management key (required) |
 | `ANYROUTER_API_URL` | Override the base API URL (optional, defaults to `https://anyrouter.dev/api/v1`). HTTPS only |

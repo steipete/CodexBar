@@ -13,12 +13,12 @@ public enum AnyRouterUsageError: LocalizedError, Equatable, Sendable {
     public var errorDescription: String? {
         switch self {
         case .missingCredentials:
-            "Missing AnyRouter API key. Add one in Settings or set ANYROUTER_API_KEY."
+            "Missing AnyRouter management key. Add one in Settings or set ANYROUTER_API_KEY."
         case .invalidCredentials:
-            "AnyRouter rejected the API key. Check the key on the AnyRouter dashboard."
+            "AnyRouter rejected the management key. Check the key on the AnyRouter dashboard."
         case .insufficientScope:
-            "This AnyRouter key is not permitted to read credits. Allow the /api/v1/credits endpoint "
-                + "on the key, or use a key without an endpoint allow-list."
+            "This AnyRouter management key is missing the read:credits scope. Create or update a "
+                + "management key with read:credits."
         case let .apiError(statusCode):
             "AnyRouter API returned HTTP \(statusCode)."
         case let .parseFailed(message):
@@ -115,9 +115,8 @@ public enum AnyRouterUsageFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let response = try await transport.response(for: request)
-        // A key carrying an `allowed_endpoints` list that omits /api/v1/credits is valid but
-        // scoped out, which AnyRouter reports as 403 insufficient_scope — a different fix for
-        // the user than a rejected key.
+        // 403 means the management key is revoked, lacks account access, or is missing
+        // read:credits: a different fix for the user than a rejected bearer token.
         if response.statusCode == 403 {
             throw AnyRouterUsageError.insufficientScope
         }
