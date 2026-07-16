@@ -1,0 +1,8 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>CrossModel</title>
+  <g stroke="#7C3AED" stroke-linecap="round">
+    <path d="M2 16 L30 16" stroke-width="2.5"/>
+    <path d="M6 16 A10 10 0 0 1 26 16" stroke-width="2.5"/>
+    <path d="M6 16 A10 10 0 0 0 26 16" stroke-width="1.5" stroke-dasharray="1 2.5" opacity="0.5"/>
+  </g>
+</svg>
