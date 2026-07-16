@@ -310,7 +310,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
                 "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
-                "highContrast=\(self.settings.menuBarHighContrastOnInactiveDisplays ? "1" : "0")",
+                "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 // AppKit can lose button content state independently of the cached render signature.
@@ -334,7 +334,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
                 "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
-                "highContrast=\(self.settings.menuBarHighContrastOnInactiveDisplays ? "1" : "0")",
+                "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 self.noteIconPerfRender(skipped: true)
@@ -364,7 +364,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "anim=\(needsAnimation ? "1" : "0")",
                 "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
-                "highContrast=\(self.settings.menuBarHighContrastOnInactiveDisplays ? "1" : "0")",
+                "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipMergedIconRender(signature) {
                 self.noteIconPerfRender(skipped: true)
@@ -451,7 +451,7 @@ extension StatusItemController {
                 "style=\(String(describing: style))",
                 "text=\(displayText ?? "nil")",
                 "warningFlash=\(warningFlash ? "1" : "0")",
-                "highContrast=\(self.settings.menuBarHighContrastOnInactiveDisplays ? "1" : "0")",
+                "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
                 self.setButtonContent(image: displayedImage, title: displayText, for: button)
@@ -518,7 +518,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
                 "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
-                "highContrast=\(self.settings.menuBarHighContrastOnInactiveDisplays ? "1" : "0")",
+                "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
                 self.noteIconPerfRender(skipped: true)
@@ -548,7 +548,7 @@ extension StatusItemController {
                 "warningFlash=\(warningFlash ? "1" : "0")",
                 "loading=\(isLoading ? "1" : "0")",
                 "hideCritters=\(self.settings.menuBarHidesCritters ? "1" : "0")",
-                "highContrast=\(self.settings.menuBarHighContrastOnInactiveDisplays ? "1" : "0")",
+                "highContrast=\(self.shouldUseHighContrastStatusItemContent ? "1" : "0")",
             ].joined(separator: "|")
             if self.shouldSkipProviderIconRender(provider: provider, signature: signature) {
                 self.noteIconPerfRender(skipped: true)
@@ -702,6 +702,11 @@ extension StatusItemController {
         return image
     }
 
+    private var shouldUseHighContrastStatusItemContent: Bool {
+        self.settings.menuBarHighContrastOnInactiveDisplays
+            && self.settings.menuBarIconStyle == .iconAndPercent
+    }
+
     private func setButtonContent(image: NSImage, title: String?, for button: NSStatusBarButton) {
         let isDebugApp = Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier)
         let value = Self.buttonTitle(
@@ -709,7 +714,7 @@ extension StatusItemController {
             hasImage: true,
             isDebugApp: isDebugApp)
 
-        if self.settings.menuBarHighContrastOnInactiveDisplays {
+        if self.shouldUseHighContrastStatusItemContent {
             button.image = nil
             button.imagePosition = .noImage
             button.attributedTitle = Self.highContrastButtonTitle(image: image, title: value)

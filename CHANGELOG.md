@@ -3,7 +3,7 @@
 ## 0.43.1 — Unreleased
 
 ### Added
-- Menu bar: add an opt-in high-contrast rendering mode that keeps icons and metrics readable on inactive displays (#2190). Thanks @zpmdd!
+- Menu bar: add an opt-in high-contrast mode for Icon & percent that keeps icons and metrics readable on inactive displays (#2190). Thanks @zpmdd!
 
 ### Fixed
 - Menu bar: prevent duplicate provider items when usage updates re-enter initial status-item setup (#2162). Thanks @ss251!
