@@ -1,0 +1,85 @@
+--- a/contents/ui/AboutPage.qml
++++ b/contents/ui/AboutPage.qml
+@@ -37 +37 @@
+-                text: i18n("Plasma port, v0.1.0 — data via codexbar CLI")
++                text: i18n("Plasma port, v0.2.0 — data via codexbar CLI")
+--- a/contents/ui/ProviderCard.qml
++++ b/contents/ui/ProviderCard.qml
+@@ -188 +188 @@
+-        visible: (card.entry && card.entry.credits && card.entry.credits.remaining !== undefined)
++        visible: Boolean((card.entry && card.entry.credits && card.entry.credits.remaining !== undefined)
+@@ -190 +190 @@
+-                     && card.usage.codexResetCredits.availableCount > 0)
++                     && card.usage.codexResetCredits.availableCount > 0))
+@@ -206 +206 @@
+-            visible: card.entry && card.entry.credits && card.entry.credits.remaining !== undefined
++            visible: Boolean(card.entry && card.entry.credits && card.entry.credits.remaining !== undefined)
+@@ -214,2 +214,2 @@
+-            visible: card.usage && card.usage.codexResetCredits
+-                     && card.usage.codexResetCredits.availableCount > 0
++            visible: Boolean(card.usage && card.usage.codexResetCredits
++                     && card.usage.codexResetCredits.availableCount > 0)
+@@ -244,2 +244,2 @@
+-        visible: Plasmoid.configuration.showCost
+-                 && card.d && card.d.cost !== undefined && card.d.cost !== null
++        visible: Boolean(Plasmoid.configuration.showCost
++                 && card.d && card.d.cost !== undefined && card.d.cost !== null)
+@@ -274 +274 @@
+-            visible: card.d && card.d.cost && card.d.cost.last30DaysCostUSD !== undefined
++            visible: Boolean(card.d && card.d.cost && card.d.cost.last30DaysCostUSD !== undefined)
+@@ -290,2 +290,2 @@
+-        visible: Plasmoid.configuration.showStatus
+-                 && card.entry && card.entry.status !== undefined && card.entry.status !== null
++        visible: Boolean(Plasmoid.configuration.showStatus
++                 && card.entry && card.entry.status !== undefined && card.entry.status !== null)
+@@ -313 +313 @@
+-        visible: card.usage && card.usage.identity && card.usage.identity.accountEmail !== undefined
++        visible: Boolean(card.usage && card.usage.identity && card.usage.identity.accountEmail !== undefined)
+--- a/contents/ui/configGeneral.qml
++++ b/contents/ui/configGeneral.qml
+@@ -9,0 +10,12 @@
++    property string cfg_enabledProviders
++    property int cfg_refreshIntervalMinutesDefault
++    property string cfg_enabledProvidersDefault
++    property bool cfg_showPercentInPanelDefault
++    property string cfg_panelPercentSourceDefault
++    property string cfg_percentStyleDefault
++    property bool cfg_hideCrittersDefault
++    property bool cfg_separateIconsDefault
++    property bool cfg_showCostDefault
++    property bool cfg_showStatusDefault
++    property string cfg_cliPathDefault
++
+--- a/contents/ui/configProviders.qml
++++ b/contents/ui/configProviders.qml
+@@ -10,0 +11,20 @@
++    property int cfg_refreshIntervalMinutes
++    property bool cfg_showPercentInPanel
++    property string cfg_panelPercentSource
++    property string cfg_percentStyle
++    property bool cfg_hideCritters
++    property bool cfg_separateIcons
++    property bool cfg_showCost
++    property bool cfg_showStatus
++    property string cfg_cliPath
++    property int cfg_refreshIntervalMinutesDefault
++    property string cfg_enabledProvidersDefault
++    property bool cfg_showPercentInPanelDefault
++    property string cfg_panelPercentSourceDefault
++    property string cfg_percentStyleDefault
++    property bool cfg_hideCrittersDefault
++    property bool cfg_separateIconsDefault
++    property bool cfg_showCostDefault
++    property bool cfg_showStatusDefault
++    property string cfg_cliPathDefault
++
+--- a/contents/ui/main.qml
++++ b/contents/ui/main.qml
+@@ -144,0 +145,2 @@
++            } else if (parsed && parsed.length > 0 && parsed[0].error && parsed[0].error.message) {
++                d.error = parsed[0].error.message
+@@ -252,2 +254,2 @@
+-    onExpandedChanged: {
+-        if (expanded && (currentTab === "" || currentTab === "about"))
++    onExpandedChanged: function () {
++        if (root.expanded && (currentTab === "" || currentTab === "about"))

@@ -2,6 +2,8 @@
 
 ## 0.43.1 — Unreleased
 
+- Linux: add a Fedora KDE Plasma 6 installer for the verified static CLI and panel widget, including Plasma 6.6 QML compatibility fixes.
+
 ### Added
 - ZenMux: add Management API usage with five-hour and weekly quotas, subscription expiry, and USD PAYG balance. Thanks @kays0x!
 

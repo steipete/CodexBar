@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: build check docs-list format lint release restart start start-debug start-release stop test test-live test-tty
+.PHONY: build check docs-list format lint linux-kde linux-kde-check release restart start start-debug start-release stop test test-live test-tty
 
 start:
 	./Scripts/compile_and_run.sh
@@ -29,6 +29,12 @@ docs-list:
 
 build:
 	swift build
+
+linux-kde:
+	./Scripts/install-fedora-kde.sh
+
+linux-kde-check:
+	./Scripts/install-fedora-kde.sh --check
 
 test:
 	./Scripts/test.sh
