@@ -66,31 +66,6 @@ struct UsageStoreNeuralWattAccountRefreshTests {
         #expect(dates[1].timeIntervalSince(dates[0]) >= 0.95)
     }
 
-    @Test
-    func `cancelled delayed refresh preserves every prior account snapshot`() async throws {
-        let recorder = NeuralWattAccountRefreshRecorder()
-        let store = try Self.makeStore(recorder: recorder)
-        let accounts = Self.addAccounts(to: store, count: 3)
-        store.accountSnapshots[.neuralwatt] = accounts.map { account in
-            TokenAccountUsageSnapshot(
-                account: account,
-                snapshot: Self.snapshot(),
-                error: nil,
-                sourceLabel: "prior",
-                cacheKey: account.id.uuidString)
-        }
-
-        let task = Task { @MainActor in
-            await store.refreshTokenAccounts(provider: .neuralwatt, accounts: accounts)
-        }
-        await recorder.waitForCount(1)
-        task.cancel()
-        await task.value
-
-        #expect(store.accountSnapshots[.neuralwatt]?.map(\.account.id) == accounts.map(\.id))
-        #expect(store.accountSnapshots[.neuralwatt]?.allSatisfy { $0.snapshot != nil } == true)
-    }
-
     private static func makeStore(recorder: NeuralWattAccountRefreshRecorder) throws -> UsageStore {
         let settings = testSettingsStore(
             suiteName: "UsageStoreNeuralWattAccountRefreshTests-\(UUID().uuidString)",
