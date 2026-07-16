@@ -29,7 +29,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch returns unavailable snapshot for business token billing placeholders`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -58,7 +58,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "gh-token", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
 
         let snapshot = try await fetcher.fetch()
 
@@ -70,7 +70,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch omits explicitly unlimited only chat quota without failing`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -93,7 +93,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "gh-token", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
 
         let snapshot = try await fetcher.fetch()
 
@@ -105,7 +105,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch keeps finite premium quota and omits unlimited chat quota`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -134,7 +134,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "gh-token", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
         let expectedReset = try #require(CopilotUsageFetcher.parseQuotaResetDate("2026-08-01T00:00:00Z"))
 
         let snapshot = try await fetcher.fetch()
@@ -148,7 +148,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch attaches quota reset date to copilot windows`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token gh-token")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -177,7 +177,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "gh-token", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
         let expectedReset = try #require(CopilotUsageFetcher.parseQuotaResetDate("2026-07-01"))
 
         let snapshot = try await fetcher.fetch()
