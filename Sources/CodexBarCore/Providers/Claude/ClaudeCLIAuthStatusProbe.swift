@@ -5,11 +5,25 @@ enum ClaudeCLIAuthStatusProbe {
         let loggedIn: Bool
     }
 
+    @TaskLocal private static var resultOverrideForTesting: Bool?
+
+    static func withResultOverrideForTesting<T>(
+        _ result: Bool?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$resultOverrideForTesting.withValue(result) {
+            try await operation()
+        }
+    }
+
     static func isLoggedIn(
         binary: String,
         environment: [String: String],
         timeout: TimeInterval = 5) async -> Bool
     {
+        if let resultOverrideForTesting = self.resultOverrideForTesting {
+            return resultOverrideForTesting
+        }
         do {
             let result = try await SubprocessRunner.run(
                 binary: binary,
