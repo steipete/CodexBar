@@ -884,7 +884,7 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `weekly quota celebration posts when reset lands mid hour without history split`() async {
+    func `weekly same-hour drop with unchanged boundary coalesces history without celebrating`() async {
         let store = Self.makeStore()
         let accountLabel = "mid-hour-reset@example.com"
         let recorder = WeeklyLimitResetEventRecorder(provider: .claude, accountLabel: accountLabel)
@@ -908,9 +908,9 @@ extension UsageStorePlanUtilizationTests {
             secondary: RateWindow(
                 usedPercent: 0,
                 windowMinutes: 10080,
-                // A genuine weekly reset advances the boundary by a full week; the same-hour
-                // history-split behavior under test is driven by `updatedAt`, not this boundary.
-                resetsAt: Date(timeIntervalSince1970: 1_700_100_000 + 7 * 24 * 3600),
+                // Boundary drifts 30s (< the 2-min equivalence tolerance) — same reset window,
+                // so the two samples coalesce into a single hourly entry (no history split).
+                resetsAt: Date(timeIntervalSince1970: 1_700_100_030),
                 resetDescription: nil),
             updatedAt: Date(timeIntervalSince1970: 1_700_001_800),
             identity: ProviderIdentitySnapshot(
@@ -925,9 +925,9 @@ extension UsageStorePlanUtilizationTests {
         let histories = store.planUtilizationHistory(for: .claude)
         #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.count == 1)
         #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 40)
-        let events = recorder.events
-        #expect(events.count == 1)
-        #expect(events[0].usedPercent == 0)
+        // The drop to 0 on an unchanged reset boundary is a suspect sample, not a reset, so no
+        // celebration fires (#2222). A genuine reset advances the boundary — covered separately.
+        #expect(recorder.events.isEmpty)
     }
 
     @MainActor

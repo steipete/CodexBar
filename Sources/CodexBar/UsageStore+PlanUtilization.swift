@@ -529,16 +529,12 @@ extension UsageStore {
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary)
         } else if descriptor.seriesName == .weekly, context.provider == .codex || context.provider == .claude {
-            // A weekly below-threshold crossing only counts as a genuine reset if the reset
-            // boundary actually advanced — otherwise a bogus near-zero sample (e.g. a CLI
-            // usage-probe misparse) gets read as a reset and fires spurious confetti (#2222).
-            // Codex requires an existing previous boundary (#2054); Claude OAuth snapshots can
-            // lack one entirely, so Claude must NOT require it — an absent boundary still
-            // allows a genuine reset to post, only an unchanged one is suppressed.
-            Self.limitResetBoundaryAdvanced(
+            // Weekly celebrations require a real boundary advance so a bogus near-zero sample
+            // is not read as a reset (#2222 for Claude, #2054 for Codex). See the helper.
+            Self.weeklyResetBoundaryAllowsCelebration(
+                provider: context.provider,
                 previous: previousState?.resetBoundary,
-                current: observation.resetBoundary,
-                requiresPreviousBoundary: context.provider == .codex)
+                current: observation.resetBoundary)
         } else {
             true
         }
