@@ -380,7 +380,7 @@ extension UsageMenuCardView.Model {
 
     private static func subscriptionDateString(_ date: Date, provider: UsageProvider) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = self.subscriptionDateTimeZone(provider: provider)
         formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
         return formatter.string(from: date)
