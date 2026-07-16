@@ -147,8 +147,6 @@ public enum ProviderConfigEnvironment {
             SyntheticSettingsReader.apiKeyKey
         case .openrouter:
             OpenRouterSettingsReader.envKey
-        case .anyrouter:
-            AnyRouterSettingsReader.apiKeyEnvironmentKey
         case .elevenlabs:
             ElevenLabsSettingsReader.apiKeyEnvironmentKey
         case .moonshot:
@@ -165,7 +163,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm, .crossmodel, .clawrouter, .factory, .sub2api, .zenmux:
+        case .chutes, .poe, .litellm, .crossmodel, .clawrouter, .factory, .sub2api, .zenmux, .anyrouter:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -190,6 +188,8 @@ public enum ProviderConfigEnvironment {
             FactorySettingsReader.apiTokenKey
         case .zenmux:
             ZenMuxSettingsReader.managementAPIKeyEnvironmentKey
+        case .anyrouter:
+            AnyRouterSettingsReader.apiKeyEnvironmentKey
         default:
             nil
         }
