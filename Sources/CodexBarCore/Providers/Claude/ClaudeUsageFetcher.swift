@@ -76,6 +76,16 @@ public enum ClaudeUsageError: LocalizedError, Sendable {
     case parseFailed(String)
     case oauthFailed(String)
 
+    public static func isClaudeOAuthUsageRateLimit(_ error: Error) -> Bool {
+        if let fetchError = error as? ClaudeOAuthFetchError,
+           case .rateLimited = fetchError
+        {
+            return true
+        }
+        guard case let ClaudeUsageError.oauthFailed(message) = error else { return false }
+        return ClaudeOAuthFetchError.isUsageRateLimitDescription(message)
+    }
+
     public var errorDescription: String? {
         switch self {
         case .claudeNotInstalled:

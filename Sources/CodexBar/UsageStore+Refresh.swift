@@ -25,6 +25,7 @@ extension UsageStore {
         let generation: UInt64
         let codexExpectedGuard: CodexAccountScopedRefreshGuard?
         let tokenAccount: ProviderTokenAccount?
+        let priorTokenAccountSnapshot: TokenAccountUsageSnapshot?
         let codexLimitResetOwnerKey: CodexLimitResetOwnerKey?
         let claudeOAuthHistoryPersistentRefHash: String?
         let claudeOAuthActiveAccountObservation: ClaudeOAuthActiveAccountObservation
@@ -332,6 +333,7 @@ extension UsageStore {
             ? await Self.captureClaudeRefreshAuthState(invalidateCredentialsFile: true)
             : nil
         let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
+        let priorTokenAccountSnapshot = self.tokenAccountSnapshot(provider: provider, account: tokenAccount)
         let fetchContext = self.makeFetchContext(provider: provider, override: nil)
         let descriptor = spec.descriptor
         let codexResetCreditsFetcher = self.codexResetCreditsFetcher()
@@ -437,6 +439,7 @@ extension UsageStore {
                 generation: generation,
                 codexExpectedGuard: codexExpectedGuard,
                 tokenAccount: tokenAccount,
+                priorTokenAccountSnapshot: priorTokenAccountSnapshot,
                 codexLimitResetOwnerKey: codexLimitResetOwnerKey,
                 claudeOAuthHistoryPersistentRefHash: claudeOAuthHistoryPersistentRefHash,
                 claudeOAuthActiveAccountObservation: claudeOAuthActiveAccountObservation))
@@ -641,7 +644,7 @@ extension UsageStore {
         await self.handleProviderFetchFailure(
             provider: provider,
             error: error,
-            generation: context.generation)
+            context: context)
     }
 
     private func bindCodexFailurePublicationOwner(
@@ -949,11 +952,11 @@ extension UsageStore {
     private func handleProviderFetchFailure(
         provider: UsageProvider,
         error: Error,
-        generation: UInt64) async
+        context: ProviderRefreshOutcomeContext) async
     {
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
-            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
             if provider == .gemini, Self.isGeminiConsumerTierDeprecationError(error) {
                 // This is a durable provider migration signal, not a transient fetch failure.
                 // Surface it immediately so a cached snapshot cannot hide the required handoff.
@@ -965,6 +968,35 @@ extension UsageStore {
                 self.lastSourceLabels.removeValue(forKey: provider)
                 self.failureGates[provider]?.reset()
                 return
+            }
+            if provider == .claude,
+               ClaudeUsageError.isClaudeOAuthUsageRateLimit(error)
+            {
+                if let (account, cached) = self.validatedClaudeOAuthTokenAccountFallback(context: context),
+                   let snapshot = cached.snapshot
+                {
+                    self.snapshots[provider] = snapshot
+                    self.lastKnownResetSnapshots[provider] = snapshot
+                    self.lastSourceLabels[provider] = "oauth"
+                    self.cacheTokenAccountSnapshot(
+                        provider: provider,
+                        account: account,
+                        snapshot: snapshot,
+                        sourceLabel: "oauth")
+                    self.errors[provider] = nil
+                    self.failureGates[provider]?.reset()
+                    return
+                }
+                // Credential-change cleanup runs before failure handling and removes all unscoped Claude state.
+                // A surviving OAuth snapshot therefore belongs to the credential observed across this refresh.
+                if context.tokenAccount == nil,
+                   self.snapshots[provider] != nil,
+                   self.lastSourceLabels[provider] == "oauth"
+                {
+                    self.errors[provider] = nil
+                    self.failureGates[provider]?.reset()
+                    return
+                }
             }
             let hadKnownUnavailableLimits = self.knownLimitsAvailabilityByProvider[provider]?.isUnavailable == true
             self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
@@ -1035,11 +1067,38 @@ extension UsageStore {
                 self.postPermissionPromptNotificationIfNeeded(provider: provider, error: error)
             }
         }
-        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
         if let runtime = self.providerRuntimes[provider] {
             let context = ProviderRuntimeContext(
                 provider: provider, settings: self.settings, store: self)
             runtime.providerDidFail(context: context, provider: provider, error: error)
+        }
+    }
+
+    private func validatedClaudeOAuthTokenAccountFallback(
+        context: ProviderRefreshOutcomeContext) -> (ProviderTokenAccount, TokenAccountUsageSnapshot)?
+    {
+        guard let fetchedAccount = context.tokenAccount,
+              let cached = context.priorTokenAccountSnapshot,
+              cached.account.id == fetchedAccount.id,
+              cached.sourceLabel == "oauth",
+              cached.snapshot != nil,
+              let currentAccount = self.uniqueTokenAccount(provider: .claude, accountID: fetchedAccount.id),
+              cached.cacheKey == self.tokenAccountSnapshotCacheKey(provider: .claude, account: currentAccount)
+        else {
+            return nil
+        }
+        return (currentAccount, cached)
+    }
+
+    private func tokenAccountSnapshot(
+        provider: UsageProvider,
+        account: ProviderTokenAccount?) -> TokenAccountUsageSnapshot?
+    {
+        guard let account else { return nil }
+        return self.accountSnapshots[provider]?.first { cached in
+            cached.account.id == account.id &&
+                cached.cacheKey == self.tokenAccountSnapshotCacheKey(provider: provider, account: account)
         }
     }
 

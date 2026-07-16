@@ -10,13 +10,20 @@ public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
     case serverError(Int, String?)
     case networkError(Error)
 
+    public static let usageRateLimitDescription =
+        "Claude OAuth usage endpoint is rate limited by Anthropic right now. Wait a few minutes, "
+            + "then click Refresh. If it keeps happening, run `claude logout && claude login`, then try again."
+
+    public static func isUsageRateLimitDescription(_ description: String?) -> Bool {
+        description == self.usageRateLimitDescription
+    }
+
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
             return "Claude OAuth request unauthorized. Run `claude` to re-authenticate."
         case .rateLimited:
-            return "Claude OAuth usage endpoint is rate limited by Anthropic right now. Wait a few minutes, "
-                + "then click Refresh. If it keeps happening, run `claude logout && claude login`, then try again."
+            return Self.usageRateLimitDescription
         case .invalidResponse:
             return "Claude OAuth response was invalid."
         case let .serverError(code, body):
@@ -42,9 +49,10 @@ enum ClaudeOAuthUsageFetcher {
 
     static func fetchUsage(
         accessToken: String,
-        detectClaudeVersion: Bool = true) async throws -> OAuthUsageResponse
+        detectClaudeVersion: Bool = true,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> OAuthUsageResponse
     {
-        if let blockedUntil = ClaudeOAuthUsageRateLimitGate.blockedUntil() {
+        if let blockedUntil = ClaudeOAuthUsageRateLimitGate.blockedUntil(accessToken: accessToken) {
             throw ClaudeOAuthFetchError.rateLimited(retryAfter: blockedUntil)
         }
 
@@ -65,20 +73,23 @@ enum ClaudeOAuthUsageFetcher {
             forHTTPHeaderField: "User-Agent")
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             let data = response.data
             switch response.statusCode {
             case 200:
                 let usage = try Self.decodeUsageResponse(data)
-                ClaudeOAuthUsageRateLimitGate.recordSuccess()
+                ClaudeOAuthUsageRateLimitGate.recordSuccess(accessToken: accessToken)
                 return usage
             case 401:
                 throw ClaudeOAuthFetchError.unauthorized
             case 429:
                 let retryAfter = Self.retryAfterDate(from: response.response)
-                ClaudeOAuthUsageRateLimitGate.recordRateLimit(retryAfter: retryAfter)
+                ClaudeOAuthUsageRateLimitGate.recordRateLimit(
+                    accessToken: accessToken,
+                    retryAfter: retryAfter)
                 throw ClaudeOAuthFetchError.rateLimited(
-                    retryAfter: ClaudeOAuthUsageRateLimitGate.currentBlockedUntil() ?? retryAfter)
+                    retryAfter: ClaudeOAuthUsageRateLimitGate
+                        .currentBlockedUntil(accessToken: accessToken) ?? retryAfter)
             case 403:
                 let body = String(data: data, encoding: .utf8)
                 throw ClaudeOAuthFetchError.serverError(response.statusCode, body)
@@ -102,7 +113,9 @@ enum ClaudeOAuthUsageFetcher {
         guard let string, !string.isEmpty else { return nil }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) { return date }
+        if let date = formatter.date(from: string) {
+            return date
+        }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: string)
     }
