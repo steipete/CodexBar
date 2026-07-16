@@ -1438,7 +1438,7 @@ public struct UsageFetcher: Sendable {
             resetDescription: UsageFormatter.resetDescription(from: resetsAtDate))
     }
 
-    private static func makeTTYWindow(
+    static func makeTTYWindow(
         percentLeft: Int?,
         windowMinutes: Int,
         resetsAt: Date?,
@@ -1526,7 +1526,7 @@ public struct UsageFetcher: Sendable {
         return trimmed
     }
 
-    private static func emptyCodexUsageSnapshotIfIdentified(identity: ProviderIdentitySnapshot) -> UsageSnapshot? {
+    static func emptyCodexUsageSnapshotIfIdentified(identity: ProviderIdentitySnapshot) -> UsageSnapshot? {
         guard identity.accountEmail != nil || identity.loginMethod != nil else { return nil }
         return UsageSnapshot(
             primary: nil,
@@ -1536,7 +1536,7 @@ public struct UsageFetcher: Sendable {
             identity: identity)
     }
 
-    private static func recoverUsageFromRPCError(_ error: Error) -> UsageSnapshot? {
+    static func recoverUsageFromRPCError(_ error: Error) -> UsageSnapshot? {
         guard let body = self.decodeRateLimitsErrorBody(from: error) else { return nil }
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -1558,7 +1558,7 @@ public struct UsageFetcher: Sendable {
         return state.toUsageSnapshot()
     }
 
-    private static func recoverCreditsFromRPCError(_ error: Error) -> CreditsSnapshot? {
+    static func recoverCreditsFromRPCError(_ error: Error) -> CreditsSnapshot? {
         guard let credits = self.decodeRateLimitsErrorBody(from: error)?.credits else { return nil }
         guard let remaining = credits.balance else { return nil }
         return CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date())
@@ -1612,7 +1612,7 @@ public struct UsageFetcher: Sendable {
         return nil
     }
 
-    private static func normalizedCodexAccountField(_ value: String?) -> String? {
+    static func normalizedCodexAccountField(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
         }
@@ -1635,69 +1635,3 @@ public struct UsageFetcher: Sendable {
         return json
     }
 }
-
-#if DEBUG
-extension UsageFetcher {
-    static func _mapCodexRPCLimitsForTesting(
-        primary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
-        secondary: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?)?,
-        planType: String? = nil) throws -> UsageSnapshot
-    {
-        let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: self.normalizedCodexAccountField(planType))
-        guard let state = CodexReconciledState.fromCLI(
-            primary: primary.map(self.makeTestingWindow),
-            secondary: secondary.map(self.makeTestingWindow),
-            identity: identity)
-        else {
-            if let usage = self.emptyCodexUsageSnapshotIfIdentified(identity: identity) {
-                return usage
-            }
-            throw UsageError.noRateLimitsFound
-        }
-        return state.toUsageSnapshot()
-    }
-
-    static func _mapCodexStatusForTesting(_ status: CodexStatusSnapshot) throws -> UsageSnapshot {
-        guard let state = CodexReconciledState.fromCLI(
-            primary: self.makeTTYWindow(
-                percentLeft: status.fiveHourPercentLeft,
-                windowMinutes: 300,
-                resetsAt: status.fiveHourResetsAt,
-                resetDescription: status.fiveHourResetDescription),
-            secondary: self.makeTTYWindow(
-                percentLeft: status.weeklyPercentLeft,
-                windowMinutes: 10080,
-                resetsAt: status.weeklyResetsAt,
-                resetDescription: status.weeklyResetDescription),
-            identity: nil)
-        else {
-            throw UsageError.noRateLimitsFound
-        }
-        return state.toUsageSnapshot()
-    }
-
-    public static func _recoverCodexRPCUsageFromErrorForTesting(_ message: String) -> UsageSnapshot? {
-        self.recoverUsageFromRPCError(RPCWireError.requestFailed(message))
-    }
-
-    public static func _recoverCodexRPCCreditsFromErrorForTesting(_ message: String) -> CreditsSnapshot? {
-        self.recoverCreditsFromRPCError(RPCWireError.requestFailed(message))
-    }
-
-    private static func makeTestingWindow(
-        _ value: (usedPercent: Double, windowMinutes: Int, resetsAt: Int?))
-        -> RateWindow
-    {
-        let resetsAt = value.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-        return RateWindow(
-            usedPercent: value.usedPercent,
-            windowMinutes: value.windowMinutes,
-            resetsAt: resetsAt,
-            resetDescription: resetsAt.map { UsageFormatter.resetDescription(from: $0) })
-    }
-}
-#endif
