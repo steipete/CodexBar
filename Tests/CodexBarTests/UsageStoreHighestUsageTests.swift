@@ -318,11 +318,12 @@ extension UsageStoreHighestUsageTests {
                 otherWeeklyUsed: 50),
             provider: .antigravity)
         highest = store.providerWithHighestUsage()
-        #expect(highest?.provider == .codex)
+        #expect(highest?.provider == .antigravity)
+        #expect(highest?.usedPercent == 100)
     }
 
     @Test
-    func `automatic metric skips exhausted antigravity quota summary lanes when another remains usable`() {
+    func `automatic metric excludes antigravity only when every summary family is blocked`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-summary-usable"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -358,6 +359,23 @@ extension UsageStoreHighestUsageTests {
         let highest = store.providerWithHighestUsage()
         #expect(highest?.provider == .codex)
         #expect(highest?.usedPercent == 80)
+
+        let unsupportedRow = NamedRateWindow(
+            id: "antigravity-quota-summary-future-daily",
+            title: "Future daily lane",
+            window: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 1440,
+                resetsAt: nil,
+                resetDescription: nil))
+        store._setSnapshotForTesting(
+            antigravitySnapshot.with(
+                extraRateWindows: (antigravitySnapshot.extraRateWindows ?? []) + [unsupportedRow]),
+            provider: .antigravity)
+
+        let failOpenHighest = store.providerWithHighestUsage()
+        #expect(failOpenHighest?.provider == .antigravity)
+        #expect(failOpenHighest?.usedPercent == 100)
     }
 
     @Test

@@ -84,6 +84,115 @@ struct AntigravityQuotaSummaryTests {
         #expect(usage.extraRateWindows?.first?.window.remainingPercent == 50)
     }
 
+    @Test(arguments: ["session", "5h", "5-hour", "five hour", "five-hour"])
+    func `normalizes supported session cadence aliases without rewriting bucket IDs`(alias: String) throws {
+        let bucketID = "gemini-\(alias)"
+        let json = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {
+                  "bucketId": "\(bucketID)",
+                  "displayName": "\(alias)",
+                  "remaining": { "remainingFraction": 0.75 }
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let window = try #require(snapshot.toUsageSnapshot().extraRateWindows?.first)
+
+        #expect(window.id == "antigravity-quota-summary-\(bucketID)")
+        #expect(window.title == "Gemini 5-hour")
+        #expect(window.window.windowMinutes == 300)
+        #expect(window.window.remainingPercent == 75)
+    }
+
+    @Test
+    func `recognizes underscore cadence without rewriting bucket ID`() throws {
+        let json = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {
+                  "bucketId": "gemini_session",
+                  "displayName": "Gemini",
+                  "remaining": { "remainingFraction": 0.75 }
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let window = try #require(snapshot.toUsageSnapshot().extraRateWindows?.first)
+
+        #expect(window.id == "antigravity-quota-summary-gemini_session")
+        #expect(window.title == "Gemini 5-hour")
+        #expect(window.window.windowMinutes == 300)
+    }
+
+    @Test
+    func `recognizes prefixed cadence before limit suffix`() throws {
+        let json = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {
+                  "bucketId": "gemini-5h limit",
+                  "displayName": "Gemini quota",
+                  "remaining": { "remainingFraction": 0.75 }
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let window = try #require(snapshot.toUsageSnapshot().extraRateWindows?.first)
+
+        #expect(window.id == "antigravity-quota-summary-gemini-5h limit")
+        #expect(window.title == "Gemini 5-hour")
+        #expect(window.window.windowMinutes == 300)
+    }
+
+    @Test
+    func `does not classify cadence aliases embedded inside unrelated words`() throws {
+        let json = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {
+                  "bucketId": "gemini-session-history",
+                  "displayName": "Session History",
+                  "remaining": { "remainingFraction": 0.75 }
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let window = try #require(snapshot.toUsageSnapshot().extraRateWindows?.first)
+
+        #expect(window.title == "Gemini Session History")
+        #expect(window.window.windowMinutes == nil)
+    }
+
     @Test
     func `fetch snapshot prefers quota summary endpoint and merges identity`() async throws {
         let endpoint = AntigravityStatusProbe.AntigravityConnectionEndpoint(
