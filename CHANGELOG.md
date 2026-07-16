@@ -6,7 +6,7 @@
 - ZenMux: add Management API usage with five-hour and weekly quotas, subscription expiry, and USD PAYG balance. Thanks @kays0x!
 
 ### Fixed
-- Copilot: hide quota bars explicitly marked unlimited while preserving finite Premium and Chat quotas. Thanks @Zihao-Qi!
+- Claude: preserve each account’s last-good OAuth usage during rate limits and isolate retry cooldowns per credential. Thanks @ruushu!
 - Claude: recover a missing credentials file from a valid Claude Code Keychain item without showing Keychain UI when Never prompt is selected (#1975). Thanks @OfficialAbhinavSingh!
 - Codex cost usage: invalidate cached fork totals when the parent session appears, changes, or resolves to a different file, preventing stale inherited baselines. Thanks @xx205!
 - Cursor: bind interactive account login to one readable browser, preserve the active session on cancellation or failure, and prevent background refreshes from replacing the selected account. Thanks @chapati23!
@@ -14,6 +14,7 @@
 - Codex cost usage: count restarted subagent token counters without subtracting the parent's unrelated cumulative baseline (#2193). Thanks @qiuruiyu and @harjothkhara!
 - Ollama: explain that API-key verification cannot show Cloud quota limits and direct users to browser-cookie mode (#2159). Thanks @kiranmagic7!
 - Claude: suppress duplicate all-model scoped quota rows that could appear as “All models only” beside Weekly.
+- Copilot: hide quota bars explicitly marked unlimited while preserving finite Premium and Chat quotas. Thanks @Zihao-Qi!
 
 ## 0.43.0 — 2026-07-14
 
