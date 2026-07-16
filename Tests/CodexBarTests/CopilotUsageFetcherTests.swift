@@ -6,7 +6,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetchGitHubIdentity uses shared client`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            guard request.value(forHTTPHeaderField: "Authorization") == "token x" else {
+            guard request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder" else {
                 throw URLError(.userAuthenticationRequired)
             }
             let response = try HTTPURLResponse(
@@ -17,7 +17,9 @@ struct CopilotUsageFetcherTests {
             return (Data(#"{"login":"testuser","id":123}"#.utf8), response)
         }
 
-        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(token: "x", transport: transport)
+        let identity = try await CopilotUsageFetcher.fetchGitHubIdentity(
+            token: "test-token-placeholder",
+            transport: transport)
 
         #expect(identity.login == "testuser")
         #expect(identity.id == 123)
@@ -29,7 +31,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch returns unavailable snapshot for business token billing placeholders`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -58,7 +60,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "test-token-placeholder", transport: transport)
 
         let snapshot = try await fetcher.fetch()
 
@@ -70,7 +72,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch omits explicitly unlimited only chat quota without failing`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -93,7 +95,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "test-token-placeholder", transport: transport)
 
         let snapshot = try await fetcher.fetch()
 
@@ -105,7 +107,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch keeps finite premium quota and omits unlimited chat quota`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -134,7 +136,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "test-token-placeholder", transport: transport)
         let expectedReset = try #require(CopilotUsageFetcher.parseQuotaResetDate("2026-08-01T00:00:00Z"))
 
         let snapshot = try await fetcher.fetch()
@@ -148,7 +150,7 @@ struct CopilotUsageFetcherTests {
     @Test
     func `fetch attaches quota reset date to copilot windows`() async throws {
         let transport = ProviderHTTPTransportStub { request in
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "token x")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "token test-token-placeholder")
             let response = try HTTPURLResponse(
                 url: #require(request.url),
                 statusCode: 200,
@@ -177,7 +179,7 @@ struct CopilotUsageFetcherTests {
                 """.utf8)
             return (data, response)
         }
-        let fetcher = CopilotUsageFetcher(token: "x", transport: transport)
+        let fetcher = CopilotUsageFetcher(token: "test-token-placeholder", transport: transport)
         let expectedReset = try #require(CopilotUsageFetcher.parseQuotaResetDate("2026-07-01"))
 
         let snapshot = try await fetcher.fetch()
