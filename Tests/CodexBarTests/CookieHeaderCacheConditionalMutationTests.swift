@@ -145,6 +145,42 @@ struct CookieHeaderCacheConditionalMutationTests {
     }
 
     @Test
+    func `owned clear observation accepts fallback but preserves gate generation`() {
+        self.withIsolatedCookieCache {
+            let scope = CookieHeaderCache.Scope.providerVariant(UUID().uuidString)
+            CookieHeaderCache.store(
+                provider: .cursor,
+                scope: scope,
+                cookieHeader: "fixtureSession=stale",
+                sourceLabel: "Stale")
+            let stale = CookieHeaderCache.load(provider: .cursor, scope: scope)
+            let observation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor, scope: scope)
+
+            #expect(CookieHeaderCache.clearIfCurrent(provider: .cursor, scope: scope, expected: stale))
+            let afterClear = observation.afterOwnedClear()
+            #expect(CookieHeaderCache.storeIfObservationCurrent(
+                provider: .cursor,
+                scope: scope,
+                expected: afterClear,
+                cookieHeader: "fixtureSession=browser-fallback",
+                sourceLabel: "Browser fallback"))
+
+            let nextObservation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor, scope: scope)
+            let fallback = CookieHeaderCache.load(provider: .cursor, scope: scope)
+            #expect(CookieHeaderCache.clearIfCurrent(provider: .cursor, scope: scope, expected: fallback))
+            let gate = CookieHeaderCache.beginConditionalMutationGate(provider: .cursor, scope: scope)
+            CookieHeaderCache.endConditionalMutationGate(gate)
+
+            #expect(!CookieHeaderCache.storeIfObservationCurrent(
+                provider: .cursor,
+                scope: scope,
+                expected: nextObservation.afterOwnedClear(),
+                cookieHeader: "fixtureSession=late-background",
+                sourceLabel: "Background"))
+        }
+    }
+
+    @Test
     func `observation captured during cancelled interactive mutation remains stale`() {
         self.withIsolatedCookieCache {
             let scope = CookieHeaderCache.Scope.providerVariant(UUID().uuidString)

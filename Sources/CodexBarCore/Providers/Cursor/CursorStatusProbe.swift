@@ -1001,24 +1001,27 @@ public struct CursorStatusProbe: Sendable {
         #if os(macOS)
         // Capture before any authentication request can suspend. A later browser fallback must not replace an
         // interactive login that commits while this refresh is awaiting an earlier cached-session request.
-        let cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor)
+        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor)
         #endif
 
         if allowCachedSessions,
            let cached = CookieHeaderCache.load(provider: .cursor),
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
-            log("Using cached cookie header from \(cached.sourceLabel)")
-            do {
-                return try await self.fetchWithCookieHeader(cached.cookieHeader)
-            } catch let error as CursorStatusProbeError {
-                if case .notLoggedIn = error {
-                    CookieHeaderCache.clear(provider: .cursor)
-                } else {
-                    throw error
-                }
-            } catch {
-                throw error
+            switch try await self.fetchCachedSession(
+                cached,
+                cookieHeaderOverride: cookieHeaderOverride,
+                allowAppAuthFallback: allowAppAuthFallback,
+                logger: logger,
+                log: log)
+            {
+            case let .succeeded(snapshot): return snapshot
+            case .resumeFallback:
+                #if os(macOS)
+                // The cached-session path cleared its own stale entry. Browser fallback now owns that empty slot,
+                // while the original gate generation still protects any concurrent interactive login.
+                cacheObservation = cacheObservation.afterOwnedClear()
+                #endif
             }
         }
 
@@ -1124,6 +1127,56 @@ public struct CursorStatusProbe: Sendable {
         }
 
         throw CursorStatusProbeError.noSessionCookie
+    }
+
+    private enum CachedSessionFetchResult {
+        case succeeded(CursorStatusSnapshot)
+        case resumeFallback
+    }
+
+    private func fetchCachedSession(
+        _ cached: CookieHeaderCache.Entry,
+        cookieHeaderOverride: String?,
+        allowAppAuthFallback: Bool,
+        logger: ((String) -> Void)?,
+        log: @escaping (String) -> Void) async throws -> CachedSessionFetchResult
+    {
+        log("Using cached cookie header from \(cached.sourceLabel)")
+        do {
+            return try await .succeeded(self.fetchWithCookieHeader(cached.cookieHeader))
+        } catch let error as CursorStatusProbeError {
+            guard case .notLoggedIn = error else { throw error }
+            if let replacement = CookieHeaderCache.load(provider: .cursor), replacement != cached {
+                if cached.authenticationFailurePolicy == .stopFallback,
+                   replacement.authenticationFailurePolicy != .stopFallback
+                {
+                    log("Selected cached session was rejected; ignoring an unselected cache replacement")
+                    throw error
+                }
+                log("Cached session changed while its request was in flight; retrying replacement")
+                return try await .succeeded(self.fetch(
+                    cookieHeaderOverride: cookieHeaderOverride,
+                    allowCachedSessions: true,
+                    allowAppAuthFallback: allowAppAuthFallback,
+                    logger: logger))
+            }
+            if cached.authenticationFailurePolicy == .stopFallback {
+                log("Selected cached session was rejected; refusing automatic account fallback")
+                throw error
+            }
+            guard CookieHeaderCache.clearIfCurrent(provider: .cursor, expected: cached) else {
+                if let replacement = CookieHeaderCache.load(provider: .cursor), replacement != cached {
+                    log("Cached session changed before stale-session cleanup; retrying replacement")
+                    return try await .succeeded(self.fetch(
+                        cookieHeaderOverride: cookieHeaderOverride,
+                        allowCachedSessions: true,
+                        allowAppAuthFallback: allowAppAuthFallback,
+                        logger: logger))
+                }
+                throw error
+            }
+            return .resumeFallback
+        }
     }
 
     /// Fetch every API-valid session from the exact browser that opened an interactive login URL.

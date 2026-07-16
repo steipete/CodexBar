@@ -221,6 +221,9 @@ final class CursorLoginRunner {
             return result
         }
 
+        guard !Task.isCancelled else {
+            return self.cancelAfterTaskCancellation()
+        }
         let launched = await self.launchRoute(route)
         guard !Task.isCancelled else {
             return self.cancelAfterTaskCancellation()

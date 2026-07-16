@@ -18,7 +18,9 @@ extension CostUsageScanner {
         }
 
         func load(_ loader: (URL?) -> ModelsDevCatalog?) -> ModelsDevCatalog {
-            if let catalog { return catalog }
+            if let catalog {
+                return catalog
+            }
             let loaded = loader(self.cacheRoot) ?? ModelsDevCatalog(providers: [:])
             self.catalog = loaded
             return loaded
@@ -285,6 +287,7 @@ extension CostUsageScanner {
         lastCodexTurnID: String? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
+        forkBaselineDependencyKey: String? = nil,
         projectPath: String? = nil,
         canonicalProjectPath: String? = nil,
         codexCostCacheComplete: Bool? = true,
@@ -314,6 +317,7 @@ extension CostUsageScanner {
             lastCodexTurnID: lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
+            forkBaselineDependencyKey: forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostCacheComplete: codexCostCacheComplete,
@@ -705,6 +709,7 @@ extension CostUsageScanner {
             lastCodexTurnID: usage.lastCodexTurnID,
             sessionId: usage.sessionId,
             forkedFromId: usage.forkedFromId,
+            forkBaselineDependencyKey: usage.forkBaselineDependencyKey,
             projectPath: usage.projectPath,
             canonicalProjectPath: usage.canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
@@ -883,7 +888,7 @@ extension CostUsageScanner {
         input: CodexFileScanInput,
         context: CodexFileScanContext,
         cache: inout CostUsageCache,
-        state: inout CodexScanState) -> Bool
+        state: inout CodexScanState) throws -> Bool
     {
         guard let cached = input.cached else { return false }
         let needsSessionId = cached.sessionId == nil
@@ -900,6 +905,13 @@ extension CostUsageScanner {
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
         }
+        if let parentSessionId = cached.forkedFromId {
+            guard let cachedDependencyKey = cached.forkBaselineDependencyKey else { return false }
+            let currentDependencyKey = try context.resources.inheritedResolver
+                .currentDependencyKey(for: parentSessionId)
+            guard cachedDependencyKey == currentDependencyKey else { return false }
+        }
+
         if sessionAlreadyContributed {
             guard !cachedRows.isEmpty else { return false }
             let uniqueRows = Self.uniqueCodexRows(
@@ -1119,6 +1131,11 @@ extension CostUsageScanner {
             range: context.range,
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
+        let forkBaselineDependencyKey: String? = if let parentSessionId = parsed.forkedFromId {
+            context.resources.inheritedResolver.dependencyKeyUsed(for: parentSessionId)
+        } else {
+            nil
+        }
         let sessionId = parsed.sessionId ?? input.cached?.sessionId
         let projectPath = parsed.projectPath ?? input.cached?.projectPath
         let canonicalProjectPath = parsed.projectPath.map {
@@ -1163,6 +1180,7 @@ extension CostUsageScanner {
             lastCodexTurnID: parsed.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: parsed.forkedFromId,
+            forkBaselineDependencyKey: forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexCostNanos: Self.mergeCostMaps(
@@ -1501,16 +1519,24 @@ extension Data {
 
 extension [Int] {
     subscript(safe index: Int) -> Int? {
-        if index < 0 { return nil }
-        if index >= self.count { return nil }
+        if index < 0 {
+            return nil
+        }
+        if index >= self.count {
+            return nil
+        }
         return self[index]
     }
 }
 
 extension [UInt8] {
     subscript(safe index: Int) -> UInt8? {
-        if index < 0 { return nil }
-        if index >= self.count { return nil }
+        if index < 0 {
+            return nil
+        }
+        if index >= self.count {
+            return nil
+        }
         return self[index]
     }
 }

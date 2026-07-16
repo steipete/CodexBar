@@ -1202,6 +1202,141 @@ extension CursorStatusProbeTests {
         #expect(testSession.requestCookies.contains("cached=bad"))
         #expect(!testSession.requestCookies.contains(appCookie))
     }
+
+    @Test
+    func `rejected selected session does not fall back to another account`() async throws {
+        let selectedSession = CursorStatusProbe.BrowserLoginSession(
+            cookieHeader: "selected=expired",
+            sourceLabel: "Selected browser")
+        #expect(CursorStatusProbe.commitBrowserLoginSession(selectedSession))
+        defer { CookieHeaderCache.clear(provider: .cursor) }
+
+        let accessToken = try makeCursorAppAuthToken()
+        let appSession = CursorAppAuthSession(accessToken: accessToken)
+        let appCookie = try appSession.cookieHeader()
+        let testSession = CursorStatusProbeTestSession { request in
+            let requestURL = try #require(request.url)
+            let cookie = request.value(forHTTPHeaderField: "Cookie")
+            if cookie == appCookie {
+                Issue.record("Rejected selected session unexpectedly switched to Cursor.app auth")
+                throw URLError(.userAuthenticationRequired)
+            }
+            return makeCursorStatusProbeResponse(
+                url: requestURL,
+                body: #"{"error":"unauthorized"}"#,
+                statusCode: 401)
+        }
+
+        let baseURL = try #require(URL(string: "https://cursor-web.test"))
+        let probe = CursorStatusProbe(
+            baseURL: baseURL,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            browserCookieImportOrder: [],
+            urlSession: testSession.urlSession,
+            appAuthStore: CursorAppAuthSessionProviderStub(session: appSession))
+
+        await #expect(throws: CursorStatusProbeError.self) {
+            _ = try await probe.fetch()
+        }
+        await #expect(throws: CursorStatusProbeError.self) {
+            _ = try await probe.fetch()
+        }
+        #expect(testSession.requestCookies.contains("selected=expired"))
+        #expect(!testSession.requestCookies.contains(appCookie))
+        #expect(CookieHeaderCache.load(provider: .cursor)?.authenticationFailurePolicy == .stopFallback)
+    }
+
+    @Test
+    func `rejected stale request retries a concurrently selected session`() async throws {
+        let staleSession = CursorStatusProbe.BrowserLoginSession(
+            cookieHeader: "selected=stale",
+            sourceLabel: "Stale browser")
+        let replacementSession = CursorStatusProbe.BrowserLoginSession(
+            cookieHeader: "selected=replacement",
+            sourceLabel: "Replacement browser")
+        #expect(CursorStatusProbe.commitBrowserLoginSession(staleSession))
+        defer { CookieHeaderCache.clear(provider: .cursor) }
+
+        let testSession = CursorStatusProbeTestSession { request in
+            let requestURL = try #require(request.url)
+            let cookie = request.value(forHTTPHeaderField: "Cookie")
+            if cookie == staleSession.cookieHeader {
+                #expect(CursorStatusProbe.commitBrowserLoginSession(replacementSession))
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"error":"unauthorized"}"#,
+                    statusCode: 401)
+            }
+            #expect(cookie == replacementSession.cookieHeader)
+            switch requestURL.path {
+            case "/api/usage-summary":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"membershipType":"pro","individualUsage":{}}"#,
+                    statusCode: 200)
+            case "/api/auth/me":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"email":"replacement@example.com","sub":"auth0|replacement"}"#,
+                    statusCode: 200)
+            default:
+                throw URLError(.badURL)
+            }
+        }
+
+        let baseURL = try #require(URL(string: "https://cursor-web.test"))
+        let snapshot = try await CursorStatusProbe(
+            baseURL: baseURL,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            browserCookieImportOrder: [],
+            urlSession: testSession.urlSession,
+            appAuthStore: CursorAppAuthSessionProviderStub(session: nil)).fetch()
+
+        #expect(snapshot.accountEmail == "replacement@example.com")
+        #expect(CookieHeaderCache.load(provider: .cursor)?.cookieHeader == replacementSession.cookieHeader)
+        #expect(CookieHeaderCache.load(provider: .cursor)?.authenticationFailurePolicy == .stopFallback)
+    }
+
+    @Test
+    func `rejected selected session ignores an unselected cache replacement`() async throws {
+        let selectedSession = CursorStatusProbe.BrowserLoginSession(
+            cookieHeader: "selected=stale",
+            sourceLabel: "Selected browser")
+        #expect(CursorStatusProbe.commitBrowserLoginSession(selectedSession))
+        defer { CookieHeaderCache.clear(provider: .cursor) }
+
+        let testSession = CursorStatusProbeTestSession { request in
+            let requestURL = try #require(request.url)
+            let cookie = request.value(forHTTPHeaderField: "Cookie")
+            if cookie == selectedSession.cookieHeader {
+                #expect(!CookieHeaderCache.storeResult(
+                    provider: .cursor,
+                    cookieHeader: "background=replacement",
+                    sourceLabel: "Background refresh"))
+            } else {
+                Issue.record("Rejected selected session unexpectedly switched to \(cookie ?? "<none>")")
+            }
+            return makeCursorStatusProbeResponse(
+                url: requestURL,
+                body: #"{"error":"unauthorized"}"#,
+                statusCode: 401)
+        }
+
+        let baseURL = try #require(URL(string: "https://cursor-web.test"))
+        let probe = CursorStatusProbe(
+            baseURL: baseURL,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            browserCookieImportOrder: [],
+            urlSession: testSession.urlSession,
+            appAuthStore: CursorAppAuthSessionProviderStub(session: nil))
+
+        await #expect(throws: CursorStatusProbeError.self) {
+            _ = try await probe.fetch()
+        }
+        #expect(!testSession.requestCookies.contains("background=replacement"))
+        #expect(CookieHeaderCache.load(provider: .cursor)?.cookieHeader == selectedSession.cookieHeader)
+        #expect(CookieHeaderCache.load(provider: .cursor)?.authenticationFailurePolicy == .stopFallback)
+    }
 }
 
 private func makeCursorAppAuthToken(

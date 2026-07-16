@@ -96,6 +96,40 @@ struct CursorLoginRunnerTests {
     }
 
     @Test
+    func `cancellation during browser selection does not launch the browser`() async {
+        let launchedRoutes = LockedArray<CursorLoginBrowserRouter.Route>()
+        let runner = CursorLoginRunner(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            timeout: 1,
+            pollInterval: 0.01,
+            launchRoute: { route in
+                launchedRoutes.append(route)
+                return true
+            },
+            loadSnapshot: {
+                Issue.record("Cancelled login should not poll for an account")
+                return Self.snapshot(email: "cursor@example.com")
+            },
+            sleeper: { _ in },
+            browserApplicationResolver: { _ in Self.cometApplicationURL },
+            routeResolver: { loginURL, browserApplicationURL in
+                withUnsafeCurrentTask { $0?.cancel() }
+                return .route(CursorLoginBrowserRouter.Route(
+                    launchURL: loginURL,
+                    browserApplicationURL: browserApplicationURL ?? Self.cometApplicationURL))
+            },
+            replaceSessionCache: { _ in true })
+
+        let result = await Task { await runner.run { _ in } }.value
+
+        guard case .cancelled = result.outcome else {
+            Issue.record("Expected cancellation before browser launch")
+            return
+        }
+        #expect(launchedRoutes.snapshot().isEmpty)
+    }
+
+    @Test
     func `interactive login allows an explicit cookie retry in user initiated context`() async {
         var observedInteraction: ProviderInteraction?
         var retryAllowed = false

@@ -25,7 +25,8 @@ extension CursorStatusProbe {
         CookieHeaderCache.storeResult(
             provider: .cursor,
             cookieHeader: session.cookieHeader,
-            sourceLabel: session.sourceLabel)
+            sourceLabel: session.sourceLabel,
+            authenticationFailurePolicy: .stopFallback)
     }
 }
 #else
