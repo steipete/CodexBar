@@ -10,7 +10,10 @@ extension UsageStore {
 
     func startTokenTimer() {
         self.tokenTimerTask?.cancel()
-        guard let seconds = self.settings.refreshFrequency.seconds else { return }
+        // Cost history remains useful in Manual mode even though status checks do not run on a
+        // timer. Keep its long-standing hourly background refresh instead of leaving it stale
+        // until the next explicit refresh.
+        let seconds = self.settings.refreshFrequency.seconds ?? self.tokenFetchTTL
         self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled {
                 do {
