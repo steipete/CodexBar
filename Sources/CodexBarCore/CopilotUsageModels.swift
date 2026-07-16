@@ -280,10 +280,12 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         let monthlyQuotas = try container.decodeIfPresent(QuotaCounts.self, forKey: .monthlyQuotas)
         let limitedUserQuotas = try container.decodeIfPresent(QuotaCounts.self, forKey: .limitedUserQuotas)
         let monthlyLimitedSnapshots = Self.makeQuotaSnapshots(monthly: monthlyQuotas, limited: limitedUserQuotas)
-        let premium = Self.usableQuotaSnapshot(from: directSnapshots?.premiumInteractions) ??
-            Self.usableQuotaSnapshot(from: monthlyLimitedSnapshots?.premiumInteractions)
-        let chat = Self.usableQuotaSnapshot(from: directSnapshots?.chat) ??
-            Self.usableQuotaSnapshot(from: monthlyLimitedSnapshots?.chat)
+        let premium = Self.preferredQuotaSnapshot(
+            direct: directSnapshots?.premiumInteractions,
+            fallback: monthlyLimitedSnapshots?.premiumInteractions)
+        let chat = Self.preferredQuotaSnapshot(
+            direct: directSnapshots?.chat,
+            fallback: monthlyLimitedSnapshots?.chat)
         if premium != nil || chat != nil {
             self.quotaSnapshots = QuotaSnapshots(premiumInteractions: premium, chat: chat)
         } else {
@@ -335,9 +337,19 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     }
 
     private static func usableQuotaSnapshot(from snapshot: QuotaSnapshot?) -> QuotaSnapshot? {
-        guard let snapshot, !snapshot.unlimited, !snapshot.isPlaceholder, snapshot.hasPercentRemaining else {
+        guard let snapshot, !snapshot.isPlaceholder, snapshot.hasPercentRemaining else {
             return nil
         }
         return snapshot
+    }
+
+    private static func preferredQuotaSnapshot(
+        direct: QuotaSnapshot?,
+        fallback: QuotaSnapshot?) -> QuotaSnapshot?
+    {
+        if direct?.unlimited == true, let fallback = usableQuotaSnapshot(from: fallback) {
+            return fallback
+        }
+        return self.usableQuotaSnapshot(from: direct) ?? self.usableQuotaSnapshot(from: fallback)
     }
 }
