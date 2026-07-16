@@ -533,14 +533,25 @@ extension UsageStore {
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary,
                 requiresPreviousBoundary: true)
+        } else if context.provider == .claude, descriptor.seriesName == .weekly {
+            // A Claude weekly below-threshold crossing is only a genuine reset if the reset
+            // boundary actually advanced. Usage is monotonic within a window, so a drop to
+            // ~0 while the boundary is unchanged is a bogus near-zero sample (e.g. a CLI
+            // usage-probe misparse) rather than a reset — celebrating it fires spurious
+            // confetti (#2222). Unlike Codex, Claude OAuth snapshots can lack a boundary
+            // entirely, so this must NOT require a previous boundary: an absent boundary
+            // still celebrates a real reset, only an unchanged one is suppressed.
+            Self.limitResetBoundaryAdvanced(
+                previous: previousState?.resetBoundary,
+                current: observation.resetBoundary)
         } else {
             true
         }
         let crossedBelowThreshold = !sourceChanged && previousState?.wasAboveThreshold == true && !wasAboveThreshold
         let shouldPost = crossedBelowThreshold && resetBoundaryAllowsPost
         let suppressedGuardedCrossing = crossedBelowThreshold && !resetBoundaryAllowsPost
-        // Sessions retain the last non-regressed boundary on every guarded sample. Codex weekly crossings
-        // adopt a newly appearing boundary so a later genuine advance can still trigger once.
+        // Sessions retain the last non-regressed boundary on every guarded sample. Codex and Claude weekly
+        // crossings adopt a newly appearing boundary so a later genuine advance can still trigger once.
         let shouldPreserveBoundary = !sourceChanged && !resetBoundaryAllowsPost
             && (descriptor.seriesName == .session || previousState?.resetBoundary != nil)
         let shouldPreserveBaseline = suppressedGuardedCrossing
