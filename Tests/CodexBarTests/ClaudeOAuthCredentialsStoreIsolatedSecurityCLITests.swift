@@ -107,7 +107,7 @@ struct ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests {
                     environment: environment)
             }
         }
-        #expect(isMcpOnly)
+        #expect(!isMcpOnly)
 
         let blockedViaSecurityFramework = ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
             ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(mcpOnlyPayload)) {

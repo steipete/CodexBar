@@ -364,7 +364,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
             }
         }
 
-        #expect(hasCredentials == true)
+        #expect(hasCredentials == false)
     }
 
     @Test

@@ -42,7 +42,8 @@ extension ClaudeOAuthCredentialsStore {
     }
 
     /// Attempts a Claude keychain read via `/usr/bin/security` when the experimental reader is enabled.
-    /// - Important: `interaction` is diagnostics context only and does not gate CLI execution.
+    /// - Important: `interaction` is diagnostics context only. The stored Never policy still blocks the CLI because
+    ///   `security` can prompt.
     static func loadFromClaudeKeychainViaSecurityCLIIfEnabled(
         interaction: ProviderInteraction,
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
@@ -92,6 +93,7 @@ extension ClaudeOAuthCredentialsStore {
         -> Data?
     {
         guard self.shouldPreferSecurityCLIKeychainRead(readStrategy: readStrategy) else { return nil }
+        guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return nil }
         let interactionMetadata = interaction == .userInitiated ? "user" : "background"
 
         do {

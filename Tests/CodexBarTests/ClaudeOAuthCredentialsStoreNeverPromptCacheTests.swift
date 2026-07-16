@@ -623,10 +623,15 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 {
                     try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
                         try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(securityData)) {
-                            try ProviderInteractionContext.$current.withValue(.background) {
-                                try ClaudeOAuthCredentialsStore.load(
-                                    environment: [:],
-                                    allowKeychainPrompt: false)
+                            try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: securityData,
+                                fingerprint: nil)
+                            {
+                                try ProviderInteractionContext.$current.withValue(.background) {
+                                    try ClaudeOAuthCredentialsStore.load(
+                                        environment: [:],
+                                        allowKeychainPrompt: false)
+                                }
                             }
                         }
                     }
@@ -686,7 +691,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                             ])
                     }
                 }
-                #expect(isMcpOnly)
+                #expect(!isMcpOnly)
             }
         }
     }
