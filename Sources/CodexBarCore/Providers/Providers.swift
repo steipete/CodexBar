@@ -62,6 +62,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case clawrouter
     case sub2api
     case wayfinder
+    case zenmux
 }
 
 // swiftformat:enable sortDeclarations
@@ -124,6 +125,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case clawrouter
     case sub2api
     case wayfinder
+    case zenmux
     case combined
 }
 

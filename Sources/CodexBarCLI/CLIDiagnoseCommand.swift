@@ -223,6 +223,8 @@ extension CodexBarCLI {
             CodebuffSettingsReader.apiKey(environment: environment) != nil
         case .chutes:
             ChutesSettingsReader.apiKey(environment: environment) != nil
+        case .zenmux:
+            ZenMuxSettingsReader.managementAPIKey(environment: environment) != nil
         case .crof:
             CrofSettingsReader.apiKey(environment: environment) != nil
         case .crossmodel:
