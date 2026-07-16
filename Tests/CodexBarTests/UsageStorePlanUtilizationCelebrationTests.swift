@@ -1579,7 +1579,9 @@ private final class SessionLimitResetEventRecorder: @unchecked Sendable {
     }
 }
 
-private final class WeeklyLimitResetEventRecorder: @unchecked Sendable {
+// Internal (not private) so focused sibling test files — e.g.
+// UsageStorePlanUtilizationClaudeWeeklyResetGuardTests — can reuse it.
+final class WeeklyLimitResetEventRecorder: @unchecked Sendable {
     struct Event {
         let provider: UsageProvider
         let accountLabel: String?
