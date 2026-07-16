@@ -12,11 +12,24 @@ public struct LongCatUsageFetcher: Sendable {
     private static let tokenUsagePath = "/api/lc-platform/v1/tokenUsage"
     private static let pendingFuelPath = "/api/lc-platform/v1/pending-fuel-packages"
 
+    /// LongCat fetches run on an isolated, ephemeral, cookie-free session so the
+    /// console's `Set-Cookie` responses never enter the shared provider cookie jar;
+    /// auth is carried solely by the explicit request `Cookie` header. Mirrors the
+    /// Sakana provider's isolated transport.
+    private static let defaultTransport: ProviderHTTPClient = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        let session = ProviderHTTPClient.redirectGuardedSession(configuration: configuration)
+        return ProviderHTTPClient(session: session)
+    }()
+
     public static func fetchUsage(
         cookieHeader: String,
-        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        transport transportOverride: (any ProviderHTTPTransport)? = nil,
         now: Date = Date()) async throws -> LongCatUsageSnapshot
     {
+        let transport = transportOverride ?? Self.defaultTransport
         // Account name. The user-current payload also carries a session token and
         // phone number, so its body is never logged. This is the required probe:
         // a Meituan envelope with HTTP 200 but code 401/403 surfaces as
@@ -138,7 +151,13 @@ public struct LongCatUsageFetcher: Sendable {
 
         let response = try await transport.response(for: request)
         guard response.statusCode == 200 else {
-            if response.statusCode == 401 || response.statusCode == 403 {
+            // The shared transport's redirect guard drops cross-origin / non-HTTPS
+            // hops, so an expired-cookie login redirect surfaces here as the raw 3xx.
+            // Classify 3xx (and explicit 401/403) as an invalid session rather than a
+            // generic HTTP error, so users see "sign in again" instead of "HTTP 302".
+            if response.statusCode == 401 || response.statusCode == 403
+                || (300..<400).contains(response.statusCode)
+            {
                 throw LongCatAPIError.invalidSession
             }
             if required {
