@@ -220,6 +220,33 @@ struct LongCatProviderTests {
     }
 
     @Test
+    func `fetch surfaces invalid session from optional quota envelopes`() async {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":401,"message":"unauthorized"}"#),
+        ])
+
+        await #expect(throws: LongCatAPIError.invalidSession) {
+            _ = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        }
+    }
+
+    @Test
+    func `fetch keeps optional non auth quota failures contained`() async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":500,"message":"temporarily unavailable"}"#),
+            .body(#"{"code":0,"data":{"totalQuota":1000,"list":[{"availableToken":600}]}}"#),
+        ])
+
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.accountName == "Leo")
+        #expect(snapshot.totalQuota == nil)
+        #expect(snapshot.fuelPackTotal == 1000)
+        #expect(snapshot.fuelPackRemaining == 600)
+    }
+
+    @Test
     func `fetch maps a full live response over the transport`() async throws {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),

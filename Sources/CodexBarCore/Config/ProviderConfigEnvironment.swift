@@ -105,6 +105,8 @@ public enum ProviderConfigEnvironment {
             self.applyDoubaoOverrides(base: base, config: config)
         case .sakana:
             self.applySakanaOverrides(base: base, config: config)
+        case .longcat:
+            self.applyLongCatOverrides(base: base, config: config)
         default:
             nil
         }
@@ -364,6 +366,18 @@ public enum ProviderConfigEnvironment {
         var env = base
         if let cookieHeader = config.sanitizedCookieHeader {
             env[SakanaSettingsReader.cookieHeaderKey] = cookieHeader
+        }
+        return env
+    }
+
+    private static func applyLongCatOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let cookieHeader = config.sanitizedCookieHeader {
+            env[LongCatSettingsReader.cookieHeaderKey] = cookieHeader
         }
         return env
     }

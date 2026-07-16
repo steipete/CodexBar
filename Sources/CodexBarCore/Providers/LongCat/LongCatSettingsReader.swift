@@ -1,9 +1,11 @@
 import Foundation
 
 public enum LongCatSettingsReader {
+    public static let cookieHeaderKey = "LONGCAT_MANUAL_COOKIE"
+
     /// Manual cookie header for the LongCat web console (longcat.chat).
     public static func cookieHeader(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        let raw = environment["LONGCAT_MANUAL_COOKIE"] ?? environment["longcat_manual_cookie"]
+        let raw = environment[self.cookieHeaderKey] ?? environment["longcat_manual_cookie"]
         return self.cleaned(raw)
     }
 

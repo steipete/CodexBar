@@ -45,27 +45,15 @@ public struct LongCatUsageFetcher: Sendable {
             account = try LongCatEnvelope.unwrap(self.json(data)) as? [String: Any]
         }
 
-        var usage: [String: Any]?
-        if let data = try? await self.get(
+        let usage = try await self.optionalPayload(
             self.tokenUsagePath,
             cookieHeader: cookieHeader,
-            transport: transport,
-            required: false)
-        {
-            self.logRawShape(self.tokenUsagePath, data)
-            usage = (try? LongCatEnvelope.unwrap(self.json(data))) as? [String: Any]
-        }
+            transport: transport)
 
-        var fuel: [String: Any]?
-        if let data = try? await self.get(
+        let fuel = try await self.optionalPayload(
             self.pendingFuelPath,
             cookieHeader: cookieHeader,
-            transport: transport,
-            required: false)
-        {
-            self.logRawShape(self.pendingFuelPath, data)
-            fuel = (try? LongCatEnvelope.unwrap(self.json(data))) as? [String: Any]
-        }
+            transport: transport)
 
         return self.buildSnapshot(account: account, tokenUsage: usage, pendingFuel: fuel, now: now)
     }
@@ -128,6 +116,30 @@ public struct LongCatUsageFetcher: Sendable {
     }
 
     // MARK: - HTTP
+
+    private static func optionalPayload(
+        _ path: String,
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport) async throws -> [String: Any]?
+    {
+        do {
+            guard let data = try await self.get(
+                path,
+                cookieHeader: cookieHeader,
+                transport: transport,
+                required: false)
+            else {
+                return nil
+            }
+            self.logRawShape(path, data)
+            return try LongCatEnvelope.unwrap(self.json(data)) as? [String: Any]
+        } catch LongCatAPIError.invalidSession {
+            throw LongCatAPIError.invalidSession
+        } catch {
+            self.log.error("LongCat optional \(path) failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
 
     private static func get(
         _ path: String,
