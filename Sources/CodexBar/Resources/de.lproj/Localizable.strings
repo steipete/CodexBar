@@ -756,6 +756,7 @@
 "Latest billing day" = "Letzter Abrechnungstag";
 "Latest billing day (%@)" = "Letzter Abrechnungstag (%@)";
 "%@ left" = "%@ übrig";
+"%@ this cycle" = "%@ in diesem Zyklus";
 "Resets %@" = "Setzt %@ zurück";
 "Resets in %@" = "Zurückgesetzt in %@";
 "Resets now" = "Wird jetzt zurückgesetzt";

@@ -325,6 +325,73 @@ public struct CursorModelUsage: Codable, Sendable {
     public let maxTokenUsage: Int?
 }
 
+// MARK: - Cursor Dashboard Usage Events (Cloud Agent Attribution)
+
+/// Response from `POST /api/dashboard/get-filtered-usage-events`.
+public struct CursorFilteredUsageEventsResponse: Codable, Sendable {
+    public let totalUsageEventsCount: Int?
+    public let usageEventsDisplay: [CursorUsageEvent]?
+}
+
+/// One usage event from the Cursor dashboard usage list.
+/// Cloud agent runs are tagged with `cloudAgentId` and/or `isHeadless == true`.
+public struct CursorUsageEvent: Codable, Sendable {
+    public let timestamp: String?
+    public let model: String?
+    public let kind: String?
+    public let chargedCents: Double?
+    public let isChargeable: Bool?
+    public let isHeadless: Bool?
+    public let cloudAgentId: String?
+    public let tokenUsage: CursorUsageEventTokenUsage?
+}
+
+public struct CursorUsageEventTokenUsage: Codable, Sendable {
+    public let totalCents: Double?
+}
+
+enum CursorCloudAgentUsageAggregator {
+    static func aggregate(events: [CursorUsageEvent]) -> CursorCloudAgentUsage {
+        var cloudCents = 0.0
+        var totalCents = 0.0
+        var cloudEvents = 0
+        for event in events {
+            if event.isChargeable == false {
+                continue
+            }
+            // Skip non-charged error/abort events so the share matches dashboard billable spend.
+            if let kind = event.kind, Self.nonChargedKinds.contains(kind) {
+                continue
+            }
+            let cents = event.chargedCents
+                ?? event.tokenUsage?.totalCents
+                ?? 0
+            guard cents > 0 else { continue }
+            totalCents += cents
+            if Self.isCloudAgentEvent(event) {
+                cloudCents += cents
+                cloudEvents += 1
+            }
+        }
+        return CursorCloudAgentUsage(
+            usedUSD: cloudCents / 100.0,
+            totalSpendUSD: totalCents / 100.0,
+            eventCount: cloudEvents)
+    }
+
+    static func isCloudAgentEvent(_ event: CursorUsageEvent) -> Bool {
+        if let id = event.cloudAgentId?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
+            return true
+        }
+        return event.isHeadless == true
+    }
+
+    private static let nonChargedKinds: Set<String> = [
+        "USAGE_EVENT_KIND_ERRORED_NOT_CHARGED",
+        "USAGE_EVENT_KIND_ABORTED_NOT_CHARGED",
+    ]
+}
+
 public struct CursorUserInfo: Codable, Sendable {
     public let email: String?
     public let emailVerified: Bool?
@@ -552,6 +619,8 @@ public struct CursorStatusSnapshot: Sendable {
     public let requestsUsed: Int?
     /// Request limit (non-nil indicates legacy request-based plan)
     public let requestsLimit: Int?
+    /// Cloud agent spend attribution for the current billing cycle (nil when unavailable).
+    public let cloudAgentUsage: CursorCloudAgentUsage?
 
     /// Whether this is a legacy request-based plan (vs token-based)
     public var isLegacyRequestPlan: Bool {
@@ -575,7 +644,8 @@ public struct CursorStatusSnapshot: Sendable {
         accountName: String?,
         rawJSON: String?,
         requestsUsed: Int? = nil,
-        requestsLimit: Int? = nil)
+        requestsLimit: Int? = nil,
+        cloudAgentUsage: CursorCloudAgentUsage? = nil)
     {
         self.planPercentUsed = planPercentUsed
         self.autoPercentUsed = autoPercentUsed
@@ -594,6 +664,7 @@ public struct CursorStatusSnapshot: Sendable {
         self.rawJSON = rawJSON
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
+        self.cloudAgentUsage = cloudAgentUsage
     }
 
     /// Convert to UsageSnapshot for the common provider interface
@@ -679,6 +750,24 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
+        // Cloud agents draw from the same plan/API/on-demand pools as local usage. Surface them as an
+        // attribution bar (share of this cycle's spend) when the dashboard reports any cloud spend.
+        let extraRateWindows: [NamedRateWindow]? = {
+            guard let cloud = self.cloudAgentUsage, cloud.usedUSD > 0, cloud.totalSpendUSD > 0 else {
+                return nil
+            }
+            return [
+                NamedRateWindow(
+                    id: CursorCloudAgentUsage.windowID,
+                    title: CursorCloudAgentUsage.windowTitle,
+                    window: RateWindow(
+                        usedPercent: cloud.usedPercent,
+                        windowMinutes: billingCycleWindowMinutes,
+                        resetsAt: self.billingCycleEnd,
+                        resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })),
+            ]
+        }()
+
         let identity = ProviderIdentitySnapshot(
             providerID: .cursor,
             accountEmail: self.accountEmail,
@@ -688,8 +777,10 @@ public struct CursorStatusSnapshot: Sendable {
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
+            extraRateWindows: extraRateWindows,
             providerCost: providerCost,
             cursorRequests: cursorRequests,
+            cursorCloudAgentUsage: self.cloudAgentUsage,
             updatedAt: Date(),
             identity: identity)
     }
@@ -1207,17 +1298,36 @@ public struct CursorStatusProbe: Sendable {
             }
         }
 
+        // Cloud agent spend attribution is optional: never fail the primary usage-summary path when
+        // the dashboard events endpoint is unavailable or returns unexpected data.
+        var cloudAgentUsage: CursorCloudAgentUsage?
+        var cloudAgentRawJSON: String?
+        do {
+            let (cloud, cloudJSON) = try await self.fetchCloudAgentUsage(
+                cookieHeader: cookieHeader,
+                billingCycleStart: usageSummary.billingCycleStart,
+                billingCycleEnd: usageSummary.billingCycleEnd)
+            cloudAgentUsage = cloud
+            cloudAgentRawJSON = cloudJSON
+        } catch {
+            // Best-effort only.
+        }
+
         // Combine raw JSON for debugging
         var combinedRawJSON: String? = rawJSON
         if let usageJSON = requestUsageRawJSON {
             combinedRawJSON = (combinedRawJSON ?? "") + "\n\n--- /api/usage response ---\n" + usageJSON
+        }
+        if let cloudJSON = cloudAgentRawJSON {
+            combinedRawJSON = (combinedRawJSON ?? "") + "\n\n--- cloud agent usage ---\n" + cloudJSON
         }
 
         return self.parseUsageSummary(
             usageSummary,
             userInfo: userInfo,
             rawJSON: combinedRawJSON,
-            requestUsage: requestUsage)
+            requestUsage: requestUsage,
+            cloudAgentUsage: cloudAgentUsage)
     }
 
     private func fetchUsageSummary(cookieHeader: String) async throws -> (CursorUsageSummary, String) {
@@ -1293,11 +1403,125 @@ public struct CursorStatusProbe: Sendable {
         return (usage, rawJSON)
     }
 
+    /// Fetches dashboard usage events for the billing cycle and aggregates Cloud Agent spend.
+    /// Uses POST with a browser-like Origin so Cursor accepts the state-changing dashboard route.
+    private func fetchCloudAgentUsage(
+        cookieHeader: String,
+        billingCycleStart: String?,
+        billingCycleEnd: String?) async throws -> (CursorCloudAgentUsage, String)
+    {
+        let events = try await self.fetchFilteredUsageEvents(
+            cookieHeader: cookieHeader,
+            billingCycleStart: billingCycleStart,
+            billingCycleEnd: billingCycleEnd)
+        let usage = CursorCloudAgentUsageAggregator.aggregate(events: events)
+        let summaryJSON = [
+            #""cloudAgentUsedUSD":\#(usage.usedUSD)"#,
+            #""totalSpendUSD":\#(usage.totalSpendUSD)"#,
+            #""eventCount":\#(usage.eventCount)"#,
+        ].joined(separator: ",")
+        return (usage, "{\(summaryJSON)}")
+    }
+
+    private func fetchFilteredUsageEvents(
+        cookieHeader: String,
+        billingCycleStart: String?,
+        billingCycleEnd: String?) async throws -> [CursorUsageEvent]
+    {
+        let url = self.baseURL.appendingPathComponent("/api/dashboard/get-filtered-usage-events")
+        var allEvents: [CursorUsageEvent] = []
+        var page = 1
+        let pageSize = 500
+        var totalCount: Int?
+
+        let startMs = Self.billingCycleMillisecondsString(billingCycleStart)
+        let endMs = Self.billingCycleMillisecondsString(billingCycleEnd)
+
+        let maximumPages = 20
+        while page <= maximumPages {
+            var body: [String: Any] = [
+                // Cursor's dashboard uses teamId 0 for the signed-in user's individual usage.
+                // Omitting it can return team-scoped rows for team/business accounts.
+                "teamId": 0,
+                "pageSize": pageSize,
+                "page": page,
+            ]
+            if let startMs {
+                body["startDate"] = startMs
+            }
+            if let endMs {
+                body["endDate"] = endMs
+            }
+
+            let payload = try JSONSerialization.data(withJSONObject: body)
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.httpBody = payload
+            request.timeoutInterval = self.timeout
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            // Cursor rejects dashboard POSTs without a first-party Origin.
+            request.setValue("https://cursor.com", forHTTPHeaderField: "Origin")
+            request.setValue("https://cursor.com/dashboard?tab=usage", forHTTPHeaderField: "Referer")
+
+            let (data, response) = try await self.urlSession.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw CursorStatusProbeError.networkError("Invalid response")
+            }
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw CursorStatusProbeError.notLoggedIn
+            }
+            guard httpResponse.statusCode == 200 else {
+                throw CursorStatusProbeError.networkError("HTTP \(httpResponse.statusCode)")
+            }
+
+            let decoded = try JSONDecoder().decode(CursorFilteredUsageEventsResponse.self, from: data)
+            let pageEvents = decoded.usageEventsDisplay ?? []
+            if totalCount == nil {
+                totalCount = decoded.totalUsageEventsCount
+            }
+            if pageEvents.isEmpty {
+                break
+            }
+            allEvents.append(contentsOf: pageEvents)
+            if let totalCount, allEvents.count >= totalCount {
+                break
+            }
+            if totalCount == nil, pageEvents.count < pageSize {
+                break
+            }
+            page += 1
+        }
+
+        if let totalCount, allEvents.count < totalCount {
+            throw CursorStatusProbeError.networkError(
+                "Cursor usage event history exceeds the supported \(maximumPages * pageSize)-event limit")
+        }
+
+        return allEvents
+    }
+
+    /// Converts an ISO-8601 billing-cycle timestamp into the millisecond epoch string Cursor's
+    /// dashboard event filter expects (e.g. `"1781921226000"`).
+    static func billingCycleMillisecondsString(_ iso8601: String?) -> String? {
+        guard let iso8601 else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: iso8601) ?? {
+            let plain = ISO8601DateFormatter()
+            return plain.date(from: iso8601)
+        }()
+        guard let date else { return nil }
+        return String(Int((date.timeIntervalSince1970 * 1000).rounded()))
+    }
+
     func parseUsageSummary(
         _ summary: CursorUsageSummary,
         userInfo: CursorUserInfo?,
         rawJSON: String?,
-        requestUsage: CursorUsageResponse? = nil) -> CursorStatusSnapshot
+        requestUsage: CursorUsageResponse? = nil,
+        cloudAgentUsage: CursorCloudAgentUsage? = nil) -> CursorStatusSnapshot
     {
         func parseBillingCycleDate(_ dateString: String?) -> Date? {
             guard let dateString else { return nil }
@@ -1409,7 +1633,8 @@ public struct CursorStatusProbe: Sendable {
             accountName: userInfo?.name,
             rawJSON: rawJSON,
             requestsUsed: requestsUsed,
-            requestsLimit: requestsLimit)
+            requestsLimit: requestsLimit,
+            cloudAgentUsage: cloudAgentUsage)
     }
 
     #if os(macOS)

@@ -755,6 +755,7 @@
 "Latest billing day" = "直近の請求日";
 "Latest billing day (%@)" = "直近の請求日（%@）";
 "%@ left" = "残り %@";
+"%@ this cycle" = "このサイクル %@";
 "Resets %@" = "%@ にリセット";
 "Resets in %@" = "%@ 後にリセット";
 "Resets now" = "まもなくリセット";

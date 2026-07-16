@@ -758,6 +758,7 @@
 "Latest billing day" = "Laatste factuurdag";
 "Latest billing day (%@)" = "Laatste factuurdag (%@)";
 "%@ left" = "%@ over";
+"%@ this cycle" = "%@ deze cyclus";
 "Resets %@" = "Reset %@";
 "Resets in %@" = "Resetten over %@";
 "Resets now" = "Wordt nu gereset";

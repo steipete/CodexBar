@@ -50,6 +50,12 @@ Manual option:
   - User email + name.
 - `GET https://cursor.com/api/usage?user=ID`
   - Legacy request-based plan usage (request counts + limits).
+- `POST https://cursor.com/api/dashboard/get-filtered-usage-events`
+  - Dashboard usage events for the billing cycle (best-effort).
+  - Used to attribute Cloud Agent spend via `cloudAgentId` / `isHeadless`.
+  - Sends `teamId: 0` to keep team/business sessions scoped to the signed-in user's individual usage.
+  - Requires a first-party `Origin: https://cursor.com` header.
+  - Optional; failures never block Total/Auto/API/Extra usage.
 
 ## Cookie file paths
 - Safari: `~/Library/Cookies/Cookies.binarycookies`
@@ -78,6 +84,11 @@ The storage detail lists measured paths and their sizes. CodexBar does not delet
 - Primary: plan usage percent (included plan).
 - Secondary: Auto + Composer usage percent.
 - Tertiary: API (named model) usage percent.
+- Extra rate window **Cloud**: share of this billing cycle's chargeable spend that came from Cloud Agents
+  (`cloudAgentId` or `isHeadless` usage events). Shown only when cloud spend is > $0.
+  Detail line: absolute cloud spend USD for the cycle (e.g. `$48.03 this cycle`).
+  Cloud Agents draw from the same included/API/on-demand pools as local usage — this bar is attribution,
+  not a separate quota.
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
 - Reset: billing cycle end date.
 

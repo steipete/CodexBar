@@ -755,6 +755,7 @@
 "Latest billing day" = "Son faturalandırma günü";
 "Latest billing day (%@)" = "Son faturalandırma günü (%@)";
 "%@ left" = "%@ kaldı";
+"%@ this cycle" = "bu dönemde %@";
 "Resets %@" = "Sıfırlanma: %@";
 "Resets in %@" = "%@ içinde sıfırlanır";
 "Resets now" = "Şimdi sıfırlanır";

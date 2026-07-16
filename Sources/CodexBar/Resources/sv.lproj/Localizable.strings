@@ -757,6 +757,7 @@
 "Latest billing day" = "Senaste faktureringsdag";
 "Latest billing day (%@)" = "Senaste faktureringsdag (%@)";
 "%@ left" = "%@ kvar";
+"%@ this cycle" = "%@ den här cykeln";
 "Resets %@" = "Återställs %@";
 "Resets in %@" = "Återställs om %@";
 "Resets now" = "Återställs nu";

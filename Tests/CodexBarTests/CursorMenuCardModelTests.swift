@@ -188,4 +188,67 @@ struct CursorMenuCardModelTests {
         #expect(model.metrics.map(\.title) == ["Requests"])
         #expect(model.metrics.first?.detailText == "Request quota: 347 / 500")
     }
+
+    @Test
+    func `cloud agent usage shows Cloud bar with cycle spend detail`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let reset = now.addingTimeInterval(10 * 24 * 3600)
+        let cycleMinutes = 30 * 24 * 60
+        let cloud = CursorCloudAgentUsage(usedUSD: 48.03, totalSpendUSD: 74.39, eventCount: 35)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 38,
+                windowMinutes: cycleMinutes,
+                resetsAt: reset,
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 19,
+                windowMinutes: cycleMinutes,
+                resetsAt: reset,
+                resetDescription: nil),
+            tertiary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: cycleMinutes,
+                resetsAt: reset,
+                resetDescription: nil),
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: CursorCloudAgentUsage.windowID,
+                    title: CursorCloudAgentUsage.windowTitle,
+                    window: RateWindow(
+                        usedPercent: cloud.usedPercent,
+                        windowMinutes: cycleMinutes,
+                        resetsAt: reset,
+                        resetDescription: nil)),
+            ],
+            cursorCloudAgentUsage: cloud,
+            updatedAt: now,
+            identity: nil)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.metrics.map(\.title) == ["Total", "Auto", "API", "Cloud"])
+        let cloudMetric = try #require(model.metrics.first { $0.id == CursorCloudAgentUsage.windowID })
+        #expect(abs(cloudMetric.percent - cloud.usedPercent) < 0.01)
+        #expect(cloudMetric.detailLeftText == "$48.03 this cycle")
+    }
 }

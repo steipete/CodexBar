@@ -754,6 +754,7 @@
 "Latest billing day" = "Ngày thanh toán muộn nhất";
 "Latest billing day (%@)" = "Ngày thanh toán muộn nhất ( %@ )";
 "%@ left" = "còn lại %@";
+"%@ this cycle" = "%@ chu kỳ này";
 "Resets %@" = "Đặt lại %@";
 "Resets in %@" = "Đặt lại sau %@";
 "Resets now" = "Đặt lại ngay";

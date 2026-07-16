@@ -729,6 +729,7 @@
 "Latest billing day" = "최근 청구일";
 "Latest billing day (%@)" = "최근 청구일(%@)";
 "%@ left" = "%@ 남음";
+"%@ this cycle" = "이번 주기 %@";
 "Resets %@" = "%@에 재설정";
 "Resets in %@" = "%@ 후 재설정";
 "Resets now" = "지금 재설정";

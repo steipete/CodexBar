@@ -1003,6 +1003,11 @@ extension CursorStatusProbeTests {
                     url: requestURL,
                     body: #"{"error":"nope"}"#,
                     statusCode: 500)
+            case "/api/dashboard/get-filtered-usage-events":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"totalUsageEventsCount":0,"usageEventsDisplay":[]}"#,
+                    statusCode: 200)
             default:
                 throw URLError(.badURL)
             }
@@ -1016,7 +1021,8 @@ extension CursorStatusProbeTests {
 
         #expect(snapshot.planPercentUsed == 30.0)
         #expect(snapshot.accountEmail == nil)
-        #expect(testSession.requestCount == 2)
+        #expect(snapshot.cloudAgentUsage?.usedUSD == 0)
+        #expect(testSession.requestCount == 3)
     }
 
     @Test
@@ -1074,7 +1080,11 @@ extension CursorStatusProbeTests {
             let requestURL = try #require(request.url)
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             #expect(request.value(forHTTPHeaderField: "Cookie") == expectedCookie)
-            #expect(request.httpMethod == "GET")
+            if requestURL.path == "/api/dashboard/get-filtered-usage-events" {
+                #expect(request.httpMethod == "POST")
+            } else {
+                #expect(request.httpMethod == "GET")
+            }
 
             switch requestURL.path {
             case "/api/usage-summary":
@@ -1109,6 +1119,11 @@ extension CursorStatusProbeTests {
                     url: requestURL,
                     body: #"{"gpt-4":{},"startOfMonth":"2026-05-23"}"#,
                     statusCode: 200)
+            case "/api/dashboard/get-filtered-usage-events":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"totalUsageEventsCount":0,"usageEventsDisplay":[]}"#,
+                    statusCode: 200)
             default:
                 throw URLError(.badURL)
             }
@@ -1133,6 +1148,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.accountName == "Test User")
         #expect(testSession.requestPaths.sorted() == [
             "/api/auth/me",
+            "/api/dashboard/get-filtered-usage-events",
             "/api/usage",
             "/api/usage-summary",
         ])
@@ -1210,6 +1226,11 @@ extension CursorStatusProbeTests {
                     url: requestURL,
                     body: #"{"email":"stored@example.com","name":"Stored User"}"#,
                     statusCode: 200)
+            case "/api/dashboard/get-filtered-usage-events":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"totalUsageEventsCount":0,"usageEventsDisplay":[]}"#,
+                    statusCode: 200)
             default:
                 Issue.record("Stored-session precedence test unexpectedly requested \(requestURL.path)")
                 throw URLError(.badURL)
@@ -1230,6 +1251,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.accountEmail == "stored@example.com")
         #expect(testSession.requestPaths.sorted() == [
             "/api/auth/me",
+            "/api/dashboard/get-filtered-usage-events",
             "/api/usage-summary",
         ])
     }
@@ -1273,6 +1295,11 @@ extension CursorStatusProbeTests {
                     }
                     """,
                     statusCode: 200)
+            case "/api/dashboard/get-filtered-usage-events":
+                return makeCursorStatusProbeResponse(
+                    url: requestURL,
+                    body: #"{"totalUsageEventsCount":0,"usageEventsDisplay":[]}"#,
+                    statusCode: 200)
             default:
                 throw URLError(.badURL)
             }
@@ -1291,6 +1318,7 @@ extension CursorStatusProbeTests {
         #expect(snapshot.accountEmail == nil)
         #expect(testSession.requestPaths.sorted() == [
             "/api/auth/me",
+            "/api/dashboard/get-filtered-usage-events",
             "/api/usage",
             "/api/usage-summary",
         ])

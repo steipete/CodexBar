@@ -35,6 +35,12 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendExtraRateWindowLines(
+            provider: provider,
+            snapshot: snapshot,
+            context: context,
+            now: now,
+            lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -99,6 +105,12 @@ enum CLIRenderer {
             now: now,
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
+        self.appendExtraRateWindowLines(
+            provider: provider,
+            snapshot: snapshot,
+            context: context,
+            now: now,
+            lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -430,6 +442,18 @@ enum CLIRenderer {
                 window: tertiary,
                 resetStyle: resetStyle,
                 now: now))
+        }
+        if provider == .cursor, let extraRateWindows = snapshot.extraRateWindows {
+            for named in extraRateWindows
+                where named.id == CursorCloudAgentUsage.windowID && named.usageKnown
+            {
+                metrics.append(self.makeCardMetric(
+                    provider: provider,
+                    label: named.title,
+                    window: named.window,
+                    resetStyle: resetStyle,
+                    now: now))
+            }
         }
         return metrics
     }
@@ -800,6 +824,30 @@ enum CLIRenderer {
         lines.append(self.rateLine(title: labels.tertiary, window: opus, useColor: context.useColor))
         if let reset = self.resetLine(for: opus, style: context.resetStyle, now: now) {
             lines.append(self.subtleLine(reset, useColor: context.useColor))
+        }
+    }
+
+    private static func appendExtraRateWindowLines(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        guard provider == .cursor, let extraRateWindows = snapshot.extraRateWindows else { return }
+        for named in extraRateWindows
+            where named.id == CursorCloudAgentUsage.windowID && named.usageKnown
+        {
+            lines.append(self.rateLine(title: named.title, window: named.window, useColor: context.useColor))
+            if let cloud = snapshot.cursorCloudAgentUsage,
+               cloud.usedUSD > 0
+            {
+                let spend = UsageFormatter.currencyString(cloud.usedUSD, currencyCode: "USD")
+                lines.append(self.subtleLine("\(spend) this cycle", useColor: context.useColor))
+            }
+            if let reset = self.resetLine(for: named.window, style: context.resetStyle, now: now) {
+                lines.append(self.subtleLine(reset, useColor: context.useColor))
+            }
         }
     }
 

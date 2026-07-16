@@ -1015,6 +1015,7 @@
 /* Noves traduccions */
 "%@ is unavailable in the current environment." = "%@ no està disponible en l'entorn actual.";
 "%@ left" = "Queden %@";
+"%@ this cycle" = "%@ en aquest cicle";
 "%@ · %@" = "%@ · %@";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ tokens";
 "%@: %@" = "%@: %@";

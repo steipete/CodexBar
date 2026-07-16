@@ -759,6 +759,7 @@
 "Latest billing day" = "Latest billing day";
 "Latest billing day (%@)" = "Latest billing day (%@)";
 "%@ left" = "%@ left";
+"%@ this cycle" = "%@ this cycle";
 "Resets %@" = "Resets %@";
 "Resets in %@" = "Resets in %@";
 "Resets now" = "Resets now";

@@ -1008,6 +1008,7 @@
 "Open Status Page" = "Abrir a páxina de estado";
 "%@ is unavailable in the current environment." = "%@ non está dispoñible no contorno actual.";
 "%@ left" = "%@ restante";
+"%@ this cycle" = "%@ neste ciclo";
 "%@ · %@" = "%@ · %@";
 "%@: %@" = "%@: %@";
 "%@: %@ · %@ tokens" = "%@: %@ · %@ tokens";

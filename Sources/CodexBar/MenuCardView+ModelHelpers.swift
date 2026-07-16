@@ -655,6 +655,10 @@ extension UsageMenuCardView.Model {
             } else {
                 L("Unavailable")
             }
+            let cloudSpendDetail = Self.cursorCloudAgentSpendDetail(
+                provider: input.provider,
+                namedWindow: namedWindow,
+                snapshot: snapshot)
             return Metric(
                 id: namedWindow.id,
                 title: namedWindow.title,
@@ -666,11 +670,26 @@ extension UsageMenuCardView.Model {
                 statusText: statusText,
                 resetText: usageKnown ? resetText : nil,
                 detailText: usageKnown ? detailText : nil,
-                detailLeftText: usageKnown ? paceDetail?.leftLabel : nil,
+                detailLeftText: usageKnown ? (cloudSpendDetail ?? paceDetail?.leftLabel) : nil,
                 detailRightText: usageKnown ? paceDetail?.rightLabel : nil,
                 pacePercent: usageKnown ? paceDetail?.pacePercent : nil,
                 paceOnTop: paceDetail?.paceOnTop ?? true)
         }
+    }
+
+    /// Currency detail for Cursor's Cloud agent attribution window (share of cycle spend).
+    private static func cursorCloudAgentSpendDetail(
+        provider: UsageProvider,
+        namedWindow: NamedRateWindow,
+        snapshot: UsageSnapshot) -> String?
+    {
+        guard provider == .cursor,
+              namedWindow.id == CursorCloudAgentUsage.windowID,
+              let cloud = snapshot.cursorCloudAgentUsage,
+              cloud.usedUSD > 0
+        else { return nil }
+        let spend = UsageFormatter.currencyString(cloud.usedUSD, currencyCode: "USD")
+        return String(format: L("%@ this cycle"), spend)
     }
 
     private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {

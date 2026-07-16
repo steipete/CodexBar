@@ -721,6 +721,7 @@
 "Latest billing day" = "最近结算日";
 "Latest billing day (%@)" = "最近结算日（%@）";
 "%@ left" = "%@ 剩余";
+"%@ this cycle" = "本周期 %@";
 "Resets %@" = "重置于 %@";
 "Resets in %@" = "%@后重置";
 "Resets now" = "立即重置";

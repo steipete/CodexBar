@@ -761,6 +761,7 @@
 "Latest billing day" = "Ultimo giorno di fatturazione";
 "Latest billing day (%@)" = "Ultimo giorno di fatturazione (%@)";
 "%@ left" = "%@ rimasto";
+"%@ this cycle" = "%@ in questo ciclo";
 "Resets %@" = "Si resetta %@";
 "Resets in %@" = "Si reimposta tra %@";
 "Resets now" = "Si resetta ora";

@@ -755,6 +755,7 @@
 "Latest billing day" = "Último dia de cobrança";
 "Latest billing day (%@)" = "Último dia de cobrança (%@)";
 "%@ left" = "%@ restante";
+"%@ this cycle" = "%@ neste ciclo";
 "Resets %@" = "Renova %@";
 "Resets in %@" = "Renova em %@";
 "Resets now" = "Renova agora";

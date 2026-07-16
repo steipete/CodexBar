@@ -200,6 +200,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let deepgramUsage: DeepgramUsageSnapshot?
     public let poeUsage: PoeUsageHistorySnapshot?
     public let cursorRequests: CursorRequestUsage?
+    /// Cursor Cloud Agent spend attribution for the current billing cycle (live-only).
+    public let cursorCloudAgentUsage: CursorCloudAgentUsage?
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
     /// Live-only marker that Command Code returned a recognized subscription plan.
@@ -268,6 +270,7 @@ public struct UsageSnapshot: Codable, Sendable {
         deepgramUsage: DeepgramUsageSnapshot? = nil,
         poeUsage: PoeUsageHistorySnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        cursorCloudAgentUsage: CursorCloudAgentUsage? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
         commandCodeMonthlyGrantDepleted: Bool = false,
@@ -301,6 +304,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepgramUsage = deepgramUsage
         self.poeUsage = poeUsage
         self.cursorRequests = cursorRequests
+        self.cursorCloudAgentUsage = cursorCloudAgentUsage
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
         self.commandCodeMonthlyGrantDepleted = commandCodeMonthlyGrantDepleted
@@ -357,6 +361,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepgramUsage = try container.decodeIfPresent(DeepgramUsageSnapshot.self, forKey: .deepgramUsage)
         self.poeUsage = try container.decodeIfPresent(PoeUsageHistorySnapshot.self, forKey: .poeUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.cursorCloudAgentUsage = nil // Not persisted, fetched fresh each time
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
         self.commandCodeMonthlyGrantDepleted = false // Live-only fetch state
@@ -606,6 +611,7 @@ public struct UsageSnapshot: Codable, Sendable {
             deepgramUsage: self.deepgramUsage,
             poeUsage: self.poeUsage,
             cursorRequests: self.cursorRequests,
+            cursorCloudAgentUsage: self.cursorCloudAgentUsage,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
             commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,
