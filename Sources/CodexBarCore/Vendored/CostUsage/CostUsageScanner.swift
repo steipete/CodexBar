@@ -608,9 +608,14 @@ enum CostUsageScanner {
     }
 
     final class CodexInheritedTotalsResolver {
+        private struct SnapshotResolution {
+            let dependencyKey: String?
+            let snapshots: [CodexTimestampedTotals]?
+        }
+
         private let fileIndex: CodexSessionFileIndex
         private let checkCancellation: CancellationCheck?
-        private var snapshotsBySessionId: [String: [CodexTimestampedTotals]] = [:]
+        private var snapshotResolutions: [String: SnapshotResolution] = [:]
 
         init(fileIndex: CodexSessionFileIndex, checkCancellation: CancellationCheck?) {
             self.fileIndex = fileIndex
@@ -630,7 +635,7 @@ enum CostUsageScanner {
                     "Codex cost usage could not parse fork timestamp; falling back to lexical comparison",
                     metadata: ["sessionId": sessionId, "timestamp": cutoffTimestamp])
             }
-            guard let snapshots = try self.snapshots(for: sessionId) else { return .unresolved }
+            guard let snapshots = try self.snapshotResolution(for: sessionId).snapshots else { return .unresolved }
             var inherited: CostUsageCodexTotals?
             for snapshot in snapshots {
                 let isAtOrBefore: Bool = if let snapshotDate = snapshot.date, let cutoffDate {
@@ -645,8 +650,31 @@ enum CostUsageScanner {
             return .resolved(inherited)
         }
 
-        private func snapshots(for sessionId: String) throws -> [CodexTimestampedTotals]? {
-            if let cached = self.snapshotsBySessionId[sessionId] {
+        func currentDependencyKey(for sessionId: String) throws -> String {
+            guard let fileURL = try self.fileIndex.fileURL(for: sessionId) else {
+                return "missing:\(sessionId)"
+            }
+            return self.dependencyKey(for: sessionId, fileURL: fileURL)
+        }
+
+        func dependencyKeyUsed(for sessionId: String) -> String? {
+            self.snapshotResolutions[sessionId]?.dependencyKey
+        }
+
+        private func dependencyKey(for sessionId: String, fileURL: URL) -> String {
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+            return [
+                "file",
+                sessionId,
+                fileURL.standardizedFileURL.path,
+                metadata.fileId ?? "unknown",
+                String(metadata.mtimeUnixMs),
+                String(metadata.size),
+            ].joined(separator: "|")
+        }
+
+        private func snapshotResolution(for sessionId: String) throws -> SnapshotResolution {
+            if let cached = self.snapshotResolutions[sessionId] {
                 return cached
             }
             try self.checkCancellation?()
@@ -654,29 +682,58 @@ enum CostUsageScanner {
                 CostUsageScanner.log.warning(
                     "Codex cost usage parent session file not found",
                     metadata: ["sessionId": sessionId])
-                return nil
+                let resolution = SnapshotResolution(
+                    dependencyKey: "missing:\(sessionId)",
+                    snapshots: nil)
+                self.snapshotResolutions[sessionId] = resolution
+                return resolution
             }
-            let parsed = try CostUsageScanner.parseCodexTokenSnapshots(
-                fileURL: fileURL,
-                checkCancellation: self.checkCancellation)
-            guard let parsedSessionId = parsed.sessionId else {
-                CostUsageScanner.log.warning(
-                    "Codex cost usage parent session missing session metadata",
-                    metadata: ["sessionId": sessionId, "path": fileURL.path])
-                return nil
+
+            for _ in 0..<2 {
+                let dependencyKeyBeforeParse = self.dependencyKey(for: sessionId, fileURL: fileURL)
+                let parsed = try CostUsageScanner.parseCodexTokenSnapshots(
+                    fileURL: fileURL,
+                    checkCancellation: self.checkCancellation)
+                let dependencyKeyAfterParse = self.dependencyKey(for: sessionId, fileURL: fileURL)
+                guard dependencyKeyBeforeParse == dependencyKeyAfterParse else { continue }
+
+                guard let parsedSessionId = parsed.sessionId else {
+                    CostUsageScanner.log.warning(
+                        "Codex cost usage parent session missing session metadata",
+                        metadata: ["sessionId": sessionId, "path": fileURL.path])
+                    let resolution = SnapshotResolution(
+                        dependencyKey: dependencyKeyAfterParse,
+                        snapshots: nil)
+                    self.snapshotResolutions[sessionId] = resolution
+                    return resolution
+                }
+                if parsedSessionId != sessionId {
+                    CostUsageScanner.log.warning(
+                        "Codex cost usage parent session resolved to mismatched session id",
+                        metadata: [
+                            "requestedSessionId": sessionId,
+                            "resolvedSessionId": parsedSessionId,
+                            "path": fileURL.path,
+                        ])
+                    let resolution = SnapshotResolution(
+                        dependencyKey: dependencyKeyAfterParse,
+                        snapshots: nil)
+                    self.snapshotResolutions[sessionId] = resolution
+                    return resolution
+                }
+                let resolution = SnapshotResolution(
+                    dependencyKey: dependencyKeyAfterParse,
+                    snapshots: parsed.snapshots)
+                self.snapshotResolutions[sessionId] = resolution
+                return resolution
             }
-            if parsedSessionId != sessionId {
-                CostUsageScanner.log.warning(
-                    "Codex cost usage parent session resolved to mismatched session id",
-                    metadata: [
-                        "requestedSessionId": sessionId,
-                        "resolvedSessionId": parsedSessionId,
-                        "path": fileURL.path,
-                    ])
-                return nil
-            }
-            self.snapshotsBySessionId[sessionId] = parsed.snapshots
-            return parsed.snapshots
+
+            CostUsageScanner.log.warning(
+                "Codex cost usage parent session changed while reading; deferring inherited baseline",
+                metadata: ["sessionId": sessionId, "path": fileURL.path])
+            let resolution = SnapshotResolution(dependencyKey: nil, snapshots: nil)
+            self.snapshotResolutions[sessionId] = resolution
+            return resolution
         }
     }
 
@@ -2394,7 +2451,7 @@ enum CostUsageScanner {
         let cached = cache.files[metadata.path]
 
         let input = CodexFileScanInput(fileURL: fileURL, metadata: metadata, cached: cached)
-        if Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
+        if try Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
             return
         }
         if try Self.appendCodexFileIncrementIfPossible(input: input, context: context, cache: &cache, state: &state) {

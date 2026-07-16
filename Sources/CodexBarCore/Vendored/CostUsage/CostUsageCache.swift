@@ -6,6 +6,8 @@ enum CostUsageCacheIO {
     /// totals are counted, so every earlier cache must be rebuilt.
     private static let compatibleCodexProducerKeys: Set<String> = []
 
+    /// Parsing and attribution changes rotate the Codex parser producer key.
+    /// Increment this artifact version only when the stored schema or cache layout becomes incompatible.
     private static func artifactVersion(for provider: UsageProvider) -> Int {
         switch provider {
         case .codex:
@@ -141,6 +143,7 @@ struct CostUsageFileUsage: Codable {
     var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
+    var forkBaselineDependencyKey: String?
     var projectPath: String?
     var canonicalProjectPath: String?
     var codexCostCacheComplete: Bool?
