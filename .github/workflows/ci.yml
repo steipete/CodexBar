@@ -231,6 +231,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # The arm64 hosted image uses ports.ubuntu.com over HTTP. Switch that source to HTTPS
+          # before refreshing package metadata: the runner occasionally cannot reach its port 80 mirror.
+          for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if [[ -f "$source_file" ]]; then
+              sudo sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://ports.ubuntu.com/ubuntu-ports|g' "$source_file"
+            fi
+          done
+
           apt_with_retry() {
             local attempt
             for attempt in 1 2 3; do
