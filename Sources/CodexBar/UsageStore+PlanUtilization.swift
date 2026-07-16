@@ -528,22 +528,17 @@ extension UsageStore {
             Self.limitResetBoundaryAdvanced(
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary)
-        } else if context.provider == .codex, descriptor.seriesName == .weekly {
+        } else if descriptor.seriesName == .weekly, context.provider == .codex || context.provider == .claude {
+            // A weekly below-threshold crossing only counts as a genuine reset if the reset
+            // boundary actually advanced — otherwise a bogus near-zero sample (e.g. a CLI
+            // usage-probe misparse) gets read as a reset and fires spurious confetti (#2222).
+            // Codex requires an existing previous boundary (#2054); Claude OAuth snapshots can
+            // lack one entirely, so Claude must NOT require it — an absent boundary still
+            // allows a genuine reset to post, only an unchanged one is suppressed.
             Self.limitResetBoundaryAdvanced(
                 previous: previousState?.resetBoundary,
                 current: observation.resetBoundary,
-                requiresPreviousBoundary: true)
-        } else if context.provider == .claude, descriptor.seriesName == .weekly {
-            // A Claude weekly below-threshold crossing is only a genuine reset if the reset
-            // boundary actually advanced. Usage is monotonic within a window, so a drop to
-            // ~0 while the boundary is unchanged is a bogus near-zero sample (e.g. a CLI
-            // usage-probe misparse) rather than a reset — celebrating it fires spurious
-            // confetti (#2222). Unlike Codex, Claude OAuth snapshots can lack a boundary
-            // entirely, so this must NOT require a previous boundary: an absent boundary
-            // still celebrates a real reset, only an unchanged one is suppressed.
-            Self.limitResetBoundaryAdvanced(
-                previous: previousState?.resetBoundary,
-                current: observation.resetBoundary)
+                requiresPreviousBoundary: context.provider == .codex)
         } else {
             true
         }
