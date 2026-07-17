@@ -254,7 +254,7 @@ struct QuotaPlanningTests {
     }
 
     @Test
-    func `material decrease requires active requalification`() throws {
+    func `material decrease requires active requalification`() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let shortReset = now.addingTimeInterval(5 * 3600)
         let longReset = now.addingTimeInterval(7 * 24 * 3600)

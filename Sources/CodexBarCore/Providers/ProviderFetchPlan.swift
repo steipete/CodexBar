@@ -191,7 +191,7 @@ public enum ProviderFetchError: LocalizedError, Sendable {
     }
 }
 
-public enum ProviderFetchKind: Sendable {
+public enum ProviderFetchKind: Hashable, Sendable {
     case cli
     case web
     case oauth

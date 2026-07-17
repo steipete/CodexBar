@@ -191,8 +191,8 @@ public enum QuotaPlanningEstimator {
     {
         guard !calibration.requiresActiveRequalification,
               let pair = self.validated(pair: pair, now: now),
-              Self.equivalent(pair.shortResetAt, calibration.canonicalShortResetAt),
-              Self.equivalent(pair.longResetAt, calibration.canonicalLongResetAt),
+              equivalent(pair.shortResetAt, calibration.canonicalShortResetAt),
+              equivalent(pair.longResetAt, calibration.canonicalLongResetAt),
               calibration.canonicalShortResetAt > now,
               calibration.canonicalLongResetAt > now
         else {

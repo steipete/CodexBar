@@ -139,6 +139,7 @@ extension StatusItemController {
     }
 
     func handleMenuBarTimeEnvironmentChange() {
+        self.store.handleQuotaPlanningTimeEnvironmentChange()
         self.updateIcons()
     }
 

@@ -169,11 +169,27 @@ struct CodexResetCreditOutcomeTests {
         #expect(await recorder.environments().isEmpty)
     }
 
+    @Test
+    func `supplemental inventory preserves live quota freshness`() async {
+        let now = Date(timeIntervalSince1970: 1_781_726_400)
+        let outcome = await UsageStore.attachingCodexResetCreditsIfNeeded(
+            to: Self.outcome(resetCredits: nil, now: now, observationFreshness: .live),
+            env: [:],
+            fetcher: { _ in Self.resetSnapshot(id: "supplemental", now: now) })
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected successful enriched result")
+            return
+        }
+        #expect(result.observationFreshness == .live)
+    }
+
     private static func outcome(
         resetCredits: CodexRateLimitResetCreditsSnapshot?,
         now: Date,
         primary: RateWindow? = nil,
-        strategyID: String = "test") -> ProviderFetchOutcome
+        strategyID: String = "test",
+        observationFreshness: ProviderObservationFreshness = .unknown) -> ProviderFetchOutcome
     {
         let resolvedPrimary = strategyID == "codex.oauth" ? primary : primary ?? RateWindow(
             usedPercent: 25,
@@ -191,7 +207,8 @@ struct CodexResetCreditOutcomeTests {
                 dashboard: nil,
                 sourceLabel: "test",
                 strategyID: strategyID,
-                strategyKind: .cli)),
+                strategyKind: .cli,
+                observationFreshness: observationFreshness)),
             attempts: [])
     }
 

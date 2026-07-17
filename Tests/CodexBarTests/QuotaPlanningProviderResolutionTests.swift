@@ -211,11 +211,11 @@ struct QuotaPlanningProviderResolutionTests {
 
     private static func primarySecondaryUsage(now: Date) -> UsageSnapshot {
         UsageSnapshot(
-            primary: Self.window(
+            primary: self.window(
                 used: 20,
                 minutes: 300,
                 reset: now.addingTimeInterval(4 * 3600)),
-            secondary: Self.window(
+            secondary: self.window(
                 used: 30,
                 minutes: 10080,
                 reset: now.addingTimeInterval(6 * 24 * 3600)),
@@ -250,13 +250,13 @@ struct QuotaPlanningProviderResolutionTests {
             id: id,
             short: QuotaPlanningWindowSnapshot(
                 metricID: shortID,
-                window: Self.window(
+                window: self.window(
                     used: 10,
                     minutes: shortMinutes,
                     reset: now.addingTimeInterval(TimeInterval(shortMinutes * 30)))),
             long: QuotaPlanningWindowSnapshot(
                 metricID: longID,
-                window: Self.window(
+                window: self.window(
                     used: 20,
                     minutes: longMinutes,
                     reset: now.addingTimeInterval(TimeInterval(longMinutes * 30)))))

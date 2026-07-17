@@ -45,6 +45,7 @@ struct CodexAccountUsageSnapshot: Identifiable {
 extension UsageStore {
     func activateCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID) {
         guard self.settings.effectiveSelectedTokenAccount(for: provider)?.id == accountID else { return }
+        self.activateQuotaPlanningTokenAccount(provider, accountID: accountID)
         self.tokenAccountLiveStateProviders.insert(provider)
         guard let account = self.uniqueTokenAccount(provider: provider, accountID: accountID),
               let cached = self.accountSnapshots[provider]?.first(where: {
@@ -579,7 +580,6 @@ extension UsageStore {
             return
         }
         let limitedAccounts = self.limitedTokenAccounts(accounts, selected: selectedAccount)
-        let effectiveSelected = selectedAccount
 
         // Capture the prior per-account snapshot state so we can preserve last-good
         // data when an in-flight refresh is cancelled (e.g. menu tab switches). Without
@@ -587,7 +587,7 @@ extension UsageStore {
         // misleading cards for accounts that previously had valid data.
         let priorSnapshots = await MainActor.run {
             self.pruneTokenAccountSnapshots(provider: provider, accounts: accounts)
-            self.activateCachedTokenAccountSnapshot(provider: provider, accountID: effectiveSelected.id)
+            self.activateCachedTokenAccountSnapshot(provider: provider, accountID: selectedAccount.id)
             return self.accountSnapshots[provider] ?? []
         }
         let priorByAccountID = Dictionary(uniqueKeysWithValues: priorSnapshots.map { ($0.account.id, $0) })
@@ -621,7 +621,7 @@ extension UsageStore {
             if let usage = resolved.freshUsage {
                 historySamples.append((account: account, snapshot: usage))
             }
-            if account.id == effectiveSelected.id {
+            if account.id == selectedAccount.id {
                 selectedOutcome = outcome
                 resolvedSelectedAccount = account
                 selectedSnapshot = resolved.usage
@@ -654,7 +654,7 @@ extension UsageStore {
         await self.recordFetchedTokenAccountPlanUtilizationHistory(
             provider: provider,
             samples: historySamples,
-            selectedAccount: effectiveSelected)
+            selectedAccount: selectedAccount)
     }
 
     private static func outcomeIsCancellation(_ outcome: ProviderFetchOutcome) -> Bool {
@@ -1457,11 +1457,12 @@ extension UsageStore {
         generation: UInt64? = nil) async
     {
         guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
+        let publicationGuard = Self.codexScopedRefreshGuard(for: account)
+        let codexOwnerKey = Self.codexSessionQuotaOwnerKey(for: publicationGuard)
+        self.activateQuotaPlanningCodexOwner(codexOwnerKey)
         switch outcome.result {
-        case .success:
+        case let .success(result):
             guard let snapshot else { return }
-            let publicationGuard = Self.codexScopedRefreshGuard(for: account)
-            let codexOwnerKey = Self.codexSessionQuotaOwnerKey(for: publicationGuard)
             self.lastFetchAttempts[.codex] = outcome.attempts
             self.handleCodexResetCreditNotifications(snapshot: snapshot)
             self.handleQuotaWarningTransitions(
@@ -1477,6 +1478,7 @@ extension UsageStore {
             self.lastCodexUsagePublicationGuard = publicationGuard
             self.lastCodexAccountScopedRefreshGuard = publicationGuard
             self.snapshots[.codex] = snapshot
+            self.recordQuotaPlanningCodexSuccess(result: result, ownerKey: codexOwnerKey)
             if let sourceLabel {
                 self.lastSourceLabels[.codex] = sourceLabel
             }
@@ -1495,7 +1497,6 @@ extension UsageStore {
                 self.errors[.codex] = nil
                 return
             }
-            let publicationGuard = Self.codexScopedRefreshGuard(for: account)
             self.lastCodexUsagePublicationGuard = publicationGuard
             self.lastCodexAccountScopedRefreshGuard = publicationGuard
             self.lastFetchAttempts[.codex] = outcome.attempts
@@ -1554,6 +1555,7 @@ extension UsageStore {
                     accountDiscriminatorOverride: provider == .claude ? warningAccountDiscriminator : nil)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
+                self.recordQuotaPlanningTokenAccountSuccess(provider, result: result, account: account)
                 if provider == .deepseek {
                     self.clearDeepSeekProfileTransition()
                 }

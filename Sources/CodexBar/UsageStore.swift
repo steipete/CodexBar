@@ -38,6 +38,7 @@ extension UsageStore {
         _ = self.probeLogs
         _ = self.historicalPaceRevision
         _ = self.planUtilizationHistoryRevision
+        _ = self.quotaPlanningEstimates
         _ = self.providerStorageFootprints
         return 0
     }
@@ -194,6 +195,7 @@ final class UsageStore {
     var probeLogs: [UsageProvider: String] = [:]
     var historicalPaceRevision: Int = 0
     var planUtilizationHistoryRevision: Int = 0
+    var quotaPlanningEstimates: [UsageProvider: [String: QuotaPlanningEstimate]] = [:]
     var providerStorageFootprints: [UsageProvider: ProviderStorageFootprint] = [:]
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
@@ -347,6 +349,10 @@ final class UsageStore {
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
+    @ObservationIgnored var quotaPlanningLifecycle = QuotaPlanningLifecycle()
+    @ObservationIgnored let quotaPlanningClock = ContinuousClock()
+    @ObservationIgnored var quotaPlanningExpiryTask: Task<Void, Never>?
+    @ObservationIgnored var quotaPlanningExpiryGeneration: UInt64 = 0
 
     /// Background load task; cleared on deinit and on the cancel test seam.
     @ObservationIgnored var planUtilizationHistoryLoadTask: Task<Void, Never>?
@@ -827,6 +833,7 @@ final class UsageStore {
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
+        self.quotaPlanningExpiryTask?.cancel()
         self.planUtilizationHistoryLoadTask?.cancel()
     }
 

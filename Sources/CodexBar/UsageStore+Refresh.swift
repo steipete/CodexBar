@@ -61,6 +61,45 @@ extension UsageStore {
             oauthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier)
     }
 
+    private static func quotaPlanningAccountDiscriminator(
+        provider: UsageProvider,
+        tokenAccount: ProviderTokenAccount?,
+        result: ProviderFetchResult,
+        context: ProviderRefreshOutcomeContext) -> String?
+    {
+        if let tokenAccount {
+            return self.warningTokenAccountDiscriminator(tokenAccount)
+        }
+        if provider == .codex {
+            return context.codexSessionQuotaOwnerKey?.rawValue
+        }
+        if provider == .claude,
+           let discriminator = self.warningClaudeAccountDiscriminator(
+               strategyKind: result.strategyKind,
+               observation: context.claudeOAuthActiveAccountObservation,
+               oauthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier)
+        {
+            return discriminator
+        }
+        return self.quotaPlanningIdentityDiscriminator(provider: provider, usage: result.usage)
+    }
+
+    private func recordQuotaPlanningSuccess(
+        _ provider: UsageProvider,
+        _ result: ProviderFetchResult,
+        _ tokenAccount: ProviderTokenAccount?,
+        _ context: ProviderRefreshOutcomeContext)
+    {
+        self.recordQuotaPlanningSuccess(
+            provider: provider,
+            result: result,
+            accountDiscriminator: Self.quotaPlanningAccountDiscriminator(
+                provider: provider,
+                tokenAccount: tokenAccount,
+                result: result,
+                context: context))
+    }
+
     static func commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
         current: UsageSnapshot,
         previous: UsageSnapshot?) -> UsageSnapshot
@@ -232,6 +271,7 @@ extension UsageStore {
     private func prepareCodexRefreshPublication() -> CodexRefreshPublicationPreparation {
         let previousGuard = self.lastCodexUsagePublicationGuard
         let expectedGuard = self.freshCodexAccountScopedRefreshGuard()
+        self.activateQuotaPlanningCodexOwner(Self.codexSessionQuotaOwnerKey(for: expectedGuard))
         let hydrationCandidates = self.codexAccountSnapshots
         let projection = self.settings.codexVisibleAccountProjection
         let visibleAccounts = projection.visibleAccounts
@@ -556,6 +596,7 @@ extension UsageStore {
             }
             self.lastKnownResetSnapshots[provider] = backfilled
             self.snapshots[provider] = backfilled
+            self.recordQuotaPlanningSuccess(provider, result, currentTokenAccount, context)
             if provider == .deepseek {
                 self.clearDeepSeekProfileTransition()
             }
