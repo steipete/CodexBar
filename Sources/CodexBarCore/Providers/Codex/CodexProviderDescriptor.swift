@@ -42,7 +42,23 @@ public enum CodexProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "codex",
-                versionDetector: { _ in ProviderVersionDetector.codexVersion() }))
+                versionDetector: { _ in ProviderVersionDetector.codexVersion() }),
+            quotaPlanning: ProviderQuotaPlanningCapability(resolve: self.resolveQuotaPlanningPairs))
+    }
+
+    private static func resolveQuotaPlanningPairs(
+        input: QuotaPlanningResolutionInput) -> [QuotaPlanningPairSnapshot]
+    {
+        let windows = CodexSemanticRateWindows(snapshot: input.usage)
+        guard let session = windows.window(for: .session),
+              let weekly = windows.window(for: .weekly)
+        else {
+            return []
+        }
+        return [QuotaPlanningPairSnapshot(
+            id: "session-weekly",
+            short: QuotaPlanningWindowSnapshot(metricID: "primary", window: session),
+            long: QuotaPlanningWindowSnapshot(metricID: "secondary", window: weekly))]
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -131,13 +147,15 @@ struct CodexCLIUsageStrategy: ProviderFetchStrategy {
                     updatedAt: credits.updatedAt,
                     identity: snapshot.identity),
                 credits: credits,
-                sourceLabel: "codex-cli")
+                sourceLabel: "codex-cli",
+                observationFreshness: .live)
         }
         let credits = context.includeCredits ? snapshot.credits : nil
         return self.makeResult(
             usage: usage,
             credits: credits,
-            sourceLabel: "codex-cli")
+            sourceLabel: "codex-cli",
+            observationFreshness: .live)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
@@ -269,7 +287,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     .withCodexResetCredits(resetCredits)
                     .withDataConfidence(dataConfidence),
                 credits: credits,
-                sourceLabel: "oauth")
+                sourceLabel: "oauth",
+                observationFreshness: .live)
         }
 
         guard credits != nil
@@ -292,7 +311,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
                     response: usageResponse,
                     credentials: credentials)),
             credits: credits,
-            sourceLabel: "oauth")
+            sourceLabel: "oauth",
+            observationFreshness: .live)
     }
 
     private static func replacingWithCLIMonthlyLimitIfAvailable(
@@ -327,6 +347,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             sourceLabel: oauthResult.sourceLabel,
             strategyID: oauthResult.strategyID,
             strategyKind: oauthResult.strategyKind,
+            observationFreshness: oauthResult.observationFreshness,
             diagnostic: oauthResult.diagnostic)
     }
 

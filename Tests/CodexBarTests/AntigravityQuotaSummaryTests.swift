@@ -84,6 +84,31 @@ struct AntigravityQuotaSummaryTests {
         #expect(usage.extraRateWindows?.first?.window.remainingPercent == 50)
     }
 
+    @Test
+    func `out of range quota summary fraction remains explicitly unknown`() throws {
+        let json = """
+        {
+          "groups": [
+            {
+              "displayName": "Gemini Models",
+              "buckets": [
+                {
+                  "bucketId": "gemini-weekly",
+                  "displayName": "Weekly Limit",
+                  "remainingFraction": 1.2
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let snapshot = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(json.utf8))
+        let window = try #require(snapshot.toUsageSnapshot().extraRateWindows?.first)
+
+        #expect(!window.usageKnown)
+    }
+
     @Test(arguments: ["session", "5h", "5-hour", "five hour", "five-hour"])
     func `normalizes supported session cadence aliases without rewriting bucket IDs`(alias: String) throws {
         let bucketID = "gemini-\(alias)"

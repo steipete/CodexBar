@@ -375,15 +375,13 @@ struct CodexConsumerProjection {
 
     private static func rateWindowsByLane(snapshot: UsageSnapshot?) -> [RateLane: RateWindow] {
         guard let snapshot else { return [:] }
-
+        let semanticWindows = CodexSemanticRateWindows(snapshot: snapshot)
         var windowsByLane: [RateLane: RateWindow] = [:]
-        let slottedWindows: [(RateLane, RateWindow)] = [
-            self.classifyRateWindow(snapshot.primary, slot: .primary),
-            self.classifyRateWindow(snapshot.secondary, slot: .secondary),
-        ].compactMap(\.self)
-
-        for (lane, window) in slottedWindows {
-            windowsByLane[lane] = window
+        if let session = semanticWindows.window(for: .session) {
+            windowsByLane[.session] = session
+        }
+        if let weekly = semanticWindows.window(for: .weekly) {
+            windowsByLane[.weekly] = weekly
         }
         return windowsByLane
     }
@@ -394,10 +392,12 @@ struct CodexConsumerProjection {
     {
         guard let snapshot else { return [] }
 
-        let slottedLanes = [
-            self.classifyRateWindow(snapshot.primary, slot: .primary)?.0,
-            self.classifyRateWindow(snapshot.secondary, slot: .secondary)?.0,
-        ].compactMap(\.self)
+        let slottedLanes = CodexSemanticRateWindows(snapshot: snapshot).sourceOrder.map { role in
+            switch role {
+            case .session: RateLane.session
+            case .weekly: RateLane.weekly
+            }
+        }
 
         var visible: [RateLane] = []
         for lane in slottedLanes where rateWindowsByLane[lane] != nil && !visible.contains(lane) {
@@ -421,31 +421,6 @@ struct CodexConsumerProjection {
         case .weekly:
             .weekly
         }
-    }
-
-    private enum SnapshotSlot {
-        case primary
-        case secondary
-    }
-
-    private static func classifyRateWindow(_ window: RateWindow?, slot: SnapshotSlot) -> (RateLane, RateWindow)? {
-        guard let window else { return nil }
-
-        let lane: RateLane = switch window.windowMinutes {
-        case 300:
-            .session
-        case 10080:
-            .weekly
-        default:
-            switch slot {
-            case .primary:
-                .session
-            case .secondary:
-                .weekly
-            }
-        }
-
-        return (lane, window)
     }
 
     /// When Codex's weekly lane is exhausted, it is the binding cap: session quota cannot be used until

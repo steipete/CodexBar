@@ -41,7 +41,53 @@ public enum AntigravityProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
-                versionDetector: nil))
+                versionDetector: nil),
+            quotaPlanning: ProviderQuotaPlanningCapability(resolve: self.resolveQuotaPlanningPairs))
+    }
+
+    private static func resolveQuotaPlanningPairs(
+        input: QuotaPlanningResolutionInput) -> [QuotaPlanningPairSnapshot]
+    {
+        struct Group {
+            var short: [NamedRateWindow] = []
+            var long: [NamedRateWindow] = []
+        }
+
+        var groups: [String: Group] = [:]
+        for namedWindow in input.usage.extraRateWindows ?? [] {
+            guard let groupID = AntigravityStatusSnapshot.quotaPlanningGroupID(forWindowID: namedWindow.id) else {
+                continue
+            }
+            switch namedWindow.window.windowMinutes {
+            case 300:
+                groups[groupID, default: Group()].short.append(namedWindow)
+            case 10080:
+                groups[groupID, default: Group()].long.append(namedWindow)
+            default:
+                continue
+            }
+        }
+
+        return groups.keys.sorted().compactMap { groupID in
+            guard let group = groups[groupID],
+                  group.short.count == 1,
+                  group.long.count == 1,
+                  let short = group.short.first,
+                  let long = group.long.first
+            else {
+                return nil
+            }
+            return QuotaPlanningPairSnapshot(
+                id: "quota-summary-\(groupID)",
+                short: QuotaPlanningWindowSnapshot(
+                    metricID: short.id,
+                    window: short.window,
+                    usageKnown: short.usageKnown),
+                long: QuotaPlanningWindowSnapshot(
+                    metricID: long.id,
+                    window: long.window,
+                    usageKnown: long.usageKnown))
+        }
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -130,7 +176,8 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
         try AntigravitySelectedAccountGuard.validate(usage, context: context)
         return self.makeResult(
             usage: usage,
-            sourceLabel: self.source.sourceLabel)
+            sourceLabel: self.source.sourceLabel,
+            observationFreshness: .live)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
@@ -435,7 +482,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             let warmUsage = try warmSnapshot.toUsageSnapshot()
             return self.makeResult(
                 usage: warmUsage,
-                sourceLabel: Self.sourceLabel)
+                sourceLabel: Self.sourceLabel,
+                observationFreshness: .live)
         }
 
         try Task.checkCancellation()
@@ -484,7 +532,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
 
         return self.makeResult(
             usage: usage,
-            sourceLabel: Self.sourceLabel)
+            sourceLabel: Self.sourceLabel,
+            observationFreshness: .live)
     }
 
     static func shouldResetSessionAfterFetch(_ context: ProviderFetchContext) -> Bool {
@@ -624,7 +673,8 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
         let usage = try Self.usageSnapshot(from: snapshot)
         return self.makeResult(
             usage: usage,
-            sourceLabel: "oauth")
+            sourceLabel: "oauth",
+            observationFreshness: .live)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

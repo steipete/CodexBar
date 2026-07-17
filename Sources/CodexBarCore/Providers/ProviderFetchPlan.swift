@@ -5,6 +5,12 @@ public enum ProviderRuntime: Sendable {
     case cli
 }
 
+public enum ProviderObservationFreshness: String, Equatable, Sendable {
+    case live
+    case cached
+    case unknown
+}
+
 public enum ProviderSourceMode: String, CaseIterable, Sendable, Codable {
     case auto
     case web
@@ -101,6 +107,9 @@ public struct ProviderFetchResult: Sendable {
     public let sourceLabel: String
     public let strategyID: String
     public let strategyKind: ProviderFetchKind
+    /// Whether the quota facts were observed by this successful fetch.
+    /// This is transient fetch provenance and is never persisted with `UsageSnapshot`.
+    public let observationFreshness: ProviderObservationFreshness
     /// Optional live diagnostic retained alongside an otherwise usable snapshot.
     public let diagnostic: String?
     /// Transient account ownership evidence for plan-utilization history.
@@ -123,6 +132,7 @@ public struct ProviderFetchResult: Sendable {
         sourceLabel: String,
         strategyID: String,
         strategyKind: ProviderFetchKind,
+        observationFreshness: ProviderObservationFreshness = .unknown,
         diagnostic: String? = nil,
         claudeOAuthKeychainPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
@@ -136,6 +146,7 @@ public struct ProviderFetchResult: Sendable {
         self.sourceLabel = sourceLabel
         self.strategyID = strategyID
         self.strategyKind = strategyKind
+        self.observationFreshness = observationFreshness
         self.diagnostic = diagnostic
         self.claudeOAuthKeychainPersistentRefHash = claudeOAuthKeychainPersistentRefHash
         self.claudeOAuthHistoryOwnerIdentifier = claudeOAuthHistoryOwnerIdentifier
@@ -203,6 +214,7 @@ extension ProviderFetchStrategy {
         credits: CreditsSnapshot? = nil,
         dashboard: OpenAIDashboardSnapshot? = nil,
         sourceLabel: String,
+        observationFreshness: ProviderObservationFreshness = .unknown,
         diagnostic: String? = nil) -> ProviderFetchResult
     {
         ProviderFetchResult(
@@ -212,6 +224,7 @@ extension ProviderFetchStrategy {
             sourceLabel: sourceLabel,
             strategyID: self.id,
             strategyKind: self.kind,
+            observationFreshness: observationFreshness,
             diagnostic: diagnostic)
     }
 }

@@ -277,7 +277,7 @@ public struct AntigravityStatusSnapshot: Sendable {
                     id: Self.quotaSummaryWindowID(for: bucket),
                     title: "\(groupTitle) \(bucketTitle)",
                     window: window,
-                    usageKnown: !bucket.disabled && bucket.remainingFraction != nil)
+                    usageKnown: !bucket.disabled && remainingPercent != nil)
             }
         }
     }
@@ -288,13 +288,37 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static let quotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
 
+    static func quotaPlanningGroupID(forWindowID id: String) -> String? {
+        guard id.hasPrefix(self.quotaSummaryWindowIDPrefix) else { return nil }
+        var bucketID = String(id.dropFirst(self.quotaSummaryWindowIDPrefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+        if bucketID.hasSuffix(" limit") {
+            bucketID.removeLast(" limit".count)
+        }
+
+        let cadenceAliases = self.sessionCadenceAliases.union(["weekly"])
+            .sorted { $0.count > $1.count }
+        guard let cadence = cadenceAliases.first(where: { bucketID.hasSuffix("-\($0)") }) else {
+            return nil
+        }
+        bucketID.removeLast(cadence.count + 1)
+        return bucketID.isEmpty ? nil : bucketID
+    }
+
     private static func quotaSummaryWindowID(for bucket: AntigravityQuotaSummaryBucket) -> String {
         self.quotaSummaryWindowIDPrefix + bucket.bucketId
     }
 
     private static func remainingPercent(from remainingFraction: Double?) -> Double? {
-        guard let remainingFraction else { return nil }
-        return max(0, min(100, remainingFraction * 100))
+        guard let remainingFraction,
+              remainingFraction.isFinite,
+              (0...1).contains(remainingFraction)
+        else {
+            return nil
+        }
+        return remainingFraction * 100
     }
 
     private static func displayTitle(forQuotaGroup group: AntigravityQuotaSummaryGroup) -> String {

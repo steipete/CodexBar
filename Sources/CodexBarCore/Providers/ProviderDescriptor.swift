@@ -17,6 +17,7 @@ public struct ProviderDescriptor: Sendable {
     public let tokenCost: ProviderTokenCostConfig
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
+    public let quotaPlanning: ProviderQuotaPlanningCapability?
 
     public init(
         id: UsageProvider,
@@ -24,7 +25,8 @@ public struct ProviderDescriptor: Sendable {
         branding: ProviderBranding,
         tokenCost: ProviderTokenCostConfig,
         fetchPlan: ProviderFetchPlan,
-        cli: ProviderCLIConfig)
+        cli: ProviderCLIConfig,
+        quotaPlanning: ProviderQuotaPlanningCapability? = nil)
     {
         self.id = id
         self.metadata = metadata
@@ -32,6 +34,7 @@ public struct ProviderDescriptor: Sendable {
         self.tokenCost = tokenCost
         self.fetchPlan = fetchPlan
         self.cli = cli
+        self.quotaPlanning = quotaPlanning
     }
 
     public func fetchOutcome(context: ProviderFetchContext) async -> ProviderFetchOutcome {

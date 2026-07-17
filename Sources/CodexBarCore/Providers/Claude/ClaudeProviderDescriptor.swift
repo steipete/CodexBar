@@ -44,7 +44,12 @@ public enum ClaudeProviderDescriptor {
                 name: "claude",
                 versionDetector: { browserDetection in
                     ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
-                }))
+                }),
+            quotaPlanning: ProviderQuotaPlanningCapability { input in
+                ProviderQuotaPlanningCapability.primarySecondaryPairs(
+                    usage: input.usage,
+                    pairID: "session-weekly")
+            })
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -392,6 +397,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "oauth",
             strategyID: self.id,
             strategyKind: self.kind,
+            observationFreshness: .live,
             claudeOAuthKeychainPersistentRefHash: usage.oauthKeychainPersistentRefHash,
             claudeOAuthHistoryOwnerIdentifier: usage.oauthHistoryOwnerIdentifier,
             claudeOAuthKeychainCredentialMismatch: usage.oauthKeychainCredentialMismatch,
@@ -509,7 +515,8 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
         let usage = try await self.loadUsage(before: context.webTimeout, context: context)
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
-            sourceLabel: "web")
+            sourceLabel: "web",
+            observationFreshness: .live)
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -677,7 +684,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
-            sourceLabel: "claude")
+            sourceLabel: "claude",
+            observationFreshness: .live)
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
