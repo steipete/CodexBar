@@ -11,7 +11,7 @@ final class ScreenConfettiOverlayController {
     private var windows: [NSWindow] = []
     private var dismissalTask: Task<Void, Never>?
 
-    func play(originInScreen origin: CGPoint?) {
+    func play(originInScreen origin: CGPoint?, colors: [ProviderColor]) {
         guard self.windows.isEmpty else {
             self.logger.debug("Ignoring confetti trigger while overlay is already active")
             return
@@ -23,7 +23,9 @@ final class ScreenConfettiOverlayController {
             return
         }
 
-        let palette = Self.randomPalette()
+        let palette = colors.map { color in
+            Color(red: color.red, green: color.green, blue: color.blue)
+        }
         self.windows = screens.map { screen in
             let frame = screen.frame
             let localOrigin = Self.localOrigin(in: frame, from: origin)
@@ -98,17 +100,6 @@ final class ScreenConfettiOverlayController {
         return CGPoint(
             x: min(max(resolved.x, insetFrame.minX), insetFrame.maxX) - screenFrame.minX,
             y: min(max(resolved.y, insetFrame.minY), insetFrame.maxY) - screenFrame.minY)
-    }
-
-    private static func randomPalette() -> [Color] {
-        let hue = Double.random(in: 0...1)
-        let hueOffsets = [0.0, 0.08, 0.16, 0.5, 0.66, 0.83]
-        return hueOffsets.map { offset in
-            Color(
-                hue: (hue + offset).truncatingRemainder(dividingBy: 1),
-                saturation: Double.random(in: 0.55...0.95),
-                brightness: Double.random(in: 0.85...1))
-        }
     }
 }
 

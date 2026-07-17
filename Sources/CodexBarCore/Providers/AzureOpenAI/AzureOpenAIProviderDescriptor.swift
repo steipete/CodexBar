@@ -27,7 +27,12 @@ public enum AzureOpenAIProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .openai,
                 iconResourceName: "ProviderIcon-codex",
-                color: ProviderColor(red: 0, green: 120 / 255, blue: 212 / 255)),
+                color: ProviderColor(red: 0, green: 120 / 255, blue: 212 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x0078D4),
+                    ProviderColor(hex: 0x50E6FF),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Azure OpenAI usage history is not exposed by the deployment validation probe." }),

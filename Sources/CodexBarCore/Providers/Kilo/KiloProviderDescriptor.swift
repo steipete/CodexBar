@@ -26,7 +26,12 @@ public enum KiloProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .kilo,
                 iconResourceName: "ProviderIcon-kilo",
-                color: ProviderColor(red: 242 / 255, green: 112 / 255, blue: 39 / 255)),
+                color: ProviderColor(red: 242 / 255, green: 112 / 255, blue: 39 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0xFA483A),
+                    ProviderColor(hex: 0xAC1D0E),
+                    ProviderColor(hex: 0x121212),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kilo cost summary is not supported." }),

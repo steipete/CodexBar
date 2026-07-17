@@ -27,7 +27,12 @@ public enum GroqProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .groq,
                 iconResourceName: "ProviderIcon-groq",
-                color: ProviderColor(red: 245 / 255, green: 104 / 255, blue: 68 / 255)),
+                color: ProviderColor(red: 245 / 255, green: 104 / 255, blue: 68 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0xF43E01),
+                    ProviderColor(hex: 0xFFFFFF),
+                    ProviderColor(hex: 0x97FCA7),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Sign in at console.groq.com to show Groq spend and token usage." }),

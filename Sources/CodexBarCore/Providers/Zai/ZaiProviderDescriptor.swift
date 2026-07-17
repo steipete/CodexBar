@@ -25,7 +25,12 @@ public enum ZaiProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .zai,
                 iconResourceName: "ProviderIcon-zai",
-                color: ProviderColor(red: 232 / 255, green: 90 / 255, blue: 106 / 255)),
+                color: ProviderColor(red: 232 / 255, green: 90 / 255, blue: 106 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x126EF6),
+                    ProviderColor(hex: 0x2D2D2D),
+                    ProviderColor(hex: 0xDFE2E7),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "z.ai cost summary is not supported." }),

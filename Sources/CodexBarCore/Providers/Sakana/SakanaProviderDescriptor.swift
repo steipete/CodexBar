@@ -26,7 +26,12 @@ public enum SakanaProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .sakana,
                 iconResourceName: "ProviderIcon-sakana",
-                color: ProviderColor(red: 0.16, green: 0.46, blue: 0.86)),
+                color: ProviderColor(red: 0.16, green: 0.46, blue: 0.86),
+                confettiPalette: [
+                    ProviderColor(hex: 0xE10600),
+                    ProviderColor(hex: 0x0D0D0D),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Sakana AI cost summary is not supported." }),

@@ -27,7 +27,12 @@ public enum StepFunProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .stepfun,
                 iconResourceName: "ProviderIcon-stepfun",
-                color: ProviderColor(red: 0.13, green: 0.59, blue: 0.95)),
+                color: ProviderColor(red: 0.13, green: 0.59, blue: 0.95),
+                confettiPalette: [
+                    ProviderColor(hex: 0x000000),
+                    ProviderColor(hex: 0xFFFFFF),
+                    ProviderColor(hex: 0x858585),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "StepFun per-day cost history is not available via API." }),

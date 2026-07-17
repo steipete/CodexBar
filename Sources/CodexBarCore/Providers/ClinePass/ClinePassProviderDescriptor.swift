@@ -27,7 +27,12 @@ public enum ClinePassProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .clinepass,
                 iconResourceName: "ProviderIcon-clinepass",
-                color: ProviderColor(red: 0.38, green: 0.64, blue: 0.98)),
+                color: ProviderColor(red: 0.38, green: 0.64, blue: 0.98),
+                confettiPalette: [
+                    ProviderColor(hex: 0x61A3FA),
+                    ProviderColor(hex: 0x111111),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ClinePass cost history is not available via the usage-limits API." }),

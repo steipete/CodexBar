@@ -26,7 +26,12 @@ public enum LLMProxyProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .llmproxy,
                 iconResourceName: "ProviderIcon-llmproxy",
-                color: ProviderColor(red: 36 / 255, green: 180 / 255, blue: 126 / 255)),
+                color: ProviderColor(red: 36 / 255, green: 180 / 255, blue: 126 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x00FFFF),
+                    ProviderColor(hex: 0xFFFFFF),
+                    ProviderColor(hex: 0x000000),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "LLM Proxy cost history is reported in the quota-stats summary." }),

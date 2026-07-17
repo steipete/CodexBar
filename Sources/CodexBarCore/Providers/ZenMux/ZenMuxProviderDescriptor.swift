@@ -23,7 +23,12 @@ public enum ZenMuxProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .zenmux,
                 iconResourceName: "ProviderIcon-zenmux",
-                color: ProviderColor(red: 108 / 255, green: 92 / 255, blue: 231 / 255)),
+                color: ProviderColor(red: 108 / 255, green: 92 / 255, blue: 231 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x6C5CE7),
+                    ProviderColor(hex: 0xA29BFE),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ZenMux cost history is not exposed by the Management API." }),

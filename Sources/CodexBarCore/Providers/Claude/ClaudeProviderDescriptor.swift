@@ -28,7 +28,12 @@ public enum ClaudeProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .claude,
                 iconResourceName: "ProviderIcon-claude",
-                color: ProviderColor(red: 204 / 255, green: 124 / 255, blue: 94 / 255)),
+                color: ProviderColor(red: 204 / 255, green: 124 / 255, blue: 94 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0xD97757),
+                    ProviderColor(hex: 0xF0EEE6),
+                    ProviderColor(hex: 0x141413),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage),

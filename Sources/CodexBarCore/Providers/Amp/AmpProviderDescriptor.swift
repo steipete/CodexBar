@@ -26,7 +26,12 @@ public enum AmpProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .amp,
                 iconResourceName: "ProviderIcon-amp",
-                color: ProviderColor(red: 220 / 255, green: 38 / 255, blue: 38 / 255)),
+                color: ProviderColor(red: 220 / 255, green: 38 / 255, blue: 38 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x091C1E),
+                    ProviderColor(hex: 0xDFDFC1),
+                    ProviderColor(hex: 0xD97706),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Amp cost summary is not supported." }),

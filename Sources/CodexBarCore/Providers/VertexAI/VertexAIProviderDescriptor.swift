@@ -26,7 +26,12 @@ public enum VertexAIProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .vertexai,
                 iconResourceName: "ProviderIcon-vertexai",
-                color: ProviderColor(red: 66 / 255, green: 133 / 255, blue: 244 / 255)),
+                color: ProviderColor(red: 66 / 255, green: 133 / 255, blue: 244 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x4285F4),
+                    ProviderColor(hex: 0xEA4335),
+                    ProviderColor(hex: 0xFBBC04),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "No Vertex AI cost data found in Claude logs. Ensure entries include Vertex metadata."

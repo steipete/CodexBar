@@ -64,7 +64,12 @@ public enum DeepSeekProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .deepseek,
                 iconResourceName: "ProviderIcon-deepseek",
-                color: ProviderColor(red: 0.32, green: 0.49, blue: 0.94)),
+                color: ProviderColor(red: 0.32, green: 0.49, blue: 0.94),
+                confettiPalette: [
+                    ProviderColor(hex: 0x4D6BFE),
+                    ProviderColor(hex: 0x3982FF),
+                    ProviderColor(hex: 0x020E36),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepSeek per-day cost history is not available via API." }),

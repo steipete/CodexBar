@@ -27,7 +27,12 @@ public enum DevinProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .devin,
                 iconResourceName: "ProviderIcon-devin",
-                color: ProviderColor(red: 70 / 255, green: 180 / 255, blue: 130 / 255)),
+                color: ProviderColor(red: 70 / 255, green: 180 / 255, blue: 130 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x000000),
+                    ProviderColor(hex: 0x626870),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Devin cost summary is not supported." }),

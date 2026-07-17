@@ -28,7 +28,12 @@ public enum GeminiProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .gemini,
                 iconResourceName: "ProviderIcon-gemini",
-                color: ProviderColor(red: 171 / 255, green: 135 / 255, blue: 234 / 255)),
+                color: ProviderColor(red: 171 / 255, green: 135 / 255, blue: 234 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x4285F4),
+                    ProviderColor(hex: 0xA142F4),
+                    ProviderColor(hex: 0xD96570),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Gemini cost summary is not supported." }),
