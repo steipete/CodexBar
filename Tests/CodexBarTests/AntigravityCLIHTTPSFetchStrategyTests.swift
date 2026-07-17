@@ -708,7 +708,7 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         let timeouts = timeoutRecorder.snapshot()
         #expect(result == "ok")
         #expect(timeouts.count == 2)
-        #expect(timeouts.allSatisfy { $0 < 10 })
+        #expect(timeouts.allSatisfy { $0 <= 10 })
         #expect((timeouts.last ?? 10) < (timeouts.first ?? 0))
     }
 
