@@ -13,6 +13,7 @@ enum MenuBarMetricWindowResolver {
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         supportsAverage: Bool,
+        antigravityPrioritizeExhaustedQuotas: Bool = false,
         now: Date = Date())
         -> RateWindow?
     {
@@ -51,7 +52,11 @@ enum MenuBarMetricWindowResolver {
         case .average:
             return Self.averageWindow(provider: provider, snapshot: snapshot, supportsAverage: supportsAverage)
         case .automatic:
-            return Self.automaticWindow(provider: provider, snapshot: snapshot, now: now)
+            return Self.automaticWindow(
+                provider: provider,
+                snapshot: snapshot,
+                antigravityPrioritizeExhaustedQuotas: antigravityPrioritizeExhaustedQuotas,
+                now: now)
         }
     }
 
@@ -105,9 +110,20 @@ enum MenuBarMetricWindowResolver {
         return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
     }
 
-    private static func automaticWindow(provider: UsageProvider, snapshot: UsageSnapshot, now: Date) -> RateWindow? {
+    private static func automaticWindow(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        antigravityPrioritizeExhaustedQuotas: Bool,
+        now: Date)
+        -> RateWindow?
+    {
         if provider == .antigravity {
-            if let window = antigravityQuotaSummaryRankingWindow(snapshot: snapshot, now: now) {
+            if antigravityPrioritizeExhaustedQuotas,
+               let window = antigravityQuotaSummaryRankingWindow(snapshot: snapshot, now: now)
+            {
+                return window
+            }
+            if let window = mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot) {
                 return window
             }
             return self.mostConstrainedWindow(
@@ -158,8 +174,20 @@ enum MenuBarMetricWindowResolver {
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
     private static let antigravityCompactFallbackWindowIDPrefix = "antigravity-compact-fallback-"
 
-    /// Picks the binding supported quota-summary lane. Both automatic rendering and
-    /// cross-provider ranking use this exact policy.
+    private static func mostConstrainedAntigravityQuotaSummaryWindow(snapshot: UsageSnapshot) -> RateWindow? {
+        let windows = snapshot.extraRateWindows?
+            .filter { $0.usageKnown && $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix) }
+            .map(\.window) ?? []
+        guard !windows.isEmpty else { return nil }
+
+        let usableWindows = windows.filter { $0.usedPercent < 100 }
+        if let maxUsable = usableWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
+            return maxUsable
+        }
+        return windows.max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    /// Picks the binding supported quota-summary lane for the exhausted-first opt-in.
     static func antigravityQuotaSummaryRankingWindow(
         snapshot: UsageSnapshot,
         now: Date)

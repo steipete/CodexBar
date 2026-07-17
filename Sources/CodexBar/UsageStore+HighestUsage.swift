@@ -44,6 +44,9 @@ extension UsageStore {
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         if provider == .antigravity, effectivePreference == .automatic {
+            guard self.settings.antigravityPrioritizeExhaustedQuotas else {
+                return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
+            }
             return MenuBarMetricWindowResolver.antigravityQuotaSummaryRankingWindow(
                 snapshot: snapshot,
                 now: now)
@@ -94,7 +97,12 @@ extension UsageStore {
             return percents.allSatisfy { $0 >= 100 }
         }
         if provider == .antigravity, effectivePreference == .automatic {
-            return MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot)
+            if self.settings.antigravityPrioritizeExhaustedQuotas {
+                return MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot)
+            }
+            let windows = Self.antigravityRenderedQuotaSummaryWindows(snapshot: snapshot)
+            guard !windows.isEmpty else { return true }
+            return windows.allSatisfy { $0.usedPercent >= 100 }
         }
         if provider == .copilot,
            effectivePreference == .automatic,
@@ -117,5 +125,27 @@ extension UsageStore {
         }
 
         return true
+    }
+
+    private nonisolated static func mostConstrainedAntigravityQuotaSummaryWindow(
+        snapshot: UsageSnapshot)
+        -> RateWindow?
+    {
+        let windows = self.antigravityRenderedQuotaSummaryWindows(snapshot: snapshot)
+        guard !windows.isEmpty else { return nil }
+
+        let usableWindows = windows.filter { $0.usedPercent < 100 }
+        if let maxUsable = usableWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
+            return maxUsable
+        }
+        return windows.max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    private nonisolated static func antigravityRenderedQuotaSummaryWindows(
+        snapshot: UsageSnapshot)
+        -> [RateWindow]
+    {
+        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
+        return [windows.primary, windows.secondary].compactMap(\.self)
     }
 }

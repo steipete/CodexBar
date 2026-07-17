@@ -229,7 +229,7 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
-    func `automatic metric selects the most used supported antigravity quota lane`() {
+    func `automatic metric preserves usable first by default and prioritizes exhausted lane when enabled`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 67, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
@@ -253,14 +253,22 @@ struct MenuBarMetricWindowResolverTests {
             ],
             updatedAt: Date())
 
-        let window = MenuBarMetricWindowResolver.rateWindow(
+        let defaultWindow = MenuBarMetricWindowResolver.rateWindow(
             preference: .automatic,
             provider: .antigravity,
             snapshot: snapshot,
             supportsAverage: false)
+        let optInWindow = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
 
-        #expect(window?.remainingPercent == 0)
-        #expect(window?.windowMinutes == 300)
+        #expect(defaultWindow?.remainingPercent == 29)
+        #expect(defaultWindow?.windowMinutes == 300)
+        #expect(optInWindow?.remainingPercent == 0)
+        #expect(optInWindow?.windowMinutes == 300)
     }
 
     @Test
@@ -599,17 +607,20 @@ struct MenuBarMetricWindowResolverTests {
             preference: .primary,
             provider: .antigravity,
             snapshot: snapshot,
-            supportsAverage: false)
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
         let secondary = MenuBarMetricWindowResolver.rateWindow(
             preference: .secondary,
             provider: .antigravity,
             snapshot: snapshot,
-            supportsAverage: false)
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
         let tertiary = MenuBarMetricWindowResolver.rateWindow(
             preference: .tertiary,
             provider: .antigravity,
             snapshot: snapshot,
-            supportsAverage: false)
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
 
         #expect(primary?.resetDescription == "Claude")
         #expect(secondary?.resetDescription == "Gemini Pro")

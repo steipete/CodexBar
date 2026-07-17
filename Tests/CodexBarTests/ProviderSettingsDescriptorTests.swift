@@ -88,6 +88,43 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `antigravity exhausted five hour and weekly priority names both surfaces and persists across reopen`() throws {
+        let suite = "ProviderSettingsDescriptorTests-antigravity-ranking"
+        let fixture = try self.makeSettingsFixture(suite: suite)
+        let context = fixture.settingsContext(provider: .antigravity)
+
+        let toggles = AntigravityProviderImplementation().settingsToggles(context: context)
+        let toggle = try #require(toggles.first { $0.id == "antigravity-prioritize-exhausted-quotas" })
+
+        #expect(toggle.title == "Prioritize exhausted quotas")
+        #expect(toggle.subtitle ==
+            "Optional. In Automatic mode, let exhausted five-hour or weekly lanes outrank still-usable model " +
+            "families. Applies to the menu bar and Overview ranking.")
+        #expect(toggle.binding.wrappedValue == false)
+        #expect(fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas == nil)
+
+        toggle.binding.wrappedValue = true
+
+        #expect(fixture.settings.antigravityPrioritizeExhaustedQuotas)
+        #expect(fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas == true)
+
+        let reopened = try SettingsStore(
+            userDefaults: #require(UserDefaults(suiteName: suite)),
+            configStore: testConfigStore(suiteName: suite, reset: false),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(reopened.antigravityPrioritizeExhaustedQuotas)
+
+        reopened.antigravityPrioritizeExhaustedQuotas = false
+        let reopenedAfterDisabling = try SettingsStore(
+            userDefaults: #require(UserDefaults(suiteName: suite)),
+            configStore: testConfigStore(suiteName: suite, reset: false),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(reopenedAfterDisabling.antigravityPrioritizeExhaustedQuotas == false)
+    }
+
+    @Test
     func `codex exposes open AI web extras toggle as default off opt in`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-openai-toggle")
         let context = fixture.settingsContext(provider: .codex)

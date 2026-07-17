@@ -358,6 +358,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
+            antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
             now: now)
     }
 

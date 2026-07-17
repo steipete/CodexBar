@@ -123,6 +123,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var claudeSwapExecutablePath: String?
     public var codexActiveSource: CodexActiveSource?
     public var codexProfileHomePaths: [String]?
+    public var antigravityPrioritizeExhaustedQuotas: Bool?
     public var quotaWarnings: QuotaWarningConfig?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
@@ -146,6 +147,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         claudeSwapExecutablePath: String? = nil,
         codexActiveSource: CodexActiveSource? = nil,
         codexProfileHomePaths: [String]? = nil,
+        antigravityPrioritizeExhaustedQuotas: Bool? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
         kiloKnownOrganizations: [KiloOrganization]? = nil,
         kiloEnabledOrganizationIDs: [String]? = nil,
@@ -168,6 +170,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.claudeSwapExecutablePath = claudeSwapExecutablePath
         self.codexActiveSource = codexActiveSource
         self.codexProfileHomePaths = codexProfileHomePaths
+        self.antigravityPrioritizeExhaustedQuotas = antigravityPrioritizeExhaustedQuotas
         self.quotaWarnings = quotaWarnings
         self.kiloKnownOrganizations = kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = kiloEnabledOrganizationIDs

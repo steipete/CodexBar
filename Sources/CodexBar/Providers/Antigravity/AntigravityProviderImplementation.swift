@@ -9,6 +9,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.antigravityUsageDataSource
+        _ = settings.antigravityPrioritizeExhaustedQuotas
         _ = settings.tokenAccountsData(for: .antigravity)
     }
 
@@ -24,6 +25,24 @@ struct AntigravityProviderImplementation: ProviderImplementation {
         case .oauth: .oauth
         case .cli: .cli
         }
+    }
+
+    @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        [
+            ProviderSettingsToggleDescriptor(
+                id: "antigravity-prioritize-exhausted-quotas",
+                title: "Prioritize exhausted quotas",
+                subtitle: "Optional. In Automatic mode, let exhausted five-hour or weekly lanes outrank " +
+                    "still-usable model families. Applies to the menu bar and Overview ranking.",
+                binding: context.boolBinding(\.antigravityPrioritizeExhaustedQuotas),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+        ]
     }
 
     @MainActor
