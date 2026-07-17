@@ -71,8 +71,52 @@ struct ClaudeWebRefreshResilienceTests {
         }
     }
 
+    @Test
+    func `web parse failure clears prior Claude snapshot when surfaced`() async throws {
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                let prior = Self.makePriorSnapshot()
+                let store = try await MainActor.run {
+                    try Self.makeStore(
+                        suite: "ClaudeWebRefreshResilienceTests-web-parse",
+                        prior: prior,
+                        strategy: ClaudeWebParseFailureFetchStrategy(message: "Missing Current session."))
+                }
+
+                await store.refreshProvider(.claude)
+                let firstResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        hasError: store.error(for: .claude) != nil)
+                }
+
+                #expect(firstResult.updatedAt == prior.updatedAt)
+                #expect(!firstResult.hasError)
+
+                await store.refreshProvider(.claude)
+                let secondResult = await MainActor.run {
+                    (
+                        hasSnapshot: store.snapshot(for: .claude) != nil,
+                        error: store.error(for: .claude))
+                }
+
+                #expect(!secondResult.hasSnapshot)
+                #expect(secondResult.error?.localizedCaseInsensitiveContains("Missing Current session") == true)
+            }
+        }
+    }
+
     @MainActor
-    private static func makeStore(suite: String, prior: UsageSnapshot?) throws -> UsageStore {
+    private static func makeStore(
+        suite: String,
+        prior: UsageSnapshot?,
+        strategy: any ProviderFetchStrategy = ClaudeWebUnauthorizedFetchStrategy()) throws -> UsageStore
+    {
         let settings = self.makeSettingsStore(suite: suite)
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
@@ -104,7 +148,7 @@ struct ClaudeWebRefreshResilienceTests {
             tokenCost: baseSpec.descriptor.tokenCost,
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.web],
-                pipeline: ProviderFetchPipeline { _ in [ClaudeWebUnauthorizedFetchStrategy()] }),
+                pipeline: ProviderFetchPipeline { _ in [strategy] }),
             cli: baseSpec.descriptor.cli)
         store.providerSpecs[.claude] = ProviderSpec(
             style: baseSpec.style,
@@ -166,6 +210,24 @@ private struct ClaudeWebUnauthorizedFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         throw ClaudeWebAPIFetcher.FetchError.unauthorized
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct ClaudeWebParseFailureFetchStrategy: ProviderFetchStrategy {
+    let id = "test.claude-web-parse-failure"
+    let kind: ProviderFetchKind = .web
+    let message: String
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw ClaudeStatusProbeError.parseFailed(self.message)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

@@ -283,6 +283,123 @@ struct ClaudeResilienceTests {
     }
 
     @Test
+    func `CLI parse failures keep prior Claude snapshot but authentication loss clears it`() async throws {
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
+                let (store, prior) = try await MainActor.run {
+                    let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-cli-parse-cache")
+                    settings.refreshFrequency = .manual
+                    settings.statusChecksEnabled = false
+                    settings.claudeUsageDataSource = .cli
+
+                    let metadata = ProviderRegistry.shared.metadata
+                    for provider in UsageProvider.allCases {
+                        try settings.setProviderEnabled(
+                            provider: provider,
+                            metadata: #require(metadata[provider]),
+                            enabled: provider == .claude)
+                    }
+
+                    let store = UsageStore(
+                        fetcher: UsageFetcher(environment: [:]),
+                        browserDetection: BrowserDetection(cacheTTL: 0),
+                        settings: settings,
+                        startupBehavior: .testing,
+                        environmentBase: [:])
+                    let prior = UsageSnapshot(
+                        primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                        secondary: RateWindow(
+                            usedPercent: 34,
+                            windowMinutes: 10080,
+                            resetsAt: nil,
+                            resetDescription: nil),
+                        updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                        identity: ProviderIdentitySnapshot(
+                            providerID: .claude,
+                            accountEmail: "claude@example.com",
+                            accountOrganization: nil,
+                            loginMethod: "Max"))
+                    store._setSnapshotForTesting(prior, provider: .claude)
+
+                    let baseSpec = try #require(store.providerSpecs[.claude])
+                    let descriptor = ProviderDescriptor(
+                        id: .claude,
+                        metadata: baseSpec.descriptor.metadata,
+                        branding: baseSpec.descriptor.branding,
+                        tokenCost: baseSpec.descriptor.tokenCost,
+                        fetchPlan: ProviderFetchPlan(
+                            sourceModes: [.cli],
+                            pipeline: ProviderFetchPipeline { _ in
+                                [CLIParseFailureFetchStrategy(message: "Missing Current session.")]
+                            }),
+                        cli: baseSpec.descriptor.cli)
+                    store.providerSpecs[.claude] = ProviderSpec(
+                        style: baseSpec.style,
+                        isEnabled: baseSpec.isEnabled,
+                        descriptor: descriptor,
+                        makeFetchContext: baseSpec.makeFetchContext)
+                    return (store, prior)
+                }
+
+                await store.refreshProvider(.claude)
+                let firstResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        hasError: store.error(for: .claude) != nil)
+                }
+
+                #expect(firstResult.updatedAt == prior.updatedAt)
+                #expect(!firstResult.hasError)
+
+                await store.refreshProvider(.claude)
+                let secondResult = await MainActor.run {
+                    (
+                        updatedAt: store.snapshot(for: .claude)?.updatedAt,
+                        error: store.error(for: .claude))
+                }
+
+                #expect(secondResult.updatedAt == prior.updatedAt)
+                #expect(secondResult.error?.localizedCaseInsensitiveContains("Missing Current session") == true)
+
+                try await MainActor.run {
+                    let baseSpec = try #require(store.providerSpecs[.claude])
+                    let descriptor = ProviderDescriptor(
+                        id: .claude,
+                        metadata: baseSpec.descriptor.metadata,
+                        branding: baseSpec.descriptor.branding,
+                        tokenCost: baseSpec.descriptor.tokenCost,
+                        fetchPlan: ProviderFetchPlan(
+                            sourceModes: [.cli],
+                            pipeline: ProviderFetchPipeline { _ in
+                                [CLIAuthenticationFailureFetchStrategy()]
+                            }),
+                        cli: baseSpec.descriptor.cli)
+                    store.providerSpecs[.claude] = ProviderSpec(
+                        style: baseSpec.style,
+                        isEnabled: baseSpec.isEnabled,
+                        descriptor: descriptor,
+                        makeFetchContext: baseSpec.makeFetchContext)
+                }
+
+                await store.refreshProvider(.claude)
+                let authenticationResult = await MainActor.run {
+                    (
+                        hasSnapshot: store.snapshot(for: .claude) != nil,
+                        error: store.error(for: .claude))
+                }
+
+                #expect(!authenticationResult.hasSnapshot)
+                #expect(authenticationResult.error?.localizedCaseInsensitiveContains("token expired") == true)
+            }
+        }
+    }
+
+    @Test
     func `repeated non probe transient failure still surfaces`() async throws {
         try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
             let tempDir = FileManager.default.temporaryDirectory
@@ -1286,6 +1403,49 @@ private struct NetworkLostFetchStrategy: ProviderFetchStrategy {
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
         throw URLError(.networkConnectionLost)
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct CLIParseFailureFetchStrategy: ProviderFetchStrategy {
+    let id = "test.cli-parse-failure"
+    let kind: ProviderFetchKind = .cli
+    let message: String
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        throw ClaudeStatusProbeError.parseFailed(self.message)
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        false
+    }
+}
+
+private struct CLIAuthenticationFailureFetchStrategy: ProviderFetchStrategy {
+    let id = "test.cli-authentication-failure"
+    let kind: ProviderFetchKind = .cli
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        do {
+            _ = try ClaudeStatusProbe.parse(text: """
+            Error: Failed to load usage data: {"error":{"type":"error",\
+            "message":"Claude CLI token expired. Run `claude login` to refresh."}}
+            """)
+        } catch {
+            throw error
+        }
+        throw ClaudeStatusProbeError.parseFailed("Expected authentication error")
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
