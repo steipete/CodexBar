@@ -968,6 +968,7 @@ extension UsageStore {
                 .wayfinder: "Wayfinder debug log not yet implemented",
                 .sub2api: "sub2api debug log not yet implemented",
                 .zenmux: "ZenMux debug log not yet implemented",
+                .aiand: "ai& debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -1046,7 +1047,8 @@ extension UsageStore {
                      .copilot, .devin, .vertexai, .kilo, .kiro, .kimi, .moonshot, .jetbrains, .perplexity,
                      .mimo, .doubao, .sakana, .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus,
                      .commandcode, .qoder, .stepfun, .bedrock, .grok, .groq, .t3chat, .llmproxy, .litellm, .zed,
-                     .deepgram, .poe, .chutes, .neuralwatt, .clawrouter, .longcat, .wayfinder, .sub2api, .zenmux:
+                     .deepgram, .poe, .chutes, .neuralwatt, .clawrouter, .longcat, .wayfinder, .sub2api, .zenmux,
+                     .aiand:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

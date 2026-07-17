@@ -227,6 +227,8 @@ extension CodexBarCLI {
             ChutesSettingsReader.apiKey(environment: environment) != nil
         case .zenmux:
             ZenMuxSettingsReader.managementAPIKey(environment: environment) != nil
+        case .aiand:
+            AiAndSettingsReader.apiKey(environment: environment) != nil
         case .crof:
             CrofSettingsReader.apiKey(environment: environment) != nil
         case .deepgram:

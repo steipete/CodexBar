@@ -74,6 +74,7 @@ enum ProviderImplementationRegistry {
         case .sub2api: Sub2APIProviderImplementation()
         case .wayfinder: WayfinderProviderImplementation()
         case .zenmux: ZenMuxProviderImplementation()
+        case .aiand: AiAndProviderImplementation()
         }
     }
 
