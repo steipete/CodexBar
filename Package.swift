@@ -78,6 +78,7 @@ let package = Package(
                 dependencies: [
                     "CodexBarCore",
                     .product(name: "Commander", package: "Commander"),
+                    .product(name: "Crypto", package: "swift-crypto"),
                 ],
                 path: "Sources/CodexBarCLI",
                 swiftSettings: [

@@ -137,14 +137,25 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar serve [--port <port>] [--refresh-interval <seconds>]
+          codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                          [--request-timeout <seconds>]
+                         [--dashboard-token <token>] [--allow-plain-http]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
         Description:
-          Start a foreground localhost-only HTTP server that exposes existing CLI JSON payloads.
-          The server binds to 127.0.0.1 only in this initial version.
+          Start a foreground HTTP server that exposes existing CLI JSON payloads and a
+          token-gated dashboard snapshot. The server binds to 127.0.0.1 by default;
+          `localhost` is normalized to 127.0.0.1.
+          GET /dashboard/v1/snapshot requires "Authorization: Bearer YOUR_TOKEN" and fails
+          closed (401) when no token is configured. Set the token with --dashboard-token or,
+          preferably, the CODEXBAR_DASHBOARD_TOKEN environment variable (argv leaks via ps).
+          Transport is plain HTTP: the token crosses the network in cleartext on every
+          request. A non-loopback --host therefore requires both a dashboard token and
+          --allow-plain-http, which records that you accept that trade-off. On a
+          non-loopback host the token also gates /usage and /cost (account data);
+          /health is always open. Use a TLS-terminating reverse proxy for anything
+          beyond a trusted network segment.
 
         Endpoints:
           GET /health
@@ -153,11 +164,16 @@ extension CodexBarCLI {
           GET /usage?provider=all
           GET /cost
           GET /cost?provider=codex
+          GET /dashboard/v1/snapshot
 
         Examples:
           codexbar serve
           codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30
+          CODEXBAR_DASHBOARD_TOKEN=YOUR_TOKEN codexbar serve
+          CODEXBAR_DASHBOARD_TOKEN=... codexbar serve --host 0.0.0.0 --allow-plain-http
           curl http://127.0.0.1:8080/usage?provider=all
+          curl -H "Authorization: Bearer $CODEXBAR_DASHBOARD_TOKEN" \\
+            http://127.0.0.1:8080/dashboard/v1/snapshot
         """
     }
 
@@ -281,8 +297,9 @@ extension CodexBarCLI {
                        [--days <days>] [--group-by project]
           codexbar sessions [--json] [--pretty]
           codexbar sessions focus <id>
-          codexbar serve [--port <port>] [--refresh-interval <seconds>]
+          codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
+                       [--dashboard-token <token>] [--allow-plain-http]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
           codexbar config <validate|dump|providers> [--format text|json]
                                         [--json]
