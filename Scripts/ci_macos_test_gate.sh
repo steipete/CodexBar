@@ -98,7 +98,6 @@ if [[ "$path_count" -eq 0 ]]; then
 fi
 
 if [[ "$macos_tests" == true && "$draft_pull_request" == true ]]; then
-  macos_tests=false
   macos_tests_deferred=true
   summary_reason="draft pull request: macOS Swift tests deferred until ready for review"
 elif [[ "$macos_tests" == true ]]; then
@@ -114,7 +113,9 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   printf 'changed-path-count=%s\n' "$path_count" >> "$GITHUB_OUTPUT"
 fi
 
-if [[ "$macos_tests" == true ]]; then
+if [[ "$macos_tests_deferred" == true ]]; then
+  printf 'macOS Swift tests required but deferred until ready for review: %s.\n' "$macos_tests_reason"
+elif [[ "$macos_tests" == true ]]; then
   printf 'macOS Swift tests required for this change set: %s.\n' "$macos_tests_reason"
 else
   printf 'Skipping macOS Swift tests: %s.\n' "$summary_reason"

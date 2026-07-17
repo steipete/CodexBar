@@ -74,8 +74,8 @@ draft_output="${tmp_dir}/draft-source.output"
 printf '%s\n' $'M\tSources/CodexBar/App.swift' > "$draft_paths"
 CI_PULL_REQUEST_DRAFT=true GITHUB_OUTPUT="$draft_output" \
   "${ROOT_DIR}/Scripts/ci_macos_test_gate.sh" "$draft_paths" >/dev/null
-if [[ "$(sed -n 's/^macos-tests=//p' "$draft_output")" != false ]]; then
-  printf 'draft source: expected macOS tests to be deferred\n' >&2
+if [[ "$(sed -n 's/^macos-tests=//p' "$draft_output")" != true ]]; then
+  printf 'draft source: expected macOS tests to remain required while deferred\n' >&2
   exit 1
 fi
 if [[ "$(sed -n 's/^macos-tests-reason=//p' "$draft_output")" != \
@@ -86,6 +86,16 @@ then
 fi
 if [[ "$(sed -n 's/^macos-tests-deferred=//p' "$draft_output")" != true ]]; then
   printf 'draft source: expected macOS tests to be marked deferred\n' >&2
+  exit 1
+fi
+
+draft_docs_output="${tmp_dir}/draft-docs.output"
+CI_PULL_REQUEST_DRAFT=true GITHUB_OUTPUT="$draft_docs_output" \
+  "${ROOT_DIR}/Scripts/ci_macos_test_gate.sh" "${tmp_dir}/docs-only.paths" >/dev/null
+if [[ "$(sed -n 's/^macos-tests=//p' "$draft_docs_output")" != false ]] \
+  || [[ "$(sed -n 's/^macos-tests-deferred=//p' "$draft_docs_output")" != false ]]
+then
+  printf 'draft docs: expected required=false and deferred=false\n' >&2
   exit 1
 fi
 
@@ -136,7 +146,6 @@ fi
 verify="${ROOT_DIR}/Scripts/ci_verify_test_jobs.sh"
 "$verify" success success true success false >/dev/null
 "$verify" success success false skipped false >/dev/null
-"$verify" success success false skipped true >/dev/null
 
 assert_verify_fails() {
   if "$verify" "$@" >/dev/null 2>&1; then
@@ -146,6 +155,9 @@ assert_verify_fails() {
 }
 
 assert_verify_fails success success true skipped false
+assert_verify_fails success success true skipped true
+assert_verify_fails success success false skipped true
+assert_verify_fails success success true success true
 assert_verify_fails success success false success false
 assert_verify_fails success success "" skipped false
 assert_verify_fails failure success true success false
