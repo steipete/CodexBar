@@ -162,7 +162,9 @@ struct UsageStoreHighestUsageTests {
     }
 
     @Test
-    func `automatic metric ignores unclassified antigravity compact fallback`() throws {
+    func `automatic metric ignores unclassified antigravity compact fallback until exhausted priority is enabled`()
+        throws
+    {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-unclassified"),
             zaiTokenStore: NoopZaiTokenStore(),
@@ -207,6 +209,11 @@ struct UsageStoreHighestUsageTests {
         let highest = store.providerWithHighestUsage()
         #expect(highest?.provider == .codex)
         #expect(highest?.usedPercent == 50)
+
+        settings.antigravityPrioritizeExhaustedQuotas = true
+        let optInHighest = store.providerWithHighestUsage()
+        #expect(optInHighest?.provider == .antigravity)
+        #expect(optInHighest?.usedPercent == 64)
     }
 
     @Test

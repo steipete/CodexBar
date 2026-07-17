@@ -43,13 +43,11 @@ extension UsageStore {
         now: Date) -> RateWindow?
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
-        if provider == .antigravity, effectivePreference == .automatic {
-            guard self.settings.antigravityPrioritizeExhaustedQuotas else {
-                return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
-            }
-            return MenuBarMetricWindowResolver.antigravityQuotaSummaryRankingWindow(
-                snapshot: snapshot,
-                now: now)
+        if provider == .antigravity,
+           effectivePreference == .automatic,
+           !self.settings.antigravityPrioritizeExhaustedQuotas
+        {
+            return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
         }
         if provider == .codex {
             return self.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
@@ -59,6 +57,7 @@ extension UsageStore {
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
+            antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
             now: now)
     }
 
