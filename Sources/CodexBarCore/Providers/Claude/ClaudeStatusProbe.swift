@@ -195,7 +195,9 @@ extension ClaudeStatusProbe {
 
         let shouldDump = ProcessInfo.processInfo.environment["DEBUG_CLAUDE_DUMP"] == "1"
 
-        if let usageError = self.extractUsageError(text: clean) {
+        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
+        let usagePanelText = latestUsagePanel ?? clean
+        if let usageError = self.extractUsageError(text: usagePanelText) {
             Self.dumpIfNeeded(
                 enabled: shouldDump,
                 reason: "usageError: \(usageError)",
@@ -204,8 +206,7 @@ extension ClaudeStatusProbe {
             throw self.usageProbeError(message: usageError)
         }
 
-        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
-        if self.isUsageStillLoading(text: latestUsagePanel ?? clean) {
+        if self.isUsageStillLoading(text: usagePanelText) {
             Self.dumpIfNeeded(
                 enabled: shouldDump,
                 reason: "usage still loading",
@@ -218,7 +219,6 @@ extension ClaudeStatusProbe {
         // line
         // with a "0%" context meter) before the usage panel is drawn. To keep parsing stable, trim to the last
         // Settings/Usage panel when present.
-        let usagePanelText = latestUsagePanel ?? clean
         let labelContext = LabelSearchContext(text: usagePanelText)
 
         var sessionPct = self.extractPercent(labelSubstring: "Current session", context: labelContext)
@@ -372,22 +372,25 @@ extension ClaudeStatusProbe {
     }
 
     private static func usageOutputLooksRelevant(_ text: String) -> Bool {
-        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        let clean = TextParsing.stripANSICodes(text)
+        let normalized = clean.lowercased().filter { !$0.isWhitespace }
         return normalized.contains("currentsession")
             || normalized.contains("currentweek")
             || normalized.contains("loadingusage")
             || normalized.contains("failedtoloadusagedata")
+            || self.usageCaptureHasRateLimit(clean)
             || self.usageCaptureHasSubscriptionNotice(normalized)
     }
 
     private static func validateUsageBeforeStatusProbe(_ text: String) throws {
         let clean = TextParsing.stripANSICodes(text)
-        if let usageError = self.extractUsageError(text: clean) {
+        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
+        let usagePanelText = latestUsagePanel ?? clean
+        if let usageError = self.extractUsageError(text: usagePanelText) {
             throw self.usageProbeError(message: usageError)
         }
 
-        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
-        if self.isUsageStillLoading(text: latestUsagePanel ?? clean) {
+        if self.isUsageStillLoading(text: usagePanelText) {
             throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
         }
     }
@@ -620,11 +623,11 @@ extension ClaudeStatusProbe {
         if failureLine.contains("authentication_error") {
             return "Claude CLI authentication error. Run `claude login`."
         }
-        let compactFailureLine = failureLine.filter { !$0.isWhitespace }
-        if failureLine.contains("rate_limit_error")
-            || failureLine.contains("rate limited")
-            || compactFailureLine.contains("ratelimited")
-        {
+        if self.usageCaptureHasRateLimit(text) {
+            // Claude can render usable session/week quotas while a secondary section, such as the per-model
+            // breakdown, is unavailable due to rate limiting. Treat rate-limit text as fatal only when no
+            // session quota value was rendered in the current/latest usage panel.
+            guard !self.usageCaptureHasSessionValue(compact) else { return nil }
             return "Claude CLI usage endpoint is rate limited right now. Please try again later."
         }
         if self.isSubscriptionNoticeOnly(text: text) {
@@ -741,7 +744,8 @@ extension ClaudeStatusProbe {
         let hasUsageWords = lower.contains("used") || lower.contains("left") || lower.contains("remaining")
             || lower.contains("available")
         let hasLoading = lower.contains("loading usage")
-        guard (hasPercent && hasUsageWords) || hasLoading else { return nil }
+        let hasRateLimit = self.usageCaptureHasRateLimit(String(tail))
+        guard (hasPercent && hasUsageWords) || hasLoading || hasRateLimit else { return nil }
         return String(tail)
     }
 
@@ -1392,6 +1396,14 @@ extension ClaudeStatusProbe {
         guard let labelRange = normalizedText.range(of: "currentsession") else { return false }
         let tail = normalizedText[labelRange.upperBound...]
         return tail.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%"#, options: .regularExpression) != nil
+    }
+
+    private static func usageCaptureHasRateLimit(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let compact = lower.filter { !$0.isWhitespace }
+        return lower.contains("rate_limit_error")
+            || lower.contains("rate limited")
+            || compact.contains("ratelimited")
     }
 
     private static func usageCaptureHasSubscriptionNotice(_ normalizedText: String) -> Bool {

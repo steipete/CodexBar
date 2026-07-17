@@ -50,6 +50,57 @@ struct ClaudeCLIScopedWeeklyUsageTests {
     }
 
     @Test
+    func `secondary rate limited model breakdown does not hide session usage`() throws {
+        let cliUsage = """
+        Settings  Status  Config  Usage  Stats
+
+        Current session
+        3% used
+        Resets 1:10am (Europe/Berlin)
+
+        Current week (all models)
+        11% used
+        Resets Jul 18 at 4am (Europe/Berlin)
+
+        Per-model breakdown unavailable (rate limited -- try again in a moment)
+        """
+
+        let snapshot = try ClaudeStatusProbe.parse(text: cliUsage)
+
+        #expect(snapshot.sessionPercentLeft == 97)
+        #expect(snapshot.weeklyPercentLeft == 89)
+    }
+
+    @Test
+    func `latest primary rate limit does not reuse earlier session usage`() throws {
+        let cliUsage = """
+        Settings: Status  Config  Usage  Stats
+
+        Current session
+        3% used
+        Resets 1:10am (Europe/Berlin)
+
+        Current week (all models)
+        11% used
+        Resets Jul 18 at 4am (Europe/Berlin)
+
+        Settings: Status  Config  Usage  Stats
+
+        Error: Usage endpoint is rate limited. Please try again in a moment.
+        r to retry - Esc to cancel
+        """
+
+        do {
+            _ = try ClaudeStatusProbe.parse(text: cliUsage)
+            Issue.record("Expected latest primary rate limit to fail instead of returning stale usage")
+        } catch let ClaudeStatusProbeError.parseFailed(message) {
+            #expect(message.contains("rate limited"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `scoped weekly panel does not become all models weekly usage`() throws {
         let cliUsage = """
         Current session
