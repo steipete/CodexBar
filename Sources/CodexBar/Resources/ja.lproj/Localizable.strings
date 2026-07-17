@@ -801,6 +801,7 @@
 "Pace: %@ · %@" = "ペース: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "枯渇リスク ≈ %d%%";
+"Available full sessions: ≈%@" = "利用可能なフルセッション：≈%@";
 "%d%% in deficit" = "%d%% 不足";
 "%d%% in reserve" = "%d%% 余裕";
 "usage_percent_suffix_left" = "残り";

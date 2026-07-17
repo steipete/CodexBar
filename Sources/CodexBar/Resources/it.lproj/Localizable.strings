@@ -812,6 +812,7 @@
 "Pace: %@ · %@" = "Andamento: %@ · %@";
 "%@ · %@" = "%@ • %@";
 "≈ %d%% run-out risk" = "≈ %d%% rischio di esaurimento";
+"Available full sessions: ≈%@" = "Sessioni complete disponibili: ≈%@";
 "%d%% in deficit" = "deficit del %d%%";
 "%d%% in reserve" = "%d%% di riserva";
 "usage_percent_suffix_left" = "rimasto";

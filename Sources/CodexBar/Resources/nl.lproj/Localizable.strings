@@ -804,6 +804,7 @@
 "Pace: %@ · %@" = "Tempo: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% uitlooprisico";
+"Available full sessions: ≈%@" = "Beschikbare volledige sessies: ≈%@";
 "%d%% in deficit" = "%d%% tekort";
 "%d%% in reserve" = "%d%% in reserve";
 "usage_percent_suffix_left" = "over";

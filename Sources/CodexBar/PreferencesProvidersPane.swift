@@ -696,6 +696,7 @@ struct ProvidersPane: View {
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
+            quotaPlanningEstimates: self.store.quotaPlanningEstimates[provider] ?? [:],
             quotaWarningThresholds: [
                 .session: self.quotaWarningMarkerThresholds(provider: provider, window: .session),
                 .weekly: self.quotaWarningMarkerThresholds(provider: provider, window: .weekly),

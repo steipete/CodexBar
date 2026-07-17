@@ -810,6 +810,7 @@
 "Pace: %@ · %@" = "เพซ: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% ความเสี่ยงในการหมด";
+"Available full sessions: ≈%@" = "เซสชันเต็มที่ใช้ได้: ≈%@";
 "%d%% in deficit" = "%d%% ขาดดุล";
 "%d%% in reserve" = "%d%% สํารอง";
 "usage_percent_suffix_left" = "คงเหลือ";

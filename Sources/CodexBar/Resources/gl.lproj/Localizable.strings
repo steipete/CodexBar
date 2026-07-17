@@ -1217,6 +1217,7 @@
 "usage_percent_suffix_used" = "usado";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "Non se atopou o token da API de z.ai. Define apiKey en ~/.codexbar/config.json ou Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% de risco de esgotamento";
+"Available full sessions: ≈%@" = "Sesións completas dispoñibles: ≈%@";
 "Show Codex Spark usage" = "Amosar o uso de Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Amosa as filas de cota de Codex Spark no menú e na previsualización do provedor. Require activar «Amosar créditos + uso adicional» nos axustes de Pantalla.";
 "Scroll to see more models" = "Desprázate para ver máis modelos";

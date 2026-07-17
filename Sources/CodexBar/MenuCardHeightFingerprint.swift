@@ -83,6 +83,7 @@ extension UsageMenuCardView.Model.Metric {
             "percentStyle=\(self.percentStyle.rawValue)",
             MenuCardHeightFingerprint.field("status", self.statusText),
             MenuCardHeightFingerprint.field("reset", self.resetText),
+            MenuCardHeightFingerprint.field("quotaPlanning", self.quotaPlanningText),
             MenuCardHeightFingerprint.field("detail", self.detailText),
             MenuCardHeightFingerprint.field("detailLeft", self.detailLeftText),
             MenuCardHeightFingerprint.field("detailRight", self.detailRightText),

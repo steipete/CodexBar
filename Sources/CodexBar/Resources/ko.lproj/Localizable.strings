@@ -775,6 +775,7 @@
 "Pace: %@ · %@" = "사용 속도: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% 소진 위험";
+"Available full sessions: ≈%@" = "사용 가능한 전체 세션: ≈%@";
 "%d%% in deficit" = "%d%% 부족";
 "%d%% in reserve" = "%d%% 여유";
 "usage_percent_suffix_left" = "남음";

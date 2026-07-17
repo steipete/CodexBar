@@ -1128,6 +1128,7 @@
 "minimax_used_percent_format" = "已使用 %@";
 "minimax_service_coding_plan_vlm" = "Coding Plan VLM";
 "≈ %d%% run-out risk" = "約 %d%% 機率會用完";
+"Available full sessions: ≈%@" = "可用完整工作階段：≈%@";
 "No available fetch strategy for %@." = "%@ 沒有可用的取得策略。";
 "%@ left" = "剩餘 %@";
 "Manual cleanup: cache" = "手動清理：快取";

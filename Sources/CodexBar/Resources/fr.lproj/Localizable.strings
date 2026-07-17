@@ -804,6 +804,7 @@
 "Pace: %@ · %@" = "Rythme : %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% risque d'épuisement";
+"Available full sessions: ≈%@" = "Sessions complètes disponibles : ≈%@";
 "%d%% in deficit" = "%d%% en déficit";
 "%d%% in reserve" = "%d%% en réserve";
 "usage_percent_suffix_left" = "restant";

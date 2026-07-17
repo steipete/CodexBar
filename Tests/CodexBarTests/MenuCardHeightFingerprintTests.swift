@@ -48,10 +48,20 @@ struct MenuCardHeightFingerprintTests {
         #expect(one.heightFingerprint(section: "card") != two.heightFingerprint(section: "card"))
     }
 
+    @Test
+    func `height fingerprint tracks quota planning line`() {
+        let withoutPlanning = Self.model()
+        let withPlanning = Self.model(quotaPlanningText: "Available full sessions: ≈4")
+
+        #expect(withoutPlanning.heightFingerprint(section: "card") !=
+            withPlanning.heightFingerprint(section: "card"))
+    }
+
     private static func model(
         percent: Double = 42,
         percentStyle: UsageMenuCardView.Model.PercentStyle = .left,
-        resetCredits: CodexResetCreditsPresentation? = nil) -> UsageMenuCardView.Model
+        resetCredits: CodexResetCreditsPresentation? = nil,
+        quotaPlanningText: String? = nil) -> UsageMenuCardView.Model
     {
         UsageMenuCardView.Model(
             provider: .codex,
@@ -68,6 +78,7 @@ struct MenuCardHeightFingerprintTests {
                     percentStyle: percentStyle,
                     statusText: "Secret status",
                     resetText: nil,
+                    quotaPlanningText: quotaPlanningText,
                     detailText: nil,
                     detailLeftText: nil,
                     detailRightText: nil,

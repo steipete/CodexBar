@@ -810,6 +810,7 @@
 "Pace: %@ · %@" = "سرعت: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% خطر تمام شدن";
+"Available full sessions: ≈%@" = "نشست‌های کامل موجود: ≈%@";
 "%d%% in deficit" = "%d%% در کسری بودجه";
 "%d%% in reserve" = "%d%% در ذخیره";
 "usage_percent_suffix_left" = "باقی مانده";

@@ -1210,6 +1210,7 @@
 "Weekly" = "Setmanal";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
+"Available full sessions: ≈%@" = "Sessions completes disponibles: ≈%@";
 
 /* Settings sidebar redesign */
 "Enable" = "Activa";

@@ -1097,6 +1097,7 @@
 "%d%% in reserve" = "%d%% de reserva";
 "%dd" = "%d d";
 "≈ %d%% run-out risk" = "≈ %d%% de riesgo de agotamiento";
+"Available full sessions: ≈%@" = "Sesiones completas disponibles: ≈%@";
 "About CodexBar" = "Acerca de CodexBar";
 "Add Account..." = "Añadir cuenta...";
 "Add accounts via GitHub OAuth Device Flow on the selected host." = "Añade cuentas mediante el flujo de dispositivo OAuth de GitHub en el host seleccionado.";

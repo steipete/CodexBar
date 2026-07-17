@@ -7,6 +7,62 @@ import Testing
 @MainActor
 struct MenuCardOverrideIsolationTests {
     @Test
+    func `account override card does not inherit live quota planning`() throws {
+        let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 30,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+        store.quotaPlanningEstimates[.claude] = [
+            "secondary": QuotaPlanningEstimate(
+                pairID: "session-weekly",
+                longMetricID: "secondary",
+                fundableFullSessionEquivalents: 4,
+                maximumFullSessionEquivalentsBeforeReset: 3,
+                futureFullShortAllowanceCount: 2,
+                longPercentPerFullShortAllowance: 5,
+                reachability: .insufficientEvidence,
+                shortResetAt: now.addingTimeInterval(4 * 60 * 60),
+                longResetAt: now.addingTimeInterval(6 * 24 * 60 * 60)),
+        ]
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+
+        let liveModel = try #require(controller.menuCardModel(for: .claude))
+        let overrideModel = try #require(controller.menuCardModel(
+            for: .claude,
+            snapshotOverride: snapshot,
+            accountOverride: AccountInfo(email: "other@example.com", plan: nil)))
+
+        #expect(liveModel.metrics.first(where: { $0.id == "secondary" })?.quotaPlanningText != nil)
+        #expect(overrideModel.metrics.allSatisfy { $0.quotaPlanningText == nil })
+    }
+
+    @Test
     func `nil snapshot account card does not inherit ambient Claude costs`() throws {
         let suite = "MenuCardOverrideIsolationTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

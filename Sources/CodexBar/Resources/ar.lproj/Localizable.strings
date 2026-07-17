@@ -810,6 +810,7 @@
 "Pace: %@ · %@" = "الوتيرة: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% خطر الانتهاء";
+"Available full sessions: ≈%@" = "الجلسات الكاملة المتاحة: ≈%@";
 "%d%% in deficit" = "%d%% في العجز";
 "%d%% in reserve" = "%d%% في الاحتياط";
 "usage_percent_suffix_left" = "متبقٍ";

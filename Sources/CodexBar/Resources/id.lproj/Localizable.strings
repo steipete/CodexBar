@@ -812,6 +812,7 @@
 "Pace: %@ · %@" = "Pace: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% risiko habis";
+"Available full sessions: ≈%@" = "Sesi penuh tersedia: ≈%@";
 "%d%% in deficit" = "%d%% defisit";
 "%d%% in reserve" = "%d%% cadangan";
 "usage_percent_suffix_left" = "tersisa";

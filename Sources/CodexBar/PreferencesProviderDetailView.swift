@@ -529,6 +529,12 @@ private struct ProviderMetricInlineRow: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
+                if let quotaPlanningText = self.metric.quotaPlanningText {
+                    Text(quotaPlanningText)
+                        .font(.footnote)
+                        .foregroundStyle(.primary)
+                }
+
                 if let detail = self.metric.detailText, !detail.isEmpty {
                     Text(detail)
                         .font(.footnote)

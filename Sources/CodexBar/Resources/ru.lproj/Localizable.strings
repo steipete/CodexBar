@@ -805,6 +805,7 @@
 "1.5× headroom" = "Запас 1,5×";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% риск исчерпания";
+"Available full sessions: ≈%@" = "Доступно полных сессий: ≈%@";
 "%d%% in deficit" = "%d%% в дефиците";
 "%d%% in reserve" = "%d%% в резерве";
 "usage_percent_suffix_left" = "осталось";

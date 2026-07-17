@@ -9,6 +9,39 @@ extension UsageMenuCardView.Model {
         let paceOnTop: Bool
     }
 
+    static func metricsByAddingQuotaPlanning(
+        _ metrics: [Metric],
+        estimates: [String: QuotaPlanningEstimate]) -> [Metric]
+    {
+        guard !estimates.isEmpty else { return metrics }
+        return metrics.map { metric in
+            guard let estimate = estimates[metric.id] else { return metric }
+            var decorated = metric
+            decorated.quotaPlanningText = Self.quotaPlanningText(for: estimate)
+            return decorated
+        }
+    }
+
+    static func quotaPlanningText(for estimate: QuotaPlanningEstimate) -> String? {
+        let value = estimate.fundableFullSessionEquivalents
+        guard value.isFinite, value >= 0 else { return nil }
+        return L("Available full sessions: ≈%@", Self.quotaPlanningNumber(value))
+    }
+
+    private static func quotaPlanningNumber(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = codexBarLocalizedLocale()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 1
+        formatter.roundingMode = .halfUp
+        let oneTenth = formatter.string(from: NSNumber(value: 0.1)) ?? "0.1"
+        if value > 0, value < 0.1 {
+            return "<\(oneTenth)"
+        }
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.1f", value)
+    }
+
     static func redactedMetricDetail(_ detail: String?, provider: UsageProvider, metricID: String) -> String? {
         guard let detail else { return nil }
         guard provider == .litellm,
@@ -178,6 +211,7 @@ extension UsageMenuCardView.Model {
             current.percentStyle == candidate.percentStyle &&
             (current.statusText == nil) == (candidate.statusText == nil) &&
             (current.resetText == nil) == (candidate.resetText == nil) &&
+            current.quotaPlanningText == candidate.quotaPlanningText &&
             (current.detailText == nil) == (candidate.detailText == nil) &&
             (current.detailLeftText == nil) == (candidate.detailLeftText == nil) &&
             (current.detailRightText == nil) == (candidate.detailRightText == nil) &&

@@ -804,6 +804,7 @@
 "Pace: %@ · %@" = "Темп: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d%% ризик вичерпання";
+"Available full sessions: ≈%@" = "Доступні повні сесії: ≈%@";
 "%d%% in deficit" = "%d%% в дефіциті";
 "%d%% in reserve" = "%d%% в резерві";
 "usage_percent_suffix_left" = "зліва";

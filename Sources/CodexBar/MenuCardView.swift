@@ -31,6 +31,7 @@ struct UsageMenuCardView: View {
             let percentStyle: PercentStyle
             let statusText: String?
             let resetText: String?
+            var quotaPlanningText: String?
             let detailText: String?
             let detailLeftText: String?
             let detailRightText: String?
@@ -47,6 +48,7 @@ struct UsageMenuCardView: View {
                 percentStyle: PercentStyle,
                 statusText: String? = nil,
                 resetText: String?,
+                quotaPlanningText: String? = nil,
                 detailText: String?,
                 detailLeftText: String?,
                 detailRightText: String?,
@@ -62,6 +64,7 @@ struct UsageMenuCardView: View {
                 self.percentStyle = percentStyle
                 self.statusText = statusText
                 self.resetText = resetText
+                self.quotaPlanningText = quotaPlanningText
                 self.detailText = detailText
                 self.detailLeftText = detailLeftText
                 self.detailRightText = detailRightText
@@ -526,6 +529,12 @@ private struct MetricRow: View {
                                 .lineLimit(1)
                         }
                     }
+                    if let quotaPlanningText = self.metric.quotaPlanningText {
+                        Text(quotaPlanningText)
+                            .font(.footnote)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(2)
+                    }
                     if self.metric.detailLeftText != nil || self.metric.detailRightText != nil {
                         HStack(alignment: .firstTextBaseline) {
                             if let detailLeft = self.metric.detailLeftText {
@@ -841,10 +850,13 @@ extension UsageMenuCardView.Model {
             account: input.account,
             override: input.planOverride,
             metadata: input.metadata)
-        let metrics = Self.redactedMetrics(
+        let redactedMetrics = Self.redactedMetrics(
             Self.metrics(input: input),
             provider: input.provider,
             hidePersonalInfo: input.hidePersonalInfo)
+        let metrics = Self.metricsByAddingQuotaPlanning(
+            redactedMetrics,
+            estimates: input.quotaPlanningEstimates)
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
         let usageNotes = Self.usageNotes(input: input)

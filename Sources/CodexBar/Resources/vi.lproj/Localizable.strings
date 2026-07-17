@@ -800,6 +800,7 @@
 "Pace: %@ · %@" = "Pace: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d %% rủi ro cạn kiệt";
+"Available full sessions: ≈%@" = "Số phiên đầy đủ khả dụng: ≈%@";
 "%d%% in deficit" = "%d %% thâm hụt";
 "%d%% in reserve" = "%d %% dự trữ";
 "usage_percent_suffix_left" = "left";

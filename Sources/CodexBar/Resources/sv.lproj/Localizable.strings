@@ -803,6 +803,7 @@
 "Pace: %@ · %@" = "Takt: %@ · %@";
 "%@ · %@" = "%@ · %@";
 "≈ %d%% run-out risk" = "≈ %d %% risk att ta slut";
+"Available full sessions: ≈%@" = "Tillgängliga fullständiga sessioner: ≈%@";
 "%d%% in deficit" = "%d %% underskott";
 "%d%% in reserve" = "%d %% reserv";
 "usage_percent_suffix_left" = "kvar";
