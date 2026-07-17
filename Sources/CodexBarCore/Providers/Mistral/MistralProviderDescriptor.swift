@@ -54,9 +54,10 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         let cookieSource = context.settings?.mistral?.cookieSource ?? .auto
         let session = try Self.resolveCookieSession(context: context, allowCached: true)
         do {
+            let csrf = session.csrfToken
             let usage = try await Self.fetchUsageWithVibe(
                 cookieHeader: session.cookieHeader,
-                csrfToken: session.csrfToken,
+                csrfToken: csrf,
                 timeout: context.webTimeout)
             return self.makeResult(
                 usage: usage,
@@ -102,9 +103,10 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
     {
         for session in sessions {
             do {
+                let csrf = session.csrfToken
                 let usage = try await Self.fetchUsageWithVibe(
                     cookieHeader: session.cookieHeader,
-                    csrfToken: session.csrfToken,
+                    csrfToken: csrf,
                     timeout: timeout,
                     transport: transport)
                 return (usage, session)
