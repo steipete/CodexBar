@@ -431,10 +431,12 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         ])
                 }
 
-                let refreshedRecord = try await ClaudeUsageFetcher.loadOAuthCredentialRecord(
-                    environment: self.fetcher.environment,
-                    allowKeychainPrompt: retryAllowKeychainPrompt,
-                    respectKeychainPromptCooldown: promptPolicy.shouldRespectKeychainPromptCooldown)
+                let refreshedRecord = try await ProviderRefreshRequestContext.$id.withValue(UUID()) {
+                    try await ClaudeUsageFetcher.loadOAuthCredentialRecord(
+                        environment: self.fetcher.environment,
+                        allowKeychainPrompt: retryAllowKeychainPrompt,
+                        respectKeychainPromptCooldown: promptPolicy.shouldRespectKeychainPromptCooldown)
+                }
                 let refreshedCredentials = refreshedRecord.credentials
                 if ClaudeUsageFetcher.isClaudeOAuthFlowDebugEnabled {
                     ClaudeUsageFetcher.log.debug(

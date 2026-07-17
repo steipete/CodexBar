@@ -1,5 +1,9 @@
 /* Italian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "I cookie di Safari richiedono l’accesso completo al disco per CodexBar (Impostazioni di Sistema > Privacy e sicurezza).";
+"ollama_browser_cookie_decryption_denied" = "La decrittografia dei cookie di %@ è stata rifiutata nel Portachiavi; riprova con un aggiornamento manuale.";
+"ollama_browser_cookie_decryption_disabled" = "La decrittografia dei cookie di %@ è disabilitata in CodexBar; abilita l’accesso al Portachiavi e aggiorna.";
+
 " providers" = " provider";
 "(System)" = "(Sistema)";
 "30d" = "30 g";

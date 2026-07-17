@@ -1,5 +1,9 @@
 /* Arabic localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "تحتاج ملفات تعريف ارتباط Safari إلى وصول كامل إلى القرص لتطبيق CodexBar (إعدادات النظام > الخصوصية والأمان).";
+"ollama_browser_cookie_decryption_denied" = "تم رفض فك تشفير ملفات تعريف ارتباط %@ في سلسلة المفاتيح؛ أعد المحاولة بتحديث يدوي.";
+"ollama_browser_cookie_decryption_disabled" = "فك تشفير ملفات تعريف ارتباط %@ معطل في CodexBar؛ فعّل الوصول إلى سلسلة المفاتيح ثم حدّث.";
+
 " providers" = " providers";
 "(System)" = "(النظام)";
 "30d" = "30 يومًا";

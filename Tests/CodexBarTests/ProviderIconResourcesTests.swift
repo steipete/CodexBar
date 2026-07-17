@@ -14,6 +14,7 @@ struct ProviderIconResourcesTests {
         let slugs = [
             "codex",
             "claude",
+            "clinepass",
             "zai",
             "minimax",
             "cursor",

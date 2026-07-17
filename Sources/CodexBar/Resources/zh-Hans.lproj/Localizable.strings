@@ -1,5 +1,9 @@
 /* Chinese (Simplified) localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "CodexBar 需要“完全磁盘访问权限”才能读取 Safari Cookie（系统设置 > 隐私与安全性）。";
+"ollama_browser_cookie_decryption_denied" = "钥匙串拒绝解密 %@ Cookie；请通过手动刷新重试。";
+"ollama_browser_cookie_decryption_disabled" = "CodexBar 中已停用 %@ Cookie 解密；请启用钥匙串访问权限并刷新。";
+
 " providers" = " 提供商";
 "(System)" = "（System）";
 "30d" = "30 天";

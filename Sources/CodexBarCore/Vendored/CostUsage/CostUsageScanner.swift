@@ -824,7 +824,7 @@ enum CostUsageScanner {
                 now: now,
                 options: filtered,
                 checkCancellation: checkCancellation)
-        case .openai, .azureopenai, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
+        case .openai, .azureopenai, .clinepass, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
              .alibabatokenplan, .factory,
              .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp,
              .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .sakana,

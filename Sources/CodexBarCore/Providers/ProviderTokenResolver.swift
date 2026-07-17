@@ -48,6 +48,12 @@ public enum ProviderTokenResolver {
         self.claudeAdminAPIResolution(environment: environment)?.token
     }
 
+    public static func clinePassToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.clinePassResolution(environment: environment)?.token
+    }
+
     public static func copilotToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.copilotResolution(environment: environment)?.token
     }
@@ -256,6 +262,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(ClaudeAdminAPISettingsReader.apiKey(environment: environment))
+    }
+
+    public static func clinePassResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(ClinePassSettingsReader.apiKey(environment: environment))
     }
 
     public static func copilotResolution(

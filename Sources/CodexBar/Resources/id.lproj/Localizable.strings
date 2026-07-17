@@ -1,5 +1,9 @@
 /* Indonesian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Cookie Safari memerlukan Akses Disk Penuh untuk CodexBar (Pengaturan Sistem > Privasi & Keamanan).";
+"ollama_browser_cookie_decryption_denied" = "Dekripsi cookie %@ ditolak di Rantai Kunci; coba lagi dengan penyegaran manual.";
+"ollama_browser_cookie_decryption_disabled" = "Dekripsi cookie %@ dinonaktifkan di CodexBar; aktifkan akses Rantai Kunci lalu segarkan.";
+
 " providers" = " penyedia";
 "(System)" = "(Sistem)";
 "30d" = "30 hari";

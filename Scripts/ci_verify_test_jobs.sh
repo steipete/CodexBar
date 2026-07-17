@@ -18,29 +18,21 @@ if [[ "$changes_result" != "success" ]]; then
   exit 1
 fi
 
-case "${macos_tests_required}:${macos_test_result}" in
-  true:success)
-    if [[ "$macos_tests_deferred" != false ]]; then
-      printf 'macOS test gate marked a required test as deferred\n' >&2
-      exit 1
-    fi
+case "${macos_tests_required}:${macos_tests_deferred}:${macos_test_result}" in
+  true:false:success)
     printf 'Lint and macOS Swift test shards passed.\n'
     ;;
-  false:skipped)
-    if [[ "$macos_tests_deferred" == true ]]; then
-      printf 'Lint passed; macOS Swift tests are deferred until the pull request is ready for review.\n'
-      exit 0
-    fi
-    if [[ "$macos_tests_deferred" != false ]]; then
-      printf 'macOS test gate returned invalid deferred state: %s\n' \
-        "${macos_tests_deferred:-<empty>}" >&2
-      exit 1
-    fi
+  false:false:skipped)
     printf 'Lint passed; macOS Swift tests skipped by the macOS test gate.\n'
     ;;
+  true:true:skipped)
+    printf 'macOS Swift tests are required but deferred; aggregate CI remains incomplete\n' >&2
+    exit 1
+    ;;
   *)
-    printf 'macOS test gate/result mismatch: required=%s result=%s\n' \
-      "${macos_tests_required:-<empty>}" "${macos_test_result:-<empty>}" >&2
+    printf 'macOS test gate/result mismatch: required=%s deferred=%s result=%s\n' \
+      "${macos_tests_required:-<empty>}" "${macos_tests_deferred:-<empty>}" \
+      "${macos_test_result:-<empty>}" >&2
     exit 1
     ;;
 esac

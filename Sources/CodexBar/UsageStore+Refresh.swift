@@ -157,10 +157,12 @@ extension UsageStore {
                     allowDisabled: allowDisabled)
                 snapshotUpdatedAtBeforeRefresh = self.snapshot(for: provider)?.updatedAt
                 didStartRefresh = true
-                await self.refreshProviderTracked(
-                    provider,
-                    allowDisabled: allowDisabled,
-                    generation: request.generation)
+                await ProviderRefreshRequestContext.$id.withValue(UUID()) {
+                    await self.refreshProviderTracked(
+                        provider,
+                        allowDisabled: allowDisabled,
+                        generation: request.generation)
+                }
             }
             let publishedNewSnapshot = didStartRefresh &&
                 self.snapshot(for: provider)?.updatedAt != snapshotUpdatedAtBeforeRefresh

@@ -104,6 +104,18 @@ struct KeychainPromptSafetyAuditTests {
     }
 
     @Test
+    func `prompt audit accepts interactive Claude keychain read double`() {
+        let lines: [Substring] = [
+            "ClaudeOAuthCredentialsStore.withInteractiveClaudeKeychainReadOverridesForTesting(",
+            "    operation: {",
+            "        allowKeychainPrompt: true",
+            "    })",
+        ]
+
+        #expect(Self.hasOpenKeychainTestDouble(lines: lines, before: 3))
+    }
+
+    @Test
     func `tests do not call Security item APIs except no UI query coverage`() throws {
         let securityItemCalls = ["SecItemCopyMatching", "SecItemUpdate", "SecItemAdd", "SecItemDelete"]
         let offenders = try Self.swiftTestFiles().filter { file in
@@ -176,6 +188,7 @@ struct KeychainPromptSafetyAuditTests {
     private static func hasOpenKeychainTestDouble(lines: [Substring], before oneBasedLineNumber: Int) -> Bool {
         let helperNames = [
             "withClaudeKeychainOverridesForTesting",
+            "withInteractiveClaudeKeychainReadOverridesForTesting",
             "withKeychainAccessOverrideForTesting(true)",
             "withSecurityCLIReadOverrideForTesting",
             "KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting",

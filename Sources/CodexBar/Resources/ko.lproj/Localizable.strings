@@ -1,5 +1,9 @@
 /* Korean (한국어) localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Safari 쿠키를 읽으려면 CodexBar에 전체 디스크 접근 권한이 필요합니다(시스템 설정 > 개인정보 보호 및 보안).";
+"ollama_browser_cookie_decryption_denied" = "%@ 쿠키 복호화가 키체인에서 거부되었습니다. 수동 새로 고침으로 다시 시도하세요.";
+"ollama_browser_cookie_decryption_disabled" = "%@ 쿠키 복호화가 CodexBar에서 비활성화되어 있습니다. 키체인 접근을 활성화하고 새로 고침하세요.";
+
 " providers" = " 공급자";
 "(System)" = "(시스템)";
 "30d" = "30일";

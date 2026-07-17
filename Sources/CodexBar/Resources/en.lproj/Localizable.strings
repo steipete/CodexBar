@@ -1,5 +1,9 @@
 /* English localization for CodexBar (base/fallback) */
 
+"ollama_safari_cookie_access_hint" = "Safari cookies need Full Disk Access for CodexBar (System Settings > Privacy & Security).";
+"ollama_browser_cookie_decryption_denied" = "%@ cookie decryption was declined in Keychain; retry with a manual refresh.";
+"ollama_browser_cookie_decryption_disabled" = "%@ cookie decryption is disabled in CodexBar; enable Keychain access and refresh.";
+
 " providers" = " providers";
 "(System)" = "(System)";
 "30d" = "30d";

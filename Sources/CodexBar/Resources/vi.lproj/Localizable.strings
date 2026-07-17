@@ -1,5 +1,9 @@
 /* English localization for CodexBar (base/fallback) */
 
+"ollama_safari_cookie_access_hint" = "Cookie Safari cần Quyền truy cập toàn bộ ổ đĩa cho CodexBar (Cài đặt hệ thống > Quyền riêng tư & Bảo mật).";
+"ollama_browser_cookie_decryption_denied" = "Việc giải mã cookie %@ đã bị từ chối trong Chuỗi khóa; hãy thử lại bằng cách làm mới thủ công.";
+"ollama_browser_cookie_decryption_disabled" = "Việc giải mã cookie %@ bị tắt trong CodexBar; hãy bật quyền truy cập Chuỗi khóa rồi làm mới.";
+
 " providers" = "nhà cung cấp";
 "(System)" = "(Hệ thống)";
 "30d" = "30d";

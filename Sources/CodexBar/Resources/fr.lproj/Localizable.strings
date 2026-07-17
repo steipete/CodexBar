@@ -1,5 +1,9 @@
 /* English localization for CodexBar (base/fallback) */
 
+"ollama_safari_cookie_access_hint" = "Les cookies Safari nécessitent l’accès complet au disque pour CodexBar (Réglages Système > Confidentialité et sécurité).";
+"ollama_browser_cookie_decryption_denied" = "Le déchiffrement des cookies %@ a été refusé dans le Trousseau ; réessayez avec une actualisation manuelle.";
+"ollama_browser_cookie_decryption_disabled" = "Le déchiffrement des cookies %@ est désactivé dans CodexBar ; activez l’accès au Trousseau et actualisez.";
+
 " providers" = " fournisseurs";
 "(System)" = "(System)";
 "30d" = "30d";

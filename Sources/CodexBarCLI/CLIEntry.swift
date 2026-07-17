@@ -142,7 +142,7 @@ enum CodexBarCLI {
                 defaultSubcommandName: "list"),
             CommandDescriptor(
                 name: "serve",
-                abstract: "Serve usage and cost JSON over localhost HTTP",
+                abstract: "Serve usage, cost, and dashboard JSON over HTTP",
                 discussion: nil,
                 signature: serveSignature),
             CommandDescriptor(

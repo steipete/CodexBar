@@ -1,5 +1,9 @@
 /* Thai localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "คุกกี้ Safari ต้องใช้สิทธิ์เข้าถึงดิสก์แบบเต็มสำหรับ CodexBar (การตั้งค่าระบบ > ความเป็นส่วนตัวและความปลอดภัย)";
+"ollama_browser_cookie_decryption_denied" = "การถอดรหัสคุกกี้ %@ ถูกปฏิเสธในพวงกุญแจ โปรดลองอีกครั้งด้วยการรีเฟรชด้วยตนเอง";
+"ollama_browser_cookie_decryption_disabled" = "การถอดรหัสคุกกี้ %@ ถูกปิดใช้งานใน CodexBar ให้เปิดการเข้าถึงพวงกุญแจแล้วรีเฟรช";
+
 " providers" = "ผู้ให้บริการ  ";
 "(System)" = "(ระบบ)";
 "30d" = "30 วัน";

@@ -1,5 +1,9 @@
 /* Catalan localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Les galetes de Safari necessiten accés complet al disc per a CodexBar (Configuració del Sistema > Privadesa i seguretat).";
+"ollama_browser_cookie_decryption_denied" = "S'ha denegat el desxifratge de les galetes de %@ al Clauer; torneu-ho a provar amb una actualització manual.";
+"ollama_browser_cookie_decryption_disabled" = "El desxifratge de les galetes de %@ està desactivat a CodexBar; activeu l'accés al Clauer i actualitzeu.";
+
 " providers" = " proveïdors";
 "(System)" = "(Sistema)";
 "30d" = "30 d";

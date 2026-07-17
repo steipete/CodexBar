@@ -204,6 +204,19 @@ public enum BrowserCookieAccessGate {
                 ])
     }
 
+    static func hasActiveDenial(for browser: Browser, now: Date = Date()) -> Bool {
+        guard browser.usesKeychainForCookieDecryption else { return false }
+        return self.lock.withLock { state in
+            self.loadIfNeeded(&state)
+            guard let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] else { return false }
+            guard blockedUntil <= now else { return true }
+            state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
+            state.chromiumFamilyDeniedUntil = state.deniedUntilByBrowser.values.max()
+            self.persist(state)
+            return false
+        }
+    }
+
     static func recordAllowed(for browser: Browser) {
         guard browser.usesKeychainForCookieDecryption,
               ProviderInteractionContext.current == .userInitiated,
@@ -356,6 +369,10 @@ public enum BrowserCookieAccessGate {
 
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {}
     public static func recordDenied(for browser: Browser, now: Date = Date()) {}
+    static func hasActiveDenial(for browser: Browser, now: Date = Date()) -> Bool {
+        false
+    }
+
     public static func resetForTesting() {}
 }
 #endif

@@ -17,3 +17,7 @@ public enum ProviderRefreshPhase: Sendable, Equatable {
 public enum ProviderRefreshContext {
     @TaskLocal public static var current: ProviderRefreshPhase = .regular
 }
+
+public enum ProviderRefreshRequestContext {
+    @TaskLocal public static var id: UUID?
+}

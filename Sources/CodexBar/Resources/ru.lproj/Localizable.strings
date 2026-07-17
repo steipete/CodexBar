@@ -1,5 +1,9 @@
 /* Russian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Для файлов cookie Safari приложению CodexBar нужен полный доступ к диску (Системные настройки > Конфиденциальность и безопасность).";
+"ollama_browser_cookie_decryption_denied" = "Расшифровка файлов cookie %@ была отклонена в Связке ключей; повторите попытку с помощью ручного обновления.";
+"ollama_browser_cookie_decryption_disabled" = "Расшифровка файлов cookie %@ отключена в CodexBar; включите доступ к Связке ключей и обновите.";
+
 " providers" = " провайдеров";
 "(System)" = "(Система)";
 "30d" = "30 дн.";

@@ -1,5 +1,9 @@
 /* English localization for CodexBar (base/fallback) */
 
+"ollama_safari_cookie_access_hint" = "Safari-Cookies benötigen vollen Festplattenzugriff für CodexBar (Systemeinstellungen > Datenschutz & Sicherheit).";
+"ollama_browser_cookie_decryption_denied" = "Die Entschlüsselung der %@-Cookies wurde im Schlüsselbund abgelehnt; versuchen Sie es mit einer manuellen Aktualisierung erneut.";
+"ollama_browser_cookie_decryption_disabled" = "Die Entschlüsselung der %@-Cookies ist in CodexBar deaktiviert; aktivieren Sie den Schlüsselbundzugriff und aktualisieren Sie.";
+
 " providers" = "Anbieter";
 "(System)" = "(System)";
 "30d" = "30d";

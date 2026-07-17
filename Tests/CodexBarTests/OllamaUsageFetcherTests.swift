@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if os(macOS)
+import SweetCookieKit
+#endif
 
 struct OllamaUsageFetcherTests {
     @Test
@@ -130,6 +133,84 @@ struct OllamaUsageFetcherTests {
     func `cookie importer defaults to chrome first`() {
         #expect(OllamaCookieImporter.defaultPreferredBrowsers == [.chrome])
         #expect(OllamaCookieImporter.defaultAllowFallbackBrowsers)
+    }
+
+    @Test
+    func `cookie access errors map only unambiguous recovery paths`() {
+        let safari = OllamaCookieImporter.accessError(from: BrowserCookieError.accessDenied(
+            browser: .safari,
+            details: "Enable Full Disk Access."))
+        guard case .safariCookieAccessDenied = safari else {
+            Issue.record("Expected Safari Full Disk Access error")
+            return
+        }
+
+        let brave = OllamaCookieImporter.accessError(from: BrowserCookieError.accessDenied(
+            browser: .brave,
+            details: "macOS Keychain denied access."))
+        guard case let .browserCookieDecryptionDenied(browserName) = brave else {
+            Issue.record("Expected Brave Keychain denial")
+            return
+        }
+        #expect(browserName == "Brave")
+
+        let ambiguous = OllamaCookieImporter.accessError(from: BrowserCookieError.loadFailed(
+            browser: .brave,
+            details: "SQLite failed"))
+        #expect(ambiguous == nil)
+    }
+
+    @Test
+    func `cookie cooldown maps only the browser that was denied`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+        let now = Date(timeIntervalSince1970: 1000)
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            BrowserCookieAccessGate.recordDenied(for: .brave, now: now)
+
+            let brave = OllamaCookieImporter.suppressedAccessError(
+                for: .brave,
+                now: now.addingTimeInterval(1))
+            guard case let .browserCookieDecryptionDenied(browserName) = brave else {
+                Issue.record("Expected stored Brave Keychain denial")
+                return
+            }
+            #expect(browserName == "Brave")
+            #expect(OllamaCookieImporter.suppressedAccessError(
+                for: .chrome,
+                now: now.addingTimeInterval(1)) == nil)
+        }
+    }
+
+    @Test
+    func `disabled Keychain access maps to browser recovery hint`() {
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            let error = OllamaCookieImporter.suppressedAccessError(for: .brave)
+            guard case let .browserCookieDecryptionDisabled(browserName) = error else {
+                Issue.record("Expected disabled Brave Keychain error")
+                return
+            }
+            #expect(browserName == "Brave")
+        }
+    }
+
+    @Test
+    func `manual refresh bypasses browser denial cooldown`() async {
+        await BrowserCookieAccessGate.withDeniedBrowsersForTesting([.brave]) {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                BrowserCookieAccessGate.withExplicitRetry {
+                    ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        var accessError: OllamaUsageError?
+                        let shouldAttempt = OllamaCookieImporter.shouldAttemptCookieSource(
+                            .brave,
+                            accessError: &accessError)
+                        #expect(shouldAttempt)
+                        #expect(accessError == nil)
+                    }
+                }
+            }
+        }
     }
 
     @Test

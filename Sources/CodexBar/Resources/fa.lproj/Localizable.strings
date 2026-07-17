@@ -1,5 +1,9 @@
 /* Persian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "کوکی‌های Safari برای CodexBar به دسترسی کامل دیسک نیاز دارند (تنظیمات سیستم > حریم خصوصی و امنیت).";
+"ollama_browser_cookie_decryption_denied" = "رمزگشایی کوکی‌های %@ در Keychain رد شد؛ با یک تازه‌سازی دستی دوباره تلاش کنید.";
+"ollama_browser_cookie_decryption_disabled" = "رمزگشایی کوکی‌های %@ در CodexBar غیرفعال است؛ دسترسی Keychain را فعال و تازه‌سازی کنید.";
+
 " providers" = " providers";
 "(System)" = "(سیستم)";
 "30d" = "30 روز";

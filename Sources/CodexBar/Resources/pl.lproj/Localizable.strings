@@ -1,5 +1,9 @@
 /* English localization for CodexBar (base/fallback) */
 
+"ollama_safari_cookie_access_hint" = "Pliki cookie Safari wymagają pełnego dostępu do dysku dla CodexBar (Ustawienia systemowe > Prywatność i ochrona).";
+"ollama_browser_cookie_decryption_denied" = "Odszyfrowanie plików cookie %@ zostało odrzucone w Pęku kluczy; spróbuj ponownie przez ręczne odświeżenie.";
+"ollama_browser_cookie_decryption_disabled" = "Odszyfrowanie plików cookie %@ jest wyłączone w CodexBar; włącz dostęp do Pęku kluczy i odśwież.";
+
 " providers" = " providers";
 "(System)" = "(System)";
 "30d" = "30d";

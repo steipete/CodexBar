@@ -2,6 +2,21 @@ import Foundation
 
 #if DEBUG
 extension ClaudeOAuthCredentialsStore {
+    @TaskLocal static var taskBeforeClaudeKeychainPromptLockOverride: (@Sendable () -> Void)?
+    @TaskLocal static var taskInteractiveClaudeKeychainReadOverride: (@Sendable () throws -> Data)?
+
+    static func withInteractiveClaudeKeychainReadOverridesForTesting<T>(
+        beforePromptLock: (@Sendable () -> Void)? = nil,
+        read: (@Sendable () throws -> Data)? = nil,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskBeforeClaudeKeychainPromptLockOverride.withValue(beforePromptLock) {
+            try await self.$taskInteractiveClaudeKeychainReadOverride.withValue(read) {
+                try await operation()
+            }
+        }
+    }
+
     @TaskLocal static var taskClaudeKeychainDataOverride: Data?
     @TaskLocal static var taskClaudeKeychainFingerprintOverride: ClaudeKeychainFingerprint?
     @TaskLocal static var taskMemoryCacheStoreOverride: MemoryCacheStore?

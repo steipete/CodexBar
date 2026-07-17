@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 60 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 61 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -66,6 +66,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Crof | API key from config/env → credit balance + requests quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
+| ClinePass | API key from config/env → 5-hour, weekly, and monthly subscription usage limits (`api`). |
 | StepFun | Username/password login or manual Oasis token (`web`). |
 | AWS Bedrock | AWS credentials → Cost Explorer spend/budgets and optional CloudWatch Claude activity (`api`). |
 | Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via Chrome session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
@@ -414,6 +415,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Status: none yet.
 - Details: `docs/command-code.md`.
+
+## ClinePass
+- API key from `~/.codexbar/config.json`, `CLINE_API_KEY`, or `CLINEPASS_API_KEY`.
+- Reads 5-hour, weekly, and monthly usage limits from `GET https://api.cline.bot/api/v1/users/me/plan/usage-limits`.
+- ClinePass subscription limits are distinct from Cline pay-as-you-go balance and usage.
+- Status: none yet.
 
 ## Qoder
 - Chrome session cookies from automatic import, or a manual `Cookie:` header/cURL capture on macOS or Linux.

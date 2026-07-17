@@ -1,5 +1,9 @@
 /* Ukrainian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Для файлів cookie Safari програмі CodexBar потрібен повний доступ до диска (Системні параметри > Конфіденційність і безпека).";
+"ollama_browser_cookie_decryption_denied" = "Розшифрування файлів cookie %@ було відхилено у В’язці ключів; повторіть спробу за допомогою ручного оновлення.";
+"ollama_browser_cookie_decryption_disabled" = "Розшифрування файлів cookie %@ вимкнено в CodexBar; увімкніть доступ до В’язки ключів і оновіть.";
+
 " providers" = "провайдерів";
 "(System)" = "(Система)";
 "30d" = "30д";

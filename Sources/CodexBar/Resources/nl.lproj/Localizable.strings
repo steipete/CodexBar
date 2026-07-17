@@ -1,5 +1,9 @@
 /* Dutch localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Safari-cookies vereisen volledige schijftoegang voor CodexBar (Systeeminstellingen > Privacy en beveiliging).";
+"ollama_browser_cookie_decryption_denied" = "Het ontsleutelen van %@-cookies is geweigerd in Sleutelhanger; probeer opnieuw met handmatig vernieuwen.";
+"ollama_browser_cookie_decryption_disabled" = "Het ontsleutelen van %@-cookies is uitgeschakeld in CodexBar; schakel Sleutelhangertoegang in en vernieuw.";
+
 " providers" = " providers";
 "(System)" = "(Systeem)";
 "30d" = "30d";
