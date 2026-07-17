@@ -161,6 +161,16 @@ Example:
   - pi session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v1.json`
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
 
+### Usage & Spend account rows
+
+Settings → Usage & Spend performs a separate fixed 30-day scan for every visible Codex account. Each request freezes
+the account source, exact Codex home, authentication fingerprint, and cache identity before scanning. A missing or
+invalid home is omitted; it never falls back to ambient `~/.codex` or to the global Codex token snapshot.
+
+These account rows intentionally exclude pi sessions because pi history is machine-local rather than owned by one
+Codex account. The normal Codex cost menu and CLI scan continue to include supported pi history. The dashboard labels
+its values as local estimates and keeps currencies separate.
+
 ## Key files
 - Web: `Sources/CodexBarCore/OpenAIWeb/*`
 - CLI RPC + diagnostic PTY parser: `Sources/CodexBarCore/UsageFetcher.swift`,

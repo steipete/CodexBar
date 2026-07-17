@@ -7,6 +7,7 @@
 " providers" = " 提供商";
 "(System)" = "（System）";
 "30d" = "30 天";
+"7d" = "7 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加 ";
 "API key" = "API 密钥";
 "API key limit" = "API 密钥限制";
@@ -756,7 +757,7 @@
 "This week" = "本周";
 "Week" = "本周";
 "Month" = "本月";
-"Models" = "模型数";
+"Models" = "模型";
 "24h tokens" = "24 小时 token 用量";
 "Latest hour" = "最近 1 小时";
 "Peak hour" = "峰值小时";
@@ -1185,3 +1186,25 @@
 "Timed out waiting for Cursor account switch. %@" = "等待切换 Cursor 账户超时。%@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "等待切换 Cursor 账户超时。%@ 最近错误：%@";
 "Use Account" = "使用此账户";
+/* Spend dashboard */
+"tab_usage_spend" = "用量与支出";
+"Usage & Spend" = "用量与支出";
+"Local estimated cost history across supported providers." = "所有受支持提供商的本地估算费用历史。";
+"Time range" = "时间范围";
+"Track costs" = "跟踪费用";
+"Cost tracking is off" = "费用跟踪已关闭";
+"Turn on Track costs to build local estimates." = "启用“跟踪费用”以生成本地估算。";
+"No local cost history yet" = "暂无本地费用历史";
+"Turn on cost tracking or refresh after using a supported provider." = "启用费用跟踪，或在使用受支持的提供商后刷新。";
+"Refresh failures" = "刷新失败";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "各原始币种保持分开；Codex 帐户行不包含 Pi 会话历史。";
+"Spend unavailable" = "支出数据不可用";
+"Model breakdown unavailable" = "模型明细不可用";
+"Local estimated history" = "本地估算历史";
+"Coverage" = "覆盖范围";
+"Estimated spend" = "估算支出";
+"Tracked tokens" = "已跟踪 token";
+"Subscriptions" = "订阅";
+"By subscription" = "按订阅";
+"No model-level history" = "暂无模型级历史";
+"Daily estimated spend" = "每日估算支出";

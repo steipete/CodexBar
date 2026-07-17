@@ -555,6 +555,12 @@ struct CostUsageFetcherTests {
             now: day,
             scannerOptions: nativeOptions,
             piScannerOptions: piOptions)
+        let withoutPi = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            includePiSessions: false,
+            scannerOptions: nativeOptions,
+            piScannerOptions: piOptions)
 
         let nativeCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
@@ -570,6 +576,7 @@ struct CostUsageFetcherTests {
         #expect(snapshot.daily.count == 1)
         #expect(snapshot.daily.first?.date == "2026-04-08")
         #expect(snapshot.daily.first?.totalTokens == 170)
+        #expect(withoutPi.daily.first?.totalTokens == 110)
         #expect(abs((snapshot.daily.first?.costUSD ?? 0) - (nativeCost + piCost)) < 0.000001)
         let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
         #expect(breakdown.modelName == "gpt-5.4")

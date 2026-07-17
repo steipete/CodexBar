@@ -7,6 +7,7 @@
 " providers" = " providers";
 "(System)" = "(System)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "A managed Codex login is already running. Wait for it to finish before adding ";
 "API key" = "API key";
 "API region" = "API region";
@@ -1210,3 +1211,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "Finish switching to a different Cursor account in your browser, then try again.";
 "Timed out waiting for Cursor account switch. %@" = "Timed out waiting for Cursor account switch. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Timed out waiting for Cursor account switch. %@ Last error: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Usage & Spend";
+"Usage & Spend" = "Usage & Spend";
+"Local estimated cost history across supported providers." = "Local estimated cost history across supported providers.";
+"Time range" = "Time range";
+"Track costs" = "Track costs";
+"Cost tracking is off" = "Cost tracking is off";
+"Turn on Track costs to build local estimates." = "Turn on Track costs to build local estimates.";
+"No local cost history yet" = "No local cost history yet";
+"Turn on cost tracking or refresh after using a supported provider." = "Turn on cost tracking or refresh after using a supported provider.";
+"Refresh failures" = "Refresh failures";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Native currencies stay separate; Codex account rows exclude Pi session history.";
+"Spend unavailable" = "Spend unavailable";
+"Model breakdown unavailable" = "Model breakdown unavailable";
+"Local estimated history" = "Local estimated history";
+"Coverage" = "Coverage";
+"Estimated spend" = "Estimated spend";
+"Tracked tokens" = "Tracked tokens";
+"Subscriptions" = "Subscriptions";
+"By subscription" = "By subscription";
+"No model-level history" = "No model-level history";
+"Daily estimated spend" = "Daily estimated spend";

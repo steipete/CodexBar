@@ -7,6 +7,7 @@
 " providers" = " fournisseurs";
 "(System)" = "(System)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Une connexion Codex gérée est déjà en cours d'exécution. Attendez qu'il soit terminé avant d'ajouter";
 "API key" = "Clé API";
 "API region" = "Région API";
@@ -1209,3 +1210,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Le délai d'attente pour le changement de compte Cursor a expiré. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Le délai d'attente pour le changement de compte Cursor a expiré. %@ Dernière erreur : %@";
 "Use Account" = "Utiliser le compte";
+/* Spend dashboard */
+"tab_usage_spend" = "Utilisation et dépenses";
+"Usage & Spend" = "Utilisation et dépenses";
+"Local estimated cost history across supported providers." = "Historique local des coûts estimés pour les fournisseurs pris en charge.";
+"Time range" = "Période";
+"Track costs" = "Suivre les coûts";
+"Cost tracking is off" = "Le suivi des coûts est désactivé";
+"Turn on Track costs to build local estimates." = "Activez « Suivre les coûts » pour créer des estimations locales.";
+"No local cost history yet" = "Aucun historique local des coûts pour l’instant";
+"Turn on cost tracking or refresh after using a supported provider." = "Activez le suivi local des coûts ou actualisez après avoir utilisé un fournisseur pris en charge.";
+"Refresh failures" = "Échecs d’actualisation";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Les devises d’origine restent séparées ; les lignes de compte Codex excluent l’historique des sessions Pi.";
+"Spend unavailable" = "Dépenses indisponibles";
+"Model breakdown unavailable" = "Répartition par modèle indisponible";
+"Local estimated history" = "Historique local estimé";
+"Coverage" = "Couverture";
+"Estimated spend" = "Dépenses estimées";
+"Tracked tokens" = "Jetons suivis";
+"Subscriptions" = "Abonnements";
+"By subscription" = "Par abonnement";
+"No model-level history" = "Aucun historique au niveau des modèles";
+"Daily estimated spend" = "Dépenses quotidiennes estimées";

@@ -34,6 +34,14 @@ struct ProviderStatus {
     let updatedAt: Date?
 }
 
+struct ProviderRefreshPublicationContext {
+    let generation: UInt64
+    let enablementRevision: UInt64
+    var configRevision: UInt64
+    let tokenCostScopeSignature: String?
+    let allowDisabled: Bool
+}
+
 /// A single component/service row on a statuspage.io-style status page
 /// (e.g. "Codex API", "CLI", "FedRAMP") with its current state. A row with non-empty
 /// `children` is a component group and renders as an expandable dropdown.
@@ -94,7 +102,9 @@ struct ConsecutiveFailureGate {
     /// Returns true when the caller should surface the error to the UI.
     mutating func shouldSurfaceError(onFailureWithPriorData hadPriorData: Bool) -> Bool {
         self.streak += 1
-        if hadPriorData, self.streak == 1 { return false }
+        if hadPriorData, self.streak == 1 {
+            return false
+        }
         return true
     }
 }
@@ -106,7 +116,11 @@ extension UsageStore {
     }
 
     func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
-        self.tokenSnapshots[provider] = snapshot
+        if let snapshot {
+            self.publishTokenSnapshot(snapshot, for: provider)
+        } else {
+            self.clearTokenSnapshot(for: provider)
+        }
     }
 
     func _setTokenErrorForTesting(_ error: String?, provider: UsageProvider) {

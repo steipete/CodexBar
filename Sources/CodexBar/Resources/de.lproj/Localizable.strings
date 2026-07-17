@@ -7,6 +7,7 @@
 " providers" = "Anbieter";
 "(System)" = "(System)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Eine verwaltete Codex-Anmeldung läuft bereits. Warten Sie, bis der Vorgang abgeschlossen ist, bevor Sie ihn hinzufügen";
 "API key" = "API-Schlüssel";
 "API region" = "API-Region";
@@ -1210,3 +1211,25 @@
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Zeitüberschreitung beim Warten auf den Wechsel des Cursor-Kontos. %@ Letzter Fehler: %@";
 "Use Account" = "Konto verwenden";
 "Workspace" = "Arbeitsbereich";
+/* Spend dashboard */
+"tab_usage_spend" = "Nutzung & Ausgaben";
+"Usage & Spend" = "Nutzung & Ausgaben";
+"Local estimated cost history across supported providers." = "Lokaler Verlauf der geschätzten Kosten bei unterstützten Anbietern.";
+"Time range" = "Zeitraum";
+"Track costs" = "Kosten verfolgen";
+"Cost tracking is off" = "Kostenverfolgung ist deaktiviert";
+"Turn on Track costs to build local estimates." = "Aktivieren Sie „Kosten verfolgen“, um lokale Schätzungen zu erstellen.";
+"No local cost history yet" = "Noch kein lokaler Kostenverlauf";
+"Turn on cost tracking or refresh after using a supported provider." = "Aktivieren Sie die Kostenverfolgung oder aktualisieren Sie nach der Nutzung eines unterstützten Anbieters.";
+"Refresh failures" = "Fehlgeschlagene Aktualisierungen";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Originalwährungen bleiben getrennt; Codex-Kontozeilen schließen den Pi-Sitzungsverlauf aus.";
+"Spend unavailable" = "Ausgaben nicht verfügbar";
+"Model breakdown unavailable" = "Modellaufschlüsselung nicht verfügbar";
+"Local estimated history" = "Lokaler Schätzverlauf";
+"Coverage" = "Abdeckung";
+"Estimated spend" = "Geschätzte Ausgaben";
+"Tracked tokens" = "Erfasste Token";
+"Subscriptions" = "Abonnements";
+"By subscription" = "Nach Abonnement";
+"No model-level history" = "Kein Verlauf auf Modellebene";
+"Daily estimated spend" = "Geschätzte tägliche Ausgaben";

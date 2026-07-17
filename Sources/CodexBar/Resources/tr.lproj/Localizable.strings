@@ -7,6 +7,7 @@
 " providers" = " sağlayıcı";
 "(System)" = "(Sistem)";
 "30d" = "30 gün";
+"7d" = "7 gün";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Yönetilen bir Codex girişi zaten çalışıyor. Eklemeden önce bitmesini bekleyin ";
 "API key" = "API anahtarı";
 "API region" = "API bölgesi";
@@ -1207,3 +1208,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "Tarayıcınızda farklı bir Cursor hesabına geçişi tamamlayın, ardından yeniden deneyin.";
 "Timed out waiting for Cursor account switch. %@" = "Cursor hesap değişikliği beklenirken zaman aşımına uğradı. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Cursor hesap değişikliği beklenirken zaman aşımına uğradı. %@ Son hata: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Kullanım ve Harcama";
+"Usage & Spend" = "Kullanım ve Harcama";
+"Local estimated cost history across supported providers." = "Desteklenen sağlayıcılardaki yerel tahmini maliyet geçmişi.";
+"Time range" = "Zaman aralığı";
+"Track costs" = "Maliyetleri izle";
+"Cost tracking is off" = "Maliyet takibi kapalı";
+"Turn on Track costs to build local estimates." = "Yerel tahminler oluşturmak için “Maliyetleri izle” seçeneğini açın.";
+"No local cost history yet" = "Henüz yerel maliyet geçmişi yok";
+"Turn on cost tracking or refresh after using a supported provider." = "Maliyet takibini açın veya desteklenen bir sağlayıcıyı kullandıktan sonra yenileyin.";
+"Refresh failures" = "Yenileme hataları";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Kaynak para birimleri ayrı tutulur; Codex hesap satırlarına Pi oturum geçmişi dahil edilmez.";
+"Spend unavailable" = "Harcama verisi kullanılamıyor";
+"Model breakdown unavailable" = "Model dökümü kullanılamıyor";
+"Local estimated history" = "Yerel tahmini geçmiş";
+"Coverage" = "Kapsam";
+"Estimated spend" = "Tahmini harcama";
+"Tracked tokens" = "İzlenen tokenlar";
+"Subscriptions" = "Abonelikler";
+"By subscription" = "Aboneliğe göre";
+"No model-level history" = "Model düzeyinde geçmiş yok";
+"Daily estimated spend" = "Günlük tahmini harcama";

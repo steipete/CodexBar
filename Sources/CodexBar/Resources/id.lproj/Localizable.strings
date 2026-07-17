@@ -7,6 +7,7 @@
 " providers" = " penyedia";
 "(System)" = "(Sistem)";
 "30d" = "30 hari";
+"7d" = "7 hari";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Login Codex terkelola sudah berjalan. Tunggu hingga selesai sebelum menambahkan ";
 "API key" = "Kunci API";
 "API region" = "Wilayah API";
@@ -1209,3 +1210,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "Selesaikan peralihan ke akun Cursor lain di browser Anda, lalu coba lagi.";
 "Timed out waiting for Cursor account switch. %@" = "Waktu tunggu untuk beralih akun Cursor habis. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Waktu tunggu untuk beralih akun Cursor habis. %@ Kesalahan terakhir: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Penggunaan & Pengeluaran";
+"Usage & Spend" = "Penggunaan & Pengeluaran";
+"Local estimated cost history across supported providers." = "Riwayat perkiraan biaya lokal di seluruh penyedia yang didukung.";
+"Time range" = "Rentang waktu";
+"Track costs" = "Lacak biaya";
+"Cost tracking is off" = "Pelacakan biaya dinonaktifkan";
+"Turn on Track costs to build local estimates." = "Aktifkan “Lacak biaya” untuk membuat perkiraan lokal.";
+"No local cost history yet" = "Belum ada riwayat biaya lokal";
+"Turn on cost tracking or refresh after using a supported provider." = "Aktifkan pelacakan biaya atau segarkan setelah menggunakan penyedia yang didukung.";
+"Refresh failures" = "Kegagalan penyegaran";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Mata uang asli tetap dipisahkan; baris akun Codex tidak menyertakan riwayat sesi Pi.";
+"Spend unavailable" = "Data pengeluaran tidak tersedia";
+"Model breakdown unavailable" = "Rincian per model tidak tersedia";
+"Local estimated history" = "Riwayat perkiraan lokal";
+"Coverage" = "Cakupan";
+"Estimated spend" = "Perkiraan pengeluaran";
+"Tracked tokens" = "Token yang dilacak";
+"Subscriptions" = "Langganan";
+"By subscription" = "Berdasarkan langganan";
+"No model-level history" = "Tidak ada riwayat tingkat model";
+"Daily estimated spend" = "Perkiraan pengeluaran harian";

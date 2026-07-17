@@ -7,6 +7,7 @@
 " providers" = "ผู้ให้บริการ  ";
 "(System)" = "(ระบบ)";
 "30d" = "30 วัน";
+"7d" = "7 วัน";
 "A managed Codex login is already running. Wait for it to finish before adding " = "การเข้าสู่ระบบ Codex ที่มีการจัดการกําลังทํางานอยู่แล้ว รอให้เสร็จก่อนที่จะเพิ่ม  ";
 "API key" = "ปุ่ม API";
 "API region" = "ภูมิภาค API";
@@ -1210,3 +1211,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "สลับไปยังบัญชี Cursor อื่นในเบราว์เซอร์ให้เสร็จ แล้วลองอีกครั้ง";
 "Timed out waiting for Cursor account switch. %@" = "หมดเวลารอการสลับบัญชี Cursor %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "หมดเวลารอการสลับบัญชี Cursor %@ ข้อผิดพลาดล่าสุด: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "การใช้งานและค่าใช้จ่าย";
+"Usage & Spend" = "การใช้งานและค่าใช้จ่าย";
+"Local estimated cost history across supported providers." = "ประวัติค่าใช้จ่ายโดยประมาณในเครื่องจากผู้ให้บริการที่รองรับ";
+"Time range" = "ช่วงเวลา";
+"Track costs" = "ติดตามค่าใช้จ่าย";
+"Cost tracking is off" = "ปิดการติดตามค่าใช้จ่ายอยู่";
+"Turn on Track costs to build local estimates." = "เปิด “ติดตามค่าใช้จ่าย” เพื่อสร้างการประมาณการในเครื่อง";
+"No local cost history yet" = "ยังไม่มีประวัติค่าใช้จ่ายในเครื่อง";
+"Turn on cost tracking or refresh after using a supported provider." = "เปิดการติดตามค่าใช้จ่ายหรือรีเฟรชหลังจากใช้ผู้ให้บริการที่รองรับ";
+"Refresh failures" = "การรีเฟรชที่ล้มเหลว";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "สกุลเงินต้นทางแยกจากกัน แถวบัญชี Codex ไม่รวมประวัติเซสชัน Pi";
+"Spend unavailable" = "ไม่มีข้อมูลค่าใช้จ่าย";
+"Model breakdown unavailable" = "ไม่มีรายละเอียดแยกตามโมเดล";
+"Local estimated history" = "ประวัติโดยประมาณในเครื่อง";
+"Coverage" = "ความครอบคลุม";
+"Estimated spend" = "ค่าใช้จ่ายโดยประมาณ";
+"Tracked tokens" = "โทเค็นที่ติดตาม";
+"Subscriptions" = "การสมัครสมาชิก";
+"By subscription" = "แยกตามการสมัครสมาชิก";
+"No model-level history" = "ไม่มีประวัติระดับโมเดล";
+"Daily estimated spend" = "ค่าใช้จ่ายรายวันโดยประมาณ";

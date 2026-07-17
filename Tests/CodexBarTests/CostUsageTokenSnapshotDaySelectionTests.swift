@@ -86,6 +86,37 @@ struct CostUsageTokenSnapshotDaySelectionTests {
     }
 
     @Test
+    func `token snapshot distinguishes omitted and explicitly unknown currency`() {
+        let omitted = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            daily: [],
+            updatedAt: Date())
+        let blank = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            currencyCode: "  ",
+            daily: [],
+            updatedAt: Date())
+        let euro = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            currencyCode: " eur ",
+            daily: [],
+            updatedAt: Date())
+
+        #expect(omitted.currencyCode == "USD")
+        #expect(blank.currencyCode == "XXX")
+        #expect(euro.currencyCode == "EUR")
+    }
+
+    @Test
     func `latest entry ignores invalid calendar dates`() {
         let latest = CostUsageTokenSnapshot.latestEntry(in: [
             CostUsageDailyReport.Entry(

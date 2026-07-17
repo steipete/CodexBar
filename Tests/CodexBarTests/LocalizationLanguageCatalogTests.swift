@@ -264,6 +264,31 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `model breakdown unavailable exists in every app catalog`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(
+            at: resourcesURL,
+            includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+
+        #expect(catalogs.count == 23)
+        for catalogURL in catalogs {
+            let stringsURL = catalogURL.appendingPathComponent("Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: stringsURL) as? [String: String])
+            let value = try #require(catalog["Model breakdown unavailable"])
+            #expect(!value.isEmpty, "\(catalogURL.lastPathComponent)")
+            #expect(!value.contains("%"), "\(catalogURL.lastPathComponent)")
+            if catalogURL.lastPathComponent == "en.lproj" {
+                #expect(value == "Model breakdown unavailable")
+            }
+        }
+    }
+
+    @Test
     func `catalan localization matches the English catalog`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

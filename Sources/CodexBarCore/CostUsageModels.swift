@@ -31,6 +31,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let last30DaysRequests: Int?
     public let currencyCode: String
     public let historyDays: Int
+    public let historyCoverageIsEstablished: Bool
     public let historyLabel: String?
     public let daily: [CostUsageDailyReport.Entry]
     public let projects: [CostUsageProjectBreakdown]
@@ -45,6 +46,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         last30DaysRequests: Int? = nil,
         currencyCode: String = "USD",
         historyDays: Int = 30,
+        historyCoverageIsEstablished: Bool = true,
         historyLabel: String? = nil,
         daily: [CostUsageDailyReport.Entry],
         projects: [CostUsageProjectBreakdown] = [],
@@ -56,10 +58,10 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.last30DaysRequests = last30DaysRequests
-        self.currencyCode = currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "USD"
-            : currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let normalizedCurrencyCode = currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        self.currencyCode = normalizedCurrencyCode.isEmpty ? "XXX" : normalizedCurrencyCode
         self.historyDays = historyDays
+        self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.historyLabel = historyLabel
         self.daily = daily
         self.projects = projects

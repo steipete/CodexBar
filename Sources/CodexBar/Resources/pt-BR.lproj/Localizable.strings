@@ -7,6 +7,7 @@
 " providers" = " provedores";
 "(System)" = "(Sistema)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Um login gerenciado do Codex já está em andamento. Aguarde terminar antes de adicionar ";
 "API key" = "Chave de API";
 "API region" = "Região da API";
@@ -1210,3 +1211,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Tempo limite esgotado aguardando a troca de conta do Cursor. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Tempo limite esgotado aguardando a troca de conta do Cursor. %@ Último erro: %@";
 "Use Account" = "Usar conta";
+/* Spend dashboard */
+"tab_usage_spend" = "Uso e gastos";
+"Usage & Spend" = "Uso e gastos";
+"Local estimated cost history across supported providers." = "Histórico local de custos estimados nos provedores compatíveis.";
+"Time range" = "Intervalo de tempo";
+"Track costs" = "Acompanhar custos";
+"Cost tracking is off" = "O acompanhamento de custos está desativado";
+"Turn on Track costs to build local estimates." = "Ative “Acompanhar custos” para criar estimativas locais.";
+"No local cost history yet" = "Ainda não há histórico local de custos";
+"Turn on cost tracking or refresh after using a supported provider." = "Ative o acompanhamento de custos ou atualize após usar um provedor compatível.";
+"Refresh failures" = "Falhas de atualização";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "As moedas originais permanecem separadas; as linhas de contas do Codex excluem o histórico de sessões do Pi.";
+"Spend unavailable" = "Gastos indisponíveis";
+"Model breakdown unavailable" = "Detalhamento por modelo indisponível";
+"Local estimated history" = "Histórico local estimado";
+"Coverage" = "Cobertura";
+"Estimated spend" = "Gastos estimados";
+"Tracked tokens" = "Tokens acompanhados";
+"Subscriptions" = "Assinaturas";
+"By subscription" = "Por assinatura";
+"No model-level history" = "Sem histórico por modelo";
+"Daily estimated spend" = "Gasto diário estimado";

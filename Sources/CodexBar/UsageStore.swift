@@ -172,6 +172,8 @@ final class UsageStore {
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
     @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
     var tokenSnapshots: [UsageProvider: CostUsageTokenSnapshot] = [:]
+    var tokenSnapshotPublications: [UsageProvider: TokenSnapshotPublication] = [:]
+    var tokenSnapshotPublicationRevisions: [UsageProvider: UInt64] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var credits: CreditsSnapshot?
@@ -280,11 +282,7 @@ final class UsageStore {
     @ObservationIgnored let providerMetadata: [UsageProvider: ProviderMetadata]
     @ObservationIgnored var providerRuntimes: [UsageProvider: any ProviderRuntime] = [:]
     @ObservationIgnored var providerRefreshCoordinator = ProviderRefreshCoordinator<UsageProvider>()
-    @ObservationIgnored var providerRefreshPublicationContexts: [UsageProvider: (
-        generation: UInt64,
-        enablementRevision: UInt64,
-        configRevision: UInt64,
-        allowDisabled: Bool)] = [:]
+    @ObservationIgnored var providerRefreshPublicationContexts: [UsageProvider: ProviderRefreshPublicationContext] = [:]
     @ObservationIgnored var providerCleanupRevisions: [UsageProvider: UInt64] = [:]
     @ObservationIgnored private var providerAvailabilityCache: [UsageProvider: ProviderAvailabilityCacheEntry] = [:]
     @ObservationIgnored var accountInfoCache: [UsageProvider: AccountInfoCacheEntry] = [:]
@@ -1425,7 +1423,7 @@ extension UsageStore {
 
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
-            self.tokenSnapshots.removeValue(forKey: provider)
+            self.clearTokenSnapshot(for: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
@@ -1434,13 +1432,12 @@ extension UsageStore {
         }
 
         if Self.tokenCostRequiresProviderSnapshot(provider) {
-            if let snapshot = self.tokenSnapshot(fromProviderSnapshot: self.snapshots[provider], provider: provider) {
-                self.tokenSnapshots[provider] = snapshot
+            if self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil {
                 self.tokenErrors[provider] = nil
                 self.tokenFailureGates[provider]?.recordSuccess()
                 self.persistWidgetSnapshot(reason: "token-usage")
             } else {
-                self.tokenSnapshots.removeValue(forKey: provider)
+                self.clearTokenSnapshot(for: provider)
                 self.tokenErrors[provider] = nil
                 self.tokenFailureGates[provider]?.reset()
             }
@@ -1448,7 +1445,7 @@ extension UsageStore {
         }
 
         guard self.settings.costUsageEnabled else {
-            self.tokenSnapshots.removeValue(forKey: provider)
+            self.clearTokenSnapshot(for: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
@@ -1457,7 +1454,7 @@ extension UsageStore {
         }
 
         guard self.isEnabled(provider) else {
-            self.tokenSnapshots.removeValue(forKey: provider)
+            self.clearTokenSnapshot(for: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.reset()
             self.lastTokenFetchAt.removeValue(forKey: provider)
@@ -1470,12 +1467,13 @@ extension UsageStore {
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
         let costScope = self.tokenCostScope(for: provider)
-        let costScopeSignature = "\(costScope.signature)|historyDays=\(historyDays)"
+        let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
         let publicationRevision = self.providerPublicationRevision(for: provider)
-        if !force,
-           let last = self.lastTokenFetchAt[provider],
-           self.lastTokenFetchScope[provider] == costScopeSignature,
-           now.timeIntervalSince(last) < self.tokenFetchTTL
+        let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
+        if !force, self.tokenRefreshCanReuseCurrentSnapshot(
+            provider: provider,
+            now: now,
+            costScopeSignature: costScopeSignature)
         {
             return
         }
@@ -1494,9 +1492,8 @@ extension UsageStore {
         }
 
         let startedAt = Date()
-        let providerText = provider.rawValue
         self.tokenCostLogger
-            .debug("cost usage start provider=\(providerText) force=\(force)")
+            .debug("cost usage start provider=\(provider.rawValue) force=\(force)")
 
         do {
             // Codex cost usage scans local session logs from this machine. That data is
@@ -1514,6 +1511,7 @@ extension UsageStore {
             guard self.tokenRefreshPublicationIsCurrent(
                 provider: provider,
                 publicationRevision: publicationRevision,
+                providerConfigRevision: providerConfigRevision,
                 costScopeSignature: costScopeSignature)
             else {
                 self.clearTokenFetchMetadataIfMatching(
@@ -1525,7 +1523,7 @@ extension UsageStore {
             }
 
             guard !snapshot.daily.isEmpty else {
-                self.tokenSnapshots.removeValue(forKey: provider)
+                self.publishConfirmedEmptyTokenSnapshot(for: provider)
                 self.tokenErrors[provider] = Self.tokenCostNoDataMessage(for: provider)
                 self.tokenFailureGates[provider]?.recordSuccess()
                 return
@@ -1537,12 +1535,12 @@ extension UsageStore {
                 .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
             let durationText = String(format: "%.2f", duration)
             let message =
-                "cost usage success provider=\(providerText) " +
+                "cost usage success provider=\(provider.rawValue) " +
                 "duration=\(durationText)s " +
                 "today=\(sessionCost) " +
                 "historyDays=\(historyDays) windowCost=\(monthCost)"
             self.tokenCostLogger.info(message)
-            self.tokenSnapshots[provider] = snapshot
+            self.publishTokenSnapshot(snapshot, for: provider)
             self.tokenErrors[provider] = nil
             self.tokenFailureGates[provider]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
@@ -1550,6 +1548,7 @@ extension UsageStore {
             guard self.tokenRefreshPublicationIsCurrent(
                 provider: provider,
                 publicationRevision: publicationRevision,
+                providerConfigRevision: providerConfigRevision,
                 costScopeSignature: costScopeSignature)
             else {
                 self.clearTokenFetchMetadataIfMatching(
@@ -1569,7 +1568,7 @@ extension UsageStore {
             let duration = Date().timeIntervalSince(startedAt)
             let msg = error.localizedDescription
             let durationText = String(format: "%.2f", duration)
-            let message = "cost usage failed provider=\(providerText) duration=\(durationText)s error=\(msg)"
+            let message = "cost usage failed provider=\(provider.rawValue) duration=\(durationText)s error=\(msg)"
             self.tokenCostLogger.error(message)
             if Self.tokenFetchFailureAllowsEarlyRetry(error) {
                 self.clearTokenFetchMetadataIfMatching(
@@ -1582,27 +1581,11 @@ extension UsageStore {
                 .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
             if shouldSurface {
                 self.tokenErrors[provider] = error.localizedDescription
-                self.tokenSnapshots.removeValue(forKey: provider)
+                self.clearTokenSnapshot(for: provider)
             } else {
                 self.tokenErrors[provider] = nil
             }
         }
-    }
-
-    private func tokenRefreshPublicationIsCurrent(
-        provider: UsageProvider,
-        publicationRevision: ProviderPublicationRevision,
-        costScopeSignature: String) -> Bool
-    {
-        guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
-              self.settings.costUsageEnabled,
-              self.isEnabled(provider)
-        else {
-            return false
-        }
-        let scope = self.tokenCostScope(for: provider)
-        let currentSignature = "\(scope.signature)|historyDays=\(self.settings.costUsageHistoryDays)"
-        return currentSignature == costScopeSignature
     }
 
     private func clearTokenFetchMetadataIfMatching(

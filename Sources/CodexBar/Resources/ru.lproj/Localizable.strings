@@ -7,6 +7,7 @@
 " providers" = " провайдеров";
 "(System)" = "(Система)";
 "30d" = "30 дн.";
+"7d" = "7 дн.";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Управляемый вход Codex уже активен. Подождите, пока он завершится, прежде чем добавлять ";
 "API key" = "API-ключ";
 "API region" = "Регион API";
@@ -1211,3 +1212,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Истекло время ожидания переключения учетной записи Cursor. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Истекло время ожидания переключения учетной записи Cursor. %@ Последняя ошибка: %@";
 "Use Account" = "Использовать учетную запись";
+/* Spend dashboard */
+"tab_usage_spend" = "Использование и расходы";
+"Usage & Spend" = "Использование и расходы";
+"Local estimated cost history across supported providers." = "Локальная история предполагаемых расходов у поддерживаемых провайдеров.";
+"Time range" = "Период";
+"Track costs" = "Отслеживать расходы";
+"Cost tracking is off" = "Отслеживание расходов выключено";
+"Turn on Track costs to build local estimates." = "Включите «Отслеживать расходы», чтобы создавать локальные оценки.";
+"No local cost history yet" = "Локальной истории расходов пока нет";
+"Turn on cost tracking or refresh after using a supported provider." = "Включите отслеживание расходов или обновите данные после использования поддерживаемого провайдера.";
+"Refresh failures" = "Ошибки обновления";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Исходные валюты остаются раздельными; строки учётных записей Codex не включают историю сеансов Pi.";
+"Spend unavailable" = "Расходы недоступны";
+"Model breakdown unavailable" = "Разбивка по моделям недоступна";
+"Local estimated history" = "Локальная история оценок";
+"Coverage" = "Охват";
+"Estimated spend" = "Предполагаемые расходы";
+"Tracked tokens" = "Отслеживаемые токены";
+"Subscriptions" = "Подписки";
+"By subscription" = "По подпискам";
+"No model-level history" = "Нет истории по моделям";
+"Daily estimated spend" = "Предполагаемые ежедневные расходы";

@@ -132,10 +132,13 @@ extension UsageStore {
         }
 
         let request = self.providerRefreshCoordinator.beginReplacingRequest(for: provider)
-        self.providerRefreshPublicationContexts[provider] = (
+        self.providerRefreshPublicationContexts[provider] = ProviderRefreshPublicationContext(
             generation: request.generation,
             enablementRevision: self.settings.providerEnablementRevision(for: provider),
             configRevision: self.settings.providerConfigRevision(for: provider),
+            tokenCostScopeSignature: Self.tokenCostRequiresProviderSnapshot(provider)
+                ? self.tokenSnapshotScopeSignature(for: provider)
+                : nil,
             allowDisabled: allowDisabled)
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -150,10 +153,13 @@ extension UsageStore {
                 // A replacement can wait behind a predecessor while Settings changes. Capture
                 // the publication inputs at actual fetch start so that queued work uses the new
                 // configuration, while later changes still reject its suspended result.
-                self.providerRefreshPublicationContexts[provider] = (
+                self.providerRefreshPublicationContexts[provider] = ProviderRefreshPublicationContext(
                     generation: request.generation,
                     enablementRevision: self.settings.providerEnablementRevision(for: provider),
                     configRevision: self.settings.providerConfigRevision(for: provider),
+                    tokenCostScopeSignature: Self.tokenCostRequiresProviderSnapshot(provider)
+                        ? self.tokenSnapshotScopeSignature(for: provider)
+                        : nil,
                     allowDisabled: allowDisabled)
                 snapshotUpdatedAtBeforeRefresh = self.snapshot(for: provider)?.updatedAt
                 didStartRefresh = true
@@ -188,7 +194,9 @@ extension UsageStore {
             return false
         }
         return context.enablementRevision == self.settings.providerEnablementRevision(for: provider) &&
-            context.configRevision == self.settings.providerConfigRevision(for: provider)
+            context.configRevision == self.settings.providerConfigRevision(for: provider) &&
+            (context.tokenCostScopeSignature == nil ||
+                context.tokenCostScopeSignature == self.tokenSnapshotScopeSignature(for: provider))
     }
 
     func currentProviderRefreshAllowsDisabledPublication(_ provider: UsageProvider) -> Bool {
@@ -552,11 +560,11 @@ extension UsageStore {
                 self.clearDeepSeekProfileTransition()
             }
             if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: backfilled, provider: provider) {
-                self.tokenSnapshots[provider] = tokenSnapshot
+                self.publishTokenSnapshot(tokenSnapshot, for: provider)
                 self.tokenErrors[provider] = nil
                 self.tokenFailureGates[provider]?.recordSuccess()
             } else if Self.tokenCostRequiresProviderSnapshot(provider) {
-                self.tokenSnapshots.removeValue(forKey: provider)
+                self.publishConfirmedEmptyTokenSnapshot(for: provider)
                 self.tokenErrors[provider] = nil
             }
             self.lastSourceLabels[provider] = result.sourceLabel
@@ -966,7 +974,7 @@ extension UsageStore {
         self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
         self.lastSourceLabels.removeValue(forKey: .claude)
         self.accountSnapshots.removeValue(forKey: .claude)
-        self.tokenSnapshots.removeValue(forKey: .claude)
+        self.clearTokenSnapshot(for: .claude)
         self.tokenErrors[.claude] = nil
         self.failureGates[.claude]?.reset()
         self.tokenFailureGates[.claude]?.reset()
@@ -1086,6 +1094,9 @@ extension UsageStore {
                 self.errors[provider] = error.localizedDescription
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider)
+                    if Self.tokenCostRequiresProviderSnapshot(provider) {
+                        self.clearTokenSnapshot(for: provider)
+                    }
                 }
             } else {
                 self.errors[provider] = nil

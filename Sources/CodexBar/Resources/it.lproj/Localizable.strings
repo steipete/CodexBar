@@ -7,6 +7,7 @@
 " providers" = " provider";
 "(System)" = "(Sistema)";
 "30d" = "30 g";
+"7d" = "7 g";
 "A managed Codex login is already running. Wait for it to finish before adding " = "È già in corso un accesso gestito a Codex. Attendi che termini prima di aggiungere ";
 "API key" = "Chiave API";
 "API region" = "Regione API";
@@ -1209,3 +1210,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "Completa il passaggio a un altro account Cursor nel browser, quindi riprova.";
 "Timed out waiting for Cursor account switch. %@" = "Tempo scaduto in attesa del cambio di account Cursor. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Tempo scaduto in attesa del cambio di account Cursor. %@ Ultimo errore: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Utilizzo e spesa";
+"Usage & Spend" = "Utilizzo e spesa";
+"Local estimated cost history across supported providers." = "Cronologia locale dei costi stimati per i provider supportati.";
+"Time range" = "Intervallo di tempo";
+"Track costs" = "Tieni traccia dei costi";
+"Cost tracking is off" = "Il monitoraggio dei costi è disattivato";
+"Turn on Track costs to build local estimates." = "Attiva «Tieni traccia dei costi» per creare stime locali.";
+"No local cost history yet" = "Ancora nessuna cronologia locale dei costi";
+"Turn on cost tracking or refresh after using a supported provider." = "Attiva il monitoraggio dei costi o aggiorna dopo aver usato un provider supportato.";
+"Refresh failures" = "Aggiornamenti non riusciti";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Le valute originali rimangono separate; le righe degli account Codex escludono la cronologia delle sessioni Pi.";
+"Spend unavailable" = "Spesa non disponibile";
+"Model breakdown unavailable" = "Ripartizione per modello non disponibile";
+"Local estimated history" = "Cronologia locale stimata";
+"Coverage" = "Copertura";
+"Estimated spend" = "Spesa stimata";
+"Tracked tokens" = "Token tracciati";
+"Subscriptions" = "Abbonamenti";
+"By subscription" = "Per abbonamento";
+"No model-level history" = "Nessuna cronologia a livello di modello";
+"Daily estimated spend" = "Spesa giornaliera stimata";

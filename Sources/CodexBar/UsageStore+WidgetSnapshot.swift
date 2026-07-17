@@ -40,11 +40,10 @@ extension UsageStore {
 
     private func makeWidgetEntry(for provider: UsageProvider, now: Date) -> WidgetSnapshot.ProviderEntry? {
         let snapshot = self.snapshots[provider]
-        let storedTokenSnapshot = self.tokenSnapshots[provider]
+        let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         guard snapshot != nil || (provider == .claude && storedTokenSnapshot != nil) else { return nil }
 
-        let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) ?? self
-            .tokenSnapshots[provider]
+        let tokenSnapshot = storedTokenSnapshot
         let dailyUsage = tokenSnapshot?.daily.map { entry in
             WidgetSnapshot.DailyUsagePoint(
                 dayKey: entry.date,

@@ -19,6 +19,19 @@ Cookie-based providers expose a Cookie source picker (Automatic or Manual) in Se
 Some browser cookie imports are cached in Keychain and reused until the session is invalid. API keys, manual cookie
 headers, source selection, provider ordering, and token accounts are stored in `~/.codexbar/config.json`.
 
+## Usage & Spend settings
+
+Settings → Usage & Spend combines local 7- or 30-day estimated history only for enabled descriptors that advertise
+token-cost support: Codex, Claude, Vertex AI, OpenAI, Mistral, and AWS Bedrock. Providers without a cost-history
+contract are omitted instead of appearing as empty subscriptions.
+
+Each native currency has its own total, subscription/model ranking, and daily chart. CodexBar never adds or ranks
+amounts across currencies. Coverage text reports how many days of the selected local calendar window are covered by
+the scan window; a 30-day selection is not labeled as complete when the available scan window covers fewer days.
+
+The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
+scan fails, while provider/account configuration changes replace obsolete results.
+
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |

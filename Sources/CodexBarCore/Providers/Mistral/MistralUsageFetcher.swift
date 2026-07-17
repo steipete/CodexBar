@@ -294,8 +294,15 @@ public enum MistralUsageFetcher {
             }
         }
 
-        let currency = billing.currency ?? "EUR"
-        let currencySymbol = billing.currencySymbol ?? "€"
+        let rawCurrency = billing.currency?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let currency = rawCurrency.isEmpty ? "XXX" : rawCurrency.uppercased()
+        let rawCurrencySymbol = billing.currencySymbol?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let defaultCurrencySymbol = switch currency {
+        case "EUR": "€"
+        case "XXX": "¤"
+        default: currency
+        }
+        let currencySymbol = rawCurrencySymbol.isEmpty ? defaultCurrencySymbol : rawCurrencySymbol
 
         let startDate = billing.startDate.flatMap { Self.parseDate($0) }
         let endDate = billing.endDate.flatMap { Self.parseDate($0) }

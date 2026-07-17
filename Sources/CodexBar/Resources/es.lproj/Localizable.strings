@@ -7,6 +7,7 @@
 " providers" = " proveedores";
 "(System)" = "(Sistema)";
 "30d" = "30 d";
+"7d" = "7 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Ya hay un inicio de sesión gestionado de Codex en curso. Espera a que termine antes de añadir ";
 "API key" = "Clave de API";
 "API region" = "Región de API";
@@ -1208,3 +1209,25 @@
 "Use Account" = "Usar cuenta";
 "Weekly" = "Semanal";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No se encontró el token de API de z.ai. Define apiKey en ~/.codexbar/config.json o Z_AI_API_KEY.";
+/* Spend dashboard */
+"tab_usage_spend" = "Uso y gasto";
+"Usage & Spend" = "Uso y gasto";
+"Local estimated cost history across supported providers." = "Historial local de costes estimados de proveedores compatibles.";
+"Time range" = "Intervalo de tiempo";
+"Track costs" = "Registrar costes";
+"Cost tracking is off" = "El seguimiento de costes está desactivado";
+"Turn on Track costs to build local estimates." = "Activa «Registrar costes» para crear estimaciones locales.";
+"No local cost history yet" = "Aún no hay historial local de costes";
+"Turn on cost tracking or refresh after using a supported provider." = "Activa el seguimiento local de costes o actualiza después de usar un proveedor compatible.";
+"Refresh failures" = "Actualizaciones fallidas";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Las divisas originales se mantienen separadas; las filas de cuentas de Codex excluyen el historial de sesiones de Pi.";
+"Spend unavailable" = "Gasto no disponible";
+"Model breakdown unavailable" = "Desglose por modelo no disponible";
+"Local estimated history" = "Historial local estimado";
+"Coverage" = "Cobertura";
+"Estimated spend" = "Gasto estimado";
+"Tracked tokens" = "Tokens registrados";
+"Subscriptions" = "Suscripciones";
+"By subscription" = "Por suscripción";
+"No model-level history" = "No hay historial por modelo";
+"Daily estimated spend" = "Gasto diario estimado";

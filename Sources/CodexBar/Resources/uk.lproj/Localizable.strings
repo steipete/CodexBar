@@ -7,6 +7,7 @@
 " providers" = "провайдерів";
 "(System)" = "(Система)";
 "30d" = "30д";
+"7d" = "7д";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Керований вхід до Codex вже запущено. Перш ніж додавати, зачекайте, поки він закінчиться";
 "API key" = "Ключ API";
 "API region" = "регіон API";
@@ -1209,3 +1210,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Минув час очікування зміни облікового запису Cursor. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Минув час очікування зміни облікового запису Cursor. %@ Остання помилка: %@";
 "Use Account" = "Використати обліковий запис";
+/* Spend dashboard */
+"tab_usage_spend" = "Використання й витрати";
+"Usage & Spend" = "Використання й витрати";
+"Local estimated cost history across supported providers." = "Локальна історія орієнтовних витрат у підтримуваних провайдерів.";
+"Time range" = "Період";
+"Track costs" = "Відстежувати витрати";
+"Cost tracking is off" = "Відстеження витрат вимкнено";
+"Turn on Track costs to build local estimates." = "Увімкніть «Відстежувати витрати», щоб створювати локальні оцінки.";
+"No local cost history yet" = "Локальної історії витрат ще немає";
+"Turn on cost tracking or refresh after using a supported provider." = "Увімкніть відстеження витрат або оновіть дані після використання підтримуваного провайдера.";
+"Refresh failures" = "Помилки оновлення";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Вихідні валюти залишаються розділеними; рядки облікових записів Codex не включають історію сеансів Pi.";
+"Spend unavailable" = "Витрати недоступні";
+"Model breakdown unavailable" = "Розподіл за моделями недоступний";
+"Local estimated history" = "Локальна історія оцінок";
+"Coverage" = "Охоплення";
+"Estimated spend" = "Орієнтовні витрати";
+"Tracked tokens" = "Відстежувані токени";
+"Subscriptions" = "Підписки";
+"By subscription" = "За підписками";
+"No model-level history" = "Немає історії за моделями";
+"Daily estimated spend" = "Орієнтовні щоденні витрати";

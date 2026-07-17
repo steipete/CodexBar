@@ -7,6 +7,7 @@
 " providers" = "nhà cung cấp";
 "(System)" = "(Hệ thống)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Đăng nhập Codex được quản lý đã chạy. Đợi quá trình này hoàn tất trước khi thêm";
 "API key" = "API khóa";
 "API region" = "API khu vực";
@@ -1210,3 +1211,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Đã hết thời gian chờ chuyển đổi tài khoản Cursor. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Đã hết thời gian chờ chuyển đổi tài khoản Cursor. %@ Lỗi gần nhất: %@";
 "Use Account" = "Sử dụng tài khoản";
+/* Spend dashboard */
+"tab_usage_spend" = "Sử dụng & Chi tiêu";
+"Usage & Spend" = "Sử dụng & Chi tiêu";
+"Local estimated cost history across supported providers." = "Lịch sử chi phí ước tính cục bộ trên các nhà cung cấp được hỗ trợ.";
+"Time range" = "Khoảng thời gian";
+"Track costs" = "Theo dõi chi phí";
+"Cost tracking is off" = "Đang tắt tính năng theo dõi chi phí";
+"Turn on Track costs to build local estimates." = "Bật “Theo dõi chi phí” để tạo ước tính cục bộ.";
+"No local cost history yet" = "Chưa có lịch sử chi phí cục bộ";
+"Turn on cost tracking or refresh after using a supported provider." = "Bật tính năng theo dõi chi phí hoặc làm mới sau khi sử dụng nhà cung cấp được hỗ trợ.";
+"Refresh failures" = "Lần làm mới thất bại";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Đơn vị tiền tệ gốc được giữ riêng biệt; các hàng tài khoản Codex không bao gồm lịch sử phiên Pi.";
+"Spend unavailable" = "Không có dữ liệu chi tiêu";
+"Model breakdown unavailable" = "Phân tích theo mô hình không khả dụng";
+"Local estimated history" = "Lịch sử ước tính cục bộ";
+"Coverage" = "Phạm vi";
+"Estimated spend" = "Chi tiêu ước tính";
+"Tracked tokens" = "Token được theo dõi";
+"Subscriptions" = "Gói đăng ký";
+"By subscription" = "Theo gói đăng ký";
+"No model-level history" = "Không có lịch sử theo mô hình";
+"Daily estimated spend" = "Chi tiêu ước tính hằng ngày";

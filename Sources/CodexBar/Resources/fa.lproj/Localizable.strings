@@ -7,6 +7,7 @@
 " providers" = " providers";
 "(System)" = "(سیستم)";
 "30d" = "30 روز";
+"7d" = "7 روز";
 "A managed Codex login is already running. Wait for it to finish before adding " = "یک ورود Codex مدیریت شده هم اکنون در حال اجرا است. صبر کنید تا تمام شود و بعد   را اضافه کنید";
 "API key" = "کلید API";
 "API region" = "منطقه API";
@@ -1210,3 +1211,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "تغییر به یک حساب Cursor دیگر را در مرورگر کامل کنید، سپس دوباره تلاش کنید.";
 "Timed out waiting for Cursor account switch. %@" = "مهلت انتظار برای تغییر حساب Cursor به پایان رسید. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "مهلت انتظار برای تغییر حساب Cursor به پایان رسید. %@ آخرین خطا: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "مصرف و هزینه";
+"Usage & Spend" = "مصرف و هزینه";
+"Local estimated cost history across supported providers." = "تاریخچه برآورد هزینه محلی در ارائه‌دهندگان پشتیبانی‌شده.";
+"Time range" = "بازه زمانی";
+"Track costs" = "پیگیری هزینه‌ها";
+"Cost tracking is off" = "پیگیری هزینه خاموش است";
+"Turn on Track costs to build local estimates." = "برای ایجاد برآوردهای محلی، «پیگیری هزینه‌ها» را روشن کنید.";
+"No local cost history yet" = "هنوز تاریخچه هزینه محلی وجود ندارد";
+"Turn on cost tracking or refresh after using a supported provider." = "پیگیری هزینه را روشن کنید یا پس از استفاده از یک ارائه‌دهنده پشتیبانی‌شده تازه‌سازی کنید.";
+"Refresh failures" = "خطاهای تازه‌سازی";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "ارزهای اصلی جدا نگه داشته می‌شوند؛ ردیف‌های حساب Codex تاریخچه نشست‌های Pi را دربر نمی‌گیرند.";
+"Spend unavailable" = "هزینه در دسترس نیست";
+"Model breakdown unavailable" = "تفکیک مدل در دسترس نیست";
+"Local estimated history" = "تاریخچه برآورد محلی";
+"Coverage" = "پوشش";
+"Estimated spend" = "برآورد هزینه";
+"Tracked tokens" = "توکن‌های پیگیری‌شده";
+"Subscriptions" = "اشتراک‌ها";
+"By subscription" = "بر اساس اشتراک";
+"No model-level history" = "تاریخچه‌ای در سطح مدل وجود ندارد";
+"Daily estimated spend" = "برآورد هزینه روزانه";

@@ -69,9 +69,11 @@ extension UsageStore {
         if let snapshot = cached.snapshot {
             self.snapshots[provider] = snapshot
             self.lastKnownResetSnapshots[provider] = snapshot
+            self.installProviderDerivedTokenSnapshot(from: snapshot, for: provider)
         } else {
             self.snapshots.removeValue(forKey: provider)
             self.lastKnownResetSnapshots.removeValue(forKey: provider)
+            self.resetProviderDerivedTokenSnapshot(for: provider)
         }
         self.errors[provider] = cached.error
         if let sourceLabel = cached.sourceLabel {
@@ -131,6 +133,7 @@ extension UsageStore {
 
     private func clearTokenAccountLiveSnapshot(provider: UsageProvider) {
         self.snapshots.removeValue(forKey: provider)
+        self.resetProviderDerivedTokenSnapshot(for: provider)
         self.errors.removeValue(forKey: provider)
         self.lastSourceLabels.removeValue(forKey: provider)
         self.lastKnownResetSnapshots.removeValue(forKey: provider)
@@ -158,6 +161,9 @@ extension UsageStore {
         var material = Data(provider.rawValue.utf8)
         material.append((try? encoder.encode(config)) ?? Data())
         material.append((try? encoder.encode(account)) ?? Data())
+        if Self.tokenCostRequiresProviderSnapshot(provider) {
+            material.append(Data(self.tokenSnapshotScopeSignature(for: provider).utf8))
+        }
         return SHA256.hash(data: material).map { String(format: "%02x", $0) }.joined()
     }
 
@@ -896,7 +902,6 @@ extension UsageStore {
             tokenOverride: override,
             codexActiveSourceOverride: codexActiveSourceOverride)
         let fetcher = ProviderRegistry.makeFetcher(base: self.codexFetcher, provider: provider, env: env)
-        let verbose = self.settings.isVerboseLoggingEnabled
         let contextProvider = provider
         let publicationGeneration = self.providerRefreshPublicationContexts[provider]?.generation
         let contextConfigRevision = self.settings.providerConfigRevision(for: provider)
@@ -912,7 +917,7 @@ extension UsageStore {
                 override: override),
             webTimeout: 60,
             webDebugDumpHTML: false,
-            verbose: verbose,
+            verbose: self.settings.isVerboseLoggingEnabled,
             env: env,
             settings: snapshot,
             fetcher: fetcher,
@@ -1524,6 +1529,7 @@ extension UsageStore {
                 if provider == .deepseek {
                     self.clearDeepSeekProfileTransition()
                 }
+                self.publishProviderDerivedTokenSnapshot(from: backfilled, for: provider)
                 self.lastSourceLabels[provider] = result.sourceLabel
                 self.errors[provider] = nil
                 self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
@@ -1575,6 +1581,7 @@ extension UsageStore {
                 if shouldSurface {
                     self.errors[provider] = message
                     self.snapshots.removeValue(forKey: provider)
+                    self.clearProviderDerivedTokenSnapshot(for: provider)
                 } else {
                     self.errors[provider] = nil
                 }

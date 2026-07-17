@@ -7,6 +7,7 @@
 " providers" = " providers";
 "(System)" = "(Systeem)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Er is al een beheerde Codex-aanmelding actief. Wacht tot het klaar is voordat je het toevoegt";
 "API key" = "API-sleutel";
 "API region" = "API-regio";
@@ -1209,3 +1210,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Er is een time-out opgetreden tijdens het wachten op het wisselen van Cursor-account. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Er is een time-out opgetreden tijdens het wachten op het wisselen van Cursor-account. %@ Laatste fout: %@";
 "Use Account" = "Gebruik account";
+/* Spend dashboard */
+"tab_usage_spend" = "Gebruik en uitgaven";
+"Usage & Spend" = "Gebruik en uitgaven";
+"Local estimated cost history across supported providers." = "Lokale geschiedenis met geschatte kosten voor ondersteunde aanbieders.";
+"Time range" = "Tijdsbereik";
+"Track costs" = "Kosten bijhouden";
+"Cost tracking is off" = "Kostenregistratie is uitgeschakeld";
+"Turn on Track costs to build local estimates." = "Schakel ‘Kosten bijhouden’ in om lokale schattingen op te bouwen.";
+"No local cost history yet" = "Nog geen lokale kostengeschiedenis";
+"Turn on cost tracking or refresh after using a supported provider." = "Schakel kostenregistratie in of vernieuw nadat je een ondersteunde aanbieder hebt gebruikt.";
+"Refresh failures" = "Mislukte vernieuwingen";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Oorspronkelijke valuta’s blijven gescheiden; rijen met Codex-accounts sluiten Pi-sessiegeschiedenis uit.";
+"Spend unavailable" = "Uitgaven niet beschikbaar";
+"Model breakdown unavailable" = "Uitsplitsing per model niet beschikbaar";
+"Local estimated history" = "Lokaal geschatte geschiedenis";
+"Coverage" = "Dekking";
+"Estimated spend" = "Geschatte uitgaven";
+"Tracked tokens" = "Bijgehouden tokens";
+"Subscriptions" = "Abonnementen";
+"By subscription" = "Per abonnement";
+"No model-level history" = "Geen geschiedenis op modelniveau";
+"Daily estimated spend" = "Geschatte dagelijkse uitgaven";

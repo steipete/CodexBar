@@ -1,6 +1,23 @@
 import CodexBarCore
 import Foundation
 
+struct CurrentProviderConfigTokenSnapshot: Sendable, Equatable {
+    let snapshot: CostUsageTokenSnapshot
+    let publicationRevision: UInt64
+}
+
+struct CurrentProviderConfigTokenPublication: Sendable, Equatable {
+    let snapshot: CostUsageTokenSnapshot?
+    let publicationRevision: UInt64
+}
+
+struct TokenSnapshotPublication: Sendable, Equatable {
+    let snapshot: CostUsageTokenSnapshot?
+    let publicationRevision: UInt64
+    let providerConfigRevision: UInt64
+    let scopeSignature: String
+}
+
 extension UsageStore {
     func loadTokenUsageSnapshot(
         provider: UsageProvider,
@@ -48,6 +65,105 @@ extension UsageStore {
         self.tokenSnapshots[provider]
     }
 
+    func tokenSnapshotForCurrentProviderConfig(
+        for provider: UsageProvider) -> CurrentProviderConfigTokenSnapshot?
+    {
+        guard let publication = self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider),
+              let snapshot = publication.snapshot
+        else { return nil }
+        return CurrentProviderConfigTokenSnapshot(
+            snapshot: snapshot,
+            publicationRevision: publication.publicationRevision)
+    }
+
+    func tokenSnapshotPublicationForCurrentProviderConfig(
+        for provider: UsageProvider) -> CurrentProviderConfigTokenPublication?
+    {
+        guard let publication = self.tokenSnapshotPublications[provider],
+              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider),
+              publication.scopeSignature == self.tokenSnapshotScopeSignature(for: provider)
+        else { return nil }
+        return CurrentProviderConfigTokenPublication(
+            snapshot: publication.snapshot,
+            publicationRevision: publication.publicationRevision)
+    }
+
+    func tokenSnapshotPublicationRevision(for provider: UsageProvider) -> UInt64 {
+        self.tokenSnapshotPublicationRevisions[provider] ?? 0
+    }
+
+    func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
+        self.tokenSnapshots[provider] = snapshot
+        self.publishTokenSnapshotState(snapshot, for: provider)
+    }
+
+    func publishConfirmedEmptyTokenSnapshot(for provider: UsageProvider) {
+        self.tokenSnapshots.removeValue(forKey: provider)
+        self.publishTokenSnapshotState(nil, for: provider)
+    }
+
+    private func publishTokenSnapshotState(_ snapshot: CostUsageTokenSnapshot?, for provider: UsageProvider) {
+        self.tokenSnapshotPublicationRevisions[provider, default: 0] &+= 1
+        self.tokenSnapshotPublications[provider] = TokenSnapshotPublication(
+            snapshot: snapshot,
+            publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
+            providerConfigRevision: self.settings.providerConfigRevision(for: provider),
+            scopeSignature: self.tokenSnapshotScopeSignature(for: provider))
+    }
+
+    func installCachedTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
+        self.tokenSnapshots[provider] = snapshot
+        self.tokenSnapshotPublications[provider] = TokenSnapshotPublication(
+            snapshot: snapshot,
+            publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
+            providerConfigRevision: self.settings.providerConfigRevision(for: provider),
+            scopeSignature: self.tokenSnapshotScopeSignature(for: provider))
+    }
+
+    func clearTokenSnapshot(for provider: UsageProvider) {
+        self.tokenSnapshots.removeValue(forKey: provider)
+        self.tokenSnapshotPublications.removeValue(forKey: provider)
+    }
+
+    func clearTokenSnapshots() {
+        self.tokenSnapshots.removeAll()
+        self.tokenSnapshotPublications.removeAll()
+    }
+
+    func installProviderDerivedTokenSnapshot(from snapshot: UsageSnapshot, for provider: UsageProvider) {
+        guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
+        if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
+            self.installCachedTokenSnapshot(tokenSnapshot, for: provider)
+        } else {
+            self.clearTokenSnapshot(for: provider)
+        }
+        self.tokenErrors[provider] = nil
+        self.tokenFailureGates[provider]?.recordSuccess()
+    }
+
+    func publishProviderDerivedTokenSnapshot(from snapshot: UsageSnapshot, for provider: UsageProvider) {
+        guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
+        if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
+            self.publishTokenSnapshot(tokenSnapshot, for: provider)
+        } else {
+            self.publishConfirmedEmptyTokenSnapshot(for: provider)
+        }
+        self.tokenErrors[provider] = nil
+        self.tokenFailureGates[provider]?.recordSuccess()
+    }
+
+    func resetProviderDerivedTokenSnapshot(for provider: UsageProvider) {
+        guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
+        self.clearTokenSnapshot(for: provider)
+        self.tokenErrors[provider] = nil
+        self.tokenFailureGates[provider]?.reset()
+    }
+
+    func clearProviderDerivedTokenSnapshot(for provider: UsageProvider) {
+        guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
+        self.clearTokenSnapshot(for: provider)
+    }
+
     func tokenError(for provider: UsageProvider) -> String? {
         self.tokenErrors[provider]
     }
@@ -65,6 +181,9 @@ extension UsageStore {
         let scope = self.tokenCostScope(for: .codex)
         let historyDays = self.settings.costUsageHistoryDays
         let publicationRevision = self.providerPublicationRevision(for: .codex)
+        let providerConfigRevision = self.settings.providerConfigRevision(for: .codex)
+        let costUsageSettingsRevision = self.settings.costUsageSettingsRevision
+        let tokenSnapshotScopeSignature = self.tokenSnapshotScopeSignature(for: .codex)
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.tokenSnapshots[.codex] == nil else { return }
@@ -84,22 +203,25 @@ extension UsageStore {
                 return
             }
             guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: .codex),
+                  self.settings.providerConfigRevision(for: .codex) == providerConfigRevision,
+                  self.settings.costUsageSettingsRevision == costUsageSettingsRevision,
                   self.settings.costUsageEnabled,
                   self.isEnabled(.codex),
                   self.tokenCostScope(for: .codex).signature == scope.signature,
                   self.settings.costUsageHistoryDays == historyDays,
+                  self.tokenSnapshotScopeSignature(for: .codex) == tokenSnapshotScopeSignature,
                   self.tokenSnapshots[.codex] == nil
             else {
                 return
             }
-            self.tokenSnapshots[.codex] = result.snapshot
+            self.installCachedTokenSnapshot(result.snapshot, for: .codex)
             self.tokenErrors[.codex] = nil
             if let lastRefreshAt = result.lastRefreshAt,
                now.timeIntervalSince(lastRefreshAt) >= 0,
                now.timeIntervalSince(lastRefreshAt) < self.tokenFetchTTL
             {
                 self.lastTokenFetchAt[.codex] = lastRefreshAt
-                self.lastTokenFetchScope[.codex] = "\(scope.signature)|historyDays=\(historyDays)"
+                self.lastTokenFetchScope[.codex] = tokenSnapshotScopeSignature
             }
         }
     }
@@ -109,6 +231,9 @@ extension UsageStore {
     }
 
     func tokenCostScope(for provider: UsageProvider) -> (codexHomePath: String?, signature: String) {
+        if provider == .vertexai {
+            return (nil, "vertexai:allow-claude-fallback=\(!self.isEnabled(.claude))")
+        }
         guard provider == .codex else {
             return (nil, provider.rawValue)
         }
@@ -118,6 +243,42 @@ extension UsageStore {
             return (nil, "codex:ambient")
         }
         return (homePath, "codex:managed:\(homePath)")
+    }
+
+    func tokenSnapshotScopeSignature(for provider: UsageProvider) -> String {
+        let scope = self.tokenCostScope(for: provider)
+        return "\(scope.signature)|historyDays=\(self.settings.costUsageHistoryDays)" +
+            "|settingsRevision=\(self.settings.costUsageSettingsRevision)"
+    }
+
+    func tokenRefreshCanReuseCurrentSnapshot(
+        provider: UsageProvider,
+        now: Date,
+        costScopeSignature: String) -> Bool
+    {
+        guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil,
+              let last = self.lastTokenFetchAt[provider],
+              self.lastTokenFetchScope[provider] == costScopeSignature
+        else {
+            return false
+        }
+        return now.timeIntervalSince(last) < self.tokenFetchTTL
+    }
+
+    func tokenRefreshPublicationIsCurrent(
+        provider: UsageProvider,
+        publicationRevision: ProviderPublicationRevision,
+        providerConfigRevision: UInt64,
+        costScopeSignature: String) -> Bool
+    {
+        guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
+              self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
+              self.settings.costUsageEnabled,
+              self.isEnabled(provider)
+        else {
+            return false
+        }
+        return self.tokenSnapshotScopeSignature(for: provider) == costScopeSignature
     }
 
     func tokenSnapshot(
@@ -175,7 +336,7 @@ extension UsageStore {
 
         guard errorMessage == nil else { return errorMessage }
 
-        self.tokenSnapshots.removeAll()
+        self.clearTokenSnapshots()
         self.tokenErrors.removeAll()
         self.lastTokenFetchAt.removeAll()
         self.lastTokenFetchScope.removeAll()

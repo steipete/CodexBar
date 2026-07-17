@@ -7,6 +7,7 @@
 " providers" = " 공급자";
 "(System)" = "(시스템)";
 "30d" = "30일";
+"7d" = "7일";
 "A managed Codex login is already running. Wait for it to finish before adding " = "관리되는 Codex 로그인이 이미 실행 중입니다. 추가하기 전에 완료될 때까지 기다리세요. ";
 "API key" = "API 키";
 "API region" = "API 지역";
@@ -1177,3 +1178,25 @@
 "Timed out waiting for Cursor account switch. %@" = "Cursor 계정 전환을 기다리는 동안 시간이 초과되었습니다. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "Cursor 계정 전환을 기다리는 동안 시간이 초과되었습니다. %@ 마지막 오류: %@";
 "Use Account" = "계정 사용";
+/* Spend dashboard */
+"tab_usage_spend" = "사용량 및 지출";
+"Usage & Spend" = "사용량 및 지출";
+"Local estimated cost history across supported providers." = "지원되는 공급자의 로컬 예상 비용 내역입니다.";
+"Time range" = "기간";
+"Track costs" = "비용 추적";
+"Cost tracking is off" = "비용 추적이 꺼져 있습니다";
+"Turn on Track costs to build local estimates." = "로컬 예상치를 만들려면 ‘비용 추적’을 켜세요.";
+"No local cost history yet" = "아직 로컬 비용 내역이 없습니다";
+"Turn on cost tracking or refresh after using a supported provider." = "비용 추적을 켜거나 지원되는 공급자를 사용한 후 새로 고치세요.";
+"Refresh failures" = "새로 고침 실패";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "각 통화는 별도로 유지되며 Codex 계정 행에서는 Pi 세션 기록이 제외됩니다.";
+"Spend unavailable" = "지출 정보 없음";
+"Model breakdown unavailable" = "모델별 내역을 사용할 수 없습니다";
+"Local estimated history" = "로컬 예상 내역";
+"Coverage" = "포함 범위";
+"Estimated spend" = "예상 지출";
+"Tracked tokens" = "추적된 토큰";
+"Subscriptions" = "구독";
+"By subscription" = "구독별";
+"No model-level history" = "모델별 내역이 없습니다";
+"Daily estimated spend" = "일별 예상 지출";

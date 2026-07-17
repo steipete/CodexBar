@@ -52,7 +52,7 @@ extension UsageStore {
         if provider == .claude {
             self.clearClaudeSwapAccountState()
         }
-        self.tokenSnapshots.removeValue(forKey: provider)
+        self.clearTokenSnapshot(for: provider)
         self.tokenErrors[provider] = nil
         self.providerStorageFootprints.removeValue(forKey: provider)
         self.failureGates[provider]?.reset()

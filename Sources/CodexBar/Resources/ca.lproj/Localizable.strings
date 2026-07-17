@@ -7,6 +7,7 @@
 " providers" = " proveïdors";
 "(System)" = "(Sistema)";
 "30d" = "30 d";
+"7d" = "7 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Ja hi ha un inici de sessió gestionat de Codex en curs. Espereu que acabi abans d'afegir ";
 "API key" = "Clau d'API";
 "API region" = "Regió de l'API";
@@ -1209,3 +1210,26 @@
 "Finish switching to a different Cursor account in your browser, then try again." = "Acabeu de canviar a un compte de Cursor diferent al navegador i torneu-ho a provar.";
 "Timed out waiting for Cursor account switch. %@" = "S'ha esgotat el temps d'espera del canvi de compte de Cursor. %@";
 "Timed out waiting for Cursor account switch. %@ Last error: %@" = "S'ha esgotat el temps d'espera del canvi de compte de Cursor. %@ Últim error: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Ús i despesa";
+"Usage & Spend" = "Ús i despesa";
+"Local estimated cost history across supported providers." = "Historial local de costos estimats dels proveïdors compatibles.";
+"Time range" = "Interval de temps";
+"Track costs" = "Fes seguiment dels costos";
+"Cost tracking is off" = "El seguiment de costos està desactivat";
+"Turn on Track costs to build local estimates." = "Activa «Fes seguiment dels costos» per crear estimacions locals.";
+"No local cost history yet" = "Encara no hi ha historial local de costos";
+"Turn on cost tracking or refresh after using a supported provider." = "Activa el seguiment de costos o actualitza després d’utilitzar un proveïdor compatible.";
+"Refresh failures" = "Actualitzacions fallides";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Les monedes originals es mantenen separades; les files de comptes de Codex exclouen l’historial de sessions de Pi.";
+"Spend unavailable" = "Despesa no disponible";
+"Model breakdown unavailable" = "Desglossament per model no disponible";
+"Local estimated history" = "Historial local estimat";
+"Coverage" = "Cobertura";
+"Estimated spend" = "Despesa estimada";
+"Tracked tokens" = "Tokens registrats";
+"Subscriptions" = "Subscripcions";
+"By subscription" = "Per subscripció";
+"No model-level history" = "Sense historial per model";
+"Daily estimated spend" = "Despesa diària estimada";
