@@ -421,8 +421,12 @@ struct BrowserDetectionTests {
             KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, account in
                 let label = Self.labelID(service: service, account: account)
                 queriedLabels.append(label)
-                if label == firstChromeLabel { return .allowed }
-                if label == firstDiaLabel { return .interactionRequired }
+                if label == firstChromeLabel {
+                    return .allowed
+                }
+                if label == firstDiaLabel {
+                    return .interactionRequired
+                }
                 return .notFound
             } operation: {
                 ProviderInteractionContext.$current.withValue(.userInitiated) {
@@ -681,6 +685,29 @@ struct BrowserDetectionTests {
         try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: profile.appendingPathComponent("cookies.sqlite").path, contents: Data())
         #expect(detection.isCookieSourceAvailable(.firefox) == true)
+    }
+
+    @Test
+    func `firefox developer edition unlocks the shared Firefox cookie store`() {
+        let home = "/tmp/codexbar-firefox-developer-edition"
+        let profiles = "\(home)/Library/Application Support/Firefox/Profiles"
+        let cookieDB = "\(profiles)/abc.default-release/cookies.sqlite"
+        let detection = BrowserDetection(
+            homeDirectory: home,
+            cacheTTL: 0,
+            now: Date.init,
+            fileExists: { path in
+                path == "/Applications/Firefox Developer Edition.app" ||
+                    path == profiles ||
+                    path == cookieDB
+            },
+            directoryContents: { path in
+                path == profiles ? ["abc.default-release"] : nil
+            },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in nil })
+
+        #expect(detection.isCookieSourceAvailable(.firefox))
     }
 
     @Test

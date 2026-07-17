@@ -201,13 +201,14 @@ public final class BrowserDetection: Sendable {
     }
 
     private func detectAppInstalled(for browser: Browser) -> Bool {
-        let appPaths = self.applicationPaths(for: browser)
-        for path in appPaths where self.fileExists(path) {
-            return true
+        self.applicationNames(for: browser).contains { appName in
+            let appPaths = [
+                "/Applications/\(appName).app",
+                "\(self.homeDirectory)/Applications/\(appName).app",
+            ]
+            return appPaths.contains(where: self.fileExists) ||
+                self.applicationURLs(appName).contains { self.fileExists($0.path) }
         }
-
-        guard let appName = self.applicationName(for: browser) else { return false }
-        return self.applicationURLs(appName).contains { self.fileExists($0.path) }
     }
 
     private func hasInstalledApplication(_ browser: Browser, applicationURL: URL?) -> Bool {
@@ -246,17 +247,11 @@ public final class BrowserDetection: Sendable {
         return self.hasValidCookieStore(for: browser, at: profilePath)
     }
 
-    private func applicationPaths(for browser: Browser) -> [String] {
-        guard let appName = self.applicationName(for: browser) else { return [] }
-
-        return [
-            "/Applications/\(appName).app",
-            "\(self.homeDirectory)/Applications/\(appName).app",
-        ]
-    }
-
-    private func applicationName(for browser: Browser) -> String? {
-        browser.appBundleName
+    private func applicationNames(for browser: Browser) -> [String] {
+        if browser == .firefox {
+            return [browser.appBundleName, "Firefox Developer Edition"]
+        }
+        return [browser.appBundleName]
     }
 
     private static func registeredApplicationURLs(named appName: String) -> [URL] {
