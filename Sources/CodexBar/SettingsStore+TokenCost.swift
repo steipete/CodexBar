@@ -3,7 +3,9 @@ import Foundation
 
 extension SettingsStore {
     func costSummaryShowsInlineDashboard(for provider: UsageProvider) -> Bool {
-        self.isCostUsageEffectivelyEnabled(for: provider) &&
+        // DeepSeek has no cost submenu, so any enabled cost-summary style falls back to inline.
+        if provider == .deepseek { return self.costUsageEnabled }
+        return self.isCostUsageEffectivelyEnabled(for: provider) &&
             self.costSummaryDisplayStyle.showsInlineSummary
     }
 

@@ -98,7 +98,7 @@ extension UsageMenuCardView.Model {
                     return [L("Select a DeepSeek Chrome profile in Settings.")]
                 }
             }
-            guard input.showOptionalCreditsAndExtraUsage else { return nil }
+            guard input.tokenCostInlineDashboardEnabled else { return nil }
             guard let usage = input.snapshot?.deepseekUsage else {
                 if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
                     return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
@@ -240,7 +240,7 @@ extension UsageMenuCardView.Model {
         }
         if input.provider == .deepseek,
            !input.isRefreshing,
-           input.showOptionalCreditsAndExtraUsage,
+           input.tokenCostInlineDashboardEnabled,
            let usage = input.snapshot?.deepseekUsage,
            !usage.daily.isEmpty
         {

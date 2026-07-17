@@ -3,6 +3,7 @@
 ## 0.44.1 — Unreleased
 
 ### Fixed
+- DeepSeek: show detailed Platform cost and token history whenever Cost summary is enabled, including an inline fallback for Submenu, without tying balance guidance to credits and extras.
 
 ## 0.44.0 — 2026-07-17
 
