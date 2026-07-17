@@ -1,4 +1,7 @@
 import Foundation
+#if os(Linux)
+import Glibc
+#endif
 
 package final class ProcessPipeCapture: @unchecked Sendable {
     package static let defaultMaxBytes = 1 * 1024 * 1024
@@ -13,6 +16,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private var didReachEOF = false
     private var isStopping = false
     private var continuation: CheckedContinuation<Void, Never>?
+    private var usesReadableHandler = true
 
     package init(
         pipe: Pipe,
@@ -25,6 +29,22 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     }
 
     package func start() {
+        #if os(Linux)
+        // swift-corelibs-foundation's readabilityHandler setter duplicates the
+        // underlying fd to create a dispatch source. If the process is already at
+        // EMFILE, that dup fails and the setter traps with precondition(_fd >= 0),
+        // producing the SIGILL reported in issue #2234. Defensively probe whether
+        // we can duplicate the fd ourselves; if not, fall back to synchronous
+        // reading in stopAndSnapshot() instead of installing the handler.
+        let fd = self.handle.fileDescriptor
+        let probe = Glibc.dup(fd)
+        guard probe != -1 else {
+            self.usesReadableHandler = false
+            return
+        }
+        Glibc.close(probe)
+        #endif
+
         self.handle.readabilityHandler = { [weak self] handle in
             self?.handleReadableData(from: handle)
         }
@@ -115,6 +135,27 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         continuation?.resume()
     }
 
+    private func drainSynchronously() {
+        while !self.isStopping {
+            let chunk = self.handle.availableData
+            self.condition.lock()
+            if chunk.isEmpty {
+                self.isFinished = true
+                self.didReachEOF = true
+                self.condition.broadcast()
+                self.condition.unlock()
+                return
+            }
+            let remainingBytes = max(0, self.maxBytes - self.data.count)
+            if remainingBytes > 0 {
+                self.data.append(chunk.prefix(remainingBytes))
+            }
+            self.onData?()
+            self.condition.broadcast()
+            self.condition.unlock()
+        }
+    }
+
     private func waitUntilFinished() async {
         await withCheckedContinuation { continuation in
             self.condition.lock()
@@ -131,6 +172,12 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private func stopAndSnapshot() -> Data {
         self.handle.readabilityHandler = nil
 
+        // If we could not install the readability handler (e.g. EMFILE on Linux),
+        // read whatever data is available synchronously before closing the fd.
+        if !self.usesReadableHandler {
+            self.drainSynchronously()
+        }
+
         let continuation: CheckedContinuation<Void, Never>?
         let snapshot: Data
         self.condition.lock()
@@ -143,6 +190,13 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         self.continuation = nil
         snapshot = self.data
         self.condition.unlock()
+
+        // Explicitly close the read-end file descriptor. On Linux
+        // swift-corelibs-foundation, clearing readabilityHandler does not
+        // release the underlying dup'd monitor fd, so the pipe read end leaks
+        // if we rely solely on closeOnDealloc. Closing here prevents the
+        // long-running fd growth that leads to EMFILE/SIGILL (issue #2234).
+        try? self.handle.close()
 
         continuation?.resume()
         return snapshot

@@ -8,21 +8,27 @@ on:
 jobs:
   repro:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
       - name: Swift toolchain version
         run: swift --version
 
-      - name: Run fd leak repro
+      - name: Run fd leak repro (unfixed baseline)
         shell: bash
         run: |
           set -euo pipefail
           cd repro/2234
           swift run Repro leak 2>&1 | tee leak.log
 
-      - name: Run EMFILE/SIGILL repro
+      - name: Run real ProcessPipeCapture regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --filter ProcessPipeCaptureLinuxTests 2>&1 | tee test.log
+
+      - name: Run EMFILE/SIGILL repro (unfixed baseline)
         shell: bash
         run: |
           set -euo pipefail
@@ -46,3 +52,4 @@ jobs:
           path: |
             repro/2234/leak.log
             repro/2234/emfile.log
+            test.log
