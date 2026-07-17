@@ -10,6 +10,8 @@ import Foundation
 actor ClaudeCLISession {
     static let shared = ClaudeCLISession()
     private static let log = CodexBarLog.logger(LogCategories.claudeCLI)
+    private static let probeSessionIDFilename = ".codexbar-session-id"
+    private static let fallbackProbeSessionID = UUID()
     #if DEBUG
     @TaskLocal private static var sessionOverrideForTesting: ClaudeCLISession?
 
@@ -297,22 +299,27 @@ actor ClaudeCLISession {
 
         let proc = Process()
         let resolvedURL = URL(fileURLWithPath: binary)
+        let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
+        // A crashed probe can leave a JSONL behind. Claude treats `--session-id` as creation-only when that local
+        // transcript exists, so clear the probe-owned artifact before reusing the account-side identifier.
+        ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(probeDirectory: workingDirectory)
+        let sessionID = Self.loadOrCreateProbeSessionID(in: workingDirectory)
+        let claudeArguments = Self.launchArguments(sessionID: sessionID)
         let disableWatchdog = ProcessInfo.processInfo.environment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] == "1"
         if !disableWatchdog,
            resolvedURL.lastPathComponent == "claude",
            let watchdog = TTYCommandRunner.locateBundledHelper("CodexBarClaudeWatchdog")
         {
             proc.executableURL = URL(fileURLWithPath: watchdog)
-            proc.arguments = ["--", binary, "--allowed-tools", ""]
+            proc.arguments = ["--", binary] + claudeArguments
         } else {
             proc.executableURL = resolvedURL
-            proc.arguments = ["--allowed-tools", ""]
+            proc.arguments = claudeArguments
         }
         proc.standardInput = secondaryHandle
         proc.standardOutput = secondaryHandle
         proc.standardError = secondaryHandle
 
-        let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
         proc.currentDirectoryURL = workingDirectory
         var env = Self.launchEnvironment()
         env["PWD"] = workingDirectory.path
@@ -362,6 +369,54 @@ actor ClaudeCLISession {
         self.processGroup = processGroup
         self.binaryPath = binary
         self.startedAt = Date()
+    }
+
+    static func launchArguments(sessionID: UUID) -> [String] {
+        // `/usage` is interactive, while Claude's no-persistence option is print-only. Reusing one explicit ID keeps
+        // repeated probe launches from registering a fresh empty account session every time.
+        ["--allowed-tools", "", "--session-id", sessionID.uuidString.lowercased()]
+    }
+
+    static func loadOrCreateProbeSessionID(
+        in directory: URL,
+        fileManager fm: FileManager = .default) -> UUID
+    {
+        let url = directory.appendingPathComponent(self.probeSessionIDFilename, isDirectory: false)
+        if let existing = self.readProbeSessionID(from: url) {
+            return existing
+        }
+
+        let sessionID = UUID()
+        do {
+            try fm.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
+            try sessionID.uuidString.lowercased().write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            Self.log.warning(
+                "Claude probe session identity persistence failed",
+                metadata: ["error": error.localizedDescription])
+            return self.fallbackProbeSessionID
+        }
+
+        #if os(macOS) || os(Linux)
+        do {
+            try fm.setAttributes(
+                [.posixPermissions: NSNumber(value: Int16(0o600))],
+                ofItemAtPath: url.path)
+        } catch {
+            Self.log.warning(
+                "Claude probe session identity permission hardening failed",
+                metadata: ["error": error.localizedDescription])
+        }
+        #endif
+        return sessionID
+    }
+
+    private static func readProbeSessionID(from url: URL) -> UUID? {
+        guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return UUID(uuidString: raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
