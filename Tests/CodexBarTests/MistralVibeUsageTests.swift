@@ -45,6 +45,16 @@ struct MistralVibeUsageTests {
             "auth.mistral.ai",
             "console.mistral.ai",
         ])
+
+        let referenceDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let query = MistralCookieImporter.cookieQuery(referenceDate: referenceDate)
+        #expect(query.domains == MistralCookieImporter.cookieDomains)
+        #expect(query.includeExpired == false)
+        #expect(query.referenceDate == referenceDate)
+        guard case .exact = query.domainMatch else {
+            Issue.record("Expected exact Mistral cookie-domain matching")
+            return
+        }
     }
     #endif
 

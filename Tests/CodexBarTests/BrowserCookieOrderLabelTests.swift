@@ -96,6 +96,9 @@ struct BrowserCookieOrderStatusStringTests {
         #expect(order.contains(.firefox))
         #expect(!order.contains(.edge))
         #expect(!order.contains(.arc))
+        #expect(MistralCookieImporter.resolvedImportOrder(nil) == order)
+        #expect(MistralCookieImporter.resolvedImportOrder([]) == order)
+        #expect(MistralCookieImporter.resolvedImportOrder([.firefox]) == [.firefox])
     }
 
     @Test

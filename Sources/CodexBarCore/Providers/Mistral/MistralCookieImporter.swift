@@ -40,14 +40,12 @@ public enum MistralCookieImporter {
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
         let log: (String) -> Void = { msg in logger?("[mistral-cookie] \(msg)") }
-        let order = preferredBrowsers ?? mistralCookieImportOrder
-        let installedBrowsers = order.isEmpty
-            ? Browser.defaultImportOrder.cookieImportCandidates(using: browserDetection)
-            : order.cookieImportCandidates(using: browserDetection)
+        let order = self.resolvedImportOrder(preferredBrowsers)
+        let installedBrowsers = order.cookieImportCandidates(using: browserDetection)
 
         for browserSource in installedBrowsers {
             do {
-                let query = BrowserCookieQuery(domains: self.cookieDomains)
+                let query = self.cookieQuery()
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
@@ -70,6 +68,21 @@ public enum MistralCookieImporter {
         }
 
         throw MistralCookieImportError.noCookies
+    }
+
+    static func resolvedImportOrder(_ preferredBrowsers: [Browser]?) -> [Browser] {
+        guard let preferredBrowsers, !preferredBrowsers.isEmpty else {
+            return mistralCookieImportOrder
+        }
+        return preferredBrowsers
+    }
+
+    static func cookieQuery(referenceDate: Date = Date()) -> BrowserCookieQuery {
+        BrowserCookieQuery(
+            domains: self.cookieDomains,
+            domainMatch: .exact,
+            includeExpired: false,
+            referenceDate: referenceDate)
     }
 
     public static func hasSession(
