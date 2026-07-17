@@ -355,7 +355,9 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(detailLine == "web")
     }
+}
 
+extension ProviderSettingsDescriptorTests {
     @Test
     func `alibaba token plan settings expose cookie controls`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-settings")
