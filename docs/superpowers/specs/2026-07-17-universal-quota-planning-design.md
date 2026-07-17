@@ -23,7 +23,7 @@ The number-first presentation answers three related questions:
    remaining longer-window quota fund?
 2. **Maximum before reset (`M`):** how many short-window allowance equivalents can become available before the longer
    window resets if every allowance is used flat out?
-3. **Reachability:** does the conservative evidence show that the longer quota can or cannot be exhausted before reset?
+3. **Reachability:** does the evidence show that the longer quota is theoretically exhaustible or likely stranded?
 
 `N` is the headline. `M` and the reachability verdict are supporting context. `N` is learned from synchronized movement
 in the two quotas; `M` is deterministic schedule capacity. The planning block remains hidden until `N` passes its
@@ -49,7 +49,7 @@ implementation contract.
 
 ## Goals
 
-- Show `N`, supporting `M`, and a conservative verdict on the existing long-window row.
+- Show `N`, supporting `M`, and a range-gated verdict on the existing long-window row.
 - Use one descriptor-driven Core estimator for primary/secondary and multiple named pairs.
 - Compose with existing pace presentation without duplicating pace calculations.
 - Isolate provider, account, group, source, and reset-window state and fail closed on incomplete evidence.
@@ -87,8 +87,8 @@ reset.
 
 By returning a pair, a provider also asserts that `100` short-window percentage points represent one full short
 allowance, each reported short reset replenishes one full allowance, and resets repeat at the declared short duration
-while the long window remains active. Providers with incremental regeneration, irregular refill schedules, or only a
-next-refill amount must not opt in to the initial calculation.
+under continuous use while the long window remains active. Providers with incremental regeneration, irregular refill
+schedules, or only a next-refill amount must not opt in to the initial calculation.
 
 ## Accepted user behavior
 
@@ -117,8 +117,8 @@ provider metric title into the sentence.
 | State                                                           | Example on the weekly row                                                                                                                                    |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Calibration learning or unstable                                | No planning line                                                                                                                                             |
-| One qualifying candidate; verdict learning                      | `Remaining weekly quota: ≈4 full-session equivalents`<br>`Up to 9 before reset`                                                         |
-| Conservatively reachable                                        | `Remaining weekly quota: ≈4 full-session equivalents`<br>`Up to 9 before reset · weekly quota can likely be exhausted`                  |
+| One display-qualified candidate; verdict learning               | `Remaining weekly quota: ≈4 full-session equivalents`<br>`Up to 9 before reset`                                                         |
+| Theoretically reachable                                         | `Remaining weekly quota: ≈4 full-session equivalents`<br>`Up to 9 before reset · weekly quota can be exhausted at full use`             |
 | Conservatively stranded                                         | `Remaining weekly quota: ≈9 full-session equivalents`<br>`Only up to 4 before reset · weekly quota will likely go unused`               |
 | Candidate range crosses boundary                                | `Remaining weekly quota: ≈4 full-session equivalents`<br>`Up to 4 before reset · reachability uncertain`                                |
 | No capacity before reset; verdict learning                      | `Remaining weekly quota: ≈0.6 full-session equivalents`<br>`No short-window capacity before reset`                                      |
@@ -127,7 +127,8 @@ provider metric title into the sentence.
 
 The visible copy deliberately favors brevity. Accessibility text must state the full relationship, for example: “At
 the recently observed workload mix, the remaining weekly quota can fund approximately 4 full-session equivalents. Up
-to 9 full-session equivalents can become available before the weekly reset. The weekly quota can likely be exhausted.”
+to 9 full-session equivalents can become available before the weekly reset. The weekly quota can be exhausted at full
+use.”
 When `M` is fractional, accessibility text must distinguish the current partial allowance from later full refills; for
 example, `4.4` means roughly 40% of the current allowance plus four future full allowances. Do not add success or
 warning color; existing pace and threshold UI already carry risk semantics.
@@ -145,6 +146,8 @@ warning color; existing pace and threshold UI already carry risk semantics.
   planning lines; allow the block to wrap to at most three visual lines when localization requires it. Never
   abbreviate translated words, truncate either value, shrink the font, or cover percentage/reset content.
 - Compare unrounded `N` and `M` and candidate bounds. Formatting never determines a verdict.
+- If one-decimal formatting makes `N` and `M` look equal while the raw verdict is `likelyStranded`, keep the internal
+  verdict but render the uncertain supporting copy rather than a visually contradictory stranded claim.
 - Do not expose candidate bounds, a confidence percentage, or internal sample count.
 
 ## Eligibility: explicit and fail-closed
@@ -158,8 +161,8 @@ or are sampled closely enough by that fetcher to support a ratio. A provider tha
 different calls must first expose trustworthy capture/skew evidence; the shared estimator cannot repair source skew.
 
 Pair IDs must be non-empty, stable across refreshes, and unique within a provider snapshot. Short and long metric IDs
-must be non-empty and different, and one long metric ID may belong to at most one pair. If resolver output collides,
-drop every colliding pair rather than choosing by array order; other independent pairs may continue.
+must be non-empty and different, and each metric ID may belong to at most one pair in the initial rollout. If resolver
+output collides, drop every colliding pair rather than choosing by array order; other independent pairs may continue.
 
 A resolved pair is eligible only when all of these conditions hold:
 
@@ -183,10 +186,11 @@ unknown; a clamped value must not become an eligible observation. Provider fixtu
 
 Set estimate freshness to `60 minutes`, twice the maximum adaptive refresh interval. Start that TTL when CodexBar
 receives the successful result and measure elapsed time with `ContinuousClock`, so a wall-clock correction cannot make
-a fresh estimate instantly stale or extend it indefinitely. The hard display deadline is the earlier of that monotonic
-TTL and the canonical long-reset anchor. If wall time reaches the long reset without a successful refresh, hide the
-estimate and discard calibration from the prior long window. A forward wall-clock correction may hide early; the
-60-minute monotonic TTL still prevents a backward correction from retaining the estimate indefinitely.
+a fresh estimate instantly stale or extend it indefinitely. The hard display deadline is the earliest of that
+monotonic TTL and the canonical short- and long-reset anchors. When the short reset arrives, hide until a new eligible
+live result supplies the new short remainder; never advance reset anchors or recompute `M` at render time. When the long
+reset arrives, also discard calibration from the prior long window. A forward wall-clock correction may hide early;
+the monotonic TTL still prevents a backward correction from retaining the estimate indefinitely.
 
 Do not globally compare `snapshot.updatedAt` with the local wall clock. Receipt time alone cannot prove that a cached
 provider payload is current, and a server timestamp may use a skewed clock. A strategy with cache or server-age
@@ -233,6 +237,11 @@ teaching the shared estimator about strategies. `UsageSnapshot.dataConfidence` m
 when a provider sets it, but its default `.unknown` is not a global rejection: several current exact quota parsers do
 not populate the coarse snapshot-wide field.
 
+A same-scope result whose observation freshness is `.cached` or `.unknown` creates no observation and does not extend
+freshness, but it also supplies no new live contradiction: retain any previously published live estimate until its
+existing display deadline. A same-scope live result that is ineligible hides the presentation immediately while
+preserving reducer state.
+
 Provide a shared `primarySecondary(...)` resolver for the common shape. Providers with grouped extras return pairs
 from their stable named-window IDs. The resolved long `metricID` is the join key used to decorate the menu metric; the
 app must not rediscover the pair by title or array position.
@@ -255,7 +264,7 @@ helpers must not recompute pace. The shared decorating pass attaches both values
 must not recompute expected progress, ETA, workday time, reserve/deficit, or run-out probability.
 
 The companion Core estimate carries pair and long-metric IDs, `N`, `M`, future full-refill count, learned long cost,
-and one of `insufficientEvidence`, `likelyReachable`, `likelyStranded`, or `uncertain`.
+and one of `insufficientEvidence`, `theoreticallyReachable`, `likelyStranded`, or `uncertain`.
 
 The pure schedule estimator accepts a resolved pair and `now`. The pure calibration reducer accepts a scoped
 observation and prior in-memory state. A pure composer combines their outputs into `QuotaPlanningEstimate` after the
@@ -276,10 +285,11 @@ matching reset or a short reset that moves backward beyond tolerance. While set,
 produce a presentation. Clear it only when the new active segment produces a qualifying candidate; normal dispersion
 and eligibility gates still apply.
 
-Published estimates expire without requiring a refresh at the earlier of the monotonic TTL and long reset. Expiry
-work is cancellable and generation-guarded so stale tasks cannot clear replacement state. Clock changes and app wake
-reschedule it; wall and monotonic clocks remain injectable for tests. TTL expiry hides only the presentation;
-calibration remains reusable after a new eligible live observation until the canonical long reset discards it.
+Published estimates expire without requiring a refresh at the earliest of the monotonic TTL, short reset, and long
+reset. Expiry work is cancellable and generation-guarded so stale tasks cannot clear replacement state. Clock changes
+and app wake reschedule it; wall and monotonic clocks remain injectable for tests. TTL or short-reset expiry hides
+only the presentation; calibration remains reusable after a new eligible live observation until the canonical long
+reset discards it.
 
 Keep the dictionary and its receipt-time freshness metadata `@MainActor`-isolated with the rest of `UsageStore`.
 Concurrent provider fetches may perform network and parsing work off actor, but every calibration lookup, reducer-state
@@ -305,6 +315,10 @@ If the strategy ID is empty or otherwise unavailable, do not learn or show an es
 Create or update estimates only from a successful in-process fetch result with its matching account/source context.
 A startup cache, arbitrary `presentationSnapshot`, or menu `snapshotOverride` is not sufficient evidence. Override
 cards show no quota-planning line in the first version; they must never inherit a live estimate from another account.
+
+On an active-account change, or before applying the first successful result from a different strategy, hide the prior
+scope's presentation and cancel its display-expiry task. Keep the old reducer entry isolated until its long reset so
+returning to that scope can requalify it; never render it against the new scope's long remainder.
 
 Decorate the matching long metric in one shared pass after provider metrics are built. The typed presentation contains
 localized headline/supporting/accessibility text, does not overwrite `detailText`, and participates in redaction and
@@ -342,6 +356,11 @@ second counts only when it is more than `T` before the long reset. Short and lon
 `weeklyProgressWorkDays`, historical pace, weekends, sleep, and personal availability. That deliberate choice makes
 the stranded verdict strong: if the weekly quota cannot be exhausted under `M`, it cannot be exhausted under a less
 aggressive schedule. Existing `UsagePace` remains the personalized projection.
+
+The verdict is intentionally asymmetric. `likelyStranded` is a conservative capacity conclusion.
+`theoreticallyReachable` only says enough short-window capacity can become available under immediate full use; it is
+not a forecast of user behavior or throughput. A final refill that lands just over `T` before the long reset counts,
+even though little usable time may remain.
 
 ## Fundable full-session calculation
 
@@ -387,13 +406,15 @@ A segment may produce a candidate long cost only when:
 - the candidate is finite and greater than zero. Values above `100` are valid: they mean the recently observed workload
   would exhaust a full long allowance before consuming one full short allowance.
 
-The `20`/`1` gates let integer-quantized weekly sources accumulate a measurable change while still producing a useful
-estimate during one active short window. They are initial product constants, not settings.
+The `20`/`1` gates admit a candidate, but a lone candidate may be presented only when its source `longDelta >= 3`.
+Candidates with `1 <= longDelta < 3` remain in calibration and may contribute after a second candidate passes
+dispersion. This limits the cold-start error from integer-quantized weekly readings without penalizing multi-segment
+evidence. These thresholds are product constants, not settings.
 
 Maintain the current qualifying candidate plus the five most recently completed short-segment candidates inside the
-current long window. Updating an active segment replaces its current candidate; it does not append another sample.
-When a segment completes, append its qualifying candidate and evict the oldest completed candidate if the FIFO now
-contains more than five.
+current long window. Each candidate retains its long cost and source `longDelta`. Updating an active segment replaces
+its current candidate; it does not append another sample. When a segment completes, append its qualifying candidate
+and evict the oldest completed candidate if the FIFO now contains more than five.
 
 A later observation in the `99.5...100%` saturation range cannot create or replace the active candidate. Retain any
 earlier qualifying active and completed candidates, use the latest eligible long remainder for composition, and hide
@@ -404,7 +425,10 @@ two middle values for an even count. Once two or more candidates exist, require 
 `abs(candidate - median) / median` to be at most `0.30`, inclusive. If any candidate fails, suppress the fundable
 full-session estimate without deleting the outlier. New active candidates may stabilize as they update, and completed
 outliers eventually age out through FIFO eviction. A single qualifying current or completed candidate is shown with
-`≈`, because the feature is most useful before several five-hour cycles have completed.
+`≈` only when it also passes the `longDelta >= 3` display gate.
+
+Consequently, a second disagreeing candidate can temporarily remove a previously visible single-candidate estimate.
+That is expected fail-closed behavior, not a presentation regression.
 
 Do not relax the dispersion limit when only two or three candidates exist. Early disagreement is weaker evidence, not
 a reason to accept more variance. Revisit the fixed `0.30` threshold only with fixture or production evidence and a
@@ -412,11 +436,13 @@ separately reviewed confidence model.
 
 No separate candidate-age limit applies inside one long window. The five-segment FIFO favors recent mix, while the
 60-minute estimate freshness rule requires a recent eligible observation before any old candidate can be rendered.
+Production review should check whether older completed segments dominate the median late in the long window before
+adding recency weighting or a candidate-age limit.
 
 Do not extrapolate through a capped long-window endpoint. A long quota at its limit reveals only that at least the
 remaining capacity was consumed, not the full relative cost.
 
-### Conservative reachability verdict
+### Reachability verdict
 
 The numeric headline uses the candidate median. The verdict uses the full stable candidate range so a near-boundary
 median cannot produce false certainty. Let `C` be the same current/completed candidate set that passed dispersion:
@@ -431,15 +457,15 @@ else:
     if lowerFundable > maximumFullSessionEquivalentsBeforeReset:
         reachability = likelyStranded
     else if upperFundable <= maximumFullSessionEquivalentsBeforeReset:
-        reachability = likelyReachable
+        reachability = theoreticallyReachable
     else:
         reachability = uncertain
 ```
 
 `likelyStranded` means every stable observed conversion requires more short-window capacity than can become available.
-`likelyReachable` means every stable observed conversion fits within the theoretical maximum. `uncertain` means the
-observed range crosses the boundary. Use “likely” even for a unanimous range because future workload mix can change.
-Do not show a verdict from one candidate, invent a fixed numeric guard band, or expose the internal range.
+`theoreticallyReachable` means every stable observed conversion fits within the theoretical maximum; it does not claim
+the user will consume it. `uncertain` means the observed range crosses the boundary. Do not show a verdict from one
+candidate, invent a fixed numeric guard band, or expose the internal range.
 
 ### Calibration state machine
 
@@ -460,7 +486,8 @@ For each scoped pair:
 7. A qualifying candidate from the new active segment clears `requiresActiveRequalification`; until then, suppress
    the composed `N`, `M`, and verdict even if completed candidates remain.
 8. A strategy or account change selects a different key; it never inherits the other key's observations. Returning to
-   the original key before expiry may reuse it only after a new eligible observation confirms its reset anchors.
+   the original key before its canonical long reset may reuse it only after a new eligible observation confirms its
+   reset anchors.
 9. Missing/ineligible data and failed refreshes do not update, recover, or erase state. Expired keys are pruned after
    their long reset.
 10. App termination discards all state.
@@ -491,7 +518,7 @@ Later opt-ins require fixture-backed proof of shared metering semantics; cadence
 - Keep calibration in memory; do not add preferences, migrations, files, `UserDefaults`, or history reuse.
 - Do not log account discriminators, emails, organization names, raw percentages, or observation sequences.
 - Debug logging may state provider, non-personal pair ID, and a coarse suppression reason such as `missingReset`,
-  `insufficientMovement`, or `unstableCalibration`.
+  `insufficientMovement`, `nonLiveFreshness`, or `unstableCalibration`.
 - The rendered text contains no identity and remains safe when personal-information hiding is enabled.
 
 ## Failure behavior
@@ -500,13 +527,16 @@ Fail closed to no planning line:
 
 | Condition | Result |
 | --- | --- |
-| No qualifying/stable calibration, including discontinuity requalification | Hide and continue learning. |
-| One qualifying candidate | Show `N` and `M`; omit the verdict. |
+| No display-qualified/stable calibration, including discontinuity requalification | Hide and continue learning. |
+| One candidate with `longDelta >= 3` | Show `N` and `M`; omit the verdict. |
 | Two or more stable candidates | Show the range-derived reachable, stranded, or uncertain verdict. |
-| Unsupported, ambiguous, invalid, unscoped, stale, or exhausted long quota | Hide; do not learn from that observation. |
+| Unsupported, ambiguous, invalid, unscoped, freshness-expired, or exhausted long quota | Hide; do not learn from that observation. |
 | `M == 0` with long quota remaining | Show `N`, explicit no-capacity copy, and a verdict only when evidence qualifies. |
-| Ineligible successful refresh | Hide, preserve scoped state, and require a new eligible observation. |
-| Provider refresh failure | Retain the last good block until the earlier of its 60-minute TTL and long reset. |
+| Same-scope `.cached` or `.unknown` result | Retain the last live block to its existing deadline; do not refresh TTL or mutate calibration. |
+| Same-scope live but ineligible result | Hide, preserve scoped state, and require a new eligible observation. |
+| Successful account or strategy change | Hide the old scope immediately; show the new scope only after it qualifies. |
+| Provider refresh failure | Retain the last good block until the earliest of its 60-minute TTL and short/long resets. |
+| Canonical short reset | Hide until a new eligible live result; retain calibration. |
 | Canonical long reset | Hide and discard prior-window calibration. |
 | App relaunch | Clear in-memory calibration and relearn. |
 
@@ -517,21 +547,22 @@ No fallback may guess a reset from `resetDescription`, title text, another accou
 ### Core schedule and verdict tests
 
 - Cover fractional/zero current remainder; reset order; the `120`-second boundary; exact and multiple short-duration
-  separations; and independence from workday/history inputs.
+  separations including `delta = S + T + ε`; and independence from workday/history inputs.
 - Cover one-candidate evidence, reachable/stranded/uncertain range boundaries including equality, unrounded
-  comparison, and `M == 0`.
+  comparison, rounded-value collision presentation, and `M == 0`.
 
 ### Core calibration and eligibility tests
 
-- Cover the exact `20`/`1` thresholds, formula, odd/even median, five completed-candidate FIFO plus the current
-  candidate, dispersion, saturation, and valid long cost above `100`.
+- Cover the exact `20`/`1` candidate thresholds, the single-candidate `longDelta >= 3` display threshold, formula,
+  odd/even median, five completed-candidate FIFO plus the current candidate, dispersion, saturation, and valid long
+  cost above `100`.
 - Cover jitter/high-water behavior; short/long reset transitions; discontinuity requalification; and repeated,
   failed, or incomplete observations.
 - Reject every invalid eligibility class, including malformed raw percentages that provider clamping might otherwise
   hide.
 - Prove provider/account/group/strategy isolation, stable-reset reuse, and empty state after restart.
-- Cover live/cached/unknown freshness, monotonic TTL, long-reset expiry, wake/clock rescheduling, generation guards, and
-  main-actor serialization with injected clocks.
+- Cover live/cached/unknown freshness; monotonic TTL; short-reset hiding without render-time anchor advancement;
+  long-reset clearing; wake/clock rescheduling; generation guards; and main-actor serialization with injected clocks.
 
 ### Provider resolution tests
 
@@ -539,6 +570,8 @@ No fallback may guess a reset from `resetDescription`, title text, another accou
   resolves every complete stable-ID group independently and in any order.
 - Cover incomplete groups, live versus cached results under one strategy, coarse confidence, pair/metric collisions,
   raw malformed percentages, and descriptor absence.
+- Every opted-in strategy fixture proves its successful authoritative result sets `.live`; missing freshness produces
+  `nonLiveFreshness` and no new observation.
 
 ### Menu tests
 
