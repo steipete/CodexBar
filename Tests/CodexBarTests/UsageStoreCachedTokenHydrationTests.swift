@@ -191,6 +191,36 @@ struct UsageStoreCachedTokenHydrationTests {
         #expect(tokenRefreshCount == 1)
     }
 
+    @Test
+    func `confirmed empty publication wins over in flight cached codex hydration`() async {
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let gate = CachedTokenHydrationGate()
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            await gate.enter()
+            return (Self.cachedTokenSnapshot(), Date())
+        }
+
+        let hydration = store.hydrateCachedTokenSnapshots()
+        await gate.waitForStart()
+        store.publishConfirmedEmptyTokenSnapshot(for: .codex)
+        let confirmedEmptyRevision = store.tokenSnapshotPublicationRevision(for: .codex)
+        await gate.release()
+        await hydration?.value
+
+        let publication = store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex)
+        #expect(hydration != nil)
+        #expect(publication?.snapshot == nil)
+        #expect(publication?.publicationRevision == confirmedEmptyRevision)
+        #expect(store.tokenSnapshot(for: .codex) == nil)
+        #expect(store.tokenLastAttemptAt(for: .codex) == nil)
+    }
+
     private static func makeCodexOnlySettings(historyDays: Int) -> SettingsStore {
         let suite = "UsageStoreCachedTokenHydrationTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -214,6 +244,16 @@ struct UsageStoreCachedTokenHydrationTests {
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
         }
         return settings
+    }
+
+    private static func cachedTokenSnapshot() -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
+            sessionTokens: 42,
+            sessionCostUSD: 1,
+            last30DaysTokens: 42,
+            last30DaysCostUSD: 1,
+            daily: [],
+            updatedAt: Date())
     }
 
     private static func writeCodexSessionFile(
@@ -255,5 +295,37 @@ struct UsageStoreCachedTokenHydrationTests {
                 ],
             ],
         ]).write(to: url, atomically: true, encoding: .utf8)
+    }
+}
+
+private actor CachedTokenHydrationGate {
+    private var started = false
+    private var released = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func enter() async {
+        self.started = true
+        let waiters = self.startWaiters
+        self.startWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        guard !self.released else { return }
+        await withCheckedContinuation { continuation in
+            self.releaseWaiters.append(continuation)
+        }
+    }
+
+    func waitForStart() async {
+        guard !self.started else { return }
+        await withCheckedContinuation { continuation in
+            self.startWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        self.released = true
+        let waiters = self.releaseWaiters
+        self.releaseWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 }

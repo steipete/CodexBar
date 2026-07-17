@@ -172,10 +172,11 @@ extension UsageStore {
         self.lastTokenFetchAt[provider]
     }
 
-    func hydrateCachedTokenSnapshots(now: Date = Date()) {
-        guard self.settings.costUsageEnabled else { return }
+    @discardableResult
+    func hydrateCachedTokenSnapshots(now: Date = Date()) -> Task<Void, Never>? {
+        guard self.settings.costUsageEnabled else { return nil }
         guard self.settings.enabledProvidersOrdered(metadataByProvider: self.providerMetadata).contains(.codex) else {
-            return
+            return nil
         }
 
         let scope = self.tokenCostScope(for: .codex)
@@ -184,9 +185,10 @@ extension UsageStore {
         let providerConfigRevision = self.settings.providerConfigRevision(for: .codex)
         let costUsageSettingsRevision = self.settings.costUsageSettingsRevision
         let tokenSnapshotScopeSignature = self.tokenSnapshotScopeSignature(for: .codex)
-        Task { @MainActor [weak self] in
+        let tokenSnapshotPublicationRevision = self.tokenSnapshotPublicationRevision(for: .codex)
+        return Task { @MainActor [weak self] in
             guard let self else { return }
-            guard self.tokenSnapshots[.codex] == nil else { return }
+            guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil else { return }
             let result: (snapshot: CostUsageTokenSnapshot, lastRefreshAt: Date?)? = if let override = self
                 ._test_cachedCodexTokenSnapshotLoaderOverride
             {
@@ -210,7 +212,8 @@ extension UsageStore {
                   self.tokenCostScope(for: .codex).signature == scope.signature,
                   self.settings.costUsageHistoryDays == historyDays,
                   self.tokenSnapshotScopeSignature(for: .codex) == tokenSnapshotScopeSignature,
-                  self.tokenSnapshots[.codex] == nil
+                  self.tokenSnapshotPublicationRevision(for: .codex) == tokenSnapshotPublicationRevision,
+                  self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil
             else {
                 return
             }
