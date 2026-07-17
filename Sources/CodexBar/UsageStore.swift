@@ -1003,7 +1003,7 @@ extension UsageStore {
         await AugmentStatusProbe.latestDumps()
     }
 
-    // swiftlint:disable:next function_body_length cyclomatic_complexity
+    // swiftlint:disable:next function_body_length
     func debugLog(for provider: UsageProvider) async -> String {
         if let cached = self.probeLogs[provider], !cached.isEmpty {
             return cached
@@ -1032,7 +1032,6 @@ extension UsageStore {
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
-        let crossModelDebugContext = self.crossModelAPIKeyDebugContext(processEnvironment: processEnvironment)
         let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
@@ -1059,7 +1058,6 @@ extension UsageStore {
                 .kilo: "Kilo debug log not yet implemented",
                 .kiro: "Kiro debug log not yet implemented",
                 .kimi: "Kimi debug log not yet implemented",
-                .kimik2: "Kimi K2 debug log not yet implemented",
                 .jetbrains: "JetBrains AI debug log not yet implemented",
                 .mimo: "Xiaomi MiMo debug log not yet implemented",
                 .doubao: "Doubao debug log not yet implemented",
@@ -1140,8 +1138,6 @@ extension UsageStore {
                         ollamaCookieHeader: ollamaCookieHeader)
                 case .openrouter:
                     return Self.apiKeyDebugLine(openRouterDebugContext)
-                case .crossmodel:
-                    return Self.apiKeyDebugLine(crossModelDebugContext)
                 case .elevenlabs:
                     return Self.apiKeyDebugLine(elevenLabsDebugContext)
                 case .warp:
@@ -1157,7 +1153,7 @@ extension UsageStore {
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .clinepass, .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .factory,
-                     .copilot, .devin, .vertexai, .kilo, .kiro, .kimi, .kimik2, .moonshot, .jetbrains, .perplexity,
+                     .copilot, .devin, .vertexai, .kilo, .kiro, .kimi, .moonshot, .jetbrains, .perplexity,
                      .mimo, .doubao, .sakana, .abacus, .mistral, .codebuff, .crof, .windsurf, .venice, .manus,
                      .commandcode, .qoder, .stepfun, .bedrock, .grok, .groq, .t3chat, .llmproxy, .litellm, .zed,
                      .deepgram, .poe, .chutes, .clawrouter, .longcat, .wayfinder, .sub2api, .zenmux:

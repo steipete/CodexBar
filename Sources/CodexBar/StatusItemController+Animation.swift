@@ -809,12 +809,6 @@ extension StatusItemController {
         {
             return UsageFormatter.usdString(balance)
         }
-        if provider == .crossmodel,
-           self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
-           let usage = snapshot?.crossModelUsage
-        {
-            return usage.balanceDisplay
-        }
         if provider == .opencodego,
            let balance = Self.openCodeGoZenBalanceDisplayText(snapshot: snapshot)
         {
@@ -850,11 +844,6 @@ extension StatusItemController {
             {
                 return spend
             }
-        }
-        if provider == .kimik2,
-           let credits = Self.kimiK2CreditsDisplayText(snapshot: snapshot)
-        {
-            return credits
         }
         if provider == .kiro {
             return Self.kiroDisplayText(
@@ -992,13 +981,6 @@ extension StatusItemController {
             from: snapshot?.identity?.loginMethod,
             prefix: "API spend:",
             removingSuffix: " this month")
-    }
-
-    nonisolated static func kimiK2CreditsDisplayText(snapshot: UsageSnapshot?) -> String? {
-        self.displayValue(
-            from: snapshot?.identity?.loginMethod,
-            prefix: "Credits:",
-            removingSuffix: " left")
     }
 
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {

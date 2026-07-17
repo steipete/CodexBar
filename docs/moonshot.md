@@ -18,9 +18,8 @@ Kimi API docs use the Moonshot API surface for current Kimi models: examples rea
 quickstart. This provider is therefore named after the account and billing surface,
 not a specific Kimi model version.
 
-The existing `Kimi K2` provider remains separate because it targets the legacy
-`kimi-k2.ai` credit endpoint. Migrating or deprecating that provider should be a
-separate cleanup so existing user settings are not silently repointed.
+CodexBar uses the official Moonshot account and billing surface rather than unofficial
+third-party Kimi relays.
 
 ## Data sources
 

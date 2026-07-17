@@ -110,7 +110,6 @@ struct CodexBarConfigMigratorTests {
             minimaxCookieStore: secrets,
             minimaxAPITokenStore: secrets,
             kimiTokenStore: secrets,
-            kimiK2TokenStore: secrets,
             augmentCookieStore: secrets,
             ampCookieStore: secrets,
             copilotTokenStore: secrets,
@@ -119,7 +118,7 @@ struct CodexBarConfigMigratorTests {
 }
 
 private final class CountingLegacySecretStore: ZaiTokenStoring, SyntheticTokenStoring, CookieHeaderStoring,
-    MiniMaxCookieStoring, MiniMaxAPITokenStoring, KimiTokenStoring, KimiK2TokenStoring, CopilotTokenStoring,
+    MiniMaxCookieStoring, MiniMaxAPITokenStoring, KimiTokenStoring, CopilotTokenStoring,
     @unchecked Sendable
 {
     private let lock = NSLock()

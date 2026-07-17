@@ -308,7 +308,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Deseu diverses capçaleres Cookie d'OpenCode Go.";
 "Stored in the CodexBar config file." = "Desat al fitxer de configuració del CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "Desat a ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Desat a ~/.codexbar/config.json. Genereu-ne una a kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Desat a ~/.codexbar/config.json. Enganxeu la clau del tauler de Synthetic.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Desat a ~/.codexbar/config.json. Enganxeu la clau d'API del vostre pla de programació des de Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Desat a ~/.codexbar/config.json. Enganxeu la vostra clau d'API de MiniMax.";
@@ -512,7 +511,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Mostra el saldo de DeepSeek a la barra de menús.";
 "menu_bar_metric_subtitle_moonshot" = "Mostra el saldo de l'API de Moonshot / Kimi a la barra de menús.";
 "menu_bar_metric_subtitle_mistral" = "Trieu entre la despesa de l'API de Mistral i l'ús del Monthly Plan per a la barra de menús.";
-"menu_bar_metric_subtitle_kimik2" = "Mostra els crèdits de la clau d'API de Kimi K2 a la barra de menús.";
 "automatic" = "Automàtic";
 "primary_api_key_limit" = "Principal (límit de la clau d'API)";
 
@@ -878,7 +876,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS la capçalera Cookie de Cursor per obtenir l'ús. Premeu D'acord per continuar.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS la capçalera Cookie de Factory per obtenir l'ús. Premeu D'acord per continuar.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS el token de GitHub Copilot per obtenir l'ús. Premeu D'acord per continuar.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS la clau API de Kimi K2 per obtenir l'ús. Premeu D'acord per continuar.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS el token d'autenticació de Kimi per obtenir l'ús. Premeu D'acord per continuar.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS el token API de MiniMax per obtenir l'ús. Premeu D'acord per continuar.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar demanarà a Clauer de macOS la capçalera Cookie de MiniMax per obtenir l'ús. Premeu D'acord per continuar.";
@@ -1191,7 +1188,6 @@
 "Weekly" = "Setmanal";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "No s'ha trobat el token d'API de z.ai. Definiu apiKey a ~/.codexbar/config.json o Z_AI_API_KEY.";
 "≈ %d%% run-out risk" = "≈ %d%% risc d'esgotament";
-"CrossModel API spend trend" = "Tendència de despesa de l'API de CrossModel";
 
 /* Settings sidebar redesign */
 "Enable" = "Activa";

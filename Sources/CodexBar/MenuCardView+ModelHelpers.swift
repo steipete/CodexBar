@@ -82,10 +82,6 @@ extension UsageMenuCardView.Model {
             return notes + subscriptionNotes
         }
 
-        if input.provider == .crossmodel, let crossModel = input.snapshot?.crossModelUsage {
-            return Self.crossModelSpendNotes(crossModel) + subscriptionNotes
-        }
-
         guard input.provider == .openrouter,
               let openRouter = input.snapshot?.openRouterUsage
         else {
@@ -850,20 +846,6 @@ extension UsageMenuCardView.Model {
         }
 
         return nil
-    }
-
-    static func crossModelSpendNotes(_ usage: CrossModelUsageSnapshot) -> [String] {
-        let candidates: [(String, Double?)] = [
-            (L("Today"), usage.daily?.cost),
-            (L("This week"), usage.weekly?.cost),
-            (L("This month"), usage.monthly?.cost),
-        ]
-        let rendered = candidates.compactMap { candidate -> String? in
-            guard let value = candidate.1 else { return nil }
-            return "\(candidate.0): \(usage.currencyString(value))"
-        }
-        guard !rendered.isEmpty else { return [] }
-        return [rendered.joined(separator: " · ")]
     }
 
     static func openRouterQuotaDetail(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {

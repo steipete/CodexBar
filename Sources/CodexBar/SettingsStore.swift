@@ -259,7 +259,6 @@ final class SettingsStore {
         minimaxCookieStore: any MiniMaxCookieStoring = KeychainMiniMaxCookieStore(),
         minimaxAPITokenStore: any MiniMaxAPITokenStoring = KeychainMiniMaxAPITokenStore(),
         kimiTokenStore: any KimiTokenStoring = KeychainKimiTokenStore(),
-        kimiK2TokenStore: any KimiK2TokenStoring = KeychainKimiK2TokenStore(),
         augmentCookieStore: any CookieHeaderStoring = KeychainCookieHeaderStore(
             account: "augment-cookie",
             promptKind: .augmentCookie),
@@ -310,7 +309,6 @@ final class SettingsStore {
             minimaxCookieStore: minimaxCookieStore,
             minimaxAPITokenStore: minimaxAPITokenStore,
             kimiTokenStore: kimiTokenStore,
-            kimiK2TokenStore: kimiK2TokenStore,
             augmentCookieStore: augmentCookieStore,
             ampCookieStore: ampCookieStore,
             copilotTokenStore: copilotTokenStore,

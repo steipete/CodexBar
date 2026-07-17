@@ -310,7 +310,6 @@
 "Store multiple OpenCode Go Cookie headers." = "存储多个 OpenCode Go Cookie 标头。";
 "Stored in the CodexBar config file." = "存储在 CodexBar 配置文件中。";
 "Stored in ~/.codexbar/config.json. " = "存储在 ~/.codexbar/config.json 中。";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "存储在 ~/.codexbar/config.json 中。可在 kimi-k2.ai 生成。";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "存储在 ~/.codexbar/config.json 中。请粘贴来自 Synthetic 仪表盘的密钥。";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "存储在 ~/.codexbar/config.json 中。请粘贴来自 Model Studio 的 Coding Plan API 密钥。";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "存储在 ~/.codexbar/config.json 中。请粘贴你的 MiniMax API 密钥。";
@@ -509,7 +508,6 @@
 "menu_bar_metric_subtitle_deepseek" = "在菜单栏显示 DeepSeek 余额。";
 "menu_bar_metric_subtitle_moonshot" = "在菜单栏显示 Moonshot / Kimi API 余额。";
 "menu_bar_metric_subtitle_mistral" = "在菜单栏显示 Mistral API 本月支出。";
-"menu_bar_metric_subtitle_kimik2" = "在菜单栏显示 Kimi K2 API 密钥额度。";
 "automatic" = "自动";
 "primary_api_key_limit" = "主要（API 密钥限制）";
 "menu_bar_style_title" = "菜单栏样式";
@@ -867,7 +865,6 @@
 "Cache read" = "缓存读取";
 "Claude Admin API 30 day spend trend" = "Claude Admin API 30 天支出趋势";
 "OpenRouter API key spend trend" = "OpenRouter API 密钥支出趋势";
-"CrossModel API spend trend" = "CrossModel API 支出趋势";
 "z.ai hourly token trend" = "z.ai 每小时 token 趋势";
 "MiniMax 30 day token usage trend" = "MiniMax 30 天 token 用量趋势";
 "Today cash" = "今日现金";
@@ -997,7 +994,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 Cursor Cookie 标头，以获取用量。点击“确定”继续。";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 Factory Cookie 标头，以获取用量。点击“确定”继续。";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 GitHub Copilot token，以获取用量。点击“确定”继续。";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 Kimi K2 API 密钥，以获取用量。点击“确定”继续。";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 Kimi 认证 token，以获取用量。点击“确定”继续。";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 MiniMax API token，以获取用量。点击“确定”继续。";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar 将向 macOS 钥匙串请求你的 MiniMax Cookie 标头，以获取用量。点击“确定”继续。";

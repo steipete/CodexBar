@@ -307,7 +307,6 @@
 "Store multiple OpenCode Go Cookie headers." = "چندین هدر OpenCode Go Cookie را ذخیره کنید.";
 "Stored in the CodexBar config file." = "در فایل پیکربندی CodexBar ذخیره شده است.";
 "Stored in ~/.codexbar/config.json. " = "ذخیره شده در ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "ذخیره شده در ~/.codexbar/config.json. یکی را در kimi-k2.ai تولید کنید.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "ذخیره شده در ~/.codexbar/config.json. کلید را از داشبورد Synthetic پیست کنید.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "ذخیره شده در ~/.codexbar/config.json. کلید API برنامه کدنویسی خود را از مدل استودیو چسبانده کنید.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "ذخیره شده در ~/.codexbar/config.json. کلید MiniMax API خود را بچسبانید.";
@@ -534,7 +533,6 @@
 "menu_bar_metric_subtitle_deepseek" = "تعادل DeepSeek را در نوار منو نشان می دهد.";
 "menu_bar_metric_subtitle_moonshot" = "تعادل Moonshot / Kimi API را در نوار منو نشان می دهد.";
 "menu_bar_metric_subtitle_mistral" = "هزینه های Mistral API ماه جاری را در نوار منو نشان می دهد.";
-"menu_bar_metric_subtitle_kimik2" = "Kimi تیتراژ API کلید K2 در نوار منو نمایش داده می شود.";
 "automatic" = "اتوماتیک";
 "primary_api_key_limit" = "کلید اصلی (API حد کلید)";
 
@@ -1041,7 +1039,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain Cursor هدر کوکی تان را می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain Factory هدر کوکی تان را می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain توکن GitHub Copilot شما را درخواست می کند تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain کلید API K2 Kimi می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain توکن احراز هویت Kimi می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain توکن MiniMax API شما را درخواست می کند تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain MiniMax هدر کوکی تان را می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
@@ -1192,7 +1189,6 @@
 "byte_unit_megabytes" = "مگابایت";
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
-"CrossModel API spend trend" = "روند هزینه‌ی CrossModel API";
 
 /* Settings sidebar redesign */
 "Enable" = "فعال‌سازی";

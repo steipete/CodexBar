@@ -13,7 +13,6 @@ struct CodexBarConfigMigrator {
         let minimaxCookieStore: any MiniMaxCookieStoring
         let minimaxAPITokenStore: any MiniMaxAPITokenStoring
         let kimiTokenStore: any KimiTokenStoring
-        let kimiK2TokenStore: any KimiK2TokenStoring
         let augmentCookieStore: any CookieHeaderStoring
         let ampCookieStore: any CookieHeaderStoring
         let copilotTokenStore: any CopilotTokenStoring
@@ -107,7 +106,6 @@ struct CodexBarConfigMigrator {
                 (.zai, stores.zaiTokenStore.loadToken),
                 (.synthetic, stores.syntheticTokenStore.loadToken),
                 (.copilot, stores.copilotTokenStore.loadToken),
-                (.kimik2, stores.kimiK2TokenStore.loadToken),
             ],
             config: &config,
             state: &state)
@@ -308,7 +306,6 @@ struct CodexBarConfigMigrator {
             try stores.copilotTokenStore.storeToken(nil)
             try stores.minimaxAPITokenStore.storeToken(nil)
             try stores.kimiTokenStore.storeToken(nil)
-            try stores.kimiK2TokenStore.storeToken(nil)
             try stores.codexCookieStore.storeCookieHeader(nil)
             try stores.claudeCookieStore.storeCookieHeader(nil)
             try stores.cursorCookieStore.storeCookieHeader(nil)

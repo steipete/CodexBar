@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 62 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 60 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -40,7 +40,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Kimi | Kimi Code API key (`api`), then `kimi-auth` cookie/manual token/env fallback (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | Device-flow/env/config token → `copilot_internal` API (`api`). |
-| Kimi K2 (unofficial) | API key from config/env → legacy credit endpoint (`api`). |
 | Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | Augment | `auggie` CLI first, then browser-cookie web fallback (`cli`, `web`). |
@@ -53,7 +52,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
-| CrossModel | API key from config/env → credits + usage API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
@@ -157,13 +155,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - CLI auth source: `~/.local/share/kilo/auth.json` (`kilo.access`), typically created by `kilo login`.
 - Status: none yet.
 - Details: `docs/kilo.md`.
-
-## Kimi K2 (unofficial)
-- API key via `~/.codexbar/config.json` or `KIMI_K2_API_KEY`/`KIMI_API_KEY` env var.
-- Shows credit usage from the legacy `kimi-k2.ai` consumed/remaining totals.
-- Use Moonshot / Kimi API for the official Kimi API account and billing surface.
-- Status: none yet.
-- Details: `docs/kimi-k2.md`.
 
 ## Gemini
 - OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.
@@ -317,13 +308,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Override base URL with `OPENROUTER_API_URL` env var.
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
-
-## CrossModel
-- API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `CROSSMODEL_API_KEY` env var.
-- Reads wallet balance (`/v1/credits`) and matching-currency UTC day/week/month spend (`/v1/usage`).
-- Shows balance plus today/this week/this month spend; no quota meter (prepaid wallet, no per-key limit).
-- Override base URL with `CROSSMODEL_API_URL` env var (loopback HTTP allowed for local testing).
-- Details: `docs/crossmodel.md`.
 
 ## Perplexity
 - Browser session cookie from automatic import, manual header/token, or `PERPLEXITY_SESSION_TOKEN` / `PERPLEXITY_COOKIE`.

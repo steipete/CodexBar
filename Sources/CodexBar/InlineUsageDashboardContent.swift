@@ -226,11 +226,6 @@ extension UsageMenuCardView.Model {
         {
             return Self.openRouterInlineDashboard(usage)
         }
-        if input.provider == .crossmodel,
-           let usage = input.snapshot?.crossModelUsage
-        {
-            return Self.crossModelInlineDashboard(usage)
-        }
         if input.provider == .zai,
            let modelUsage = input.snapshot?.zaiUsage?.modelUsage
         {
@@ -515,44 +510,6 @@ extension UsageMenuCardView.Model {
             points: points,
             detailLines: details)
         model.currencyCode = "USD"
-        return model
-    }
-
-    private static func crossModelInlineDashboard(_ usage: CrossModelUsageSnapshot) -> InlineUsageDashboardModel? {
-        let periodValues: [(String, String, Double?)] = [
-            ("day", L("Today"), usage.daily?.cost),
-            ("week", L("Week"), usage.weekly?.cost),
-            ("month", L("Month"), usage.monthly?.cost),
-        ]
-        let points = periodValues.compactMap { id, label, value -> InlineUsageDashboardModel.Point? in
-            guard let value else { return nil }
-            return InlineUsageDashboardModel.Point(
-                id: id,
-                label: label,
-                value: value,
-                accessibilityValue: "\(label): \(usage.currencyString(value))")
-        }
-        var model = InlineUsageDashboardModel(
-            accessibilityLabel: L("CrossModel API spend trend"),
-            valueStyle: Self.costValueStyle(currencyCode: usage.currency),
-            kpis: [
-                .init(title: L("Balance"), value: usage.balanceDisplay, emphasis: true),
-                .init(
-                    title: L("Today"),
-                    value: usage.daily.map { usage.currencyString($0.cost) } ?? "—",
-                    emphasis: false),
-                .init(
-                    title: L("Week"),
-                    value: usage.weekly.map { usage.currencyString($0.cost) } ?? "—",
-                    emphasis: false),
-                .init(
-                    title: L("Month"),
-                    value: usage.monthly.map { usage.currencyString($0.cost) } ?? "—",
-                    emphasis: false),
-            ],
-            points: points,
-            detailLines: [])
-        model.currencyCode = usage.currency
         return model
     }
 

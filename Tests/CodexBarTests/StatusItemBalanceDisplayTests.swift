@@ -44,32 +44,6 @@ struct StatusItemBalanceDisplayTests {
     }
 
     @Test
-    func `menu bar display text uses crossmodel balance currency`() {
-        let settings = self.makeSettings(
-            suiteName: "StatusItemBalanceDisplayTests-crossmodel-eur-balance",
-            provider: .crossmodel)
-        settings.setMenuBarMetricPreference(.automatic, for: .crossmodel)
-        let (store, controller) = self.makeStoreAndController(settings: settings)
-        defer { controller.releaseStatusItemsForTesting() }
-        let snapshot = CrossModelUsageSnapshot(
-            currency: "EUR",
-            balance: 8.059489,
-            uncollected: 0,
-            daily: nil,
-            weekly: nil,
-            monthly: nil,
-            updatedAt: Date())
-            .toUsageSnapshot()
-
-        store._setSnapshotForTesting(snapshot, provider: .crossmodel)
-        store._setErrorForTesting(nil, provider: .crossmodel)
-
-        let displayText = controller.menuBarDisplayText(for: .crossmodel, snapshot: snapshot)
-
-        #expect(displayText == "€8.06")
-    }
-
-    @Test
     func `menu bar display text uses zen balance when open code has no subscription`() {
         let settings = self.makeSettings(
             suiteName: "StatusItemBalanceDisplayTests-opencodego-zen-only",
@@ -414,29 +388,6 @@ struct StatusItemBalanceDisplayTests {
 
         #expect(snapshot.identity?.loginMethod == "API spend: €1.2345 this month")
         #expect(displayText == "€1.2345")
-    }
-
-    @Test
-    func `menu bar display text uses kimi k2 api key credits`() {
-        let settings = self.makeSettings(
-            suiteName: "StatusItemBalanceDisplayTests-kimik2-credits",
-            provider: .kimik2)
-        let (store, controller) = self.makeStoreAndController(settings: settings)
-        defer { controller.releaseStatusItemsForTesting() }
-        let snapshot = KimiK2UsageSummary(
-            consumed: 75,
-            remaining: 1234.5,
-            averageTokens: nil,
-            updatedAt: Date()).toUsageSnapshot()
-
-        store._setSnapshotForTesting(snapshot, provider: .kimik2)
-        store._setErrorForTesting(nil, provider: .kimik2)
-
-        let displayText = controller.menuBarDisplayText(for: .kimik2, snapshot: snapshot)
-
-        #expect(snapshot.primary == nil)
-        #expect(snapshot.identity?.loginMethod == "Credits: 1234.5 left")
-        #expect(displayText == "1234.5")
     }
 
     @Test

@@ -9,6 +9,11 @@ read_when:
 
 CodexBar reads subscription quota windows and pay-as-you-go balance from ZenMux's documented Management API.
 
+> **Service maturity:** ZenMux says its upstream access comes from
+> [official providers or authorized cloud partners](https://zenmux.ai/), but that authorization is currently
+> self-asserted by the operator. This is a young service; users and maintainers should continue to monitor its
+> authorization and operating track record.
+
 ## Authentication
 
 Create a Management API key in the [ZenMux Management Console](https://zenmux.ai/platform/management), then add it in

@@ -69,22 +69,6 @@ final class InMemoryKimiTokenStore: KimiTokenStoring, @unchecked Sendable {
     }
 }
 
-final class InMemoryKimiK2TokenStore: KimiK2TokenStoring, @unchecked Sendable {
-    var value: String?
-
-    init(value: String? = nil) {
-        self.value = value
-    }
-
-    func loadToken() throws -> String? {
-        self.value
-    }
-
-    func storeToken(_ token: String?) throws {
-        self.value = token
-    }
-}
-
 final class InMemoryCopilotTokenStore: CopilotTokenStoring, @unchecked Sendable {
     var value: String?
 
@@ -168,7 +152,6 @@ func testSettingsStore(
         minimaxCookieStore: InMemoryMiniMaxCookieStore(),
         minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
         kimiTokenStore: InMemoryKimiTokenStore(),
-        kimiK2TokenStore: InMemoryKimiK2TokenStore(),
         augmentCookieStore: InMemoryCookieHeaderStore(),
         ampCookieStore: InMemoryCookieHeaderStore(),
         copilotTokenStore: InMemoryCopilotTokenStore(),

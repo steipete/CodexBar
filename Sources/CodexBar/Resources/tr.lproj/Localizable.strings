@@ -307,7 +307,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Birden fazla OpenCode Go Çerez başlığı depolayın.";
 "Stored in the CodexBar config file." = "CodexBar yapılandırma dosyasında depolandı.";
 "Stored in ~/.codexbar/config.json. " = "~/.codexbar/config.json dosyasında depolandı. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "~/.codexbar/config.json dosyasında depolandı. kimi-k2.ai adresinden bir tane oluşturun.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "~/.codexbar/config.json dosyasında depolandı. Synthetic panelinden anahtarı yapıştırın.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "~/.codexbar/config.json dosyasında depolandı. Model Studio'dan Kodlama Planı API anahtarınızı yapıştırın.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json dosyasında depolandı. MiniMax API anahtarınızı yapıştırın.";
@@ -534,7 +533,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Menü çubuğunda DeepSeek bakiyesini gösterir.";
 "menu_bar_metric_subtitle_moonshot" = "Menü çubuğunda Moonshot / Kimi API bakiyesini gösterir.";
 "menu_bar_metric_subtitle_mistral" = "Menü çubuğunda geçerli ayın Mistral API harcamasını gösterir.";
-"menu_bar_metric_subtitle_kimik2" = "Menü çubuğunda Kimi K2 API anahtarı kredilerini gösterir.";
 "automatic" = "Otomatik";
 "primary_api_key_limit" = "Birincil (API anahtarı limiti)";
 
@@ -1036,7 +1034,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Cursor çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Factory çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan GitHub Copilot jetonunuzu isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Kimi K2 API anahtarınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Kimi kimlik doğrulama jetonunuzu isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan MiniMax API jetonunuzu isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan MiniMax çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
@@ -1189,7 +1186,6 @@
 "byte_unit_megabytes" = "megabayt";
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
-"CrossModel API spend trend" = "CrossModel API harcama eğilimi";
 
 /* Settings sidebar redesign */
 "Enable" = "Etkinleştir";

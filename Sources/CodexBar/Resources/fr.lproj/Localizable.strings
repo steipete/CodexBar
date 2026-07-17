@@ -301,7 +301,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Stockez plusieurs en-têtes OpenCode Go Cookie.";
 "Stored in the CodexBar config file." = "Stocké dans le fichier de configuration CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "Stocké dans ~/.codexbar/config.json.";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Stocké dans ~/.codexbar/config.json. Générez-en un sur kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Stocké dans ~/.codexbar/config.json. Collez la clé du tableau de bord synthétique.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Stocké dans ~/.codexbar/config.json. Collez la clé API de votre plan de codage depuis Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Stocké dans ~/.codexbar/config.json. Collez votre clé API MiniMax.";
@@ -529,7 +528,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Affiche le solde DeepSeek dans la barre de menu.";
 "menu_bar_metric_subtitle_moonshot" = "Affiche le solde de l'API Moonshot / Kimi dans la barre de menu.";
 "menu_bar_metric_subtitle_mistral" = "Affiche les dépenses de l'API Mistral du mois en cours dans la barre de menu.";
-"menu_bar_metric_subtitle_kimik2" = "Affiche les crédits de la clé API Kimi K2 dans la barre de menu.";
 "automatic" = "Automatique";
 "primary_api_key_limit" = "Primaire (limite de clé API)";
 
@@ -1025,7 +1023,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS l'en-tête de votre cookie Cursor afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS l'en-tête de votre cookie d'usine afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS votre jeton GitHub Copilot afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS votre clé API Kimi K2 afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS votre jeton d'authentification Kimi afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS votre jeton API MiniMax afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar demandera au Trousseau macOS votre en-tête de cookie MiniMax afin de pouvoir récupérer son utilisation. Cliquez sur OK pour continuer.";
@@ -1174,7 +1171,6 @@
 "byte_unit_megabytes" = "mégaoctets";
 "byte_unit_gigabyte" = "gigaoctet";
 "byte_unit_gigabytes" = "gigaoctets";
-"CrossModel API spend trend" = "Tendance des dépenses de l'API CrossModel";
 
 /* Settings sidebar redesign */
 "Enable" = "Activer";

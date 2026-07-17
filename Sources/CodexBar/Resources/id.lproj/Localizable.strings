@@ -307,7 +307,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Simpan beberapa header Cookie OpenCode Go.";
 "Stored in the CodexBar config file." = "Disimpan dalam file konfigurasi CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "Disimpan di ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Disimpan di ~/.codexbar/config.json. Buat satu di kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Disimpan di ~/.codexbar/config.json. Tempel kunci dari dasbor Synthetic.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Disimpan di ~/.codexbar/config.json. Tempel kunci API Coding Plan Anda dari Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Disimpan di ~/.codexbar/config.json. Tempel kunci API MiniMax Anda.";
@@ -536,7 +535,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Menampilkan saldo DeepSeek di menu bar.";
 "menu_bar_metric_subtitle_moonshot" = "Menampilkan saldo API Moonshot / Kimi di menu bar.";
 "menu_bar_metric_subtitle_mistral" = "Menampilkan pengeluaran API Mistral bulan ini di menu bar.";
-"menu_bar_metric_subtitle_kimik2" = "Menampilkan kredit kunci API Kimi K2 di menu bar.";
 "automatic" = "Otomatis";
 "primary_api_key_limit" = "Utama (batas kunci API)";
 
@@ -1043,7 +1041,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie Cursor Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie Factory Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token GitHub Copilot Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk kunci API Kimi K2 Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token auth Kimi Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token API MiniMax Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie MiniMax Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
@@ -1191,7 +1188,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
-"CrossModel API spend trend" = "Tren pengeluaran API CrossModel";
 
 /* Settings sidebar redesign */
 "Enable" = "Aktifkan";

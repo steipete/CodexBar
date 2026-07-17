@@ -313,7 +313,6 @@
 "Store multiple OpenCode Go Cookie headers." = "儲存多個 OpenCode Go Cookie 標頭。";
 "Stored in the CodexBar config file." = "儲存在 CodexBar 設定檔中。";
 "Stored in ~/.codexbar/config.json. " = "儲存在 ~/.codexbar/config.json 中。";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "儲存在 ~/.codexbar/config.json 中。可在 kimi-k2.ai 產生。";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "儲存在 ~/.codexbar/config.json 中。請貼上來自 Synthetic 儀表板的金鑰。";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "儲存在 ~/.codexbar/config.json 中。請貼上來自 Model Studio 的 Coding Plan API 金鑰。";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "儲存在 ~/.codexbar/config.json 中。請貼上你的 MiniMax API 金鑰。";
@@ -530,7 +529,6 @@
 "menu_bar_metric_subtitle_deepseek" = "在選單列顯示 DeepSeek 餘額。";
 "menu_bar_metric_subtitle_moonshot" = "在選單列顯示 Moonshot / Kimi API 餘額。";
 "menu_bar_metric_subtitle_mistral" = "在選單列顯示 Mistral API 本月支出。";
-"menu_bar_metric_subtitle_kimik2" = "在選單列顯示 Kimi K2 API 金鑰額度。";
 "automatic" = "自動";
 "primary_api_key_limit" = "主要（API 金鑰限制）";
 "menu_bar_style_title" = "選單列樣式";
@@ -891,7 +889,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Cursor Cookie 標頭，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Factory Cookie 標頭，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 GitHub Copilot token，以取得使用量。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Kimi K2 API 金鑰，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Kimi 認證 token，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 MiniMax API token，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 MiniMax Cookie 標頭，以取得使用量。按一下「確定」繼續。";
@@ -1047,7 +1044,6 @@
 "byte_unit_megabytes" = "MB";
 "byte_unit_gigabyte" = "GB";
 "byte_unit_gigabytes" = "GB";
-"CrossModel API spend trend" = "CrossModel API 支出趨勢";
 
 /* Added zh-Hant parity with English catalog */
 "minimax_service_music_generation" = "音樂生成";

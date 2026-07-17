@@ -301,7 +301,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Lưu trữ nhiều tiêu đề Cookie OpenCode Go.";
 "Stored in the CodexBar config file." = "Được lưu trữ trong tệp cấu hình CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "Được lưu trữ trong ~/.codexbar/config.json.";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Được lưu trữ trong ~/.codexbar/config.json. Tạo một cái tại kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Được lưu trữ trong ~/.codexbar/config.json. Dán khóa từ bảng điều khiển Tổng hợp.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Được lưu trữ trong ~/.codexbar/config.json. Dán khóa Kế hoạch mã hóa API của bạn từ Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Được lưu trữ trong ~/.codexbar/config.json. Dán khóa MiniMax API của bạn.";
@@ -525,7 +524,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Hiển thị số dư DeepSeek trong thanh menu .";
 "menu_bar_metric_subtitle_moonshot" = "Hiển thị số dư Moonshot / Kimi API trong thanh menu .";
 "menu_bar_metric_subtitle_mistral" = "Hiển thị mức chi tiêu API của Mistral trong tháng hiện tại trong thanh menu .";
-"menu_bar_metric_subtitle_kimik2" = "Hiển thị Kimi K2 API -các khoản tín dụng chính trong thanh menu .";
 "automatic" = "Tự động";
 "primary_api_key_limit" = "Chính ( API giới hạn khóa)";
 
@@ -1021,7 +1019,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie Con trỏ của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie Factory của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho GitHub Copilot token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp khóa Kimi K2 API của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho Kimi auth token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp MiniMax API token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie MiniMax của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
@@ -1175,7 +1172,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
-"CrossModel API spend trend" = "Xu hướng chi tiêu API CrossModel";
 
 /* Settings sidebar redesign */
 "Enable" = "Bật";

@@ -458,10 +458,6 @@ struct MenuDescriptor {
             for detail in kiloLogin.details {
                 entries.append(.text("\(L("Activity")): \(detail)", .secondary))
             }
-        } else if provider == .crossmodel {
-            if let loginMethodText, !loginMethodText.isEmpty {
-                entries.append(.text("\(L("Auth")): \(loginMethodText)", .secondary))
-            }
         } else if let loginMethodText, !loginMethodText.isEmpty {
             if provider == .openrouter || provider == .mimo || provider == .poe,
                loginMethodText.localizedCaseInsensitiveContains("balance:")

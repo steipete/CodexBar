@@ -11,6 +11,9 @@ read_when:
 The T3 Chat provider tracks the 4-hour Base and monthly Overage usage buckets from
 [t3.chat](https://t3.chat).
 
+> **Unofficial integration:** T3 Chat does not publish an API for this data. CodexBar reads a cookie-authenticated
+> endpoint used by the website, so the integration may change or stop working without notice.
+
 ## Setup
 
 ### Automatic (recommended)

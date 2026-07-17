@@ -15,7 +15,6 @@ public struct KeychainPromptContext: Sendable {
         case syntheticToken
         case copilotToken
         case kimiToken
-        case kimiK2Token
         case minimaxCookie
         case minimaxToken
         case augmentCookie

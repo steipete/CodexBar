@@ -307,7 +307,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Store multiple OpenCode Go Cookie headers.";
 "Stored in the CodexBar config file." = "Stored in the CodexBar config file.";
 "Stored in ~/.codexbar/config.json. " = "Stored in ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Stored in ~/.codexbar/config.json. Paste your MiniMax API key.";
@@ -534,7 +533,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Shows the DeepSeek balance in the menu bar.";
 "menu_bar_metric_subtitle_moonshot" = "Shows the Moonshot / Kimi API balance in the menu bar.";
 "menu_bar_metric_subtitle_mistral" = "Choose Mistral API spend or Monthly Plan usage for the menu bar.";
-"menu_bar_metric_subtitle_kimik2" = "Shows Kimi K2 API-key credits in the menu bar.";
 "automatic" = "Automatic";
 "primary_api_key_limit" = "Primary (API key limit)";
 
@@ -907,7 +905,6 @@
 "Cache read" = "Cache read";
 "Claude Admin API 30 day spend trend" = "Claude Admin API 30 day spend trend";
 "OpenRouter API key spend trend" = "OpenRouter API key spend trend";
-"CrossModel API spend trend" = "CrossModel API spend trend";
 "z.ai hourly token trend" = "z.ai hourly token trend";
 "MiniMax 30 day token usage trend" = "MiniMax 30 day token usage trend";
 "Today cash" = "Today cash";
@@ -1042,7 +1039,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue.";

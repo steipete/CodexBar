@@ -9,7 +9,7 @@ struct CommandCodeProviderTests {
 
         #expect(descriptor.metadata.displayName == "Command Code")
         #expect(descriptor.metadata.dashboardURL == "https://commandcode.ai/studio")
-        #expect(descriptor.metadata.subscriptionDashboardURL == "https://commandcode.ai/sixhobbits/settings/billing")
+        #expect(descriptor.metadata.subscriptionDashboardURL == "https://commandcode.ai/settings/billing")
         #expect(descriptor.metadata.cliName == "commandcode")
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-commandcode")
         #expect(descriptor.branding.iconStyle == .commandcode)

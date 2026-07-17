@@ -486,7 +486,6 @@ struct SettingsStoreCoverageTests {
         settings.ensureMiniMaxCookieLoaded()
         settings.ensureMiniMaxAPITokenLoaded()
         settings.ensureKimiAuthTokenLoaded()
-        settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
         settings.ensureOllamaCookieLoaded()
@@ -850,7 +849,6 @@ struct SettingsStoreCoverageTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

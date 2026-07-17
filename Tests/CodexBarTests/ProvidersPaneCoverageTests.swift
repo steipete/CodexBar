@@ -295,21 +295,6 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
-    func `kimi k2 menu bar metric picker shows credits only copy`() {
-        Self.withEnglishLocalization {
-            let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-kimik2-picker")
-            let store = Self.makeUsageStore(settings: settings)
-            let pane = ProvidersPane(settings: settings, store: store)
-
-            let picker = pane._test_menuBarMetricPicker(for: .kimik2)
-            #expect(picker?.options.map(\.id) == [
-                MenuBarMetricPreference.automatic.rawValue,
-            ])
-            #expect(picker?.subtitle == "Shows Kimi K2 API-key credits in the menu bar.")
-        }
-    }
-
-    @Test
     func `kimi menu bar metric picker preserves stored lane labels`() {
         Self.withEnglishLocalization {
             let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-kimi-picker")
@@ -649,7 +634,6 @@ struct ProvidersPaneCoverageTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

@@ -36,7 +36,6 @@ enum CLIRenderer {
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -100,7 +99,6 @@ enum CLIRenderer {
             lines: &lines)
         self.appendTertiaryLines(snapshot: snapshot, labels: labels, context: context, now: now, lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -142,9 +140,6 @@ enum CLIRenderer {
     static func planBadgeText(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
         if let usage = snapshot.mimoUsage {
             return usage.balanceDetail
-        }
-        if let usage = snapshot.crossModelUsage {
-            return "Balance: \(usage.balanceDisplay)"
         }
         if provider == .kilo {
             let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
@@ -486,7 +481,6 @@ enum CLIRenderer {
         if snapshot.mimoUsage != nil {
             self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         }
-        self.appendCrossModelUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -644,40 +638,6 @@ enum CLIRenderer {
         lines.append(self.labelValueLine("Extra usage", value: balance, useColor: useColor))
     }
 
-    private static func appendCrossModelUsageLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.crossModelUsage else { return }
-
-        lines.append(self.labelValueLine("Balance", value: usage.balanceDisplay, useColor: useColor))
-        if let daily = usage.daily {
-            lines.append(self.crossModelUsageLine(
-                title: "Today",
-                usage: usage,
-                window: daily,
-                metric: .tokens,
-                useColor: useColor))
-        }
-        if let weekly = usage.weekly {
-            lines.append(self.crossModelUsageLine(
-                title: "Week",
-                usage: usage,
-                window: weekly,
-                metric: .requests,
-                useColor: useColor))
-        }
-        if let monthly = usage.monthly {
-            lines.append(self.crossModelUsageLine(
-                title: "Month",
-                usage: usage,
-                window: monthly,
-                metric: .requests,
-                useColor: useColor))
-        }
-    }
-
     private static func appendClawRouterUsageLines(
         snapshot: UsageSnapshot,
         useColor: Bool,
@@ -763,30 +723,6 @@ enum CLIRenderer {
         if let avgDecision = usage.avgDecisionSummary {
             lines.append(self.labelValueLine("Avg decision", value: avgDecision, useColor: useColor))
         }
-    }
-
-    private enum CrossModelMetric {
-        case tokens
-        case requests
-    }
-
-    private static func crossModelUsageLine(
-        title: String,
-        usage: CrossModelUsageSnapshot,
-        window: CrossModelUsageWindow,
-        metric: CrossModelMetric,
-        useColor: Bool) -> String
-    {
-        let metricText = switch metric {
-        case .tokens:
-            "\(UsageFormatter.tokenCountString(window.totalTokens)) tokens"
-        case .requests:
-            "\(UsageFormatter.tokenCountString(window.requestCount)) requests"
-        }
-        return self.labelValueLine(
-            title,
-            value: "\(usage.currencyString(window.cost)) · \(metricText)",
-            useColor: useColor)
     }
 
     private static func appendTertiaryLines(

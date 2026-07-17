@@ -301,7 +301,6 @@
 "Store multiple OpenCode Go Cookie headers." = "여러 OpenCode Go 쿠키 헤더를 저장합니다.";
 "Stored in the CodexBar config file." = "CodexBar 설정 파일에 저장됩니다.";
 "Stored in ~/.codexbar/config.json. " = "~/.codexbar/config.json에 저장됩니다. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "~/.codexbar/config.json에 저장됩니다. kimi-k2.ai에서 생성하세요.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "~/.codexbar/config.json에 저장됩니다. Synthetic 대시보드에서 키를 붙여넣으세요.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "~/.codexbar/config.json에 저장됩니다. Model Studio에서 Coding Plan API 키를 붙여넣으세요.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json에 저장됩니다. MiniMax API 키를 붙여넣으세요.";
@@ -520,7 +519,6 @@
 "menu_bar_metric_subtitle_deepseek" = "메뉴 막대에 DeepSeek 잔액을 표시합니다.";
 "menu_bar_metric_subtitle_moonshot" = "메뉴 막대에 Moonshot / Kimi API 잔액을 표시합니다.";
 "menu_bar_metric_subtitle_mistral" = "메뉴 막대에 이번 달 Mistral API 지출을 표시합니다.";
-"menu_bar_metric_subtitle_kimik2" = "메뉴 막대에 Kimi K2 API 키 크레딧을 표시합니다.";
 "automatic" = "자동";
 "primary_api_key_limit" = "기본 (API 키 한도)";
 "menu_bar_style_title" = "메뉴 막대 스타일";
@@ -990,7 +988,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Cursor 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Factory 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 GitHub Copilot 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Kimi K2 API 키를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Kimi 인증 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 MiniMax API 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 MiniMax 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
@@ -1143,7 +1140,6 @@
 "byte_unit_megabytes" = "메가바이트";
 "byte_unit_gigabyte" = "기가바이트";
 "byte_unit_gigabytes" = "기가바이트";
-"CrossModel API spend trend" = "CrossModel API 지출 추이";
 
 /* Settings sidebar redesign */
 "Enable" = "활성화";

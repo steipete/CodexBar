@@ -302,7 +302,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Spara flera Cookie-headers för OpenCode Go.";
 "Stored in the CodexBar config file." = "Sparas i CodexBars konfigurationsfil.";
 "Stored in ~/.codexbar/config.json. " = "Sparas i ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Sparas i ~/.codexbar/config.json. Skapa en på kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Sparas i ~/.codexbar/config.json. Klistra in nyckeln från Synthetic-instrumentpanelen.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Sparas i ~/.codexbar/config.json. Klistra in din Coding Plan-API-nyckel från Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Sparas i ~/.codexbar/config.json. Klistra in din MiniMax-API-nyckel.";
@@ -528,7 +527,6 @@
 "menu_bar_metric_subtitle_deepseek" = "Visar DeepSeek-saldot i menyraden.";
 "menu_bar_metric_subtitle_moonshot" = "Visar saldot för Moonshot/Kimi API i menyraden.";
 "menu_bar_metric_subtitle_mistral" = "Visar den aktuella månadens Mistral API-utgift i menyraden.";
-"menu_bar_metric_subtitle_kimik2" = "Visar Kimi K2-API-nyckelkrediter i menyraden.";
 "automatic" = "Automatiskt";
 "primary_api_key_limit" = "Primär (API-nyckelgräns)";
 
@@ -1116,7 +1114,6 @@
 "Paste a Cookie header or full cURL capture from T3 Chat settings." = "Klistra in en Cookie-header eller fullständig cURL-fångst från T3 Chat-inställningarna.";
 "%d days of credits data" = "%d dagar med kreditdata";
 "used after next regen" = "använt efter nästa regenerering";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Kimi K2-API-nyckel så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Usage breakdown chart" = "Diagram över användningsfördelning";
 "Could not open browser for Antigravity" = "Kunde inte öppna webbläsare för Antigravity";
 "Stored in ~/.codexbar/config.json. AZURE_OPENAI_API_KEY is also supported." = "Sparas i ~/.codexbar/config.json. AZURE_OPENAI_API_KEY stöds också.";
@@ -1173,7 +1170,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
-"CrossModel API spend trend" = "CrossModel API-utgiftstrend";
 
 /* Settings sidebar redesign */
 "Enable" = "Aktivera";

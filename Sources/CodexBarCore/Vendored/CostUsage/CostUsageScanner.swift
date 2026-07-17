@@ -826,10 +826,10 @@ enum CostUsageScanner {
                 checkCancellation: checkCancellation)
         case .openai, .azureopenai, .clinepass, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
              .alibabatokenplan, .factory,
-             .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .kimik2, .moonshot, .augment, .jetbrains, .amp,
+             .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .moonshot, .augment, .jetbrains, .amp,
              .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .sakana,
              .abacus, .mistral, .deepseek, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode, .qoder, .stepfun,
-             .bedrock, .grok, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes, .crossmodel, .clawrouter,
+             .bedrock, .grok, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes, .clawrouter,
              .longcat, .sub2api, .wayfinder, .zenmux:
             return emptyReport
         }

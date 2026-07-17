@@ -22,7 +22,7 @@ public enum CommandCodeProviderDescriptor {
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://commandcode.ai/studio",
-                subscriptionDashboardURL: "https://commandcode.ai/sixhobbits/settings/billing",
+                subscriptionDashboardURL: "https://commandcode.ai/settings/billing",
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(

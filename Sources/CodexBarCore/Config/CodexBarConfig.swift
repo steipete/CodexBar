@@ -3,11 +3,41 @@ import Foundation
 public struct CodexBarConfig: Codable, Sendable {
     public static let currentVersion = 1
 
+    private static let log = CodexBarLog.logger(LogCategories.configStore)
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case providers
+    }
+
+    private enum ProviderCodingKeys: String, CodingKey {
+        case id
+    }
+
     public var version: Int
     public var providers: [ProviderConfig]
 
     public init(version: Int = Self.currentVersion, providers: [ProviderConfig]) {
         self.version = version
+        self.providers = providers
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decode(Int.self, forKey: .version)
+
+        var providersContainer = try container.nestedUnkeyedContainer(forKey: .providers)
+        var providers: [ProviderConfig] = []
+        while !providersContainer.isAtEnd {
+            let providerDecoder = try providersContainer.superDecoder()
+            let providerContainer = try providerDecoder.container(keyedBy: ProviderCodingKeys.self)
+            let rawID = try providerContainer.decode(String.self, forKey: .id)
+            guard UsageProvider(rawValue: rawID) != nil else {
+                Self.log.warning("Ignoring unknown provider in config", metadata: ["provider": rawID])
+                continue
+            }
+            try providers.append(ProviderConfig(from: providerDecoder))
+        }
         self.providers = providers
     }
 

@@ -307,7 +307,6 @@
 "Store multiple OpenCode Go Cookie headers." = "จัดเก็บส่วนหัวคุกกี้ OpenCode Go หลายรายการ";
 "Stored in the CodexBar config file." = "เก็บไว้ในไฟล์กําหนดค่า CodexBar";
 "Stored in ~/.codexbar/config.json. " = "เก็บไว้ใน ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "เก็บไว้ใน ~/.codexbar/config.json. สร้างที่ kimi-k2.ai";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "เก็บไว้ใน ~/.codexbar/config.json. วางคีย์จากแดชบอร์ด Synthetic";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "เก็บไว้ใน ~/.codexbar/config.json. วาง API คีย์แผนการเข้ารหัสของคุณจาก Model Studio";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "เก็บไว้ใน ~/.codexbar/config.json. วางคีย์ MiniMax API ของคุณ";
@@ -534,7 +533,6 @@
 "menu_bar_metric_subtitle_deepseek" = "แสดงยอดคงเหลือ DeepSeek ในแถบเมนู";
 "menu_bar_metric_subtitle_moonshot" = "แสดงยอดคงเหลือ Moonshot / Kimi API ในแถบเมนู";
 "menu_bar_metric_subtitle_mistral" = "แสดงการใช้จ่าย Mistral API เดือนปัจจุบันในแถบเมนู";
-"menu_bar_metric_subtitle_kimik2" = "แสดงเครดิต API คีย์ K2 Kimi ในแถบเมนู";
 "automatic" = "อัตโนมัติ";
 "primary_api_key_limit" = "หลัก (จํากัดคีย์ API)";
 
@@ -1041,7 +1039,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar จะขอส่วนหัวคุกกี้ Cursor macOS Keychain ของคุณเพื่อให้สามารถดึงข้อมูลการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar จะขอส่วนหัวคุกกี้ Factory macOS Keychain ของคุณเพื่อให้สามารถดึงข้อมูลการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar จะขอโทเค็น GitHub Copilot ของคุณจาก macOS Keychain เพื่อให้สามารถดึงข้อมูลการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar จะขอ macOS Keychain สําหรับคีย์ API Kimi K2 ของคุณเพื่อให้สามารถดึงการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar จะขอโทเค็นการรับรองความถูกต้อง Kimi macOS Keychain เพื่อให้สามารถดึงการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar จะขอโทเค็น MiniMax API ของคุณจาก macOS Keychain เพื่อให้สามารถดึงข้อมูลการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar จะขอส่วนหัวคุกกี้ MiniMax macOS Keychain ของคุณเพื่อให้สามารถดึงข้อมูลการใช้งานได้ คลิก ตกลง เพื่อดําเนินการต่อ";
@@ -1192,7 +1189,6 @@
 "byte_unit_megabytes" = "เมกะไบต์";
 "byte_unit_gigabyte" = "กิกะไบต์";
 "byte_unit_gigabytes" = "กิกะไบต์";
-"CrossModel API spend trend" = "แนวโน้มค่าใช้จ่ายของ CrossModel API";
 
 /* Settings sidebar redesign */
 "Enable" = "เปิดใช้งาน";

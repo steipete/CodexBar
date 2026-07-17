@@ -113,14 +113,14 @@ struct KimiSettingsReaderTests {
     }
 
     @Test
-    func `does not consume generic Kimi K2 API key environment variable`() {
+    func `does not consume generic Kimi API key environment variable`() {
         let env = ["KIMI_API_KEY": "'kimi-api-token'"]
         let token = KimiSettingsReader.apiKey(environment: env)
         #expect(token == nil)
     }
 
     @Test
-    func `uses code specific API key when generic Kimi K2 key also exists`() {
+    func `uses code specific API key when generic Kimi API key also exists`() {
         let env = [
             "KIMI_API_KEY": "generic-kimi-token",
             "KIMI_CODE_API_KEY": "kimi-code-token",

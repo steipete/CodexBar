@@ -11,6 +11,10 @@ read_when:
 CodexBar reads the accounting data exposed by a sub2api group API key. It calls only `GET /v1/usage`; it does not
 send model requests, read prompts, or require a dashboard JWT.
 
+> **Upstream terms:** sub2api is a self-hosted subscription-to-API gateway, and [its own README warns that using it
+> may violate upstream provider terms](https://github.com/Wei-Shaw/sub2api#readme). CodexBar only reads usage from
+> the user's own deployment and does not endorse or validate that access pattern.
+
 ## Setup
 
 Configure the deployment URL in Settings → Providers → sub2api. The URL must use HTTPS, except for loopback HTTP

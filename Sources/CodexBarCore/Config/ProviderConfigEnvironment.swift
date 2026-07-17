@@ -19,10 +19,6 @@ public enum ProviderConfigEnvironment {
         switch provider {
         case .copilot:
             env["COPILOT_API_TOKEN"] = apiKey
-        case .kimik2:
-            if let key = KimiK2SettingsReader.apiKeyEnvironmentKeys.first {
-                env[key] = apiKey
-            }
         case .warp:
             if let key = WarpSettingsReader.apiKeyEnvironmentKeys.first {
                 env[key] = apiKey
@@ -55,7 +51,7 @@ public enum ProviderConfigEnvironment {
             return true
         }
         switch provider {
-        case .copilot, .kimik2, .warp, .codebuff, .crof, .doubao:
+        case .copilot, .warp, .codebuff, .crof, .doubao:
             return true
         case .azureopenai:
             return true
@@ -189,7 +185,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm, .crossmodel, .clawrouter, .factory, .sub2api, .zenmux:
+        case .chutes, .poe, .litellm, .clawrouter, .factory, .sub2api, .zenmux:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -204,8 +200,6 @@ public enum ProviderConfigEnvironment {
             PoeSettingsReader.apiKeyEnvironmentKey
         case .litellm:
             LiteLLMSettingsReader.apiKeyEnvironmentKey
-        case .crossmodel:
-            CrossModelSettingsReader.envKey
         case .clawrouter:
             ClawRouterSettingsReader.apiKeyEnvironmentKey
         case .sub2api:

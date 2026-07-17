@@ -229,8 +229,6 @@ extension CodexBarCLI {
             ZenMuxSettingsReader.managementAPIKey(environment: environment) != nil
         case .crof:
             CrofSettingsReader.apiKey(environment: environment) != nil
-        case .crossmodel:
-            CrossModelSettingsReader.apiToken(environment: environment) != nil
         case .deepgram:
             DeepgramSettingsReader.apiKey(environment: environment) != nil
         case .deepseek:
@@ -257,8 +255,6 @@ extension CodexBarCLI {
         switch provider {
         case .kimi:
             KimiSettingsReader.apiKey(environment: environment) != nil
-        case .kimik2:
-            KimiK2SettingsReader.apiKey(environment: environment) != nil
         case .llmproxy:
             LLMProxySettingsReader.apiKey(environment: environment) != nil
         case .clawrouter:

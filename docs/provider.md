@@ -160,6 +160,18 @@ struct ExampleFetchStrategy: ProviderFetchStrategy {
 - Reliability: providers must be timeout-bounded; no unbounded waits on network/PTY/UI.
 - Degradation: prefer cached data over flapping; show clear errors when stale.
 
+## Hosted relay eligibility
+
+Hosted relays and upstream aggregators need enough public evidence for maintainers and users to evaluate the trust
+boundary:
+
+- An identifiable legal operator and jurisdiction.
+- Verifiable authorization to resell or provide the advertised upstream access; operator self-assertion alone is not
+  sufficient.
+- A public operating track record that supports ongoing reliability, security, and maintenance review.
+
+An integration can be restored when missing operator or authorization evidence becomes available.
+
 ## Adding a new provider (current flow)
 
 Checklist:
