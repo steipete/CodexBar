@@ -1262,7 +1262,9 @@ extension UsageStore {
     }
 
     private func detectVersions() {
-        let implementations = ProviderCatalog.all
+        let implementations = Self.implementationsForVersionDetection(
+            enabledProviders: self.enabledProvidersForDisplay(),
+            implementations: ProviderCatalog.all)
         let browserDetection = self.browserDetection
         Task { @MainActor [weak self] in
             let resolved = await Task.detached { () -> [UsageProvider: String] in
@@ -1285,6 +1287,14 @@ extension UsageStore {
             }.value
             self?.versions = resolved
         }
+    }
+
+    nonisolated static func implementationsForVersionDetection(
+        enabledProviders: [UsageProvider],
+        implementations: [any ProviderImplementation]) -> [any ProviderImplementation]
+    {
+        let implementationsByID = Dictionary(uniqueKeysWithValues: implementations.map { ($0.id, $0) })
+        return enabledProviders.compactMap { implementationsByID[$0] }
     }
 
     @MainActor
