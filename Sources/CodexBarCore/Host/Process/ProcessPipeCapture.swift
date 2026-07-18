@@ -172,7 +172,11 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         var buffer = [UInt8](repeating: 0, count: 16 * 1024)
         while true {
             let bytesRead = buffer.withUnsafeMutableBytes { bytes in
+                #if canImport(Glibc)
                 Glibc.read(fileDescriptor, bytes.baseAddress, bytes.count)
+                #elseif canImport(Musl)
+                Musl.read(fileDescriptor, bytes.baseAddress, bytes.count)
+                #endif
             }
             if bytesRead > 0 {
                 receivedData = true
@@ -343,9 +347,17 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     #if os(Linux)
     private static func makeNonBlocking(fileDescriptor: Int32) -> Bool {
         guard fileDescriptor >= 0 else { return false }
+        #if canImport(Glibc)
         let flags = Glibc.fcntl(fileDescriptor, F_GETFL)
+        #elseif canImport(Musl)
+        let flags = Musl.fcntl(fileDescriptor, F_GETFL)
+        #endif
         guard flags >= 0 else { return false }
+        #if canImport(Glibc)
         return Glibc.fcntl(fileDescriptor, F_SETFL, flags | O_NONBLOCK) == 0
+        #elseif canImport(Musl)
+        return Musl.fcntl(fileDescriptor, F_SETFL, flags | O_NONBLOCK) == 0
+        #endif
     }
     #endif
 }
