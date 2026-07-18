@@ -284,7 +284,8 @@ enum SessionEquivalentBurnEstimator {
         if let weeklyStart = Self.nearestEntry(
             to: windowStart,
             entries: weeklyEntries,
-            tolerance: Self.resetEquivalenceTolerance),
+            tolerance: Self.resetEquivalenceTolerance,
+            requireNotAfterTarget: true),
             weeklyStart.capturedAt <= windowStart,
             weeklyStart.capturedAt < firstSessionEntry.capturedAt
         {
@@ -308,7 +309,8 @@ enum SessionEquivalentBurnEstimator {
            let weeklyEnd = Self.nearestEntry(
                to: group.resetsAt,
                entries: weeklyEntries,
-               tolerance: Self.resetEquivalenceTolerance),
+               tolerance: Self.resetEquivalenceTolerance,
+               requireNotAfterTarget: true),
            weeklyEnd.capturedAt <= group.resetsAt,
            lastSessionEntry.capturedAt < weeklyEnd.capturedAt
         {
@@ -348,7 +350,8 @@ enum SessionEquivalentBurnEstimator {
     private static func nearestEntry(
         to target: Date,
         entries: [PlanUtilizationHistoryEntry],
-        tolerance: TimeInterval) -> PlanUtilizationHistoryEntry?
+        tolerance: TimeInterval,
+        requireNotAfterTarget: Bool = false) -> PlanUtilizationHistoryEntry?
     {
         var lower = 0
         var upper = entries.count
@@ -369,6 +372,7 @@ enum SessionEquivalentBurnEstimator {
             candidates.append(entries[lower - 1])
         }
         return candidates
+            .filter { !requireNotAfterTarget || $0.capturedAt <= target }
             .filter { abs($0.capturedAt.timeIntervalSince(target)) <= tolerance }
             .min { lhs, rhs in
                 abs(lhs.capturedAt.timeIntervalSince(target)) < abs(rhs.capturedAt.timeIntervalSince(target))

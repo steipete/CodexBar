@@ -47,6 +47,19 @@ struct SessionEquivalentForecastTests {
     }
 
     @Test
+    func `uses eligible boundary samples when a closer sample follows the boundary`() throws {
+        let fixture = Self.straddledBoundaryHistoryFixture()
+
+        let estimate = try #require(SessionEquivalentBurnEstimator.estimate(
+            histories: fixture.histories,
+            currentSessionResetsAt: fixture.currentSessionReset,
+            now: fixture.currentSessionReset.addingTimeInterval(-3600)))
+
+        #expect(estimate.sampleCount == 3)
+        #expect(estimate.medianWeeklyPercentPerWindow == 10)
+    }
+
+    @Test
     func `requires three completed windows with measurable burn`() {
         let fixture = Self.historyFixture(burns: [8, 12])
 
@@ -1469,5 +1482,54 @@ extension SessionEquivalentForecastTests {
         return (
             histories: histories,
             currentSessionReset: start.addingTimeInterval(4 * duration))
+    }
+
+    private static func straddledBoundaryHistoryFixture()
+        -> (histories: [PlanUtilizationSeriesHistory], currentSessionReset: Date)
+    {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let duration: TimeInterval = 5 * 3600
+        let stride: TimeInterval = 6 * 3600
+        let weeklyReset = start.addingTimeInterval(7 * 24 * 3600)
+        var sessionEntries: [PlanUtilizationHistoryEntry] = []
+        var weeklyEntries: [PlanUtilizationHistoryEntry] = []
+        var weeklyUsed = 0.0
+
+        for index in 0..<3 {
+            let windowStart = start.addingTimeInterval(Double(index) * stride)
+            let reset = windowStart.addingTimeInterval(duration)
+            sessionEntries.append(planEntry(
+                at: windowStart.addingTimeInterval(30 * 60),
+                usedPercent: 20,
+                resetsAt: reset))
+            sessionEntries.append(planEntry(
+                at: reset.addingTimeInterval(-30 * 60),
+                usedPercent: 100,
+                resetsAt: reset))
+            weeklyEntries.append(planEntry(
+                at: windowStart.addingTimeInterval(-90),
+                usedPercent: weeklyUsed,
+                resetsAt: weeklyReset))
+            weeklyEntries.append(planEntry(
+                at: windowStart.addingTimeInterval(30),
+                usedPercent: weeklyUsed,
+                resetsAt: weeklyReset))
+            weeklyUsed += 10
+            weeklyEntries.append(planEntry(
+                at: reset.addingTimeInterval(-90),
+                usedPercent: weeklyUsed,
+                resetsAt: weeklyReset))
+            weeklyEntries.append(planEntry(
+                at: reset.addingTimeInterval(30),
+                usedPercent: weeklyUsed,
+                resetsAt: weeklyReset))
+        }
+
+        return (
+            histories: [
+                planSeries(name: .session, windowMinutes: 300, entries: sessionEntries),
+                planSeries(name: .weekly, windowMinutes: 10080, entries: weeklyEntries),
+            ],
+            currentSessionReset: start.addingTimeInterval(3 * stride + duration))
     }
 }
