@@ -43,12 +43,14 @@ Do not retain the broad default Rovo Dev scope selection. CodexBar only reads cu
 2. Enable the provider
 3. Enter your **Atlassian email** (e.g. `you@example.com`)
 4. Paste the **API token** (starts with `ATATT3x...`)
+5. Enter your **Cloud ID** (optional; required to scope credit checks to a specific site on multi-site or Free accounts)
 
 ### 3. Configure via Environment Variables
 
 ```bash
 export ROVODEV_API_TOKEN="ATATT3x..."
 export ROVODEV_EMAIL="you@example.com"
+export ROVODEV_CLOUD_ID="your-cloud-id" # optional
 ```
 
 The CLI can update the stored API token, but the required email must still be configured in Settings or through
@@ -99,6 +101,7 @@ Your account does not have access to the Rovo Dev API on `api.atlassian.com/rovo
 - Rovo Dev is enabled for your Atlassian site.
 - Your account has a Rovo Dev Free or Standard subscription.
 - You are authenticating with the correct email/token pair.
+- If you have multiple sites or are on Rovo Dev Free, make sure the correct **Cloud ID** (Site ID) is configured.
 
 ### Credits show zero or unknown
 
