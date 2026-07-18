@@ -116,6 +116,7 @@ public enum ProviderDescriptorRegistry {
         .wayfinder: WayfinderProviderDescriptor.descriptor,
         .zenmux: ZenMuxProviderDescriptor.descriptor,
         .aiand: AiAndProviderDescriptor.descriptor,
+        .rovodev: RovoDevProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

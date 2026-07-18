@@ -66,6 +66,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case wayfinder
     case zenmux
     case aiand
+    case rovodev
 }
 
 // swiftformat:enable sortDeclarations
@@ -132,6 +133,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case wayfinder
     case zenmux
     case aiand
+    case rovodev
     case combined
 }
 

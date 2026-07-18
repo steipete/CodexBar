@@ -764,6 +764,44 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `Rovo Dev config overrides environment credentials`() {
+        let config = ProviderConfig(
+            id: .rovodev,
+            apiKey: "config-token",
+            secretKey: "config-cloud-id",
+            workspaceID: "config@example.com")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [
+                RovoDevSettingsReader.apiTokenEnvironmentKey: "env-token",
+                RovoDevSettingsReader.emailEnvironmentKey: "env@example.com",
+                RovoDevSettingsReader.cloudIdEnvironmentKey: "env-cloud-id",
+            ],
+            provider: .rovodev,
+            config: config)
+
+        #expect(env[RovoDevSettingsReader.apiTokenEnvironmentKey] == "config-token")
+        #expect(env[RovoDevSettingsReader.emailEnvironmentKey] == "config@example.com")
+        #expect(env[RovoDevSettingsReader.cloudIdEnvironmentKey] == "config-cloud-id")
+    }
+
+    @Test
+    func `Rovo Dev unset config fields preserve environment credentials`() {
+        let config = ProviderConfig(id: .rovodev, apiKey: "config-token")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [
+                RovoDevSettingsReader.apiTokenEnvironmentKey: "env-token",
+                RovoDevSettingsReader.emailEnvironmentKey: "env@example.com",
+                RovoDevSettingsReader.cloudIdEnvironmentKey: "env-cloud-id",
+            ],
+            provider: .rovodev,
+            config: config)
+
+        #expect(env[RovoDevSettingsReader.apiTokenEnvironmentKey] == "config-token")
+        #expect(env[RovoDevSettingsReader.emailEnvironmentKey] == "env@example.com")
+        #expect(env[RovoDevSettingsReader.cloudIdEnvironmentKey] == "env-cloud-id")
+    }
+
+    @Test
     func `codebuff config override leaves environment token alone`() {
         let config = ProviderConfig(id: .codebuff, apiKey: "config-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(

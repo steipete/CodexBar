@@ -1329,7 +1329,7 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailLeft = detail
         }
-        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm]
+        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .rovodev]
             .contains(input.provider),
             let detail = primary.resetDescription,
             !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1359,7 +1359,7 @@ extension UsageMenuCardView.Model {
                 primaryResetText = nil
             }
         }
-        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .zenmux]
+        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .zenmux, .rovodev]
             .contains(input.provider),
             primary.resetsAt == nil
         {

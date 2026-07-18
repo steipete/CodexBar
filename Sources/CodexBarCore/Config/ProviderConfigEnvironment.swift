@@ -6,8 +6,8 @@ public enum ProviderConfigEnvironment {
         provider: UsageProvider,
         config: ProviderConfig?) -> [String: String]
     {
-        if let env = self.applyDedicatedProviderOverrides(base: base, provider: provider, config: config) {
-            return env
+        if let overrides = self.applyProviderSpecificOverrides(base: base, provider: provider, config: config) {
+            return overrides
         }
         guard let apiKey = config?.sanitizedAPIKey, !apiKey.isEmpty else { return base }
         var env = base
@@ -46,6 +46,39 @@ public enum ProviderConfigEnvironment {
         return env
     }
 
+    private static func applyProviderSpecificOverrides(
+        base: [String: String],
+        provider: UsageProvider,
+        config: ProviderConfig?) -> [String: String]?
+    {
+        if self.supportsAPIKeyAndBaseURLOverride(provider) {
+            return self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
+        }
+        if let env = self.applyMultiFieldCredentialOverrides(base: base, provider: provider, config: config) {
+            return env
+        }
+        return switch provider {
+        case .deepseek:
+            self.applyDeepSeekOverrides(base: base, config: config)
+        case .deepgram:
+            self.applyDeepgramOverrides(base: base, config: config)
+        case .rovodev:
+            self.applyRovoDevOverrides(base: base, config: config)
+        case .azureopenai:
+            self.applyAzureOpenAIOverrides(base: base, config: config)
+        case .kimi:
+            self.applyKimiOverrides(base: base, config: config)
+        case .doubao:
+            self.applyDoubaoOverrides(base: base, config: config)
+        case .sakana:
+            self.applySakanaOverrides(base: base, config: config)
+        case .longcat:
+            self.applyLongCatOverrides(base: base, config: config)
+        default:
+            nil
+        }
+    }
+
     public static func supportsAPIKeyOverride(for provider: UsageProvider) -> Bool {
         if self.directAPIKeyEnvironmentKey(for: provider) != nil {
             return true
@@ -81,37 +114,6 @@ public enum ProviderConfigEnvironment {
         self.baseURLEnvironmentKey(for: provider) != nil
     }
 
-    private static func applyDedicatedProviderOverrides(
-        base: [String: String],
-        provider: UsageProvider,
-        config: ProviderConfig?) -> [String: String]?
-    {
-        if self.supportsAPIKeyAndBaseURLOverride(provider) {
-            return self.applyAPIKeyAndBaseURLOverrides(base: base, provider: provider, config: config)
-        }
-        if let env = self.applyMultiFieldCredentialOverrides(base: base, provider: provider, config: config) {
-            return env
-        }
-        return switch provider {
-        case .deepseek:
-            self.applyDeepSeekOverrides(base: base, config: config)
-        case .deepgram:
-            self.applyDeepgramOverrides(base: base, config: config)
-        case .azureopenai:
-            self.applyAzureOpenAIOverrides(base: base, config: config)
-        case .kimi:
-            self.applyKimiOverrides(base: base, config: config)
-        case .doubao:
-            self.applyDoubaoOverrides(base: base, config: config)
-        case .sakana:
-            self.applySakanaOverrides(base: base, config: config)
-        case .longcat:
-            self.applyLongCatOverrides(base: base, config: config)
-        default:
-            nil
-        }
-    }
-
     private static func applyDeepSeekOverrides(
         base: [String: String],
         config: ProviderConfig?) -> [String: String]
@@ -143,8 +145,6 @@ public enum ProviderConfigEnvironment {
             nil
         }
     }
-
-    // swiftlint:disable:next cyclomatic_complexity
     private static func directAPIKeyEnvironmentKey(for provider: UsageProvider) -> String? {
         switch provider {
         case .amp:
@@ -185,7 +185,7 @@ public enum ProviderConfigEnvironment {
             GroqSettingsReader.apiKeyEnvironmentKey
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
-        case .chutes, .poe, .litellm, .clawrouter, .factory, .sub2api, .neuralwatt, .zenmux, .deepinfra, .aiand:
+        case .chutes, .poe, .litellm, .clawrouter, .factory, .sub2api, .neuralwatt, .zenmux, .deepinfra, .aiand, .rovodev:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -214,9 +214,29 @@ public enum ProviderConfigEnvironment {
             DeepInfraSettingsReader.apiKeyEnvironmentKey
         case .aiand:
             AiAndSettingsReader.apiKeyEnvironmentKey
+        case .rovodev:
+            RovoDevSettingsReader.apiTokenEnvironmentKey
         default:
             nil
         }
+    }
+
+    private static func applyRovoDevOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var env = base
+        if let apiKey = config.sanitizedAPIKey {
+            env[RovoDevSettingsReader.apiTokenEnvironmentKey] = apiKey
+        }
+        if let email = config.sanitizedWorkspaceID {
+            env[RovoDevSettingsReader.emailEnvironmentKey] = email
+        }
+        if let cloudId = config.sanitizedSecretKey {
+            env[RovoDevSettingsReader.cloudIdEnvironmentKey] = cloudId
+        }
+        return env
     }
 
     private static func applyOpenAIOverrides(

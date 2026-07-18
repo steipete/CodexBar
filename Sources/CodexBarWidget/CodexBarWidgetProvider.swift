@@ -129,6 +129,7 @@ enum ProviderChoice: String, AppEnum {
         case .neuralwatt: return nil // Neuralwatt not yet supported in widgets
         case .zenmux: return nil // ZenMux not yet supported in widgets
         case .aiand: return nil // ai& not yet supported in widgets
+        case .rovodev: return nil // Rovo Dev not yet supported in widgets
         }
     }
 }

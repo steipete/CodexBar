@@ -1,0 +1,19 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="rovo-grad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8270DB"/>
+      <stop offset="50%" stop-color="#579DFF"/>
+      <stop offset="100%" stop-color="#2684FF"/>
+    </linearGradient>
+  </defs>
+  <!-- Rovo "mesh diamond" logomark — mirrors the official Atlassian Rovo product icon shape -->
+  <!-- Outer chevron / upward arrow (the Atlassian A / Rovo spark) -->
+  <path
+    d="M16 4.5 L26.5 22.5 Q27 23.5 26 24 L21.5 24 L16 14 L10.5 24 L6 24 Q5 23.5 5.5 22.5 Z"
+    fill="url(#rovo-grad)"/>
+  <!-- Inner accent triangle (bottom fill, slightly dimmed) -->
+  <path
+    d="M16 17 L19.2 24 L12.8 24 Z"
+    fill="url(#rovo-grad)"
+    opacity="0.45"/>
+</svg>

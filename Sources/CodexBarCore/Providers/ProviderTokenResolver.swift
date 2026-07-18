@@ -113,6 +113,12 @@ public enum ProviderTokenResolver {
         self.neuralWattResolution(environment: environment)?.token
     }
 
+    public static func rovoDevToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.rovoDevResolution(environment: environment)?.token
+    }
+
     public static func groqToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.groqResolution(environment: environment)?.token
     }
@@ -376,6 +382,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(NeuralWattSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func rovoDevResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(RovoDevSettingsReader.apiToken(environment: environment))
     }
 
     public static func groqResolution(

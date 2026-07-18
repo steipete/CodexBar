@@ -236,7 +236,8 @@ struct MenuDescriptor {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
                     provider == .deepseek || provider == .deepinfra || provider == .neuralwatt ||
-                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api
+                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api ||
+                    provider == .rovodev
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.

@@ -46,6 +46,7 @@ public enum CodexBarConfigValidator {
         .opencodego,
         .devin,
         .deepgram,
+        .rovodev,
     ]
 
     public static func validate(_ config: CodexBarConfig) -> [CodexBarConfigIssue] {
@@ -256,7 +257,8 @@ public enum CodexBarConfigValidator {
         guard let secretKey = entry.secretKey,
               !secretKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               entry.id != .bedrock,
-              entry.id != .doubao
+              entry.id != .doubao,
+              entry.id != .rovodev
         else {
             return
         }
@@ -266,7 +268,7 @@ public enum CodexBarConfigValidator {
             provider: entry.id,
             field: "secretKey",
             code: "secret_key_unused",
-            message: "secretKey is set but only bedrock and doubao use secretKey."))
+            message: "secretKey is set but only bedrock, doubao, and rovodev use secretKey."))
     }
 
     private static func validateSub2APIBaseURL(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {
