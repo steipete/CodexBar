@@ -63,7 +63,7 @@ private struct ShareStatsStory: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(nsImage: NSApplication.shared.applicationIconImage)
+            Image(nsImage: ShareStatsBrand.appIcon)
                 .resizable()
                 .interpolation(.high)
                 .frame(width: 30, height: 30)
@@ -91,19 +91,25 @@ private struct ShareStatsStory: View {
 
     private var tokenHero: some View {
         HStack(alignment: .lastTextBaseline, spacing: 17) {
-            Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
+            Text(self.tokenHeadline)
                 .font(.system(size: 126, weight: .bold))
                 .tracking(-7)
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
-            Text("TOKENS")
+            Text(self.payload.tokenCoverageIsComplete ? "TOKENS" : "KNOWN TOKENS")
                 .font(ShareStatsBrand.mono(size: 15, weight: .bold))
                 .tracking(2)
                 .foregroundStyle(ShareStatsBrand.secondary)
                 .padding(.bottom, 11)
         }
         .frame(height: 106, alignment: .bottomLeading)
+    }
+
+    private var tokenHeadline: String {
+        guard let totalTokens = self.payload.totalTokens else { return "—" }
+        let value = ShareStatsFormatting.compactCount(totalTokens)
+        return self.payload.tokenCoverageIsComplete ? value : "≥\(value)"
     }
 
     private var spend: some View {
@@ -125,22 +131,28 @@ private struct ShareStatsStory: View {
     private var spendHeadline: String {
         let pricedCurrencies = self.payload.currencies.compactMap { currency -> String? in
             guard let estimatedCost = currency.estimatedCost else { return nil }
-            return ShareStatsFormatting.currency(estimatedCost, code: currency.currencyCode)
+            let knownSpend = ShareStatsFormatting.currency(estimatedCost, code: currency.currencyCode)
+            let isPartial = currency.pricedSourceCount < currency.sourceCount
+                || currency.coveredDayCount < self.payload.days
+            return isPartial ? "≥\(knownSpend)" : knownSpend
         }
         guard !pricedCurrencies.isEmpty else { return "—" }
         let shown = pricedCurrencies.prefix(2).joined(separator: " · ")
         if pricedCurrencies.count > 2 {
             return "\(shown) +\(pricedCurrencies.count - 2)"
         }
-        let isPartial = self.pricedSourceCount < self.payload.providers.count
-        return pricedCurrencies.count == 1 && isPartial ? "\(shown)+" : shown
+        return shown
     }
 
     private var spendDetail: String {
         guard self.pricedSourceCount > 0 else {
             return "estimated token spend unavailable · \(self.payload.providers.count) sources tracked"
         }
-        return "estimated token spend · pricing for \(self.pricedSourceCount) "
+        let coverage = self.payload.currencies.contains {
+            $0.estimatedCost != nil
+                && ($0.pricedSourceCount < $0.sourceCount || $0.coveredDayCount < self.payload.days)
+        } ? "known lower bound · " : ""
+        return "estimated token spend · \(coverage)pricing for \(self.pricedSourceCount) "
             + "of \(self.payload.providers.count) sources"
     }
 
@@ -154,7 +166,7 @@ private struct ShareStatsStory: View {
                 .fill(ShareStatsBrand.rule)
                 .frame(height: 1)
             HStack(alignment: .firstTextBaseline) {
-                Text("MODEL + SOURCE")
+                Text("MODEL ROUTES")
                 Spacer()
                 Text(self.routeHeaderDetail)
             }
@@ -179,7 +191,7 @@ private struct ShareStatsStory: View {
                             .font(.system(size: 20, weight: .semibold))
                             .tracking(-0.3)
                         Spacer()
-                        Text(model.providerName)
+                        Text("via \(model.sourceName)")
                             .font(ShareStatsBrand.mono(size: 15, weight: .semibold))
                             .foregroundStyle(ShareStatsBrand.secondary)
                     }
@@ -205,12 +217,26 @@ private struct ShareStatsStory: View {
 
     private var routeHeaderDetail: String {
         guard !self.payload.topModels.isEmpty else { return "UNAVAILABLE" }
-        return "TOP \(min(3, self.payload.topModels.count)) OF \(self.payload.topModels.count)"
+        return "\(min(3, self.payload.topModels.count)) OF \(self.payload.topModels.count) ROUTES"
     }
 
     private var routeOverflowDetail: String {
-        let hiddenCount = max(0, self.payload.topModels.count - 3)
-        return hiddenCount > 0 ? "+\(hiddenCount) more model / source pairs" : "All model / source pairs shown"
+        var details: [String] = []
+        let overflowCount = max(0, self.payload.topModels.count - 3)
+        if overflowCount > 0 {
+            details.append("+\(overflowCount) more route\(overflowCount == 1 ? "" : "s")")
+        }
+        let collapsedCount = max(0, self.payload.shareableModelRouteCount - self.payload.topModels.count)
+        if collapsedCount > 0 {
+            details.append("\(collapsedCount) grouped")
+        }
+        if self.payload.hiddenModelRouteCount > 0 {
+            details.append("\(self.payload.hiddenModelRouteCount) private")
+        }
+        if !self.payload.modelRouteCoverageIsComplete {
+            details.append("partial history")
+        }
+        return details.isEmpty ? "All safe routes shown" : details.joined(separator: " · ")
     }
 }
 
@@ -240,12 +266,12 @@ private struct ShareStatsActivity: View {
                 .foregroundStyle(ShareStatsBrand.secondary)
 
             HStack(alignment: .lastTextBaseline, spacing: 9) {
-                Text(self.payload.dailyTokens.isEmpty ? "—" : "\(self.activeDayCount)")
+                Text(self.activeDayHeadline)
                     .font(.system(size: 72, weight: .heavy))
                     .tracking(-4.5)
                     .monospacedDigit()
                     .foregroundStyle(ShareStatsBrand.activeGradient)
-                if !self.payload.dailyTokens.isEmpty {
+                if self.payload.dailySourceCount > 0 {
                     Text("of \(self.payload.days)")
                         .font(.system(size: 23, weight: .bold))
                         .foregroundStyle(ShareStatsBrand.secondary)
@@ -255,21 +281,22 @@ private struct ShareStatsActivity: View {
             .frame(height: 72, alignment: .bottomLeading)
             .padding(.top, 18)
 
-            Text(self.payload.dailyTokens.isEmpty ? "daily activity unavailable" : "days active")
+            Text(self.payload.dailySourceCount == 0 ? "daily activity unavailable" : self.activeDayLabel)
                 .font(.system(size: 21, weight: .semibold))
                 .padding(.top, 8)
 
             ShareStatsCalendar(
                 cells: self.calendarCells,
                 start: self.periodStart,
-                end: self.periodEnd)
+                end: self.periodEnd,
+                isPartial: !self.payload.dailyCoverageIsComplete || self.payload.hasUnavailableDailyTotals)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
 
             Spacer(minLength: 10)
 
             HStack {
-                Text("DAILY TOKEN ACTIVITY")
+                Text(self.payload.dailyCoverageIsComplete ? "DAILY TOKEN ACTIVITY" : "KNOWN DAILY ACTIVITY")
                 Spacer()
                 Text(self.sourceCoverage)
             }
@@ -283,19 +310,35 @@ private struct ShareStatsActivity: View {
     }
 
     private var activeDayCount: Int {
-        self.payload.dailyTokens.count { $0.totalTokens > 0 }
+        self.payload.dailyTokens.count { ($0.totalTokens ?? 0) > 0 }
+    }
+
+    private var activeDayHeadline: String {
+        guard self.payload.dailySourceCount > 0 else { return "—" }
+        let isLowerBound = !self.payload.dailyCoverageIsComplete || self.payload.hasUnavailableDailyTotals
+        return isLowerBound ? "≥\(self.activeDayCount)" : "\(self.activeDayCount)"
+    }
+
+    private var activeDayLabel: String {
+        !self.payload.dailyCoverageIsComplete || self.payload.hasUnavailableDailyTotals
+            ? "known active days"
+            : "days active"
     }
 
     private var sourceCoverage: String {
         guard self.payload.dailySourceCount > 0 else { return "NO SOURCE DATA" }
-        return "\(self.payload.dailySourceCount) OF \(self.payload.providers.count) SOURCES"
+        if self.payload.dailyCoverageIsComplete {
+            return "FULL · \(self.payload.dailySourceCount) OF \(self.payload.providers.count) SOURCES"
+        }
+        return "PARTIAL · \(self.payload.dailyFullSourceCount) OF \(self.payload.providers.count) FULL"
     }
 
     private var calendarCells: [ShareStatsCalendarCell] {
-        let dailyTokens = Dictionary(uniqueKeysWithValues: self.payload.dailyTokens.map {
-            (self.calendar.startOfDay(for: $0.day), $0.totalTokens)
-        })
-        let maximum = dailyTokens.values.max() ?? 0
+        var dailyTokens: [Date: ShareStatsDailyPayload] = [:]
+        for point in self.payload.dailyTokens {
+            dailyTokens[self.calendar.startOfDay(for: point.day)] = point
+        }
+        let maximum = dailyTokens.values.compactMap(\.totalTokens).max() ?? 0
         let leadingCount = max(0, self.calendar.component(.weekday, from: self.periodStart) - 1)
         let requiredCount = leadingCount + self.payload.days
         let totalCount = Int(ceil(Double(requiredCount) / 7.0)) * 7
@@ -306,12 +349,18 @@ private struct ShareStatsActivity: View {
                   dayOffset < self.payload.days,
                   let day = self.calendar.date(byAdding: .day, value: dayOffset, to: self.periodStart)
             else {
-                return ShareStatsCalendarCell(id: index, level: nil)
+                return ShareStatsCalendarCell(id: index, level: nil, isUnavailable: false)
             }
-            let tokens = dailyTokens[self.calendar.startOfDay(for: day)] ?? 0
+            let normalizedDay = self.calendar.startOfDay(for: day)
+            let tokens: Int? = if let recordedPoint = dailyTokens[normalizedDay] {
+                recordedPoint.totalTokens
+            } else {
+                self.payload.dailyCoverageIsComplete ? 0 : nil
+            }
             return ShareStatsCalendarCell(
                 id: index,
-                level: ShareStatsCardView.activityLevel(totalTokens: tokens, maximum: maximum))
+                level: tokens.map { ShareStatsCardView.activityLevel(totalTokens: $0, maximum: maximum) },
+                isUnavailable: tokens == nil)
         }
     }
 }
@@ -319,12 +368,14 @@ private struct ShareStatsActivity: View {
 private struct ShareStatsCalendarCell: Identifiable {
     let id: Int
     let level: Int?
+    let isUnavailable: Bool
 }
 
 private struct ShareStatsCalendar: View {
     let cells: [ShareStatsCalendarCell]
     let start: Date
     let end: Date
+    let isPartial: Bool
 
     private var weeks: [[ShareStatsCalendarCell]] {
         stride(from: 0, to: self.cells.count, by: 7).map { startIndex in
@@ -348,9 +399,14 @@ private struct ShareStatsCalendar: View {
                         VStack(spacing: 8) {
                             ForEach(week) { cell in
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(ShareStatsBrand.activity(level: cell.level))
+                                    .fill(cell.isUnavailable
+                                        ? Color.white.opacity(0.025)
+                                        : ShareStatsBrand.activity(level: cell.level))
                                     .overlay {
-                                        if cell.level != nil {
+                                        if cell.isUnavailable {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                        } else if cell.level != nil {
                                             RoundedRectangle(cornerRadius: 6)
                                                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
                                         }
@@ -374,10 +430,20 @@ private struct ShareStatsCalendar: View {
             .frame(width: self.gridWidth)
 
             HStack(spacing: 4) {
-                Text("Less")
-                ForEach(0..<4, id: \.self) { index in
+                if self.isPartial {
                     RoundedRectangle(cornerRadius: 2)
-                        .fill(ShareStatsBrand.activity(level: index == 0 ? 0 : index + 1))
+                        .fill(Color.white.opacity(0.025))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 2)
+                                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                        }
+                        .frame(width: 11, height: 11)
+                    Text("Unknown")
+                }
+                Text("Less")
+                ForEach(0...5, id: \.self) { level in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(ShareStatsBrand.activity(level: level))
                         .overlay {
                             RoundedRectangle(cornerRadius: 2)
                                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
@@ -441,7 +507,13 @@ private struct ShareStatsBrandBackground: View {
     }
 }
 
+@MainActor
 private enum ShareStatsBrand {
+    static let appIcon: NSImage = Bundle.module
+        .url(forResource: "Icon-classic", withExtension: "icns")
+        .flatMap(NSImage.init(contentsOf:))
+        ?? NSApplication.shared.applicationIconImage
+
     static let canvas = Color(red: 10.0 / 255.0, green: 10.0 / 255.0, blue: 12.0 / 255.0)
     static let surface = Color(red: 19.0 / 255.0, green: 20.0 / 255.0, blue: 24.0 / 255.0)
     static let primary = Color(red: 240.0 / 255.0, green: 240.0 / 255.0, blue: 243.0 / 255.0)
