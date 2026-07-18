@@ -992,15 +992,12 @@ extension UsageStore {
                 .litellm: "LiteLLM debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
                 .chutes: "Chutes debug log not yet implemented",
-<<<<<<< HEAD
                 .clawrouter: "ClawRouter debug log not yet implemented",
                 .wayfinder: "Wayfinder debug log not yet implemented",
                 .sub2api: "sub2api debug log not yet implemented",
                 .zenmux: "ZenMux debug log not yet implemented",
                 .aiand: "ai& debug log not yet implemented",
-=======
                 .rovodev: "Rovo Dev debug log not yet implemented",
->>>>>>> de2aae39f (Add Rovo Dev provider with monthly credit tracking)
             ]
             let buildText = {
                 switch provider {
