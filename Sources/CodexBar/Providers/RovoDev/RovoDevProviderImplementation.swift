@@ -14,6 +14,7 @@ struct RovoDevProviderImplementation: ProviderImplementation {
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.rovoDevAPIToken
         _ = settings.rovoDevEmail
+        _ = settings.rovoDevCloudId
     }
 
     @MainActor
@@ -61,6 +62,17 @@ struct RovoDevProviderImplementation: ProviderImplementation {
                             }
                         }),
                 ],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "rovodev-cloud-id",
+                title: "Cloud ID (Optional)",
+                subtitle: "The Atlassian Cloud ID/Site ID for billing-site context. " +
+                    "Stored in ~/.codexbar/config.json or set ROVODEV_CLOUD_ID in your environment.",
+                kind: .plain,
+                placeholder: "e.g. 1234abcd-1234-abcd-...",
+                binding: context.stringBinding(\.rovoDevCloudId),
+                actions: [],
                 isVisible: nil,
                 onActivate: nil),
         ]

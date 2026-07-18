@@ -191,12 +191,30 @@ public struct RovoDevUsageFetcher: Sendable {
         }
 
         try RovoDevSettingsReader.validateEndpointOverrides(environment: environment)
-        let url = Self.creditsCheckURL(baseURL: RovoDevSettingsReader.apiURL(environment: environment))
+        let baseURL = RovoDevSettingsReader.apiURL(environment: environment)
+        let cloudId = RovoDevSettingsReader.cloudId(environment: environment)
+
+        var url = Self.creditsCheckURL(baseURL: baseURL)
+        if let cloudId, !cloudId.isEmpty {
+            if var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+                var queryItems = components.queryItems ?? []
+                queryItems.append(URLQueryItem(name: "cloudId", value: cloudId))
+                components.queryItems = queryItems
+                if let newUrl = components.url {
+                    url = newUrl
+                }
+            }
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.httpShouldHandleCookies = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = Self.timeoutSeconds
+
+        if let cloudId, !cloudId.isEmpty {
+            request.setValue(cloudId, forHTTPHeaderField: "X-Atlassian-Cloud-Id")
+        }
 
         // Basic auth: base64("email:apiToken")
         let credentials = "\(trimmedEmail):\(trimmedToken)"

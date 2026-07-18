@@ -23,6 +23,15 @@ final class RovoDevUsageFetcherTests: XCTestCase {
         XCTAssertEqual(RovoDevSettingsReader.email(environment: env), "user@example.com")
     }
 
+    func test_cloudId_returnsNilWhenMissing() {
+        XCTAssertNil(RovoDevSettingsReader.cloudId(environment: [:]))
+    }
+
+    func test_cloudId_returnsValue() {
+        let env = [RovoDevSettingsReader.cloudIdEnvironmentKey: "my-cloud-id"]
+        XCTAssertEqual(RovoDevSettingsReader.cloudId(environment: env), "my-cloud-id")
+    }
+
     func test_apiURL_defaultsToAtlassian() {
         let url = RovoDevSettingsReader.apiURL(environment: [:])
         XCTAssertEqual(url.absoluteString, "https://api.atlassian.com")
@@ -149,6 +158,35 @@ final class RovoDevUsageFetcherTests: XCTestCase {
             email: "user@example.com",
             apiToken: "secret",
             environment: [:],
+            transport: transport)
+
+        XCTAssertEqual(snapshot.creditsUsed, 500)
+    }
+
+    func test_fetchUsage_includesCloudIdQueryAndHeader() async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertFalse(request.httpShouldHandleCookies)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Atlassian-Cloud-Id"), "my-cloud-id")
+
+            let url = try XCTUnwrap(request.url)
+            XCTAssertTrue(url.absoluteString.contains("cloudId=my-cloud-id"))
+
+            let credentials = Data("user@example.com:secret".utf8).base64EncodedString()
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Basic \(credentials)")
+            let response = try XCTUnwrap(try HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            return (Data(#"{"status":"OK","balance":{"monthlyTotal":2000,"monthlyRemaining":1500}}"#.utf8), response)
+        }
+
+        let snapshot = try await RovoDevUsageFetcher.fetchUsage(
+            email: "user@example.com",
+            apiToken: "secret",
+            environment: [RovoDevSettingsReader.cloudIdEnvironmentKey: "my-cloud-id"],
             transport: transport)
 
         XCTAssertEqual(snapshot.creditsUsed, 500)

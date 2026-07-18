@@ -22,4 +22,15 @@ extension SettingsStore {
             }
         }
     }
+
+    /// Stores the optional Atlassian Cloud ID/Site ID for billing-site context.
+    /// Mapped to ``ProviderConfig.secretKey`` since there is no dedicated cloud ID field.
+    var rovoDevCloudId: String {
+        get { self.configSnapshot.providerConfig(for: .rovodev)?.sanitizedSecretKey ?? "" }
+        set {
+            self.updateProviderConfig(provider: .rovodev) { entry in
+                entry.secretKey = self.normalizedConfigValue(newValue)
+            }
+        }
+    }
 }

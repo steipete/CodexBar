@@ -233,6 +233,9 @@ public enum ProviderConfigEnvironment {
         if let email = config.sanitizedWorkspaceID {
             env[RovoDevSettingsReader.emailEnvironmentKey] = email
         }
+        if let cloudId = config.sanitizedSecretKey {
+            env[RovoDevSettingsReader.cloudIdEnvironmentKey] = cloudId
+        }
         return env
     }
 

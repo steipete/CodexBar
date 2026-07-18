@@ -5,6 +5,7 @@ public enum RovoDevSettingsReader {
     public static let apiTokenEnvironmentKey = "ROVODEV_API_TOKEN"
     public static let emailEnvironmentKey = "ROVODEV_EMAIL"
     public static let apiURLEnvironmentKey = "ROVODEV_API_URL"
+    public static let cloudIdEnvironmentKey = "ROVODEV_CLOUD_ID"
 
     /// Returns the API token from the environment (ROVODEV_API_TOKEN).
     public static func apiToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
@@ -14,6 +15,11 @@ public enum RovoDevSettingsReader {
     /// Returns the account email from the environment (ROVODEV_EMAIL).
     public static func email(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.cleaned(environment[self.emailEnvironmentKey])
+    }
+
+    /// Returns the optional Cloud ID from the environment (ROVODEV_CLOUD_ID).
+    public static func cloudId(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        self.cleaned(environment[self.cloudIdEnvironmentKey])
     }
 
     /// Returns the base API URL (default: https://api.atlassian.com).
