@@ -70,6 +70,6 @@ enum ShareStatsExporter {
     }
 
     private static func defaultFilename(_ payload: ShareStatsPayload) -> String {
-        "codexbar-subscriptions-last-\(payload.days)-days.png"
+        "codexbar-usage-last-\(payload.days)-days.png"
     }
 }

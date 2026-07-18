@@ -61,6 +61,18 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
     }
 
+    struct DailyTokenPoint: Identifiable, Equatable, Sendable {
+        let sourceID: String
+        let provider: UsageProvider
+        let providerName: String
+        let day: Date
+        let tokens: Int
+
+        var id: String {
+            "\(self.sourceID):\(Int(self.day.timeIntervalSince1970))"
+        }
+    }
+
     enum ModelHistoryCompleteness: Equatable, Sendable {
         case complete
         case incomplete
@@ -71,6 +83,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         let providers: [ProviderRow]
         let models: [ModelRow]
         let dailyPoints: [DailyPoint]
+        let dailyTokenPoints: [DailyTokenPoint]
         let totalTokens: Int?
         let totalCost: Double?
         let coveredDayCount: Int
@@ -160,6 +173,14 @@ struct SpendDashboardModel: Equatable, Sendable {
         var overflowed = false
     }
 
+    private struct DailyTokenAccumulator {
+        let provider: UsageProvider
+        let providerName: String
+        var tokens: Int?
+        var invalid = false
+        var overflowed = false
+    }
+
     private static func buildCurrencyGroup(
         currencyCode: String,
         inputs: [ProviderInput],
@@ -181,11 +202,13 @@ struct SpendDashboardModel: Equatable, Sendable {
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
         let dailyPoints = Self.dailyPoints(summaries: summaries)
+        let dailyTokenPoints = Self.dailyTokenPoints(summaries: summaries)
         return CurrencyGroup(
             currencyCode: currencyCode,
             providers: providers,
             models: modelSummary.rows,
             dailyPoints: dailyPoints,
+            dailyTokenPoints: dailyTokenPoints,
             totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
             totalCost: Self.completeCostSum(providers.map(\.totalCost)),
             coveredDayCount: Self.commonCoverageDayCount(summaries: summaries, calendar: calendar),
@@ -513,6 +536,45 @@ struct SpendDashboardModel: Equatable, Sendable {
                     stackEnd: cursor))
             }
             return points
+        }
+    }
+
+    private static func dailyTokenPoints(summaries: [InputSummary]) -> [DailyTokenPoint] {
+        var aggregates: [DailyKey: DailyTokenAccumulator] = [:]
+        for summary in summaries where summary.totalTokens != nil {
+            let input = summary.input
+            for windowEntry in summary.entries {
+                let key = DailyKey(day: windowEntry.day, sourceID: input.id)
+                var aggregate = aggregates[key] ?? DailyTokenAccumulator(
+                    provider: input.provider,
+                    providerName: input.displayName,
+                    tokens: 0)
+                if let tokens = Self.nonnegative(windowEntry.entry.totalTokens) {
+                    aggregate.tokens = Self.add(
+                        tokens,
+                        to: aggregate.tokens,
+                        overflowed: &aggregate.overflowed)
+                } else {
+                    aggregate.invalid = true
+                }
+                aggregates[key] = aggregate
+            }
+        }
+
+        return aggregates.compactMap { key, value in
+            guard !value.invalid, !value.overflowed, let tokens = value.tokens else { return nil }
+            return DailyTokenPoint(
+                sourceID: key.sourceID,
+                provider: value.provider,
+                providerName: value.providerName,
+                day: key.day,
+                tokens: tokens)
+        }
+        .sorted {
+            if $0.day != $1.day {
+                return $0.day < $1.day
+            }
+            return $0.sourceID < $1.sourceID
         }
     }
 

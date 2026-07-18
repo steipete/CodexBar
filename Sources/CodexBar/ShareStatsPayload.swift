@@ -91,12 +91,23 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
     }
 }
 
+struct ShareStatsDailyPayload: Sendable, Equatable, Identifiable {
+    let day: Date
+    let totalTokens: Int
+
+    var id: Date {
+        self.day
+    }
+}
+
 struct ShareStatsPayload: Sendable, Equatable {
     let days: Int
     let periodEnd: Date
     let providers: [ShareStatsProviderPayload]
     let topModels: [ShareStatsModelPayload]
     let currencies: [ShareStatsCurrencyPayload]
+    let dailyTokens: [ShareStatsDailyPayload]
+    let dailySourceCount: Int
     let totalTokens: Int?
 
     var hasShareableData: Bool {
@@ -378,14 +389,35 @@ enum ShareStatsBuilder {
                 estimatedCost: self.finiteCost($0.totalCost),
                 coveredDayCount: $0.coveredDayCount)
         }
+        let dailyPoints = model.groups.flatMap(\.dailyTokenPoints)
+        let dailyPointsByDay = Dictionary(grouping: dailyPoints, by: \.day)
+        let dailyTokens = dailyPointsByDay
+            .keys
+            .sorted()
+            .compactMap { day -> ShareStatsDailyPayload? in
+                guard let points = dailyPointsByDay[day],
+                      let total = self.combinedTotalTokens(points.map { Optional($0.tokens) })
+                else { return nil }
+                return ShareStatsDailyPayload(day: day, totalTokens: total)
+            }
+        let dailySourceCount = Set(dailyPoints.map(\.sourceID)).count
         let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
-        let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
+        let periodEnd = dailyTokens.map(\.day).max()
+            ?? model.groups.map { group in
+                let bounds = group.chartDomain
+                return bounds.lowerBound < bounds.upperBound
+                    ? bounds.upperBound.addingTimeInterval(-1)
+                    : bounds.upperBound
+            }.max()
+            ?? Date()
         let payload = ShareStatsPayload(
             days: model.requestedDays,
             periodEnd: periodEnd,
             providers: providers,
             topModels: topModels,
             currencies: currencies,
+            dailyTokens: dailyTokens,
+            dailySourceCount: dailySourceCount,
             totalTokens: totalTokens)
         return payload.hasShareableData ? payload : nil
     }
@@ -436,47 +468,51 @@ enum ShareStatsFormatting {
         return formatter.string(from: date)
     }
 
+    static func shortDay(_ date: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter.string(from: date)
+    }
+
+    static func shortRange(from start: Date, through end: Date, calendar: Calendar = .current) -> String {
+        "\(self.shortDay(start, calendar: calendar)) — \(self.shortDay(end, calendar: calendar))"
+    }
+
     static func text(_ payload: ShareStatsPayload) -> String {
-        var lines = ["My AI subscriptions · last \(payload.days) days"]
+        var lines = ["You kept the models busy · last \(payload.days) days"]
         if let tokens = payload.totalTokens {
             lines.append("\(self.compactCount(tokens)) tracked tokens")
         }
-        lines.append(contentsOf: payload.currencies.map { currency in
-            let spend = currency.estimatedCost.map { "\(self.currency($0, code: currency.currencyCode)) estimated" }
-                ?? "Spend unavailable"
-            return "\(currency.currencyCode): \(spend) · "
-                + "coverage \(currency.coveredDayCount)/\(payload.days) days"
-        })
-        lines.append(contentsOf: payload.providers.map { provider in
-            var metrics: [String] = []
-            if let tokens = provider.totalTokens {
-                metrics.append("\(self.compactCount(tokens)) tokens")
-            }
-            if let cost = provider.estimatedCost {
-                metrics.append("~\(self.currency(cost, code: provider.currencyCode)) est")
-            } else {
-                metrics.append("Spend unavailable")
-            }
-            if provider.estimatedCost != nil, provider.coveredDayCount < payload.days {
-                metrics.append("\(provider.coveredDayCount)/\(payload.days) days")
-            }
-            let subscription = provider.subscriptionName.map { " · \($0)" } ?? ""
-            return "\(provider.providerName)\(subscription): \(metrics.joined(separator: " · "))"
-        })
-        if !payload.topModels.isEmpty {
-            lines.append("Top models:")
-            lines.append(contentsOf: payload.topModels.prefix(5).map { model in
-                var metrics: [String] = []
-                if let tokens = model.totalTokens {
-                    metrics.append("\(self.compactCount(tokens)) tokens")
-                }
-                if let cost = model.estimatedCost {
-                    metrics.append("~\(self.currency(cost, code: model.currencyCode)) est")
-                }
-                return "\(model.modelName) (\(model.providerName)): \(metrics.joined(separator: " · "))"
-            })
+        if !payload.dailyTokens.isEmpty {
+            let activeDays = payload.dailyTokens.count { $0.totalTokens > 0 }
+            lines.append("\(activeDays) of \(payload.days) days active")
         }
-        lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
+        let pricedCurrencies = payload.currencies.compactMap { currency in
+            currency.estimatedCost.map { self.currency($0, code: currency.currencyCode) }
+        }
+        let pricedSourceCount = payload.providers.count { $0.estimatedCost != nil }
+        if !pricedCurrencies.isEmpty {
+            lines.append(
+                "Estimated token spend: \(pricedCurrencies.joined(separator: " · "))"
+                    + " · pricing for \(pricedSourceCount) of \(payload.providers.count) sources")
+        }
+        if !payload.topModels.isEmpty {
+            lines.append("Top model + source pairs:")
+            lines.append(contentsOf: payload.topModels.prefix(3).map { model in
+                "\(model.modelName) · \(model.providerName)"
+            })
+            let hiddenCount = payload.topModels.count - min(3, payload.topModels.count)
+            if hiddenCount > 0 {
+                lines.append("+\(hiddenCount) more")
+            }
+        }
+        lines.append("\(payload.providers.count) sources tracked")
+        lines.append(
+            "Aggregated locally by CodexBar · No prompts shared · "
+                + "Data through \(self.dataThrough(payload.periodEnd))")
         return lines.joined(separator: "\n")
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ShareStatsCardView: View {
@@ -5,342 +6,475 @@ struct ShareStatsCardView: View {
 
     let payload: ShareStatsPayload
 
-    static func providerDisplayLimit(for providerCount: Int) -> Int {
-        providerCount > 5 ? 4 : min(providerCount, 5)
+    static func activityLevel(totalTokens: Int, maximum: Int) -> Int {
+        guard totalTokens > 0, maximum > 0 else { return 0 }
+        let scaled = Int(ceil(Double(totalTokens) / Double(maximum) * 5))
+        return min(5, max(1, scaled))
     }
 
-    static func providerPaletteIndex(
-        for model: ShareStatsModelPayload,
-        providers: [ShareStatsProviderPayload]) -> Int?
-    {
-        providers.firstIndex { $0.provider == model.provider }
+    var body: some View {
+        ZStack {
+            ShareStatsBrandBackground()
+            HStack(spacing: 0) {
+                ShareStatsStory(payload: self.payload)
+                    .frame(width: 750)
+                    .background(ShareStatsBrand.canvas.opacity(0.78))
+                ShareStatsActivity(payload: self.payload)
+                    .frame(width: 450)
+                    .background(ShareStatsBrand.surface.opacity(0.82))
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: 1)
+                    }
+            }
+        }
+        .frame(width: Self.size.width, height: Self.size.height)
+        .clipped()
+        .foregroundStyle(ShareStatsBrand.primary)
+        .environment(\.colorScheme, .dark)
     }
+}
 
-    private let background = Color(red: 0.078, green: 0.067, blue: 0.063)
-    private let primary = Color(red: 0.96, green: 0.94, blue: 0.91)
-    private let secondary = Color(red: 0.70, green: 0.66, blue: 0.62)
-    private let accent = Color(red: 0.93, green: 0.56, blue: 0.36)
+private struct ShareStatsStory: View {
+    let payload: ShareStatsPayload
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             self.header
-            self.hero
-                .padding(.top, 16)
-            Rectangle()
-                .fill(self.secondary.opacity(0.22))
-                .frame(height: 1)
-                .padding(.vertical, 17)
-            self.rankings
-                .frame(height: 286, alignment: .top)
-            Spacer(minLength: 10)
-            self.footer
+            self.headline
+                .padding(.top, 44)
+            self.tokenHero
+                .padding(.top, 26)
+            self.spend
+                .padding(.top, 29)
+            self.routes
+                .padding(.top, 32)
+            Spacer(minLength: 8)
+            Text("\(self.payload.days) DAYS · AGGREGATED LOCALLY · NO PROMPTS SHARED")
+                .font(ShareStatsBrand.mono(size: 12, weight: .semibold))
+                .tracking(0.4)
+                .foregroundStyle(ShareStatsBrand.secondary)
         }
         .padding(.horizontal, 52)
-        .padding(.vertical, 34)
-        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
-        .background(self.background)
-        .foregroundStyle(self.primary)
-        .environment(\.colorScheme, .dark)
+        .padding(.top, 38)
+        .padding(.bottom, 28)
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
-            HStack(spacing: 14) {
-                ShareStatsMark(accent: self.accent)
-                    .frame(width: 34, height: 34)
-                Text("CodexBar")
-                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-            }
-            Spacer()
-            Text("LOCAL SNAPSHOT")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .tracking(1.8)
-                .foregroundStyle(self.secondary)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 9)
+        HStack(spacing: 10) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 30, height: 30)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(self.secondary.opacity(0.45), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
                 }
+            Text("CodexBar")
+                .font(.system(size: 18, weight: .semibold))
+                .tracking(-0.3)
         }
     }
 
-    private var hero: some View {
-        HStack(alignment: .bottom, spacing: 52) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.payload.days) DAYS")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .tracking(1.8)
-                    .foregroundStyle(self.secondary)
-                Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
-                    .font(.system(size: 104, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var headline: some View {
+        HStack(spacing: 0) {
+            Text("You kept ")
+            Text("the models")
+                .foregroundStyle(ShareStatsBrand.aurora)
+            Text(" busy.")
+        }
+        .font(.system(size: 43, weight: .semibold))
+        .tracking(-1.8)
+    }
 
-            VStack(alignment: .leading, spacing: 9) {
-                Text("EST. \(self.payload.days)-DAY SPEND")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(self.secondary)
-                ForEach(self.payload.currencies.prefix(2)) { currency in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.payload.days)d")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(self.secondary)
+    private var tokenHero: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 17) {
+            Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
+                .font(.system(size: 126, weight: .bold))
+                .tracking(-7)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text("TOKENS")
+                .font(ShareStatsBrand.mono(size: 15, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(ShareStatsBrand.secondary)
+                .padding(.bottom, 11)
+        }
+        .frame(height: 106, alignment: .bottomLeading)
+    }
+
+    private var spend: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(self.spendHeadline)
+                .font(.system(size: 32, weight: .bold))
+                .tracking(-1.3)
+                .foregroundStyle(ShareStatsBrand.teal)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(self.spendDetail)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(ShareStatsBrand.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    private var spendHeadline: String {
+        let pricedCurrencies = self.payload.currencies.compactMap { currency -> String? in
+            guard let estimatedCost = currency.estimatedCost else { return nil }
+            return ShareStatsFormatting.currency(estimatedCost, code: currency.currencyCode)
+        }
+        guard !pricedCurrencies.isEmpty else { return "—" }
+        let shown = pricedCurrencies.prefix(2).joined(separator: " · ")
+        if pricedCurrencies.count > 2 {
+            return "\(shown) +\(pricedCurrencies.count - 2)"
+        }
+        let isPartial = self.pricedSourceCount < self.payload.providers.count
+        return pricedCurrencies.count == 1 && isPartial ? "\(shown)+" : shown
+    }
+
+    private var spendDetail: String {
+        guard self.pricedSourceCount > 0 else {
+            return "estimated token spend unavailable · \(self.payload.providers.count) sources tracked"
+        }
+        return "estimated token spend · pricing for \(self.pricedSourceCount) "
+            + "of \(self.payload.providers.count) sources"
+    }
+
+    private var pricedSourceCount: Int {
+        self.payload.providers.count { $0.estimatedCost != nil }
+    }
+
+    private var routes: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle()
+                .fill(ShareStatsBrand.rule)
+                .frame(height: 1)
+            HStack(alignment: .firstTextBaseline) {
+                Text("MODEL + SOURCE")
+                Spacer()
+                Text(self.routeHeaderDetail)
+            }
+            .font(ShareStatsBrand.mono(size: 13, weight: .bold))
+            .tracking(0.8)
+            .foregroundStyle(ShareStatsBrand.secondary)
+            .padding(.top, 16)
+            .padding(.bottom, 9)
+
+            if self.payload.topModels.isEmpty {
+                Text("Model breakdown unavailable")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(ShareStatsBrand.secondary)
+                    .frame(height: 40)
+            } else {
+                ForEach(
+                    Array(self.payload.topModels.prefix(3).enumerated()),
+                    id: \.offset)
+                { _, model in
+                    HStack {
+                        Text(model.modelName)
+                            .font(.system(size: 20, weight: .semibold))
+                            .tracking(-0.3)
                         Spacer()
-                        Text(currency.estimatedCost.map {
-                            ShareStatsFormatting.currency($0, code: currency.currencyCode)
-                        } ?? "Unavailable")
-                            .font(.system(size: 32, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
+                        Text(model.providerName)
+                            .font(ShareStatsBrand.mono(size: 15, weight: .semibold))
+                            .foregroundStyle(ShareStatsBrand.secondary)
+                    }
+                    .frame(height: 40)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(ShareStatsBrand.rule)
+                            .frame(height: 1)
                     }
                 }
-                Text(self.currencySummary)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
             }
-            .frame(width: 390, alignment: .leading)
+
+            HStack {
+                Text(self.routeOverflowDetail)
+                Spacer()
+                Text("\(self.payload.providers.count) sources tracked")
+            }
+            .font(ShareStatsBrand.mono(size: 12, weight: .semibold))
+            .foregroundStyle(ShareStatsBrand.secondary)
+            .padding(.top, 9)
         }
-        .frame(height: 132, alignment: .bottom)
     }
 
-    private var currencySummary: String {
-        let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
-        return hiddenCount > 0
-            ? "+\(hiddenCount) more currencies · see subscription rows"
-            : "\(self.payload.providers.count) subscriptions · native currencies kept separate"
+    private var routeHeaderDetail: String {
+        guard !self.payload.topModels.isEmpty else { return "UNAVAILABLE" }
+        return "TOP \(min(3, self.payload.topModels.count)) OF \(self.payload.topModels.count)"
     }
 
-    private var rankings: some View {
-        HStack(alignment: .top, spacing: 46) {
-            VStack(alignment: .leading, spacing: 6) {
-                self.sectionHeader("SUBSCRIPTIONS", detail: "\(self.payload.providers.count) CONNECTED")
-                ForEach(
-                    Array(self.payload.providers.prefix(self.providerDisplayLimit).enumerated()),
-                    id: \.offset)
-                { index, provider in
-                    ShareStatsProviderRow(
-                        rank: index + 1,
-                        provider: provider,
-                        days: self.payload.days,
-                        color: ShareStatsPalette.color(at: index))
-                }
-                if self.payload.providers.count > self.providerDisplayLimit {
-                    Text("+\(self.payload.providers.count - self.providerDisplayLimit) more configured")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundStyle(self.secondary)
-                        .padding(.leading, 20)
+    private var routeOverflowDetail: String {
+        let hiddenCount = max(0, self.payload.topModels.count - 3)
+        return hiddenCount > 0 ? "+\(hiddenCount) more model / source pairs" : "All model / source pairs shown"
+    }
+}
+
+private struct ShareStatsActivity: View {
+    let payload: ShareStatsPayload
+
+    private var calendar: Calendar {
+        Calendar.current
+    }
+
+    private var periodEnd: Date {
+        self.calendar.startOfDay(for: self.payload.periodEnd)
+    }
+
+    private var periodStart: Date {
+        self.calendar.date(byAdding: .day, value: -(self.payload.days - 1), to: self.periodEnd)
+            ?? self.periodEnd
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(
+                "\(ShareStatsFormatting.shortRange(from: self.periodStart, through: self.periodEnd))"
+                    + " · \(self.payload.days)-DAY SNAPSHOT")
+                .font(ShareStatsBrand.mono(size: 13, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(ShareStatsBrand.secondary)
+
+            HStack(alignment: .lastTextBaseline, spacing: 9) {
+                Text(self.payload.dailyTokens.isEmpty ? "—" : "\(self.activeDayCount)")
+                    .font(.system(size: 72, weight: .heavy))
+                    .tracking(-4.5)
+                    .monospacedDigit()
+                    .foregroundStyle(ShareStatsBrand.activeGradient)
+                if !self.payload.dailyTokens.isEmpty {
+                    Text("of \(self.payload.days)")
+                        .font(.system(size: 23, weight: .bold))
+                        .foregroundStyle(ShareStatsBrand.secondary)
+                        .padding(.bottom, 7)
                 }
             }
-            .frame(width: 554, alignment: .topLeading)
+            .frame(height: 72, alignment: .bottomLeading)
+            .padding(.top, 18)
 
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 6) {
-                    self.sectionHeader("TOP MODELS", detail: "BY USAGE")
-                    if self.payload.topModels.isEmpty {
-                        Text("No model-level history in this local snapshot")
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundStyle(self.secondary)
-                            .padding(.top, 4)
-                    } else {
-                        ForEach(
-                            Array(self.payload.topModels.prefix(3).enumerated()),
-                            id: \.offset)
-                        { index, model in
-                            ShareStatsModelRow(
-                                rank: index + 1,
-                                model: model,
-                                color: self.color(for: model))
+            Text(self.payload.dailyTokens.isEmpty ? "daily activity unavailable" : "days active")
+                .font(.system(size: 21, weight: .semibold))
+                .padding(.top, 8)
+
+            ShareStatsCalendar(
+                cells: self.calendarCells,
+                start: self.periodStart,
+                end: self.periodEnd)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
+
+            Spacer(minLength: 10)
+
+            HStack {
+                Text("DAILY TOKEN ACTIVITY")
+                Spacer()
+                Text(self.sourceCoverage)
+            }
+            .font(ShareStatsBrand.mono(size: 12, weight: .bold))
+            .tracking(0.35)
+            .foregroundStyle(ShareStatsBrand.secondary)
+        }
+        .padding(.horizontal, 38)
+        .padding(.top, 38)
+        .padding(.bottom, 29)
+    }
+
+    private var activeDayCount: Int {
+        self.payload.dailyTokens.count { $0.totalTokens > 0 }
+    }
+
+    private var sourceCoverage: String {
+        guard self.payload.dailySourceCount > 0 else { return "NO SOURCE DATA" }
+        return "\(self.payload.dailySourceCount) OF \(self.payload.providers.count) SOURCES"
+    }
+
+    private var calendarCells: [ShareStatsCalendarCell] {
+        let dailyTokens = Dictionary(uniqueKeysWithValues: self.payload.dailyTokens.map {
+            (self.calendar.startOfDay(for: $0.day), $0.totalTokens)
+        })
+        let maximum = dailyTokens.values.max() ?? 0
+        let leadingCount = max(0, self.calendar.component(.weekday, from: self.periodStart) - 1)
+        let requiredCount = leadingCount + self.payload.days
+        let totalCount = Int(ceil(Double(requiredCount) / 7.0)) * 7
+
+        return (0..<totalCount).map { index in
+            let dayOffset = index - leadingCount
+            guard dayOffset >= 0,
+                  dayOffset < self.payload.days,
+                  let day = self.calendar.date(byAdding: .day, value: dayOffset, to: self.periodStart)
+            else {
+                return ShareStatsCalendarCell(id: index, level: nil)
+            }
+            let tokens = dailyTokens[self.calendar.startOfDay(for: day)] ?? 0
+            return ShareStatsCalendarCell(
+                id: index,
+                level: ShareStatsCardView.activityLevel(totalTokens: tokens, maximum: maximum))
+        }
+    }
+}
+
+private struct ShareStatsCalendarCell: Identifiable {
+    let id: Int
+    let level: Int?
+}
+
+private struct ShareStatsCalendar: View {
+    let cells: [ShareStatsCalendarCell]
+    let start: Date
+    let end: Date
+
+    private var weeks: [[ShareStatsCalendarCell]] {
+        stride(from: 0, to: self.cells.count, by: 7).map { startIndex in
+            Array(self.cells[startIndex..<min(startIndex + 7, self.cells.count)])
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack(alignment: .top, spacing: 9) {
+                VStack(spacing: 8) {
+                    ForEach(0..<7, id: \.self) { weekdayIndex in
+                        Text(self.weekdayLabel(for: weekdayIndex))
+                            .font(ShareStatsBrand.mono(size: 12, weight: .bold))
+                            .foregroundStyle(ShareStatsBrand.secondary)
+                            .frame(width: 29, height: 42, alignment: .trailing)
+                    }
+                }
+                HStack(spacing: 8) {
+                    ForEach(Array(self.weeks.enumerated()), id: \.offset) { _, week in
+                        VStack(spacing: 8) {
+                            ForEach(week) { cell in
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(ShareStatsBrand.activity(level: cell.level))
+                                    .overlay {
+                                        if cell.level != nil {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                                        }
+                                    }
+                                    .frame(width: 42, height: 42)
+                            }
                         }
                     }
                 }
-                Text("Only aggregate usage, plan tier, and estimated spend are included.")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
-                    .padding(.top, 18)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-    }
 
-    private var providerDisplayLimit: Int {
-        Self.providerDisplayLimit(for: self.payload.providers.count)
-    }
-
-    private func color(for model: ShareStatsModelPayload) -> Color {
-        guard let index = Self.providerPaletteIndex(for: model, providers: self.payload.providers) else {
-            return self.secondary
-        }
-        return ShareStatsPalette.color(at: index)
-    }
-
-    private func sectionHeader(_ title: String, detail: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .tracking(1.5)
-            Spacer()
-            Text(detail)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .tracking(1.0)
-        }
-        .foregroundStyle(self.secondary)
-    }
-
-    private var footer: some View {
-        HStack(spacing: 12) {
-            Label("LOCAL · AGGREGATE ONLY", systemImage: "lock.shield")
-            Spacer()
-            Text("DATA THROUGH \(ShareStatsFormatting.dataThrough(self.payload.periodEnd).uppercased())")
-        }
-        .font(.system(size: 14, weight: .medium, design: .rounded))
-        .tracking(0.7)
-        .foregroundStyle(self.secondary)
-    }
-}
-
-private struct ShareStatsModelRow: View {
-    let rank: Int
-    let model: ShareStatsModelPayload
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Capsule()
-                .fill(self.color)
-                .frame(width: 5, height: 34)
-            Text(String(format: "%02d", self.rank))
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                .frame(width: 27, alignment: .leading)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(self.model.modelName)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text(self.model.providerName)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                    .lineLimit(1)
+            HStack {
+                Text(ShareStatsFormatting.shortDay(self.start))
+                Spacer()
+                Text(ShareStatsFormatting.shortDay(self.midpoint))
+                Spacer()
+                Text(ShareStatsFormatting.shortDay(self.end))
             }
-            Spacer(minLength: 10)
-            Text(self.detail)
-                .font(.system(size: 17, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.78, green: 0.74, blue: 0.69))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 48)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
-        .overlay {
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        }
-    }
+            .font(ShareStatsBrand.mono(size: 12, weight: .bold))
+            .foregroundStyle(ShareStatsBrand.secondary)
+            .frame(width: self.gridWidth)
 
-    private var detail: String {
-        if let cost = self.model.estimatedCost, cost.isFinite {
-            return "~\(ShareStatsFormatting.currency(cost, code: self.model.currencyCode))"
-        }
-        return self.model.totalTokens.map(ShareStatsFormatting.compactCount) ?? "used"
-    }
-}
-
-private struct ShareStatsProviderRow: View {
-    let rank: Int
-    let provider: ShareStatsProviderPayload
-    let days: Int
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Capsule()
-                .fill(self.color)
-                .frame(width: 6, height: 30)
-            Text(String(format: "%02d", self.rank))
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                .frame(width: 27, alignment: .leading)
-            HStack(spacing: 8) {
-                Text(self.provider.providerName)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                if let subscriptionName = self.provider.subscriptionName {
-                    Text("· \(subscriptionName)")
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
-                        .lineLimit(1)
+            HStack(spacing: 4) {
+                Text("Less")
+                ForEach(0..<4, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(ShareStatsBrand.activity(level: index == 0 ? 0 : index + 1))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 2)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        }
+                        .frame(width: 11, height: 11)
                 }
+                Text("More")
             }
-            Spacer(minLength: 12)
-            Text(self.detail)
-                .font(.system(size: 18, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color(red: 0.78, green: 0.74, blue: 0.69))
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-        }
-        .padding(.horizontal, 9)
-        .frame(height: 44)
-        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
-        .overlay {
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+            .font(ShareStatsBrand.mono(size: 11, weight: .bold))
+            .foregroundStyle(ShareStatsBrand.secondary)
+            .frame(width: self.gridWidth, alignment: .trailing)
         }
     }
 
-    private var detail: String {
-        var metrics: [String] = []
-        if let tokens = self.provider.totalTokens {
-            metrics.append(ShareStatsFormatting.compactCount(tokens))
+    private var gridWidth: CGFloat {
+        CGFloat(self.weeks.count) * 42 + CGFloat(max(0, self.weeks.count - 1)) * 8
+    }
+
+    private var midpoint: Date {
+        Calendar.current.date(
+            byAdding: .day,
+            value: Calendar.current.dateComponents([.day], from: self.start, to: self.end).day.map { $0 / 2 } ?? 0,
+            to: self.start) ?? self.start
+    }
+
+    private func weekdayLabel(for index: Int) -> String {
+        switch index {
+        case 1: "Mon"
+        case 3: "Wed"
+        case 5: "Fri"
+        default: ""
         }
-        if let cost = self.provider.estimatedCost, cost.isFinite {
-            metrics.append("~\(ShareStatsFormatting.currency(cost, code: self.provider.currencyCode))")
-            if self.provider.coveredDayCount < self.days {
-                metrics.append("\(self.provider.coveredDayCount)/\(self.days)d")
-            }
-        } else {
-            metrics.append("Spend unavailable")
-        }
-        return metrics.isEmpty ? "connected" : metrics.joined(separator: " · ")
     }
 }
 
-private enum ShareStatsPalette {
-    static let colors = [
-        Color(red: 1.00, green: 0.60, blue: 0.38),
-        Color(red: 0.60, green: 0.66, blue: 1.00),
-        Color(red: 0.38, green: 0.84, blue: 0.72),
-        Color(red: 0.95, green: 0.79, blue: 0.41),
-        Color(red: 0.44, green: 0.77, blue: 0.96),
-        Color(red: 0.95, green: 0.55, blue: 0.67),
-    ]
-
-    static func color(at index: Int) -> Color {
-        self.colors[index % self.colors.count]
-    }
-}
-
-private struct ShareStatsMark: View {
-    let accent: Color
-
+private struct ShareStatsBrandBackground: View {
     var body: some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            ForEach(Array([0.38, 0.68, 1.0].enumerated()), id: \.offset) { _, height in
-                Capsule()
-                    .fill(self.accent)
-                    .frame(width: 5, height: 28 * height)
-            }
+        ZStack {
+            ShareStatsBrand.canvas
+            RadialGradient(
+                colors: [ShareStatsBrand.orange.opacity(0.42), .clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 460)
+            RadialGradient(
+                colors: [ShareStatsBrand.violet.opacity(0.46), .clear],
+                center: .topTrailing,
+                startRadius: 0,
+                endRadius: 480)
+            RadialGradient(
+                colors: [ShareStatsBrand.teal.opacity(0.22), .clear],
+                center: .bottom,
+                startRadius: 0,
+                endRadius: 420)
+            RadialGradient(
+                colors: [ShareStatsBrand.pink.opacity(0.28), .clear],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 360)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+}
+
+private enum ShareStatsBrand {
+    static let canvas = Color(red: 10.0 / 255.0, green: 10.0 / 255.0, blue: 12.0 / 255.0)
+    static let surface = Color(red: 19.0 / 255.0, green: 20.0 / 255.0, blue: 24.0 / 255.0)
+    static let primary = Color(red: 240.0 / 255.0, green: 240.0 / 255.0, blue: 243.0 / 255.0)
+    static let secondary = Color(red: 182.0 / 255.0, green: 189.0 / 255.0, blue: 198.0 / 255.0)
+    static let orange = Color(red: 255.0 / 255.0, green: 122.0 / 255.0, blue: 26.0 / 255.0)
+    static let pink = Color(red: 255.0 / 255.0, green: 61.0 / 255.0, blue: 139.0 / 255.0)
+    static let violet = Color(red: 110.0 / 255.0, green: 90.0 / 255.0, blue: 255.0 / 255.0)
+    static let teal = Color(red: 22.0 / 255.0, green: 211.0 / 255.0, blue: 180.0 / 255.0)
+    static let rule = Color.white.opacity(0.18)
+
+    static let aurora = LinearGradient(
+        colors: [ShareStatsBrand.orange, ShareStatsBrand.pink, ShareStatsBrand.violet, ShareStatsBrand.teal],
+        startPoint: .leading,
+        endPoint: .trailing)
+
+    static let activeGradient = LinearGradient(
+        colors: [ShareStatsBrand.orange, ShareStatsBrand.pink],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing)
+
+    static func mono(size: CGFloat, weight: Font.Weight) -> Font {
+        .system(size: size, weight: weight, design: .monospaced)
+    }
+
+    static func activity(level: Int?) -> Color {
+        guard let level else { return .clear }
+        switch level {
+        case 1: return self.teal.opacity(0.18)
+        case 2: return self.teal.opacity(0.34)
+        case 3: return self.teal.opacity(0.52)
+        case 4: return self.teal.opacity(0.74)
+        case 5: return self.teal.opacity(0.98)
+        default: return Color.white.opacity(0.055)
+        }
     }
 }

@@ -26,13 +26,19 @@ struct ShareStatsTests {
         #expect(payload.providers.map(\.subscriptionName) == ["Max", "Pro 20x", "Cursor Pro"])
         #expect(payload.providers.last?.estimatedCost == nil)
         #expect(payload.topModels.map(\.modelName).prefix(2) == ["Claude", "GPT"])
+        #expect(payload.dailyTokens == [ShareStatsDailyPayload(day: Self.date, totalTokens: 500)])
+        #expect(payload.dailySourceCount == 2)
 
         let text = ShareStatsFormatting.text(payload)
-        #expect(text.contains("GBP: £12.00 estimated · coverage 10/30 days"))
-        #expect(text.contains("Claude · Max: 300 tokens · ~£12.00 est · 10/30 days"))
-        #expect(text.contains("USD: Spend unavailable · coverage 0/30 days"))
-        #expect(text.contains("Cursor · Cursor Pro: Spend unavailable"))
-        #expect(!text.contains("£12.00 +"))
+        #expect(text.contains("You kept the models busy · last 30 days"))
+        #expect(text.contains("1 of 30 days active"))
+        #expect(text.contains("Estimated token spend: £12.00 · pricing for 2 of 3 sources"))
+        #expect(text.contains("Top model + source pairs:"))
+        #expect(text.contains("Claude · Claude"))
+        #expect(text.contains("3 sources tracked"))
+        #expect(text.contains("Aggregated locally by CodexBar · No prompts shared"))
+        #expect(!text.contains("Cursor Pro"))
+        #expect(!text.contains("Spend unavailable"))
     }
 
     @Test
@@ -153,6 +159,7 @@ struct ShareStatsTests {
             ],
             models: rows,
             dailyPoints: [],
+            dailyTokenPoints: [],
             totalTokens: 1,
             totalCost: nil,
             coveredDayCount: 0,
@@ -208,6 +215,7 @@ struct ShareStatsTests {
                         totalCost: nil),
                 ],
                 dailyPoints: [],
+                dailyTokenPoints: [],
                 totalTokens: 10,
                 totalCost: -.infinity,
                 coveredDayCount: 7,
@@ -291,18 +299,11 @@ struct ShareStatsTests {
     }
 
     @Test @MainActor
-    func `provider rows leave room for overflow summary`() {
-        #expect(ShareStatsCardView.providerDisplayLimit(for: 5) == 5)
-        #expect(ShareStatsCardView.providerDisplayLimit(for: 6) == 4)
-        #expect(ShareStatsCardView.providerDisplayLimit(for: 12) == 4)
-    }
-
-    @Test @MainActor
-    func `model colors use provider identity instead of decorated account name`() throws {
-        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard))
-        let codexModel = try #require(payload.topModels.first { $0.provider == .codex })
-
-        #expect(ShareStatsCardView.providerPaletteIndex(for: codexModel, providers: payload.providers) == 1)
+    func `activity levels preserve zero and scale to five steps`() {
+        #expect(ShareStatsCardView.activityLevel(totalTokens: 0, maximum: 100) == 0)
+        #expect(ShareStatsCardView.activityLevel(totalTokens: 1, maximum: 100) == 1)
+        #expect(ShareStatsCardView.activityLevel(totalTokens: 50, maximum: 100) == 3)
+        #expect(ShareStatsCardView.activityLevel(totalTokens: 100, maximum: 100) == 5)
     }
 
     @Test
@@ -368,6 +369,14 @@ struct ShareStatsTests {
                         totalCost: 1),
                 ],
                 dailyPoints: [],
+                dailyTokenPoints: [
+                    SpendDashboardModel.DailyTokenPoint(
+                        sourceID: "claude",
+                        provider: .claude,
+                        providerName: "Claude",
+                        day: self.date,
+                        tokens: 300),
+                ],
                 totalTokens: 300,
                 totalCost: 12,
                 coveredDayCount: 10,
@@ -403,6 +412,14 @@ struct ShareStatsTests {
                         totalCost: 4)
                 },
                 dailyPoints: [],
+                dailyTokenPoints: [
+                    SpendDashboardModel.DailyTokenPoint(
+                        sourceID: "codex:one",
+                        provider: .codex,
+                        providerName: "Codex · #1",
+                        day: self.date,
+                        tokens: 200),
+                ],
                 totalTokens: nil,
                 totalCost: nil,
                 coveredDayCount: 0,
