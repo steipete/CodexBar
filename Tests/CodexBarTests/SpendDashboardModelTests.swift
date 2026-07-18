@@ -68,7 +68,7 @@ struct SpendDashboardModelTests {
         let providers = Set(ProviderDescriptorRegistry.all
             .filter(\.tokenCost.supportsTokenCost)
             .map(\.id))
-        #expect(providers == [.codex, .claude, .vertexai, .openai, .mistral, .bedrock, .cursor])
+        #expect(providers == [.codex, .claude, .vertexai, .openai, .mistral, .bedrock, .cursor, .opencodego])
     }
 
     @Test
@@ -243,7 +243,7 @@ struct SpendDashboardModelTests {
     }
 
     @Test
-    func `uncovered same currency source hides partial model ranking`() throws {
+    func `uncovered same currency source keeps complete model rows without ranking them as complete`() throws {
         let covered = Self.input(id: "covered", provider: .claude, currency: "USD", cost: 4)
         let uncovered = SpendDashboardModel.ProviderInput(
             id: "uncovered",
@@ -263,7 +263,10 @@ struct SpendDashboardModelTests {
         #expect(group.totalCost == nil)
         #expect(group.totalTokens == nil)
         #expect(group.modelHistoryCompleteness == .incomplete)
-        #expect(group.models.isEmpty)
+        #expect(group.models.map(\.provider) == [.claude])
+        #expect(group.models.map(\.modelName) == ["test-model"])
+        #expect(group.models.map(\.totalCost) == [4])
+        #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
 
     @Test
@@ -287,6 +290,7 @@ struct SpendDashboardModelTests {
         #expect(group.totalTokens == nil)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
+        #expect(spendDashboardModelHistoryPresentation(group) == .unavailable)
     }
 
     @Test

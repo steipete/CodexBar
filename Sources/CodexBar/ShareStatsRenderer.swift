@@ -14,15 +14,16 @@ enum ShareStatsRenderer {
             pixelsWide: Int(size.width),
             pixelsHigh: Int(size.height),
             bitsPerSample: 8,
-            samplesPerPixel: 3,
-            hasAlpha: false,
+            samplesPerPixel: 4,
+            hasAlpha: true,
             isPlanar: false,
             colorSpaceName: .deviceRGB,
             bytesPerRow: 0,
             bitsPerPixel: 0)
         else { return nil }
         representation.size = size
-        view.cacheDisplay(in: view.bounds, to: representation)
+        guard let context = NSGraphicsContext(bitmapImageRep: representation) else { return nil }
+        view.displayIgnoringOpacity(view.bounds, in: context)
         return representation.representation(using: .png, properties: [:])
     }
 

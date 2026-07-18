@@ -14,7 +14,7 @@ extension UsageStore {
 
     func supportsPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
         switch provider {
-        case .codex, .claude, .antigravity:
+        case .codex, .claude, .antigravity, .opencodego:
             true
         default:
             if self.planUtilizationHistory[provider]?.isEmpty == false {
@@ -338,7 +338,7 @@ extension UsageStore {
 
     private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
         switch provider {
-        case .codex, .claude, .antigravity:
+        case .codex, .claude, .antigravity, .opencodego:
             true
         default:
             self.settings.historicalTrackingEnabled
@@ -578,6 +578,10 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .opus)
+        case .opencodego:
+            appendWindow(snapshot.primary, name: .session)
+            appendWindow(snapshot.secondary, name: .weekly)
+            appendWindow(snapshot.tertiary, name: .monthly)
         case .antigravity:
             if forSessionEquivalents {
                 guard let windows = self.sessionEquivalentWindows(provider: provider, snapshot: snapshot) else {

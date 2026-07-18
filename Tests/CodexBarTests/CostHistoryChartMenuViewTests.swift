@@ -6,10 +6,10 @@ import Testing
 @MainActor
 struct CostHistoryChartMenuViewTests {
     @Test
-    func `Codex chart exposes the estimate disclaimer`() {
+    func `Codex chart explains that its token estimate is not a subscription bill`() {
         #expect(
             CostHistoryChartMenuView.estimateDisclaimer(provider: .codex)
-                == "not a subscription bill or plan value")
+                == "Estimated from token usage · not a subscription bill")
         #expect(CostHistoryChartMenuView.estimateDisclaimer(provider: .claude) == nil)
     }
 

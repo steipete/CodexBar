@@ -23,7 +23,10 @@ struct ClaudeSwapAccountReaderTests {
         cat <<'EOF'
         {"schemaVersion": 1, "activeAccountNumber": 1, "accounts": [
           {"number": 1, "email": "a@b.c", "active": true, "usageStatus": "ok",
-           "usage": {"fiveHour": {"pct": 12.5}}}
+           "usage": {
+             "fiveHour": {"pct": 12.5},
+             "scoped": [{"pct": 33.0, "name": "Fable", "resetsAt": "2026-07-21T08:00:00Z"}]
+           }}
         ]}
         EOF
         """)
@@ -31,6 +34,12 @@ struct ClaudeSwapAccountReaderTests {
         let list = try await ClaudeSwapAccountReader.readAccountList(executablePath: path)
         #expect(list.activeAccountNumber == 1)
         #expect(list.accounts.first?.fiveHour?.usedPercent == 12.5)
+        #expect(list.accounts.first?.scoped == [
+            ClaudeSwapScopedUsageWindow(
+                name: "Fable",
+                usedPercent: 33,
+                resetsAt: Date(timeIntervalSince1970: 1_784_620_800)),
+        ])
     }
 
     @Test

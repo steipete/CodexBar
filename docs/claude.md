@@ -124,7 +124,8 @@ The accepted multi-account design in
   [`cswap`](https://github.com/realiti4/claude-swap) executable (for example `~/.local/bin/cswap`).
 - Behavior: on each Claude refresh, CodexBar runs `cswap --list --json` independently of the ambient Claude fetch (no
   shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
-  active state, usage status, email (display only), and the 5-hour/7-day windows.
+  active state, usage status, email (display only), the 5-hour/7-day windows, and optional display-only model-scoped
+  weekly windows from `usage.scoped`.
 - Display: when claude-swap reports more than one account, the Claude menu and `codexbar cards` show one card per
   account (active account first, then numeric slot) instead of ambient/token-account Claude cards. To use this
   presentation with one account, enable “Show account card when only one account is available” or set
@@ -155,6 +156,12 @@ The accepted multi-account design in
 Packaged synthetic proof (fake `cswap` executable, no real accounts or credentials):
 
 ![Stacked claude-swap account cards](screenshots/claude-swap-accounts-synthetic-proof.png)
+
+Model-scoped weekly-window proof (synthetic data, no real accounts or credentials):
+
+| Before | After |
+| --- | --- |
+| ![claude-swap card before scoped windows](screenshots/claude-swap-scoped-before.png) | ![claude-swap card with a Fable scoped weekly window](screenshots/claude-swap-scoped-after.png) |
 
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).

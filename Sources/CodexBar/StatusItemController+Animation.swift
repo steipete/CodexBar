@@ -1236,10 +1236,10 @@ extension StatusItemController {
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
         {
-            let showsCountdown = layoutResolution.layout.lines
+            let showsReset = layoutResolution.layout.lines
                 .joined()
-                .contains(.resetCountdown)
-            guard showsCountdown else { return [] }
+                .contains { $0 == .resetCountdown || $0 == .resetAbsolute }
+            guard showsReset else { return [] }
             let window = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now).automatic
             return window?.resetsAt.map { [$0] } ?? []
         }

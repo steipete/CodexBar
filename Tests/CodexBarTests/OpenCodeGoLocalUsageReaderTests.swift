@@ -38,6 +38,46 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `builds daily cost history buckets within the requested window`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        // Expected keys below use the same device-local calendar convention as production.
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            cost: 3.0)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T13:00:00.000Z"),
+            cost: 1.5)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-05T12:00:00.000Z"),
+            cost: 6.0)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-01-01T12:00:00.000Z"),
+            cost: 100.0)
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let snapshot = try reader.fetch(now: now, historyDays: 30)
+
+        let previousDayKey = CostUsageScanner.CostUsageDayRange.dayKey(
+            from: Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-05T12:00:00.000Z")) / 1000))
+        let currentDayKey = CostUsageScanner.CostUsageDayRange.dayKey(
+            from: Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T12:00:00.000Z")) / 1000))
+        #expect(snapshot.daily.map(\.date) == [previousDayKey, currentDayKey])
+        #expect(snapshot.daily.first?.costUSD == 6.0)
+        #expect(snapshot.daily.first?.requestCount == 1)
+        #expect(snapshot.daily.last?.costUSD == 4.5)
+        #expect(snapshot.daily.last?.requestCount == 2)
+    }
+
+    @Test
     func `auth without history falls through to web strategy`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -118,7 +158,7 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
-    func `does not double count step finish parts when message has cost`() throws {
+    func `uses message cost while counting step finish requests`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
 
@@ -132,7 +172,12 @@ struct OpenCodeGoLocalUsageReaderTests {
             databaseURL: env.databaseURL,
             messageID: messageID,
             createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
-            cost: 3.0)
+            cost: 1.0)
+        try Self.insertStepFinishPart(
+            databaseURL: env.databaseURL,
+            messageID: messageID,
+            createdMs: Self.ms("2026-03-06T11:05:00.000Z"),
+            cost: 2.0)
 
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
         let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
@@ -140,6 +185,46 @@ struct OpenCodeGoLocalUsageReaderTests {
         #expect(snapshot.rollingUsagePercent == 25)
         #expect(snapshot.weeklyUsagePercent == 10)
         #expect(snapshot.monthlyUsagePercent == 5)
+        #expect(snapshot.daily.first?.costUSD == 3.0)
+        #expect(snapshot.daily.first?.requestCount == 2)
+    }
+
+    @Test
+    func `daily request count buckets step finish parts by their timestamps`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        let anchor = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let dayStart = Calendar.current.startOfDay(for: anchor)
+        let now = dayStart.addingTimeInterval(6 * 60 * 60)
+        let beforeMidnight = dayStart.addingTimeInterval(-60)
+        let afterMidnight = dayStart.addingTimeInterval(60)
+        // One assistant turn can make provider requests on opposite sides of local midnight.
+        let messageID = try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms(beforeMidnight),
+            cost: nil)
+        try Self.insertStepFinishPart(
+            databaseURL: env.databaseURL,
+            messageID: messageID,
+            createdMs: Self.ms(beforeMidnight),
+            cost: 1.0)
+        try Self.insertStepFinishPart(
+            databaseURL: env.databaseURL,
+            messageID: messageID,
+            createdMs: Self.ms(afterMidnight),
+            cost: 2.0)
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: now, historyDays: 30)
+
+        #expect(snapshot.daily.count == 2)
+        #expect(snapshot.daily.first?.costUSD == 1.0)
+        #expect(snapshot.daily.first?.requestCount == 1)
+        #expect(snapshot.daily.last?.costUSD == 2.0)
+        #expect(snapshot.daily.last?.requestCount == 1)
     }
 
     @Test
@@ -286,6 +371,10 @@ struct OpenCodeGoLocalUsageReaderTests {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return Int64((formatter.date(from: iso)?.timeIntervalSince1970 ?? 0) * 1000)
+    }
+
+    private static func ms(_ date: Date) -> Int64 {
+        Int64(date.timeIntervalSince1970 * 1000)
     }
 
     private enum SQLiteTestError: Error {

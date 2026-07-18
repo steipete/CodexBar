@@ -33,8 +33,10 @@ public enum OpenCodeGoProviderDescriptor {
                     ProviderColor(hex: 0xCFCECD),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "OpenCode Go cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: {
+                    "No OpenCode Go local usage history found in ~/.local/share/opencode/opencode.db."
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -74,7 +76,7 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     private func snapshot(context: ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot {
-        let snapshot = try OpenCodeGoLocalUsageReader().fetch()
+        let snapshot = try OpenCodeGoLocalUsageReader().fetch(historyDays: context.costUsageHistoryDays)
         guard context.includeOptionalUsage,
               context.settings?.opencodego?.cookieSource != .off
         else {

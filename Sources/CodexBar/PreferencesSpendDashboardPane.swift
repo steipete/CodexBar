@@ -27,6 +27,22 @@ func spendDashboardCoverageText(covered: Int, requested: Int) -> String {
     "\(L("Coverage")): \(codexBarLocalizedInteger(covered)) / \(codexBarLocalizedInteger(requested))"
 }
 
+enum SpendDashboardModelHistoryPresentation: Equatable {
+    case unavailable
+    case empty
+    case partial
+    case complete
+}
+
+func spendDashboardModelHistoryPresentation(
+    _ group: SpendDashboardModel.CurrencyGroup) -> SpendDashboardModelHistoryPresentation
+{
+    if group.models.isEmpty {
+        return group.modelHistoryCompleteness == .incomplete ? .unavailable : .empty
+    }
+    return group.modelHistoryCompleteness == .incomplete ? .partial : .complete
+}
+
 @MainActor
 struct SpendDashboardPane: View {
     @Bindable var settings: SettingsStore
@@ -314,24 +330,39 @@ private struct SpendModelPanel: View {
         SpendDashboardPanel {
             VStack(alignment: .leading, spacing: 0) {
                 Text(L("Models")).font(.headline).padding(.bottom, 8)
-                if self.group.modelHistoryCompleteness == .incomplete {
+                let presentation = spendDashboardModelHistoryPresentation(self.group)
+                switch presentation {
+                case .unavailable:
                     Text(L("Model breakdown unavailable"))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 10)
-                } else if self.group.models.isEmpty {
+                case .empty:
                     Text(L("No model-level history"))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 10)
-                } else {
+                case .partial, .complete:
+                    if presentation == .partial {
+                        Label(L("Model breakdown unavailable"), systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 6)
+                    }
                     ForEach(self.group.models.prefix(8)) { row in
                         if row.rank > 1 {
                             Divider()
                         }
                         HStack(spacing: 10) {
-                            Text(spendDashboardRankText(row.rank))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 26, alignment: .leading)
+                            if presentation == .complete {
+                                Text(spendDashboardRankText(row.rank))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 26, alignment: .leading)
+                            } else {
+                                Image(systemName: "circle.dashed")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 26, alignment: .leading)
+                            }
                             SpendProviderIcon(provider: row.provider)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.modelName).lineLimit(1)

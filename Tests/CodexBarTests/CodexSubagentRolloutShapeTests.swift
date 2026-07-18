@@ -12,6 +12,94 @@ struct CodexSubagentRolloutShapeTests {
     }
 
     @Test
+    func `single leaf first turn marker proposes a parent-confirmed suffix`() throws {
+        let baseline = CostUsageCodexTotals(input: 1000, cached: 900, output: 100)
+        let shape = CostUsageScanner.CodexSubagentRolloutShape.classify(
+            leafSessionID: "leaf",
+            observations: [
+                .init(lineIndex: 0, kind: .sessionMetadata(id: "leaf")),
+                .init(lineIndex: 1, kind: .tokenCount(total: baseline, last: baseline)),
+                .init(lineIndex: 3, kind: .turnContext),
+                .init(lineIndex: 4, kind: .interAgentCommunication(triggerTurn: true)),
+            ],
+            hasExplicitParent: true)
+
+        let candidate = try #require(shape.ownedSuffixCandidate)
+        #expect(shape.counterSemantics == .independent)
+        #expect(shape.ownedSuffix == nil)
+        #expect(candidate.ownedSuffix.startLineIndex == 3)
+        #expect(candidate.parentTotalsAtBoundary.input == baseline.input)
+        #expect(candidate.parentTotalsAtBoundary.cached == baseline.cached)
+        #expect(candidate.parentTotalsAtBoundary.output == baseline.output)
+    }
+
+    @Test
+    func `single leaf marker without an explicit parent stays independent`() {
+        let baseline = CostUsageCodexTotals(input: 1000, cached: 900, output: 100)
+        let shape = CostUsageScanner.CodexSubagentRolloutShape.classify(
+            leafSessionID: "leaf",
+            observations: [
+                .init(lineIndex: 0, kind: .sessionMetadata(id: "leaf")),
+                .init(lineIndex: 1, kind: .tokenCount(total: baseline, last: baseline)),
+                .init(lineIndex: 3, kind: .turnContext),
+                .init(lineIndex: 4, kind: .interAgentCommunication(triggerTurn: true)),
+            ])
+
+        #expect(shape.counterSemantics == .independent)
+        #expect(shape.ownedSuffixCandidate == nil)
+    }
+
+    @Test
+    func `later marker after an earlier turn does not propose a suffix`() {
+        let baseline = CostUsageCodexTotals(input: 1000, cached: 900, output: 100)
+        let shape = CostUsageScanner.CodexSubagentRolloutShape.classify(
+            leafSessionID: "leaf",
+            observations: [
+                .init(lineIndex: 0, kind: .sessionMetadata(id: "leaf")),
+                .init(lineIndex: 1, kind: .turnContext),
+                .init(lineIndex: 2, kind: .tokenCount(total: baseline, last: baseline)),
+                .init(lineIndex: 3, kind: .turnContext),
+                .init(lineIndex: 4, kind: .interAgentCommunication(triggerTurn: true)),
+            ],
+            hasExplicitParent: true)
+
+        #expect(shape.counterSemantics == .independent)
+        #expect(shape.ownedSuffixCandidate == nil)
+    }
+
+    @Test
+    func `zero pre-turn totals do not propose a suffix`() {
+        let zero = CostUsageCodexTotals(input: 0, cached: 0, output: 0)
+        let shape = CostUsageScanner.CodexSubagentRolloutShape.classify(
+            leafSessionID: "leaf",
+            observations: [
+                .init(lineIndex: 0, kind: .sessionMetadata(id: "leaf")),
+                .init(lineIndex: 1, kind: .tokenCount(total: zero, last: zero)),
+                .init(lineIndex: 2, kind: .turnContext),
+                .init(lineIndex: 3, kind: .interAgentCommunication(triggerTurn: true)),
+            ],
+            hasExplicitParent: true)
+
+        #expect(shape.ownedSuffixCandidate == nil)
+    }
+
+    @Test
+    func `nonadjacent first-turn trigger does not propose a suffix`() {
+        let baseline = CostUsageCodexTotals(input: 1000, cached: 900, output: 100)
+        let shape = CostUsageScanner.CodexSubagentRolloutShape.classify(
+            leafSessionID: "leaf",
+            observations: [
+                .init(lineIndex: 0, kind: .sessionMetadata(id: "leaf")),
+                .init(lineIndex: 1, kind: .tokenCount(total: baseline, last: baseline)),
+                .init(lineIndex: 2, kind: .turnContext),
+                .init(lineIndex: 4, kind: .interAgentCommunication(triggerTurn: true)),
+            ],
+            hasExplicitParent: true)
+
+        #expect(shape.ownedSuffixCandidate == nil)
+    }
+
+    @Test
     func `embedded ancestor metadata means a copied prefix`() {
         let shape = CostUsageScanner.CodexSubagentRolloutShape.classify(
             leafSessionID: "leaf",

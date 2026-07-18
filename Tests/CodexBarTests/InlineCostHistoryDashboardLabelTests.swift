@@ -192,8 +192,13 @@ struct InlineCostHistoryDashboardLabelTests {
                     outputTokens: 75,
                     totalTokens: 275,
                     costUSD: 0.25,
-                    modelsUsed: nil,
-                    modelBreakdowns: nil),
+                    modelsUsed: ["test-model"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "test-model",
+                            costUSD: 0.25,
+                            totalTokens: 275),
+                    ]),
             ],
             updatedAt: now)
 
@@ -222,15 +227,49 @@ struct InlineCostHistoryDashboardLabelTests {
 
         let dashboard = try #require(model.inlineUsageDashboard)
         #expect(dashboard.currencyCode == "USD")
+        #expect(dashboard.accessibilityLabel == "Codex: 30d cost")
         #expect(dashboard.kpis.map(\.title) == [
-            "Today · API-equivalent estimate",
-            "30d · API-equivalent estimate",
+            "Today",
+            "30d",
             "Latest tokens",
             "30d tokens",
         ])
-        #expect(dashboard.detailLines.contains("not a subscription bill or plan value"))
-        #expect(dashboard.detailLines.contains(
-            "Local usage × public API prices · not a subscription bill or plan value"))
+        #expect(dashboard.detailLines == [
+            "Top model: test-model",
+            "Estimated from token usage · not a subscription bill",
+        ])
+
+        let japaneseAccessibilityLabels = CodexBarLocalizationOverride.$appLanguage.withValue("ja") {
+            [7, 30].map { historyDays in
+                UsageMenuCardView.Model.make(.init(
+                    provider: .codex,
+                    metadata: metadata,
+                    snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+                    credits: nil,
+                    creditsError: nil,
+                    dashboard: nil,
+                    dashboardError: nil,
+                    tokenSnapshot: CostUsageTokenSnapshot(
+                        sessionTokens: 275,
+                        sessionCostUSD: 0.25,
+                        last30DaysTokens: 425,
+                        last30DaysCostUSD: 0.37,
+                        historyDays: historyDays,
+                        daily: tokenSnapshot.daily,
+                        updatedAt: now),
+                    tokenError: nil,
+                    account: AccountInfo(email: nil, plan: nil),
+                    isRefreshing: false,
+                    lastError: nil,
+                    usageBarsShowUsed: false,
+                    resetTimeDisplayStyle: .countdown,
+                    tokenCostUsageEnabled: true,
+                    showOptionalCreditsAndExtraUsage: true,
+                    hidePersonalInfo: false,
+                    now: now)).inlineUsageDashboard?.accessibilityLabel
+            }
+        }
+        #expect(japaneseAccessibilityLabels == ["Codex: 過去7日間のコスト", "Codex: 過去30日間のコスト"])
     }
 
     @Test

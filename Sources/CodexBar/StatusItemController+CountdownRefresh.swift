@@ -15,31 +15,45 @@ extension StatusItemController {
             && self.settings.menuBarShowsResetTimeWhenExhausted
             && displayMode != .resetTime
 
-        /// Reset dates for every lane whose menu-bar text is currently a reset time — including both
-        /// combined session/weekly lanes when the smart option surfaces reset text for each of them.
-        func resetDrivenResetDates() -> [Date] {
-            providers.flatMap { self.menuBarDisplayedResetDates(for: $0, now: now) }
+        var countdownResetDates: [Date] = []
+        var absoluteResetDates: [Date] = []
+        for provider in providers {
+            let resetDates = self.menuBarDisplayedResetDates(for: provider, now: now)
+            let resolution = self.settings.menuBarLayoutResolution(for: provider)
+            if !resolution.usesLegacyRendering,
+               self.settings.menuBarIconStyle == .iconAndPercent
+            {
+                let tokens = resolution.layout.lines.joined()
+                if tokens.contains(.resetCountdown) {
+                    countdownResetDates.append(contentsOf: resetDates)
+                }
+                if tokens.contains(.resetAbsolute) {
+                    absoluteResetDates.append(contentsOf: resetDates)
+                }
+                continue
+            }
+
+            guard self.settings.menuBarShowsBrandIconWithPercent,
+                  displayMode == .resetTime || smartExhaustedActive
+            else { continue }
+            switch self.settings.resetTimeDisplayStyle {
+            case .countdown:
+                countdownResetDates.append(contentsOf: resetDates)
+            case .absolute:
+                absoluteResetDates.append(contentsOf: resetDates)
+            }
         }
 
-        if self.settings.menuBarShowsBrandIconWithPercent,
-           self.settings.resetTimeDisplayStyle == .countdown,
-           displayMode == .resetTime || smartExhaustedActive
-        {
+        if let delay = Self.menuBarCountdownRefreshDelay(resetDates: countdownResetDates, now: now) {
             // Countdown text ticks every minute; refresh on each displayed-minute boundary (the last of
             // which lands at the reset, flipping a smart-exhausted lane back to the percentage).
-            if let delay = Self.menuBarCountdownRefreshDelay(resetDates: resetDrivenResetDates(), now: now) {
-                delays.append(delay)
-            }
-        } else if self.settings.menuBarShowsBrandIconWithPercent,
-                  self.settings.resetTimeDisplayStyle == .absolute,
-                  displayMode == .resetTime || smartExhaustedActive
-        {
+            delays.append(delay)
+        }
+        if let delay = Self.menuBarAbsoluteRefreshDelay(resetDates: absoluteResetDates, now: now) {
             // Absolute clocks don't tick each minute, but their human-friendly date label can change at
             // local midnight (for example, "tomorrow" becomes a same-day time). Wake at that boundary or
             // the reset itself, whichever comes first; the next icon update schedules any later boundary.
-            if let delay = Self.menuBarAbsoluteRefreshDelay(resetDates: resetDrivenResetDates(), now: now) {
-                delays.append(delay)
-            }
+            delays.append(delay)
         }
 
         if self.menuBarObservesCodexReset(providers: providers) {

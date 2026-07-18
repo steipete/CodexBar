@@ -258,6 +258,10 @@ struct PlanUtilizationHistoryChartMenuView: View {
             {
                 names.insert(.opus)
             }
+        case .opencodego:
+            if snapshot.primary != nil { names.insert(.session) }
+            if snapshot.secondary != nil { names.insert(.weekly) }
+            if snapshot.tertiary != nil { names.insert(.monthly) }
         default:
             let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
                 + (snapshot.extraRateWindows?.filter(\.usageKnown).map(\.window) ?? [])
@@ -621,6 +625,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
             L(metadata?.sessionLabel ?? "Session")
         case .weekly:
             L(metadata?.weeklyLabel ?? "Weekly")
+        case .monthly:
+            metadata?.opusLabel ?? "Monthly"
         case .opus:
             metadata?.opusLabel ?? "Opus"
         default:
@@ -641,6 +647,8 @@ struct PlanUtilizationHistoryChartMenuView: View {
             0
         case .weekly:
             1
+        case .monthly:
+            2
         case .opus:
             2
         default:

@@ -62,8 +62,9 @@ Keychain and prompt behavior. The safer seam is a credential-free usage adapter 
 
 As of [`claude-swap` v0.18.0](https://github.com/realiti4/claude-swap/releases/tag/v0.18.0),
 `cswap --list --json` still returns a versioned object with `schemaVersion: 1`, an active account number, account slots,
-redaction-sensitive email labels, 5-hour and 7-day usage percentages, and reset timestamps. Handled failures return an
-error object and non-zero exit. Direct switching returns the same versioned envelope. CodexBar does not need
+redaction-sensitive email labels, 5-hour and 7-day usage percentages, optional model-scoped weekly windows, and reset
+timestamps. Handled failures return an error object and non-zero exit. Direct switching returns the same versioned
+envelope. CodexBar does not need
 `--token-status`, credential files, Keychain access, or raw OAuth values for display or explicit activation.
 
 ## Phase 1 adapter contract
@@ -73,7 +74,9 @@ error object and non-zero exit. Direct switching returns the same versioned enve
   arguments.
 - Require `schemaVersion == 1`; reject unknown versions and partial top-level shapes.
 - Bound runtime and stdout, terminate on timeout, and retain the last successful snapshot with a stale marker.
-- Parse only slot number, active state, usage status, 5-hour/7-day percentages, and reset timestamps.
+- Parse only slot number, active state, usage status, 5-hour/7-day percentages, optional `usage.scoped` display names
+  and percentages, and reset timestamps. Ignore malformed or unknown scoped rows without discarding valid account-wide
+  windows.
 - Treat email as display-only sensitive data. Never log or persist it. Respect Hide Personal Info.
 - Use the source-issued numeric slot for identity (`claude-swap:<slot>`), not email or credential-derived values.
 - CodexBar never reads `claude-swap` storage, Claude Code storage, environment credentials, or Keychain entries. The

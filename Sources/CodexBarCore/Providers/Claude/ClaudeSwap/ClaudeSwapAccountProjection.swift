@@ -18,7 +18,9 @@ public enum ClaudeSwapAccountProjection {
         now: Date = Date()) -> [ProviderAccountUsageSnapshot]
     {
         let ordered = list.accounts.sorted { lhs, rhs in
-            if lhs.isActive != rhs.isActive { return lhs.isActive }
+            if lhs.isActive != rhs.isActive {
+                return lhs.isActive
+            }
             return lhs.number < rhs.number
         }
         return ordered.map { row in
@@ -64,10 +66,12 @@ public enum ClaudeSwapAccountProjection {
                 resetsAt: window.resetsAt,
                 resetDescription: nil)
         }
-        guard primary != nil || secondary != nil else { return nil }
+        let scoped = self.scopedRateWindows(for: row)
+        guard primary != nil || secondary != nil || !scoped.isEmpty else { return nil }
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
+            extraRateWindows: scoped.isEmpty ? nil : scoped,
             updatedAt: now,
             identity: ProviderIdentitySnapshot(
                 providerID: .claude,
@@ -76,10 +80,24 @@ public enum ClaudeSwapAccountProjection {
                 loginMethod: self.sourceLabel))
     }
 
+    private static func scopedRateWindows(for row: ClaudeSwapAccountRow) -> [NamedRateWindow] {
+        ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: row.scoped.map { window in
+            ClaudeScopedWeeklyLimitMapper.Limit(
+                kind: "weekly_scoped",
+                group: "weekly",
+                percent: window.usedPercent,
+                resetsAt: window.resetsAt,
+                modelID: nil,
+                modelName: window.name)
+        })
+    }
+
     private static func errorText(for row: ClaudeSwapAccountRow) -> String? {
         switch row.usageStatus {
         case .ok:
-            row.fiveHour == nil && row.sevenDay == nil ? "No usage windows reported." : nil
+            row.fiveHour == nil && row.sevenDay == nil && self.scopedRateWindows(for: row).isEmpty
+                ? "No usage windows reported."
+                : nil
         case .tokenExpired:
             "Token expired. Switch to this account in claude-swap to refresh it."
         case .apiKey:

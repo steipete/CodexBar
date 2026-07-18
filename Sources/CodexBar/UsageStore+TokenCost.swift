@@ -403,6 +403,14 @@ extension UsageStore {
             snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
         case .mistral:
             snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+        case .opencodego:
+            // Web-only source mode and machines with no readable local database leave
+            // `opencodegoUsage.daily` empty; a non-nil-but-dataless projection would still
+            // surface a Cost row whose history submenu has nothing to render.
+            snapshot?.opencodegoUsage.flatMap { usage in
+                usage.daily.isEmpty ? nil : usage
+                    .toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+            }
         default:
             nil
         }
@@ -410,7 +418,7 @@ extension UsageStore {
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .mistral, .openai:
+        case .mistral, .openai, .opencodego:
             true
         default:
             false

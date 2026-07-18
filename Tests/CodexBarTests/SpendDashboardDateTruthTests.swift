@@ -323,7 +323,8 @@ struct SpendDashboardDateTruthTests {
             #expect(cad.totalCost == nil)
             #expect(cad.totalTokens == 30)
             #expect(cad.modelHistoryCompleteness == .incomplete)
-            #expect(cad.models.isEmpty)
+            #expect(cad.models.map(\.provider) == [.mistral])
+            #expect(cad.models.map(\.totalCost) == [5])
             #expect(cad.dailyPoints.map(\.sourceID) == ["healthy-cad"])
             #expect(SpendDailyChartPresentation(
                 dailyPoints: cad.dailyPoints,
@@ -428,7 +429,8 @@ struct SpendDashboardDateTruthTests {
         #expect(usd.totalCost == nil)
         #expect(usd.totalTokens == nil)
         #expect(usd.modelHistoryCompleteness == .incomplete)
-        #expect(usd.models.isEmpty)
+        #expect(usd.models.map(\.provider) == [.codex])
+        #expect(usd.models.map(\.totalCost) == [4])
         #expect(usd.dailyPoints.map(\.sourceID) == ["healthy-usd"])
         #expect(usd.dailyPoints.map(\.cost) == [4])
         #expect(eur.totalCost == 5)
@@ -602,7 +604,8 @@ struct SpendDashboardDateTruthTests {
 
         #expect(usd.totalCost == nil)
         #expect(usd.modelHistoryCompleteness == .incomplete)
-        #expect(usd.models.isEmpty)
+        #expect(usd.models.map(\.provider) == [.codex])
+        #expect(usd.models.map(\.totalCost) == [4])
         #expect(usd.dailyPoints.map(\.sourceID) == ["healthy-usd"])
         #expect(usd.dailyPoints.map(\.cost) == [4])
         #expect(eur.totalCost == 5)

@@ -255,7 +255,7 @@ extension UsageMenuCardView.Model {
         {
             return Self.poeInlineDashboard(usage, now: input.now)
         }
-        if [.codex, .claude, .vertexai, .bedrock, .cursor].contains(input.provider),
+        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego].contains(input.provider),
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
@@ -372,9 +372,7 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? "30d"
                 : String(format: L("Last %d days"), historyDays))
-        let historyTitle = provider == .codex
-            ? "\(codexHistoryPeriod) · \(L("codex_api_estimate_header"))"
-            : defaultHistoryTitle
+        let historyTitle = provider == .codex ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
                 ? L("Today tokens")
@@ -387,8 +385,13 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? L("30d requests")
                 : String(format: L("%@ requests"), String(format: L("Last %d days"), historyDays)))
-        let periodLabel = snapshot.historyLabel?.lowercased()
-            ?? (historyDays == 1 ? "today" : "\(historyDays) day")
+        let accessibilityCostLabel: String = if let historyLabel = snapshot.historyLabel {
+            L("%@ cost", historyLabel)
+        } else if historyDays == 30 {
+            L("30d cost")
+        } else {
+            L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
+        }
         let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
             guard let cost = entry.costUSD else { return nil }
             return InlineUsageDashboardModel.Point(
@@ -409,30 +412,31 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
+        if provider == .codex {
+            details.append(L("codex_api_estimate_hint"))
+        }
         if provider != .groq {
             if let requestCount = snapshot.last30DaysRequests {
                 details
                     .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
             }
-            let hintLines = Self.tokenUsageHintLines(provider: provider)
-            if hintLines.isEmpty == false {
-                details.append(contentsOf: hintLines)
-            } else {
-                details.append(L("cost_estimate_hint"))
+            if provider != .codex {
+                let hintLines = Self.tokenUsageHintLines(provider: provider)
+                if hintLines.isEmpty == false {
+                    details.append(contentsOf: hintLines)
+                } else {
+                    details.append(L("cost_estimate_hint"))
+                }
             }
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
-        let codexEstimateHeader = L("codex_api_estimate_header")
-        let accessibilityLabel = if provider == .codex {
-            "\(providerName) \(periodLabel) \(codexEstimateHeader) trend"
-        } else {
-            "\(providerName) \(periodLabel) cost trend"
-        }
+        let accessibilityLabel = L(
+            "%@: %@",
+            providerName,
+            accessibilityCostLabel)
         var kpis = [
             InlineUsageDashboardModel.KPI(
-                title: provider == .codex
-                    ? "\(L("Today")) · \(L("codex_api_estimate_header"))"
-                    : usesLatestPrimary ? L("Latest") : L("Today"),
+                title: usesLatestPrimary ? L("Latest") : L("Today"),
                 value: primaryCostUSD.map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
                 emphasis: true),
             .init(

@@ -2040,6 +2040,8 @@ enum CostUsageScanner {
         var forkTimestamp: String?
         var subagentCounterSemantics: CodexSubagentCounterSemantics?
         var usesLocalSubagentBoundary = false
+        var candidateBoundaryDependsOnParentTotals = false
+        var parentConfirmedLocalBoundary = false
         var suppressUnownedCopiedPrefix = false
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
@@ -2603,15 +2605,34 @@ enum CostUsageScanner {
                 }
                 let shape = CodexSubagentRolloutShape.classify(
                     leafSessionID: sessionId,
-                    observations: observations)
+                    observations: observations,
+                    hasExplicitParent: forkedFromId != nil)
                 subagentCounterSemantics = shape.counterSemantics
                 if forkedFromId == nil {
                     forkedFromId = shape.inferredParentSessionID
                 }
-                suppressUnownedCopiedPrefix = shape.counterSemantics == .copiedPrefix
-                    && shape.ownedSuffix == nil
+                var ownedSuffix = shape.ownedSuffix
+                if let candidate = shape.ownedSuffixCandidate,
+                   let parentSessionID = forkedFromId
+                {
+                    candidateBoundaryDependsOnParentTotals = true
+                    if let inheritedTotalsResolver {
+                        switch try inheritedTotalsResolver(parentSessionID, forkTimestamp ?? "") {
+                        case let .resolved(parentTotals):
+                            if Self.codexTotalsEqual(parentTotals, candidate.parentTotalsAtBoundary) {
+                                subagentCounterSemantics = .copiedPrefix
+                                ownedSuffix = candidate.ownedSuffix
+                                parentConfirmedLocalBoundary = true
+                            }
+                        case .unresolved:
+                            break
+                        }
+                    }
+                }
+                suppressUnownedCopiedPrefix = subagentCounterSemantics == .copiedPrefix
+                    && ownedSuffix == nil
                     && forkedFromId == nil
-                if let ownedSuffix = shape.ownedSuffix {
+                if let ownedSuffix {
                     usesLocalSubagentBoundary = true
                     previousTotals = nil
                     // Keep totals-derived accounting after the boundary. Real flat-total rows
@@ -2632,7 +2653,8 @@ enum CostUsageScanner {
                     metadata: [
                         "sessionId": sessionId ?? "unknown",
                         "semantics": subagentCounterSemantics == .copiedPrefix ? "copiedPrefix" : "independent",
-                        "localBoundary": shape.ownedSuffix == nil ? "false" : "true",
+                        "localBoundary": ownedSuffix == nil ? "false" : "true",
+                        "parentConfirmedBoundary": parentConfirmedLocalBoundary ? "true" : "false",
                         "suppressedUnownedPrefix": suppressUnownedCopiedPrefix ? "true" : "false",
                         "sessionMetadataCount": String(observations.count(where: {
                             if case .sessionMetadata = $0.kind {
@@ -2644,7 +2666,7 @@ enum CostUsageScanner {
                     ])
                 try configureForkAccountingIfReady()
                 for buffered in pendingSubagentLines
-                    where shape.ownedSuffix.map({ buffered.lineIndex >= $0.startLineIndex }) ?? true
+                    where ownedSuffix.map({ buffered.lineIndex >= $0.startLineIndex }) ?? true
                 {
                     try processFastLine(buffered.line)
                 }
@@ -2675,8 +2697,8 @@ enum CostUsageScanner {
             sessionId: sessionId,
             forkedFromId: forkedFromId,
             dependsOnParentTotals: forkedFromId != nil
-                && subagentCounterSemantics != .independent
-                && !usesLocalSubagentBoundary,
+                && (candidateBoundaryDependsOnParentTotals
+                    || (subagentCounterSemantics != .independent && !usesLocalSubagentBoundary)),
             projectPath: projectPath,
             rows: rows)
     }

@@ -172,15 +172,19 @@ struct SpendDashboardModel: Equatable, Sendable {
             Self.inputSummary(input: input, bounds: bounds, calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
-        let modelSummary = Self.modelSummary(summaries: summaries)
-        let modelHistoryCompleteness = summaries.contains(where: { $0.totalCost == nil })
-            ? ModelHistoryCompleteness.incomplete
-            : modelSummary.completeness
+        let completeModelSummaries = summaries.filter { summary in
+            guard summary.totalCost != nil else { return false }
+            return Self.modelSummary(summaries: [summary]).completeness == .complete
+        }
+        let modelSummary = Self.modelSummary(summaries: completeModelSummaries)
+        let modelHistoryCompleteness = completeModelSummaries.count == summaries.count
+            ? ModelHistoryCompleteness.complete
+            : ModelHistoryCompleteness.incomplete
         let dailyPoints = Self.dailyPoints(summaries: summaries)
         return CurrencyGroup(
             currencyCode: currencyCode,
             providers: providers,
-            models: modelHistoryCompleteness == .complete ? modelSummary.rows : [],
+            models: modelSummary.rows,
             dailyPoints: dailyPoints,
             totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
             totalCost: Self.completeCostSum(providers.map(\.totalCost)),

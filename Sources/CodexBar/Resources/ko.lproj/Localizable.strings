@@ -717,11 +717,9 @@
 "adaptive_activity_consent_allow" = "로컬 활동 허용";
 "adaptive_activity_consent_decline" = "일반 적응형 사용";
 "not_found" = "찾을 수 없음";
-"cost_header_estimated" = "비용(추정)";
 "cost_estimate_hint" = "로컬 로그에서 추정 · 실제 청구액과 다를 수 있음";
-"codex_api_estimate_header" = "API 등가 추정치";
-"codex_api_estimate_hint" = "로컬 사용량 × 공개 API 가격 · 구독 청구서나 플랜 가치가 아닙니다";
-"codex_api_estimate_not_billed" = "구독 청구서나 플랜 가치가 아닙니다";
+"codex_api_estimate_hint" = "토큰 사용량 기반 추정 · 구독 청구서가 아님";
+"cost_data_explanation" = "비용은 제공업체가 보고하거나 토큰 사용량과 공개 API 가격을 기준으로 추정할 수 있습니다. 추정치는 구독 요금이 아닙니다.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "AI Assistant가 있는 JetBrains IDE를 찾지 못했습니다. JetBrains IDE를 설치하고 AI Assistant를 사용하세요.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API 토큰이 구성되지 않았습니다. OPENROUTER_API_KEY 환경 변수를 설정하거나 설정에서 구성하세요.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API 토큰을 찾을 수 없습니다. ~/.codexbar/config.json에 apiKey를 설정하거나 Z_AI_API_KEY를 설정하세요.";
@@ -751,6 +749,7 @@
 "Today" = "오늘";
 "Today tokens" = "오늘 토큰";
 "30d cost" = "30일 비용";
+"%@ cost" = "%@ 비용";
 "30d tokens" = "30일 토큰";
 "Latest tokens" = "최근 토큰";
 "Top model" = "상위 모델";

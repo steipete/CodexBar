@@ -739,11 +739,9 @@
 "not_found" = "No encontrado";
 
 /* Cost estimation */
-"cost_header_estimated" = "Coste (estimado)";
 "cost_estimate_hint" = "Estimado a partir de registros locales · puede diferir de tu factura";
-"codex_api_estimate_header" = "Estimación equivalente a la API";
-"codex_api_estimate_hint" = "Uso local × precios públicos de la API · no es una factura de suscripción ni el valor de un plan";
-"codex_api_estimate_not_billed" = "no es una factura de suscripción ni el valor de un plan";
+"codex_api_estimate_hint" = "Estimado a partir del uso de tokens · no es una factura de suscripción";
+"cost_data_explanation" = "Los costes pueden ser informados por el proveedor o estimados a partir del uso de tokens con precios públicos de la API. Las estimaciones no son cargos de suscripción.";
 
 /* Popup panels */
 "No usage configured." = "No hay uso configurado.";
@@ -823,6 +821,7 @@
 "Today" = "Hoy";
 "Today tokens" = "Tokens de hoy";
 "30d cost" = "Coste 30 d";
+"%@ cost" = "Coste %@";
 "30d tokens" = "Tokens 30 d";
 "Latest tokens" = "Tokens recientes";
 "Top model" = "Modelo principal";

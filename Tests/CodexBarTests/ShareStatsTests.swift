@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -224,6 +225,42 @@ struct ShareStatsTests {
         #expect(!ShareStatsFormatting.text(payload).lowercased().contains("inf"))
     }
 
+    @Test
+    func `partial model history does not enter shared rankings`() throws {
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: "codex",
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex",
+                    totalTokens: 10,
+                    totalCost: 2,
+                    coveredDayCount: 7),
+            ],
+            models: [
+                SpendDashboardModel.ModelRow(
+                    rank: 1,
+                    provider: .codex,
+                    providerName: "Codex",
+                    modelName: "gpt-5.4",
+                    totalTokens: 10,
+                    totalCost: 2),
+            ],
+            dailyPoints: [],
+            totalTokens: nil,
+            totalCost: nil,
+            coveredDayCount: 7,
+            chartDomain: Self.date...Self.date,
+            modelHistoryCompleteness: .incomplete)
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 7, groups: [group])))
+
+        #expect(payload.providers.count == 1)
+        #expect(payload.topModels.isEmpty)
+    }
+
     @Test @MainActor
     func `renderer creates social card PNG`() throws {
         let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard))
@@ -231,6 +268,26 @@ struct ShareStatsTests {
 
         #expect(ShareStatsCardView.size == CGSize(width: 1200, height: 630))
         #expect(data.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+        let bitmap = try #require(NSBitmapImageRep(data: data))
+        #expect(bitmap.pixelsWide == 1200)
+        #expect(bitmap.pixelsHigh == 630)
+        var sampledRGB: Set<UInt32> = []
+        for y in stride(from: 0, to: bitmap.pixelsHigh, by: 19) {
+            for x in stride(from: 0, to: bitmap.pixelsWide, by: 23) {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                let red = UInt32((color.redComponent * 255).rounded())
+                let green = UInt32((color.greenComponent * 255).rounded())
+                let blue = UInt32((color.blueComponent * 255).rounded())
+                sampledRGB.insert((red << 16) | (green << 8) | blue)
+                if sampledRGB.count > 8 {
+                    break
+                }
+            }
+            if sampledRGB.count > 8 {
+                break
+            }
+        }
+        #expect(sampledRGB.count > 1)
     }
 
     @Test @MainActor

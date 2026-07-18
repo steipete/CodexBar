@@ -752,11 +752,9 @@
 "not_found" = "پیدا نشد";
 
 /* Cost estimation */
-"cost_header_estimated" = "هزینه (تخمینی)";
 "cost_estimate_hint" = "برآورد شده از چوب های محلی · ممکن است با صورتحساب شما متفاوت باشد";
-"codex_api_estimate_header" = "برآورد معادل API";
-"codex_api_estimate_hint" = "استفاده محلی × قیمت‌های عمومی API · نه صورتحساب اشتراک است و نه ارزش طرح";
-"codex_api_estimate_not_billed" = "نه صورتحساب اشتراک است و نه ارزش طرح";
+"codex_api_estimate_hint" = "برآوردشده از مصرف توکن · صورتحساب اشتراک نیست";
+"cost_data_explanation" = "هزینه‌ها ممکن است توسط ارائه‌دهنده گزارش شوند یا بر اساس مصرف توکن و قیمت‌های عمومی API برآورد شوند. برآوردها هزینه اشتراک نیستند.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "هیچ JetBrains IDE ای با AI Assistant شناسایی نشد. یک JetBrains IDE نصب کنید و AI Assistant را فعال کنید.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API توکن پیکربندی نشده است. متغیر محیطی OPENROUTER_API_KEY تنظیم کنید یا در تنظیمات پیکربندی کنید.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API توکن پیدا نشد. apiKey را در ~/.codexbar/config.json یا Z_AI_API_KEY تنظیم کنید.";
@@ -786,6 +784,7 @@
 "Today" = "امروز";
 "Today tokens" = "توکن های امروزی";
 "30d cost" = "هزینه 30d";
+"%@ cost" = "هزینه %@";
 "30d tokens" = "توکن های 30d";
 "Latest tokens" = "جدیدترین توکن ها";
 "Top model" = "مدل برتر";

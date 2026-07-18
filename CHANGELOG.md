@@ -2,7 +2,20 @@
 
 ## 0.45.1 — Unreleased
 
+### Added
+- Claude: show per-model weekly claude-swap usage windows from schema-v1 account listings (#2310). Thanks @AlexGodard!
+- Claude: allow an opt-in claude-swap card when only one account is available (#2280). Thanks @possibilities!
+- OpenCode Go: add daily local cost and plan-usage history (#2296). Thanks @kentoku24!
+
 ### Fixed
+- Menu bar: refresh custom cost tokens when token-cost data changes (#2305). Thanks @Zihao-Qi!
+- Menu bar: refresh custom reset tokens at their displayed time boundaries (#2303). Thanks @Zihao-Qi!
+- Usage: normalize session-equivalent forecasts against aligned partial-session samples so extrapolated weekly burn is not overstated (#2301). Thanks @Zihao-Qi!
+- Usage: align current/latest and historical cost/token metrics by period (#2295). Thanks @RoshanMhatre!
+- Codex: exclude parent-copied prefixes from compact subagent usage when the fork boundary matches the parent snapshot (#2285). Thanks @hhh2210!
+- Usage & Spend: fix black share-card PNG exports while keeping rendering compatible with Intel Macs (#2292). Thanks @Chipagosfinest!
+- Usage & Spend: keep complete model rows visible when another same-currency source has incomplete history (#2308). Thanks @Chipagosfinest!
+- ElevenLabs: clamp character and voice-slot usage percentages at 100% during overage (#2293). Thanks @OfficialAbhinavSingh!
 
 ## 0.45.0 — 2026-07-18
 

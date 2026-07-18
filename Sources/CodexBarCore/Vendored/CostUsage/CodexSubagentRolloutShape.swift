@@ -7,16 +7,23 @@ extension CostUsageScanner {
     }
 
     /// Subagent source is lineage evidence, not counter semantics. The first session metadata
-    /// owns leaf identity; only embedded metadata proves that this rollout copied an ancestor
-    /// prefix. Do not restore a blanket "all subagents are independent/inherited" rule.
+    /// owns leaf identity. Embedded ancestor metadata proves a copied prefix by itself; compact
+    /// rollouts need both the first-turn boundary and an exact parent snapshot match in the scanner.
+    /// Do not restore a blanket "all subagents are independent/inherited" rule.
     struct CodexSubagentRolloutShape {
         let counterSemantics: CodexSubagentCounterSemantics
         let ownedSuffix: CodexSubagentOwnedSuffix?
+        let ownedSuffixCandidate: CodexSubagentOwnedSuffixCandidate?
         let inferredParentSessionID: String?
 
         struct CodexSubagentOwnedSuffix {
             let startLineIndex: Int
             let rawTotalsBaseline: CostUsageCodexTotals
+        }
+
+        struct CodexSubagentOwnedSuffixCandidate {
+            let ownedSuffix: CodexSubagentOwnedSuffix
+            let parentTotalsAtBoundary: CostUsageCodexTotals
         }
 
         struct Observation {
@@ -50,12 +57,14 @@ extension CostUsageScanner {
             return Self(
                 counterSemantics: hasEmbeddedAncestor ? .copiedPrefix : .independent,
                 ownedSuffix: nil,
+                ownedSuffixCandidate: nil,
                 inferredParentSessionID: inferredParentSessionID)
         }
 
         static func classify(
             leafSessionID: String?,
-            observations: [Observation]) -> Self
+            observations: [Observation],
+            hasExplicitParent: Bool = false) -> Self
         {
             let metadataIDs = observations.reduce(into: [String?]()) { result, observation in
                 guard case let .sessionMetadata(id) = observation.kind else { return }
@@ -64,14 +73,19 @@ extension CostUsageScanner {
             let metadataShape = Self.classify(
                 leafSessionID: leafSessionID,
                 observedSessionIDs: metadataIDs)
-            guard metadataShape.counterSemantics == .copiedPrefix else { return metadataShape }
+            let canProposeParentConfirmedSuffix = metadataShape.counterSemantics == .independent
+                && hasExplicitParent
+            guard metadataShape.counterSemantics == .copiedPrefix || canProposeParentConfirmedSuffix
+            else { return metadataShape }
 
             let normalizedLeafID = Self.normalizedSessionID(leafSessionID)
             var lastRawTotals: CostUsageCodexTotals?
             var pendingTurnContext: (lineIndex: Int, baseline: CostUsageCodexTotals)?
             var ownedSuffix: CodexSubagentOwnedSuffix?
+            var parentTotalsAtBoundary: CostUsageCodexTotals?
             var inspectedOwnedSuffixFirstTotal = false
             var observedAuthoritativeMetadata = false
+            var observedTurnContext = false
 
             for observation in observations {
                 switch observation.kind {
@@ -88,22 +102,32 @@ extension CostUsageScanner {
                     if isEmbeddedAncestor {
                         // A later ancestor meta proves that any earlier candidate boundary was replay.
                         ownedSuffix = nil
+                        parentTotalsAtBoundary = nil
                         inspectedOwnedSuffixFirstTotal = false
                     }
                     pendingTurnContext = nil
 
                 case .turnContext:
-                    pendingTurnContext = lastRawTotals.map { (observation.lineIndex, $0) }
+                    let isFirstTurnContext = !observedTurnContext
+                    observedTurnContext = true
+                    let acceptsBoundary = metadataShape.counterSemantics == .copiedPrefix
+                        || (canProposeParentConfirmedSuffix && isFirstTurnContext)
+                    pendingTurnContext = acceptsBoundary
+                        ? lastRawTotals.map { (observation.lineIndex, $0) }
+                        : nil
 
                 case let .interAgentCommunication(triggerTurn):
                     if ownedSuffix == nil,
                        triggerTurn,
                        let pendingTurnContext,
-                       observation.lineIndex == pendingTurnContext.lineIndex + 1
+                       observation.lineIndex == pendingTurnContext.lineIndex + 1,
+                       metadataShape.counterSemantics == .copiedPrefix
+                       || Self.totalsContainUsage(pendingTurnContext.baseline)
                     {
                         ownedSuffix = Self.CodexSubagentOwnedSuffix(
                             startLineIndex: pendingTurnContext.lineIndex,
                             rawTotalsBaseline: pendingTurnContext.baseline)
+                        parentTotalsAtBoundary = pendingTurnContext.baseline
                         inspectedOwnedSuffixFirstTotal = false
                     }
                     pendingTurnContext = nil
@@ -132,9 +156,25 @@ extension CostUsageScanner {
                 }
             }
 
+            if metadataShape.counterSemantics == .copiedPrefix {
+                return Self(
+                    counterSemantics: .copiedPrefix,
+                    ownedSuffix: ownedSuffix,
+                    ownedSuffixCandidate: nil,
+                    inferredParentSessionID: metadataShape.inferredParentSessionID)
+            }
+
+            let candidate: CodexSubagentOwnedSuffixCandidate? = if let ownedSuffix, let parentTotalsAtBoundary {
+                Self.CodexSubagentOwnedSuffixCandidate(
+                    ownedSuffix: ownedSuffix,
+                    parentTotalsAtBoundary: parentTotalsAtBoundary)
+            } else {
+                nil
+            }
             return Self(
-                counterSemantics: .copiedPrefix,
-                ownedSuffix: ownedSuffix,
+                counterSemantics: .independent,
+                ownedSuffix: nil,
+                ownedSuffixCandidate: candidate,
                 inferredParentSessionID: metadataShape.inferredParentSessionID)
         }
 
@@ -151,6 +191,10 @@ extension CostUsageScanner {
 
         private static func totalsAtLeast(_ lhs: CostUsageCodexTotals, _ rhs: CostUsageCodexTotals) -> Bool {
             lhs.input >= rhs.input && lhs.cached >= rhs.cached && lhs.output >= rhs.output
+        }
+
+        private static func totalsContainUsage(_ totals: CostUsageCodexTotals) -> Bool {
+            totals.input > 0 || totals.cached > 0 || totals.output > 0
         }
 
         private static func normalizedSessionID(_ value: String?) -> String? {

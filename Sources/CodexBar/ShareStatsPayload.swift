@@ -329,7 +329,9 @@ enum ShareStatsBuilder {
                     coveredDayCount: row.coveredDayCount)
             }
         }
-        let sanitizedModels = model.groups.flatMap { group in
+        let sanitizedModels = model.groups.filter {
+            $0.modelHistoryCompleteness == .complete
+        }.flatMap { group in
             group.models.compactMap { row -> ShareStatsModelPayload? in
                 let estimatedCost = self.finiteCost(row.totalCost)
                 guard let modelName = ShareStatsSanitizer.modelName(row.modelName),

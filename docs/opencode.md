@@ -29,4 +29,9 @@ read_when:
 - Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
-- OpenCode Go auto mode tries web usage first, then derives quota windows from local `opencode-go` assistant costs.
+- OpenCode Go auto mode tries web usage first. Authentication/setup failures fall back to quota windows and daily cost
+  history derived from local `opencode-go` assistant costs.
+- OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
+  come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web
+  usage remains workspace-scoped and is never blended with device-wide local costs, so it does not show cost history.
+  Explicit Web mode never reads the local database either.

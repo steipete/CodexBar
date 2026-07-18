@@ -530,8 +530,10 @@ public struct StepFunUsageFetcher: Sendable {
         for (key, value) in self.baseHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
+        let webid = Self.webID(forToken: anonToken)
+        request.setValue(webid, forHTTPHeaderField: "oasis-webid")
         request.setValue(
-            "Oasis-Token=\(anonToken); Oasis-Webid=\(self.webID); INGRESSCOOKIE=\(ingressCookie)",
+            "Oasis-Token=\(anonToken); Oasis-Webid=\(webid); INGRESSCOOKIE=\(ingressCookie)",
             forHTTPHeaderField: "Cookie")
         request.timeoutInterval = self.timeoutSeconds
 

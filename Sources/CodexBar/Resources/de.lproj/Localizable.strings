@@ -744,11 +744,9 @@
 "not_found" = "Nicht gefunden";
 
 /* Cost estimation */
-"cost_header_estimated" = "Kosten (geschätzt)";
 "cost_estimate_hint" = "Schätzung aus lokalen Protokollen · kann von Ihrer Rechnung abweichen";
-"codex_api_estimate_header" = "API-äquivalente Schätzung";
-"codex_api_estimate_hint" = "Lokale Nutzung × öffentliche API-Preise · keine Abonnementrechnung oder Planwert";
-"codex_api_estimate_not_billed" = "keine Abonnementrechnung oder Planwert";
+"codex_api_estimate_hint" = "Aus Token-Nutzung geschätzt · keine Abonnementrechnung";
+"cost_data_explanation" = "Kosten können vom Anbieter gemeldet oder anhand der Token-Nutzung zu öffentlichen API-Preisen geschätzt werden. Schätzungen sind keine Abonnementgebühren.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Keine JetBrains-IDE mit AI Assistant erkannt. Installieren Sie eine JetBrains-IDE und aktivieren Sie AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter-API-Token nicht konfiguriert. Legen Sie die Umgebungsvariable OPENROUTER_API_KEY fest oder konfigurieren Sie sie in den Einstellungen.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai-API-Token nicht gefunden. Legen Sie apiKey in ~/.codexbar/config.json oder Z_AI_API_KEY fest.";
@@ -778,6 +776,7 @@
 "Today" = "Heute";
 "Today tokens" = "Heute Token";
 "30d cost" = "30 Tage Kosten";
+"%@ cost" = "%@ Kosten";
 "30d tokens" = "30d-Token";
 "Latest tokens" = "Neueste Token";
 "Top model" = "Topmodell";
