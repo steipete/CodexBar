@@ -1570,10 +1570,9 @@ extension StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-
         let ids = self.representedIDs(in: menu)
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
-        #expect(overviewRows.count == enabledProviders.count)
+        #expect(overviewRows.count == enabledProviders.count && ids.contains("menuCard") == false)
         #expect(enabledProviders.allSatisfy { overviewRows.contains("overviewRow-\($0.rawValue)") })
     }
 
