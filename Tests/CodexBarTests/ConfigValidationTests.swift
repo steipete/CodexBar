@@ -321,6 +321,19 @@ struct ConfigValidationTests {
     }
 
     @Test
+    func `allows Rovo Dev credential fields`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(
+            id: .rovodev,
+            apiKey: "token",
+            secretKey: "cloud-id",
+            workspaceID: "email@example.com"))
+        let issues = CodexBarConfigValidator.validate(config)
+
+        #expect(!issues.contains(where: { $0.provider == .rovodev && $0.code == "secret_key_unused" }))
+    }
+
+    @Test
     func `warns when zai team token account is missing BigModel context`() {
         let accounts = ProviderTokenAccountData(
             version: 1,
