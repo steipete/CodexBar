@@ -42,7 +42,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
-| OpenCode Go | Web dashboard via cookies (`web`) -> local SQLite usage (`local`) in auto mode; optional workspace ID. |
+| OpenCode Go | Unscoped Auto: local SQLite usage (`local`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local. Explicit Web: web only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
@@ -199,7 +199,10 @@ scan fails, while provider/account configuration changes replace obsolete result
 
 ## OpenCode Go
 - Web dashboard via browser or manual cookies (`opencode.ai`).
-- Auto mode falls back to local usage from `~/.local/share/opencode/opencode.db` on macOS and Linux.
+- Unscoped Auto mode prefers local usage from `~/.local/share/opencode/opencode.db` on macOS and Linux, then falls back
+  to web when local history is unavailable.
+- Auto mode stays web-first for selected token accounts, manual cookies, and workspace overrides; explicit Web mode does
+  not include local fallback.
 - Uses the workspace Go page/server data for rolling 5-hour, weekly, and optional monthly usage windows.
 - Optional workspace ID comes from `~/.codexbar/config.json` (`providers[].workspaceID`) or `CODEXBAR_OPENCODEGO_WORKSPACE_ID`.
 - Status: none yet.

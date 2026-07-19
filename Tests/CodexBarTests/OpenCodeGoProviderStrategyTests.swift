@@ -91,6 +91,22 @@ struct OpenCodeGoProviderStrategyTests {
     }
 
     @Test
+    func `auto source treats blank workspace overrides as unscoped`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .auto,
+            manualCookieHeader: nil,
+            workspaceID: " \n "))
+        let settingsStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(settings: settings))
+        let environmentStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(env: ["CODEXBAR_OPENCODEGO_WORKSPACE_ID": " \t "]))
+
+        #expect(settingsStrategies.map(\.id) == ["opencodego.local", "opencodego.web"])
+        #expect(environmentStrategies.map(\.id) == ["opencodego.local", "opencodego.web"])
+    }
+
+    @Test
     func `web source does not include local fallback`() async {
         let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(self.makeContext(sourceMode: .web))
