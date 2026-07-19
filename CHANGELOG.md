@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.45.3 — Unreleased
+
+### Fixed
+
 ## 0.45.2 — 2026-07-19
 
 ### Fixed
