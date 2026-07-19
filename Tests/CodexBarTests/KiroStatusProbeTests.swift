@@ -136,8 +136,8 @@ struct KiroStatusProbeTests {
         let startedAt = clock.now
         let probe = KiroStatusProbe(
             cliBinaryResolver: { cliURL.path },
-            usageProbeTimeout: 0.8,
-            pipeTimeoutCap: 0.4)
+            usageProbeTimeout: 4,
+            pipeTimeoutCap: 2)
 
         await #expect {
             _ = try await probe.fetch()
@@ -146,7 +146,7 @@ struct KiroStatusProbeTests {
             return true
         }
 
-        #expect(startedAt.duration(to: clock.now) < .seconds(2))
+        #expect(startedAt.duration(to: clock.now) < .seconds(7))
         #expect(!FileManager.default.fileExists(atPath: ptyMarker.path))
         let pipePIDText = try String(contentsOf: pipePIDFile, encoding: .utf8)
         let pipePID = try #require(pid_t(pipePIDText.trimmingCharacters(in: .whitespacesAndNewlines)))

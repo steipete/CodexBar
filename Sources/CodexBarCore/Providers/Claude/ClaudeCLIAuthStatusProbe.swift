@@ -6,12 +6,22 @@ enum ClaudeCLIAuthStatusProbe {
     }
 
     @TaskLocal private static var resultOverrideForTesting: Bool?
+    @TaskLocal private static var timeoutOverrideForTesting: TimeInterval?
 
     static func withResultOverrideForTesting<T>(
         _ result: Bool?,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$resultOverrideForTesting.withValue(result) {
+            try await operation()
+        }
+    }
+
+    static func withTimeoutOverrideForTesting<T>(
+        _ timeout: TimeInterval,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$timeoutOverrideForTesting.withValue(timeout) {
             try await operation()
         }
     }
@@ -29,7 +39,7 @@ enum ClaudeCLIAuthStatusProbe {
                 binary: binary,
                 arguments: ["auth", "status", "--json"],
                 environment: ClaudeCLISession.launchEnvironment(baseEnv: environment),
-                timeout: timeout,
+                timeout: self.timeoutOverrideForTesting ?? timeout,
                 standardInput: FileHandle.nullDevice,
                 label: "claude-auth-status")
             return self.parseLoggedIn(result.stdout)

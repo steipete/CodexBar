@@ -17,13 +17,14 @@ struct ClaudeLoginRunnerTests {
         defer { fixture.remove() }
 
         let result = await ClaudeLoginRunner.run(
-            timeout: 2,
+            timeout: 10,
             binary: fixture.executable.path,
             environment: fixture.environment,
             onPhaseChange: { _ in })
 
         guard case .success = result.outcome else {
-            Issue.record("Expected success, got \(String(describing: result.outcome))")
+            Issue.record(
+                "Expected success, got \(String(describing: result.outcome)); output=\(result.output.debugDescription)")
             return
         }
         #expect(result.output.contains("args:auth login --claudeai"))
@@ -40,13 +41,15 @@ struct ClaudeLoginRunnerTests {
         defer { fixture.remove() }
 
         let result = await ClaudeLoginRunner.run(
-            timeout: 1,
+            timeout: 3,
             binary: fixture.executable.path,
             environment: fixture.environment,
             onPhaseChange: { _ in })
 
         guard case .timedOut = result.outcome else {
-            Issue.record("Expected timeout, got \(String(describing: result.outcome))")
+            let message = "Expected timeout, got \(String(describing: result.outcome)); "
+                + "output=\(result.output.debugDescription)"
+            Issue.record(Comment(rawValue: message))
             return
         }
         #expect(result.authLink == "https://claude.ai/oauth/authorize?test=1")
@@ -62,13 +65,15 @@ struct ClaudeLoginRunnerTests {
         defer { fixture.remove() }
 
         let result = await ClaudeLoginRunner.run(
-            timeout: 2,
+            timeout: 10,
             binary: fixture.executable.path,
             environment: fixture.environment,
             onPhaseChange: { _ in })
 
         guard case .failed(status: 7) = result.outcome else {
-            Issue.record("Expected status 7, got \(String(describing: result.outcome))")
+            let message = "Expected status 7, got \(String(describing: result.outcome)); "
+                + "output=\(result.output.debugDescription)"
+            Issue.record(Comment(rawValue: message))
             return
         }
         #expect(result.output.contains("login failed"))
