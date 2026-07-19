@@ -144,7 +144,6 @@ extension StatusItemController {
         if button.accessibilityTitle() != rendered.accessibilityLabel {
             button.setAccessibilityTitle(rendered.accessibilityLabel)
         }
-        button.toolTip = rendered.accessibilityLabel
 
         // AppKit exposes no content-inset API on NSStatusBarButton. Explicit item length is the actual
         // status-item padding mechanism: tight removes most edge space; regular keeps the native breathing room.

@@ -207,17 +207,19 @@ struct ClaudeBaselineCharacterizationTests {
         let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
 
-        await self.withBackgroundKeychainAccess {
-            await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                await self.withNoOAuthCredentials {
-                    let outcome = await self.fetchOutcome(
-                        runtime: .app,
-                        sourceMode: .auto,
-                        env: env,
-                        settings: settings)
+        await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(20) {
+            await self.withBackgroundKeychainAccess {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    await self.withNoOAuthCredentials {
+                        let outcome = await self.fetchOutcome(
+                            runtime: .app,
+                            sourceMode: .auto,
+                            env: env,
+                            settings: settings)
 
-                    #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-                    #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+                        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                    }
                 }
             }
         }
@@ -323,11 +325,13 @@ struct ClaudeBaselineCharacterizationTests {
                 rawText: nil)
         }
 
-        let outcome = await self.withBackgroundKeychainAccess {
-            await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                await self.withNoOAuthCredentials {
-                    await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(usageLoader) {
-                        await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+        let outcome = await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(20) {
+            await self.withBackgroundKeychainAccess {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    await self.withNoOAuthCredentials {
+                        await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(usageLoader) {
+                            await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+                        }
                     }
                 }
             }

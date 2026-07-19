@@ -140,10 +140,15 @@ struct CostSummarySettingsSection: View {
                         self.costStatusLine(provider: .claude)
                         self.costStatusLine(provider: .codex)
                         self.costStatusLine(provider: .cursor)
+                        Text(Self.costDataExplanation())
                     }
                 }
             }
         }
+    }
+
+    static func costDataExplanation() -> String {
+        L("cost_data_explanation")
     }
 
     private func costStatusLine(provider: UsageProvider) -> Text {

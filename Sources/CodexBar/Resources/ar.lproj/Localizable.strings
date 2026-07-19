@@ -752,11 +752,9 @@
 "not_found" = "لم يعثر عليه";
 
 /* Cost estimation */
-"cost_header_estimated" = "التكلفة (تقديرية)";
 "cost_estimate_hint" = "تقديرات من سجلات محلية · قد تختلف عن فاتورتك";
-"codex_api_estimate_header" = "تقدير مكافئ لواجهة API";
-"codex_api_estimate_hint" = "الاستخدام المحلي × أسعار API العامة · ليس فاتورة اشتراك أو قيمة خطة";
-"codex_api_estimate_not_billed" = "ليس فاتورة اشتراك أو قيمة خطة";
+"codex_api_estimate_hint" = "تقدير استنادًا إلى استخدام الرموز · ليست فاتورة اشتراك";
+"cost_data_explanation" = "قد تكون التكاليف واردة من المزوّد أو مقدّرة من استخدام الرموز وفق أسعار API العامة. التقديرات ليست رسوم اشتراك.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "لم يتم اكتشاف أي JetBrains IDE مع مساعدة الذكاء الاصطناعي. قم بتثبيت JetBrains IDE وفعل AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API الرمز غير مكون. حدد OPENROUTER_API_KEY متغير البيئة أو قم بالتكوين في الإعدادات.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API الرمز لم يعثر عليه. اضبط apiKey في ~/.codexbar/config.json أو Z_AI_API_KEY.";
@@ -786,6 +784,7 @@
 "Today" = "اليوم";
 "Today tokens" = "الرموز اليوم";
 "30d cost" = "تكلفة 30d";
+"%@ cost" = "تكلفة %@";
 "30d tokens" = "رموز 30d";
 "Latest tokens" = "أحدث الرموز";
 "Top model" = "أفضل موديل";

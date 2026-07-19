@@ -1539,7 +1539,7 @@ extension StatusMenuTests {
 
 extension StatusMenuTests {
     @Test
-    func `overview tab renders overview rows for all active providers when three or fewer`() {
+    func `overview tab renders overview rows for six active providers`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -1548,11 +1548,14 @@ extension StatusMenuTests {
         settings.selectedMenuProvider = .claude
         settings.mergedMenuLastSelectedWasOverview = true
 
+        let enabledProviders: Set<UsageProvider> = [.codex, .claude, .cursor, .opencode, .warp, .gemini]
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex || provider == .claude || provider == .cursor
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: enabledProviders.contains(provider))
         }
 
         let fetcher = UsageFetcher()
@@ -1567,18 +1570,14 @@ extension StatusMenuTests {
 
         let menu = controller.makeMenu()
         controller.menuWillOpen(menu)
-
         let ids = self.representedIDs(in: menu)
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
-        #expect(overviewRows.count == 3)
-        #expect(overviewRows.contains("overviewRow-codex"))
-        #expect(overviewRows.contains("overviewRow-claude"))
-        #expect(overviewRows.contains("overviewRow-cursor"))
-        #expect(ids.contains("menuCard") == false)
+        #expect(overviewRows.count == enabledProviders.count && ids.contains("menuCard") == false)
+        #expect(enabledProviders.allSatisfy { overviewRows.contains("overviewRow-\($0.rawValue)") })
     }
 
     @Test
-    func `overview tab honors stored subset when three or fewer`() {
+    func `overview tab honors stored subset when within the provider limit`() {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -1630,15 +1629,14 @@ extension StatusMenuTests {
         settings.selectedMenuProvider = .codex
         settings.mergedMenuLastSelectedWasOverview = true
         settings.mergedOverviewSelectedProviders = []
-
+        let enabledProviders: Set<UsageProvider> = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         let registry = ProviderRegistry.shared
         for provider in UsageProvider.allCases {
             guard let metadata = registry.metadata[provider] else { continue }
-            let shouldEnable = provider == .codex ||
-                provider == .claude ||
-                provider == .cursor ||
-                provider == .opencode
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: shouldEnable)
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: enabledProviders.contains(provider))
         }
 
         let fetcher = UsageFetcher()

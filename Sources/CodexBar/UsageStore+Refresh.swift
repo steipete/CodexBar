@@ -163,7 +163,7 @@ extension UsageStore {
                     allowDisabled: allowDisabled)
                 snapshotUpdatedAtBeforeRefresh = self.snapshot(for: provider)?.updatedAt
                 didStartRefresh = true
-                await ProviderRefreshRequestContext.$id.withValue(UUID()) {
+                await ProviderRefreshRequestContext.withNewRequest {
                     await self.refreshProviderTracked(
                         provider,
                         allowDisabled: allowDisabled,

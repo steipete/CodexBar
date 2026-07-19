@@ -69,6 +69,18 @@ struct StatusItemIconObservationSignatureTests {
     }
 
     @Test
+    func `custom menu bar layout preserves accessibility without a hover tooltip`() throws {
+        let (_, _, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-custom-layout-tooltip",
+            menuBarLayout: MenuBarLayout(lines: [[.icon, .providerName]]))
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let button = try #require(controller.statusItem.button)
+        #expect(button.accessibilityTitle()?.isEmpty == false)
+        #expect(button.toolTip == nil)
+    }
+
+    @Test
     func `store icon observation signature ignores non visual snapshot churn`() {
         let (_, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-snapshot-metadata")

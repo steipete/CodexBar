@@ -699,6 +699,59 @@ struct StepFunTokenRefreshTests {
     }
 
     @Test
+    func `password login matches web ID to registered device`() async throws {
+        let registeredDeviceID = "registered-device"
+        let registeredJWT = try Self.jwt(deviceID: registeredDeviceID)
+        let anonymousPair = "anon-access...\(registeredJWT)"
+
+        try await self.withStubProtocol { _ in
+            StepFunStubURLProtocol.handler = { request in
+                let path = request.url?.path ?? ""
+                if path.isEmpty || path == "/" {
+                    return Self.jsonResponse(
+                        for: request,
+                        body: "{}",
+                        headers: ["Set-Cookie": "INGRESSCOOKIE=ingress-cookie; Path=/"])
+                }
+
+                if path.contains("RegisterDevice") {
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                        {
+                            "accessToken": {"raw": "anon-access"},
+                            "refreshToken": {"raw": "\(registeredJWT)"}
+                        }
+                        """)
+                }
+
+                if path.contains("SignInByPassword") {
+                    #expect(request.value(forHTTPHeaderField: "oasis-webid") == registeredDeviceID)
+                    #expect(request.value(forHTTPHeaderField: "Cookie") ==
+                        "Oasis-Token=\(anonymousPair); " +
+                        "Oasis-Webid=\(registeredDeviceID); " +
+                        "INGRESSCOOKIE=ingress-cookie")
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                        {
+                            "accessToken": {"raw": "login-access"},
+                            "refreshToken": {"raw": "login-refresh"}
+                        }
+                        """)
+                }
+
+                return Self.jsonResponse(for: request, statusCode: 404, body: #"{"error":"unexpected"}"#)
+            }
+
+            let authenticatedPair = try await StepFunUsageFetcher.login(
+                username: "user@example.com",
+                password: "pw")
+            #expect(authenticatedPair == "login-access...login-refresh")
+        }
+    }
+
+    @Test
     func `post refresh non auth usage failure is not rewritten as auth guidance`() async throws {
         try await self.withStubProtocol { recorder in
             StepFunStubURLProtocol.handler = { request in
@@ -876,6 +929,15 @@ struct StepFunTokenRefreshTests {
                 "weekly_usage_reset_time": "1777899600"
             }
             """)
+    }
+
+    private static func jwt(deviceID: String) throws -> String {
+        let payload = try JSONSerialization.data(withJSONObject: ["device_id": deviceID])
+        let encodedPayload = payload.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "header.\(encodedPayload).signature"
     }
 
     private static func jsonResponse(

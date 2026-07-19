@@ -12,7 +12,7 @@ read_when:
 - Merge Icons toggle combines providers into one status item with a switcher.
 - Provider status items use stable autosave names and are reused across provider toggles so macOS can preserve icon
   positions.
-- When Overview has selected providers, the switcher includes an Overview tab that renders up to 3 provider rows.
+- When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
 - The global open-menu keyboard shortcut toggles the currently tracked menu closed before opening a new one.
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
@@ -76,7 +76,7 @@ window has elapsed.
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
 - Advanced: “Show provider storage usage” enables background scans of known provider-owned local paths; CodexBar only
   reports sizes and cleanup ideas, it does not delete files.
-- Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 3).
+- Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 6).
 - If no providers are selected for Overview, the Overview tab is hidden.
 - Providers → Claude: “Avoid Keychain prompts” selects the Security.framework reader's `Never prompt` policy.
 - The lower-level “Keychain prompt policy” picker remains visible as the source of truth for Claude OAuth prompts.

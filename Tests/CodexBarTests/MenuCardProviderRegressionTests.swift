@@ -28,6 +28,20 @@ struct MenuCardProviderRegressionTests {
     }
 
     @Test
+    func `command code progress color uses its contrasting brand accent`() {
+        let branding = ProviderDescriptorRegistry.descriptor(for: .commandcode).branding.color
+        let expected = ProviderColor(hex: 0xA04DFD)
+
+        #expect(branding == expected)
+        #expect(UsageMenuCardView.Model.progressColor(for: .commandcode) == Color(
+            red: expected.red,
+            green: expected.green,
+            blue: expected.blue))
+        #expect(Self.contrastRatio(expected, againstLuminance: 0) >= 3)
+        #expect(Self.contrastRatio(expected, againstLuminance: 1) >= 3)
+    }
+
+    @Test
     func `open router model shows daily and weekly key spend`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.openrouter])
@@ -64,6 +78,16 @@ struct MenuCardProviderRegressionTests {
             now: now))
 
         #expect(model.usageNotes == ["Today: $0.12 · This week: $0.74"])
+    }
+
+    private static func contrastRatio(_ color: ProviderColor, againstLuminance background: Double) -> Double {
+        let components = [color.red, color.green, color.blue].map { component in
+            component <= 0.04045
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+        let foreground = 0.2126 * components[0] + 0.7152 * components[1] + 0.0722 * components[2]
+        return (max(foreground, background) + 0.05) / (min(foreground, background) + 0.05)
     }
 
     @Test

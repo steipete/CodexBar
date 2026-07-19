@@ -117,10 +117,10 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
-    func `overview provider limit text formats numeric limit as object argument`() {
-        let text = MenuBarPane.overviewProviderLimitText(limit: 3)
+    func `overview provider limit text shows the configured maximum`() {
+        let text = MenuBarPane.overviewProviderLimitText()
 
-        #expect(text.contains("3"))
+        #expect(text.contains("6"))
         #expect(!text.contains("%@"))
     }
 

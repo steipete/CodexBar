@@ -707,11 +707,9 @@
 "Dismiss" = "关闭";
 "Open Menu Bar Settings" = "打开菜单栏设置";
 "macOS Tahoe can block menu bar apps in System Settings → Menu Bar → Allow in the Menu Bar. CodexBar is running, but macOS may be hiding its icon. Open Menu Bar settings and turn CodexBar on." = "macOS Tahoe 可能会在“系统设置”→“菜单栏”→“允许显示在菜单栏”中阻止菜单栏应用。CodexBar 正在运行，但 macOS 可能隐藏了它的图标。请打开菜单栏设置并启用 CodexBar。";
-"cost_header_estimated" = "费用（估算）";
 "cost_estimate_hint" = "根据本地日志估算 · 可能与账单不同";
-"codex_api_estimate_header" = "API 等价估算";
-"codex_api_estimate_hint" = "本地用量 × 公开 API 价格 · 不是订阅账单或套餐价值";
-"codex_api_estimate_not_billed" = "不是订阅账单或套餐价值";
+"codex_api_estimate_hint" = "根据 Token 用量估算 · 不是订阅账单";
+"cost_data_explanation" = "费用可能由提供商报告，也可能根据 Token 用量按公开 API 价格估算。估算值不是订阅费用。";
 "Estimated from local Codex logs for the selected account." = "根据所选账户的本地 Codex 日志估算。";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "未检测到启用 AI Assistant 的 JetBrains IDE。请安装 JetBrains IDE 并启用 AI Assistant。";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "未配置 OpenRouter API 令牌。请设置 OPENROUTER_API_KEY 环境变量，或在“设置”中配置。";
@@ -743,6 +741,7 @@
 "Today" = "今日";
 "Today tokens" = "今日 token 用量";
 "30d cost" = "近 30 天费用";
+"%@ cost" = "%@费用";
 "30d tokens" = "近 30 天 token 用量";
 "Latest tokens" = "最近 token 用量";
 "Top model" = "最常用模型";

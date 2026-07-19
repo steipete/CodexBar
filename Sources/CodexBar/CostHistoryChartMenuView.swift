@@ -235,22 +235,24 @@ struct CostHistoryChartMenuView: View {
             }
 
             if let total = self.totalCostUSD {
-                if let disclaimer = Self.estimateDisclaimer(provider: self.provider) {
-                    Text(disclaimer)
-                        .font(.caption2)
-                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(
+                        format: L("Est. total (%@): %@"),
+                        self.windowLabel ?? Self.windowLabel(days: self.historyDays),
+                        self.costString(total)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .truncationMode(.tail)
+                        .truncationMode(.head)
+                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                    if let disclaimer = Self.estimateDisclaimer(provider: self.provider) {
+                        Text(disclaimer)
+                            .font(.caption2)
+                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
-                Text(String(
-                    format: L("Est. total (%@): %@"),
-                    self.windowLabel ?? Self.windowLabel(days: self.historyDays),
-                    self.costString(total)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
             }
 
             if !self.projects.isEmpty {
@@ -298,7 +300,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     static func estimateDisclaimer(provider: UsageProvider) -> String? {
-        provider == .codex ? L("codex_api_estimate_not_billed") : nil
+        provider == .codex ? L("codex_api_estimate_hint") : nil
     }
 
     private struct Model {

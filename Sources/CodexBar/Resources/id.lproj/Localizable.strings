@@ -754,11 +754,9 @@
 "not_found" = "Tidak ditemukan";
 
 /* Cost estimation */
-"cost_header_estimated" = "Biaya (perkiraan)";
 "cost_estimate_hint" = "Diperkirakan dari log lokal · mungkin berbeda dari tagihan Anda";
-"codex_api_estimate_header" = "Estimasi setara API";
-"codex_api_estimate_hint" = "Penggunaan lokal × harga API publik · bukan tagihan langganan atau nilai paket";
-"codex_api_estimate_not_billed" = "bukan tagihan langganan atau nilai paket";
+"codex_api_estimate_hint" = "Diperkirakan dari penggunaan token · bukan tagihan langganan";
+"cost_data_explanation" = "Biaya dapat dilaporkan oleh penyedia atau diperkirakan dari penggunaan token dengan harga API publik. Estimasi bukan biaya langganan.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Tidak ada JetBrains IDE dengan AI Assistant terdeteksi. Pasang JetBrains IDE dan aktifkan AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "Token API OpenRouter belum dikonfigurasi. Atur variabel lingkungan OPENROUTER_API_KEY atau konfigurasi di Pengaturan.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "Token API z.ai tidak ditemukan. Atur apiKey di ~/.codexbar/config.json atau Z_AI_API_KEY.";
@@ -788,6 +786,7 @@
 "Today" = "Hari ini";
 "Today tokens" = "Token hari ini";
 "30d cost" = "Biaya 30 hari";
+"%@ cost" = "Biaya %@";
 "30d tokens" = "Token 30 hari";
 "Latest tokens" = "Token terbaru";
 "Top model" = "Model teratas";

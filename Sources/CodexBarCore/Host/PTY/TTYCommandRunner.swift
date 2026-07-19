@@ -8,101 +8,159 @@ import Musl
 import Foundation
 
 private enum TTYCommandRunnerActiveProcessRegistry {
-    private static let condition = NSCondition()
-    private nonisolated(unsafe) static var processes: [pid_t: ProcessInfo] = [:]
-    private nonisolated(unsafe) static var isShuttingDown = false
-    private nonisolated(unsafe) static var launchesInProgress = 0
-
     private struct ProcessInfo {
         let binary: String
         var processGroup: pid_t?
     }
 
-    @discardableResult
+    private final class State: @unchecked Sendable {
+        private let condition = NSCondition()
+        private var processes: [pid_t: ProcessInfo] = [:]
+        private var isShuttingDown = false
+        private var launchesInProgress = 0
+
+        @discardableResult
+        func register(pid: pid_t, binary: String) -> Bool {
+            guard pid > 0 else { return false }
+            self.condition.lock()
+            defer { self.condition.unlock() }
+            guard !self.isShuttingDown else { return false }
+            self.processes[pid] = ProcessInfo(binary: binary, processGroup: nil)
+            return true
+        }
+
+        func beginLaunch() -> Bool {
+            self.condition.lock()
+            defer { self.condition.unlock() }
+            guard !self.isShuttingDown else { return false }
+            self.launchesInProgress += 1
+            return true
+        }
+
+        func endLaunch() {
+            self.condition.lock()
+            self.launchesInProgress = max(0, self.launchesInProgress - 1)
+            if self.launchesInProgress == 0 {
+                self.condition.broadcast()
+            }
+            self.condition.unlock()
+        }
+
+        func updateProcessGroup(pid: pid_t, processGroup: pid_t?) {
+            guard pid > 0 else { return }
+            self.condition.lock()
+            guard var existing = self.processes[pid] else {
+                self.condition.unlock()
+                return
+            }
+            existing.processGroup = processGroup
+            self.processes[pid] = existing
+            self.condition.unlock()
+        }
+
+        func unregister(pid: pid_t) {
+            guard pid > 0 else { return }
+            self.condition.lock()
+            self.processes.removeValue(forKey: pid)
+            self.condition.unlock()
+        }
+
+        func drainForShutdown(
+            onFenceSet: (() -> Void)? = nil)
+            -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+        {
+            self.condition.lock()
+            self.isShuttingDown = true
+            onFenceSet?()
+            while self.launchesInProgress > 0 {
+                self.condition.wait()
+            }
+            let drained = self.processes.map {
+                (pid: $0.key, binary: $0.value.binary, processGroup: $0.value.processGroup)
+            }
+            self.processes.removeAll()
+            self.condition.unlock()
+            return drained
+        }
+
+        func reset() {
+            self.condition.lock()
+            self.processes.removeAll()
+            self.isShuttingDown = false
+            self.launchesInProgress = 0
+            self.condition.broadcast()
+            self.condition.unlock()
+        }
+
+        func count() -> Int {
+            self.condition.lock()
+            let count = self.processes.count
+            self.condition.unlock()
+            return count
+        }
+
+        func testTrackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
+            guard pid > 0 else { return }
+            self.condition.lock()
+            self.processes[pid] = ProcessInfo(binary: binary, processGroup: processGroup)
+            self.condition.unlock()
+        }
+    }
+
+    private static let shared = State()
+    @TaskLocal private static var stateOverrideForTesting: State?
+
+    private static var current: State {
+        self.stateOverrideForTesting ?? self.shared
+    }
+
     static func register(pid: pid_t, binary: String) -> Bool {
-        guard pid > 0 else { return false }
-        self.condition.lock()
-        defer { self.condition.unlock() }
-        guard !self.isShuttingDown else { return false }
-        self.processes[pid] = ProcessInfo(binary: binary, processGroup: nil)
-        return true
+        self.current.register(pid: pid, binary: binary)
     }
 
     static func beginLaunch() -> Bool {
-        self.condition.lock()
-        defer { self.condition.unlock() }
-        guard !self.isShuttingDown else { return false }
-        self.launchesInProgress += 1
-        return true
+        self.current.beginLaunch()
     }
 
     static func endLaunch() {
-        self.condition.lock()
-        self.launchesInProgress = max(0, self.launchesInProgress - 1)
-        if self.launchesInProgress == 0 {
-            self.condition.broadcast()
-        }
-        self.condition.unlock()
+        self.current.endLaunch()
     }
 
     static func updateProcessGroup(pid: pid_t, processGroup: pid_t?) {
-        guard pid > 0 else { return }
-        self.condition.lock()
-        guard var existing = self.processes[pid] else {
-            self.condition.unlock()
-            return
-        }
-        existing.processGroup = processGroup
-        self.processes[pid] = existing
-        self.condition.unlock()
+        self.current.updateProcessGroup(pid: pid, processGroup: processGroup)
     }
 
     static func unregister(pid: pid_t) {
-        guard pid > 0 else { return }
-        self.condition.lock()
-        self.processes.removeValue(forKey: pid)
-        self.condition.unlock()
+        self.current.unregister(pid: pid)
     }
 
-    static func drainForShutdown(
-        onFenceSet: (() -> Void)? = nil)
+    static func drainForShutdown(onFenceSet: (() -> Void)? = nil)
         -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
     {
-        self.condition.lock()
-        self.isShuttingDown = true
-        onFenceSet?()
-        while self.launchesInProgress > 0 {
-            self.condition.wait()
-        }
-        let drained = self.processes.map {
-            (pid: $0.key, binary: $0.value.binary, processGroup: $0.value.processGroup)
-        }
-        self.processes.removeAll()
-        self.condition.unlock()
-        return drained
+        self.current.drainForShutdown(onFenceSet: onFenceSet)
     }
 
     static func reset() {
-        self.condition.lock()
-        self.processes.removeAll()
-        self.isShuttingDown = false
-        self.launchesInProgress = 0
-        self.condition.broadcast()
-        self.condition.unlock()
+        self.current.reset()
     }
 
     static func count() -> Int {
-        self.condition.lock()
-        let count = self.processes.count
-        self.condition.unlock()
-        return count
+        self.current.count()
     }
 
     static func testTrackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
-        guard pid > 0 else { return }
-        self.condition.lock()
-        self.processes[pid] = ProcessInfo(binary: binary, processGroup: processGroup)
-        self.condition.unlock()
+        self.current.testTrackProcess(pid: pid, binary: binary, processGroup: processGroup)
+    }
+
+    static func withIsolatedStateForTesting<T>(_ operation: () throws -> T) rethrows -> T {
+        try self.$stateOverrideForTesting.withValue(State(), operation: operation)
+    }
+
+    static func makeDrainOperationForTesting(onFenceSet: (@Sendable () -> Void)? = nil)
+        -> @Sendable () -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        let state = self.current
+        return { state.drainForShutdown(onFenceSet: onFenceSet) }
     }
 }
 
@@ -204,6 +262,10 @@ enum TTYProcessTreeTerminator {
         }
         signalSender(rootPID, signal)
     }
+}
+
+private enum TTYCommandRunnerTestingOverrides {
+    @TaskLocal static var postDeadlineDrainDuration: TimeInterval?
 }
 
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
@@ -910,7 +972,9 @@ public struct TTYCommandRunner {
             } else {
                 // PTY-backed scripts can exit before their final echo becomes readable on the parent side.
                 // Give the kernel a brief non-blocking drain window so we don't lose the last line of output.
-                drainNonCodexOutput(for: min(0.5, max(0.2, options.settleAfterStop)))
+                let defaultDrainDuration = min(0.5, max(0.2, options.settleAfterStop))
+                let drainDuration = TTYCommandRunnerTestingOverrides.postDeadlineDrainDuration ?? defaultDrainDuration
+                drainNonCodexOutput(for: drainDuration)
             }
 
             try checkOutputLimit()
@@ -1102,6 +1166,17 @@ public struct TTYCommandRunner {
 }
 
 extension TTYCommandRunner {
+    static func withIsolatedActiveProcessRegistryForTesting<T>(_ operation: () throws -> T) rethrows -> T {
+        try TTYCommandRunnerActiveProcessRegistry.withIsolatedStateForTesting(operation)
+    }
+
+    static func withPostDeadlineDrainDurationOverrideForTesting<T>(
+        _ duration: TimeInterval,
+        operation: () throws -> T) rethrows -> T
+    {
+        try TTYCommandRunnerTestingOverrides.$postDeadlineDrainDuration.withValue(duration, operation: operation)
+    }
+
     public static func which(_ tool: String) -> String? {
         if tool == "codex", let located = BinaryLocator.resolveCodexBinary() {
             return located
@@ -1252,6 +1327,13 @@ extension TTYCommandRunner {
         -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
     {
         TTYCommandRunnerActiveProcessRegistry.drainForShutdown(onFenceSet: onFenceSet)
+    }
+
+    static func _test_makeDrainTrackedProcessesForShutdownOperation(
+        onFenceSet: (@Sendable () -> Void)? = nil)
+        -> @Sendable () -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        TTYCommandRunnerActiveProcessRegistry.makeDrainOperationForTesting(onFenceSet: onFenceSet)
     }
 
     static func _test_resolveShutdownTargets(

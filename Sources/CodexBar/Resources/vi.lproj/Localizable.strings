@@ -742,11 +742,9 @@
 "not_found" = "Không tìm thấy";
 
 /* Cost estimation */
-"cost_header_estimated" = "Chi phí (ước tính)";
 "cost_estimate_hint" = "Ước tính từ nhật ký cục bộ · có thể khác với hóa đơn của bạn";
-"codex_api_estimate_header" = "Ước tính tương đương API";
-"codex_api_estimate_hint" = "Mức dùng cục bộ × giá API công khai · không phải hóa đơn đăng ký hoặc giá trị gói";
-"codex_api_estimate_not_billed" = "không phải hóa đơn đăng ký hoặc giá trị gói";
+"codex_api_estimate_hint" = "Ước tính từ mức sử dụng token · không phải hóa đơn đăng ký";
+"cost_data_explanation" = "Chi phí có thể do nhà cung cấp báo cáo hoặc được ước tính từ mức sử dụng token theo giá API công khai. Các ước tính không phải phí đăng ký.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Không phát hiện thấy IDE JetBrains nào có Trợ lý AI. Cài đặt JetBrains IDE và bật Trợ lý AI.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API token chưa được định cấu hình. Đặt biến môi trường OPENROUTER_API_KEY hoặc định cấu hình trong Cài đặt .";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "không tìm thấy z.ai API token. Đặt apiKey trong ~/.codexbar/config.json hoặc Z_AI_API_KEY.";
@@ -776,6 +774,7 @@
 "Today" = "Hôm nay";
 "Today tokens" = "Mã thông báo hôm nay";
 "30d cost" = "giá 30d";
+"%@ cost" = "giá %@";
 "30d tokens" = "mã thông báo 30d";
 "Latest tokens" = "Mã thông báo mới nhất";
 "Top model" = "Mô hình hàng đầu";

@@ -223,6 +223,7 @@ struct UsageMenuCardView: View {
                         TokenUsageSectionContent(
                             provider: liveModel.provider,
                             tokenUsage: tokenUsage,
+                            showsCodexHint: liveModel.inlineUsageDashboard == nil,
                             lineFont: .footnote)
                     }
                 }
@@ -412,6 +413,7 @@ private struct CopyIconButton: View {
 private struct TokenUsageSectionContent: View {
     let provider: UsageProvider
     let tokenUsage: UsageMenuCardView.Model.TokenUsageSection
+    let showsCodexHint: Bool
     let lineFont: Font
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
@@ -436,7 +438,10 @@ private struct TokenUsageSectionContent: View {
                     .font(self.lineFont)
                     .lineLimit(1)
             }
-            if let hint = self.tokenUsage.hintLine, !hint.isEmpty {
+            if self.provider != .codex || self.showsCodexHint,
+               let hint = self.tokenUsage.hintLine,
+               !hint.isEmpty
+            {
                 Text(hint)
                     .font(.footnote)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
@@ -838,6 +843,7 @@ struct UsageMenuCardCostSectionView: View {
                         TokenUsageSectionContent(
                             provider: liveModel.provider,
                             tokenUsage: tokenUsage,
+                            showsCodexHint: true,
                             lineFont: .caption)
                     }
                 }

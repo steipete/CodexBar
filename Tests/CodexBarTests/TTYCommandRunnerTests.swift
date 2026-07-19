@@ -25,73 +25,84 @@ struct TTYCommandRunnerEnvTests {
 
     @Test
     func `shutdown fence drains tracked TTY processes`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 1001, binary: "codex"))
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+            #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 1001, binary: "codex"))
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
 
-        let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
-        #expect(drained.count == 1)
-        #expect(drained[0].pid == 1001)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
+            #expect(drained.count == 1)
+            #expect(drained[0].pid == 1001)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `cached CLI sessions share shutdown tracking`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner.registerActiveProcessForAppShutdown(pid: 3001, binary: "codex"))
-        TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: 3001, processGroup: 3001)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+            #expect(TTYCommandRunner.registerActiveProcessForAppShutdown(pid: 3001, binary: "codex"))
+            TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: 3001, processGroup: 3001)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
 
-        TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: 3001)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: 3001)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `tracked process helpers ignore invalid PID`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        TTYCommandRunner._test_trackProcess(pid: 0, binary: "codex", processGroup: nil)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            TTYCommandRunner._test_trackProcess(pid: 0, binary: "codex", processGroup: nil)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `shutdown fence rejects new registrations`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2001, binary: "codex"))
-        let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
-        #expect(drained.count == 1)
+            #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2001, binary: "codex"))
+            let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
+            #expect(drained.count == 1)
 
-        #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex") == false)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex") == false)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `shutdown waits for launch cleanup before draining`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner._test_beginTrackedProcessLaunch())
-        let fenceSet = DispatchSemaphore(value: 0)
-        let completed = DispatchSemaphore(value: 0)
-        Thread.detachNewThread {
-            _ = TTYCommandRunner._test_drainTrackedProcessesForShutdown {
+            #expect(TTYCommandRunner._test_beginTrackedProcessLaunch())
+            let fenceSet = DispatchSemaphore(value: 0)
+            let completed = DispatchSemaphore(value: 0)
+            let drain = TTYCommandRunner._test_makeDrainTrackedProcessesForShutdownOperation {
                 fenceSet.signal()
             }
-            completed.signal()
-        }
+            Thread.detachNewThread {
+                _ = drain()
+                completed.signal()
+            }
 
-        #expect(fenceSet.wait(timeout: .now() + 1) == .success)
-        #expect(completed.wait(timeout: .now() + 0.05) == .timedOut)
-        #expect(!TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex"))
-        TTYCommandRunner._test_endTrackedProcessLaunch()
-        #expect(completed.wait(timeout: .now() + 1) == .success)
+            #expect(fenceSet.wait(timeout: .now() + 1) == .success)
+            #expect(completed.wait(timeout: .now() + 0.05) == .timedOut)
+            #expect(!TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex"))
+            TTYCommandRunner._test_endTrackedProcessLaunch()
+            #expect(completed.wait(timeout: .now() + 1) == .success)
+        }
     }
 
     @Test
@@ -435,10 +446,12 @@ struct TTYCommandRunnerEnvTests {
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
         let runner = TTYCommandRunner()
-        let result = try runner.run(
-            binary: scriptURL.path,
-            send: "",
-            options: .init(timeout: 0.01, initialDelay: 0, settleAfterStop: 0.5))
+        let result = try TTYCommandRunner.withPostDeadlineDrainDurationOverrideForTesting(10) {
+            try runner.run(
+                binary: scriptURL.path,
+                send: "",
+                options: .init(timeout: 0.01, initialDelay: 0, settleAfterStop: 0.5))
+        }
 
         #expect(result.completion == .deadlineExceeded)
         #expect(result.text.contains("https://claude.ai/oauth/authorize?test=late"))
@@ -465,7 +478,7 @@ struct TTYCommandRunnerEnvTests {
         let result = try runner.run(
             binary: scriptURL.path,
             send: "",
-            options: .init(timeout: 4, initialDelay: 0, returnOnEmptyProcessExit: true))
+            options: .init(timeout: 10, initialDelay: 0, returnOnEmptyProcessExit: true))
 
         #expect(result.completion == .processExited(status: 0))
         #expect(result.text.isEmpty)

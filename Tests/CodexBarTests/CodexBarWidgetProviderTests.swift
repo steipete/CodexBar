@@ -5,6 +5,14 @@ import Testing
 
 struct CodexBarWidgetProviderTests {
     @Test
+    func `widget token counts use compact shared formatting`() {
+        #expect(WidgetFormat.tokenCount(999) == "999 tokens")
+        #expect(WidgetFormat.tokenCount(9_400_000) == "9.4M tokens")
+        #expect(WidgetFormat.tokenCount(94_500_000) == "94M tokens")
+        #expect(WidgetFormat.tokenCount(10_600_000_000) == "11B tokens")
+    }
+
+    @Test
     func `usage display follows remaining and used preference`() {
         #expect(WidgetUsageDisplay.percent(fromRemaining: 48, showUsed: false) == 48)
         #expect(WidgetUsageDisplay.percent(fromRemaining: 48, showUsed: true) == 52)

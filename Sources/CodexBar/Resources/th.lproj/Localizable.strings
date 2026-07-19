@@ -752,11 +752,9 @@
 "not_found" = "ไม่พบ";
 
 /* Cost estimation */
-"cost_header_estimated" = "ต้นทุน (โดยประมาณ)";
 "cost_estimate_hint" = "ประมาณการจากบันทึกท้องถิ่น · อาจแตกต่างจากใบเรียกเก็บเงินของคุณ";
-"codex_api_estimate_header" = "ค่าประมาณเทียบเท่า API";
-"codex_api_estimate_hint" = "การใช้งานในเครื่อง × ราคา API สาธารณะ · ไม่ใช่ใบเรียกเก็บเงินค่าสมาชิกหรือมูลค่าแพ็กเกจ";
-"codex_api_estimate_not_billed" = "ไม่ใช่ใบเรียกเก็บเงินค่าสมาชิกหรือมูลค่าแพ็กเกจ";
+"codex_api_estimate_hint" = "ประมาณจากการใช้โทเค็น · ไม่ใช่ใบเรียกเก็บค่าสมัครสมาชิก";
+"cost_data_explanation" = "ค่าใช้จ่ายอาจรายงานโดยผู้ให้บริการหรือประมาณจากการใช้โทเค็นตามราคา API สาธารณะ ค่าประมาณไม่ใช่ค่าบริการสมาชิก";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "ตรวจไม่พบ JetBrains IDE ที่มี AI Assistant ติดตั้ง JetBrains IDE และเปิดใช้งาน AI Assistant";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "โทเค็น OpenRouter API ไม่ได้กําหนดค่า ตั้งค่าตัวแปรสภาพแวดล้อม OPENROUTER_API_KEY หรือกําหนดค่าในการตั้งค่า";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "ไม่พบโทเค็น z.ai API ตั้งค่า apiKey เป็น ~/.codexbar/config.json หรือ Z_AI_API_KEY";
@@ -786,6 +784,7 @@
 "Today" = "วันนี้";
 "Today tokens" = "โทเค็นวันนี้";
 "30d cost" = "ค่าใช้จ่าย 30d";
+"%@ cost" = "ค่าใช้จ่าย %@";
 "30d tokens" = "โทเค็น 30d";
 "Latest tokens" = "โทเค็นล่าสุด";
 "Top model" = "รุ่นยอดนิยม";

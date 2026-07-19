@@ -324,7 +324,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             button.imageScaling = .scaleNone
             button.setAccessibilityIdentifier(identity.accessibilityIdentifier)
             button.setAccessibilityTitle(title)
-            button.toolTip = title
         }
         return item
     }

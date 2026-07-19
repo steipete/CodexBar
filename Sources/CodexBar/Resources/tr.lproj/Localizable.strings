@@ -748,11 +748,9 @@
 "not_found" = "Bulunamadı";
 
 /* Cost estimation */
-"cost_header_estimated" = "Maliyet (tahmini)";
 "cost_estimate_hint" = "Yerel günlüklerden tahmini · faturanızdan farklı olabilir";
-"codex_api_estimate_header" = "API eşdeğeri tahmin";
-"codex_api_estimate_hint" = "Yerel kullanım × herkese açık API fiyatları · abonelik faturası veya plan değeri değildir";
-"codex_api_estimate_not_billed" = "abonelik faturası veya plan değeri değildir";
+"codex_api_estimate_hint" = "Token kullanımından tahmin edilmiştir · abonelik faturası değildir";
+"cost_data_explanation" = "Maliyetler sağlayıcı tarafından bildirilebilir veya herkese açık API fiyatlarıyla token kullanımından tahmin edilebilir. Tahminler abonelik ücreti değildir.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "AI Asistan içeren JetBrains IDE algılanmadı. Bir JetBrains IDE kurun ve AI Asistan'ı etkinleştirin.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API jetonu yapılandırılmamış. OPENROUTER_API_KEY ortam değişkenini ayarlayın veya Ayarlar'dan yapılandırın.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API jetonu bulunamadı. ~/.codexbar/config.json dosyasında apiKey ayarlayın veya Z_AI_API_KEY kullanın.";
@@ -782,6 +780,7 @@
 "Today" = "Bugün";
 "Today tokens" = "Bugünkü jetonlar";
 "30d cost" = "30 günlük maliyet";
+"%@ cost" = "%@ maliyeti";
 "30d tokens" = "30 günlük jetonlar";
 "Latest tokens" = "Son jetonlar";
 "Top model" = "En çok kullanılan model";

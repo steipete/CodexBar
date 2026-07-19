@@ -1,13 +1,30 @@
 # Changelog
 
-## 0.45.1 — Unreleased
+## 0.45.2 — 2026-07-19
+
+### Fixed
+- Refresh: prevent macOS 14 launch crashes caused by TaskLocal task-allocation corruption (#2341, fixes #2319 and #2326). Thanks @lzylzylzy130 and @jorgesancha!
+- Menu bar: render custom-layout provider icons at the native size and tint them for light and dark menu bars (#2334). Thanks @elpinguinofrio!
+- Menu: fix switcher “Weekly progress” to prefer weekly quota windows, with provider-specific fallback when unavailable (#2327). Thanks @Anneo22!
+- Command Code: improve progress-bar contrast in dark mode (#2333). Thanks @Baksalyar!
+- Widgets: keep cost rows on one line with large token counts (#2337). Thanks @zhulijin1991!
+- OpenCode/OpenCode Go: preserve computed sub-1% usage percentages instead of rescaling them as direct fractions (#2331). Thanks @OfficialAbhinavSingh!
+- OpenCode Go: prefer local usage for unscoped Auto refreshes while keeping account- and workspace-scoped requests web-first (#2316). Thanks @kiranmagic7!
+
+## 0.45.1 — 2026-07-19
 
 ### Added
 - Claude: show per-model weekly claude-swap usage windows from schema-v1 account listings (#2310). Thanks @AlexGodard!
 - Claude: allow an opt-in claude-swap card when only one account is available (#2280). Thanks @possibilities!
 - OpenCode Go: add daily local cost and plan-usage history (#2296). Thanks @kentoku24!
+- Overview: raise the merged provider limit from three to six (#2314). Thanks @BobbyWang0120!
+
+### Changed
+- Menu bar: remove status-item hover tooltips to match macOS menu extras, keeping VoiceOver titles (#2315). Thanks @BobbyWang0120!
+- Codex: simplify cost labels to "Cost" and move the reported-versus-estimated explanation into Cost settings, keeping a short per-value estimate note (#2313). Thanks @Zihao-Qi!
 
 ### Fixed
+- StepFun: fix password login web ID derivation so the header and cookie match the anonymous token (#2312). Thanks @Zihao-Qi!
 - Menu bar: refresh custom cost tokens when token-cost data changes (#2305). Thanks @Zihao-Qi!
 - Menu bar: refresh custom reset tokens at their displayed time boundaries (#2303). Thanks @Zihao-Qi!
 - Usage: normalize session-equivalent forecasts against aligned partial-session samples so extrapolated weekly burn is not overstated (#2301). Thanks @Zihao-Qi!
@@ -16,6 +33,9 @@
 - Usage & Spend: fix black share-card PNG exports while keeping rendering compatible with Intel Macs (#2292). Thanks @Chipagosfinest!
 - Usage & Spend: keep complete model rows visible when another same-currency source has incomplete history (#2308). Thanks @Chipagosfinest!
 - ElevenLabs: clamp character and voice-slot usage percentages at 100% during overage (#2293). Thanks @OfficialAbhinavSingh!
+
+### Internal
+- Serialize the Claude CLI platform-gating cases to prevent nondeterministic Linux CI failures (#2311). Thanks @Chipagosfinest!
 
 ## 0.45.0 — 2026-07-18
 

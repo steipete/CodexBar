@@ -928,8 +928,16 @@ private struct ValueLine: View {
             Text(self.title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             Text(self.value)
                 .font(.caption)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .allowsTightening(true)
+                .layoutPriority(1)
         }
     }
 }
@@ -1175,11 +1183,7 @@ enum WidgetFormat {
     }
 
     static func tokenCount(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 0
-        let raw = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-        return "\(raw) tokens"
+        "\(UsageFormatter.tokenCountString(value)) tokens"
     }
 
     static func relativeDate(_ date: Date) -> String {

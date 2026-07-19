@@ -749,6 +749,9 @@ extension OpenCodeGoUsageFetcher {
                 break
             }
         }
+        // A direct percent field may arrive as a fraction (0...1) or a percent (0...100), so it goes
+        // through the `<= 1` heuristic below. A computed used/limit percent is already 0...100 and must not.
+        let percentIsDirect = percent != nil
 
         if percent == nil {
             let usedKeys = ["used", "usage", "consumed", "count", "usedTokens"]
@@ -773,7 +776,7 @@ extension OpenCodeGoUsageFetcher {
         }
 
         guard var resolvedPercent = percent else { return nil }
-        if resolvedPercent <= 1.0, resolvedPercent >= 0 {
+        if percentIsDirect, resolvedPercent <= 1.0, resolvedPercent >= 0 {
             resolvedPercent *= 100
         }
         resolvedPercent = max(0, min(100, resolvedPercent))

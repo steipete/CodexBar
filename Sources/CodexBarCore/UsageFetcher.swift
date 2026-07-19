@@ -467,6 +467,13 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func switcherWeeklyWindow(for provider: UsageProvider, showUsed: Bool) -> RateWindow? {
+        // This surface is labelled "Weekly progress", so prefer a real 7-day lane when one is
+        // available. Some providers publish model-specific weekly lanes in extraRateWindows.
+        if let weekly = self.mostConstrainedSwitcherWeeklyWindow() {
+            return weekly
+        }
+
+        // Keep the existing provider-specific fallback for providers without a weekly allowance.
         switch provider {
         case .factory:
             // Factory prefers secondary window
@@ -494,6 +501,16 @@ public struct UsageSnapshot: Codable, Sendable {
         default:
             return self.primary ?? self.secondary
         }
+    }
+
+    private func mostConstrainedSwitcherWeeklyWindow() -> RateWindow? {
+        let standardWindows = [self.primary, self.secondary, self.tertiary].compactMap(\.self)
+        let namedWindows = self.extraRateWindows?
+            .filter(\.usageKnown)
+            .map(\.window) ?? []
+        return (standardWindows + namedWindows)
+            .filter { $0.windowMinutes == 7 * 24 * 60 }
+            .max { $0.usedPercent < $1.usedPercent }
     }
 
     public func accountEmail(for provider: UsageProvider) -> String? {

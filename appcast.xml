@@ -3,6 +3,46 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.45.1</title>
+            <pubDate>Sun, 19 Jul 2026 08:59:53 +0100</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>108</sparkle:version>
+            <sparkle:shortVersionString>0.45.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.45.1</h2>
+<h3>Added</h3>
+<ul>
+<li>Claude: show per-model weekly claude-swap usage windows from schema-v1 account listings (#2310). Thanks @AlexGodard!</li>
+<li>Claude: allow an opt-in claude-swap card when only one account is available (#2280). Thanks @possibilities!</li>
+<li>OpenCode Go: add daily local cost and plan-usage history (#2296). Thanks @kentoku24!</li>
+<li>Overview: raise the merged provider limit from three to six (#2314). Thanks @BobbyWang0120!</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>Menu bar: remove status-item hover tooltips to match macOS menu extras, keeping VoiceOver titles (#2315). Thanks @BobbyWang0120!</li>
+<li>Codex: simplify cost labels to &quot;Cost&quot; and move the reported-versus-estimated explanation into Cost settings, keeping a short per-value estimate note (#2313). Thanks @Zihao-Qi!</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>StepFun: fix password login web ID derivation so the header and cookie match the anonymous token (#2312). Thanks @Zihao-Qi!</li>
+<li>Menu bar: refresh custom cost tokens when token-cost data changes (#2305). Thanks @Zihao-Qi!</li>
+<li>Menu bar: refresh custom reset tokens at their displayed time boundaries (#2303). Thanks @Zihao-Qi!</li>
+<li>Usage: normalize session-equivalent forecasts against aligned partial-session samples so extrapolated weekly burn is not overstated (#2301). Thanks @Zihao-Qi!</li>
+<li>Usage: align current/latest and historical cost/token metrics by period (#2295). Thanks @RoshanMhatre!</li>
+<li>Codex: exclude parent-copied prefixes from compact subagent usage when the fork boundary matches the parent snapshot (#2285). Thanks @hhh2210!</li>
+<li>Usage &amp; Spend: fix black share-card PNG exports while keeping rendering compatible with Intel Macs (#2292). Thanks @Chipagosfinest!</li>
+<li>Usage &amp; Spend: keep complete model rows visible when another same-currency source has incomplete history (#2308). Thanks @Chipagosfinest!</li>
+<li>ElevenLabs: clamp character and voice-slot usage percentages at 100% during overage (#2293). Thanks @OfficialAbhinavSingh!</li>
+</ul>
+<h3>Internal</h3>
+<ul>
+<li>Serialize the Claude CLI platform-gating cases to prevent nondeterministic Linux CI failures (#2311). Thanks @Chipagosfinest!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.45.1/CodexBar-macos-universal-0.45.1.zip" length="53227318" type="application/octet-stream" sparkle:edSignature="QyQdkPlko+svg7GhULmoQSxKd0IHNOnWUlpKmL5tXJjC8b+t7HmFR7+6ii7F+F2Si2601gskEJiAj+Vhgi4YBw=="/>
+        </item>
+        <item>
             <title>0.45.0</title>
             <pubDate>Sat, 18 Jul 2026 18:02:16 +0100</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -127,43 +167,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.44.0/CodexBar-macos-universal-0.44.0.zip" length="51863072" type="application/octet-stream" sparkle:edSignature="CkY+pUr/qVTNbX8UOpezIDRHQV3BNlsGspIaTbcLzk85vd2xk378QEsYkf85iwZFwyJJ1qgYP5BHKpKZ604dDg=="/>
-        </item>
-        <item>
-            <title>0.43.0</title>
-            <pubDate>Tue, 14 Jul 2026 13:48:34 +0100</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>104</sparkle:version>
-            <sparkle:shortVersionString>0.43.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.43.0</h2>
-<h3>Added</h3>
-<ul>
-<li>sub2api: add group-key usage with daily, weekly, and monthly quotas, multi-account switching, wallet balance, and expiry details. Thanks @weirdo-adam!</li>
-<li>Kimi: reuse fresh signed-in Kimi Code CLI credentials in Auto mode without refreshing or rewriting CLI-owned authentication state. Thanks @Leechael!</li>
-<li>Community integrations: list codexbar-plasmoid, a KDE Plasma 6 usage widget. Thanks @psimaker!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Kiro: clear inherited signal masks in spawned pipe and PTY probes, preventing the CLI from ignoring termination under a blocked parent mask. Thanks @txarly89!</li>
-<li>CLI PTY: preserve deadline timeouts while draining late output and classify child exits by observation time, eliminating scheduler-dependent success/timeout races. Thanks @kiranmagic7!</li>
-<li>Quota warnings: isolate threshold episodes by stable account ownership so one account cannot duplicate or suppress another account&#x27;s alert. Thanks @vincent-peng!</li>
-<li>Claude: cache successful CLI version probes for 30 minutes while invalidating on executable changes, avoiding repeated PTY launches without retaining failed or stale wrapper results. Thanks @Yuxin-Qiao!</li>
-<li>Linux CLI: bootstrap the configured IANA timezone before Foundation startup on non-FHS systems, preventing SIGILL on NixOS (#2127). Thanks @xikhar!</li>
-<li>Ollama: release temporary dashboard network sessions after each fetch, preventing repeated refreshes from retaining delegates and URL-cache resources. Thanks @astuteprogrammer!</li>
-<li>Amp: release temporary API and dashboard network sessions after every fetch, preventing repeated refreshes from retaining delegates and URL-cache resources.</li>
-<li>Linux CLI: prevent usage rendering from crashing in Foundation bundle discovery when formatting rate windows. Thanks @thanthi-del!</li>
-<li>CLI: defer login-shell PATH probes until Codex RPC launch, preserve login PATH for explicit script overrides, and reap session-escaped helpers without cross-probe descriptor inheritance. Thanks @anagnorisis2peripeteia!</li>
-<li>Menus: keep overview provider-row clicks reliable during live menu rebuilds without stealing nested Copy or plan actions. Thanks @Yuxin-Qiao!</li>
-<li>Startup: load persisted plan-utilization history away from the main thread so mature histories no longer delay app launch. Thanks @Yuxin-Qiao!</li>
-<li>Provider cleanup: prevent in-flight usage, status, token-cost, and cached-hydration work from republishing stale state after a provider is disabled, unavailable, or re-enabled. Thanks @Yuxin-Qiao!</li>
-<li>Agent Sessions: coalesce overlapping unchanged remote refresh requests so menu opens do not repeat Tailscale discovery and SSH passes. Thanks @Yuxin-Qiao!</li>
-<li>Agent Sessions: keep Tailscale discovery headless and fall through across installed CLI variants, preventing repeated Tailscale menu-bar launches. Thanks @willsarg!</li>
-<li>Cost usage: zero the scanner&#x27;s 60-second refresh debounce on app-driven fetches so non-forced refreshes (hourly timer, post-launch, scope/settings changes) reflect rows appended between fetches instead of serving a stale snapshot that <code>UsageStore.tokenFetchTTL</code> then pins for up to an hour (#2089). Thanks @Yuxin-Qiao!</li>
-<li>Codex cost usage: contain interleaved cumulative counters from Ultra-mode fork lineages so repeated lineage switches cannot inflate token and cost history (#2037). Thanks @Zihao-Qi!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.43.0/CodexBar-macos-universal-0.43.0.zip" length="47950287" type="application/octet-stream" sparkle:edSignature="b7NYhpolCC7wsVv10i7yMQfmfvC/pYDVva3D5ijt2e46kP4uKQnvvyd/u+IBYC7HxZoTHy10ax83gvp87zYrDA=="/>
         </item>
         <item>
             <title>0.14.0</title>

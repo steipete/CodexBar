@@ -3,7 +3,7 @@ import Testing
 @testable import CodexBarCLI
 @testable import CodexBarCore
 
-@Suite
+@Suite(.serialized)
 struct PlatformGatingTests {
     @Test
     func `shell probe requests a detached Linux session`() {
@@ -103,10 +103,12 @@ struct PlatformGatingTests {
             return Self.makeClaudeStatus()
         }
 
-        let outcome = await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
-            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
-                context: context,
-                provider: .claude)
+        let outcome = await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(20) {
+            await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
+                await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                    context: context,
+                    provider: .claude)
+            }
         }
 
         switch outcome.result {
@@ -125,7 +127,8 @@ struct PlatformGatingTests {
         let expectedStrategyIDs = sourceMode == .auto ? ["claude.web", "claude.cli"] : ["claude.cli"]
         #expect(outcome.attempts.map(\.strategyID) == expectedStrategyIDs)
         #expect(outcome.attempts.allSatisfy { !$0.wasAvailable })
-        #expect(try String(contentsOf: invocationLog, encoding: .utf8) == "auth status --json\n")
+        let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
+        #expect(invocations == "auth status --json\n")
         #else
         #expect(Bool(true))
         #endif

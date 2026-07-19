@@ -431,7 +431,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         ])
                 }
 
-                let refreshedRecord = try await ProviderRefreshRequestContext.$id.withValue(UUID()) {
+                let refreshedRecord = try await ProviderRefreshRequestContext.withNewRequest {
                     try await ClaudeUsageFetcher.loadOAuthCredentialRecord(
                         environment: self.fetcher.environment,
                         allowKeychainPrompt: retryAllowKeychainPrompt,
