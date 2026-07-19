@@ -890,9 +890,9 @@ extension UsageMenuCardView.Model {
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let rawCreditsText: String? = if input.provider == .openrouter {
-            nil
-        } else if input.codexProjection != nil, !input.showOptionalCreditsAndExtraUsage {
+        let rawCreditsText: String? = if input.provider == .openrouter ||
+            !input.showOptionalCreditsAndExtraUsage
+        {
             nil
         } else {
             Self.creditsLine(
@@ -910,6 +910,7 @@ extension UsageMenuCardView.Model {
             input.snapshot?.claudeAdminAPIUsage != nil
         let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
         let hidesOptionalProviderCost = ((input.provider == .claude && !isClaudeAdminAPI) ||
+            input.provider == .cursor ||
             input.provider == .factory ||
             input.provider == .devin ||
             (input.provider == .opencodego && !isRequiredOpenCodeZenBalance)) &&
