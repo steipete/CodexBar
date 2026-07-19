@@ -98,9 +98,6 @@ struct CodexBarApp: App {
                 runProviderLoginFlow: { provider in
                     await self.appDelegate.runProviderLoginFlow(provider)
                 })
-                .touchBar {
-                    CodexBarTouchBarView(settings: self.settings, store: self.store)
-                }
         }
         .defaultSize(width: SettingsPane.windowWidth, height: SettingsPane.windowHeight)
         .windowResizability(.contentMinSize)
