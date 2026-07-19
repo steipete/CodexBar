@@ -264,7 +264,12 @@ public struct LLMProxyUsageFetcher: Sendable {
 
             let quotaGroups = providers.values.flatMap { $0.quotaGroups ?? [] }
             let minRemaining = quotaGroups.compactMap(\.remainingPercent).min()
-            let reset = quotaGroups.compactMap { Self.parseDate($0.resetTime) }.min()
+            // Ignore already-elapsed reset times so a stale past reset can't win over the real
+            // upcoming one; mirrors GrokWebBillingFetcher and ClaudeStatusProbe.
+            let reset = quotaGroups
+                .compactMap { Self.parseDate($0.resetTime) }
+                .filter { $0 > updatedAt }
+                .min()
 
             return LLMProxyUsageSnapshot(
                 providerCount: providers.count,
