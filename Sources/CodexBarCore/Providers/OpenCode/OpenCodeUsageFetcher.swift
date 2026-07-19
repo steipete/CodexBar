@@ -730,6 +730,9 @@ public struct OpenCodeUsageFetcher: Sendable {
 
     private static func parseWindow(_ dict: [String: Any], now: Date) -> (percent: Double, resetInSec: Int)? {
         var percent = self.doubleValue(from: dict, keys: self.percentKeys)
+        // A direct percent field may arrive as a fraction (0...1) or a percent (0...100), so it goes
+        // through the `<= 1` heuristic below. A computed used/limit percent is already 0...100 and must not.
+        let percentIsDirect = percent != nil
 
         if percent == nil {
             let used = self.doubleValue(from: dict, keys: ["used", "usage", "consumed", "count", "usedTokens"])
@@ -740,7 +743,7 @@ public struct OpenCodeUsageFetcher: Sendable {
         }
 
         guard var resolvedPercent = percent else { return nil }
-        if resolvedPercent <= 1.0, resolvedPercent >= 0 {
+        if percentIsDirect, resolvedPercent <= 1.0, resolvedPercent >= 0 {
             resolvedPercent *= 100
         }
         resolvedPercent = max(0, min(100, resolvedPercent))
