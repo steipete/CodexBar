@@ -43,6 +43,12 @@ struct AdvancedPane: View {
                         L("disable_keychain_access_title"),
                         subtitle: L("disable_keychain_access_subtitle"))
                 }
+
+                Toggle(isOn: self.$settings.claudeOAuthBackgroundRepairEnabled) {
+                    SettingsRowLabel(
+                        L("claude_oauth_background_repair_title"),
+                        subtitle: L("claude_oauth_background_repair_subtitle"))
+                }
             } header: {
                 Text(L("section_privacy"))
             } footer: {

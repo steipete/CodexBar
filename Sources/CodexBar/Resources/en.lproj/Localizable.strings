@@ -632,6 +632,8 @@
 "keychain_access_caption" = "Disable all Keychain reads and writes. Use this if macOS keeps prompting for 'Chrome/Brave/Edge Safe Storage' even after clicking Always Allow. Browser cookie import is unavailable while enabled; paste Cookie headers manually in Providers. Claude/Codex OAuth via the CLI still works.";
 "disable_keychain_access_title" = "Disable Keychain access";
 "disable_keychain_access_subtitle" = "Prevents any Keychain access while enabled.";
+"claude_oauth_background_repair_title" = "Auto-repair expired Claude token";
+"claude_oauth_background_repair_subtitle" = "Lets CodexBar re-prompt the Keychain in the background instead of requiring a manual Refresh click when your Claude OAuth token expires.";
 
 /* About Pane */
 "about_tagline" = "May your tokens never run out—keep agent limits in view.";
