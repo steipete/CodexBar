@@ -188,7 +188,22 @@ enum CodexAccountMenuProjectionRevalidationResult: Equatable {
 @Observable
 final class SettingsStore {
     static let sharedDefaults = AppGroupSupport.sharedDefaults()
-    static let mergedOverviewProviderLimit = 6
+    /// User-configurable cap on how many providers render in the merged-icon
+    /// Overview tab. Used as a default-parameter value elsewhere in this file,
+    /// which Swift requires to be self-independent — hence `static var` (backed
+    /// by UserDefaults.standard, the same store `@AppStorage` targets) instead
+    /// of an instance property on `defaultsState`. Default matches the
+    /// original hardcoded value so existing users see no behavior change
+    /// unless they raise it.
+    static var mergedOverviewProviderLimit: Int {
+        get {
+            let stored = UserDefaults.standard.integer(forKey: "mergedOverviewProviderLimit")
+            return stored > 0 ? stored : 6
+        }
+        set {
+            UserDefaults.standard.set(max(1, newValue), forKey: "mergedOverviewProviderLimit")
+        }
+    }
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment

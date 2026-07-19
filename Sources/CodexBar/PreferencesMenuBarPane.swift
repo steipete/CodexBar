@@ -3,7 +3,9 @@ import SwiftUI
 
 @MainActor
 struct MenuBarPane: View {
-    private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
+    private static var maxOverviewProviders: Int { SettingsStore.mergedOverviewProviderLimit }
+
+    @AppStorage("mergedOverviewProviderLimit") private var overviewProviderLimitSetting = 6
 
     @State private var isOverviewProviderPopoverPresented = false
     @Bindable var settings: SettingsStore
@@ -75,6 +77,17 @@ struct MenuBarPane: View {
 
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
+
+                Stepper(
+                    value: self.$overviewProviderLimitSetting,
+                    in: 1 ... 12) {
+                    SettingsRowLabel(
+                        "Overview tab limit",
+                        subtitle: "How many providers can show at once (default 6).")
+                    Text("\(self.overviewProviderLimitSetting)")
+                        .foregroundStyle(.secondary)
+                }
+                .disabled(!self.settings.mergeIcons)
             } header: {
                 Text(L("section_combined_icon"))
             }

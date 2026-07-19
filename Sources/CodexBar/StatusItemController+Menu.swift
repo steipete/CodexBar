@@ -8,7 +8,7 @@ import SwiftUI
 
 extension StatusItemController {
     static let menuCardBaseWidth: CGFloat = 310
-    private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
+    private static var maxOverviewProviders: Int { SettingsStore.mergedOverviewProviderLimit }
     static let overviewRowIdentifierPrefix = "overviewRow-"
     static let persistentRefreshMenuItemID = "persistentRefreshAction"
     private static let defaultMenuOpenRefreshDelay: Duration = .seconds(1.2)
