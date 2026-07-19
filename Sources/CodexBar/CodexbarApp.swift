@@ -98,6 +98,9 @@ struct CodexBarApp: App {
                 runProviderLoginFlow: { provider in
                     await self.appDelegate.runProviderLoginFlow(provider)
                 })
+                .touchBar {
+                    CodexBarTouchBarView(settings: self.settings, store: self.store)
+                }
         }
         .defaultSize(width: SettingsPane.windowWidth, height: SettingsPane.windowHeight)
         .windowResizability(.contentMinSize)
@@ -365,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusController: StatusItemControlling?
     private var store: UsageStore?
     private var settings: SettingsStore?
+    private var persistentTouchBarController: PersistentUsageTouchBarController?
     private var account: AccountInfo?
     private var preferencesSelection: PreferencesSelection?
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
@@ -396,6 +400,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        if let store, let settings {
+            let controller = PersistentUsageTouchBarController(settings: settings, store: store)
+            controller.present()
+            self.persistentTouchBarController = controller
+        }
         Task { @MainActor [weak self] in
             await Task.yield()
             guard let settings = self?.settings else { return }
@@ -429,6 +438,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.removeDebugMemoryPressureObserver()
         #endif
         self.statusController?.prepareForAppShutdown()
+        self.persistentTouchBarController?.dismiss()
         self.confettiOverlayController.dismiss()
         self.dismissAppKitWindowsForShutdown()
         self.terminateActiveProcessesForAppShutdown()
