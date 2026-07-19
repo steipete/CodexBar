@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "account_email": "user@example.com",
+  "login_method": "Claude Max",
+  "session_5h": { "pct_used": 7, "resets": "11am (Europe/Vienna)" },
+  "week_all_models": { "pct_used": 21, "resets": "Nov 21 at 5am (Europe/Vienna)" },
+  "week_sonnet": { "pct_used": 3, "resets": "Nov 21 at 5am (Europe/Vienna)" }
+}

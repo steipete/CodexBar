@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>≈%d full 5h windows of weekly left · %d windows until reset</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@left@ · %#@until@</string>
+    <key>left</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>≈%d pełne 5-godz. okno limitu tygodniowego</string>
+      <key>few</key>
+      <string>≈%d pełne 5-godz. okna limitu tygodniowego</string>
+      <key>many</key>
+      <string>≈%d pełnych 5-godz. okien limitu tygodniowego</string>
+      <key>other</key>
+      <string>≈%d pełnych 5-godz. okien limitu tygodniowego</string>
+    </dict>
+    <key>until</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>%d okno do resetu</string>
+      <key>few</key>
+      <string>%d okna do resetu</string>
+      <key>many</key>
+      <string>%d okien do resetu</string>
+      <key>other</key>
+      <string>%d okien do resetu</string>
+    </dict>
+  </dict>
+  <key>Weekly can run out ≈%d windows early</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@early@</string>
+    <key>early</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>one</key>
+      <string>Limit tygodniowy może wyczerpać się ≈%d okno wcześniej</string>
+      <key>few</key>
+      <string>Limit tygodniowy może wyczerpać się ≈%d okna wcześniej</string>
+      <key>many</key>
+      <string>Limit tygodniowy może wyczerpać się ≈%d okien wcześniej</string>
+      <key>other</key>
+      <string>Limit tygodniowy może wyczerpać się ≈%d okien wcześniej</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

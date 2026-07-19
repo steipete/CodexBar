@@ -1,0 +1,4 @@
+{"type":"session_meta","timestamp":"2026-07-11T12:00:02Z","payload":{"id":"child-session","forked_from_id":"parent-session"}}
+{"type":"turn_context","timestamp":"2026-07-11T12:00:02Z","payload":{"model":"openai/gpt-5.5"}}
+{"type":"event_msg","timestamp":"2026-07-11T12:00:03Z","payload":{"type":"token_count","info":{"model":"openai/gpt-5.5","last_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":1},"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":1}}}}
+{"type":"event_msg","timestamp":"2026-07-11T12:00:04Z","payload":{"type":"token_count","info":{"model":"openai/gpt-5.5","last_token_usage":{"input_tokens":5,"cached_input_tokens":0,"output_tokens":1},"total_token_usage":{"input_tokens":15,"cached_input_tokens":0,"output_tokens":2}}}}

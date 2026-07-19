@@ -1,0 +1,56 @@
+import CodexBarCore
+import Foundation
+import Testing
+@testable import CodexBar
+
+@Test
+func `ProviderTokenAccountData encoding`() throws {
+    let now = Date().timeIntervalSince1970
+    let account = ProviderTokenAccount(
+        id: UUID(),
+        label: "user@example.com",
+        token: "test-token",
+        addedAt: now,
+        lastUsed: now)
+    let data = ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0)
+
+    let encoder = JSONEncoder()
+    let encoded = try encoder.encode(data)
+
+    let decoder = JSONDecoder()
+    let decoded = try decoder.decode(ProviderTokenAccountData.self, from: encoded)
+
+    #expect(decoded.version == 1)
+    #expect(decoded.accounts.count == 1)
+    #expect(decoded.accounts[0].label == "user@example.com")
+    #expect(decoded.activeIndex == 0)
+}
+
+@Test
+func `FileTokenAccountStore round trip`() throws {
+    let tempDir = FileManager.default.temporaryDirectory
+    let fileURL = tempDir.appendingPathComponent("codexbar-token-accounts-test.json")
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let now = Date().timeIntervalSince1970
+    let account = ProviderTokenAccount(
+        id: UUID(),
+        label: "user@example.com",
+        token: "test-token",
+        addedAt: now,
+        lastUsed: nil,
+        usageScope: "team",
+        organizationID: "org-test",
+        workspaceID: "proj-test")
+    let data = ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0)
+    let store = FileTokenAccountStore(fileURL: fileURL)
+
+    try store.storeAccounts([.zai: data])
+    let loaded = try store.loadAccounts()
+
+    #expect(loaded[.zai]?.accounts.count == 1)
+    #expect(loaded[.zai]?.accounts[0].label == "user@example.com")
+    #expect(loaded[.zai]?.accounts[0].usageScope == "team")
+    #expect(loaded[.zai]?.accounts[0].organizationID == "org-test")
+    #expect(loaded[.zai]?.accounts[0].workspaceID == "proj-test")
+}

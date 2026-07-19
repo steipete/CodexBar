@@ -1,0 +1,95 @@
+---
+summary: "MiniMax provider data sources: Coding Plan tokens, browser cookies, and web-session parsing."
+read_when:
+  - Debugging MiniMax usage parsing
+  - Updating MiniMax cookie handling or coding plan scraping
+  - Adjusting MiniMax provider UI/menu behavior
+---
+
+# MiniMax provider
+
+MiniMax supports Coding Plan API tokens or web sessions. Web-session mode uses MiniMax browser/session state and
+falls back across the provider's supported web requests when needed.
+
+## Data sources
+
+1) **Coding Plan API token**
+   - Set in Preferences → Providers → MiniMax (stored in `~/.codexbar/config.json`), `MINIMAX_CODING_API_KEY`,
+     or `MINIMAX_API_KEY`.
+   - When both environment variables are present, `MINIMAX_CODING_API_KEY` wins so a standard `sk-api-*` key does
+     not mask a coding-plan `sk-cp-*` key.
+   - Auto mode can fall back to the web/cookie path when API-token credentials are rejected or the global endpoint
+     returns 404.
+
+2) **Cached/imported browser session** (automatic web path)
+   - Uses CodexBar's standard cookie cache and browser import flow.
+
+3) **Browser cookie import** (automatic)
+   - Uses provider metadata for browser order and MiniMax domain filters.
+   - Chromium browser storage can supplement imported cookies with access-token context when available.
+
+4) **Manual session cookie header** (optional web-path override)
+   - Stored in `~/.codexbar/config.json` via Preferences → Providers → MiniMax (Cookie source → Manual).
+   - Accepts a raw `Cookie:` header or a full "Copy as cURL" string.
+   - Low-level no-settings runtime can read `MINIMAX_COOKIE` or `MINIMAX_COOKIE_HEADER`.
+
+## Requests
+- Web sessions use the global host or China mainland host.
+- Region picker in Providers settings toggles the host; environment overrides:
+  - `MINIMAX_HOST=platform.minimaxi.com`
+  - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
+  - `MINIMAX_REMAINS_URL=...` (full URL override)
+- Security policy: endpoint overrides are only accepted when they use `https://`, omit userinfo, and do not contain encoded host delimiters. Custom HTTPS proxy/test domains continue to work for compatibility, but `http://` endpoints are rejected so cookies and authorization headers are not sent in cleartext.
+- Strict provider-host mode: set `MINIMAX_REQUIRE_PROVIDER_ENDPOINT_OVERRIDES=true` to additionally reject custom proxy/test domains and only accept MiniMax-owned hosts under `minimax.io` or `minimaxi.com`.
+
+## Cookie capture (optional override)
+- Open the Coding Plan page and DevTools → Network.
+- Select the request to `/v1/api/openplatform/coding_plan/remains`.
+- Copy the `Cookie` request header (or use “Copy as cURL” and paste the whole line).
+- Paste into Preferences → Providers → MiniMax only if automatic import fails.
+
+## Snapshot mapping
+- Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.
+- Web-session billing history, when available, is mapped into the shared inline usage dashboard:
+  - 30-day token trend.
+  - Top model and top method breakdowns.
+  - Summary rows for recent billing-history totals.
+
+If the billing-history endpoint is unavailable but normal Coding Plan quota data is present, CodexBar still shows the
+quota card and omits the chart instead of treating the whole provider as failed.
+
+## Key files
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxUsageFetcher.swift`
+- `Sources/CodexBarCore/Providers/MiniMax/MiniMaxProviderDescriptor.swift`
+- `Sources/CodexBar/Providers/MiniMax/MiniMaxProviderImplementation.swift`
+
+## CLI diagnose command
+
+The generic `diagnose` command performs a real provider diagnostic invocation and emits a safe, redacted JSON export
+for issue reporting and verification. MiniMax adds a provider-specific `details` block with safe usage metadata.
+
+### Usage
+```
+codexbar diagnose --provider minimax --format json --pretty
+```
+
+### Output
+- Structural diagnostic JSON with provider, source/source mode, auth summary, usage summary, fetch attempts, and error categories.
+- Per-service quota percentages, used values, limits, remaining values, reset metadata, and unlimited state. These are
+  the same non-secret values shown in the menu and help diagnose boosted quota denominators.
+- All sensitive fields (API tokens, cookies, emails, auth headers) are redacted via `LogRedactor`.
+- Errors are mapped to safe categories (`network`, `auth`, `api`, `parse`) with user-friendly descriptions.
+- No raw API responses, raw error messages, tokens, cookies, emails, account IDs, org IDs, or billing history.
+
+### What is excluded from output
+- Raw API tokens (`sk-cp-*`, `sk-api-*`) and authorization headers
+- Cookie header values
+- Email addresses
+- Account IDs, org IDs
+- Raw error messages (replaced with safe category-based descriptions)
+- Raw HTTP responses or request bodies
+- Billing history details
+
+### Exit codes
+- `0`: Diagnostic completed successfully (even if provider auth is not configured)
+- `1`: Unknown error or invalid arguments

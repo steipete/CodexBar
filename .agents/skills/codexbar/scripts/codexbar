@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+"""Read-only, bounded CodexBar CLI bridge."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import threading
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Sequence
+
+
+MAX_CAPTURE_BYTES = 1024 * 1024
+DEFAULT_TIMEOUT = 120.0
+BIN_ENV = "CODEXBAR_BIN"
+TIMEOUT_ENV = "CODEXBAR_TIMEOUT"
+SKIP_DISCOVERY_ENV = "CODEXBAR_SKIP_DISCOVERY"
+
+SECRET = "<redacted:secret>"
+IDENTITY = "<redacted:identity>"
+EMAIL = "<redacted:email>"
+
+EMAIL_RE = re.compile(r"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", re.I)
+BEARER_RE = re.compile(r"(?i)\bbearer\s+[A-Z0-9._~+/=\-]+")
+JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b")
+LABELED_SECRET_RE = re.compile(
+    r"(?i)\b(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|"
+    r"session(?:id)?|secret|password|passwd|cookie|set-cookie)(\s*[:=]\s*)([^\s,;]+)"
+)
+WORD_SECRET_RE = re.compile(
+    r"(?i)\b(token|secret|password|passwd|cookie)\s+([A-Z0-9._~+/=\-]{6,})\b"
+)
+SECRET_KEY_RE = re.compile(
+    r"(?i)(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|"
+    r"session(?:id)?|secret|password|passwd|cookie)"
+)
+IDENTITY_KEYS = {
+    "accountemail",
+    "accountorganization",
+    "accountid",
+    "accountname",
+    "email",
+    "organization",
+    "userid",
+    "username",
+}
+# ProviderIdentitySnapshot.providerID is UsageProvider, not an account identifier.
+
+
+@dataclass(frozen=True)
+class Binary:
+    path: str
+    source: str
+
+
+@dataclass(frozen=True)
+class Result:
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+    timed_out: bool
+
+
+def normalized_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def timeout_seconds() -> float:
+    try:
+        return max(1.0, float(os.environ.get(TIMEOUT_ENV, DEFAULT_TIMEOUT)))
+    except ValueError:
+        return DEFAULT_TIMEOUT
+
+
+def safe_path(path: str) -> str:
+    home = str(Path.home())
+    if path == home:
+        return "~"
+    if path.startswith(home + os.sep):
+        return "~" + path[len(home) :]
+    return re.sub(r"^/Users/[^/]+", "/Users/<redacted>", path)
+
+
+def candidates() -> list[tuple[str, Path]]:
+    found: list[tuple[str, Path]] = []
+    override = os.environ.get(BIN_ENV)
+    if override:
+        found.append(("env", Path(override).expanduser()))
+
+    path_hit = shutil.which("codexbar")
+    if path_hit:
+        found.append(("path", Path(path_hit)))
+
+    if os.environ.get(SKIP_DISCOVERY_ENV) == "1":
+        return found
+
+    home = Path.home()
+    found.extend(
+        [
+            ("homebrew", Path("/opt/homebrew/bin/codexbar")),
+            ("homebrew", Path("/usr/local/bin/codexbar")),
+            ("app", Path("/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI")),
+            ("app", home / "Applications/CodexBar.app/Contents/Helpers/CodexBarCLI"),
+        ]
+    )
+    for root in (Path("/opt/homebrew/Caskroom/codexbar"), Path("/usr/local/Caskroom/codexbar")):
+        found.extend(("cask", app / "Contents/Helpers/CodexBarCLI") for app in sorted(root.glob("*/CodexBar.app")))
+    return found
+
+
+def resolve_binary() -> Binary | None:
+    self_path = Path(__file__).resolve()
+    seen: set[Path] = set()
+    for source, candidate in candidates():
+        try:
+            resolved = candidate.resolve()
+            if resolved in seen or resolved == self_path:
+                continue
+            seen.add(resolved)
+            if resolved.is_file() and os.access(resolved, os.X_OK):
+                return Binary(str(resolved), source)
+        except OSError:
+            continue
+    return None
+
+
+def drain(pipe: Any, target: bytearray) -> None:
+    try:
+        while True:
+            chunk = pipe.read(65536)
+            if not chunk:
+                break
+            room = MAX_CAPTURE_BYTES - len(target)
+            if room > 0:
+                target.extend(chunk[:room])
+    finally:
+        pipe.close()
+
+
+def stop_group(process: subprocess.Popen[bytes], sig: signal.Signals) -> None:
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        pass
+
+
+def run_process(argv: Sequence[str]) -> Result:
+    process = subprocess.Popen(
+        list(argv),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    assert process.stdout is not None
+    assert process.stderr is not None
+    stdout = bytearray()
+    stderr = bytearray()
+    readers = [
+        threading.Thread(target=drain, args=(process.stdout, stdout), daemon=True),
+        threading.Thread(target=drain, args=(process.stderr, stderr), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+
+    timed_out = False
+    try:
+        process.wait(timeout=timeout_seconds())
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        stop_group(process, signal.SIGTERM)
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            stop_group(process, signal.SIGKILL)
+            process.wait()
+
+    for reader in readers:
+        reader.join(timeout=3)
+    return Result(124 if timed_out else process.returncode, bytes(stdout), bytes(stderr), timed_out)
+
+
+def decode(value: bytes) -> str:
+    return value.decode("utf-8", errors="replace")
+
+
+def sanitize_text(value: str, include_identities: bool) -> str:
+    value = JWT_RE.sub(SECRET, value)
+    value = BEARER_RE.sub("Bearer " + SECRET, value)
+    value = LABELED_SECRET_RE.sub(lambda match: match.group(1) + match.group(2) + SECRET, value)
+    value = WORD_SECRET_RE.sub(lambda match: match.group(1) + " " + SECRET, value)
+    if not include_identities:
+        value = EMAIL_RE.sub(EMAIL, value)
+    return value
+
+
+def sanitize(value: Any, include_identities: bool, key: str | None = None) -> Any:
+    if key and SECRET_KEY_RE.search(key):
+        return SECRET
+    if key and normalized_key(key) in IDENTITY_KEYS and not include_identities and value is not None:
+        return EMAIL if "email" in normalized_key(key) else IDENTITY
+    if isinstance(value, dict):
+        return {str(child_key): sanitize(child, include_identities, str(child_key)) for child_key, child in value.items()}
+    if isinstance(value, list):
+        return [sanitize(child, include_identities) for child in value]
+    if isinstance(value, str):
+        return sanitize_text(value, include_identities)
+    return value
+
+
+def print_json(value: Any) -> None:
+    print(json.dumps(value, indent=2, sort_keys=True))
+
+
+def print_error(kind: str, message: str, *, binary: Binary | None = None) -> None:
+    payload: dict[str, Any] = {"error": {"kind": kind, "message": sanitize_text(message, False)}}
+    if binary:
+        payload["binary"] = {"path": safe_path(binary.path), "source": binary.source}
+    print_json(payload)
+
+
+def emit_stderr(result: Result, include_identities: bool) -> None:
+    text = sanitize_text(decode(result.stderr), include_identities).strip()
+    if text:
+        print(text, file=sys.stderr)
+
+
+def read_json(binary: Binary, argv: Sequence[str], include_identities: bool) -> int:
+    result = run_process([binary.path, *argv])
+    emit_stderr(result, include_identities)
+    if result.timed_out:
+        print_error("timeout", f"CodexBar exceeded {timeout_seconds():g}s and was stopped.", binary=binary)
+        return 124
+    try:
+        payload = json.loads(decode(result.stdout))
+    except json.JSONDecodeError as error:
+        preview = sanitize_text(decode(result.stdout[:400]), False)
+        print_error("invalid_json", f"CodexBar JSON failed: {error.msg}. stdout={preview!r}", binary=binary)
+        return result.returncode or 1
+    print_json(sanitize(payload, include_identities))
+    return result.returncode
+
+
+def doctor(binary: Binary, include_identities: bool) -> int:
+    version = run_process([binary.path, "--version"])
+    if version.timed_out:
+        print_error("timeout", f"CodexBar version exceeded {timeout_seconds():g}s.", binary=binary)
+        return 124
+    validation = run_process([binary.path, "config", "validate", "--format", "json", "--json-only"])
+    emit_stderr(version, include_identities)
+    emit_stderr(validation, include_identities)
+    if validation.timed_out:
+        print_error("timeout", f"CodexBar config validation exceeded {timeout_seconds():g}s.", binary=binary)
+        return 124
+    try:
+        issues = json.loads(decode(validation.stdout))
+    except json.JSONDecodeError as error:
+        print_error("invalid_json", f"CodexBar config validation failed: {error.msg}.", binary=binary)
+        return validation.returncode or 1
+    print_json(
+        {
+            "binary": {"path": safe_path(binary.path), "source": binary.source},
+            "configIssues": sanitize(issues, include_identities),
+            "version": sanitize_text((decode(version.stdout) or decode(version.stderr)).strip(), include_identities),
+        }
+    )
+    return version.returncode or validation.returncode
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(prog="codexbar", description="CodexBar read. JSON out. No writes.")
+    commands = root.add_subparsers(dest="command", required=True)
+    for name in ("doctor", "providers"):
+        command = commands.add_parser(name)
+        command.add_argument("--include-identities", action="store_true")
+    usage = commands.add_parser("usage")
+    scope = usage.add_mutually_exclusive_group()
+    scope.add_argument("--all", action="store_true")
+    scope.add_argument("--provider")
+    usage.add_argument("--include-identities", action="store_true")
+    return root
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parser().parse_args(argv)
+    binary = resolve_binary()
+    if not binary:
+        print_error("missing", "CodexBar CLI not found. Install CLI in CodexBar Advanced settings or set CODEXBAR_BIN.")
+        return 1
+    try:
+        if args.command == "doctor":
+            return doctor(binary, args.include_identities)
+        if args.command == "providers":
+            return read_json(
+                binary,
+                ["config", "providers", "--format", "json", "--json-only"],
+                args.include_identities,
+            )
+        usage_args = ["usage", "--format", "json", "--json-only"]
+        if args.all:
+            usage_args.extend(["--provider", "all"])
+        elif args.provider:
+            usage_args.extend(["--provider", args.provider])
+        return read_json(binary, usage_args, args.include_identities)
+    except OSError as error:
+        print_error("launch", str(error), binary=binary)
+        return 1
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print_error("interrupted", "Interrupted.")
+        raise SystemExit(130)

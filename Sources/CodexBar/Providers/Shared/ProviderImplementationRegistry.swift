@@ -1,0 +1,115 @@
+import CodexBarCore
+import Foundation
+
+enum ProviderImplementationRegistry {
+    private final class Store: @unchecked Sendable {
+        var ordered: [any ProviderImplementation] = []
+        var byID: [UsageProvider: any ProviderImplementation] = [:]
+    }
+
+    private static let lock = NSLock()
+    private static let store = Store()
+
+    // swiftlint:disable:next cyclomatic_complexity
+    private static func makeImplementation(for provider: UsageProvider) -> (any ProviderImplementation) {
+        switch provider {
+        case .codex: CodexProviderImplementation()
+        case .openai: OpenAIAPIProviderImplementation()
+        case .azureopenai: AzureOpenAIProviderImplementation()
+        case .claude: ClaudeProviderImplementation()
+        case .clinepass: ClinePassProviderImplementation()
+        case .cursor: CursorProviderImplementation()
+        case .opencode: OpenCodeProviderImplementation()
+        case .opencodego: OpenCodeGoProviderImplementation()
+        case .alibaba: AlibabaCodingPlanProviderImplementation()
+        case .alibabatokenplan: AlibabaTokenPlanProviderImplementation()
+        case .factory: FactoryProviderImplementation()
+        case .gemini: GeminiProviderImplementation()
+        case .antigravity: AntigravityProviderImplementation()
+        case .copilot: CopilotProviderImplementation()
+        case .devin: DevinProviderImplementation()
+        case .zai: ZaiProviderImplementation()
+        case .minimax: MiniMaxProviderImplementation()
+        case .manus: ManusProviderImplementation()
+        case .kimi: KimiProviderImplementation()
+        case .kilo: KiloProviderImplementation()
+        case .kiro: KiroProviderImplementation()
+        case .vertexai: VertexAIProviderImplementation()
+        case .augment: AugmentProviderImplementation()
+        case .jetbrains: JetBrainsProviderImplementation()
+        case .moonshot: MoonshotProviderImplementation()
+        case .amp: AmpProviderImplementation()
+        case .t3chat: T3ChatProviderImplementation()
+        case .ollama: OllamaProviderImplementation()
+        case .synthetic: SyntheticProviderImplementation()
+        case .openrouter: OpenRouterProviderImplementation()
+        case .elevenlabs: ElevenLabsProviderImplementation()
+        case .warp: WarpProviderImplementation()
+        case .windsurf: WindsurfProviderImplementation()
+        case .zed: ZedProviderImplementation()
+        case .perplexity: PerplexityProviderImplementation()
+        case .mimo: MiMoProviderImplementation()
+        case .doubao: DoubaoProviderImplementation()
+        case .sakana: SakanaProviderImplementation()
+        case .abacus: AbacusProviderImplementation()
+        case .mistral: MistralProviderImplementation()
+        case .deepseek: DeepSeekProviderImplementation()
+        case .deepinfra: DeepInfraProviderImplementation()
+        case .codebuff: CodebuffProviderImplementation()
+        case .crof: CrofProviderImplementation()
+        case .venice: VeniceProviderImplementation()
+        case .commandcode: CommandCodeProviderImplementation()
+        case .qoder: QoderProviderImplementation()
+        case .stepfun: StepFunProviderImplementation()
+        case .bedrock: BedrockProviderImplementation()
+        case .grok: GrokProviderImplementation()
+        case .groq: GroqProviderImplementation()
+        case .llmproxy: LLMProxyProviderImplementation()
+        case .litellm: LiteLLMProviderImplementation()
+        case .deepgram: DeepgramProviderImplementation()
+        case .poe: PoeProviderImplementation()
+        case .chutes: ChutesProviderImplementation()
+        case .neuralwatt: NeuralWattProviderImplementation()
+        case .clawrouter: ClawRouterProviderImplementation()
+        case .longcat: LongCatProviderImplementation()
+        case .sub2api: Sub2APIProviderImplementation()
+        case .wayfinder: WayfinderProviderImplementation()
+        case .zenmux: ZenMuxProviderImplementation()
+        case .aiand: AiAndProviderImplementation()
+        }
+    }
+
+    private static let bootstrap: Void = {
+        for provider in UsageProvider.allCases {
+            _ = ProviderImplementationRegistry.register(makeImplementation(for: provider))
+        }
+    }()
+
+    private static func ensureBootstrapped() {
+        _ = self.bootstrap
+    }
+
+    @discardableResult
+    static func register(_ implementation: any ProviderImplementation) -> any ProviderImplementation {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        if self.store.byID[implementation.id] == nil {
+            self.store.ordered.append(implementation)
+        }
+        self.store.byID[implementation.id] = implementation
+        return implementation
+    }
+
+    static var all: [any ProviderImplementation] {
+        self.ensureBootstrapped()
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.store.ordered
+    }
+
+    static func implementation(for id: UsageProvider) -> (any ProviderImplementation)? {
+        self.ensureBootstrapped()
+        if let found = self.store.byID[id] { return found }
+        return self.all.first(where: { $0.id == id })
+    }
+}

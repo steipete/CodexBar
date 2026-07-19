@@ -1,0 +1,51 @@
+import Foundation
+
+public enum CrofProviderDescriptor {
+    public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
+    static func makeDescriptor() -> ProviderDescriptor {
+        ProviderDescriptor(
+            id: .crof,
+            metadata: ProviderMetadata(
+                id: .crof,
+                displayName: "Crof",
+                sessionLabel: "Requests",
+                weeklyLabel: "Credits",
+                opusLabel: nil,
+                supportsOpus: false,
+                supportsCredits: false,
+                creditsHint: "Credit balance from the Crof usage API",
+                toggleTitle: "Show Crof usage",
+                cliName: "crof",
+                defaultEnabled: false,
+                isPrimaryProvider: false,
+                usesAccountFallback: false,
+                browserCookieOrder: nil,
+                dashboardURL: "https://crof.ai/dashboard",
+                statusPageURL: nil,
+                statusLinkURL: nil),
+            branding: ProviderBranding(
+                iconStyle: .crof,
+                iconResourceName: "ProviderIcon-crof",
+                color: ProviderColor(red: 0.18, green: 0.67, blue: 0.58),
+                confettiPalette: [
+                    ProviderColor(hex: 0x0A0A0A),
+                    ProviderColor(hex: 0x8B7CFF),
+                    ProviderColor(hex: 0xA99FFF),
+                ]),
+            tokenCost: ProviderTokenCostConfig(
+                supportsTokenCost: false,
+                noDataMessage: { "Crof cost summary is not available via API." }),
+            fetchPlan: .apiToken(
+                strategyID: "crof.api",
+                resolveToken: { ProviderTokenResolver.crofToken(environment: $0) },
+                missingCredentialsError: { CrofUsageError.missingCredentials },
+                loadUsage: { apiKey, _ in
+                    try await CrofUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
+                }),
+            cli: ProviderCLIConfig(
+                name: "crof",
+                aliases: ["crofai"],
+                versionDetector: nil))
+    }
+}

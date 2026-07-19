@@ -1,0 +1,10 @@
+{
+  "Self": {"DNSName": "local-mac.example.ts.net.", "HostName": "local-mac"},
+  "Peer": {
+    "node-1": {"DNSName": "clawmac.example.ts.net.", "OS": "macOS", "Online": true},
+    "node-2": {"DNSName": "linuxbox.example.ts.net.", "OS": "linux", "Online": true},
+    "node-3": {"DNSName": "phone.example.ts.net.", "OS": "iOS", "Online": true},
+    "node-4": {"DNSName": "offline.example.ts.net.", "OS": "macOS", "Online": false},
+    "node-5": {"DNSName": "local-mac.example.ts.net.", "OS": "macOS", "Online": true}
+  }
+}

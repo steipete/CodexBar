@@ -1,0 +1,435 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
+import Foundation
+
+actor CodexCLISession {
+    static let shared = CodexCLISession()
+
+    enum SessionError: LocalizedError {
+        case launchFailed(String)
+        case timedOut
+        case processExited
+        case outputTooLarge
+
+        var errorDescription: String? {
+            switch self {
+            case let .launchFailed(msg): "Failed to launch Codex CLI session: \(msg)"
+            case .timedOut: "Codex CLI session timed out."
+            case .processExited: "Codex CLI session exited."
+            case .outputTooLarge: "Codex CLI session produced more output than CodexBar can safely process."
+            }
+        }
+    }
+
+    private var process: Process?
+    private var primaryFD: Int32 = -1
+    private var primaryHandle: FileHandle?
+    private var secondaryHandle: FileHandle?
+    private var processGroup: pid_t?
+    private var binaryPath: String?
+    private var startedAt: Date?
+    private var ptyRows: UInt16 = 0
+    private var ptyCols: UInt16 = 0
+    private var sessionEnvironment: [String: String]?
+    private var sessionArguments: [String] = []
+    private var sessionWorkingDirectory: URL?
+
+    struct CaptureOptions {
+        let timeout: TimeInterval
+        let rows: UInt16
+        let cols: UInt16
+        let environment: [String: String]
+        let extraArgs: [String]
+        let workingDirectory: URL?
+    }
+
+    private struct RollingBuffer {
+        private let maxNeedle: Int
+        private var tail = Data()
+
+        init(maxNeedle: Int) {
+            self.maxNeedle = max(0, maxNeedle)
+        }
+
+        mutating func append(_ data: Data) -> Data {
+            guard !data.isEmpty else { return Data() }
+            var combined = Data()
+            combined.reserveCapacity(self.tail.count + data.count)
+            combined.append(self.tail)
+            combined.append(data)
+            if self.maxNeedle > 1 {
+                if combined.count >= self.maxNeedle - 1 {
+                    self.tail = combined.suffix(self.maxNeedle - 1)
+                } else {
+                    self.tail = combined
+                }
+            } else {
+                self.tail.removeAll(keepingCapacity: true)
+            }
+            return combined
+        }
+
+        mutating func reset() {
+            self.tail.removeAll(keepingCapacity: true)
+        }
+    }
+
+    static func lowercasedASCII(_ data: Data) -> Data {
+        guard !data.isEmpty else { return data }
+        var out = Data(count: data.count)
+        out.withUnsafeMutableBytes { dest in
+            data.withUnsafeBytes { source in
+                let src = source.bindMemory(to: UInt8.self)
+                let dst = dest.bindMemory(to: UInt8.self)
+                for idx in 0..<src.count {
+                    var byte = src[idx]
+                    if byte >= 65, byte <= 90 { byte += 32 }
+                    dst[idx] = byte
+                }
+            }
+        }
+        return out
+    }
+
+    // swiftlint:disable cyclomatic_complexity
+    func captureStatus(
+        binary: String,
+        options: CaptureOptions) async throws -> String
+    {
+        try self.ensureStarted(binary: binary, options: options)
+        if let startedAt {
+            let sinceStart = Date().timeIntervalSince(startedAt)
+            if sinceStart < 0.4 {
+                let delay = UInt64((0.4 - sinceStart) * 1_000_000_000)
+                try await Task.sleep(nanoseconds: delay)
+            }
+        }
+        self.drainOutput()
+
+        let script = "/status"
+        let cursorQuery = Data([0x1B, 0x5B, 0x36, 0x6E])
+        let statusMarkers = [
+            "Credits:",
+            "5h limit",
+            "5-hour limit",
+            "Weekly limit",
+        ].map { Data($0.utf8) }
+        let updateNeedles = ["Update available!", "Run bun install -g @openai/codex", "0.60.1 ->"]
+        let updateNeedlesLower = updateNeedles.map { Data($0.lowercased().utf8) }
+        let statusNeedleLengths = statusMarkers.map(\.count)
+        let updateNeedleLengths = updateNeedlesLower.map(\.count)
+        let statusMaxNeedle = ([cursorQuery.count] + statusNeedleLengths).max() ?? cursorQuery.count
+        let updateMaxNeedle = updateNeedleLengths.max() ?? 0
+        var statusScanBuffer = RollingBuffer(maxNeedle: statusMaxNeedle)
+        var updateScanBuffer = RollingBuffer(maxNeedle: updateMaxNeedle)
+
+        var buffer = BoundedOutputBuffer()
+        func appendOutput(_ data: Data) throws {
+            guard buffer.append(data) else {
+                self.cleanup()
+                throw SessionError.outputTooLarge
+            }
+        }
+        let deadline = Date().addingTimeInterval(options.timeout)
+        var nextCursorCheckAt = Date(timeIntervalSince1970: 0)
+
+        var skippedCodexUpdate = false
+        var sentScript = false
+        var updateSkipAttempts = 0
+        var lastEnter = Date(timeIntervalSince1970: 0)
+        var scriptSentAt: Date?
+        var resendStatusRetries = 0
+        var enterRetries = 0
+        var sawCodexStatus = false
+        var sawCodexUpdatePrompt = false
+
+        while Date() < deadline {
+            let newData = self.readChunk()
+            if !newData.isEmpty {
+                try appendOutput(newData)
+            }
+            let scanData = statusScanBuffer.append(newData)
+            if Date() >= nextCursorCheckAt,
+               !scanData.isEmpty,
+               scanData.range(of: cursorQuery) != nil
+            {
+                try? self.send("\u{1b}[1;1R")
+                nextCursorCheckAt = Date().addingTimeInterval(1.0)
+            }
+            if !scanData.isEmpty, !sawCodexStatus {
+                if statusMarkers.contains(where: { scanData.range(of: $0) != nil }) {
+                    sawCodexStatus = true
+                }
+            }
+
+            if !skippedCodexUpdate, !sawCodexUpdatePrompt, !newData.isEmpty {
+                let lowerData = Self.lowercasedASCII(newData)
+                let lowerScan = updateScanBuffer.append(lowerData)
+                if updateNeedlesLower.contains(where: { lowerScan.range(of: $0) != nil }) {
+                    sawCodexUpdatePrompt = true
+                }
+            }
+
+            if !skippedCodexUpdate, sawCodexUpdatePrompt {
+                try? self.send("\u{1b}[B")
+                try await Task.sleep(nanoseconds: 120_000_000)
+                try? self.send("\r")
+                try await Task.sleep(nanoseconds: 150_000_000)
+                try? self.send("\r")
+                try? self.send(script)
+                try? self.send("\r")
+                updateSkipAttempts += 1
+                if updateSkipAttempts >= 1 {
+                    skippedCodexUpdate = true
+                    sentScript = false
+                    scriptSentAt = nil
+                    buffer.removeAll()
+                    statusScanBuffer.reset()
+                    updateScanBuffer.reset()
+                    sawCodexStatus = false
+                }
+                try await Task.sleep(nanoseconds: 300_000_000)
+            }
+
+            if !sentScript, !sawCodexUpdatePrompt || skippedCodexUpdate {
+                try? self.send(script)
+                try? self.send("\r")
+                sentScript = true
+                scriptSentAt = Date()
+                lastEnter = Date()
+                try await Task.sleep(nanoseconds: 200_000_000)
+                continue
+            }
+            if sentScript, !sawCodexStatus {
+                if Date().timeIntervalSince(lastEnter) >= 1.2, enterRetries < 6 {
+                    try? self.send("\r")
+                    enterRetries += 1
+                    lastEnter = Date()
+                    try await Task.sleep(nanoseconds: 120_000_000)
+                    continue
+                }
+                if let sentAt = scriptSentAt,
+                   Date().timeIntervalSince(sentAt) >= 3.0,
+                   resendStatusRetries < 2
+                {
+                    try? self.send(script)
+                    try? self.send("\r")
+                    resendStatusRetries += 1
+                    buffer.removeAll()
+                    statusScanBuffer.reset()
+                    updateScanBuffer.reset()
+                    sawCodexStatus = false
+                    scriptSentAt = Date()
+                    lastEnter = Date()
+                    try await Task.sleep(nanoseconds: 220_000_000)
+                    continue
+                }
+            }
+            if sawCodexStatus { break }
+            if let proc = self.process, !proc.isRunning {
+                throw SessionError.processExited
+            }
+            try await Task.sleep(nanoseconds: 120_000_000)
+        }
+
+        if sawCodexStatus {
+            let settleDeadline = Date().addingTimeInterval(2.0)
+            while Date() < settleDeadline {
+                let newData = self.readChunk()
+                if !newData.isEmpty {
+                    try appendOutput(newData)
+                }
+                let scanData = statusScanBuffer.append(newData)
+                if Date() >= nextCursorCheckAt,
+                   !scanData.isEmpty,
+                   scanData.range(of: cursorQuery) != nil
+                {
+                    try? self.send("\u{1b}[1;1R")
+                    nextCursorCheckAt = Date().addingTimeInterval(1.0)
+                }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+
+        guard !buffer.data.isEmpty, let text = String(data: buffer.data, encoding: .utf8) else {
+            throw SessionError.timedOut
+        }
+        return text
+    }
+
+    // swiftlint:enable cyclomatic_complexity
+
+    func reset() {
+        self.cleanup()
+    }
+
+    private func ensureStarted(
+        binary: String,
+        options: CaptureOptions) throws
+    {
+        if let proc = self.process,
+           proc.isRunning,
+           self.binaryPath == binary,
+           self.ptyRows == options.rows,
+           self.ptyCols == options.cols,
+           self.sessionEnvironment == options.environment,
+           self.sessionArguments == options.extraArgs,
+           self.sessionWorkingDirectory == options.workingDirectory
+        {
+            return
+        }
+        self.cleanup()
+
+        var primaryFD: Int32 = -1
+        var secondaryFD: Int32 = -1
+        var win = winsize(ws_row: options.rows, ws_col: options.cols, ws_xpixel: 0, ws_ypixel: 0)
+        guard openpty(&primaryFD, &secondaryFD, nil, nil, &win) == 0 else {
+            throw SessionError.launchFailed("openpty failed")
+        }
+        _ = fcntl(primaryFD, F_SETFL, O_NONBLOCK)
+
+        let primaryHandle = FileHandle(fileDescriptor: primaryFD, closeOnDealloc: true)
+        let secondaryHandle = FileHandle(fileDescriptor: secondaryFD, closeOnDealloc: true)
+
+        let proc = Process()
+        let resolvedURL = URL(fileURLWithPath: binary)
+        proc.executableURL = resolvedURL
+        proc.arguments = options.extraArgs
+        proc.standardInput = secondaryHandle
+        proc.standardOutput = secondaryHandle
+        proc.standardError = secondaryHandle
+        proc.currentDirectoryURL = options.workingDirectory
+
+        let env = TTYCommandRunner.enrichedEnvironment(
+            baseEnv: options.environment,
+            home: options.environment["HOME"] ?? NSHomeDirectory())
+        proc.environment = env
+
+        guard TTYCommandRunner.beginActiveProcessLaunchForAppShutdown() else {
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed("App shutdown in progress")
+        }
+        defer { TTYCommandRunner.endActiveProcessLaunchForAppShutdown() }
+
+        do {
+            try proc.run()
+        } catch {
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed(error.localizedDescription)
+        }
+
+        let pid = proc.processIdentifier
+        guard TTYCommandRunner.registerActiveProcessForAppShutdown(
+            pid: pid,
+            binary: resolvedURL.lastPathComponent)
+        else {
+            proc.terminate()
+            kill(pid, SIGKILL)
+            try? primaryHandle.close()
+            try? secondaryHandle.close()
+            throw SessionError.launchFailed("App shutdown in progress")
+        }
+
+        var processGroup: pid_t?
+        if setpgid(pid, pid) == 0 {
+            processGroup = pid
+            TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: pid, processGroup: processGroup)
+        }
+
+        self.process = proc
+        self.primaryFD = primaryFD
+        self.primaryHandle = primaryHandle
+        self.secondaryHandle = secondaryHandle
+        self.processGroup = processGroup
+        self.binaryPath = binary
+        self.startedAt = Date()
+        self.ptyRows = options.rows
+        self.ptyCols = options.cols
+        self.sessionEnvironment = options.environment
+        self.sessionArguments = options.extraArgs
+        self.sessionWorkingDirectory = options.workingDirectory
+    }
+
+    private func cleanup() {
+        if let proc = self.process, proc.isRunning, let handle = self.primaryHandle {
+            try? handle.write(contentsOf: Data("/exit\n".utf8))
+        }
+        try? self.primaryHandle?.close()
+        try? self.secondaryHandle?.close()
+
+        let descendants = self.process.map { TTYProcessTreeTerminator.descendantPIDs(of: $0.processIdentifier) } ?? []
+        if let proc = self.process, proc.isRunning {
+            proc.terminate()
+        }
+        if let proc = self.process {
+            TTYProcessTreeTerminator.terminateProcessTree(
+                rootPID: proc.processIdentifier,
+                processGroup: self.processGroup,
+                signal: SIGTERM,
+                knownDescendants: descendants)
+        }
+        let waitDeadline = Date().addingTimeInterval(1.0)
+        if let proc = self.process {
+            while proc.isRunning, Date() < waitDeadline {
+                usleep(100_000)
+            }
+            if proc.isRunning {
+                TTYProcessTreeTerminator.terminateProcessTree(
+                    rootPID: proc.processIdentifier,
+                    processGroup: self.processGroup,
+                    signal: SIGKILL,
+                    knownDescendants: descendants)
+            } else {
+                for pid in descendants where pid > 0 {
+                    kill(pid, SIGKILL)
+                }
+            }
+            TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
+        }
+
+        self.process = nil
+        self.primaryHandle = nil
+        self.secondaryHandle = nil
+        self.primaryFD = -1
+        self.processGroup = nil
+        self.binaryPath = nil
+        self.startedAt = nil
+        self.ptyRows = 0
+        self.ptyCols = 0
+        self.sessionEnvironment = nil
+        self.sessionArguments = []
+        self.sessionWorkingDirectory = nil
+    }
+
+    private func readChunk() -> Data {
+        guard self.primaryFD >= 0 else { return Data() }
+        var appended = Data()
+        while true {
+            var tmp = [UInt8](repeating: 0, count: 8192)
+            let n = read(self.primaryFD, &tmp, tmp.count)
+            if n > 0 {
+                appended.append(contentsOf: tmp.prefix(n))
+                continue
+            }
+            break
+        }
+        return appended
+    }
+
+    private func drainOutput() {
+        _ = self.readChunk()
+    }
+
+    private func send(_ text: String) throws {
+        guard let data = text.data(using: .utf8) else { return }
+        guard let handle = self.primaryHandle else { throw SessionError.processExited }
+        try handle.write(contentsOf: data)
+    }
+}

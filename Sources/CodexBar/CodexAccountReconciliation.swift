@@ -1,0 +1,4 @@
+import CodexBarCore
+
+typealias CodexVisibleAccount = CodexBarCore.CodexVisibleAccount
+typealias CodexVisibleAccountProjection = CodexBarCore.CodexVisibleAccountProjection

@@ -1,0 +1,525 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SWIFT_VERSION: 6.3.3
+  SWIFTLY_VERSION: 1.1.3
+  SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      macos-tests: ${{ steps.macos-tests.outputs.macos-tests }}
+      macos-tests-deferred: ${{ steps.macos-tests.outputs.macos-tests-deferred }}
+      macos-tests-reason: ${{ steps.macos-tests.outputs.macos-tests-reason }}
+      changed-path-count: ${{ steps.macos-tests.outputs.changed-path-count }}
+      linux-musl-build: ${{ steps.linux-musl-build.outputs.linux-musl-build }}
+      linux-musl-build-reason: ${{ steps.linux-musl-build.outputs.linux-musl-build-reason }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect macOS test impact
+        id: macos-tests
+        shell: bash
+        env:
+          CI_PULL_REQUEST_DRAFT: ${{ github.event.pull_request.draft || false }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+
+          changed_paths="${RUNNER_TEMP}/changed-paths.txt"
+          if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
+            git ls-files | awk '{ print "A\t" $0 }' > "$changed_paths"
+          elif ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+            echo "Base commit ${base_sha} is unavailable; running macOS tests conservatively."
+            git ls-files | awk '{ print "A\t" $0 }' > "$changed_paths"
+          else
+            git diff --name-status "$base_sha" "$GITHUB_SHA" > "$changed_paths"
+          fi
+
+          printf 'Changed paths:\n'
+          sed 's/^/- /' "$changed_paths"
+          ./Scripts/ci_macos_test_gate.sh "$changed_paths"
+
+      - name: Detect Linux musl build impact
+        id: linux-musl-build
+        shell: bash
+        run: ./Scripts/ci_linux_musl_build_gate.sh "$RUNNER_TEMP/changed-paths.txt"
+
+      - name: Summarize CI path gates
+        if: ${{ always() }}
+        shell: bash
+        env:
+          MACOS_TESTS: ${{ steps.macos-tests.outputs.macos-tests }}
+          MACOS_TESTS_REASON: ${{ steps.macos-tests.outputs.macos-tests-reason }}
+          CHANGED_PATH_COUNT: ${{ steps.macos-tests.outputs.changed-path-count }}
+          LINUX_MUSL_BUILD: ${{ steps.linux-musl-build.outputs.linux-musl-build }}
+          LINUX_MUSL_BUILD_REASON: ${{ steps.linux-musl-build.outputs.linux-musl-build-reason }}
+        run: |
+          set -euo pipefail
+          reason="${MACOS_TESTS_REASON:-<unset>}"
+          reason="${reason//|/\\|}"
+          musl_reason="${LINUX_MUSL_BUILD_REASON:-<unset>}"
+          musl_reason="${musl_reason//|/\\|}"
+          {
+            printf '### CI path gates\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| macOS Swift tests required | `%s` |\n' "${MACOS_TESTS:-<unset>}"
+            printf '| macOS reason | %s |\n' "$reason"
+            printf '| Linux musl build required | `%s` |\n' "${LINUX_MUSL_BUILD:-<unset>}"
+            printf '| Linux musl reason | %s |\n' "$musl_reason"
+            printf '| Changed path entries | `%s` |\n' "${CHANGED_PATH_COUNT:-<unset>}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install lint tools
+        run: ./Scripts/install_lint_tools.sh swiftlint
+
+      - name: Lint
+        run: ./Scripts/lint.sh lint-linux
+
+  swift-test-macos:
+    needs: changes
+    if: ${{ needs.changes.outputs.macos-tests == 'true' && needs.changes.outputs.macos-tests-deferred != 'true' }}
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two shards amortize SwiftPM's per-shard discovery/cold build.
+        # Each shard remains within the 50-minute Swift Test timeout.
+        shard-index: [0, 1]
+        shard-count: [2]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Select Xcode 26.3 or 26.2
+        run: |
+          set -euo pipefail
+          # Both versions are part of the official macOS 15 runner image.
+          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
+            if [[ -d "$candidate" ]]; then
+              sudo xcode-select -s "${candidate}/Contents/Developer"
+              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
+          /usr/bin/xcodebuild -version
+
+      - name: Swift toolchain version
+        run: |
+          set -euo pipefail
+          swift --version
+          swift package --version
+
+      - name: Check app locales and Swift formatting
+        if: ${{ matrix.shard-index == 0 }}
+        run: ./Scripts/lint.sh lint-macos
+
+      - name: Swift Test
+        # Keep small batches to reduce SwiftPM process overhead without returning to one aggregate run.
+        timeout-minutes: 50
+        run: |
+          CODEXBAR_TEST_GROUP_SIZE=4 \
+            CODEXBAR_TEST_SUITE_TIMEOUT=120 \
+            CODEXBAR_TEST_RETRY_NON_TIMEOUT_FAILURES=0 \
+            CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }} \
+            CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
+            ./Scripts/test.sh
+
+      - name: Summarize macOS shard
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SHARD_INDEX: ${{ matrix.shard-index }}
+          SHARD_COUNT: ${{ matrix.shard-count }}
+          RUNS_LINT_MACOS: ${{ matrix.shard-index == 0 }}
+        run: |
+          set -euo pipefail
+          display_shard_index=$((SHARD_INDEX + 1))
+          xcode_version="$(/usr/bin/xcodebuild -version 2>/dev/null | tr '\n' ' ' || true)"
+          {
+            printf '### macOS Swift shard\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| Shard | `%s / %s` |\n' "$display_shard_index" "$SHARD_COUNT"
+            printf '| Runner | `%s` |\n' "${RUNNER_NAME:-unknown}"
+            printf '| Xcode | `%s` |\n' "${xcode_version:-unknown}"
+            printf '| Runs lint-macos | `%s` |\n' "$RUNS_LINT_MACOS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  lint-build-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs:
+      - changes
+      - lint
+      - swift-test-macos
+      - build-linux-musl-cli
+    if: ${{ always() && !cancelled() }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Verify required CI jobs
+        run: |
+          ./Scripts/ci_verify_test_jobs.sh \
+            "${{ needs.lint.result }}" \
+            "${{ needs.changes.result }}" \
+            "${{ needs.changes.outputs.macos-tests }}" \
+            "${{ needs.swift-test-macos.result }}" \
+            "${{ needs.changes.outputs.macos-tests-deferred }}" \
+            "${{ needs.changes.outputs.linux-musl-build }}" \
+            "${{ needs.build-linux-musl-cli.result }}"
+
+      - name: Summarize aggregate CI gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          MACOS_TESTS: ${{ needs.changes.outputs.macos-tests }}
+          MACOS_TESTS_DEFERRED: ${{ needs.changes.outputs.macos-tests-deferred }}
+          MACOS_TESTS_REASON: ${{ needs.changes.outputs.macos-tests-reason }}
+          MACOS_RESULT: ${{ needs.swift-test-macos.result }}
+          LINUX_MUSL_BUILD: ${{ needs.changes.outputs.linux-musl-build }}
+          LINUX_MUSL_BUILD_REASON: ${{ needs.changes.outputs.linux-musl-build-reason }}
+          LINUX_MUSL_RESULT: ${{ needs.build-linux-musl-cli.result }}
+        run: |
+          set -euo pipefail
+          reason="${MACOS_TESTS_REASON:-<unset>}"
+          reason="${reason//|/\\|}"
+          musl_reason="${LINUX_MUSL_BUILD_REASON:-<unset>}"
+          musl_reason="${musl_reason//|/\\|}"
+          {
+            printf '### Aggregate CI gate\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| lint result | `%s` |\n' "$LINT_RESULT"
+            printf '| changes result | `%s` |\n' "$CHANGES_RESULT"
+            printf '| macOS Swift tests required | `%s` |\n' "${MACOS_TESTS:-<unset>}"
+            printf '| macOS Swift tests deferred | `%s` |\n' "${MACOS_TESTS_DEFERRED:-<unset>}"
+            printf '| macOS gate reason | %s |\n' "$reason"
+            printf '| swift-test-macos result | `%s` |\n' "$MACOS_RESULT"
+            printf '| Linux musl build required | `%s` |\n' "${LINUX_MUSL_BUILD:-<unset>}"
+            printf '| Linux musl gate reason | %s |\n' "$musl_reason"
+            printf '| build-linux-musl-cli result | `%s` |\n' "$LINUX_MUSL_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-linux-musl-cli:
+    needs: changes
+    if: ${{ needs.changes.outputs.linux-musl-build == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SWIFT_VERSION: 6.2.1
+      SWIFT_STATIC_LINUX_SDK: swift-6.2.1-RELEASE_static-linux-0.0.1
+      SWIFT_STATIC_LINUX_SDK_TRIPLE: x86_64-swift-linux-musl
+      SWIFT_STATIC_LINUX_SDK_ARCH: x86_64
+      SWIFT_STATIC_LINUX_SDK_URL: https://download.swift.org/swift-6.2.1-release/static-sdk/swift-6.2.1-RELEASE/swift-6.2.1-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
+      SWIFT_STATIC_LINUX_SDK_CHECKSUM: 08e1939a504e499ec871b36826569173103e4562769e12b9b8c2a50f098374ad
+      SQLITE_AMALGAMATION_VERSION: "3530300"
+      SQLITE_AMALGAMATION_SHA3_256: d45c688a8cb23f68611a894a756a12d7eb6ab6e9e2468ca70adbeab3808b5ab9
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Runner info
+        run: |
+          set -euo pipefail
+          uname -a
+          uname -m
+          swift --version
+
+      - name: Install Swift ${{ env.SWIFT_VERSION }} via swiftly
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v gpg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates gpg
+          fi
+
+          SWIFTLY_ARCH="$(uname -m)"
+          SWIFTLY_ARCHIVE="$RUNNER_TEMP/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz"
+          SWIFTLY_SIGNATURE="${SWIFTLY_ARCHIVE}.sig"
+          SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
+          SWIFTLY_BIN_DIR="$HOME/.local/bin"
+          SWIFT_GNUPGHOME="$(mktemp -d)"
+          SWIFT_KEYS="$RUNNER_TEMP/swift-signing-keys.asc"
+          POST_INSTALL_SCRIPT="$(mktemp)"
+
+          mkdir -p "$SWIFTLY_BIN_DIR"
+          chmod 700 "$SWIFT_GNUPGHOME"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz" -o "$SWIFTLY_ARCHIVE"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz.sig" -o "$SWIFTLY_SIGNATURE"
+          curl -fsSL --compressed "https://www.swift.org/keys/all-keys.asc" -o "$SWIFT_KEYS"
+          GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --import "$SWIFT_KEYS"
+          SIGNATURE_STATUS="$(GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --status-fd=1 \
+            --verify "$SWIFTLY_SIGNATURE" "$SWIFTLY_ARCHIVE" 2>&1)"
+          printf '%s\n' "$SIGNATURE_STATUS"
+          grep -Fq "[GNUPG:] VALIDSIG ${SWIFTLY_SIGNING_FINGERPRINT} " <<< "$SIGNATURE_STATUS"
+          tar -xzf "$SWIFTLY_ARCHIVE" -C /tmp
+          /tmp/swiftly init --assume-yes --skip-install
+
+          . "$SWIFTLY_HOME_DIR/env.sh"
+          echo "$SWIFTLY_BIN_DIR" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
+          echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
+
+          swiftly install "$SWIFT_VERSION" --use --assume-yes --verify --post-install-file "$POST_INSTALL_SCRIPT"
+          if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
+            sudo apt-get update
+            sudo bash "$POST_INSTALL_SCRIPT"
+          fi
+
+          hash -r
+          swift --version
+
+      - name: Install Swift Static Linux SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift sdk install "$SWIFT_STATIC_LINUX_SDK_URL" --checksum "$SWIFT_STATIC_LINUX_SDK_CHECKSUM"
+          swift sdk list | grep -Fx "$SWIFT_STATIC_LINUX_SDK"
+
+          sdk_root="$(
+            find "$HOME" -type d -path "*/${SWIFT_STATIC_LINUX_SDK}.artifactbundle/${SWIFT_STATIC_LINUX_SDK}/swift-linux-musl" | head -n1
+          )"
+          if [[ -z "$sdk_root" ]]; then
+            echo "Swift SDK root not found." >&2
+            exit 1
+          fi
+
+          python3 - "$sdk_root/swift-sdk.json" "$SWIFT_STATIC_LINUX_SDK_TRIPLE" <<'PY'
+          import json
+          import sys
+
+          sdk_json_path, target_triple = sys.argv[1], sys.argv[2]
+          with open(sdk_json_path, encoding="utf-8") as handle:
+              sdk_json = json.load(handle)
+
+          target_triples = sdk_json.get("targetTriples", {})
+          if target_triple not in target_triples:
+              raise SystemExit(f"Swift SDK target triple not found: {target_triple}")
+
+          sdk_json["targetTriples"] = {target_triple: target_triples[target_triple]}
+          with open(sdk_json_path, "w", encoding="utf-8") as handle:
+              json.dump(sdk_json, handle, indent=2)
+              handle.write("\n")
+          PY
+
+          for sdk_arch in "$sdk_root"/musl-1.2.5.sdk/*; do
+            if [[ "$(basename "$sdk_arch")" != "$SWIFT_STATIC_LINUX_SDK_ARCH" ]]; then
+              rm -rf "$sdk_arch"
+            fi
+          done
+
+      - name: Build static SQLite for musl SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing_packages=()
+          for tool in clang openssl unzip; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              missing_packages+=("$tool")
+            fi
+          done
+          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+            sudo apt-get update
+            sudo apt-get install -y "${missing_packages[@]}"
+          fi
+
+          sqlite_zip="$RUNNER_TEMP/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}.zip"
+          sqlite_src="$RUNNER_TEMP/sqlite-src"
+          sqlite_out="$RUNNER_TEMP/sqlite-${SWIFT_STATIC_LINUX_SDK_TRIPLE}"
+
+          curl -fsSL "https://www.sqlite.org/2026/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}.zip" -o "$sqlite_zip"
+          actual_sha3="$(openssl dgst -sha3-256 "$sqlite_zip" | awk '{print $NF}')"
+          if [[ "$actual_sha3" != "$SQLITE_AMALGAMATION_SHA3_256" ]]; then
+            echo "SQLite amalgamation checksum mismatch: $actual_sha3" >&2
+            exit 1
+          fi
+
+          rm -rf "$sqlite_src" "$sqlite_out"
+          mkdir -p "$sqlite_src" "$sqlite_out/build" "$sqlite_out/lib"
+          unzip -q "$sqlite_zip" -d "$sqlite_src"
+
+          sdk_bundle="$(
+            find "$HOME" -type d -name "${SWIFT_STATIC_LINUX_SDK}.artifactbundle" | head -n1
+          )"
+          if [[ -z "$sdk_bundle" ]]; then
+            echo "Swift SDK artifact bundle not found." >&2
+            exit 1
+          fi
+          sysroot="$sdk_bundle/$SWIFT_STATIC_LINUX_SDK/swift-linux-musl/musl-1.2.5.sdk/$SWIFT_STATIC_LINUX_SDK_ARCH"
+          if [[ ! -d "$sysroot" ]]; then
+            echo "Swift SDK sysroot not found: $sysroot" >&2
+            exit 1
+          fi
+
+          sqlite_amalgamation="$sqlite_src/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}"
+          mkdir -p "$sysroot/usr/include"
+          install -m 0644 "$sqlite_amalgamation/sqlite3.h" "$sysroot/usr/include/sqlite3.h"
+
+          clang \
+            -target "$SWIFT_STATIC_LINUX_SDK_TRIPLE" \
+            --sysroot="$sysroot" \
+            -O2 \
+            -DSQLITE_OMIT_LOAD_EXTENSION=1 \
+            -c "$sqlite_amalgamation/sqlite3.c" \
+            -o "$sqlite_out/build/sqlite3.o"
+          llvm-ar crs "$sqlite_out/lib/libsqlite3.a" "$sqlite_out/build/sqlite3.o"
+
+          echo "CODEXBAR_SQLITE3_LIB_DIR=$sqlite_out/lib" >> "$GITHUB_ENV"
+
+      - name: Build CodexBarCLI (release, Linux musl x86_64)
+        run: >-
+          swift build -c release --product CodexBarCLI
+          --swift-sdk "$SWIFT_STATIC_LINUX_SDK"
+          --triple "$SWIFT_STATIC_LINUX_SDK_TRIPLE"
+
+  build-linux-cli:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runs-on: ubuntu-24.04
+          - name: linux-arm64
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Runner info
+        run: |
+          set -euo pipefail
+          uname -a
+          uname -m
+
+      - name: Restore Swift toolchain cache
+        id: swift-toolchain-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/swiftly
+          key: swift-${{ runner.os }}-${{ runner.arch }}-${{ env.SWIFT_VERSION }}-swiftly-${{ env.SWIFTLY_VERSION }}
+
+      - name: Install Swift ${{ env.SWIFT_VERSION }} via swiftly
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing_packages=()
+          for package in ca-certificates gpg libcurl4-openssl-dev; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q "install ok installed"; then
+              missing_packages+=("$package")
+            fi
+          done
+          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+            sudo apt-get update
+            sudo apt-get install -y "${missing_packages[@]}"
+          fi
+
+          SWIFTLY_ARCH="$(uname -m)"
+          SWIFTLY_ARCHIVE="$RUNNER_TEMP/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz"
+          SWIFTLY_SIGNATURE="${SWIFTLY_ARCHIVE}.sig"
+          SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
+          SWIFTLY_BIN_DIR="$HOME/.local/bin"
+          SWIFT_GNUPGHOME="$(mktemp -d)"
+          SWIFT_KEYS="$RUNNER_TEMP/swift-signing-keys.asc"
+          POST_INSTALL_SCRIPT="$(mktemp)"
+
+          mkdir -p "$SWIFTLY_BIN_DIR"
+          chmod 700 "$SWIFT_GNUPGHOME"
+          echo "Swift toolchain cache hit: ${{ steps.swift-toolchain-cache.outputs.cache-hit }}"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz" -o "$SWIFTLY_ARCHIVE"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz.sig" -o "$SWIFTLY_SIGNATURE"
+          curl -fsSL --compressed "https://www.swift.org/keys/all-keys.asc" -o "$SWIFT_KEYS"
+          GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --import "$SWIFT_KEYS"
+          SIGNATURE_STATUS="$(GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --status-fd=1 \
+            --verify "$SWIFTLY_SIGNATURE" "$SWIFTLY_ARCHIVE" 2>&1)"
+          printf '%s\n' "$SIGNATURE_STATUS"
+          grep -Fq "[GNUPG:] VALIDSIG ${SWIFTLY_SIGNING_FINGERPRINT} " <<< "$SIGNATURE_STATUS"
+          tar -xzf "$SWIFTLY_ARCHIVE" -C /tmp
+          /tmp/swiftly init --assume-yes --skip-install
+
+          . "$SWIFTLY_HOME_DIR/env.sh"
+          echo "$SWIFTLY_BIN_DIR" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
+          echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
+
+          swiftly install "$SWIFT_VERSION" --use --assume-yes --verify --post-install-file "$POST_INSTALL_SCRIPT"
+          if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
+            sudo apt-get update
+            sudo bash "$POST_INSTALL_SCRIPT"
+          fi
+
+          hash -r
+          swift --version
+
+      - name: Build CodexBarCLI (release, static Swift stdlib)
+        run: swift build -c release --product CodexBarCLI --static-swift-stdlib
+
+      - name: Swift Test (Linux only)
+        run: swift test --parallel
+
+      - name: Smoke test CodexBarCLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
+          BIN="$BIN_DIR/CodexBarCLI"
+          "$BIN" --help >/dev/null
+          "$BIN" --version >/dev/null
+          if "$BIN" usage --provider codex --web >/dev/null 2>&1; then
+            echo "Expected --web to fail on Linux"
+            exit 1
+          fi
+          "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
+          grep -q "macOS" /tmp/codexbarcli-stderr.txt
+
+      - name: Summarize Linux CLI build
+        if: ${{ always() }}
+        shell: bash
+        env:
+          MATRIX_NAME: ${{ matrix.name }}
+          MATRIX_RUNS_ON: ${{ matrix.runs-on }}
+          SWIFT_CACHE_HIT: ${{ steps.swift-toolchain-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          {
+            printf '### Linux CLI build\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| Matrix | `%s` |\n' "$MATRIX_NAME"
+            printf '| Runner label | `%s` |\n' "$MATRIX_RUNS_ON"
+            printf '| Swift version | `%s` |\n' "$SWIFT_VERSION"
+            printf '| Swift toolchain cache hit | `%s` |\n' "${SWIFT_CACHE_HIT:-false}"
+          } >> "$GITHUB_STEP_SUMMARY"

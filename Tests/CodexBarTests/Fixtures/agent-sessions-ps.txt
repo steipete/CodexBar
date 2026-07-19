@@ -1,0 +1,9 @@
+  101     1 Mon Jul  6 09:00:00 2026 /Applications/Claude.app/Contents/Resources/disclaimer /Users/test/Library/Application Support/Claude/claude-code/claude --dangerously-skip-permissions
+  102   101 Mon Jul  6 09:00:01 2026 /Users/test/Library/Application Support/Claude/claude-code/claude --dangerously-skip-permissions
+  201     1 Mon Jul  6 09:01:00 2026 /opt/homebrew/bin/codex exec --full-auto strange argv here
+  202     1 Mon Jul  6 09:02:00 2026 /Applications/Codex.app/Contents/Resources/codex app-server --listen stdio
+  203     1 Mon Jul  6 09:03:00 2026 /usr/local/bin/codex --help
+  301     1 Mon Jul  6 09:04:00 2026 /Users/test/.local/bin/claude-code-acp --stdio
+  401     1 Mon Jul  6 09:05:00 2026 /Applications/Codex.app/Contents/Frameworks/Codex Framework.framework/Helpers/Codex (Renderer) --type=renderer
+  402     1 Mon Jul  6 09:06:00 2026 /Applications/Claude.app/Contents/MacOS/Claude
+  403     1 Mon Jul  6 09:07:00 2026 ./Codex Computer Use.app/Contents/MacOS/helper mcp

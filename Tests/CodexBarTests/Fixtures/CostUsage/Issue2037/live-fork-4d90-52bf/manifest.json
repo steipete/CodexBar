@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "redactionVersion": 1,
+  "familyAlias": "live-fork-4d90-52bf",
+  "files": [
+    {
+      "alias": "parent",
+      "relativePath": "codex-home/archived_sessions/parent.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "parent-session",
+      "parentSessionAlias": null
+    },
+    {
+      "alias": "child",
+      "relativePath": "codex-home/archived_sessions/child.jsonl",
+      "sourceRole": "archive",
+      "leafSessionAlias": "child-session",
+      "parentSessionAlias": "parent-session"
+    }
+  ],
+  "copiedPrefixes": [
+    {
+      "parentAlias": "parent",
+      "childAlias": "child",
+      "length": 180
+    }
+  ],
+  "oracle": {
+    "parentEventCount": 180,
+    "childEventCount": 196,
+    "copiedPrefixLength": 180,
+    "parentLastTokens": 25129283,
+    "childLastTokens": 26938802,
+    "copiedPrefixLastTokens": 25129283,
+    "naiveLastTokens": 52068085,
+    "dedupedLastTokens": 26938802,
+    "copiedPrefixTimestampMismatches": 180,
+    "parentHasTotalTokenUsageDrop": false,
+    "childHasTotalTokenUsageDrop": false
+  },
+  "scannerOracle": {
+    "naiveScannerUnits": 100916095,
+    "dedupedScannerUnits": 52185847,
+    "prefixScannerUnits": 48730248,
+    "siblingAUniqueScannerUnits": null,
+    "siblingBUniqueScannerUnits": null,
+    "unresolvedForkSkippedFirstEventScannerUnits": null
+  },
+  "sourceNote": "Sanitized from local 019f4d90\u2192019f52bf; parent truncated to copied prefix for clean resolved-fork golden.",
+  "scannerOracleNote": "Scanner units follow total_token_usage deltas. Parent ordinal 120 has last=225513 with \u0394total=0; sum(last) overcounts vs scanner."
+}

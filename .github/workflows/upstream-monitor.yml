@@ -1,0 +1,195 @@
+name: Monitor Upstream Changes
+
+on:
+  schedule:
+    # Run Monday and Thursday at 9 AM UTC
+    - cron: '0 9 * * 1,4'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which upstream to check'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - upstream
+          - quotio
+
+jobs:
+  check-upstreams:
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      
+      - name: Configure git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      
+      - name: Add upstream remotes
+        run: |
+          git remote add upstream https://github.com/steipete/CodexBar.git || true
+          git remote add quotio https://github.com/nguyenphutrong/quotio.git || true
+          git fetch upstream
+          git fetch quotio
+      
+      - name: Check for new commits
+        id: check
+        run: |
+          remote_default_branch() {
+            local remote="$1"
+            local branch=""
+            branch=$(git symbolic-ref -q --short "refs/remotes/${remote}/HEAD" 2>/dev/null | sed "s#^${remote}/##" || true)
+            if [ -z "$branch" ]; then
+              branch=$(git remote show "$remote" 2>/dev/null | awk '/HEAD branch/ {print $NF; exit}' || true)
+            fi
+            if [ -n "$branch" ] && git rev-parse --verify -q "${remote}/${branch}" >/dev/null; then
+              echo "$branch"
+              return 0
+            fi
+            for candidate in main master; do
+              if git rev-parse --verify -q "${remote}/${candidate}" >/dev/null; then
+                echo "$candidate"
+                return 0
+              fi
+            done
+            echo "Could not resolve default branch for ${remote}" >&2
+            exit 1
+          }
+
+          UPSTREAM_BRANCH=$(remote_default_branch upstream)
+          QUOTIO_BRANCH=$(remote_default_branch quotio)
+          UPSTREAM_REF="upstream/${UPSTREAM_BRANCH}"
+          QUOTIO_REF="quotio/${QUOTIO_BRANCH}"
+          echo "upstream_ref=$UPSTREAM_REF" >> $GITHUB_OUTPUT
+          echo "quotio_ref=$QUOTIO_REF" >> $GITHUB_OUTPUT
+
+          # Count new commits in upstream
+          UPSTREAM_NEW=$(git log --oneline "main..${UPSTREAM_REF}" --no-merges 2>/dev/null | wc -l | tr -d ' ')
+          echo "upstream_commits=$UPSTREAM_NEW" >> $GITHUB_OUTPUT
+          
+          # Count new commits in quotio (last 7 days)
+          QUOTIO_NEW=$(git log --oneline "$QUOTIO_REF" --since="7 days ago" 2>/dev/null | wc -l | tr -d ' ')
+          echo "quotio_commits=$QUOTIO_NEW" >> $GITHUB_OUTPUT
+          
+          # Get commit summaries
+          echo "upstream_summary<<EOF" >> $GITHUB_OUTPUT
+          git log --oneline "main..${UPSTREAM_REF}" --no-merges 2>/dev/null | head -10 >> $GITHUB_OUTPUT || echo "No commits" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "quotio_summary<<EOF" >> $GITHUB_OUTPUT
+          git log --oneline "$QUOTIO_REF" --since="7 days ago" 2>/dev/null | head -10 >> $GITHUB_OUTPUT || echo "No commits" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create or update issue
+        if: steps.check.outputs.upstream_commits > 0 || steps.check.outputs.quotio_commits > 0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          UPSTREAM_COMMITS: ${{ steps.check.outputs.upstream_commits }}
+          QUOTIO_COMMITS: ${{ steps.check.outputs.quotio_commits }}
+          UPSTREAM_REF: ${{ steps.check.outputs.upstream_ref }}
+          QUOTIO_REF: ${{ steps.check.outputs.quotio_ref }}
+          UPSTREAM_SUMMARY: ${{ steps.check.outputs.upstream_summary }}
+          QUOTIO_SUMMARY: ${{ steps.check.outputs.quotio_summary }}
+        with:
+          script: |
+            const upstreamCommits = process.env.UPSTREAM_COMMITS;
+            const quotioCommits = process.env.QUOTIO_COMMITS;
+            const upstreamRef = process.env.UPSTREAM_REF;
+            const quotioRef = process.env.QUOTIO_REF;
+            const upstreamBranch = upstreamRef.replace('upstream/', '');
+            const quotioBranch = quotioRef.replace('quotio/', '');
+            const upstreamSummary = process.env.UPSTREAM_SUMMARY;
+            const quotioSummary = process.env.QUOTIO_SUMMARY;
+            
+            const body = `## 🔄 Upstream Changes Detected
+            
+            **steipete/CodexBar:** ${upstreamCommits} new commits
+            **quotio:** ${quotioCommits} new commits (last 7 days)
+            **Source refs:** ${upstreamRef}, ${quotioRef}
+            
+            ### steipete/CodexBar Recent Commits
+            \`\`\`
+            ${upstreamSummary}
+            \`\`\`
+            
+            ### quotio Recent Commits
+            \`\`\`
+            ${quotioSummary}
+            \`\`\`
+            
+            ### 📋 Review Actions
+            
+            **Review upstream changes:**
+            \`\`\`bash
+            ./Scripts/review_upstream.sh upstream
+            \`\`\`
+            
+            **Review quotio changes:**
+            \`\`\`bash
+            ./Scripts/analyze_quotio.sh
+            \`\`\`
+            
+            **View detailed diffs:**
+            \`\`\`bash
+            git diff main..${upstreamRef}
+            git log -p ${quotioRef} --since='7 days ago'
+            \`\`\`
+            
+            ### 🔗 Links
+            - [steipete commits](https://github.com/steipete/CodexBar/compare/${context.sha}...steipete:CodexBar:${upstreamBranch})
+            - [quotio commits](https://github.com/nguyenphutrong/quotio/commits/${quotioBranch})
+            
+            ---
+            *Auto-generated by upstream-monitor workflow*
+            *Last checked: ${new Date().toISOString()}*`;
+            
+            // Check for existing open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'upstream-sync',
+              state: 'open'
+            });
+            
+            if (issues.data.length > 0) {
+              // Update existing issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: body
+              });
+              
+              // Add comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `🔄 Updated with latest changes (${upstreamCommits} upstream, ${quotioCommits} quotio)`
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🔄 Upstream Changes Available for Review',
+                body: body,
+                labels: ['upstream-sync', 'needs-review']
+              });
+            }
+      
+      - name: No changes detected
+        if: steps.check.outputs.upstream_commits == 0 && steps.check.outputs.quotio_commits == 0
+        run: |
+          echo "✅ No new upstream changes detected"
+          echo "steipete/CodexBar: up to date"
+          echo "quotio: no commits in last 7 days"

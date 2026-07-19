@@ -1,0 +1,160 @@
+# SwiftLint configuration for Peekaboo - Swift 6 compatible
+
+# Paths to include
+included:
+  - Sources
+  - Tests
+
+# Paths to exclude
+excluded:
+  - .build
+  - DerivedData
+  - "**/Generated"
+  - "**/Resources"
+  - "**/.build"
+  - "**/Package.swift"
+  - "**/Tests/Resources"
+  - "Apps/CLI/.build"
+  - "**/DerivedData"
+  - "**/.swiftpm"
+  - Pods
+  - Carthage
+  - fastlane
+  - vendor
+  - "*.playground"
+  # Exclude specific files that should not be linted/formatted
+  - "Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift"
+
+# Analyzer rules (require compilation)
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+# Enable specific rules
+opt_in_rules:
+  - array_init
+  - closure_spacing
+  - contains_over_first_not_nil
+  - empty_count
+  - empty_string
+  - explicit_init
+  - fallthrough
+  - fatal_error_message
+  - first_where
+  - joined_default_parameter
+  - last_where
+  - literal_expression_end_indentation
+  - multiline_arguments
+  - multiline_parameters
+  - operator_usage_whitespace
+  - overridden_super_call
+  - pattern_matching_keywords
+  - private_outlet
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - switch_case_alignment
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+
+# Disable rules that conflict with Swift 6 or our coding style
+disabled_rules:
+  # Swift 6 requires explicit self - disable explicit_self rule
+  - explicit_self
+  
+  # SwiftFormat handles these
+  - trailing_whitespace
+  - trailing_newline
+  - trailing_comma
+  - vertical_whitespace
+  - indentation_width
+  
+  # Too restrictive or not applicable
+  - identifier_name # Single letter names are fine in many contexts
+  - file_header
+  - explicit_top_level_acl
+  - explicit_acl
+  - explicit_type_interface
+  - missing_docs
+  - required_deinit
+  - prefer_nimble
+  - quick_discouraged_call
+  - quick_discouraged_focused_test
+  - quick_discouraged_pending_test
+  - anonymous_argument_in_multiline_closure
+  - no_extension_access_modifier
+  - no_grouping_extension
+  - switch_case_on_newline
+  - strict_fileprivate
+  - extension_access_modifier
+  - convenience_type
+  - no_magic_numbers
+  - one_declaration_per_file
+  - vertical_whitespace_between_cases
+  - vertical_whitespace_closing_braces
+  - superfluous_else
+  - number_separator
+  - prefixed_toplevel_constant
+  - opening_brace
+  - trailing_closure
+  - contrasted_opening_brace
+  - sorted_imports
+  - redundant_type_annotation
+  - shorthand_optional_binding
+  - untyped_error_in_catch
+  - file_name
+  - todo
+  
+# Rule configurations
+force_cast: warning
+force_try: warning
+
+# identifier_name rule disabled - see disabled_rules section
+
+type_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 60
+    error: 80
+
+function_body_length:
+  warning: 150
+  error: 300
+
+file_length:
+  warning: 1500
+  error: 2500
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 800
+  error: 1200
+
+cyclomatic_complexity:
+  warning: 20
+  error: 120
+
+large_tuple:
+  warning: 4
+  error: 5
+
+nesting:
+  type_level:
+    warning: 4
+    error: 6
+  function_level:
+    warning: 5
+    error: 7
+
+line_length:
+  warning: 120
+  error: 250
+  ignores_comments: true
+  ignores_urls: true
+
+# Custom rules can be added here if needed
+
+# Reporter type
+reporter: "xcode"

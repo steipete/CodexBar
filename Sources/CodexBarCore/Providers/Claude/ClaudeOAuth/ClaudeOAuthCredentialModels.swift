@@ -1,0 +1,301 @@
+import Foundation
+
+#if canImport(CryptoKit)
+import CryptoKit
+#else
+import Crypto
+#endif
+
+#if os(macOS)
+import Security
+#endif
+
+public struct ClaudeOAuthCredentials: Sendable {
+    public let accessToken: String
+    public let refreshToken: String?
+    public let expiresAt: Date?
+    public let scopes: [String]
+    public let rateLimitTier: String?
+    public let subscriptionType: String?
+
+    public init(
+        accessToken: String,
+        refreshToken: String?,
+        expiresAt: Date?,
+        scopes: [String],
+        rateLimitTier: String?,
+        subscriptionType: String? = nil)
+    {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.expiresAt = expiresAt
+        self.scopes = scopes
+        self.rateLimitTier = rateLimitTier
+        self.subscriptionType = subscriptionType
+    }
+
+    public var isExpired: Bool {
+        guard let expiresAt else { return true }
+        return Date() >= expiresAt
+    }
+
+    public var expiresIn: TimeInterval? {
+        guard let expiresAt else { return nil }
+        return expiresAt.timeIntervalSinceNow
+    }
+
+    /// A one-way discriminator for history owned by this credential.
+    ///
+    /// Prefer the refresh token because access tokens routinely rotate for the same principal. If a provider
+    /// supplies only an access token, rotating that token intentionally starts a new history bucket rather than
+    /// risking that two identityless accounts share one. The source secret never leaves this computation.
+    var historyOwnerIdentifier: String? {
+        let normalizedRefreshToken = self.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let normalizedRefreshToken, !normalizedRefreshToken.isEmpty {
+            return Self.makeHistoryOwnerIdentifier(secretKind: "refresh", secret: normalizedRefreshToken)
+        }
+
+        let normalizedAccessToken = self.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedAccessToken.isEmpty else { return nil }
+        return Self.makeHistoryOwnerIdentifier(secretKind: "access", secret: normalizedAccessToken)
+    }
+
+    static func historyOwnerIdentifier(forRefreshToken refreshToken: String) -> String? {
+        let normalized = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        return Self.makeHistoryOwnerIdentifier(secretKind: "refresh", secret: normalized)
+    }
+
+    private static func makeHistoryOwnerIdentifier(secretKind: String, secret: String) -> String? {
+        let material = Data("codexbar:claude-oauth-history-owner:v1\0\(secretKind)\0\(secret)".utf8)
+        return SHA256.hash(data: material).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func normalizedHistoryOwnerIdentifier(_ identifier: String?) -> String? {
+        guard let identifier else { return nil }
+        let normalized = identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.count == 64,
+              normalized.unicodeScalars.allSatisfy({ scalar in
+                  switch scalar.value {
+                  case 48...57, 97...102:
+                      true
+                  default:
+                      false
+                  }
+              })
+        else { return nil }
+        return normalized
+    }
+
+    public static func isMcpOAuthOnlyPayload(data: Data) -> Bool {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        return json["claudeAiOauth"] == nil && json["mcpOAuth"] != nil
+    }
+
+    public static func parse(data: Data) throws -> ClaudeOAuthCredentials {
+        if ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: data) {
+            throw ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain
+        }
+
+        let decoder = JSONDecoder()
+        guard let root = try? decoder.decode(Root.self, from: data) else {
+            throw ClaudeOAuthCredentialsError.decodeFailed
+        }
+        guard let oauth = root.claudeAiOauth else {
+            throw ClaudeOAuthCredentialsError.missingOAuth
+        }
+        let accessToken = oauth.accessToken?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !accessToken.isEmpty else {
+            throw ClaudeOAuthCredentialsError.missingAccessToken
+        }
+        let expiresAt = oauth.expiresAt.map { millis in
+            Date(timeIntervalSince1970: millis / 1000.0)
+        }
+        return ClaudeOAuthCredentials(
+            accessToken: accessToken,
+            refreshToken: oauth.refreshToken,
+            expiresAt: expiresAt,
+            scopes: oauth.scopes ?? [],
+            rateLimitTier: oauth.rateLimitTier,
+            subscriptionType: oauth.subscriptionType)
+    }
+
+    private struct Root: Decodable {
+        let claudeAiOauth: OAuth?
+    }
+
+    private struct OAuth: Decodable {
+        let accessToken: String?
+        let refreshToken: String?
+        let expiresAt: Double?
+        let scopes: [String]?
+        let rateLimitTier: String?
+        let subscriptionType: String?
+
+        enum CodingKeys: String, CodingKey {
+            case accessToken
+            case refreshToken
+            case expiresAt
+            case scopes
+            case rateLimitTier
+            case subscriptionType
+        }
+    }
+}
+
+extension ClaudeOAuthCredentials {
+    func diagnosticsMetadata(now: Date = Date()) -> [String: String] {
+        let hasRefreshToken = !(self.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let hasUserProfileScope = self.scopes.contains("user:profile")
+
+        var metadata: [String: String] = [
+            "hasRefreshToken": "\(hasRefreshToken)",
+            "scopesCount": "\(self.scopes.count)",
+            "hasUserProfileScope": "\(hasUserProfileScope)",
+        ]
+
+        if let expiresAt = self.expiresAt {
+            let expiresAtMs = Int(expiresAt.timeIntervalSince1970 * 1000.0)
+            let expiresInSec = Int(expiresAt.timeIntervalSince(now).rounded())
+            metadata["expiresAtMs"] = "\(expiresAtMs)"
+            metadata["expiresInSec"] = "\(expiresInSec)"
+            metadata["isExpired"] = "\(now >= expiresAt)"
+        } else {
+            metadata["expiresAtMs"] = "nil"
+            metadata["expiresInSec"] = "nil"
+            metadata["isExpired"] = "true"
+        }
+
+        return metadata
+    }
+}
+
+public enum ClaudeOAuthCredentialOwner: String, Codable, Sendable {
+    case claudeCLI
+    case codexbar
+    case environment
+}
+
+public enum ClaudeOAuthCredentialSource: String, Sendable {
+    case environment
+    case memoryCache
+    case cacheKeychain
+    case credentialsFile
+    case claudeKeychain
+}
+
+enum ClaudeKeychainCredentialMatch: Equatable, Sendable {
+    case notApplicable
+    case absent
+    case unavailable
+    case mismatch
+    case matched(persistentRefHash: String)
+
+    var persistentRefHash: String? {
+        guard case let .matched(persistentRefHash) = self else { return nil }
+        return persistentRefHash
+    }
+
+    var isMismatch: Bool {
+        self == .mismatch
+    }
+
+    var isAbsent: Bool {
+        self == .absent
+    }
+
+    var isUnavailable: Bool {
+        self == .unavailable
+    }
+}
+
+public struct ClaudeOAuthCredentialRecord: Sendable {
+    public let credentials: ClaudeOAuthCredentials
+    public let owner: ClaudeOAuthCredentialOwner
+    public let source: ClaudeOAuthCredentialSource
+    private let inheritedHistoryOwnerIdentifier: String?
+
+    /// An opaque, one-way owner identifier that survives a refresh-token rotation proven by a successful refresh.
+    /// Records from unrelated credential sources do not inherit this value and derive a fresh identifier instead.
+    var historyOwnerIdentifier: String? {
+        self.inheritedHistoryOwnerIdentifier ?? self.credentials.historyOwnerIdentifier
+    }
+
+    public init(
+        credentials: ClaudeOAuthCredentials,
+        owner: ClaudeOAuthCredentialOwner,
+        source: ClaudeOAuthCredentialSource)
+    {
+        self.credentials = credentials
+        self.owner = owner
+        self.source = source
+        self.inheritedHistoryOwnerIdentifier = nil
+    }
+
+    init(
+        credentials: ClaudeOAuthCredentials,
+        owner: ClaudeOAuthCredentialOwner,
+        source: ClaudeOAuthCredentialSource,
+        historyOwnerIdentifier: String?)
+    {
+        self.credentials = credentials
+        self.owner = owner
+        self.source = source
+        self.inheritedHistoryOwnerIdentifier = ClaudeOAuthCredentials.normalizedHistoryOwnerIdentifier(
+            historyOwnerIdentifier)
+    }
+}
+
+public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
+    case decodeFailed
+    case missingOAuth
+    case mcpOAuthOnlyKeychain
+    case missingAccessToken
+    case notFound
+    case keychainError(Int)
+    case readFailed(String)
+    case refreshFailed(String)
+    case noRefreshToken
+    case refreshDelegatedToClaudeCLI
+
+    public var errorDescription: String? {
+        switch self {
+        case .decodeFailed:
+            return "Claude OAuth credentials are invalid."
+        case .missingOAuth:
+            return "Claude OAuth credentials missing. Run `claude` to authenticate."
+        case .mcpOAuthOnlyKeychain:
+            return "Claude keychain contains MCP OAuth state only (no claudeAiOauth). "
+                + "Claude Code may store subscription OAuth elsewhere now. "
+                + "Open the CodexBar menu and click Refresh to re-authenticate, "
+                + "or switch Claude Usage source to Web/CLI."
+        case .missingAccessToken:
+            return "Claude OAuth access token missing. Run `claude` to authenticate."
+        case .notFound:
+            return "Claude OAuth credentials not found. Run `claude` to authenticate."
+        case let .keychainError(status):
+            #if os(macOS)
+            if status == Int(errSecUserCanceled)
+                || status == Int(errSecAuthFailed)
+                || status == Int(errSecInteractionNotAllowed)
+                || status == Int(errSecNoAccessForItem)
+            {
+                return "Claude Keychain access was denied. CodexBar will back off in the background until you retry "
+                    + "via a user action (menu open / manual refresh). "
+                    + "Switch Claude Usage source to Web/CLI, or allow access in Keychain Access."
+            }
+            #endif
+            return "Claude OAuth keychain error: \(status)"
+        case let .readFailed(message):
+            return "Claude OAuth credentials read failed: \(message)"
+        case let .refreshFailed(message):
+            return "Claude OAuth token refresh failed: \(message)"
+        case .noRefreshToken:
+            return "Claude OAuth refresh token missing. Run `claude` to authenticate."
+        case .refreshDelegatedToClaudeCLI:
+            return "Claude OAuth refresh is delegated to Claude CLI."
+        }
+    }
+}

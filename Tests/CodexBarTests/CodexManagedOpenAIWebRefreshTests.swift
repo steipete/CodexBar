@@ -1,0 +1,972 @@
+import Foundation
+import Testing
+@testable import CodexBar
+@testable import CodexBarCore
+
+@Suite(.serialized)
+@MainActor
+struct CodexManagedOpenAIWebRefreshTests {
+    @Test
+    func `regular refresh does not await OpenAI web scrape`() async throws {
+        let settings = try self
+            .makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-regular-refresh-nonblocking")
+        settings.statusChecksEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        settings.openAIWebAccessEnabled = false
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let completion = RefreshCompletionProbe()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        await store.refresh(forceTokenUsage: false)
+        settings.openAIWebAccessEnabled = true
+
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+            await completion.markCompleted()
+        }
+
+        let didStart = await blocker.waitUntilStartedWithin(count: 1, timeout: .seconds(60))
+        #expect(didStart == true)
+        if !didStart {
+            refreshTask.cancel()
+            return
+        }
+
+        let completed = await completion.waitUntilCompleted(timeout: .seconds(2))
+        #expect(completed == true)
+        if !completed {
+            refreshTask.cancel()
+            await blocker.resumeNext(with: .failure(ManagedDashboardTestError.networkTimeout))
+            return
+        }
+        await refreshTask.value
+
+        let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
+        #expect(await blocker.startedCount() == 1)
+
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 95,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await backgroundTask.value
+    }
+
+    @Test
+    func `regular refresh does not await Codex credits fetch`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-regular-refresh-nonblocking-credits")
+        settings.statusChecksEnabled = false
+        settings.openAIWebAccessEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingCreditsLoader()
+        let completion = RefreshCompletionProbe()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            try await blocker.awaitResult()
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+            await completion.markCompleted()
+        }
+
+        await blocker.waitUntilStarted(count: 1)
+
+        #expect(await blocker.startedCount() == 1)
+        #expect(await completion.isCompleted == true)
+
+        await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
+
+        await refreshTask.value
+    }
+
+    @Test
+    func `background credits refresh persists updated widget snapshot after refresh returns`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-widget-background-credits")
+        settings.statusChecksEnabled = false
+        settings.openAIWebAccessEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        let publicationGuard = store.currentCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
+
+        let creditsBlocker = BlockingCreditsLoader()
+        let saver = BlockingWidgetSnapshotSaver()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            try await creditsBlocker.awaitResult()
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+        store._test_widgetSnapshotSaveOverride = { snapshot in
+            await saver.save(snapshot)
+        }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+
+        await refreshTask.value
+        await saver.waitUntilStarted(count: 1)
+
+        let firstSnapshots = await saver.savedSnapshots()
+        let firstCodexEntry = try #require(firstSnapshots.first?.entries.first { $0.provider == .codex })
+        #expect(firstCodexEntry.creditsRemaining == nil)
+
+        await saver.resumeNext()
+        let backgroundTask = try #require(store.creditsRefreshTask)
+        await creditsBlocker.waitUntilStarted(count: 1)
+        await creditsBlocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
+        await backgroundTask.value
+        await saver.waitUntilStarted(count: 2)
+
+        #expect(await saver.startedCount() == 2)
+        let secondSnapshots = await saver.savedSnapshots()
+        let secondCodexEntry = try #require(secondSnapshots.last?.entries.first { $0.provider == .codex })
+        #expect(secondCodexEntry.creditsRemaining == 25)
+
+        await saver.resumeNext()
+        await store.widgetSnapshotPersistTask?.value
+    }
+
+    @Test
+    func `background dashboard refresh persists updated widget snapshot after refresh returns`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-widget-background-dashboard")
+        settings.statusChecksEnabled = false
+        if let codexMeta = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+        let managedHomeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? Self.writeCodexAuthFile(
+            homeURL: managedHomeURL,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHomeURL) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        settings.openAIWebAccessEnabled = false
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+
+        let dashboardBlocker = BlockingManagedOpenAIDashboardLoader()
+        let saver = RecordingWidgetSnapshotSaver()
+        store._test_providerRefreshOverride = { _ in }
+        defer { store._test_providerRefreshOverride = nil }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
+        }
+        defer { store._test_codexCreditsLoaderOverride = nil }
+
+        await store.refresh(forceTokenUsage: false)
+        await store.widgetSnapshotPersistTask?.value
+        settings.openAIWebAccessEnabled = true
+        store.snapshots[.codex] = Self.codexSnapshot(email: managedAccount.email, usedPercent: 18)
+        let publicationGuard = store.currentCodexAccountScopedRefreshGuard()
+        store.lastCodexUsagePublicationGuard = publicationGuard
+        store.lastCodexAccountScopedRefreshGuard = publicationGuard
+        store.creditsRefreshTask = Task {}
+        store.creditsRefreshTaskKey = store.codexCreditsRefreshKey(
+            expectedGuard: store.currentCodexAccountScopedRefreshGuard())
+
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            try await dashboardBlocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_widgetSnapshotSaveOverride = { snapshot in
+            await saver.save(snapshot)
+        }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        let refreshTask = Task {
+            await store.refresh(forceTokenUsage: false)
+        }
+
+        await refreshTask.value
+        let didPersistInitialRefreshSnapshot = await saver.waitUntilSavedWithin(count: 1)
+        #expect(didPersistInitialRefreshSnapshot)
+
+        let firstSnapshots = await saver.savedSnapshots()
+        #expect(firstSnapshots.first?.entries.first { $0.provider == .codex }?.codeReviewRemainingPercent == nil)
+
+        let backgroundTask = try #require(store.openAIDashboardBackgroundRefreshTask)
+        let didStartDashboardRefresh = await dashboardBlocker.waitUntilStartedWithin(count: 1)
+        #expect(didStartDashboardRefresh)
+        if didStartDashboardRefresh {
+            await dashboardBlocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+                signedInEmail: managedAccount.email,
+                codeReviewRemainingPercent: 95,
+                creditEvents: [],
+                dailyBreakdown: [],
+                usageBreakdown: [],
+                creditsPurchaseURL: nil,
+                creditsRemaining: 25,
+                accountPlan: "Pro",
+                updatedAt: Date())))
+            await backgroundTask.value
+        }
+        let didPersistDashboardSnapshot = await saver.waitUntilSavedWithin(count: 2)
+
+        #expect(didPersistDashboardSnapshot)
+        let secondSnapshots = await saver.savedSnapshots()
+        #expect(secondSnapshots.count >= 2)
+    }
+
+    @Test
+    func `manual cookie import bypasses same account refresh coalescing`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-manual-import-bypass-coalesce")
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-managed-openai-web-refresh-\(UUID().uuidString)", isDirectory: true)
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "Pro")
+        defer { try? FileManager.default.removeItem(at: managedHome) }
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        let firstTask = Task {
+            await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        let manualImportTask = Task {
+            await store.importOpenAIDashboardBrowserCookiesNow()
+        }
+        await blocker.waitUntilStarted(count: 2)
+
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 70,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 1,
+            accountPlan: "Free",
+            updatedAt: Date())))
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 95,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await firstTask.value
+        await manualImportTask.value
+
+        #expect(await blocker.startedCount() == 2)
+        #expect(store.openAIDashboard?.creditsRemaining == 25)
+        #expect(store.openAIDashboard?.accountPlan == "Pro")
+    }
+
+    @Test
+    func `stale cookie import status does not override later unrelated refresh failure`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-stale-cookie-status")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.openAIDashboardCookieImportStatus =
+            "OpenAI cookies are for other@example.com, not managed@example.com."
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            throw ManagedDashboardTestError.networkTimeout
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
+
+        #expect(store.lastOpenAIDashboardError == ManagedDashboardTestError.networkTimeout.localizedDescription)
+    }
+
+    @Test
+    func `navigation timeout imports cookies and retries dashboard refresh`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-timeout-import-retry")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let importTracker = OpenAIDashboardImportCallTracker()
+        var allowNavigationTimeoutRetries: [Bool] = []
+        store._test_openAIDashboardLoaderOverride = { _, _, allowNavigationTimeoutRetry, _ in
+            allowNavigationTimeoutRetries.append(allowNavigationTimeoutRetry)
+            return try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            _ = await importTracker.recordCall()
+            return OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        let refreshTask = Task {
+            await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        await blocker.resumeNext(with: .failure(URLError(.timedOut)))
+        await importTracker.waitUntilCalls(count: 1)
+        await blocker.waitUntilStarted(count: 2)
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 90,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 25,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await refreshTask.value
+
+        #expect(await blocker.startedCount() == 2)
+        #expect(allowNavigationTimeoutRetries == [true, true])
+        #expect(store.openAIDashboard?.creditsRemaining == 25)
+        #expect(store.lastOpenAIDashboardError == nil)
+    }
+
+    @Test
+    func `background navigation timeout skips immediate WebKit retry`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexManagedOpenAIWebRefreshTests-background-timeout-no-retry")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        let importTracker = OpenAIDashboardImportCallTracker()
+        var allowNavigationTimeoutRetries: [Bool] = []
+        store._test_openAIDashboardLoaderOverride = { _, _, allowNavigationTimeoutRetry, _ in
+            allowNavigationTimeoutRetries.append(allowNavigationTimeoutRetry)
+            return try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+        store._test_openAIDashboardCookieImportOverride = { targetEmail, _, _, _, _ in
+            _ = await importTracker.recordCall()
+            return OpenAIDashboardBrowserCookieImporter.ImportResult(
+                sourceLabel: "Chrome",
+                cookieCount: 2,
+                signedInEmail: targetEmail,
+                matchesCodexEmail: true)
+        }
+        defer { store._test_openAIDashboardCookieImportOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        let refreshTask = Task {
+            await store.refreshOpenAIDashboardIfNeeded(force: false, expectedGuard: expectedGuard)
+        }
+        await blocker.waitUntilStarted(count: 1)
+
+        await blocker.resumeNext(with: .failure(URLError(.timedOut)))
+        await refreshTask.value
+
+        #expect(await blocker.startedCount() == 1)
+        #expect(allowNavigationTimeoutRetries == [false])
+        #expect(await importTracker.callCount() == 0)
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardError?.contains("timed out") == true)
+    }
+
+    @Test
+    func `reset open A I web state blocks stale in flight dashboard completion`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-reset-invalidates-task")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let blocker = BlockingManagedOpenAIDashboardLoader()
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            try await blocker.awaitResult()
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        let refreshTask = Task {
+            await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
+        }
+        await blocker.waitUntilStarted()
+
+        store.resetOpenAIWebState()
+        #expect(store.openAIDashboardRefreshTaskToken == nil)
+
+        await blocker.resumeNext(with: .success(OpenAIDashboardSnapshot(
+            signedInEmail: managedAccount.email,
+            codeReviewRemainingPercent: 85,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            creditsRemaining: 12,
+            accountPlan: "Pro",
+            updatedAt: Date())))
+
+        await refreshTask.value
+
+        #expect(store.openAIDashboard == nil)
+        #expect(store.lastOpenAIDashboardError == nil)
+    }
+
+    @Test
+    func `active refresh failure ignores stale import status from older task`() async throws {
+        let settings = try self.makeSettingsStore(suite: "CodexManagedOpenAIWebRefreshTests-concurrent-import-status")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: "/tmp/managed-codex-home",
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        settings._test_activeManagedCodexAccount = managedAccount
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        defer { settings._test_activeManagedCodexAccount = nil }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.openAIDashboardCookieImportStatus =
+            "OpenAI cookies are for other@example.com, not managed@example.com."
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            throw ManagedDashboardTestError.networkTimeout
+        }
+        defer { store._test_openAIDashboardLoaderOverride = nil }
+
+        let expectedGuard = store.currentCodexOpenAIWebRefreshGuard()
+        await store.refreshOpenAIDashboardIfNeeded(force: true, expectedGuard: expectedGuard)
+
+        #expect(store.lastOpenAIDashboardError == ManagedDashboardTestError.networkTimeout.localizedDescription)
+    }
+
+    @Test
+    func `post import retry timeout exceeds normal retry timeout`() {
+        #expect(UsageStore.openAIWebDashboardFetchTimeout(didImportCookies: false) == 25)
+        #expect(UsageStore.openAIWebDashboardFetchTimeout(didImportCookies: true) == 25)
+        #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: false) == 8)
+        #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true) == 25)
+    }
+
+    private func makeSettingsStore(suite: String) throws -> SettingsStore {
+        let settings = testSettingsStore(suiteName: suite)
+        let codexMetadata = try #require(ProviderDescriptorRegistry.metadata[.codex])
+        settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
+        settings.providerDetectionCompleted = true
+        settings.openAIWebAccessEnabled = true
+        settings.codexCookieSource = .auto
+        return settings
+    }
+
+    private static func writeCodexAuthFile(homeURL: URL, email: String, plan: String, accountId: String? = nil) throws {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        var tokens: [String: Any] = [
+            "accessToken": "access-token",
+            "refreshToken": "refresh-token",
+            "idToken": Self.fakeJWT(email: email, plan: plan, accountId: accountId),
+        ]
+        if let accountId {
+            tokens["accountId"] = accountId
+        }
+        let data = try JSONSerialization.data(withJSONObject: ["tokens": tokens], options: [.sortedKeys])
+        try data.write(to: homeURL.appendingPathComponent("auth.json"))
+    }
+
+    private static func fakeJWT(email: String, plan: String, accountId: String? = nil) -> String {
+        let header = (try? JSONSerialization.data(withJSONObject: ["alg": "none"])) ?? Data()
+        var authClaims: [String: Any] = [
+            "chatgpt_plan_type": plan,
+        ]
+        if let accountId {
+            authClaims["chatgpt_account_id"] = accountId
+        }
+        let payload = (try? JSONSerialization.data(withJSONObject: [
+            "email": email,
+            "chatgpt_plan_type": plan,
+            "https://api.openai.com/auth": authClaims,
+        ])) ?? Data()
+
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+
+        return "\(base64URL(header)).\(base64URL(payload))."
+    }
+
+    private static func codexSnapshot(email: String, usedPercent: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(usedPercent: usedPercent, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: email,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+    }
+}
+
+private enum ManagedDashboardTestError: LocalizedError {
+    case networkTimeout
+
+    var errorDescription: String? {
+        switch self {
+        case .networkTimeout:
+            "Network timeout"
+        }
+    }
+}
+
+actor RefreshCompletionProbe {
+    private(set) var isCompleted = false
+
+    func markCompleted() {
+        self.isCompleted = true
+    }
+
+    func waitUntilCompleted(timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while !self.isCompleted {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+}
+
+actor BlockingManagedOpenAIDashboardLoader {
+    private typealias ResultContinuation = CheckedContinuation<Result<OpenAIDashboardSnapshot, Error>, Never>
+
+    private var continuations: [(id: UUID, continuation: ResultContinuation)] = []
+    private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var started: Int = 0
+    private var cancelledIDs: Set<UUID> = []
+    private var rejectsNewCalls = false
+
+    func awaitResult() async throws -> OpenAIDashboardSnapshot {
+        let id = UUID()
+        let result = await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: ResultContinuation) in
+                if self.rejectsNewCalls || Task.isCancelled {
+                    continuation.resume(returning: .failure(CancellationError()))
+                } else {
+                    self.continuations.append((id: id, continuation: continuation))
+                    self.started += 1
+                    self.resumeReadyStartWaiters()
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(id: id) }
+        }
+        return try result.get()
+    }
+
+    func waitUntilStarted(count: Int = 1) async {
+        if self.started >= count {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            self.startWaiters.append((count: count, continuation: continuation))
+        }
+    }
+
+    func waitUntilStartedWithin(count: Int = 1, timeout: Duration = .seconds(5)) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while self.started < count {
+            if startedAt.duration(to: .now) >= timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+
+    func startedCount() -> Int {
+        self.started
+    }
+
+    func resumeNext(with result: Result<OpenAIDashboardSnapshot, Error>) {
+        guard !self.continuations.isEmpty else { return }
+        let record = self.continuations.removeFirst()
+        self.cancelledIDs.remove(record.id)
+        record.continuation.resume(returning: result)
+    }
+
+    func cancelAll() {
+        self.rejectsNewCalls = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        self.cancelledIDs.removeAll()
+        continuations.forEach { $0.continuation.resume(returning: .failure(CancellationError())) }
+    }
+
+    private func resumeReadyStartWaiters() {
+        var remaining: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        for waiter in self.startWaiters {
+            if self.started >= waiter.count {
+                waiter.continuation.resume()
+            } else {
+                remaining.append(waiter)
+            }
+        }
+        self.startWaiters = remaining
+    }
+
+    private func cancel(id: UUID) {
+        guard self.continuations.contains(where: { $0.id == id }) else { return }
+        _ = self.cancelledIDs.insert(id)
+    }
+}
+
+actor BlockingCreditsLoader {
+    private typealias ResultContinuation = CheckedContinuation<Result<CreditsSnapshot, Error>, Never>
+
+    private var continuations: [(id: UUID, continuation: ResultContinuation)] = []
+    private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var started = 0
+    private var cancellations = 0
+    private var cancelledIDs: Set<UUID> = []
+    private var rejectsNewCalls = false
+
+    func awaitResult() async throws -> CreditsSnapshot {
+        let id = UUID()
+        let result = await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: ResultContinuation) in
+                if self.rejectsNewCalls || Task.isCancelled {
+                    continuation.resume(returning: .failure(CancellationError()))
+                } else {
+                    self.continuations.append((id: id, continuation: continuation))
+                    self.started += 1
+                    self.resumeReadyStartWaiters()
+                }
+            }
+        } onCancel: {
+            Task { await self.cancel(id: id) }
+        }
+        return try result.get()
+    }
+
+    func waitUntilStarted(count: Int = 1) async {
+        if self.started >= count {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            self.startWaiters.append((count: count, continuation: continuation))
+        }
+    }
+
+    func waitUntilStartedWithin(count: Int = 1, timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while self.started < count {
+            if ContinuousClock.now >= deadline {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+
+    func startedCount() -> Int {
+        self.started
+    }
+
+    func cancellationCount() -> Int {
+        self.cancellations
+    }
+
+    func waitUntilCancellationCount(_ count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while self.cancellations < count {
+            if ContinuousClock.now >= deadline {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return true
+    }
+
+    func resumeNext(with result: Result<CreditsSnapshot, Error>) {
+        guard !self.continuations.isEmpty else { return }
+        let record = self.continuations.removeFirst()
+        self.cancelledIDs.remove(record.id)
+        record.continuation.resume(returning: result)
+    }
+
+    func resumeLast(with result: Result<CreditsSnapshot, Error>) {
+        guard !self.continuations.isEmpty else { return }
+        let record = self.continuations.removeLast()
+        self.cancelledIDs.remove(record.id)
+        record.continuation.resume(returning: result)
+    }
+
+    func cancelAll() {
+        self.rejectsNewCalls = true
+        let continuations = self.continuations
+        self.continuations.removeAll()
+        self.cancelledIDs.removeAll()
+        continuations.forEach { $0.continuation.resume(returning: .failure(CancellationError())) }
+    }
+
+    private func resumeReadyStartWaiters() {
+        var remaining: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        for waiter in self.startWaiters {
+            if self.started >= waiter.count {
+                waiter.continuation.resume()
+            } else {
+                remaining.append(waiter)
+            }
+        }
+        self.startWaiters = remaining
+    }
+
+    private func cancel(id: UUID) {
+        guard self.continuations.contains(where: { $0.id == id }), self.cancelledIDs.insert(id).inserted else { return }
+        self.cancellations += 1
+    }
+}
+
+private actor OpenAIDashboardImportCallTracker {
+    private var calls: Int = 0
+    private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    func recordCall() -> Int {
+        self.calls += 1
+        self.resumeReadyWaiters()
+        return self.calls
+    }
+
+    func waitUntilCalls(count: Int) async {
+        if self.calls >= count {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            self.waiters.append((count: count, continuation: continuation))
+        }
+    }
+
+    func callCount() -> Int {
+        self.calls
+    }
+
+    private func resumeReadyWaiters() {
+        var remaining: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        for waiter in self.waiters {
+            if self.calls >= waiter.count {
+                waiter.continuation.resume()
+            } else {
+                remaining.append(waiter)
+            }
+        }
+        self.waiters = remaining
+    }
+}

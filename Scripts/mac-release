@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+cd "$ROOT"
+
+if [[ -n "${MAC_RELEASE_TOOL:-}" ]]; then
+  exec "$MAC_RELEASE_TOOL" "$@"
+fi
+
+for candidate in \
+  "$ROOT/../agent-scripts/skills/release-mac-app/scripts/mac-release" \
+  "$HOME/Projects/agent-scripts/skills/release-mac-app/scripts/mac-release"; do
+  if [[ -x "$candidate" ]]; then
+    exec "$candidate" "$@"
+  fi
+done
+
+cat >&2 <<'EOF'
+Missing mac-release helper.
+Clone agent-scripts next to this repo or set MAC_RELEASE_TOOL=/path/to/mac-release.
+EOF
+exit 127

@@ -1,0 +1,1016 @@
+import AppKit
+import CodexBarCore
+import Observation
+import QuartzCore
+
+// MARK: - Status item controller (AppKit-hosted icons, SwiftUI popovers)
+
+@MainActor
+protocol StatusItemControlling: AnyObject {
+    func openMenuFromShortcut()
+    func runLoginFlowFromSettings(provider: UsageProvider) async
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
+    func trimRebuildableCachesForMemoryPressure() -> MemoryPressureCacheTrimSummary
+    #if DEBUG
+    func seedRebuildableCachesForMemoryPressureProof()
+    #endif
+    func prepareForAppShutdown()
+}
+
+extension StatusItemControlling {
+    func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
+        nil
+    }
+
+    func trimRebuildableCachesForMemoryPressure() -> MemoryPressureCacheTrimSummary {
+        MemoryPressureCacheTrimSummary()
+    }
+
+    #if DEBUG
+    func seedRebuildableCachesForMemoryPressureProof() {}
+    #endif
+
+    func prepareForAppShutdown() {}
+}
+
+struct NativeHighlightDeferredMenuRebuild {
+    let provider: UsageProvider?
+}
+
+@MainActor
+final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControlling {
+    // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
+    static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
+    private static let defaultMenuRefreshEnabled = !SettingsStore.isRunningTests
+    private(set) static var menuRefreshEnabled = !SettingsStore.isRunningTests
+    static let quotaWarningFlashDuration: TimeInterval = 60
+    private nonisolated static let statusItemAccessibilityTitle = "CodexBar"
+    private nonisolated static let debugStatusItemAccessibilityTitle = "CodexBar Debug"
+    private nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
+    private nonisolated static let mergedLegacyDefaultItemIndex = 0
+
+    enum StatusItemIdentity {
+        case merged
+        case provider(UsageProvider)
+
+        var autosaveName: String {
+            switch self {
+            case .merged:
+                "codexbar-merged"
+            case let .provider(provider):
+                "codexbar-\(provider.rawValue)"
+            }
+        }
+
+        var accessibilityIdentifier: String {
+            switch self {
+            case .merged:
+                StatusItemController.statusItemAccessibilityIdentifierPrefix
+            case let .provider(provider):
+                "\(StatusItemController.statusItemAccessibilityIdentifierPrefix).\(provider.rawValue)"
+            }
+        }
+    }
+
+    nonisolated static func isDebugApp(bundleIdentifier: String?) -> Bool {
+        bundleIdentifier?.contains(".debug") == true
+    }
+
+    nonisolated static func statusItemAccessibilityTitle(isDebugApp: Bool) -> String {
+        isDebugApp ? self.debugStatusItemAccessibilityTitle : self.statusItemAccessibilityTitle
+    }
+
+    #if DEBUG
+    var menuRefreshEnabledOverrideForTesting: Bool?
+    #endif
+
+    typealias Factory =
+        @MainActor (
+            UsageStore,
+            SettingsStore,
+            AccountInfo,
+            UpdaterProviding,
+            PreferencesSelection,
+            ManagedCodexAccountCoordinator,
+            CodexAccountPromotionCoordinator)
+        -> StatusItemControlling
+    // swiftlint:disable:next function_parameter_count
+    static func makeDefaultController(
+        store: UsageStore,
+        settings: SettingsStore,
+        account: AccountInfo,
+        updater: UpdaterProviding,
+        selection: PreferencesSelection,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator,
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator)
+        -> StatusItemControlling
+    {
+        StatusItemController(
+            store: store,
+            settings: settings,
+            account: account,
+            updater: updater,
+            preferencesSelection: selection,
+            managedCodexAccountCoordinator: managedCodexAccountCoordinator,
+            codexAccountPromotionCoordinator: codexAccountPromotionCoordinator)
+    }
+
+    static let defaultFactory: Factory = StatusItemController.makeDefaultController
+
+    static var factory: Factory = StatusItemController.defaultFactory
+
+    let store: UsageStore
+    let settings: SettingsStore
+    let agentSessions: AgentSessionsStore
+    lazy var menuCardRefreshMonitor = self.makeMenuCardRefreshMonitor()
+
+    let account: AccountInfo
+    let updater: UpdaterProviding
+    let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
+    let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
+    let statusBar: NSStatusBar
+    let menuCardRenderingEnabledForController: Bool
+    let menuRefreshEnabledForController: Bool
+    var statusItem: NSStatusItem
+    var statusItems: [UsageProvider: NSStatusItem] = [:]
+    /// App intent survives Tahoe changing `NSStatusItem.isVisible` after Control Center rejects its scene.
+    var expectedVisibleStatusItemAutosaveNames: Set<String> = []
+    var lastMenuProvider: UsageProvider?
+    var menuProviders: [ObjectIdentifier: UsageProvider] = [:]
+    var menuSession = MenuSessionCoordinator<ObjectIdentifier>()
+    var menuReadinessSignatures: [ObjectIdentifier: String] = [:]
+    let hostedSubviewRenderSignatures = NSMapTable<NSMenu, HostedSubviewRenderSignatureBox>.weakToStrongObjects()
+    /// Persistent Refresh rows are weakly tracked so their enabled state can change during menu tracking.
+    let persistentRefreshItems = NSHashTable<NSMenuItem>.weakObjects()
+    var menuCardHeightCache: [MenuCardHeightCacheKey: CGFloat] = [:]
+    var measuredStandardMenuWidthCache: [String: CGFloat] = [:]
+    var lastMenuAdjunctReadinessSignature = ""
+    var lastMenuAdjunctReadinessBaselineVersion = 0
+    var rootOpenHandledMenuObservationSignature: String?
+    var mergedMenu: NSMenu?
+    var providerMenus: [UsageProvider: NSMenu] = [:]
+    var fallbackMenu: NSMenu?
+    var openMenus: [ObjectIdentifier: NSMenu] = [:]
+    var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
+    /// a manual refresh of another. `.global` covers the all-providers refresh (⌘R / merged overview).
+    var manualRefreshTasks: [ManualRefreshScope: Task<Void, Never>] = [:]
+
+    var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var closedMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
+    var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var openMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
+    var menuIdentitySignatures: [ObjectIdentifier: String] = [:]
+    var codexAccountMenuProjectionRevalidationTask: Task<Void, Never>?
+    var openMenuRebuildsClosingHostedSubviewMenus: Set<ObjectIdentifier> = []
+    var parentMenuRebuildPendingAfterHostedSubviewClose = false
+    var deferredMenuInteractionRefreshProviders: Set<UsageProvider> = []
+    var deferredMenuInteractionRefreshPending: Bool {
+        !self.deferredMenuInteractionRefreshProviders.isEmpty
+    }
+
+    var deferredOpenAIDashboardRefreshReason: String?
+    var deferredMenuInteractionRefreshTask: Task<Void, Never>?
+    var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
+    /// Open-menu rebuilds paused so AppKit's native selection background cannot retain stale geometry.
+    var nativeHighlightDeferredMenuRebuilds: [ObjectIdentifier: NativeHighlightDeferredMenuRebuild] = [:]
+    /// Baseline resync intent survives rebuild coalescing and any native-row or hosted-submenu deferral.
+    var pendingMenuBaselineResyncs: Set<ObjectIdentifier> = []
+    var providerSwitcherShortcutEventMonitor: ProviderSwitcherShortcutEventMonitor?
+    var providerSwitcherShortcutMenuID: ObjectIdentifier?
+    var providerSwitcherPointerInteractionMenuID: ObjectIdentifier?
+    var pendingProviderSwitcherPointerRebuild: PendingProviderSwitcherRebuild?
+    var overviewScrollAccumulatedDelta: CGFloat = 0
+    var overviewScrollNavigationHandlerForTesting: ((OverviewScrollStep) -> Void)?
+    var hasPreparedForAppShutdown = false
+    var scheduleQuitTermination: (@escaping @MainActor () -> Void) -> Void = { operation in
+        DispatchQueue.main.async {
+            Task { @MainActor in
+                operation()
+            }
+        }
+    }
+
+    var terminateApplicationForQuit: @MainActor () -> Void = {
+        NSApp.terminate(nil)
+    }
+
+    var openMenuInvalidationRetryTask: Task<Void, Never>?
+    #if DEBUG
+    var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
+    var onDeferredMenuInteractionRefreshForTesting: (() -> Void)?
+    var onOpenMenuInvalidationRetryForTesting: (() -> Void)?
+    var isReleasedForTesting = false
+    var lastLoggedClosedMenuRebuildVersion: Int?
+    var _test_openMenuRefreshYieldOverride: (@MainActor () async -> Void)?
+    var _test_openMenuRebuildObserver: (@MainActor (NSMenu) -> Void)?
+    var _test_providerSwitcherMenuRebuildDebounceNanoseconds: UInt64?
+    var _test_codexAmbientLoginRunnerOverride:
+        (@MainActor (TimeInterval) async -> CodexLoginRunner.Result)?
+    #endif
+    var manualRefreshViewportRestoreState = ManualRefreshViewportRestoreState()
+    var blinkTask: Task<Void, Never>?
+    var menuBarCountdownRefreshTask: Task<Void, Never>?
+    var loginTask: Task<Void, Never>? {
+        didSet { self.refreshMenusForLoginStateChange() }
+    }
+
+    var creditsPurchaseWindow: OpenAICreditsPurchaseWindowController?
+
+    var activeLoginProvider: UsageProvider? {
+        didSet {
+            if oldValue != self.activeLoginProvider {
+                self.refreshMenusForLoginStateChange()
+            }
+        }
+    }
+
+    var blinkStates: [UsageProvider: BlinkState] = [:]
+    var blinkAmounts: [UsageProvider: CGFloat] = [:]
+    var wiggleAmounts: [UsageProvider: CGFloat] = [:]
+    var tiltAmounts: [UsageProvider: CGFloat] = [:]
+    var quotaWarningFlashUntil: [UsageProvider: Date] = [:]
+    var quotaWarningFlashTasks: [UsageProvider: Task<Void, Never>] = [:]
+    var blinkForceUntil: Date?
+    var loginPhase: LoginPhase = .idle {
+        didSet {
+            if oldValue != self.loginPhase {
+                self.refreshMenusForLoginStateChange()
+            }
+        }
+    }
+
+    let preferencesSelection: PreferencesSelection
+    var animationDriver: DisplayLinkDriver?
+    var animationPhase: Double = 0
+    var animationPattern: LoadingPattern = .knightRider
+    var animationStartedAt: Date?
+    private var lastConfigRevision: Int
+    private var lastProviderOrder: [UsageProvider]
+    private var lastMergeIcons: Bool
+    private var lastSwitcherShowsIcons: Bool
+    private var lastObservedUsageBarsShowUsed: Bool
+    var lastWidgetDisplaySettingsSignature = ""
+    var lastAgentSessionsEnabled: Bool
+    var lastAgentSessionsManualHosts: String
+    var lastAgentSessionsRefreshFrequency: RefreshFrequency
+    var lastAdaptiveActivityScanningEnabled: Bool
+    /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
+    /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
+    var lastSwitcherUsageBarsShowUsed: Bool
+    /// Tracks whether the merged-menu switcher was built with the Overview tab visible.
+    /// Used to force switcher rebuilds when Overview availability toggles.
+    var lastSwitcherIncludesOverview: Bool = false
+    /// Tracks localization-sensitive labels used by the merged menu.
+    /// Used to force menu rebuilds when app language changes.
+    var lastMenuLocalizationSignature: String = ""
+    /// Tracks which providers the merged menu's switcher was built with, to detect when it needs full rebuild.
+    var lastSwitcherProviders: [UsageProvider] = []
+    /// Tracks which switcher tab state was used for the current merged-menu switcher instance.
+    var lastMergedSwitcherSelection: ProviderSwitcherSelection?
+    /// Tracks which provider/overview content is currently attached below the merged-menu switcher.
+    var lastMergedMenuContentSelection: ProviderSwitcherSelection?
+    /// Tracks the visible Codex account switcher contents for merged-menu smart updates.
+    var lastCodexAccountMenuDisplay: CodexAccountMenuDisplay?
+    /// Tracks the visible token account switcher contents for merged-menu smart updates.
+    var lastTokenAccountMenuDisplay: TokenAccountMenuDisplay?
+    /// Keeps detached merged-menu tab content reusable while the same menu remains open.
+    var mergedSwitcherContentCaches: [ObjectIdentifier: [ProviderSwitcherSelection: CachedMergedSwitcherMenuContent]]
+        = [:]
+    var preservesMergedSwitcherContentCachesDuringInvalidation = false
+    /// Card hosting views harvested from items about to be discarded by the current populate
+    /// pass, keyed by card identifier; consumed by `makeMenuCardItem` and cleared when the
+    /// pass finishes. Never outlives a single synchronous menu population.
+    var menuCardViewRecyclePool: [String: NSView] = [:]
+    /// Monotonic token used to ignore stale deferred provider-switcher menu rebuilds.
+    var providerSwitcherUpdateToken = 0
+    var providerSelectionUIRefreshTask: Task<Void, Never>?
+    var deferredMergedIconRenderAfterTracking = false
+    var lastAppliedMergedIconRenderSignature: String?
+    var lastAppliedProviderIconRenderSignatures: [UsageProvider: String] = [:]
+    let menuBarLayoutRenderer = MenuBarLayoutRenderer()
+    var lastObservedStoreIconWorkSignature: String?
+    var iconPerfRefreshCycleMetrics: IconPerfRefreshCycleMetrics?
+    var iconPerfUpdatePassActive = false
+    var lastKnownScreenCount: Int
+    var pendingScreenChangePreviousCount: Int?
+    var screenChangeVisibilityTask: Task<Void, Never>?
+    let loginLogger = CodexBarLog.logger(LogCategories.login)
+    let menuLogger = CodexBarLog.logger(LogCategories.app)
+    var selectedMenuProvider: UsageProvider? {
+        get { self.settings.selectedMenuProvider }
+        set { self.settings.selectedMenuProvider = newValue }
+    }
+
+    static func makeStatusItem(
+        statusBar: NSStatusBar,
+        identity: StatusItemIdentity,
+        defaults: UserDefaults,
+        legacyDefaultItemIndex: Int?,
+        onCreated: ((NSStatusItem) -> Void)? = nil)
+        -> NSStatusItem
+    {
+        MenuBarStatusItemPlacementPreflight.prepare(
+            defaults: defaults,
+            autosaveName: identity.autosaveName,
+            legacyDefaultItemIndex: legacyDefaultItemIndex)
+        let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        onCreated?(item)
+        item.autosaveName = identity.autosaveName
+        if let button = item.button {
+            let title = self.statusItemAccessibilityTitle(
+                isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))
+            // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
+            button.imageScaling = .scaleNone
+            button.setAccessibilityIdentifier(identity.accessibilityIdentifier)
+            button.setAccessibilityTitle(title)
+        }
+        return item
+    }
+
+    struct BlinkState {
+        var nextBlink: Date
+        var blinkStart: Date?
+        var pendingSecondStart: Date?
+        var effect: MotionEffect = .blink
+
+        static func randomDelay() -> TimeInterval {
+            Double.random(in: 3...12)
+        }
+    }
+
+    enum MotionEffect {
+        case blink
+        case wiggle
+        case tilt
+    }
+
+    enum LoginPhase {
+        case idle
+        case requesting
+        case waitingBrowser
+    }
+
+    func menuBarMetricWindow(for provider: UsageProvider, snapshot: UsageSnapshot?, now: Date = Date()) -> RateWindow? {
+        if provider == .codex {
+            return self.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
+        }
+        return MenuBarMetricWindowResolver.rateWindow(
+            preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
+            provider: provider,
+            snapshot: snapshot,
+            supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
+            antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
+            now: now)
+    }
+
+    private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?, now: Date) -> RateWindow? {
+        guard let snapshot else { return nil }
+        return self.store.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
+    }
+
+    init(
+        store: UsageStore,
+        settings: SettingsStore,
+        account: AccountInfo,
+        updater: UpdaterProviding,
+        preferencesSelection: PreferencesSelection,
+        managedCodexAccountCoordinator: ManagedCodexAccountCoordinator =
+            ManagedCodexAccountCoordinator(),
+        codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
+        statusBar: NSStatusBar = .system,
+        menuCardRenderingEnabled: Bool = StatusItemController.menuCardRenderingEnabled,
+        menuRefreshEnabled: Bool = StatusItemController.menuRefreshEnabled,
+        observeProviderConfigNotifications: Bool = !SettingsStore.isRunningTests)
+    {
+        if SettingsStore.isRunningTests {
+            _ = NSApplication.shared
+        }
+        self.store = store
+        self.settings = settings
+        self.agentSessions = AgentSessionsStore(settings: settings)
+        self.account = account
+        self.updater = updater
+        self.preferencesSelection = preferencesSelection
+        self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
+        self.codexAccountPromotionCoordinator =
+            codexAccountPromotionCoordinator
+                ?? CodexAccountPromotionCoordinator(
+                    settingsStore: settings,
+                    usageStore: store,
+                    managedAccountCoordinator: managedCodexAccountCoordinator)
+        self.lastConfigRevision = settings.configRevision
+        self.lastProviderOrder = settings.providerOrder
+        self.lastMergeIcons = settings.mergeIcons
+        self.lastSwitcherShowsIcons = settings.switcherShowsIcons
+        self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
+        self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
+        self.lastAgentSessionsRefreshFrequency = settings.refreshFrequency
+        self.lastAdaptiveActivityScanningEnabled = settings.adaptiveActivityScanningEnabled
+        self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.menuCardRenderingEnabledForController = menuCardRenderingEnabled
+        self.menuRefreshEnabledForController = menuRefreshEnabled
+        let repairedStatusItemVisibilityKeys = MenuBarStatusItemDefaultsRepair
+            .repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)
+        self.statusBar = statusBar
+        self.statusItem = Self.makeStatusItem(
+            statusBar: statusBar,
+            identity: .merged,
+            defaults: settings.userDefaults,
+            legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
+        self.lastKnownScreenCount = NSScreen.screens.count
+        // Status items for individual providers are now created lazily in updateVisibility()
+        super.init()
+        if !repairedStatusItemVisibilityKeys.isEmpty {
+            self.menuLogger.info(
+                "Repaired hidden macOS status-item visibility defaults",
+                metadata: ["keys": repairedStatusItemVisibilityKeys.joined(separator: ",")])
+        }
+        self.lastMenuAdjunctReadinessSignature = self.menuAdjunctReadinessSignature()
+        self.lastMenuAdjunctReadinessBaselineVersion = self.menuSession.contentVersion
+        self.lastWidgetDisplaySettingsSignature = self.widgetDisplaySettingsSignature()
+        self.wireBindings()
+        self.wireAgentSessionUpdates()
+        if !SettingsStore.isRunningTests {
+            self.agentSessions.start()
+        }
+        self.updateVisibility()
+        self.updateIcons()
+        self.scheduleCodexAccountMenuProjectionRevalidationIfNeeded(
+            for: self.store.enabledProvidersForDisplay())
+        self.scheduleStartupStatusItemVisibilityCheck()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleDebugReplayNotification(_:)),
+            name: .codexbarDebugReplayAllAnimations,
+            object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleDebugBlinkNotification),
+            name: .codexbarDebugBlinkNow,
+            object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleQuotaWarningPosted(_:)),
+            name: .codexbarQuotaWarningDidPost,
+            object: nil)
+        if observeProviderConfigNotifications {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.handleProviderConfigDidChange),
+                name: .codexbarProviderConfigDidChange,
+                object: nil)
+        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(self.handleScreenParametersDidChange(_:)),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil)
+        self.observeMenuBarTimeEnvironmentChanges()
+    }
+
+    convenience init(
+        store: UsageStore,
+        settings: SettingsStore,
+        account: AccountInfo,
+        updater: UpdaterProviding,
+        preferencesSelection: PreferencesSelection,
+        statusBar: NSStatusBar = .system,
+        menuCardRenderingEnabled: Bool = StatusItemController.menuCardRenderingEnabled,
+        menuRefreshEnabled: Bool = StatusItemController.menuRefreshEnabled,
+        observeProviderConfigNotifications: Bool = !SettingsStore.isRunningTests)
+    {
+        self.init(
+            store: store,
+            settings: settings,
+            account: account,
+            updater: updater,
+            preferencesSelection: preferencesSelection,
+            managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(),
+            codexAccountPromotionCoordinator: nil,
+            statusBar: statusBar,
+            menuCardRenderingEnabled: menuCardRenderingEnabled,
+            menuRefreshEnabled: menuRefreshEnabled,
+            observeProviderConfigNotifications: observeProviderConfigNotifications)
+    }
+
+    private func wireBindings() {
+        self.observeStoreChanges()
+        self.observeStoreIconChanges()
+        self.observeIconPerfRefreshCycleChanges()
+        self.observeDebugForceAnimation()
+        self.observeSettingsChanges()
+        self.observeUpdaterChanges()
+        self.observeManagedCodexCoordinatorChanges()
+    }
+
+    private func observeStoreChanges() {
+        withObservationTracking {
+            _ = self.store.menuObservationToken
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.handleObservedStoreMenuChange()
+            }
+        }
+    }
+
+    func handleObservedStoreMenuChange() {
+        self.observeStoreChanges()
+        self.updatePersistentRefreshItemsEnabled()
+        let rootOpenHandledReadiness = self.consumeRootOpenHandledMenuObservationIfNeeded()
+        // `refreshOpenMenus` is only consulted when a menu is currently open.
+        // Computing the readiness signature serializes every enabled provider's
+        // token snapshot and 30-day daily breakdown, which is wasted main-thread
+        // work on the common path where no menu is open (background refresh ticks).
+        let refreshOpenMenus = self.openMenus.isEmpty
+            ? false
+            : rootOpenHandledReadiness || self.didMenuAdjunctReadinessChange()
+        self.invalidateMenus(
+            refreshOpenMenus: refreshOpenMenus,
+            deferOpenParentMenuRebuild: true,
+            allowStaleContentDuringDataRefresh: true)
+        self.completeParentMenuRebuildAfterHostedSubviewCloseIfNeeded()
+    }
+
+    private func observeStoreIconChanges() {
+        withObservationTracking {
+            _ = self.store.iconObservationToken
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeStoreIconChanges()
+                let signature = self.storeIconObservationSignature()
+                guard signature != self.lastObservedStoreIconWorkSignature else { return }
+                // Reuse the signature we just computed for the change check; `updateIcons` would
+                // otherwise recompute the identical value on the same main-actor turn.
+                self.updateIcons(precomputedStoreIconSignature: signature)
+            }
+        }
+    }
+
+    private func observeDebugForceAnimation() {
+        withObservationTracking {
+            _ = self.store.debugForceAnimation
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeDebugForceAnimation()
+                self.updateVisibility()
+                self.updateBlinkingState()
+            }
+        }
+    }
+
+    private func observeSettingsChanges() {
+        withObservationTracking {
+            _ = self.settings.menuObservationToken
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeSettingsChanges()
+                self.handleSettingsChange(reason: "observation")
+            }
+        }
+    }
+
+    func handleProviderConfigChange(reason: String) {
+        self.handleSettingsChange(reason: "config:\(reason)")
+    }
+
+    @objc private func handleProviderConfigDidChange(_ notification: Notification) {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        let reason = notification.userInfo?["reason"] as? String ?? "unknown"
+        let affectsBackgroundWork = notification.userInfo?["affectsBackgroundWork"] as? Bool
+        if let source = notification.object as? SettingsStore,
+           source !== self.settings
+        {
+            if let config = notification.userInfo?["config"] as? CodexBarConfig {
+                self.settings.applyExternalConfig(
+                    config,
+                    reason: "external-\(reason)",
+                    affectsBackgroundWork: affectsBackgroundWork)
+            } else {
+                self.settings.reloadConfig(
+                    reason: "external-\(reason)",
+                    affectsBackgroundWork: affectsBackgroundWork)
+            }
+        }
+        self.handleProviderConfigChange(reason: "notification:\(reason)")
+    }
+
+    @objc private func handleQuotaWarningPosted(_ notification: Notification) {
+        guard let event = notification.object as? QuotaWarningPostedEvent else { return }
+        self.startQuotaWarningFlash(provider: event.provider, postedAt: event.postedAt)
+    }
+
+    private func observeUpdaterChanges() {
+        withObservationTracking {
+            _ = self.updater.updateStatus.isUpdateReady
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeUpdaterChanges()
+                self.invalidateMenus()
+            }
+        }
+    }
+
+    private func observeManagedCodexCoordinatorChanges() {
+        withObservationTracking {
+            _ = self.managedCodexAccountCoordinator.isAuthenticatingManagedAccount
+            _ = self.managedCodexAccountCoordinator.authenticatingManagedAccountID
+            _ = self.managedCodexAccountCoordinator.isRemovingManagedAccount
+            _ = self.managedCodexAccountCoordinator.removingManagedAccountID
+            _ = self.codexAccountPromotionCoordinator.isAuthenticatingLiveAccount
+            _ = self.codexAccountPromotionCoordinator.isPromotingSystemAccount
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeManagedCodexCoordinatorChanges()
+                self.refreshMenusForLoginStateChange()
+            }
+        }
+    }
+
+    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
+        var shouldRefresh = false
+        let revision = self.settings.configRevision
+        if revision != self.lastConfigRevision {
+            self.lastConfigRevision = revision
+            shouldRefresh = true
+        }
+        let order = self.settings.providerOrder
+        if order != self.lastProviderOrder {
+            self.lastProviderOrder = order
+            shouldRefresh = true
+        }
+        let mergeIcons = self.settings.mergeIcons
+        if mergeIcons != self.lastMergeIcons {
+            self.lastMergeIcons = mergeIcons
+            shouldRefresh = true
+        }
+        let showsIcons = self.settings.switcherShowsIcons
+        if showsIcons != self.lastSwitcherShowsIcons {
+            self.lastSwitcherShowsIcons = showsIcons
+            shouldRefresh = true
+        }
+        let usageBarsShowUsed = self.settings.usageBarsShowUsed
+        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
+            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
+            shouldRefresh = true
+        }
+        if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {
+            shouldRefresh = true
+        }
+        return shouldRefresh
+    }
+
+    private func handleSettingsChange(reason: String) {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        self.synchronizeAgentSessionsForSettingsChange()
+        let configChanged = self.settings.configRevision != self.lastConfigRevision
+        let orderChanged = self.settings.providerOrder != self.lastProviderOrder
+        let localizationChanged = self.menuLocalizationSignature() != self.lastMenuLocalizationSignature
+        let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
+        self.invalidateMenus()
+        if orderChanged || configChanged {
+            self.rebuildProviderStatusItems()
+        }
+        self.updateVisibility()
+        self.updateIcons()
+        self.persistWidgetSnapshotIfWidgetDisplaySettingsChanged()
+        if shouldRefreshOpenMenus {
+            self.refreshOpenMenusAllowingParentRebuild(
+                deferParentRebuildDuringTracking: !localizationChanged)
+        }
+    }
+
+    /// Updates the menu bar icons.
+    ///
+    /// The store-icon observer already computes `storeIconObservationSignature()` to decide whether any
+    /// icon work is needed, so it passes that value in via `precomputedStoreIconSignature` to avoid
+    /// recomputing the identical signature on the same main-actor turn. Other callers omit it and let the
+    /// signature refresh here, keeping `lastObservedStoreIconWorkSignature` current as the change gate.
+    func updateIcons(precomputedStoreIconSignature: String? = nil) {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        MainThreadActivityBreadcrumb.push("updateIcons")
+        self.scheduleMenuBarCountdownRefreshIfNeeded()
+        self.lastObservedStoreIconWorkSignature = precomputedStoreIconSignature ?? self.storeIconObservationSignature()
+        self.beginIconPerfUpdatePass()
+        defer {
+            self.endIconPerfUpdatePass()
+            MainThreadActivityBreadcrumb.pop()
+        }
+        // Avoid flicker: when an animation driver is active, store updates can call `updateIcons()` and
+        // briefly overwrite the animated frame with the static (phase=nil) icon.
+        let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
+        if self.shouldMergeIcons {
+            let skippedMergedRender = self.applyIcon(phase: phase)
+            if skippedMergedRender,
+               !self.deferredMergedIconRenderAfterTracking,
+               self.mergedMenu != nil
+            {
+                return
+            }
+            guard !self.isMergedMenuOpen else {
+                self.updateAnimationState()
+                self.updateBlinkingState()
+                return
+            }
+            self.attachMenus()
+        } else {
+            UsageProvider.allCases.forEach { self.applyIcon(for: $0, phase: phase) }
+            self.attachMenus(fallback: self.fallbackProvider)
+        }
+        self.updateAnimationState()
+        self.updateBlinkingState()
+    }
+
+    var isMergedMenuOpen: Bool {
+        guard let mergedMenu else { return false }
+        return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
+    }
+
+    func recreateStatusItemsForVisibilityRecovery() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        self.statusItem.menu = nil
+        self.statusBar.removeStatusItem(self.statusItem)
+        self.statusItem = Self.makeStatusItem(
+            statusBar: self.statusBar,
+            identity: .merged,
+            defaults: self.settings.userDefaults,
+            legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
+        for provider in Array(self.statusItems.keys) {
+            self.removeProviderStatusItem(for: provider)
+        }
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures.removeAll()
+        self.updateVisibility()
+        self.updateIcons()
+    }
+
+    private func updateVisibility() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        let anyEnabled = !self.store.enabledProvidersForDisplay().isEmpty
+        let force = self.store.debugForceAnimation
+        let mergeIcons = self.shouldMergeIcons
+        var expectedVisibleAutosaveNames: Set<String> = []
+        if mergeIcons {
+            let shouldBeVisible = anyEnabled || force
+            self.statusItem.isVisible = shouldBeVisible
+            if shouldBeVisible {
+                expectedVisibleAutosaveNames.insert(self.statusItem.autosaveName)
+            }
+            for provider in Array(self.statusItems.keys) {
+                self.removeProviderStatusItem(for: provider)
+            }
+            self.attachMenus()
+        } else {
+            self.statusItem.isVisible = false
+            let fallback = self.fallbackProvider
+            for provider in self.settings.orderedProviders() {
+                let isEnabled = self.isEnabled(provider)
+                let shouldBeVisible = isEnabled || fallback == provider || force
+                if shouldBeVisible {
+                    let item = self.lazyStatusItem(for: provider)
+                    item.isVisible = true
+                    expectedVisibleAutosaveNames.insert(item.autosaveName)
+                } else {
+                    self.removeProviderStatusItem(for: provider)
+                }
+            }
+            self.attachMenus(fallback: fallback)
+        }
+        self.expectedVisibleStatusItemAutosaveNames = expectedVisibleAutosaveNames
+        self.updateAnimationState()
+        self.updateBlinkingState()
+    }
+
+    func isEnabled(_ provider: UsageProvider) -> Bool {
+        self.store.isEnabled(provider)
+    }
+
+    private func refreshMenusForLoginStateChange() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        self.invalidateMenus()
+        if self.shouldMergeIcons {
+            guard !self.isMergedMenuOpen else { return }
+            self.attachMenus()
+        } else {
+            self.attachMenus(fallback: self.fallbackProvider)
+        }
+    }
+
+    private func attachMenus() {
+        if self.mergedMenu == nil {
+            self.mergedMenu = self.makeMenu()
+        }
+        if self.statusItem.menu !== self.mergedMenu {
+            self.statusItem.menu = self.mergedMenu
+        }
+        self.prepareAttachedClosedMenusIfNeeded()
+    }
+
+    private func attachMenus(fallback: UsageProvider? = nil) {
+        for provider in UsageProvider.allCases {
+            // Only access/create the status item if it's actually needed
+            let shouldHaveItem = self.isEnabled(provider) || fallback == provider
+
+            if shouldHaveItem {
+                let item = self.lazyStatusItem(for: provider)
+
+                if self.isEnabled(provider) {
+                    if self.providerMenus[provider] == nil {
+                        self.providerMenus[provider] = self.makeMenu(for: provider)
+                    }
+                    let menu = self.providerMenus[provider]
+                    if item.menu !== menu {
+                        item.menu = menu
+                    }
+                } else if fallback == provider {
+                    if self.fallbackMenu == nil {
+                        self.fallbackMenu = self.makeMenu(for: nil)
+                    }
+                    if item.menu !== self.fallbackMenu {
+                        item.menu = self.fallbackMenu
+                    }
+                }
+            } else if let item = self.statusItems[provider] {
+                item.menu = nil
+            }
+        }
+        self.prepareAttachedClosedMenusIfNeeded()
+    }
+
+    private func rebuildProviderStatusItems() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        let ordered = self.settings.orderedProviders()
+        let desired = Set(ordered)
+        for provider in Array(self.statusItems.keys) where !desired.contains(provider) {
+            self.removeProviderStatusItem(for: provider)
+        }
+
+        guard !self.shouldMergeIcons else { return }
+        let fallback = self.fallbackProvider
+        let force = self.store.debugForceAnimation
+        for provider in ordered where self.isEnabled(provider) || fallback == provider || force {
+            _ = self.lazyStatusItem(for: provider)
+        }
+    }
+
+    private func removeProviderStatusItem(for provider: UsageProvider) {
+        if let menu = self.providerMenus.removeValue(forKey: provider) {
+            let menuID = ObjectIdentifier(menu)
+            if menuID == self.providerSwitcherShortcutMenuID {
+                self.removeProviderSwitcherShortcutMonitor()
+            }
+            self.clearMergedSwitcherContentCache(for: menu)
+            self.removeMenuLifecycleState(menuID)
+        }
+
+        guard let item = self.statusItems.removeValue(forKey: provider) else { return }
+        item.menu = nil
+        self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: provider)
+        self.statusBar.removeStatusItem(item)
+    }
+
+    func isVisible(_ provider: UsageProvider) -> Bool {
+        self.store.debugForceAnimation || self.isEnabled(provider)
+            || self.fallbackProvider == provider
+    }
+
+    var shouldMergeIcons: Bool {
+        self.settings.mergeIcons && self.store.enabledProvidersForDisplay().count > 1
+    }
+
+    func switchAccountSubtitle(for target: UsageProvider) -> String? {
+        guard self.loginTask != nil, let provider = self.activeLoginProvider, provider == target
+        else { return nil }
+        let base: String
+        switch self.loginPhase {
+        case .idle: return nil
+        case .requesting: base = L("Requesting login…")
+        case .waitingBrowser: base = L("Waiting in browser…")
+        }
+        let prefix = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        return "\(prefix): \(base)"
+    }
+
+    deinit {
+        let animationDriver = self.animationDriver
+        Task { @MainActor in
+            animationDriver?.stop()
+        }
+        self.blinkTask?.cancel()
+        self.menuBarCountdownRefreshTask?.cancel()
+        self.loginTask?.cancel()
+        self.screenChangeVisibilityTask?.cancel()
+        self.pendingScreenChangePreviousCount = nil
+        NotificationCenter.default.removeObserver(self)
+    }
+}
+
+#if DEBUG
+extension StatusItemController {
+    var _test_manualRefreshOperation: (@MainActor () async -> Void)? {
+        get { self.manualRefreshViewportRestoreState.testOperation }
+        set { self.manualRefreshViewportRestoreState.testOperation = newValue }
+    }
+
+    var _test_menuViewportRestoreObserver: (@MainActor (NSMenu) -> Void)? {
+        get { self.manualRefreshViewportRestoreState.testObserver }
+        set { self.manualRefreshViewportRestoreState.testObserver = newValue }
+    }
+
+    var _test_menuViewportRestoreScheduler: ((@escaping @MainActor () -> Void) -> Void)? {
+        get { self.manualRefreshViewportRestoreState.testScheduler }
+        set { self.manualRefreshViewportRestoreState.testScheduler = newValue }
+    }
+
+    var menuContentVersion: Int {
+        get { self.menuSession.contentVersion }
+        set { self.menuSession.replaceContentVersionForTesting(newValue) }
+    }
+
+    var latestRequiredMenuRebuildVersion: Int {
+        self.menuSession.latestRequiredRebuildVersion
+    }
+
+    var latestDataOnlyMenuContentVersion: Int {
+        self.menuSession.latestDataOnlyContentVersion
+    }
+
+    var latestStructuralMenuContentVersion: Int {
+        self.menuSession.latestStructuralContentVersion
+    }
+
+    var menuVersions: [ObjectIdentifier: Int] {
+        get { self.menuSession.renderedVersions }
+        set { self.menuSession.replaceRenderedVersionsForTesting(newValue) }
+    }
+
+    var closedMenusDeferredUntilNextOpen: Set<ObjectIdentifier> {
+        get { self.menuSession.deferredUntilNextOpen }
+        set { self.menuSession.replaceDeferredMenusForTesting(newValue) }
+    }
+
+    var parentMenuRebuildsDeferredDuringTracking: Set<ObjectIdentifier> {
+        self.menuSession.parentRebuildsDeferredDuringTracking
+    }
+
+    var closedMenuRebuildTokens: [ObjectIdentifier: Int] {
+        self.closedMenuRebuildRequests.tokens
+    }
+}
+#endif
+
+#if DEBUG
+extension StatusItemController {
+    static func setMenuRefreshEnabledForTesting(_ enabled: Bool) {
+        self.menuRefreshEnabled = enabled
+    }
+
+    static func resetMenuRefreshEnabledForTesting() {
+        self.menuRefreshEnabled = self.defaultMenuRefreshEnabled
+    }
+}
+#endif
+
+extension StatusItemController {
+    func legacyDefaultItemIndex(forNewProvider provider: UsageProvider) -> Int? {
+        let visibleProviders = self.settings.orderedProviders().filter { self.isVisible($0) }
+        guard let providerOffset = visibleProviders.firstIndex(of: provider) else { return nil }
+        return Self.mergedLegacyDefaultItemIndex + 1 + providerOffset
+    }
+
+    func refreshExistingStatusItemsForVisibilityRecovery() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        let visibleItems = ([self.statusItem] + Array(self.statusItems.values)).filter(\.isVisible)
+        for item in visibleItems {
+            item.isVisible = false
+        }
+        for item in visibleItems {
+            item.isVisible = true
+        }
+        self.updateVisibility()
+        self.updateIcons()
+    }
+}

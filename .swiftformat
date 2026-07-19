@@ -1,0 +1,51 @@
+# SwiftFormat configuration for CodexBar
+# Compatible with Swift 6 strict concurrency mode
+
+# IMPORTANT: Don't remove self where it's required for Swift 6 concurrency
+--self insert # Insert self for member references (required for Swift 6)
+--selfrequired # List of functions that require explicit self
+--importgrouping testable-bottom # Group @testable imports at the bottom
+--extensionacl on-declarations # Set ACL on extension members
+
+# Indentation
+--indent 4
+--indentcase false
+--ifdef no-indent
+--xcodeindentation enabled
+
+# Line breaks
+--linebreaks lf
+--maxwidth 120
+
+# Whitespace
+--trimwhitespace always
+--emptybraces no-space
+--nospaceoperators ...,..<
+--ranges no-space
+--someAny true
+
+# Wrapping
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen same-line
+
+# Organization
+--organizetypes class,struct,enum,extension
+--extensionmark "MARK: - %t + %p"
+--marktypes always
+--markextensions always
+--structthreshold 0
+--enumthreshold 0
+
+# Swift 6 specific
+--swiftversion 6.3
+--disable redundantSendable # Keep explicit concurrency contracts visible
+
+# Other
+--stripunusedargs closure-only
+--header ignore
+--allman false
+
+# Exclusions
+--exclude .build,.swiftpm,DerivedData,node_modules,dist,coverage,xcuserdata,Core/PeekabooCore/Sources/PeekabooCore/Extensions/NSArray+Extensions.swift

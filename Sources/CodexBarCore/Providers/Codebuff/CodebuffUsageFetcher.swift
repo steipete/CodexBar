@@ -1,0 +1,365 @@
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
+/// Fetches live credit balance and subscription details from the Codebuff API.
+/// Uses Bearer token auth against the public www.codebuff.com endpoints used by
+/// the dashboard + the `codebuff` CLI.
+public enum CodebuffUsageFetcher {
+    private static let requestTimeoutSeconds: TimeInterval = 15
+    /// Extra grace period to wait for the optional subscription endpoint after the
+    /// primary usage call returns. Keeps the menu responsive when `/api/user/subscription`
+    /// is slow or hangs while `/api/v1/usage` succeeds quickly.
+    private static let subscriptionGraceSeconds: TimeInterval = 2
+
+    public static func fetchUsage(
+        apiKey: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        includeSubscription: Bool = true,
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> CodebuffUsageSnapshot
+    {
+        try await self.fetchUsage(
+            apiKey: apiKey,
+            environment: environment,
+            includeSubscription: includeSubscription,
+            transport: transport,
+            subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
+    }
+
+    static func _fetchUsageForTesting(
+        apiKey: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        includeSubscription: Bool = true,
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> CodebuffUsageSnapshot
+    {
+        try await self.fetchUsage(
+            apiKey: apiKey,
+            environment: environment,
+            includeSubscription: includeSubscription,
+            transport: transport,
+            subscriptionGrace: subscriptionGrace)
+    }
+
+    private static func fetchUsage(
+        apiKey: String,
+        environment: [String: String],
+        includeSubscription: Bool,
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> CodebuffUsageSnapshot
+    {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CodebuffUsageError.missingCredentials
+        }
+        try CodebuffSettingsReader.validateEndpointOverrides(environment: environment)
+
+        let baseURL = CodebuffSettingsReader.apiURL(environment: environment)
+
+        let (usageValues, subscriptionValues) = try await self.fetchPayloads(
+            apiKey: trimmed,
+            baseURL: baseURL,
+            includeSubscription: includeSubscription,
+            transport: transport,
+            subscriptionGrace: subscriptionGrace)
+
+        return CodebuffUsageSnapshot(
+            creditsUsed: usageValues.used,
+            creditsTotal: usageValues.total,
+            creditsRemaining: usageValues.remaining,
+            weeklyUsed: subscriptionValues?.weeklyUsed,
+            weeklyLimit: subscriptionValues?.weeklyLimit,
+            weeklyResetsAt: subscriptionValues?.weeklyResetsAt,
+            billingPeriodEnd: subscriptionValues?.billingPeriodEnd,
+            nextQuotaReset: usageValues.nextQuotaReset,
+            tier: subscriptionValues?.tier,
+            subscriptionStatus: subscriptionValues?.status,
+            autoTopUpEnabled: usageValues.autoTopupEnabled,
+            accountEmail: subscriptionValues?.email,
+            updatedAt: Date())
+    }
+
+    private static func fetchPayloads(
+        apiKey: String,
+        baseURL: URL,
+        includeSubscription: Bool,
+        transport: any ProviderHTTPTransport,
+        subscriptionGrace: Duration) async throws -> (UsagePayload, SubscriptionPayload?)
+    {
+        guard includeSubscription else {
+            return try await (
+                self.fetchUsagePayload(apiKey: apiKey, baseURL: baseURL, transport: transport),
+                nil)
+        }
+
+        let subscriptionTask = Task<SubscriptionPayload?, Error> {
+            try await self.fetchSubscriptionPayload(
+                apiKey: apiKey,
+                baseURL: baseURL,
+                transport: transport)
+        }
+        let usageValues: UsagePayload
+        do {
+            usageValues = try await withTaskCancellationHandler {
+                try await self.fetchUsagePayload(
+                    apiKey: apiKey,
+                    baseURL: baseURL,
+                    transport: transport)
+            } onCancel: {
+                subscriptionTask.cancel()
+            }
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
+
+        do {
+            try Task.checkCancellation()
+        } catch {
+            subscriptionTask.cancel()
+            throw error
+        }
+        let race = BoundedTaskJoin(sourceTask: subscriptionTask)
+        switch await race.value(joinGrace: subscriptionGrace) {
+        case let .value(subscriptionValues):
+            try Task.checkCancellation()
+            return (usageValues, subscriptionValues)
+        case .timedOut:
+            try Task.checkCancellation()
+            return (usageValues, nil)
+        case .failure:
+            subscriptionTask.cancel()
+            try Task.checkCancellation()
+            return (usageValues, nil)
+        }
+    }
+
+    // MARK: - Endpoint helpers
+
+    struct UsagePayload {
+        let used: Double?
+        let total: Double?
+        let remaining: Double?
+        let nextQuotaReset: Date?
+        let autoTopupEnabled: Bool?
+    }
+
+    struct SubscriptionPayload {
+        let status: String?
+        let tier: String?
+        let billingPeriodEnd: Date?
+        let weeklyUsed: Double?
+        let weeklyLimit: Double?
+        let weeklyResetsAt: Date?
+        let email: String?
+    }
+
+    static func usageURL(baseURL: URL) -> URL {
+        baseURL.appendingPathComponent("/api/v1/usage")
+    }
+
+    static func subscriptionURL(baseURL: URL) -> URL {
+        baseURL.appendingPathComponent("/api/user/subscription")
+    }
+
+    static func statusError(for statusCode: Int) -> CodebuffUsageError? {
+        switch statusCode {
+        case 401, 403: .unauthorized
+        case 404: .endpointNotFound
+        case 500...599: .serviceUnavailable(statusCode)
+        default: nil
+        }
+    }
+
+    static func parseUsagePayload(_ data: Data) throws -> UsagePayload {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CodebuffUsageError.parseFailed("Invalid JSON")
+        }
+
+        let used = self.double(from: root["usage"]) ?? self.double(from: root["used"])
+        let total = self.double(from: root["quota"]) ?? self.double(from: root["limit"])
+        let remaining = self.double(from: root["remainingBalance"]) ?? self.double(from: root["remaining"])
+        let reset = self.date(from: root["next_quota_reset"])
+        let autoTopUp = root["autoTopupEnabled"] as? Bool ?? root["auto_topup_enabled"] as? Bool
+
+        return UsagePayload(
+            used: used,
+            total: total,
+            remaining: remaining,
+            nextQuotaReset: reset,
+            autoTopupEnabled: autoTopUp)
+    }
+
+    static func parseSubscriptionPayload(_ data: Data) throws -> SubscriptionPayload {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CodebuffUsageError.parseFailed("Invalid JSON")
+        }
+
+        let subscription = root["subscription"] as? [String: Any]
+        let rateLimit = root["rateLimit"] as? [String: Any]
+
+        let tier = self.string(from: subscription?["displayName"])
+            ?? self.string(from: root["displayName"])
+            ?? self.string(from: subscription?["tier"])
+            ?? self.string(from: root["tier"])
+            ?? self.string(from: subscription?["scheduledTier"])
+        let status = subscription?["status"] as? String
+        let email = root["email"] as? String ?? (root["user"] as? [String: Any])?["email"] as? String
+        let billingPeriodEnd = self.date(from: subscription?["billingPeriodEnd"])
+            ?? self.date(from: subscription?["currentPeriodEnd"])
+        let weeklyUsed = self.double(from: rateLimit?["weeklyUsed"])
+            ?? self.double(from: rateLimit?["used"])
+        let weeklyLimit = self.double(from: rateLimit?["weeklyLimit"])
+            ?? self.double(from: rateLimit?["limit"])
+        let weeklyResetsAt = self.date(from: rateLimit?["weeklyResetsAt"])
+
+        return SubscriptionPayload(
+            status: status,
+            tier: tier,
+            billingPeriodEnd: billingPeriodEnd,
+            weeklyUsed: weeklyUsed,
+            weeklyLimit: weeklyLimit,
+            weeklyResetsAt: weeklyResetsAt,
+            email: email)
+    }
+
+    // MARK: - Test hooks
+
+    static func _parseUsagePayloadForTesting(_ data: Data) throws -> UsagePayload {
+        try self.parseUsagePayload(data)
+    }
+
+    static func _parseSubscriptionPayloadForTesting(_ data: Data) throws -> SubscriptionPayload {
+        try self.parseSubscriptionPayload(data)
+    }
+
+    static func _statusErrorForTesting(_ statusCode: Int) -> CodebuffUsageError? {
+        self.statusError(for: statusCode)
+    }
+
+    // MARK: - Networking
+
+    private static func fetchUsagePayload(
+        apiKey: String,
+        baseURL: URL,
+        transport: any ProviderHTTPTransport) async throws -> UsagePayload
+    {
+        var request = URLRequest(url: self.usageURL(baseURL: baseURL))
+        request.httpMethod = "POST"
+        request.timeoutInterval = self.requestTimeoutSeconds
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["fingerprintId": "codexbar-usage"])
+
+        let response = try await self.send(request: request, transport: transport)
+        if let err = self.statusError(for: response.statusCode) {
+            throw err
+        }
+        guard response.statusCode == 200 else {
+            throw CodebuffUsageError.apiError(response.statusCode)
+        }
+        return try self.parseUsagePayload(response.data)
+    }
+
+    private static func fetchSubscriptionPayload(
+        apiKey: String,
+        baseURL: URL,
+        transport: any ProviderHTTPTransport) async throws -> SubscriptionPayload
+    {
+        var request = URLRequest(url: self.subscriptionURL(baseURL: baseURL))
+        request.httpMethod = "GET"
+        request.timeoutInterval = self.requestTimeoutSeconds
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let response = try await self.send(request: request, transport: transport)
+        if let err = self.statusError(for: response.statusCode) {
+            throw err
+        }
+        guard response.statusCode == 200 else {
+            throw CodebuffUsageError.apiError(response.statusCode)
+        }
+        return try self.parseSubscriptionPayload(response.data)
+    }
+
+    private static func send(
+        request: URLRequest,
+        transport: any ProviderHTTPTransport) async throws -> ProviderHTTPResponse
+    {
+        do {
+            return try await transport.response(for: request)
+        } catch let error as CodebuffUsageError {
+            throw error
+        } catch let error as URLError where error.code == .badServerResponse {
+            throw CodebuffUsageError.networkError("Invalid response")
+        } catch {
+            throw CodebuffUsageError.networkError(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Value parsing
+
+    private static func double(from value: Any?) -> Double? {
+        switch value {
+        case let number as NSNumber:
+            let raw = number.doubleValue
+            return raw.isFinite ? raw : nil
+        case let string as String:
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let raw = Double(trimmed), raw.isFinite else { return nil }
+            return raw
+        default:
+            return nil
+        }
+    }
+
+    private static func string(from value: Any?) -> String? {
+        switch value {
+        case let string as String:
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        case let number as NSNumber:
+            let raw = number.doubleValue
+            guard raw.isFinite else { return nil }
+            return number.stringValue
+        default:
+            return nil
+        }
+    }
+
+    private static func date(from value: Any?) -> Date? {
+        switch value {
+        case let string as String:
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: trimmed) {
+                return date
+            }
+            let plain = ISO8601DateFormatter()
+            plain.formatOptions = [.withInternetDateTime]
+            if let date = plain.date(from: trimmed) {
+                return date
+            }
+            if let interval = Double(trimmed), interval.isFinite {
+                return Self.dateFromNumeric(interval)
+            }
+            return nil
+        case let number as NSNumber:
+            let raw = number.doubleValue
+            return raw.isFinite ? Self.dateFromNumeric(raw) : nil
+        default:
+            return nil
+        }
+    }
+
+    private static func dateFromNumeric(_ value: Double) -> Date? {
+        if value > 10_000_000_000 {
+            return Date(timeIntervalSince1970: value / 1000)
+        }
+        return Date(timeIntervalSince1970: value)
+    }
+}

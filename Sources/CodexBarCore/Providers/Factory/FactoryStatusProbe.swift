@@ -1,0 +1,1485 @@
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if os(macOS)
+import SweetCookieKit
+
+private let factoryCookieImportOrder: BrowserCookieImportOrder =
+    ProviderDefaults.metadata[.factory]?.browserCookieOrder ?? Browser.defaultImportOrder
+
+// MARK: - Factory Cookie Importer
+
+/// Imports Factory session cookies from browser cookies.
+public enum FactoryCookieImporter {
+    private static let cookieClient = BrowserCookieClient()
+    private static let sessionCookieNames: Set<String> = [
+        "wos-session",
+        "__Secure-next-auth.session-token",
+        "next-auth.session-token",
+        "__Secure-authjs.session-token",
+        "__Host-authjs.csrf-token",
+        "authjs.session-token",
+        "session",
+        "access-token",
+    ]
+
+    private static let authSessionCookieNames: Set<String> = [
+        "__Secure-next-auth.session-token",
+        "next-auth.session-token",
+        "__Secure-authjs.session-token",
+        "authjs.session-token",
+    ]
+    private static let appBaseURL = URL(string: "https://app.factory.ai")!
+    private static let authBaseURL = URL(string: "https://auth.factory.ai")!
+    private static let apiBaseURL = URL(string: "https://api.factory.ai")!
+
+    public struct SessionInfo: Sendable {
+        public let cookies: [HTTPCookie]
+        public let sourceLabel: String
+
+        public init(cookies: [HTTPCookie], sourceLabel: String) {
+            self.cookies = cookies
+            self.sourceLabel = sourceLabel
+        }
+
+        public var cookieHeader: String {
+            self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+        }
+    }
+
+    /// Returns all Factory sessions across supported browsers.
+    public static func importSessions(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
+        var sessions: [SessionInfo] = []
+
+        // Filter to cookie-eligible browsers to avoid unnecessary keychain prompts
+        let installedBrowsers = factoryCookieImportOrder.cookieImportCandidates(using: browserDetection)
+        for browserSource in installedBrowsers {
+            do {
+                let perSource = try self.importSessions(from: browserSource, logger: logger)
+                sessions.append(contentsOf: perSource)
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
+            }
+        }
+
+        guard !sessions.isEmpty else {
+            throw FactoryStatusProbeError.noSessionCookie
+        }
+        return sessions
+    }
+
+    public static func importSessions(
+        from browserSource: Browser,
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[factory-cookie] \(msg)") }
+        let cookieDomains = ["factory.ai", "app.factory.ai", "auth.factory.ai"]
+        let query = BrowserCookieQuery(domains: cookieDomains)
+        let sources = try Self.cookieClient.codexBarRecords(
+            matching: query,
+            in: browserSource,
+            logger: log)
+
+        var sessions: [SessionInfo] = []
+        for source in sources where !source.records.isEmpty {
+            let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+            if httpCookies.contains(where: { Self.sessionCookieNames.contains($0.name) }) {
+                log("Found \(httpCookies.count) Factory cookies in \(source.label)")
+                log("\(source.label) cookie names: \(self.cookieNames(from: httpCookies))")
+                if let token = httpCookies.first(where: { $0.name == "access-token" })?.value {
+                    let hint = token.contains(".") ? "jwt" : "opaque"
+                    log("\(source.label) access-token cookie: \(token.count) chars (\(hint))")
+                }
+                if let token = httpCookies.first(where: { self.authSessionCookieNames.contains($0.name) })?.value {
+                    let hint = token.contains(".") ? "jwt" : "opaque"
+                    log("\(source.label) session cookie: \(token.count) chars (\(hint))")
+                }
+                sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
+            } else {
+                log("\(source.label) cookies found, but no Factory session cookie present")
+            }
+        }
+        return sessions
+    }
+
+    /// Attempts to import Factory cookies using the standard browser import order.
+    public static func importSession(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> SessionInfo
+    {
+        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
+        guard let first = sessions.first else {
+            throw FactoryStatusProbeError.noSessionCookie
+        }
+        return first
+    }
+
+    /// Check if Factory session cookies are available
+    public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
+        do {
+            return try !(self.importSessions(browserDetection: browserDetection, logger: logger)).isEmpty
+        } catch {
+            return false
+        }
+    }
+
+    private static func cookieNames(from cookies: [HTTPCookie]) -> String {
+        let names = Set(cookies.map { "\($0.name)@\($0.domain)" }).sorted()
+        return names.joined(separator: ", ")
+    }
+}
+
+#endif
+
+// MARK: - Factory API Models
+
+public struct FactoryAuthResponse: Codable, Sendable {
+    public let featureFlags: FactoryFeatureFlags?
+    public let organization: FactoryOrganization?
+    public let userProfile: FactoryUserProfile?
+}
+
+public struct FactoryUserProfile: Codable, Sendable {
+    public let id: String?
+    public let email: String?
+}
+
+public struct FactoryFeatureFlags: Codable, Sendable {
+    public let flags: [String: Bool]?
+    public let configs: [String: AnyCodable]?
+}
+
+public struct FactoryOrganization: Codable, Sendable {
+    public let id: String?
+    public let name: String?
+    public let subscription: FactorySubscription?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case subscription
+    }
+}
+
+public struct FactorySubscription: Codable, Sendable {
+    public let factoryTier: String?
+    public let orbSubscription: FactoryOrbSubscription?
+}
+
+public struct FactoryOrbSubscription: Codable, Sendable {
+    public let plan: FactoryPlan?
+    public let status: String?
+}
+
+public struct FactoryPlan: Codable, Sendable {
+    public let name: String?
+    public let id: String?
+}
+
+public struct FactoryUsageResponse: Codable, Sendable {
+    public let usage: FactoryUsageData?
+    public let source: String?
+    public let userId: String?
+}
+
+public struct FactoryUsageData: Codable, Sendable {
+    public let startDate: Int64?
+    public let endDate: Int64?
+    public let standard: FactoryTokenUsage?
+    public let premium: FactoryTokenUsage?
+}
+
+public struct FactoryTokenUsage: Codable, Sendable {
+    public let userTokens: Int64?
+    public let orgTotalTokensUsed: Int64?
+    public let totalAllowance: Int64?
+    public let usedRatio: Double?
+    public let orgOverageUsed: Int64?
+    public let basicAllowance: Int64?
+    public let orgOverageLimit: Int64?
+}
+
+public struct FactoryBillingLimitsResponse: Codable, Sendable {
+    public let usesTokenRateLimitsBilling: Bool
+    public let limits: FactoryTokenRateLimits?
+    public let extraUsageBalanceCents: Int
+    public let overagePreference: String?
+    public let extraUsageAllowed: Bool
+    public let tokenRateLimitsRolloutEligible: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case usesTokenRateLimitsBilling
+        case limits
+        case extraUsageBalanceCents
+        case overagePreference
+        case extraUsageAllowed
+        case tokenRateLimitsRolloutEligible
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.usesTokenRateLimitsBilling = try container
+            .decodeIfPresent(Bool.self, forKey: .usesTokenRateLimitsBilling) ?? false
+        self.limits = try container.decodeIfPresent(FactoryTokenRateLimits.self, forKey: .limits)
+        self.extraUsageBalanceCents = try container.decodeIfPresent(Int.self, forKey: .extraUsageBalanceCents) ?? 0
+        self.overagePreference = try container.decodeIfPresent(String.self, forKey: .overagePreference)
+        self.extraUsageAllowed = try container.decodeIfPresent(Bool.self, forKey: .extraUsageAllowed) ?? false
+        self.tokenRateLimitsRolloutEligible = try container
+            .decodeIfPresent(Bool.self, forKey: .tokenRateLimitsRolloutEligible) ?? false
+    }
+}
+
+public struct FactoryTokenRateLimits: Codable, Sendable {
+    public let standard: FactoryLimitPool
+    public let core: FactoryLimitPool?
+}
+
+public struct FactoryLimitPool: Codable, Sendable {
+    public let fiveHour: FactoryBillingWindow
+    public let weekly: FactoryBillingWindow
+    public let monthly: FactoryBillingWindow
+
+    public var hasUsageData: Bool {
+        [self.fiveHour, self.weekly, self.monthly].contains {
+            $0.usedPercent > 0 || $0.windowEnd != nil || $0.secondsRemaining != nil
+        }
+    }
+}
+
+public struct FactoryBillingWindow: Codable, Sendable {
+    public let usedPercent: Double
+    public let windowEnd: FlexibleFactoryDate?
+    public let secondsRemaining: Double?
+
+    public func resetAt(now: Date) -> Date? {
+        if let secondsRemaining, secondsRemaining > 0 {
+            return now.addingTimeInterval(secondsRemaining)
+        }
+        guard let windowEnd = self.windowEnd?.date, windowEnd > now else {
+            return nil
+        }
+        return windowEnd
+    }
+
+    public func effectiveUsedPercent(now: Date) -> Double {
+        // Factory can leave stale values after short rolling windows expire. The web UI treats
+        // that state as reset, so mirror it here instead of showing expired usage.
+        if self.resetAt(now: now) == nil, self.windowEnd != nil, self.secondsRemaining == nil {
+            return 0
+        }
+        return min(100, max(0, self.usedPercent))
+    }
+
+    public func rateWindow(windowMinutes: Int?, title: String, now: Date) -> RateWindow {
+        let reset = self.resetAt(now: now)
+        return RateWindow(
+            usedPercent: self.effectiveUsedPercent(now: now),
+            windowMinutes: windowMinutes,
+            resetsAt: reset,
+            resetDescription: reset.map { FactoryStatusSnapshot.formatResetDate($0) })
+    }
+}
+
+public struct FlexibleFactoryDate: Codable, Sendable {
+    public let date: Date
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let seconds = try? container.decode(Double.self) {
+            self.date = Date(timeIntervalSince1970: seconds > 1e12 ? seconds / 1000.0 : seconds)
+            return
+        }
+        let string = try container.decode(String.self)
+        if let numeric = Double(string) {
+            self.date = Date(timeIntervalSince1970: numeric > 1e12 ? numeric / 1000.0 : numeric)
+            return
+        }
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractional.date(from: string) ?? ISO8601DateFormatter().date(from: string) {
+            self.date = parsed
+            return
+        }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid Factory date")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(self.date)
+    }
+}
+
+/// Helper for encoding arbitrary JSON
+public struct AnyCodable: Codable, Sendable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            return
+        }
+        _ = try? container.decode([String: AnyCodable].self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encodeNil()
+    }
+}
+
+// MARK: - Factory Status Snapshot
+
+public struct FactoryStatusSnapshot: Sendable {
+    /// Standard token usage (user)
+    public let standardUserTokens: Int64
+    /// Standard token usage (org total)
+    public let standardOrgTokens: Int64
+    /// Standard token allowance
+    public let standardAllowance: Int64
+    /// Standard usage ratio from API (0.0-1.0), preferred over manual calculation
+    /// Falls back to percent-scale (0.0-100.0) when allowance is unavailable.
+    public let standardUsedRatio: Double?
+    /// Premium token usage (user)
+    public let premiumUserTokens: Int64
+    /// Premium token usage (org total)
+    public let premiumOrgTokens: Int64
+    /// Premium token allowance
+    public let premiumAllowance: Int64
+    /// Premium usage ratio from API (0.0-1.0), preferred over manual calculation
+    /// Falls back to percent-scale (0.0-100.0) when allowance is unavailable.
+    public let premiumUsedRatio: Double?
+    /// Billing period start
+    public let periodStart: Date?
+    /// Billing period end
+    public let periodEnd: Date?
+    /// Plan name
+    public let planName: String?
+    /// Factory tier (enterprise, team, etc.)
+    public let tier: String?
+    /// Organization name
+    public let organizationName: String?
+    /// User email
+    public let accountEmail: String?
+    /// User ID
+    public let userId: String?
+    /// Raw JSON for debugging
+    public let rawJSON: String?
+    /// New Factory token-rate-limits billing payload, when enabled for the account.
+    public let tokenRateLimits: FactoryTokenRateLimits?
+    public let extraUsageBalanceCents: Int?
+    public let overagePreference: String?
+
+    public init(
+        standardUserTokens: Int64,
+        standardOrgTokens: Int64,
+        standardAllowance: Int64,
+        standardUsedRatio: Double? = nil,
+        premiumUserTokens: Int64,
+        premiumOrgTokens: Int64,
+        premiumAllowance: Int64,
+        premiumUsedRatio: Double? = nil,
+        periodStart: Date?,
+        periodEnd: Date?,
+        planName: String?,
+        tier: String?,
+        organizationName: String?,
+        accountEmail: String?,
+        userId: String?,
+        rawJSON: String?,
+        tokenRateLimits: FactoryTokenRateLimits? = nil,
+        extraUsageBalanceCents: Int? = nil,
+        overagePreference: String? = nil)
+    {
+        self.standardUserTokens = standardUserTokens
+        self.standardOrgTokens = standardOrgTokens
+        self.standardAllowance = standardAllowance
+        self.standardUsedRatio = standardUsedRatio
+        self.premiumUserTokens = premiumUserTokens
+        self.premiumOrgTokens = premiumOrgTokens
+        self.premiumAllowance = premiumAllowance
+        self.premiumUsedRatio = premiumUsedRatio
+        self.periodStart = periodStart
+        self.periodEnd = periodEnd
+        self.planName = planName
+        self.tier = tier
+        self.organizationName = organizationName
+        self.accountEmail = accountEmail
+        self.userId = userId
+        self.rawJSON = rawJSON
+        self.tokenRateLimits = tokenRateLimits
+        self.extraUsageBalanceCents = extraUsageBalanceCents
+        self.overagePreference = overagePreference
+    }
+
+    /// Convert to UsageSnapshot for the common provider interface
+    public func toUsageSnapshot() -> UsageSnapshot {
+        if let tokenRateLimits {
+            return self.tokenRateLimitsUsageSnapshot(from: tokenRateLimits)
+        }
+
+        // Primary: Standard tokens used (as percentage of allowance, capped reasonably)
+        let standardPercent = self.calculateUsagePercent(
+            used: self.standardUserTokens,
+            allowance: self.standardAllowance,
+            apiRatio: self.standardUsedRatio)
+
+        let primary = RateWindow(
+            usedPercent: standardPercent,
+            windowMinutes: nil,
+            resetsAt: self.periodEnd,
+            resetDescription: self.periodEnd.map { Self.formatResetDate($0) })
+
+        // Secondary: Premium tokens used
+        let premiumPercent = self.calculateUsagePercent(
+            used: self.premiumUserTokens,
+            allowance: self.premiumAllowance,
+            apiRatio: self.premiumUsedRatio)
+
+        let secondary = RateWindow(
+            usedPercent: premiumPercent,
+            windowMinutes: nil,
+            resetsAt: self.periodEnd,
+            resetDescription: self.periodEnd.map { Self.formatResetDate($0) })
+
+        // Format login method as tier + plan
+        let loginMethod: String? = {
+            var parts: [String] = []
+            if let tier = self.tier, !tier.isEmpty {
+                parts.append("Factory \(tier.capitalized)")
+            }
+            if let plan = self.planName, !plan.isEmpty, !plan.lowercased().contains("factory") {
+                parts.append(plan)
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " - ")
+        }()
+
+        let identity = ProviderIdentitySnapshot(
+            providerID: .factory,
+            accountEmail: self.accountEmail,
+            accountOrganization: self.organizationName,
+            loginMethod: loginMethod)
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: nil,
+            providerCost: nil,
+            updatedAt: Date(),
+            identity: identity)
+    }
+
+    private func tokenRateLimitsUsageSnapshot(from limits: FactoryTokenRateLimits) -> UsageSnapshot {
+        let now = Date()
+        let primary = limits.standard.fiveHour.rateWindow(windowMinutes: 5 * 60, title: "5h", now: now)
+        let secondary = limits.standard.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "7-day", now: now)
+        let tertiary = limits.standard.monthly.rateWindow(windowMinutes: nil, title: "Monthly", now: now)
+
+        let coreWindows: [NamedRateWindow]? = if let core = limits.core, core.hasUsageData {
+            [
+                NamedRateWindow(
+                    id: "factory-core-5h",
+                    title: "Core 5h",
+                    window: core.fiveHour.rateWindow(windowMinutes: 5 * 60, title: "Core 5h", now: now)),
+                NamedRateWindow(
+                    id: "factory-core-7d",
+                    title: "Core 7-day",
+                    window: core.weekly.rateWindow(windowMinutes: 7 * 24 * 60, title: "Core 7-day", now: now)),
+                NamedRateWindow(
+                    id: "factory-core-monthly",
+                    title: "Core Monthly",
+                    window: core.monthly.rateWindow(windowMinutes: nil, title: "Core Monthly", now: now)),
+            ]
+        } else {
+            nil
+        }
+
+        let loginMethod: String? = {
+            var parts: [String] = []
+            if let tier = self.tier, !tier.isEmpty {
+                parts.append("Factory \(tier.capitalized)")
+            }
+            if let plan = self.planName, !plan.isEmpty, !plan.lowercased().contains("factory") {
+                parts.append(plan)
+            }
+            if let overagePreference, !overagePreference.isEmpty {
+                parts.append("Fallback: \(overagePreference)")
+            }
+            return parts.isEmpty ? nil : parts.joined(separator: " - ")
+        }()
+
+        let identity = ProviderIdentitySnapshot(
+            providerID: .factory,
+            accountEmail: self.accountEmail,
+            accountOrganization: self.organizationName,
+            loginMethod: loginMethod)
+        let providerCost = self.extraUsageBalanceCents.map {
+            ProviderCostSnapshot(
+                used: Double($0) / 100.0,
+                limit: 0,
+                currencyCode: "USD",
+                period: "Extra usage balance",
+                updatedAt: now)
+        }
+        return UsageSnapshot(
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            extraRateWindows: coreWindows,
+            providerCost: providerCost,
+            updatedAt: now,
+            identity: identity)
+    }
+
+    private func calculateUsagePercent(used: Int64, allowance: Int64, apiRatio: Double?) -> Double {
+        // Prefer API-provided ratio when available and valid.
+        // This handles plan-specific limits correctly on the server side,
+        // avoiding issues with missing/sentinel values in totalAllowance.
+        let unlimitedThreshold: Int64 = 1_000_000_000_000
+        if let ratio = apiRatio,
+           !(ratio == 0 && used > 0 && allowance > 0 && allowance <= unlimitedThreshold),
+           let percent = Self.percentFromAPIRatio(ratio, allowance: allowance, unlimitedThreshold: unlimitedThreshold)
+        {
+            return percent
+        }
+
+        // Fallback: calculate from used/allowance.
+        // Treat very large allowances (> 1 trillion) as unlimited.
+        if allowance > unlimitedThreshold {
+            // For unlimited, show a token count-based pseudo-percentage (capped at 100%).
+            // Use 100M tokens as a reference point for "100%".
+            let referenceTokens: Double = 100_000_000
+            return min(100, Double(used) / referenceTokens * 100)
+        }
+        guard allowance > 0 else { return 0 }
+        return min(100, Double(used) / Double(allowance) * 100)
+    }
+
+    private static func percentFromAPIRatio(
+        _ ratio: Double,
+        allowance: Int64,
+        unlimitedThreshold: Int64) -> Double?
+    {
+        guard ratio.isFinite else { return nil }
+
+        // Primary: ratio scale (0.0 - 1.0). Clamp to account for rounding.
+        if ratio >= -0.001, ratio <= 1.001 {
+            return min(100, max(0, ratio * 100))
+        }
+
+        // TODO: Confirm usedRatio contract (0.0-1.0 vs 0.0-100.0) and tighten this fallback.
+        // Secondary: percent scale (0.0 - 100.0), only when allowance is missing/unreliable.
+        // This avoids misinterpreting slightly-over-1 ratios when we can calculate locally.
+        let allowanceIsReliable = allowance > 0 && allowance <= unlimitedThreshold
+        if !allowanceIsReliable, ratio >= -0.1, ratio <= 100.1 {
+            return min(100, max(0, ratio))
+        }
+
+        return nil
+    }
+
+    static func formatResetDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d 'at' h:mma"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return "Resets " + formatter.string(from: date)
+    }
+}
+
+// MARK: - Factory Status Probe
+
+public struct FactoryStatusProbe: Sendable {
+    public let baseURL: URL
+    public var timeout: TimeInterval = 15.0
+    private static let staleTokenCookieNames: Set<String> = [
+        "access-token",
+        "__recent_auth",
+    ]
+    private static let sessionCookieNames: Set<String> = [
+        "session",
+        "wos-session",
+    ]
+    private static let authSessionCookieNames: Set<String> = [
+        "__Secure-next-auth.session-token",
+        "next-auth.session-token",
+        "__Secure-authjs.session-token",
+        "authjs.session-token",
+    ]
+    static let appBaseURL = URL(string: "https://app.factory.ai")!
+    static let authBaseURL = URL(string: "https://auth.factory.ai")!
+    static let apiBaseURL = URL(string: "https://api.factory.ai")!
+    private static let workosClientIDs = [
+        "client_01HXRMBQ9BJ3E7QSTQ9X2PHVB7",
+        "client_01HNM792M5G5G1A2THWPXKFMXB",
+    ]
+
+    private struct WorkOSAuthResponse: Decodable {
+        let access_token: String
+        let refresh_token: String?
+        let organization_id: String?
+    }
+
+    private let browserDetection: BrowserDetection
+    private let transport: any ProviderHTTPTransport
+
+    public init(
+        baseURL: URL = URL(string: "https://app.factory.ai")!,
+        timeout: TimeInterval = 15.0,
+        browserDetection: BrowserDetection,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+    {
+        self.baseURL = baseURL
+        self.timeout = timeout
+        self.browserDetection = browserDetection
+        self.transport = transport
+    }
+
+    /// Fetch Factory usage using browser cookies with fallback to stored session.
+    public func fetch(
+        cookieHeaderOverride: String? = nil,
+        logger: ((String) -> Void)? = nil) async throws -> FactoryStatusSnapshot
+    {
+        #if os(macOS)
+        let log: (String) -> Void = { msg in logger?("[factory] \(msg)") }
+        var lastError: Error?
+
+        let manualOverride = cookieHeaderOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if manualOverride?.isEmpty == false {
+            guard let override = Self.manualCredentials(from: manualOverride) else {
+                throw FactoryStatusProbeError.noSessionCookie
+            }
+            if let cookieHeader = override.cookieHeader {
+                log("Using manual cookie header")
+                let candidates = [
+                    self.baseURL,
+                    Self.authBaseURL,
+                    Self.apiBaseURL,
+                ]
+                for baseURL in candidates {
+                    do {
+                        return try await self.fetchWithCookieHeader(
+                            cookieHeader,
+                            bearerToken: override.bearerToken,
+                            baseURL: baseURL)
+                    } catch {
+                        lastError = error
+                    }
+                }
+            }
+            if let bearerToken = override.bearerToken {
+                log("Using manual Factory bearer token")
+                return try await self.fetchWithBearerToken(bearerToken, logger: log)
+            }
+            if let lastError { throw lastError }
+            throw FactoryStatusProbeError.noSessionCookie
+        }
+
+        if let cached = CookieHeaderCache.load(provider: .factory),
+           !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            log("Using cached cookie header from \(cached.sourceLabel)")
+            let bearer = Self.bearerToken(fromHeader: cached.cookieHeader)
+            do {
+                return try await self.fetchWithCookieHeader(
+                    cached.cookieHeader,
+                    bearerToken: bearer,
+                    baseURL: self.baseURL)
+            } catch {
+                if case FactoryStatusProbeError.notLoggedIn = error {
+                    CookieHeaderCache.clear(provider: .factory)
+                }
+                lastError = error
+            }
+        }
+
+        // Filter to only installed browsers to avoid unnecessary keychain prompts
+        let installedChromiumAndFirefox = [.chrome, .firefox].cookieImportCandidates(using: self.browserDetection)
+
+        let attempts: [() async -> FetchAttemptResult] = [
+            { await self.attemptStoredCookies(logger: log) },
+            { await self.attemptStoredBearer(logger: log) },
+            { await self.attemptStoredRefreshToken(logger: log) },
+            { await self.attemptLocalStorageTokens(logger: log) },
+            { await self.attemptBrowserCookies(logger: log, sources: [.safari]) },
+            { await self.attemptWorkOSCookies(logger: log, sources: [.safari]) },
+            { await self.attemptBrowserCookies(logger: log, sources: installedChromiumAndFirefox) },
+            { await self.attemptWorkOSCookies(logger: log, sources: installedChromiumAndFirefox) },
+        ]
+
+        for attempt in attempts {
+            switch await attempt() {
+            case let .success(snapshot):
+                return snapshot
+            case let .failure(error):
+                lastError = error
+            case .skipped:
+                continue
+            }
+        }
+
+        if let lastError { throw lastError }
+        throw FactoryStatusProbeError.noSessionCookie
+        #else
+        _ = cookieHeaderOverride
+        _ = logger
+        throw FactoryStatusProbeError.notSupported
+        #endif
+    }
+
+    #if os(macOS)
+    private enum FetchAttemptResult {
+        case success(FactoryStatusSnapshot)
+        case failure(Error)
+        case skipped
+    }
+
+    private func attemptBrowserCookies(
+        logger: @escaping (String) -> Void,
+        sources: [Browser]) async -> FetchAttemptResult
+    {
+        do {
+            var lastError: Error?
+            for browserSource in sources {
+                let sessions = try FactoryCookieImporter.importSessions(from: browserSource, logger: logger)
+                for session in sessions {
+                    logger("Using cookies from \(session.sourceLabel)")
+                    do {
+                        let snapshot = try await self.fetchWithCookies(session.cookies, logger: logger)
+                        await FactorySessionStore.shared.setCookies(session.cookies)
+                        CookieHeaderCache.store(
+                            provider: .factory,
+                            cookieHeader: session.cookieHeader,
+                            sourceLabel: session.sourceLabel)
+                        return .success(snapshot)
+                    } catch {
+                        lastError = error
+                        logger("Browser session fetch failed for \(session.sourceLabel): \(error.localizedDescription)")
+                    }
+                }
+            }
+            if let lastError { return .failure(lastError) }
+            return .skipped
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            logger("Browser cookie import failed: \(error.localizedDescription)")
+            return .failure(error)
+        }
+    }
+
+    private func attemptStoredCookies(logger: (String) -> Void) async -> FetchAttemptResult {
+        let storedCookies = await FactorySessionStore.shared.getCookies()
+        guard !storedCookies.isEmpty else { return .skipped }
+        logger("Using stored session cookies")
+        do {
+            return try await .success(self.fetchWithCookies(storedCookies, logger: logger))
+        } catch {
+            if case FactoryStatusProbeError.notLoggedIn = error {
+                await FactorySessionStore.shared.clearCookies()
+                logger("Stored session cookies invalid, cleared")
+            } else {
+                logger("Stored session failed: \(error.localizedDescription)")
+            }
+            return .failure(error)
+        }
+    }
+
+    private func attemptStoredBearer(logger: (String) -> Void) async -> FetchAttemptResult {
+        guard let bearerToken = await FactorySessionStore.shared.getBearerToken() else { return .skipped }
+        logger("Using stored Factory bearer token")
+        do {
+            return try await .success(self.fetchWithBearerToken(bearerToken, logger: logger))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func attemptStoredRefreshToken(logger: (String) -> Void) async -> FetchAttemptResult {
+        guard let refreshToken = await FactorySessionStore.shared.getRefreshToken(),
+              !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return .skipped
+        }
+        logger("Using stored WorkOS refresh token")
+        do {
+            return try await .success(self.fetchWithWorkOSRefreshToken(
+                refreshToken,
+                organizationID: nil,
+                logger: logger))
+        } catch {
+            if self.isInvalidGrant(error) {
+                await FactorySessionStore.shared.setRefreshToken(nil)
+            } else if case FactoryStatusProbeError.noSessionCookie = error {
+                await FactorySessionStore.shared.setRefreshToken(nil)
+            }
+            return .failure(error)
+        }
+    }
+
+    private func attemptLocalStorageTokens(logger: @escaping (String) -> Void) async -> FetchAttemptResult {
+        let workosTokens = FactoryLocalStorageImporter.importWorkOSTokens(
+            browserDetection: self.browserDetection,
+            logger: logger)
+        guard !workosTokens.isEmpty else { return .skipped }
+        var lastError: Error?
+        for token in workosTokens {
+            guard !token.refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
+            logger("Using WorkOS refresh token from \(token.sourceLabel)")
+            if let accessToken = token.accessToken {
+                do {
+                    await FactorySessionStore.shared.setBearerToken(accessToken)
+                    return try await .success(self.fetchWithBearerToken(accessToken, logger: logger))
+                } catch {
+                    lastError = error
+                }
+            }
+            do {
+                return try await .success(self.fetchWithWorkOSRefreshToken(
+                    token.refreshToken,
+                    organizationID: token.organizationID,
+                    logger: logger))
+            } catch {
+                if self.isInvalidGrant(error) {
+                    await FactorySessionStore.shared.setRefreshToken(nil)
+                }
+                lastError = error
+            }
+        }
+        if let lastError { return .failure(lastError) }
+        return .skipped
+    }
+
+    private func attemptWorkOSCookies(
+        logger: @escaping (String) -> Void,
+        sources: [Browser]) async -> FetchAttemptResult
+    {
+        let log: (String) -> Void = { msg in logger("[factory-workos] \(msg)") }
+        var lastError: Error?
+
+        for browserSource in sources {
+            do {
+                let query = BrowserCookieQuery(domains: ["workos.com"])
+                let sources = try BrowserCookieClient().codexBarRecords(
+                    matching: query,
+                    in: browserSource,
+                    logger: log)
+                for source in sources where !source.records.isEmpty {
+                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    guard !cookies.isEmpty else { continue }
+                    log("Using WorkOS cookies from \(source.label)")
+                    do {
+                        let auth = try await self.fetchWorkOSAccessTokenWithCookies(
+                            cookies: cookies,
+                            logger: logger)
+                        await FactorySessionStore.shared.setBearerToken(auth.access_token)
+                        if let refreshToken = auth.refresh_token {
+                            await FactorySessionStore.shared.setRefreshToken(refreshToken)
+                        }
+                        return try await .success(self.fetchWithBearerToken(auth.access_token, logger: logger))
+                    } catch {
+                        lastError = error
+                        log("WorkOS cookie auth failed for \(source.label): \(error.localizedDescription)")
+                    }
+                }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                log("\(browserSource.displayName) WorkOS cookie import failed: \(error.localizedDescription)")
+                lastError = error
+            }
+        }
+
+        if let lastError { return .failure(lastError) }
+        return .skipped
+    }
+
+    private func fetchWithWorkOSRefreshToken(
+        _ refreshToken: String,
+        organizationID: String?,
+        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+    {
+        let auth = try await self.fetchWorkOSAccessToken(
+            refreshToken: refreshToken,
+            organizationID: organizationID)
+        await FactorySessionStore.shared.setBearerToken(auth.access_token)
+        if let newRefresh = auth.refresh_token {
+            await FactorySessionStore.shared.setRefreshToken(newRefresh)
+        }
+        return try await self.fetchWithBearerToken(auth.access_token, logger: logger)
+    }
+
+    private func fetchWithCookies(
+        _ cookies: [HTTPCookie],
+        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+    {
+        let candidates = Self.baseURLCandidates(default: self.baseURL, cookies: cookies)
+        var lastError: Error?
+
+        for baseURL in candidates {
+            if baseURL != self.baseURL {
+                logger("Trying Factory base URL: \(baseURL.host ?? baseURL.absoluteString)")
+            }
+            do {
+                return try await self.fetchWithCookies(cookies, baseURL: baseURL, logger: logger)
+            } catch {
+                lastError = error
+            }
+        }
+
+        if let lastError { throw lastError }
+        throw FactoryStatusProbeError.noSessionCookie
+    }
+
+    private func fetchWithCookies(
+        _ cookies: [HTTPCookie],
+        baseURL: URL,
+        logger: (String) -> Void) async throws -> FactoryStatusSnapshot
+    {
+        let header = Self.cookieHeader(from: cookies)
+        let bearerToken = Self.bearerToken(from: cookies)
+        do {
+            return try await self.fetchWithCookieHeader(header, bearerToken: bearerToken, baseURL: baseURL)
+        } catch let error as FactoryStatusProbeError {
+            if case .notLoggedIn = error, bearerToken != nil {
+                logger("Retrying without Authorization header")
+                return try await self.fetchWithCookieHeader(header, bearerToken: nil, baseURL: baseURL)
+            }
+            guard case let .networkError(message) = error,
+                  message.contains("HTTP 409")
+            else {
+                throw error
+            }
+
+            var lastError: Error? = error
+            if bearerToken != nil {
+                logger("Retrying without Authorization header (HTTP 409)")
+                do {
+                    return try await self.fetchWithCookieHeader(header, bearerToken: nil, baseURL: baseURL)
+                } catch {
+                    lastError = error
+                }
+            }
+
+            let retries: [(String, (HTTPCookie) -> Bool)] = [
+                ("Retrying without access-token cookies", { !Self.staleTokenCookieNames.contains($0.name) }),
+                ("Retrying without session cookies", { !Self.sessionCookieNames.contains($0.name) }),
+                ("Retrying without access-token/session cookies", {
+                    !Self.staleTokenCookieNames.contains($0.name) && !Self.sessionCookieNames.contains($0.name)
+                }),
+            ]
+
+            for (label, predicate) in retries {
+                let filtered = cookies.filter(predicate)
+                guard filtered.count < cookies.count else { continue }
+                logger(label)
+                do {
+                    let filteredBearer = Self.bearerToken(from: filtered)
+                    return try await self.fetchWithCookieHeader(
+                        Self.cookieHeader(from: filtered),
+                        bearerToken: filteredBearer,
+                        baseURL: baseURL)
+                } catch let retryError as FactoryStatusProbeError {
+                    switch retryError {
+                    case let .networkError(retryMessage)
+                        where retryMessage.contains("HTTP 409") &&
+                        retryMessage.localizedCaseInsensitiveContains("stale token"):
+                        lastError = retryError
+                        continue
+                    case .notLoggedIn:
+                        lastError = retryError
+                        continue
+                    default:
+                        throw retryError
+                    }
+                }
+            }
+
+            let authOnly = cookies.filter {
+                Self.authSessionCookieNames.contains($0.name) || $0.name == "__Host-authjs.csrf-token"
+            }
+            if !authOnly.isEmpty, authOnly.count < cookies.count {
+                logger("Retrying with auth session cookies only")
+                do {
+                    return try await self.fetchWithCookieHeader(
+                        Self.cookieHeader(from: authOnly),
+                        bearerToken: Self.bearerToken(from: authOnly),
+                        baseURL: baseURL)
+                } catch let retryError as FactoryStatusProbeError {
+                    lastError = retryError
+                }
+            }
+
+            if let lastError { throw lastError }
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
+    private static func cookieHeader(from cookies: [HTTPCookie]) -> String {
+        cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+    }
+
+    #endif
+
+    func fetchWithCookieHeader(
+        _ cookieHeader: String,
+        bearerToken: String?,
+        baseURL: URL) async throws -> FactoryStatusSnapshot
+    {
+        // First fetch auth info to get user ID and org info
+        let authInfo = try await self.fetchAuthInfo(
+            cookieHeader: cookieHeader,
+            bearerToken: bearerToken,
+            baseURL: baseURL)
+
+        let userId = factoryUserIdFromAuth(authInfo)
+            ?? factoryUserIdFromBearerToken(bearerToken)
+
+        if let billingLimits = try await self.fetchBillingLimitsIfAvailable(
+            cookieHeader: cookieHeader,
+            bearerToken: bearerToken),
+            billingLimits.usesTokenRateLimitsBilling,
+            let tokenRateLimits = billingLimits.limits
+        {
+            return self.buildTokenRateLimitsSnapshot(
+                authInfo: authInfo,
+                billingLimits: billingLimits,
+                tokenRateLimits: tokenRateLimits,
+                userId: userId)
+        }
+
+        // Fetch usage data
+        let usageData = try await self.fetchUsage(
+            cookieHeader: cookieHeader,
+            bearerToken: bearerToken,
+            userId: userId,
+            baseURL: baseURL)
+
+        return self.buildSnapshot(authInfo: authInfo, usageData: usageData, userId: userId)
+    }
+
+    private func fetchBillingLimitsIfAvailable(
+        cookieHeader: String,
+        bearerToken: String?) async throws -> FactoryBillingLimitsResponse?
+    {
+        let url = Self.apiBaseURL.appendingPathComponent("/api/billing/limits")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
+        request.setValue("https://app.factory.ai/", forHTTPHeaderField: "Referer")
+        request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
+        if !cookieHeader.isEmpty {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await self.transport.data(for: request)
+        } catch {
+            return nil
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            return nil
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(FactoryBillingLimitsResponse.self, from: data)
+    }
+
+    private func fetchAuthInfo(
+        cookieHeader: String,
+        bearerToken: String?,
+        baseURL: URL) async throws -> FactoryAuthResponse
+    {
+        let url = baseURL.appendingPathComponent("/api/app/auth/me")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
+        request.setValue("https://app.factory.ai/", forHTTPHeaderField: "Referer")
+        if !cookieHeader.isEmpty {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await self.transport.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FactoryStatusProbeError.networkError("Invalid response")
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw FactoryStatusProbeError.notLoggedIn
+        }
+
+        if httpResponse.statusCode == 403 {
+            let body = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
+            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
+            throw FactoryStatusProbeError.networkError("HTTP 403 Forbidden\(snippet)")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
+            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
+            throw FactoryStatusProbeError.networkError("HTTP \(httpResponse.statusCode)\(snippet)")
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode(FactoryAuthResponse.self, from: data)
+        } catch {
+            let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
+            throw FactoryStatusProbeError
+                .parseFailed("Auth decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
+        }
+    }
+
+    private func fetchUsage(
+        cookieHeader: String,
+        bearerToken: String?,
+        userId: String?,
+        baseURL: URL) async throws -> FactoryUsageResponse
+    {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/organization/subscription/usage"),
+            resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "useCache", value: "true"),
+        ]
+        if let userId {
+            components?.queryItems?.append(URLQueryItem(name: "userId", value: userId))
+        }
+        let url = components?.url ?? baseURL.appendingPathComponent("/api/organization/subscription/usage")
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://app.factory.ai", forHTTPHeaderField: "Origin")
+        request.setValue("https://app.factory.ai/", forHTTPHeaderField: "Referer")
+        if !cookieHeader.isEmpty {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        request.setValue("web-app", forHTTPHeaderField: "x-factory-client")
+        if let bearerToken {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await self.transport.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FactoryStatusProbeError.networkError("Invalid response")
+        }
+
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw FactoryStatusProbeError.notLoggedIn
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
+            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
+            throw FactoryStatusProbeError.networkError("HTTP \(httpResponse.statusCode)\(snippet)")
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode(FactoryUsageResponse.self, from: data)
+        } catch {
+            let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
+            throw FactoryStatusProbeError
+                .parseFailed("Usage decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
+        }
+    }
+
+    #if os(macOS)
+    private static func baseURLCandidates(default baseURL: URL, cookies: [HTTPCookie]) -> [URL] {
+        let cookieDomains = Set(
+            cookies.map {
+                $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            })
+
+        var candidates: [URL] = []
+        if cookieDomains.contains("auth.factory.ai") {
+            candidates.append(Self.authBaseURL)
+        }
+        candidates.append(Self.apiBaseURL)
+        candidates.append(Self.appBaseURL)
+        candidates.append(baseURL)
+
+        var seen = Set<String>()
+        return candidates.filter { url in
+            let key = url.absoluteString
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    private static func bearerToken(from cookies: [HTTPCookie]) -> String? {
+        let accessToken = cookies.first(where: { $0.name == "access-token" })?.value
+        let sessionToken = cookies.first(where: { Self.authSessionCookieNames.contains($0.name) })?.value
+        let legacySession = cookies.first(where: { $0.name == "session" })?.value
+
+        if let accessToken, accessToken.contains(".") {
+            return accessToken
+        }
+        if let sessionToken, sessionToken.contains(".") {
+            return sessionToken
+        }
+        if let legacySession, legacySession.contains(".") {
+            return legacySession
+        }
+        return accessToken ?? sessionToken
+    }
+
+    private func fetchWorkOSAccessToken(
+        refreshToken: String,
+        organizationID: String?) async throws -> WorkOSAuthResponse
+    {
+        var lastError: Error?
+        for clientID in Self.workosClientIDs {
+            do {
+                return try await self.fetchWorkOSAccessToken(
+                    refreshToken: refreshToken,
+                    organizationID: organizationID,
+                    clientID: clientID)
+            } catch {
+                lastError = error
+            }
+        }
+        if let lastError { throw lastError }
+        throw FactoryStatusProbeError.networkError("WorkOS auth failed")
+    }
+
+    private func fetchWorkOSAccessToken(
+        refreshToken: String,
+        organizationID: String?,
+        clientID: String) async throws -> WorkOSAuthResponse
+    {
+        guard let url = URL(string: "https://api.workos.com/user_management/authenticate") else {
+            throw FactoryStatusProbeError.networkError("WorkOS auth URL unavailable")
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var body: [String: Any] = [
+            "client_id": clientID,
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+        ]
+        if let organizationID {
+            body["organization_id"] = organizationID
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+
+        let (data, response) = try await self.transport.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FactoryStatusProbeError.networkError("Invalid WorkOS response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 400, Self.isMissingWorkOSRefreshToken(data) {
+                throw FactoryStatusProbeError.noSessionCookie
+            }
+            let body = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
+            let snippet = body.isEmpty ? "" : ": \(body.prefix(200))"
+            throw FactoryStatusProbeError.networkError("WorkOS HTTP \(httpResponse.statusCode)\(snippet)")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(WorkOSAuthResponse.self, from: data)
+    }
+
+    private func fetchWorkOSAccessTokenWithCookies(
+        cookies: [HTTPCookie],
+        logger: (String) -> Void) async throws -> WorkOSAuthResponse
+    {
+        let cookieHeader = Self.cookieHeader(from: cookies)
+        guard !cookieHeader.isEmpty else {
+            throw FactoryStatusProbeError.networkError("Missing WorkOS cookies")
+        }
+
+        var lastError: Error?
+        for clientID in Self.workosClientIDs {
+            do {
+                return try await self.fetchWorkOSAccessTokenWithCookies(
+                    cookieHeader: cookieHeader,
+                    organizationID: nil,
+                    clientID: clientID)
+            } catch {
+                lastError = error
+                logger("WorkOS cookie auth failed for client \(clientID): \(error.localizedDescription)")
+            }
+        }
+        if let lastError { throw lastError }
+        throw FactoryStatusProbeError.networkError("WorkOS cookie auth failed")
+    }
+
+    private func fetchWorkOSAccessTokenWithCookies(
+        cookieHeader: String,
+        organizationID: String?,
+        clientID: String) async throws -> WorkOSAuthResponse
+    {
+        guard let url = URL(string: "https://api.workos.com/user_management/authenticate") else {
+            throw FactoryStatusProbeError.networkError("WorkOS auth URL unavailable")
+        }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = self.timeout
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+
+        var body: [String: Any] = [
+            "client_id": clientID,
+            "grant_type": "refresh_token",
+            "useCookie": true,
+        ]
+        if let organizationID {
+            body["organization_id"] = organizationID
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+
+        let (data, response) = try await self.transport.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FactoryStatusProbeError.networkError("Invalid WorkOS response")
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 400, Self.isMissingWorkOSRefreshToken(data) {
+                throw FactoryStatusProbeError.noSessionCookie
+            }
+            let bodyText = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<binary>"
+            let snippet = bodyText.isEmpty ? "" : ": \(bodyText.prefix(200))"
+            throw FactoryStatusProbeError.networkError("WorkOS HTTP \(httpResponse.statusCode)\(snippet)")
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(WorkOSAuthResponse.self, from: data)
+    }
+
+    private func isInvalidGrant(_ error: Error) -> Bool {
+        guard case let FactoryStatusProbeError.networkError(message) = error else {
+            return false
+        }
+        return message.localizedCaseInsensitiveContains("invalid_grant")
+    }
+
+    static func isMissingWorkOSRefreshToken(_ data: Data) -> Bool {
+        guard let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+            return false
+        }
+        guard let description = json["error_description"] as? String else { return false }
+        return description.localizedCaseInsensitiveContains("missing refresh token")
+    }
+
+    #endif
+
+    private func buildSnapshot(
+        authInfo: FactoryAuthResponse,
+        usageData: FactoryUsageResponse,
+        userId: String?) -> FactoryStatusSnapshot
+    {
+        let usage = usageData.usage
+
+        let periodStart: Date? = usage?.startDate.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
+        let periodEnd: Date? = usage?.endDate.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) }
+
+        return FactoryStatusSnapshot(
+            standardUserTokens: usage?.standard?.userTokens ?? 0,
+            standardOrgTokens: usage?.standard?.orgTotalTokensUsed ?? 0,
+            standardAllowance: usage?.standard?.totalAllowance ?? 0,
+            standardUsedRatio: usage?.standard?.usedRatio,
+            premiumUserTokens: usage?.premium?.userTokens ?? 0,
+            premiumOrgTokens: usage?.premium?.orgTotalTokensUsed ?? 0,
+            premiumAllowance: usage?.premium?.totalAllowance ?? 0,
+            premiumUsedRatio: usage?.premium?.usedRatio,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            planName: authInfo.organization?.subscription?.orbSubscription?.plan?.name,
+            tier: authInfo.organization?.subscription?.factoryTier,
+            organizationName: authInfo.organization?.name,
+            accountEmail: nil, // Email is in JWT, not in auth response body
+            userId: userId ?? usageData.userId,
+            rawJSON: nil)
+    }
+
+    private func buildTokenRateLimitsSnapshot(
+        authInfo: FactoryAuthResponse,
+        billingLimits: FactoryBillingLimitsResponse,
+        tokenRateLimits: FactoryTokenRateLimits,
+        userId: String?) -> FactoryStatusSnapshot
+    {
+        FactoryStatusSnapshot(
+            standardUserTokens: 0,
+            standardOrgTokens: 0,
+            standardAllowance: 0,
+            standardUsedRatio: nil,
+            premiumUserTokens: 0,
+            premiumOrgTokens: 0,
+            premiumAllowance: 0,
+            premiumUsedRatio: nil,
+            periodStart: nil,
+            periodEnd: nil,
+            planName: authInfo.organization?.subscription?.orbSubscription?.plan?.name,
+            tier: authInfo.organization?.subscription?.factoryTier,
+            organizationName: authInfo.organization?.name,
+            accountEmail: nil,
+            userId: userId,
+            rawJSON: nil,
+            tokenRateLimits: tokenRateLimits,
+            extraUsageBalanceCents: billingLimits.extraUsageBalanceCents,
+            overagePreference: billingLimits.overagePreference)
+    }
+}
+
+private func factoryUserIdFromAuth(_ auth: FactoryAuthResponse) -> String? {
+    factoryNormalizedString(auth.userProfile?.id)
+}
+
+private func factoryUserIdFromBearerToken(_ token: String?) -> String? {
+    guard let token,
+          let claims = UsageFetcher.parseJWT(token),
+          let subject = claims["sub"] as? String
+    else {
+        return nil
+    }
+    return factoryNormalizedString(subject)
+}
+
+private func factoryNormalizedString(_ value: String?) -> String? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+        return nil
+    }
+    return value
+}

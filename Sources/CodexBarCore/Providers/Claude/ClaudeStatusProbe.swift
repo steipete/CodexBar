@@ -1,0 +1,1401 @@
+import Foundation
+
+public struct ClaudeStatusSnapshot: Sendable {
+    public let sessionPercentLeft: Int?
+    public let weeklyPercentLeft: Int?
+    public let opusPercentLeft: Int?
+    public let extraRateWindows: [NamedRateWindow]
+    public let accountEmail: String?
+    public let accountOrganization: String?
+    public let loginMethod: String?
+    public let primaryResetDescription: String?
+    public let secondaryResetDescription: String?
+    public let opusResetDescription: String?
+    public let rawText: String
+
+    public init(
+        sessionPercentLeft: Int?,
+        weeklyPercentLeft: Int?,
+        opusPercentLeft: Int?,
+        accountEmail: String?,
+        accountOrganization: String?,
+        loginMethod: String?,
+        primaryResetDescription: String?,
+        secondaryResetDescription: String?,
+        opusResetDescription: String?,
+        rawText: String,
+        extraRateWindows: [NamedRateWindow] = [])
+    {
+        self.sessionPercentLeft = sessionPercentLeft
+        self.weeklyPercentLeft = weeklyPercentLeft
+        self.opusPercentLeft = opusPercentLeft
+        self.extraRateWindows = extraRateWindows
+        self.accountEmail = accountEmail
+        self.accountOrganization = accountOrganization
+        self.loginMethod = loginMethod
+        self.primaryResetDescription = primaryResetDescription
+        self.secondaryResetDescription = secondaryResetDescription
+        self.opusResetDescription = opusResetDescription
+        self.rawText = rawText
+    }
+}
+
+public struct ClaudeAccountIdentity: Sendable {
+    public let accountEmail: String?
+    public let accountOrganization: String?
+    public let loginMethod: String?
+
+    public init(accountEmail: String?, accountOrganization: String?, loginMethod: String?) {
+        self.accountEmail = accountEmail
+        self.accountOrganization = accountOrganization
+        self.loginMethod = loginMethod
+    }
+}
+
+public enum ClaudeStatusProbeError: LocalizedError, Sendable {
+    case claudeNotInstalled
+    case authenticationFailed(String)
+    case parseFailed(String)
+    case timedOut
+
+    public var errorDescription: String? {
+        switch self {
+        case .claudeNotInstalled:
+            "Claude CLI is not installed or not on PATH."
+        case let .authenticationFailed(message):
+            message
+        case let .parseFailed(msg):
+            "Could not parse Claude usage: \(msg)"
+        case .timedOut:
+            "Claude usage probe timed out."
+        }
+    }
+}
+
+/// Runs `claude` inside a PTY, sends `/usage`, and parses the rendered text panel.
+public struct ClaudeStatusProbe: Sendable {
+    public static let subscriptionQuotaUnavailableDescription =
+        "Claude CLI /usage returned a subscription notice without session quota data. " +
+        "Local cost and token history remain available."
+
+    public var claudeBinary: String = "claude"
+    public var timeout: TimeInterval = 20.0
+    public var keepCLISessionsAlive: Bool = false
+    private static let log = CodexBarLog.logger(LogCategories.claudeProbe)
+    #if DEBUG
+    public typealias FetchOverride = @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot
+    @TaskLocal static var fetchOverride: FetchOverride?
+    #endif
+
+    public init(claudeBinary: String = "claude", timeout: TimeInterval = 20.0, keepCLISessionsAlive: Bool = false) {
+        self.claudeBinary = claudeBinary
+        self.timeout = timeout
+        self.keepCLISessionsAlive = keepCLISessionsAlive
+    }
+
+    #if DEBUG
+    public static var currentFetchOverrideForTesting: FetchOverride? {
+        self.fetchOverride
+    }
+
+    public static func withFetchOverrideForTesting<T>(
+        _ override: FetchOverride?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$fetchOverride.withValue(override) {
+            try await operation()
+        }
+    }
+
+    public static func withFetchOverrideForTesting<T>(
+        _ override: FetchOverride?,
+        operation: () async -> T) async -> T
+    {
+        await self.$fetchOverride.withValue(override) {
+            await operation()
+        }
+    }
+    #endif
+
+    public func fetch() async throws -> ClaudeStatusSnapshot {
+        let resolved = Self.resolvedBinaryPath(binaryName: self.claudeBinary)
+        guard let resolved, Self.isBinaryAvailable(resolved) else {
+            throw ClaudeStatusProbeError.claudeNotInstalled
+        }
+
+        // Run commands sequentially through a shared Claude session to avoid warm-up churn.
+        let timeout = self.timeout
+        let keepAlive = self.keepCLISessionsAlive
+        #if DEBUG
+        if let override = Self.fetchOverride {
+            return try await override(resolved, timeout, keepAlive)
+        }
+        #endif
+        do {
+            var usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
+            if !Self.usageOutputLooksRelevant(usage) {
+                Self.log.debug("Claude CLI /usage looked like startup output; retrying once")
+                usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: max(timeout, 14))
+            }
+            // `/status` only enriches a valid usage snapshot with identity. Terminal usage errors and loading stalls
+            // cannot be repaired by it, so fail now instead of paying for another interactive CLI round trip.
+            try Self.validateUsageBeforeStatusProbe(usage)
+            let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
+            let snap = try Self.parse(text: usage, statusText: status)
+
+            Self.log.info("Claude CLI scrape ok", metadata: [
+                "sessionPercentLeft": "\(snap.sessionPercentLeft ?? -1)",
+                "weeklyPercentLeft": "\(snap.weeklyPercentLeft ?? -1)",
+                "opusPercentLeft": "\(snap.opusPercentLeft ?? -1)",
+            ])
+            if !keepAlive {
+                await Self.resetTransientCLISessionAndCleanupProbeArtifacts()
+            }
+            return snap
+        } catch {
+            if !keepAlive {
+                await Self.resetTransientCLISessionAndCleanupProbeArtifacts()
+            }
+            throw error
+        }
+    }
+
+    private static func resetTransientCLISessionAndCleanupProbeArtifacts() async {
+        await ClaudeCLISession.current.reset()
+        let removed = ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts()
+        guard !removed.isEmpty else { return }
+        Self.log.debug("Claude probe session artifacts removed", metadata: ["count": "\(removed.count)"])
+    }
+}
+
+extension ClaudeStatusProbe {
+    // MARK: - Parsing helpers
+
+    private struct LabelSearchContext {
+        let lines: [String]
+        let normalizedLines: [String]
+        let normalizedData: Data
+
+        init(text: String) {
+            self.lines = text.components(separatedBy: .newlines)
+            self.normalizedLines = self.lines.map { ClaudeStatusProbe.normalizedForLabelSearch($0) }
+            let normalized = ClaudeStatusProbe.normalizedForLabelSearch(text)
+            self.normalizedData = Data(normalized.utf8)
+        }
+
+        func contains(_ needle: String) -> Bool {
+            self.normalizedData.range(of: Data(needle.utf8)) != nil
+        }
+    }
+
+    public static func parse(text: String, statusText: String? = nil) throws -> ClaudeStatusSnapshot {
+        let clean = TextParsing.stripANSICodes(text)
+        let statusClean = statusText.map(TextParsing.stripANSICodes)
+        guard !clean.isEmpty else { throw ClaudeStatusProbeError.timedOut }
+
+        let shouldDump = ProcessInfo.processInfo.environment["DEBUG_CLAUDE_DUMP"] == "1"
+
+        if let usageError = self.extractUsageError(text: clean) {
+            Self.dumpIfNeeded(
+                enabled: shouldDump,
+                reason: "usageError: \(usageError)",
+                usage: clean,
+                status: statusText)
+            throw self.usageProbeError(message: usageError)
+        }
+
+        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
+        if self.isUsageStillLoading(text: latestUsagePanel ?? clean) {
+            Self.dumpIfNeeded(
+                enabled: shouldDump,
+                reason: "usage still loading",
+                usage: clean,
+                status: statusText)
+            throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
+        }
+
+        // Claude CLI renders /usage as a TUI. Our PTY capture includes earlier screen fragments (including a status
+        // line
+        // with a "0%" context meter) before the usage panel is drawn. To keep parsing stable, trim to the last
+        // Settings/Usage panel when present.
+        let usagePanelText = latestUsagePanel ?? clean
+        let labelContext = LabelSearchContext(text: usagePanelText)
+
+        var sessionPct = self.extractPercent(labelSubstring: "Current session", context: labelContext)
+        let weeklyPct = self.extractPercent(labelSubstring: "Current week (all models)", context: labelContext)
+        let opusLabels = [
+            "Current week (Opus)",
+            "Current week (Sonnet only)",
+            "Current week (Sonnet)",
+        ]
+        let opusPct = self.extractPercent(labelSubstrings: opusLabels, context: labelContext)
+
+        // Fallback: order-based percent scraping when labels are present but the surrounding layout moved.
+        // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
+        // may omit the weekly panel entirely, and we should treat that as "unavailable" rather than guessing.
+        let weeklyModels = Set(labelContext.lines.compactMap(self.weeklyModelName).map(self.normalizedForLabelSearch))
+        let hasAllModelsWeeklyLabel = weeklyModels.contains("allmodels")
+        let opusModels = Set(opusLabels.compactMap(self.weeklyModelName).map(self.normalizedForLabelSearch))
+        let hasOpusLabel = !weeklyModels.isDisjoint(with: opusModels)
+
+        if sessionPct == nil {
+            let ordered = self.allPercents(usagePanelText)
+            if sessionPct == nil, ordered.indices.contains(0) {
+                sessionPct = ordered[0]
+            }
+        }
+
+        let identity = Self.parseIdentity(usageText: clean, statusText: statusClean)
+
+        guard let sessionPct else {
+            Self.dumpIfNeeded(
+                enabled: shouldDump,
+                reason: "missing session label",
+                usage: clean,
+                status: statusText)
+            if shouldDump {
+                let tail = usagePanelText.suffix(1800)
+                let snippet = tail.isEmpty ? "(empty)" : String(tail)
+                throw ClaudeStatusProbeError.parseFailed(
+                    "Missing Current session.\n\n--- Clean usage tail ---\n\(snippet)")
+            }
+            throw ClaudeStatusProbeError.parseFailed("Missing Current session.")
+        }
+
+        let sessionReset = self.extractReset(labelSubstring: "Current session", context: labelContext)
+        let weeklyReset = hasAllModelsWeeklyLabel
+            ? self.extractReset(labelSubstring: "Current week (all models)", context: labelContext)
+            : nil
+        let opusReset = hasOpusLabel
+            ? self.extractReset(labelSubstrings: opusLabels, context: labelContext)
+            : nil
+        let scopedWeeklyUsages = self.extractScopedWeeklyUsages(context: labelContext)
+        let extraRateWindows = self.extraRateWindows(
+            fromScopedWeeklyUsages: scopedWeeklyUsages,
+            fallbackResetDescription: weeklyReset)
+
+        return ClaudeStatusSnapshot(
+            sessionPercentLeft: sessionPct,
+            weeklyPercentLeft: weeklyPct,
+            opusPercentLeft: opusPct,
+            accountEmail: identity.accountEmail,
+            accountOrganization: identity.accountOrganization,
+            loginMethod: identity.loginMethod,
+            primaryResetDescription: sessionReset,
+            secondaryResetDescription: weeklyReset,
+            opusResetDescription: opusReset,
+            rawText: text + (statusText ?? ""),
+            extraRateWindows: extraRateWindows)
+    }
+
+    public static func parseIdentity(usageText: String?, statusText: String?) -> ClaudeAccountIdentity {
+        let usageClean = usageText.map(TextParsing.stripANSICodes) ?? ""
+        let statusClean = statusText.map(TextParsing.stripANSICodes)
+        return self.extractIdentity(usageText: usageClean, statusText: statusClean)
+    }
+
+    public static func fetchIdentity(
+        timeout: TimeInterval = 12.0,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ClaudeAccountIdentity
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        guard let resolved, self.isBinaryAvailable(resolved) else {
+            throw ClaudeStatusProbeError.claudeNotInstalled
+        }
+        let statusText = try await Self.capture(subcommand: "/status", binary: resolved, timeout: timeout)
+        return Self.parseIdentity(usageText: nil, statusText: statusText)
+    }
+
+    public static func touchOAuthAuthPath(
+        timeout: TimeInterval = 8,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        guard let resolved, self.isBinaryAvailable(resolved) else {
+            throw ClaudeStatusProbeError.claudeNotInstalled
+        }
+        do {
+            // Use a more robust capture configuration than the standard `/status` scrape:
+            // - Avoid the short idle-timeout which can terminate the session while CLI auth checks are still running.
+            // - We intentionally do not parse output here; success is "the command ran without timing out".
+            _ = try await ClaudeCLISession.shared.capture(
+                subcommand: "/status",
+                binary: resolved,
+                timeout: timeout,
+                idleTimeout: nil,
+                stopOnSubstrings: [],
+                settleAfterStop: 0.8,
+                sendEnterEvery: 0.8)
+            await ClaudeCLISession.shared.reset()
+        } catch {
+            await ClaudeCLISession.shared.reset()
+            throw error
+        }
+    }
+
+    public static func isClaudeBinaryAvailable(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        return self.isBinaryAvailable(resolved)
+    }
+
+    private static func extractPercent(labelSubstring: String, context: LabelSearchContext) -> Int? {
+        let lines = context.lines
+        let label = self.normalizedForLabelSearch(labelSubstring)
+        for (idx, line) in lines.enumerated() {
+            let normalizedLine = context.normalizedLines[idx]
+            guard self.matchesLabel(
+                line: line,
+                normalizedLine: normalizedLine,
+                labelSubstring: labelSubstring,
+                normalizedLabel: label)
+            else { continue }
+
+            // Claude's usage panel can take a moment to render percentages (especially on enterprise accounts),
+            // so scan a larger window than the original 3–4 lines.
+            let window = lines.dropFirst(idx).prefix(12)
+            for candidate in window {
+                if self.crossesLabelBoundary(
+                    line: candidate,
+                    labelSubstring: labelSubstring,
+                    normalizedLabel: label)
+                {
+                    break
+                }
+                if let pct = self.percentFromLine(candidate) {
+                    return pct
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func usageOutputLooksRelevant(_ text: String) -> Bool {
+        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        return normalized.contains("currentsession")
+            || normalized.contains("currentweek")
+            || normalized.contains("loadingusage")
+            || normalized.contains("failedtoloadusagedata")
+            || self.usageCaptureHasSubscriptionNotice(normalized)
+    }
+
+    private static func validateUsageBeforeStatusProbe(_ text: String) throws {
+        let clean = TextParsing.stripANSICodes(text)
+        if let usageError = self.extractUsageError(text: clean) {
+            throw self.usageProbeError(message: usageError)
+        }
+
+        let latestUsagePanel = self.trimToLatestUsagePanel(clean)
+        if self.isUsageStillLoading(text: latestUsagePanel ?? clean) {
+            throw ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data.")
+        }
+    }
+
+    private static func extractPercent(labelSubstrings: [String], context: LabelSearchContext) -> Int? {
+        for label in labelSubstrings {
+            if let value = self.extractPercent(labelSubstring: label, context: context) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private struct ScopedWeeklyUsage {
+        let modelName: String
+        let percentLeft: Int
+        let resetDescription: String?
+    }
+
+    private static func extractScopedWeeklyUsages(context: LabelSearchContext) -> [ScopedWeeklyUsage] {
+        var usageIndexByModel: [String: Int] = [:]
+        var usages: [ScopedWeeklyUsage] = []
+        for (index, line) in context.lines.enumerated() {
+            guard let modelName = self.weeklyModelName(from: line) else { continue }
+            let normalizedModel = self.normalizedForLabelSearch(modelName)
+            guard normalizedModel != "allmodels", !normalizedModel.isEmpty else { continue }
+
+            let window = context.lines.dropFirst(index).prefix(14)
+            var percentLeft: Int?
+            var resetDescription: String?
+            for candidate in window {
+                if self.crossesLabelBoundary(
+                    line: candidate,
+                    labelSubstring: line,
+                    normalizedLabel: self.normalizedForLabelSearch(line))
+                {
+                    break
+                }
+                if percentLeft == nil {
+                    percentLeft = self.percentFromLine(candidate)
+                }
+                if resetDescription == nil {
+                    resetDescription = self.resetFromLine(candidate)
+                }
+            }
+            guard let percentLeft else { continue }
+            let usage = ScopedWeeklyUsage(
+                modelName: modelName,
+                percentLeft: percentLeft,
+                resetDescription: resetDescription)
+            if let existingIndex = usageIndexByModel[normalizedModel] {
+                usages[existingIndex] = usage
+            } else {
+                usageIndexByModel[normalizedModel] = usages.endIndex
+                usages.append(usage)
+            }
+        }
+        return usages
+    }
+
+    private static func extraRateWindows(
+        fromScopedWeeklyUsages usages: [ScopedWeeklyUsage],
+        fallbackResetDescription: String?) -> [NamedRateWindow]
+    {
+        usages.compactMap { usage in
+            let normalizedModel = self.normalizedForLabelSearch(usage.modelName)
+            guard normalizedModel != "opus",
+                  normalizedModel != "sonnet",
+                  normalizedModel != "sonnetonly"
+            else { return nil }
+
+            let usedPercent = max(0, min(100, 100 - Double(usage.percentLeft)))
+            let modelTitle = normalizedModel.hasSuffix("only")
+                ? usage.modelName
+                : "\(usage.modelName) only"
+            let resetDescription = usage.resetDescription ?? fallbackResetDescription
+            return NamedRateWindow(
+                id: "claude-weekly-scoped-\(self.slug(usage.modelName))",
+                title: modelTitle,
+                window: RateWindow(
+                    usedPercent: usedPercent,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: self.parseResetDate(
+                        from: resetDescription,
+                        expectedWindow: 7 * 24 * 60 * 60),
+                    resetDescription: resetDescription))
+        }
+    }
+
+    private static func slug(_ value: String) -> String {
+        var result = ""
+        var lastWasDash = false
+        for scalar in value.lowercased().unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) {
+                result.unicodeScalars.append(scalar)
+                lastWasDash = false
+            } else if !lastWasDash {
+                result.append("-")
+                lastWasDash = true
+            }
+        }
+        return result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
+    private static func percentFromLine(_ line: String, assumeRemainingWhenUnclear: Bool = false) -> Int? {
+        if self.isLikelyStatusContextLine(line) {
+            return nil
+        }
+
+        // Allow optional Unicode whitespace before % to handle CLI formatting changes.
+        let pattern = #"([0-9]{1,3}(?:\.[0-9]+)?)\p{Zs}*%"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let valRange = Range(match.range(at: 1), in: line)
+        else { return nil }
+        let rawVal = Double(line[valRange]) ?? 0
+        let clamped = max(0, min(100, rawVal))
+        let lower = line.lowercased()
+        let usedKeywords = ["used", "spent", "consumed"]
+        let remainingKeywords = ["left", "remaining", "available"]
+        if usedKeywords.contains(where: lower.contains) {
+            return Int(max(0, min(100, 100 - clamped)).rounded())
+        }
+        if remainingKeywords.contains(where: lower.contains) {
+            return Int(clamped.rounded())
+        }
+        return assumeRemainingWhenUnclear ? Int(clamped.rounded()) : nil
+    }
+
+    private static func isLikelyStatusContextLine(_ line: String) -> Bool {
+        guard line.contains("|") else { return false }
+        let lower = line.lowercased()
+        let modelTokens = ["opus", "sonnet", "haiku", "default"]
+        return modelTokens.contains(where: lower.contains)
+    }
+
+    private static func extractFirst(pattern: String, text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let r = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractIdentity(usageText: String, statusText: String?) -> ClaudeAccountIdentity {
+        let emailPatterns = [
+            #"(?i)Account:\s+([^\s@]+@[^\s@]+)"#,
+            #"(?i)Email:\s+([^\s@]+@[^\s@]+)"#,
+        ]
+        let looseEmailPatterns = [
+            #"(?i)Account:\s+(\S+)"#,
+            #"(?i)Email:\s+(\S+)"#,
+        ]
+        let email = emailPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
+            .first
+            ?? emailPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
+            .first
+            ?? looseEmailPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
+            .first
+            ?? looseEmailPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
+            .first
+            ?? self.extractFirst(
+                pattern: #"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
+                text: usageText)
+            ?? self.extractFirst(
+                pattern: #"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
+                text: statusText ?? "")
+        let orgPatterns = [
+            #"(?i)Org:\s*(.+)"#,
+            #"(?i)Organization:\s*(.+)"#,
+        ]
+        let orgRaw = orgPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: usageText) }
+            .first
+            ?? orgPatterns
+            .compactMap { self.extractFirst(pattern: $0, text: statusText ?? "") }
+            .first
+        let org: String? = {
+            guard let orgText = orgRaw?.trimmingCharacters(in: .whitespacesAndNewlines), !orgText.isEmpty else {
+                return nil
+            }
+            // Suppress org if it’s just the email prefix (common in CLI panels).
+            if let email, orgText.lowercased().hasPrefix(email.lowercased()) {
+                return nil
+            }
+            return orgText
+        }()
+        // Prefer explicit login method from /status, then fall back to /usage header heuristics.
+        let login = self.extractLoginMethod(text: statusText ?? "") ?? self.extractLoginMethod(text: usageText)
+        return ClaudeAccountIdentity(accountEmail: email, accountOrganization: org, loginMethod: login)
+    }
+
+    private static func extractUsageError(text: String) -> String? {
+        if let jsonHint = self.extractUsageErrorJSON(text: text) {
+            return jsonHint
+        }
+
+        let lower = text.lowercased()
+        let compact = lower.filter { !$0.isWhitespace }
+        if lower.contains("do you trust the files in this folder?"), !lower.contains("current session") {
+            let folder = self.extractFirst(
+                pattern: #"Do you trust the files in this folder\?\s*(?:\r?\n)+\s*([^\r\n]+)"#,
+                text: text)
+            let folderHint = folder.flatMap { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            if let folderHint {
+                return """
+                Claude CLI is waiting for a folder trust prompt (\(folderHint)). CodexBar tries to auto-accept this, \
+                but if it keeps appearing run: `cd "\(folderHint)" && claude` and choose “Yes, proceed”, then retry.
+                """
+            }
+            return """
+            Claude CLI is waiting for a folder trust prompt. CodexBar tries to auto-accept this, but if it keeps \
+            appearing open `claude` once, choose “Yes, proceed”, then retry.
+            """
+        }
+        let failureLine = self.usageFailureLine(text: text)?.lowercased() ?? ""
+        if failureLine.contains("token_expired") || failureLine.contains("token has expired") {
+            return "Claude CLI token expired. Run `claude login` to refresh."
+        }
+        if failureLine.contains("authentication_error") {
+            return "Claude CLI authentication error. Run `claude login`."
+        }
+        let compactFailureLine = failureLine.filter { !$0.isWhitespace }
+        if failureLine.contains("rate_limit_error")
+            || failureLine.contains("rate limited")
+            || compactFailureLine.contains("ratelimited")
+        {
+            return "Claude CLI usage endpoint is rate limited right now. Please try again later."
+        }
+        if self.isSubscriptionNoticeOnly(text: text) {
+            return self.subscriptionQuotaUnavailableDescription
+        }
+        if lower.contains("failed to load usage data") {
+            return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
+        }
+        if compact.contains("failedtoloadusagedata") {
+            return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
+        }
+        return nil
+    }
+
+    private static func usageFailureLine(text: String) -> String? {
+        let pattern = #"failed\s*to\s*load\s*usage\s*data[^\r\n]*"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.matches(in: text, range: range).last,
+              let matchRange = Range(match.range, in: text)
+        else { return nil }
+        return String(text[matchRange])
+    }
+
+    private static func usageProbeError(message: String) -> ClaudeStatusProbeError {
+        let lower = message.lowercased()
+        let authenticationMarkers = [
+            "authentication_error",
+            "permission_error",
+            "token_expired",
+            "token expired",
+            "token has expired",
+            "oauth account information not found",
+            "does not have access to claude code",
+            "run /login",
+            "run `claude login`",
+            "run claude login",
+            "api error: 401",
+            "api error: 403",
+            "forbidden",
+            "invalid api key",
+            "invalid_api_key",
+            "invalid credential",
+            "not authenticated",
+            "not authorized",
+            "token revoked",
+            "unauthorized",
+        ]
+        if authenticationMarkers.contains(where: { lower.contains($0) }) {
+            return .authenticationFailed(message)
+        }
+        return .parseFailed(message)
+    }
+
+    private static func isUsageStillLoading(text: String) -> Bool {
+        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        guard normalized.contains("loadingusage") else { return false }
+        return !self.usageCaptureHasSessionValue(normalized) && self.allPercents(text).isEmpty
+    }
+
+    /// Returns true when the text contains only a subscription notice with no session/weekly quota data.
+    /// CLI 2.1+ can return "You are currently using your subscription to power your Claude Code usage"
+    /// which lacks the "Current session" / "Current week" labels and percentage values needed for quota display.
+    /// A PTY capture may contain both an intermediate "Loading usage data…" panel and the final subscription
+    /// notice; `loadingusage` is not treated as quota data in this check so mixed captures surface correctly.
+    private static func isSubscriptionNoticeOnly(text: String) -> Bool {
+        let normalized = text.lowercased().filter { !$0.isWhitespace }
+        guard normalized.contains("currentlyusingyoursubscription") else { return false }
+        guard normalized.contains("claudecodeusage") else { return false }
+        // Only real session/week labels and actual percentage values count as quota data.
+        // `loadingusage` is not quota data — a mixed loading+subscription PTY capture should
+        // surface the subscription error, not a still-loading stall.
+        let hasQuotaData = normalized.contains("currentsession") || normalized.contains("currentweek")
+            || normalized.contains("%used") || normalized.contains("%left") || normalized.contains("%remaining")
+            || normalized.contains("%available")
+        return !hasQuotaData
+    }
+
+    public static func isSubscriptionQuotaUnavailableDescription(_ text: String?) -> Bool {
+        text?.localizedCaseInsensitiveContains("subscription notice without session quota data") == true
+    }
+
+    /// Collect remaining percentages in the order they appear; used as a backup when labels move/rename.
+    private static func allPercents(_ text: String) -> [Int] {
+        let lines = text.components(separatedBy: .newlines)
+        let normalized = text.lowercased().filter { !$0.isWhitespace }
+        let hasUsageWindows = normalized.contains("currentsession") || normalized.contains("currentweek")
+        let hasLoading = normalized.contains("loadingusage")
+        let hasUsagePercentKeywords = normalized.contains("used") || normalized.contains("left")
+            || normalized.contains("remaining") || normalized.contains("available")
+        let loadingOnly = hasLoading && !hasUsageWindows
+        guard hasUsageWindows || hasLoading else { return [] }
+        if loadingOnly {
+            return []
+        }
+        guard hasUsagePercentKeywords else { return [] }
+
+        // Keep this strict to avoid matching Claude's status-line context meter (e.g. "0%") as session usage when the
+        // /usage panel is still rendering.
+        return lines.compactMap { self.percentFromLine($0, assumeRemainingWhenUnclear: false) }
+    }
+
+    /// Attempts to isolate the most recent /usage panel output from a PTY capture.
+    /// The Claude TUI draws a "Settings: … Usage …" header; we slice from its last occurrence to avoid earlier screen
+    /// fragments (like the status bar) contaminating percent scraping.
+    private static func trimToLatestUsagePanel(_ text: String) -> String? {
+        guard let settingsRange = text.range(of: "Settings:", options: [.caseInsensitive, .backwards]) else {
+            return nil
+        }
+        let tail = text[settingsRange.lowerBound...]
+        guard tail.range(of: "Usage", options: .caseInsensitive) != nil else { return nil }
+        let lower = tail.lowercased()
+        let hasPercent = lower.contains("%")
+        let hasUsageWords = lower.contains("used") || lower.contains("left") || lower.contains("remaining")
+            || lower.contains("available")
+        let hasLoading = lower.contains("loading usage")
+        guard (hasPercent && hasUsageWords) || hasLoading else { return nil }
+        return String(tail)
+    }
+
+    private static func extractReset(labelSubstring: String, context: LabelSearchContext) -> String? {
+        let lines = context.lines
+        let label = self.normalizedForLabelSearch(labelSubstring)
+        for (idx, line) in lines.enumerated() {
+            let normalizedLine = context.normalizedLines[idx]
+            guard self.matchesLabel(
+                line: line,
+                normalizedLine: normalizedLine,
+                labelSubstring: labelSubstring,
+                normalizedLabel: label)
+            else { continue }
+
+            let window = lines.dropFirst(idx).prefix(14)
+            for candidate in window {
+                if self.crossesLabelBoundary(
+                    line: candidate,
+                    labelSubstring: labelSubstring,
+                    normalizedLabel: label)
+                {
+                    break
+                }
+                if let reset = self.resetFromLine(candidate) {
+                    return reset
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func matchesLabel(
+        line: String,
+        normalizedLine: String,
+        labelSubstring: String,
+        normalizedLabel: String) -> Bool
+    {
+        guard let expectedModel = self.weeklyModelName(from: labelSubstring) else {
+            return normalizedLine.contains(normalizedLabel)
+        }
+        guard let actualModel = self.weeklyModelName(from: line) else { return false }
+        return self.normalizedForLabelSearch(actualModel) == self.normalizedForLabelSearch(expectedModel)
+    }
+
+    private static func crossesLabelBoundary(
+        line: String,
+        labelSubstring: String,
+        normalizedLabel: String) -> Bool
+    {
+        let normalizedLine = self.normalizedForLabelSearch(line)
+        guard normalizedLine.hasPrefix("current") else { return false }
+        guard let expectedModel = self.weeklyModelName(from: labelSubstring) else {
+            return !normalizedLine.contains(normalizedLabel)
+        }
+        guard let actualModel = self.weeklyModelName(from: line) else { return true }
+        return self.normalizedForLabelSearch(actualModel) != self.normalizedForLabelSearch(expectedModel)
+    }
+
+    private static func weeklyModelName(from line: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"current\s*week\s*\(([^)]+)\)"#,
+            options: [.caseInsensitive])
+        else { return nil }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let modelRange = Range(match.range(at: 1), in: line)
+        else { return nil }
+        return String(line[modelRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func extractReset(labelSubstrings: [String], context: LabelSearchContext) -> String? {
+        for label in labelSubstrings {
+            if let value = self.extractReset(labelSubstring: label, context: context) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func resetFromLine(_ line: String) -> String? {
+        let range = line.range(of: #"(?i)\bresets?\b"#, options: .regularExpression)
+            ?? line.range(of: #"\b(?:Reset|Resets)(?=[A-Z0-9])"#, options: .regularExpression)
+        guard let range else { return nil }
+        let raw = String(line[range.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return self.cleanResetLine(raw)
+    }
+
+    private static func normalizedForLabelSearch(_ text: String) -> String {
+        String(text.lowercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains))
+    }
+
+    /// Capture all "Reset"/"Resets" strings to surface in the menu.
+    private static func allResets(_ text: String) -> [String] {
+        let pat = #"\bResets?\b[^\r\n]*"#
+        guard let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]) else { return [] }
+        let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
+        var results: [String] = []
+        regex.enumerateMatches(in: text, options: [], range: nsrange) { match, _, _ in
+            guard let match,
+                  let r = Range(match.range(at: 0), in: text) else { return }
+            let raw = String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
+            results.append(self.cleanResetLine(raw))
+        }
+        return results
+    }
+
+    private static func cleanResetLine(_ raw: String) -> String {
+        // TTY capture sometimes appends a stray ")" at line ends; trim it to keep snapshots stable.
+        var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        cleaned = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: " )"))
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)\b([A-Za-z]{3}\s+\d{1,2})\s+t\s+(\d)"#,
+            with: "$1 at $2",
+            options: .regularExpression)
+        let openCount = cleaned.count(where: { $0 == "(" })
+        let closeCount = cleaned.count(where: { $0 == ")" })
+        if openCount > closeCount {
+            cleaned.append(")")
+        }
+        return cleaned
+    }
+
+    /// Parses explicit-year resets at their stated occurrence; recurring forms resolve forward in any explicit
+    /// timezone.
+    public static func parseResetDate(from text: String?, now: Date = .init()) -> Date? {
+        self.parseResetDate(from: text, now: now, expectedWindow: nil)
+    }
+
+    /// Quota surfaces may accept a recently stale occurrence when the next occurrence cannot belong to that window.
+    package static func parseResetDate(
+        from text: String?,
+        now: Date = .init(),
+        expectedWindow: TimeInterval?) -> Date?
+    {
+        guard let normalized = self.normalizeResetInput(text) else { return nil }
+        let (raw, timeZone) = normalized
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone ?? TimeZone.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = formatter.timeZone
+        // Parse yearless Feb 29 independently of the current year, then resolve validated calendar occurrences.
+        formatter.defaultDate = calendar.date(from: DateComponents(year: 2000, month: 1, day: 1))
+
+        if let date = self.parseDate(raw, formats: Self.resetDateTimeWithExplicitYear, formatter: formatter) {
+            return self.resolveOccurrence(
+                self.explicitOccurrences(for: date, calendar: calendar),
+                now: now,
+                expectedWindow: expectedWindow)
+        }
+        if let date = self.parseDate(raw, formats: Self.resetDateTimeWithMinutes, formatter: formatter) {
+            let comps = calendar.dateComponents([.month, .day, .hour, .minute], from: date)
+            return self.resolveOccurrence(
+                self.yearlyOccurrences(for: comps, now: now, calendar: calendar),
+                now: now,
+                expectedWindow: expectedWindow)
+        }
+        if let date = self.parseDate(raw, formats: Self.resetDateTimeHourOnly, formatter: formatter) {
+            let comps = calendar.dateComponents([.month, .day, .hour], from: date)
+            return self.resolveOccurrence(
+                self.yearlyOccurrences(for: comps, now: now, calendar: calendar),
+                now: now,
+                expectedWindow: expectedWindow)
+        }
+
+        if let time = self.parseDate(raw, formats: Self.resetTimeWithMinutes, formatter: formatter) {
+            let comps = calendar.dateComponents([.hour, .minute], from: time)
+            return self.resolveOccurrence(
+                self.dailyOccurrences(for: comps, now: now, calendar: calendar),
+                now: now,
+                expectedWindow: expectedWindow)
+        }
+
+        guard let time = self.parseDate(raw, formats: Self.resetTimeHourOnly, formatter: formatter) else { return nil }
+        let comps = calendar.dateComponents([.hour], from: time)
+        return self.resolveOccurrence(
+            self.dailyOccurrences(for: comps, now: now, calendar: calendar),
+            now: now,
+            expectedWindow: expectedWindow)
+    }
+
+    private static func explicitOccurrences(for date: Date, calendar: Calendar) -> [Date] {
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day,
+              let hour = components.hour,
+              let minute = components.minute
+        else { return [] }
+        return self.exactLocalOccurrences(
+            DateComponents(
+                timeZone: calendar.timeZone,
+                year: year,
+                month: month,
+                day: day,
+                hour: hour,
+                minute: minute,
+                second: 0),
+            calendar: calendar)
+    }
+
+    private static func resolveOccurrence(
+        _ candidates: [Date],
+        now: Date,
+        expectedWindow: TimeInterval?) -> Date?
+    {
+        let sortedCandidates = candidates.sorted()
+        guard let future = sortedCandidates.first(where: { $0 >= now }) else { return sortedCandidates.last }
+        guard let expectedWindow else { return future }
+
+        let horizon = max(0, expectedWindow)
+        let past = sortedCandidates.last(where: { $0 < now })
+        let pastIsPlausible = past.map { now.timeIntervalSince($0) <= horizon } ?? false
+        let futureIsPlausible = future.timeIntervalSince(now) <= horizon
+        return pastIsPlausible && !futureIsPlausible ? past : future
+    }
+
+    private static func yearlyOccurrences(
+        for components: DateComponents,
+        now: Date,
+        calendar: Calendar) -> [Date]
+    {
+        guard let month = components.month,
+              let day = components.day,
+              let hour = components.hour
+        else { return [] }
+        let currentYear = calendar.component(.year, from: now)
+        // Eight years covers the Gregorian century gap between leap days (for example, 2096 to 2104).
+        return ((currentYear - 8)...(currentYear + 8)).flatMap { year in
+            self.exactLocalOccurrences(
+                DateComponents(
+                    timeZone: calendar.timeZone,
+                    year: year,
+                    month: month,
+                    day: day,
+                    hour: hour,
+                    minute: components.minute ?? 0,
+                    second: 0),
+                calendar: calendar)
+        }
+    }
+
+    private static func dailyOccurrences(
+        for components: DateComponents,
+        now: Date,
+        calendar: Calendar) -> [Date]
+    {
+        guard let hour = components.hour else { return [] }
+        let startOfToday = calendar.startOfDay(for: now)
+        return (-1...1).flatMap { offset -> [Date] in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfToday) else { return [] }
+            let dayComponents = calendar.dateComponents([.year, .month, .day], from: day)
+            guard let year = dayComponents.year,
+                  let month = dayComponents.month,
+                  let dayOfMonth = dayComponents.day
+            else { return [] }
+            return self.exactLocalOccurrences(
+                DateComponents(
+                    timeZone: calendar.timeZone,
+                    year: year,
+                    month: month,
+                    day: dayOfMonth,
+                    hour: hour,
+                    minute: components.minute ?? 0,
+                    second: 0),
+                calendar: calendar)
+        }
+    }
+
+    /// Returns both instants when a local wall time repeats during a daylight-saving transition.
+    private static func exactLocalOccurrences(
+        _ target: DateComponents,
+        calendar: Calendar) -> [Date]
+    {
+        guard let year = target.year,
+              let month = target.month,
+              let day = target.day,
+              let hour = target.hour,
+              let minute = target.minute
+        else { return [] }
+        guard let firstApproximation = calendar.date(from: target) else { return [] }
+        let approximationComponents = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: firstApproximation)
+        guard approximationComponents.year == year,
+              approximationComponents.month == month,
+              approximationComponents.day == day,
+              approximationComponents.hour == hour,
+              approximationComponents.minute == minute,
+              approximationComponents.second == 0
+        else { return [] }
+        let startOfDay = calendar.startOfDay(for: firstApproximation)
+        guard let searchStart = calendar.date(byAdding: .second, value: -1, to: startOfDay) else { return [] }
+
+        var results: [Date] = []
+        for policy in [Calendar.RepeatedTimePolicy.first, .last] {
+            guard let date = calendar.nextDate(
+                after: searchStart,
+                matching: target,
+                matchingPolicy: .strict,
+                repeatedTimePolicy: policy,
+                direction: .forward)
+            else { continue }
+            let resolved = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+            guard resolved.year == year,
+                  resolved.month == month,
+                  resolved.day == day,
+                  resolved.hour == hour,
+                  resolved.minute == minute,
+                  resolved.second == 0,
+                  !results.contains(date)
+            else { continue }
+            results.append(date)
+        }
+        return results
+    }
+
+    private static let resetTimeWithMinutes = ["h:mma", "h:mm a", "HH:mm", "H:mm"]
+    private static let resetTimeHourOnly = ["ha", "h a"]
+
+    private static let resetDateTimeWithExplicitYear = [
+        "MMM d, yyyy, h:mma",
+        "MMM d, yyyy, h:mm a",
+        "MMM d, yyyy, HH:mm",
+        "MMM d, yyyy h:mma",
+        "MMM d, yyyy h:mm a",
+        "MMM d, yyyy HH:mm",
+        "MMM d yyyy h:mma",
+        "MMM d yyyy h:mm a",
+        "MMM d yyyy HH:mm",
+        "MMM d, yyyy, ha",
+        "MMM d, yyyy, h a",
+        "MMM d, yyyy, HH",
+        "MMM d, yyyy ha",
+        "MMM d, yyyy h a",
+        "MMM d, yyyy HH",
+        "MMM d yyyy ha",
+        "MMM d yyyy h a",
+        "MMM d yyyy HH",
+    ]
+
+    private static let resetDateTimeWithMinutes = [
+        "MMM d, h:mma",
+        "MMM d, h:mm a",
+        "MMM d h:mma",
+        "MMM d h:mm a",
+        "MMM d, HH:mm",
+        "MMM d HH:mm",
+    ]
+
+    private static let resetDateTimeHourOnly = [
+        "MMM d, ha",
+        "MMM d, h a",
+        "MMM d ha",
+        "MMM d h a",
+    ]
+
+    private static func normalizeResetInput(_ text: String?) -> (String, TimeZone?)? {
+        guard var raw = text?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        raw = raw.replacingOccurrences(of: #"(?i)^resets?:?\s*"#, with: "", options: .regularExpression)
+        raw = raw.replacingOccurrences(of: " at ", with: " ", options: .caseInsensitive)
+        raw = raw.replacingOccurrences(of: #"(?i)\b([A-Za-z]{3})(\d)"#, with: "$1 $2", options: .regularExpression)
+        raw = raw.replacingOccurrences(of: #",(\d)"#, with: ", $1", options: .regularExpression)
+        raw = raw.replacingOccurrences(of: #"(?i)(\d)at(?=\d)"#, with: "$1 ", options: .regularExpression)
+        raw = raw.replacingOccurrences(
+            of: #"(?<=\d)\.(\d{2})\b"#,
+            with: ":$1",
+            options: .regularExpression)
+
+        let timeZone = self.extractTimeZone(from: &raw)
+        raw = raw.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw.isEmpty ? nil : (raw, timeZone)
+    }
+
+    private static func extractTimeZone(from text: inout String) -> TimeZone? {
+        guard let tzRange = text.range(of: #"\(([^)]+)\)"#, options: .regularExpression) else { return nil }
+        let tzID = String(text[tzRange]).trimmingCharacters(in: CharacterSet(charactersIn: "() "))
+        text.removeSubrange(tzRange)
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TimeZone(identifier: tzID)
+    }
+
+    private static func parseDate(_ text: String, formats: [String], formatter: DateFormatter) -> Date? {
+        for pattern in formats {
+            formatter.dateFormat = pattern
+            if let date = formatter.date(from: text) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    /// Extract login/plan string from CLI output.
+    private static func extractLoginMethod(text: String) -> String? {
+        guard !text.isEmpty else { return nil }
+        if let explicit = self.extractFirst(pattern: #"(?i)login\s+method:\s*(.+)"#, text: text) {
+            return ClaudePlan.cliCompatibilityLoginMethod(self.cleanPlan(explicit))
+        }
+        // Capture any "Claude <...>" phrase (e.g., Max/Pro/Ultra/Team) to avoid future plan-name churn.
+        // Strip any leading ANSI that may have survived (rare) before matching.
+        // Use horizontal whitespace ([ \t]) rather than \s so the match stays on a single rendered line:
+        // \s spans newlines, which let "…use Claude" bridge into the /usage panel's "d → today" hint and
+        // produced a bogus "Dtoday" plan label after ANSI stripping glued the lines together.
+        let planPattern = #"(?i)(claude[ \t]+[a-z0-9][a-z0-9 \t._-]{0,24})"#
+        var candidates: [String] = []
+        if let regex = try? NSRegularExpression(pattern: planPattern, options: []) {
+            let nsrange = NSRange(text.startIndex..<text.endIndex, in: text)
+            regex.enumerateMatches(in: text, options: [], range: nsrange) { match, _, _ in
+                guard let match,
+                      match.numberOfRanges >= 2,
+                      let r = Range(match.range(at: 1), in: text) else { return }
+                let raw = String(text[r])
+                let val = ClaudePlan.cliCompatibilityLoginMethod(Self.cleanPlan(raw)) ?? Self.cleanPlan(raw)
+                candidates.append(val)
+            }
+        }
+        if let plan = candidates.first(where: { cand in
+            let lower = cand.lowercased()
+            return !lower.contains("code v") && !lower.contains("code version") && !lower.contains("code")
+        }) {
+            return plan
+        }
+        return nil
+    }
+
+    /// Strips ANSI and stray bracketed codes like "[22m" that can survive CLI output.
+    private static func cleanPlan(_ text: String) -> String {
+        UsageFormatter.cleanPlanName(text)
+    }
+
+    private static func dumpIfNeeded(enabled: Bool, reason: String, usage: String, status: String?) {
+        guard enabled else { return }
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        var parts = [
+            "=== Claude parse dump @ \(stamp) ===",
+            "Reason: \(reason)",
+            "",
+            "--- usage (clean) ---",
+            usage,
+            "",
+        ]
+        if let status {
+            parts.append(contentsOf: [
+                "--- status (raw/optional) ---",
+                status,
+                "",
+            ])
+        }
+        let body = parts.joined(separator: "\n")
+        Task { @MainActor in self.recordDump(body) }
+    }
+
+    // MARK: - Dump storage (in-memory ring buffer)
+
+    @MainActor private static var recentDumps: [String] = []
+
+    @MainActor private static func recordDump(_ text: String) {
+        if self.recentDumps.count >= 5 {
+            self.recentDumps.removeFirst()
+        }
+        self.recentDumps.append(text)
+    }
+
+    public static func latestDumps() async -> String {
+        await MainActor.run {
+            let result = Self.recentDumps.joined(separator: "\n\n---\n\n")
+            return result.isEmpty ? "No Claude parse dumps captured yet." : result
+        }
+    }
+
+    #if DEBUG
+    public static func _replaceDumpsForTesting(_ dumps: [String]) async {
+        await MainActor.run {
+            self.recentDumps = dumps
+        }
+    }
+    #endif
+
+    private static func extractUsageErrorJSON(text: String) -> String? {
+        let pattern = #"Failed\s*to\s*load\s*usage\s*data:\s*(\{.*\})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return nil
+        }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let jsonRange = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+
+        let jsonString = String(text[jsonRange])
+        let compactJSON = jsonString.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "")
+        let data = (compactJSON.isEmpty ? jsonString : compactJSON).data(using: .utf8)
+        guard let data,
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = payload["error"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        let message = (error["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let details = error["details"] as? [String: Any]
+        let code = (details?["error_code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let type = (error["type"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if type == "rate_limit_error" {
+            return "Claude CLI usage endpoint is rate limited right now. Please try again later."
+        }
+
+        var parts: [String] = []
+        if let message, !message.isEmpty {
+            parts.append(message)
+        }
+        if let code, !code.isEmpty {
+            parts.append("(\(code))")
+        }
+
+        guard !parts.isEmpty else { return nil }
+        let hint = parts.joined(separator: " ")
+
+        if let code, code.lowercased().contains("token") {
+            return "\(hint). Run `claude login` to refresh."
+        }
+        if type == "authentication_error" || type == "permission_error" {
+            return "Claude CLI authentication error: \(hint). Run `claude login`."
+        }
+        return "Claude CLI error: \(hint)"
+    }
+
+    // MARK: - Process helpers
+
+    private static func resolvedBinaryPath(
+        binaryName: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        if binaryName.contains("/") {
+            return binaryName
+        }
+        return ClaudeCLIResolver.resolvedBinaryPath(environment: environment)
+    }
+
+    private static func isBinaryAvailable(_ binaryPathOrName: String?) -> Bool {
+        guard let binaryPathOrName else { return false }
+        return FileManager.default.isExecutableFile(atPath: binaryPathOrName)
+            || TTYCommandRunner.which(binaryPathOrName) != nil
+    }
+
+    static func probeWorkingDirectoryURL() -> URL {
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
+        let dir = base
+            .appendingPathComponent("CodexBar", isDirectory: true)
+            .appendingPathComponent("ClaudeProbe", isDirectory: true)
+        do {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        } catch {
+            return fm.temporaryDirectory
+        }
+    }
+
+    static func preparedProbeWorkingDirectoryURL() -> URL {
+        let directory = self.probeWorkingDirectoryURL()
+        do {
+            try self.prepareProbeWorkingDirectory(at: directory)
+        } catch {
+            Self.log.warning(
+                "Claude probe local settings unavailable",
+                metadata: ["error": error.localizedDescription])
+        }
+        return directory
+    }
+
+    static func prepareProbeWorkingDirectory(at directory: URL, fileManager fm: FileManager = .default) throws {
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let claudeDirectory = directory.appendingPathComponent(".claude", isDirectory: true)
+        try fm.createDirectory(at: claudeDirectory, withIntermediateDirectories: true)
+
+        let settingsURL = claudeDirectory.appendingPathComponent("settings.local.json")
+        var settings = (try? self.readSettingsObject(from: settingsURL, fileManager: fm)) ?? [:]
+        settings["disableDeepLinkRegistration"] = "disable"
+        let data = try JSONSerialization.data(
+            withJSONObject: settings,
+            options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: settingsURL, options: .atomic)
+    }
+
+    private static func readSettingsObject(from url: URL, fileManager fm: FileManager) throws -> [String: Any] {
+        guard fm.fileExists(atPath: url.path) else {
+            return [:]
+        }
+        let data = try Data(contentsOf: url)
+        guard !data.isEmpty else {
+            return [:]
+        }
+        let object = try JSONSerialization.jsonObject(with: data)
+        return object as? [String: Any] ?? [:]
+    }
+
+    /// Run claude CLI inside a PTY so we can respond to interactive permission prompts.
+    private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
+        let stopOnSubstrings = subcommand == "/usage"
+            ? [
+                "Failed to load usage data",
+                "failed to load usage data",
+                "Failedto loadusagedata",
+                "failedtoloadusagedata",
+            ]
+            : []
+        let idleTimeout: TimeInterval? = subcommand == "/usage" ? nil : 3.0
+        let sendEnterEvery: TimeInterval? = subcommand == "/usage" ? 0.8 : nil
+        let stopWhenNormalized: (@Sendable (String) -> Bool)? = subcommand == "/usage"
+            ? { @Sendable normalizedScan in
+                Self.usageCaptureHasSessionValue(normalizedScan)
+                    || Self.usageCaptureHasSubscriptionNotice(normalizedScan)
+            }
+            : nil
+        do {
+            return try await ClaudeCLISession.current.capture(
+                subcommand: subcommand,
+                binary: binary,
+                timeout: timeout,
+                idleTimeout: idleTimeout,
+                stopOnSubstrings: stopOnSubstrings,
+                stopWhenNormalized: stopWhenNormalized,
+                settleAfterStop: subcommand == "/usage" ? 2.0 : 0.25,
+                sendEnterEvery: sendEnterEvery)
+        } catch ClaudeCLISession.SessionError.processExited {
+            await ClaudeCLISession.current.reset()
+            throw ClaudeStatusProbeError.timedOut
+        } catch ClaudeCLISession.SessionError.timedOut {
+            await ClaudeCLISession.current.reset()
+            throw ClaudeStatusProbeError.timedOut
+        } catch ClaudeCLISession.SessionError.launchFailed(_) {
+            throw ClaudeStatusProbeError.claudeNotInstalled
+        } catch {
+            await ClaudeCLISession.current.reset()
+            throw error
+        }
+    }
+
+    private static func usageCaptureHasSessionValue(_ normalizedText: String) -> Bool {
+        guard let labelRange = normalizedText.range(of: "currentsession") else { return false }
+        let tail = normalizedText[labelRange.upperBound...]
+        return tail.range(of: #"[0-9]{1,3}(?:\.[0-9]+)?%"#, options: .regularExpression) != nil
+    }
+
+    private static func usageCaptureHasSubscriptionNotice(_ normalizedText: String) -> Bool {
+        normalizedText.contains("currentlyusingyoursubscription")
+            && normalizedText.contains("claudecodeusage")
+    }
+}

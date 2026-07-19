@@ -1,0 +1,238 @@
+import CodexBarCore
+import Foundation
+import Testing
+
+@Suite(.serialized)
+struct MiniMaxAPITokenFetchTests {
+    @Test
+    func `retries china host when global rejects token`() async throws {
+        defer {
+            MiniMaxAPITokenStubURLProtocol.handler = nil
+            MiniMaxAPITokenStubURLProtocol.requests = []
+        }
+        MiniMaxAPITokenStubURLProtocol.requests = []
+
+        MiniMaxAPITokenStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            let host = url.host ?? ""
+            if host == "api.minimax.io" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+            }
+            if host == "api.minimaxi.com" {
+                let start = 1_700_000_000_000
+                let end = start + 5 * 60 * 60 * 1000
+                let body = """
+                {
+                  "base_resp": { "status_code": 0 },
+                  "current_subscribe_title": "Max",
+                  "model_remains": [
+                    {
+                      "current_interval_total_count": 1000,
+                      "current_interval_usage_count": 250,
+                      "start_time": \(start),
+                      "end_time": \(end),
+                      "remains_time": 240000
+                    }
+                  ]
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = try await MiniMaxUsageFetcher.fetchUsage(
+            apiToken: "sk-cp-test",
+            region: .global,
+            now: now,
+            session: Self.makeSession())
+
+        #expect(snapshot.planName == "Max")
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.host } == [
+            "api.minimax.io",
+            "api.minimax.io",
+            "api.minimaxi.com",
+        ])
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.path } == [
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+            "/v1/token_plan/remains",
+        ])
+    }
+
+    @Test
+    func `preserves invalid credentials when china retry fails transport`() async throws {
+        defer {
+            MiniMaxAPITokenStubURLProtocol.handler = nil
+            MiniMaxAPITokenStubURLProtocol.requests = []
+        }
+        MiniMaxAPITokenStubURLProtocol.requests = []
+
+        MiniMaxAPITokenStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            let host = url.host ?? ""
+            if host == "api.minimax.io" {
+                return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+            }
+            if host == "api.minimaxi.com" {
+                throw URLError(.cannotFindHost)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        await #expect(throws: MiniMaxUsageError.invalidCredentials) {
+            _ = try await MiniMaxUsageFetcher.fetchUsage(
+                apiToken: "sk-cp-test",
+                region: .global,
+                now: now,
+                session: Self.makeSession())
+        }
+
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.host } == [
+            "api.minimax.io",
+            "api.minimax.io",
+            "api.minimaxi.com",
+            "api.minimaxi.com",
+        ])
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.path } == [
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+        ])
+    }
+
+    @Test
+    func `explicit china region preserves structured invalid credentials across legacy fallback`() async throws {
+        defer {
+            MiniMaxAPITokenStubURLProtocol.handler = nil
+            MiniMaxAPITokenStubURLProtocol.requests = []
+        }
+        MiniMaxAPITokenStubURLProtocol.requests = []
+
+        MiniMaxAPITokenStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.path == "/v1/token_plan/remains" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"{"base_resp":{"status_code":1004,"status_msg":"invalid api key"}}"#)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 404)
+        }
+
+        await #expect(throws: MiniMaxUsageError.invalidCredentials) {
+            _ = try await MiniMaxUsageFetcher.fetchUsage(
+                apiToken: "sk-cp-test",
+                region: .chinaMainland,
+                session: Self.makeSession())
+        }
+
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.map { $0.url?.path } == [
+            "/v1/token_plan/remains",
+            "/v1/api/openplatform/coding_plan/remains",
+        ])
+    }
+
+    @Test
+    func `does not retry when region is china mainland`() async throws {
+        defer {
+            MiniMaxAPITokenStubURLProtocol.handler = nil
+            MiniMaxAPITokenStubURLProtocol.requests = []
+        }
+        MiniMaxAPITokenStubURLProtocol.requests = []
+
+        MiniMaxAPITokenStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            let host = url.host ?? ""
+            if host == "api.minimaxi.com" {
+                let start = 1_700_000_000_000
+                let end = start + 5 * 60 * 60 * 1000
+                let body = """
+                {
+                  "base_resp": { "status_code": 0 },
+                  "current_subscribe_title": "Max",
+                  "model_remains": [
+                    {
+                      "current_interval_total_count": 1000,
+                      "current_interval_usage_count": 250,
+                      "start_time": \(start),
+                      "end_time": \(end),
+                      "remains_time": 240000
+                    }
+                  ]
+                }
+                """
+                return Self.makeResponse(url: url, body: body)
+            }
+            return Self.makeResponse(url: url, body: "{}", statusCode: 401)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        _ = try await MiniMaxUsageFetcher.fetchUsage(
+            apiToken: "sk-cp-test",
+            region: .chinaMainland,
+            now: now,
+            session: Self.makeSession())
+
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.count == 1)
+        #expect(MiniMaxAPITokenStubURLProtocol.requests.first?.url?.host == "api.minimaxi.com")
+    }
+
+    private static func makeSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MiniMaxAPITokenStubURLProtocol.self]
+        return URLSession(configuration: config)
+    }
+
+    private static func makeResponse(
+        url: URL,
+        body: String,
+        statusCode: Int = 200) -> (HTTPURLResponse, Data)
+    {
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!
+        return (response, Data(body.utf8))
+    }
+}
+
+final class MiniMaxAPITokenStubURLProtocol: URLProtocol {
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
+
+    nonisolated(unsafe) static var requests: [URLRequest] = []
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        guard let host = request.url?.host else { return false }
+        return host == "api.minimax.io" || host == "api.minimaxi.com"
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.requests.append(self.request)
+        guard let handler = Self.handler else {
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        do {
+            let (response, data) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}

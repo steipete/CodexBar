@@ -1,0 +1,1015 @@
+import CodexBarCore
+import Foundation
+import ServiceManagement
+
+extension SettingsStore {
+    private static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"
+
+    func noteBackgroundWorkSettingsChanged() {
+        self.backgroundWorkSettingsRevision &+= 1
+    }
+
+    var refreshFrequency: RefreshFrequency {
+        get { self.defaultsState.refreshFrequency }
+        set {
+            let previousValue = self.defaultsState.refreshFrequency
+            if newValue == .adaptiveAgentAware,
+               previousValue != .adaptiveAgentAware,
+               self.defaultsState.adaptiveActivityScanConsent == .declined
+            {
+                self.defaultsState.adaptiveActivityScanConsent = .undecided
+                self.userDefaults.set(
+                    AdaptiveActivityScanConsent.undecided.rawValue,
+                    forKey: "adaptiveActivityScanConsent")
+            }
+            self.defaultsState.refreshFrequency = newValue
+            self.userDefaults.set(newValue.rawValue, forKey: "refreshFrequency")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var adaptiveActivityScanConsent: AdaptiveActivityScanConsent {
+        get { self.defaultsState.adaptiveActivityScanConsent }
+        set {
+            self.defaultsState.adaptiveActivityScanConsent = newValue
+            self.userDefaults.set(newValue.rawValue, forKey: "adaptiveActivityScanConsent")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var adaptiveActivityScanningEnabled: Bool {
+        self.refreshFrequency == .adaptiveAgentAware && self.adaptiveActivityScanConsent == .allowed
+    }
+
+    var shouldRequestAdaptiveActivityScanConsent: Bool {
+        self.refreshFrequency == .adaptiveAgentAware && self.adaptiveActivityScanConsent == .undecided
+    }
+
+    /// When enabled, keeping the menu open through its short refresh delay fetches usage for every
+    /// enabled provider. The periodic refresh clock remains unchanged. See `scheduleOpenMenuRefresh`.
+    var refreshAllProvidersOnMenuOpen: Bool {
+        get { self.defaultsState.refreshAllProvidersOnMenuOpen }
+        set {
+            self.defaultsState.refreshAllProvidersOnMenuOpen = newValue
+            self.userDefaults.set(newValue, forKey: "refreshAllProvidersOnMenuOpen")
+        }
+    }
+
+    var launchAtLogin: Bool {
+        get { self.defaultsState.launchAtLogin }
+        set {
+            self.defaultsState.launchAtLogin = newValue
+            self.userDefaults.set(newValue, forKey: "launchAtLogin")
+            LaunchAtLoginManager.setEnabled(newValue)
+        }
+    }
+
+    var debugMenuEnabled: Bool {
+        get { self.defaultsState.debugMenuEnabled }
+        set {
+            self.defaultsState.debugMenuEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "debugMenuEnabled")
+        }
+    }
+
+    var debugDisableKeychainAccess: Bool {
+        get { self.defaultsState.debugDisableKeychainAccess }
+        set {
+            self.defaultsState.debugDisableKeychainAccess = newValue
+            self.userDefaults.set(newValue, forKey: "debugDisableKeychainAccess")
+            if Self.shouldBridgeSharedDefaults(for: self.userDefaults) {
+                Self.sharedDefaults?.set(newValue, forKey: "debugDisableKeychainAccess")
+            }
+            KeychainAccessGate.isDisabled = newValue
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var debugFileLoggingEnabled: Bool {
+        get { self.defaultsState.debugFileLoggingEnabled }
+        set {
+            self.defaultsState.debugFileLoggingEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "debugFileLoggingEnabled")
+            CodexBarLog.setFileLoggingEnabled(newValue)
+        }
+    }
+
+    var debugLogLevel: CodexBarLog.Level {
+        get {
+            let raw = self.defaultsState.debugLogLevelRaw
+            return CodexBarLog.parseLevel(raw) ?? .verbose
+        }
+        set {
+            self.defaultsState.debugLogLevelRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "debugLogLevel")
+            CodexBarLog.setLogLevel(newValue)
+        }
+    }
+
+    var debugKeepCLISessionsAlive: Bool {
+        get { self.defaultsState.debugKeepCLISessionsAlive }
+        set {
+            self.defaultsState.debugKeepCLISessionsAlive = newValue
+            self.userDefaults.set(newValue, forKey: "debugKeepCLISessionsAlive")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var isVerboseLoggingEnabled: Bool {
+        self.debugLogLevel.rank <= CodexBarLog.Level.verbose.rank
+    }
+
+    private var debugLoadingPatternRaw: String? {
+        get { self.defaultsState.debugLoadingPatternRaw }
+        set {
+            self.defaultsState.debugLoadingPatternRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "debugLoadingPattern")
+            } else {
+                self.userDefaults.removeObject(forKey: "debugLoadingPattern")
+            }
+        }
+    }
+
+    var statusChecksEnabled: Bool {
+        get { self.defaultsState.statusChecksEnabled }
+        set {
+            self.defaultsState.statusChecksEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "statusChecksEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var sessionQuotaNotificationsEnabled: Bool {
+        get { self.defaultsState.sessionQuotaNotificationsEnabled }
+        set {
+            self.defaultsState.sessionQuotaNotificationsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "sessionQuotaNotificationsEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var quotaWarningNotificationsEnabled: Bool {
+        get { self.defaultsState.quotaWarningNotificationsEnabled }
+        set {
+            self.defaultsState.quotaWarningNotificationsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "quotaWarningNotificationsEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var predictivePaceWarningNotificationsEnabled: Bool {
+        get { self.defaultsState.predictivePaceWarningNotificationsEnabled }
+        set {
+            guard self.defaultsState.predictivePaceWarningNotificationsEnabled != newValue else { return }
+            self.defaultsState.predictivePaceWarningNotificationsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "predictivePaceWarningNotificationsEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var quotaWarningThresholds: [Int] {
+        get { QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningThresholdsRaw) }
+        set {
+            let sanitized = QuotaWarningThresholds.sanitized(newValue)
+            guard QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningThresholdsRaw) != sanitized
+                || QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningSessionThresholdsRaw) != sanitized
+                || QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningWeeklyThresholdsRaw) != sanitized
+            else {
+                return
+            }
+            self.defaultsState.quotaWarningThresholdsRaw = sanitized
+            self.defaultsState.quotaWarningSessionThresholdsRaw = sanitized
+            self.defaultsState.quotaWarningWeeklyThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningThresholds")
+            self.userDefaults.set(sanitized, forKey: "quotaWarningSessionThresholds")
+            self.userDefaults.set(sanitized, forKey: "quotaWarningWeeklyThresholds")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    func quotaWarningThresholds(_ window: QuotaWarningWindow) -> [Int] {
+        switch window {
+        case .session:
+            QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningSessionThresholdsRaw)
+        case .weekly:
+            QuotaWarningThresholds.sanitized(self.defaultsState.quotaWarningWeeklyThresholdsRaw)
+        }
+    }
+
+    func setQuotaWarningThresholds(_ window: QuotaWarningWindow, thresholds: [Int]) {
+        let sanitized = QuotaWarningThresholds.sanitized(thresholds)
+        guard self.quotaWarningThresholds(window) != sanitized else { return }
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningSessionThresholds")
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyThresholdsRaw = sanitized
+            self.userDefaults.set(sanitized, forKey: "quotaWarningWeeklyThresholds")
+        }
+        self.noteBackgroundWorkSettingsChanged()
+    }
+
+    func quotaWarningWindowEnabled(_ window: QuotaWarningWindow) -> Bool {
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionEnabled
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyEnabled
+        }
+    }
+
+    func setQuotaWarningWindowEnabled(_ window: QuotaWarningWindow, enabled: Bool) {
+        switch window {
+        case .session:
+            self.defaultsState.quotaWarningSessionEnabled = enabled
+            self.userDefaults.set(enabled, forKey: "quotaWarningSessionEnabled")
+        case .weekly:
+            self.defaultsState.quotaWarningWeeklyEnabled = enabled
+            self.userDefaults.set(enabled, forKey: "quotaWarningWeeklyEnabled")
+        }
+        self.noteBackgroundWorkSettingsChanged()
+    }
+
+    var quotaWarningSoundEnabled: Bool {
+        get { self.defaultsState.quotaWarningSoundEnabled }
+        set {
+            self.defaultsState.quotaWarningSoundEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "quotaWarningSoundEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var quotaWarningOnScreenAlertEnabled: Bool {
+        get { self.defaultsState.quotaWarningOnScreenAlertEnabled }
+        set {
+            self.defaultsState.quotaWarningOnScreenAlertEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "quotaWarningOnScreenAlertEnabled")
+        }
+    }
+
+    var quotaWarningMarkersVisible: Bool {
+        get { self.defaultsState.quotaWarningMarkersVisible }
+        set {
+            self.defaultsState.quotaWarningMarkersVisible = newValue
+            self.userDefaults.set(newValue, forKey: "quotaWarningMarkersVisible")
+        }
+    }
+
+    var weeklyProgressWorkDays: Int? {
+        get { self.defaultsState.weeklyProgressWorkDays }
+        set {
+            self.defaultsState.weeklyProgressWorkDays = newValue
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: "weeklyProgressWorkDays")
+            } else {
+                self.userDefaults.removeObject(forKey: "weeklyProgressWorkDays")
+            }
+        }
+    }
+
+    var usageBarsShowUsed: Bool {
+        get { self.defaultsState.usageBarsShowUsed }
+        set {
+            self.defaultsState.usageBarsShowUsed = newValue
+            self.userDefaults.set(newValue, forKey: "usageBarsShowUsed")
+        }
+    }
+
+    var resetTimesShowAbsolute: Bool {
+        get { self.defaultsState.resetTimesShowAbsolute }
+        set {
+            self.defaultsState.resetTimesShowAbsolute = newValue
+            self.userDefaults.set(newValue, forKey: "resetTimesShowAbsolute")
+        }
+    }
+
+    var providerChangelogLinksEnabled: Bool {
+        get { self.defaultsState.providerChangelogLinksEnabled }
+        set {
+            self.defaultsState.providerChangelogLinksEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "providerChangelogLinksEnabled")
+        }
+    }
+
+    var menuBarShowsBrandIconWithPercent: Bool {
+        get { self.defaultsState.menuBarShowsBrandIconWithPercent }
+        set {
+            self.defaultsState.menuBarShowsBrandIconWithPercent = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsBrandIconWithPercent")
+        }
+    }
+
+    var menuBarHidesCritters: Bool {
+        get { self.defaultsState.menuBarHidesCritters }
+        set {
+            self.defaultsState.menuBarHidesCritters = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarHidesCritters")
+        }
+    }
+
+    var menuBarHighContrastOnInactiveDisplays: Bool {
+        get { self.defaultsState.menuBarHighContrastOnInactiveDisplays }
+        set {
+            self.defaultsState.menuBarHighContrastOnInactiveDisplays = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarHighContrastOnInactiveDisplays")
+        }
+    }
+
+    private var menuBarDisplayModeRaw: String? {
+        get { self.defaultsState.menuBarDisplayModeRaw }
+        set {
+            self.defaultsState.menuBarDisplayModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "menuBarDisplayMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "menuBarDisplayMode")
+            }
+        }
+    }
+
+    var menuBarDisplayMode: MenuBarDisplayMode {
+        get { MenuBarDisplayMode(rawValue: self.menuBarDisplayModeRaw ?? "") ?? .percent }
+        set { self.menuBarDisplayModeRaw = newValue.rawValue }
+    }
+
+    var menuBarShowsResetTimeWhenExhausted: Bool {
+        get { self.defaultsState.menuBarShowsResetTimeWhenExhausted }
+        set {
+            self.defaultsState.menuBarShowsResetTimeWhenExhausted = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsResetTimeWhenExhausted")
+        }
+    }
+
+    private var kiroMenuBarDisplayModeRaw: String? {
+        get { self.defaultsState.kiroMenuBarDisplayModeRaw }
+        set {
+            self.defaultsState.kiroMenuBarDisplayModeRaw = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "kiroMenuBarDisplayMode")
+            } else {
+                self.userDefaults.removeObject(forKey: "kiroMenuBarDisplayMode")
+            }
+        }
+    }
+
+    var kiroMenuBarDisplayMode: KiroMenuBarDisplayMode {
+        get { KiroMenuBarDisplayMode(rawValue: self.kiroMenuBarDisplayModeRaw ?? "") ?? .automatic }
+        set { self.kiroMenuBarDisplayModeRaw = newValue.rawValue }
+    }
+
+    var multiAccountMenuLayout: MultiAccountMenuLayout {
+        get { MultiAccountMenuLayout(rawValue: self.defaultsState.multiAccountMenuLayoutRaw) ?? .segmented }
+        set {
+            self.defaultsState.multiAccountMenuLayoutRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "multiAccountMenuLayout")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var showAllTokenAccountsInMenu: Bool {
+        get { self.multiAccountMenuLayout == .stacked }
+        set { self.multiAccountMenuLayout = newValue ? .stacked : .segmented }
+    }
+
+    var historicalTrackingEnabled: Bool {
+        get { self.defaultsState.historicalTrackingEnabled }
+        set {
+            self.defaultsState.historicalTrackingEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "historicalTrackingEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var menuBarMetricPreferencesRaw: [String: String] {
+        get { self.defaultsState.menuBarMetricPreferencesRaw }
+        set {
+            self.defaultsState.menuBarMetricPreferencesRaw = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarMetricPreferences")
+        }
+    }
+
+    var menuBarLayout: MenuBarLayout {
+        get {
+            self.defaultsState.storedMenuBarLayout ?? MenuBarLayout.migrated(
+                iconStyle: self.menuBarIconStyle,
+                displayMode: self.menuBarDisplayMode,
+                metricPreference: .automatic,
+                resetTimeDisplayStyle: self.resetTimeDisplayStyle)
+        }
+        set {
+            self.defaultsState.storedMenuBarLayout = newValue
+            self.persistMenuBarLayout(newValue, key: "menuBarLayout")
+        }
+    }
+
+    var hasStoredMenuBarLayout: Bool {
+        self.defaultsState.storedMenuBarLayout != nil
+    }
+
+    var menuBarLayoutOverrides: [UsageProvider: MenuBarLayout] {
+        Dictionary(uniqueKeysWithValues: self.defaultsState.menuBarLayoutOverridesRaw.compactMap { key, value in
+            UsageProvider(rawValue: key).map { ($0, value) }
+        })
+    }
+
+    func menuBarLayout(for provider: UsageProvider) -> MenuBarLayout {
+        self.menuBarLayoutResolution(for: provider).layout
+    }
+
+    func menuBarLayoutForGlobalEditing(representativeProvider: UsageProvider?) -> MenuBarLayout {
+        if let stored = self.defaultsState.storedMenuBarLayout {
+            return stored
+        }
+        guard let representativeProvider else { return self.menuBarLayout }
+        return self.menuBarLayoutResolution(for: representativeProvider).layout
+    }
+
+    func menuBarLayoutResolution(for provider: UsageProvider) -> MenuBarLayoutResolution {
+        if let override = self.defaultsState.menuBarLayoutOverridesRaw[provider.rawValue] {
+            return .stored(override)
+        }
+        if let stored = self.defaultsState.storedMenuBarLayout {
+            return .stored(stored)
+        }
+        return .legacy(
+            iconStyle: self.menuBarIconStyle,
+            displayMode: self.menuBarDisplayMode,
+            metricPreference: self.menuBarMetricPreference(for: provider),
+            resetTimeDisplayStyle: self.resetTimeDisplayStyle,
+            provider: provider)
+    }
+
+    func setMenuBarLayout(_ layout: MenuBarLayout, for provider: UsageProvider?) {
+        if let provider {
+            self.defaultsState.menuBarLayoutOverridesRaw[provider.rawValue] = layout
+            self.persistMenuBarLayoutOverrides()
+        } else {
+            self.menuBarLayout = layout
+        }
+    }
+
+    func removeMenuBarLayoutOverride(for provider: UsageProvider) {
+        guard self.defaultsState.menuBarLayoutOverridesRaw.removeValue(forKey: provider.rawValue) != nil else { return }
+        self.persistMenuBarLayoutOverrides()
+    }
+
+    var menuBarLayoutSize: MenuBarLayoutSize {
+        get { MenuBarLayoutSize(rawValue: self.defaultsState.menuBarLayoutSizeRaw) ?? .regular }
+        set {
+            self.defaultsState.menuBarLayoutSizeRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "menuBarLayoutSize")
+        }
+    }
+
+    var menuBarLayoutGap: MenuBarLayoutGap {
+        get { MenuBarLayoutGap(rawValue: self.defaultsState.menuBarLayoutGapRaw) ?? .regular }
+        set {
+            self.defaultsState.menuBarLayoutGapRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "menuBarLayoutGap")
+        }
+    }
+
+    private func persistMenuBarLayout(_ layout: MenuBarLayout, key: String) {
+        guard let data = try? JSONEncoder().encode(layout) else { return }
+        self.userDefaults.set(data, forKey: key)
+    }
+
+    private func persistMenuBarLayoutOverrides() {
+        guard let data = try? JSONEncoder().encode(self.defaultsState.menuBarLayoutOverridesRaw) else { return }
+        self.userDefaults.set(data, forKey: "menuBarLayoutOverrides")
+    }
+
+    var copilotIconSecondaryWindowIDRaw: String {
+        get { self.defaultsState.copilotIconSecondaryWindowIDRaw }
+        set {
+            self.defaultsState.copilotIconSecondaryWindowIDRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotIconSecondaryWindowID")
+        }
+    }
+
+    var costUsageEnabled: Bool {
+        get { self.defaultsState.costUsageEnabled }
+        set {
+            let changed = self.defaultsState.costUsageEnabled != newValue
+            self.defaultsState.costUsageEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "tokenCostUsageEnabled")
+            if changed {
+                self.costUsageSettingsRevision &+= 1
+            }
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var codexLocalSessionCostLedgerEnabled: Bool {
+        get { self.defaultsState.codexLocalSessionCostLedgerEnabled }
+        set {
+            self.defaultsState.codexLocalSessionCostLedgerEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "codexLocalSessionCostLedgerEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var costUsageHistoryDays: Int {
+        get { self.defaultsState.costUsageHistoryDays }
+        set {
+            let clamped = max(1, min(365, newValue))
+            let changed = self.defaultsState.costUsageHistoryDays != clamped
+            self.defaultsState.costUsageHistoryDays = clamped
+            self.userDefaults.set(clamped, forKey: "tokenCostUsageHistoryDays")
+            if changed {
+                self.costUsageSettingsRevision &+= 1
+            }
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var costComparisonPeriodsEnabled: Bool {
+        get { self.defaultsState.costComparisonPeriodsEnabled }
+        set {
+            self.defaultsState.costComparisonPeriodsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "costComparisonPeriodsEnabled")
+        }
+    }
+
+    var costSummaryDisplayStyleRaw: String {
+        get { self.defaultsState.costSummaryDisplayStyleRaw }
+        set {
+            self.defaultsState.costSummaryDisplayStyleRaw = newValue
+            self.userDefaults.set(newValue, forKey: "costSummaryDisplayStyle")
+        }
+    }
+
+    var costSummaryDisplayStyle: CostSummaryDisplayStyle {
+        get { CostSummaryDisplayStyle(rawValue: self.costSummaryDisplayStyleRaw) ?? .both }
+        set { self.costSummaryDisplayStyleRaw = newValue.rawValue }
+    }
+
+    var hidePersonalInfo: Bool {
+        get { self.defaultsState.hidePersonalInfo }
+        set {
+            self.defaultsState.hidePersonalInfo = newValue
+            self.userDefaults.set(newValue, forKey: "hidePersonalInfo")
+        }
+    }
+
+    var randomBlinkEnabled: Bool {
+        get { self.defaultsState.randomBlinkEnabled }
+        set {
+            self.defaultsState.randomBlinkEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "randomBlinkEnabled")
+        }
+    }
+
+    var confettiOnSessionLimitResetsEnabled: Bool {
+        get { self.defaultsState.confettiOnSessionLimitResetsEnabled }
+        set {
+            self.defaultsState.confettiOnSessionLimitResetsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "confettiOnSessionLimitResetsEnabled")
+        }
+    }
+
+    var confettiOnWeeklyLimitResetsEnabled: Bool {
+        get { self.defaultsState.confettiOnWeeklyLimitResetsEnabled }
+        set {
+            self.defaultsState.confettiOnWeeklyLimitResetsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "confettiOnWeeklyLimitResetsEnabled")
+        }
+    }
+
+    var menuBarShowsHighestUsage: Bool {
+        get { self.defaultsState.menuBarShowsHighestUsage }
+        set {
+            self.defaultsState.menuBarShowsHighestUsage = newValue
+            self.userDefaults.set(newValue, forKey: "menuBarShowsHighestUsage")
+        }
+    }
+
+    var claudeOAuthKeychainPromptMode: ClaudeOAuthKeychainPromptMode {
+        get {
+            let raw = self.defaultsState.claudeOAuthKeychainPromptModeRaw
+            return ClaudeOAuthKeychainPromptMode(rawValue: raw ?? "") ?? .onlyOnUserAction
+        }
+        set {
+            self.defaultsState.claudeOAuthKeychainPromptModeRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "claudeOAuthKeychainPromptMode")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var claudeOAuthKeychainReadStrategy: ClaudeOAuthKeychainReadStrategy {
+        get {
+            guard let raw = self.defaultsState.claudeOAuthKeychainReadStrategyRaw else {
+                return .securityFramework
+            }
+            let strategy = ClaudeOAuthKeychainReadStrategy(rawValue: raw) ?? .securityFramework
+            return strategy == .securityCLIExperimental ? .securityFramework : strategy
+        }
+        set {
+            self.defaultsState.claudeOAuthKeychainReadStrategyRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "claudeOAuthKeychainReadStrategy")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var claudeOAuthPromptFreeCredentialsEnabled: Bool {
+        get { self.claudeOAuthKeychainPromptMode == .never }
+        set {
+            self.claudeOAuthKeychainReadStrategy = .securityFramework
+            if newValue {
+                self.claudeOAuthKeychainPromptMode = .never
+            } else if self.claudeOAuthKeychainPromptMode == .never {
+                self.claudeOAuthKeychainPromptMode = .onlyOnUserAction
+            }
+        }
+    }
+
+    var claudeWebExtrasEnabled: Bool {
+        get { self.claudeWebExtrasEnabledRaw }
+        set { self.claudeWebExtrasEnabledRaw = newValue }
+    }
+
+    var copilotBudgetExtrasEnabled: Bool {
+        get { self.defaultsState.copilotBudgetExtrasEnabled }
+        set {
+            self.defaultsState.copilotBudgetExtrasEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "copilotBudgetExtrasEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Copilot budget extras updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    private var claudeWebExtrasEnabledRaw: Bool {
+        get { self.defaultsState.claudeWebExtrasEnabledRaw }
+        set {
+            self.defaultsState.claudeWebExtrasEnabledRaw = newValue
+            self.userDefaults.set(newValue, forKey: "claudeWebExtrasEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Claude web extras updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var showOptionalCreditsAndExtraUsage: Bool {
+        get { self.defaultsState.showOptionalCreditsAndExtraUsage }
+        set {
+            self.defaultsState.showOptionalCreditsAndExtraUsage = newValue
+            self.userDefaults.set(newValue, forKey: "showOptionalCreditsAndExtraUsage")
+            // This flag also controls ProviderFetchContext.includeOptionalUsage, so it is not display-only.
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var codexSparkUsageVisible: Bool {
+        get { self.defaultsState.codexSparkUsageVisible }
+        set {
+            self.defaultsState.codexSparkUsageVisible = newValue
+            self.userDefaults.set(newValue, forKey: "codexSparkUsageVisible")
+        }
+    }
+
+    var openAIWebAccessEnabled: Bool {
+        get { self.defaultsState.openAIWebAccessEnabled }
+        set {
+            self.defaultsState.openAIWebAccessEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "openAIWebAccessEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "OpenAI web access updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var openAIWebBatterySaverEnabled: Bool {
+        get { self.defaultsState.openAIWebBatterySaverEnabled }
+        set {
+            self.defaultsState.openAIWebBatterySaverEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "openAIWebBatterySaverEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "OpenAI web battery saver updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var providerStorageFootprintsEnabled: Bool {
+        get { self.defaultsState.providerStorageFootprintsEnabled }
+        set {
+            self.defaultsState.providerStorageFootprintsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "providerStorageFootprintsEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Provider storage footprints updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var jetbrainsIDEBasePath: String {
+        get { self.defaultsState.jetbrainsIDEBasePath }
+        set {
+            self.defaultsState.jetbrainsIDEBasePath = newValue
+            self.userDefaults.set(newValue, forKey: "jetbrainsIDEBasePath")
+        }
+    }
+
+    var mergeIcons: Bool {
+        get { self.defaultsState.mergeIcons }
+        set {
+            self.defaultsState.mergeIcons = newValue
+            self.userDefaults.set(newValue, forKey: "mergeIcons")
+        }
+    }
+
+    var switcherShowsIcons: Bool {
+        get { self.defaultsState.switcherShowsIcons }
+        set {
+            self.defaultsState.switcherShowsIcons = newValue
+            self.userDefaults.set(newValue, forKey: "switcherShowsIcons")
+        }
+    }
+
+    var mergedMenuLastSelectedWasOverview: Bool {
+        get { self.mergedMenuLastSelectedWasOverviewStorage }
+        set {
+            self.mergedMenuLastSelectedWasOverviewStorage = newValue
+            self.userDefaults.set(newValue, forKey: "mergedMenuLastSelectedWasOverview")
+        }
+    }
+
+    private var mergedOverviewSelectedProvidersRaw: [String] {
+        get { self.defaultsState.mergedOverviewSelectedProvidersRaw }
+        set {
+            self.defaultsState.mergedOverviewSelectedProvidersRaw = newValue
+            self.userDefaults.set(newValue, forKey: "mergedOverviewSelectedProviders")
+        }
+    }
+
+    private var selectedMenuProviderRaw: String? {
+        get { self.selectedMenuProviderRawStorage }
+        set {
+            self.selectedMenuProviderRawStorage = newValue
+            if let raw = newValue {
+                self.userDefaults.set(raw, forKey: "selectedMenuProvider")
+            } else {
+                self.userDefaults.removeObject(forKey: "selectedMenuProvider")
+            }
+        }
+    }
+
+    var selectedMenuProvider: UsageProvider? {
+        get { self.selectedMenuProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set {
+            self.selectedMenuProviderRaw = newValue?.rawValue
+        }
+    }
+
+    var mergedOverviewSelectedProviders: [UsageProvider] {
+        get {
+            Self.decodeProviders(
+                self.mergedOverviewSelectedProvidersRaw,
+                maxCount: Self.mergedOverviewProviderLimit)
+        }
+        set {
+            let normalized = Self.normalizeProviders(newValue, maxCount: Self.mergedOverviewProviderLimit)
+            self.mergedOverviewSelectedProvidersRaw = normalized.map(\.rawValue)
+        }
+    }
+
+    private var hasMergedOverviewSelectionPreference: Bool {
+        self.userDefaults.object(forKey: "mergedOverviewSelectedProviders") != nil
+    }
+
+    private var mergedOverviewSelectionEditedActiveProvidersRaw: [String]? {
+        get {
+            self.userDefaults.array(forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey) as? [String]
+        }
+        set {
+            if let newValue {
+                self.userDefaults.set(newValue, forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey)
+            } else {
+                self.userDefaults.removeObject(forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey)
+            }
+        }
+    }
+
+    private func mergedOverviewSelectionApplies(to activeProviders: [UsageProvider]) -> Bool {
+        guard let editedRaw = self.mergedOverviewSelectionEditedActiveProvidersRaw else { return false }
+        let editedSet = Set(editedRaw)
+        let activeSet = Set(Self.normalizeProviders(activeProviders).map(\.rawValue))
+        return editedSet == activeSet
+    }
+
+    private func markMergedOverviewSelectionEdited(for activeProviders: [UsageProvider]) {
+        let signature = Set(Self.normalizeProviders(activeProviders).map(\.rawValue))
+        self.mergedOverviewSelectionEditedActiveProvidersRaw = Array(signature).sorted()
+    }
+
+    private func clearMergedOverviewSelectionPreference() {
+        self.defaultsState.mergedOverviewSelectedProvidersRaw = []
+        self.userDefaults.removeObject(forKey: "mergedOverviewSelectedProviders")
+        self.mergedOverviewSelectionEditedActiveProvidersRaw = nil
+    }
+
+    func resolvedMergedOverviewProviders(
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else { return [] }
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard self.hasMergedOverviewSelectionPreference else {
+            return Array(normalizedActive.prefix(maxVisibleProviders))
+        }
+        if normalizedActive.count <= maxVisibleProviders,
+           !self.mergedOverviewSelectionApplies(to: normalizedActive)
+        {
+            return normalizedActive
+        }
+
+        let selectedSet = Set(self.mergedOverviewSelectedProviders)
+        return Array(normalizedActive.filter { selectedSet.contains($0) }.prefix(maxVisibleProviders))
+    }
+
+    @discardableResult
+    func reconcileMergedOverviewSelectedProviders(
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else {
+            self.clearMergedOverviewSelectionPreference()
+            return []
+        }
+
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        if normalizedActive.isEmpty {
+            self.clearMergedOverviewSelectionPreference()
+            return []
+        }
+
+        let shouldPersistResolvedSelection = normalizedActive.count > maxVisibleProviders ||
+            self.mergedOverviewSelectionApplies(to: normalizedActive)
+
+        if self.hasMergedOverviewSelectionPreference, shouldPersistResolvedSelection {
+            let selectedSet = Set(self.mergedOverviewSelectedProviders)
+            let sanitizedSelection = Array(
+                normalizedActive
+                    .filter { selectedSet.contains($0) }
+                    .prefix(maxVisibleProviders))
+            if sanitizedSelection != self.mergedOverviewSelectedProviders {
+                self.mergedOverviewSelectedProviders = sanitizedSelection
+            }
+        }
+
+        return self.resolvedMergedOverviewProviders(
+            activeProviders: normalizedActive,
+            maxVisibleProviders: maxVisibleProviders)
+    }
+
+    @discardableResult
+    func setMergedOverviewProviderSelection(
+        provider: UsageProvider,
+        isSelected: Bool,
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else {
+            self.clearMergedOverviewSelectionPreference()
+            return []
+        }
+
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard normalizedActive.contains(provider) else {
+            return self.resolvedMergedOverviewProviders(
+                activeProviders: normalizedActive,
+                maxVisibleProviders: maxVisibleProviders)
+        }
+
+        let currentSelection = self.resolvedMergedOverviewProviders(
+            activeProviders: normalizedActive,
+            maxVisibleProviders: maxVisibleProviders)
+        var updatedSet = Set(currentSelection)
+
+        if isSelected {
+            guard updatedSet.contains(provider) || currentSelection.count < maxVisibleProviders else {
+                return currentSelection
+            }
+            updatedSet.insert(provider)
+        } else {
+            updatedSet.remove(provider)
+        }
+
+        let updatedSelection = Array(
+            normalizedActive
+                .filter { updatedSet.contains($0) }
+                .prefix(maxVisibleProviders))
+        self.mergedOverviewSelectedProviders = updatedSelection
+        self.markMergedOverviewSelectionEdited(for: normalizedActive)
+        return updatedSelection
+    }
+
+    var providerDetectionCompleted: Bool {
+        get { self.defaultsState.providerDetectionCompleted }
+        set {
+            self.defaultsState.providerDetectionCompleted = newValue
+            self.userDefaults.set(newValue, forKey: "providerDetectionCompleted")
+        }
+    }
+
+    /// Whether the Providers settings pane displays providers sorted alphabetically (enabled on
+    /// top). Defaults to `false`. Purely a display preference — it never rewrites the stored manual
+    /// order, so turning it on sorts the display without losing the user's hand-arranged sequence.
+    var providersSortedAlphabetically: Bool {
+        get { self.defaultsState.providersSortedAlphabetically }
+        set {
+            self.defaultsState.providersSortedAlphabetically = newValue
+            self.userDefaults.set(newValue, forKey: "providersSortedAlphabetically")
+        }
+    }
+
+    var appLanguage: String {
+        get { self.defaultsState.appLanguageRaw ?? "" }
+        set {
+            let stored = newValue.isEmpty ? nil : newValue
+            self.defaultsState.appLanguageRaw = stored
+            if let stored {
+                self.userDefaults.set(stored, forKey: "appLanguage")
+                if self.userDefaults !== UserDefaults.standard {
+                    UserDefaults.standard.set(stored, forKey: "appLanguage")
+                }
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            } else {
+                self.userDefaults.removeObject(forKey: "appLanguage")
+                if self.userDefaults !== UserDefaults.standard {
+                    UserDefaults.standard.removeObject(forKey: "appLanguage")
+                }
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+            resetCodexBarLocalizationCache()
+        }
+    }
+
+    var debugLoadingPattern: LoadingPattern? {
+        get { self.debugLoadingPatternRaw.flatMap(LoadingPattern.init(rawValue:)) }
+        set { self.debugLoadingPatternRaw = newValue?.rawValue }
+    }
+
+    var terminalApp: TerminalApp {
+        get { TerminalApp(rawValue: self.defaultsState.terminalAppRaw ?? "") ?? .terminal }
+        set {
+            self.defaultsState.terminalAppRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "terminalApp")
+        }
+    }
+
+    var agentSessionsEnabled: Bool {
+        get { self.defaultsState.agentSessionsEnabled }
+        set {
+            self.defaultsState.agentSessionsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "agentSessionsEnabled")
+        }
+    }
+
+    var agentSessionLabelStyle: AgentSessionLabelStyle {
+        get { AgentSessionLabelStyle(rawValue: self.defaultsState.agentSessionLabelStyleRaw) ?? .project }
+        set {
+            self.defaultsState.agentSessionLabelStyleRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "agentSessionLabelStyle")
+        }
+    }
+
+    var agentSessionsManualHosts: String {
+        get { self.defaultsState.agentSessionsManualHosts }
+        set {
+            self.defaultsState.agentSessionsManualHosts = newValue
+            self.userDefaults.set(newValue, forKey: "agentSessionsManualHosts")
+        }
+    }
+}
+
+extension SettingsStore {
+    private static func normalizeProviders(_ providers: [UsageProvider], maxCount: Int? = nil) -> [UsageProvider] {
+        var seen: Set<UsageProvider> = []
+        var normalized: [UsageProvider] = []
+        for provider in providers where !seen.contains(provider) {
+            seen.insert(provider)
+            normalized.append(provider)
+            if let maxCount, normalized.count >= maxCount {
+                break
+            }
+        }
+        return normalized
+    }
+
+    private static func decodeProviders(_ rawProviders: [String], maxCount: Int? = nil) -> [UsageProvider] {
+        var providers: [UsageProvider] = []
+        providers.reserveCapacity(rawProviders.count)
+        for raw in rawProviders {
+            guard let provider = UsageProvider(rawValue: raw) else { continue }
+            providers.append(provider)
+        }
+        return self.normalizeProviders(providers, maxCount: maxCount)
+    }
+}

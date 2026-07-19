@@ -1,0 +1,497 @@
+name: Release CLI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag/version to package for manual artifact builds; manual runs do not publish."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-cli:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runs-on: ubuntu-24.04
+            platform: linux
+            asset-platform: linux
+            asset-arch: x86_64
+            build-arch: ""
+            static-swift-stdlib: true
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: x86-64
+          - name: linux-arm64
+            runs-on: ubuntu-24.04-arm
+            platform: linux
+            asset-platform: linux
+            asset-arch: aarch64
+            build-arch: ""
+            static-swift-stdlib: true
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: aarch64
+          - name: linux-musl-x64
+            runs-on: ubuntu-24.04
+            platform: linux
+            asset-platform: linux-musl
+            asset-arch: x86_64
+            build-arch: ""
+            static-swift-stdlib: false
+            swift-sdk: swift-6.2.1-RELEASE_static-linux-0.0.1
+            swift-sdk-triple: x86_64-swift-linux-musl
+            swift-sdk-arch: x86_64
+            file-arch-pattern: x86-64
+          - name: linux-musl-arm64
+            runs-on: ubuntu-24.04-arm
+            platform: linux
+            asset-platform: linux-musl
+            asset-arch: aarch64
+            build-arch: ""
+            static-swift-stdlib: false
+            swift-sdk: swift-6.2.1-RELEASE_static-linux-0.0.1
+            swift-sdk-triple: aarch64-swift-linux-musl
+            swift-sdk-arch: aarch64
+            file-arch-pattern: aarch64
+          - name: macos-arm64
+            runs-on: macos-15
+            platform: macos
+            asset-platform: macos
+            asset-arch: arm64
+            build-arch: arm64
+            static-swift-stdlib: false
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: ""
+          - name: macos-x86_64
+            runs-on: macos-15-intel
+            platform: macos
+            asset-platform: macos
+            asset-arch: x86_64
+            build-arch: x86_64
+            static-swift-stdlib: false
+            swift-sdk: ""
+            swift-sdk-triple: ""
+            swift-sdk-arch: ""
+            file-arch-pattern: ""
+    runs-on: ${{ matrix.runs-on }}
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      SWIFT_VERSION: 6.2.1
+      SWIFTLY_VERSION: 1.1.3
+      SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
+      SWIFT_STATIC_LINUX_SDK_URL: https://download.swift.org/swift-6.2.1-release/static-sdk/swift-6.2.1-RELEASE/swift-6.2.1-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
+      SWIFT_STATIC_LINUX_SDK_CHECKSUM: 08e1939a504e499ec871b36826569173103e4562769e12b9b8c2a50f098374ad
+      SQLITE_AMALGAMATION_VERSION: "3530300"
+      SQLITE_AMALGAMATION_SHA3_256: d45c688a8cb23f68611a894a756a12d7eb6ab6e9e2468ca70adbeab3808b5ab9
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Select Xcode 26.3 or 26.2
+        if: matrix.platform == 'macos'
+        run: |
+          set -euo pipefail
+          # Both versions are part of the official macOS 15 runner image.
+          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
+            if [[ -d "$candidate" ]]; then
+              sudo xcode-select -s "${candidate}/Contents/Developer"
+              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
+          /usr/bin/xcodebuild -version
+
+      - name: Runner info
+        run: |
+          set -euo pipefail
+          uname -a
+          uname -m
+          swift --version
+
+      - name: Validate release tag
+        if: github.event_name == 'release' || inputs.tag != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Install Swift ${{ env.SWIFT_VERSION }} via swiftly
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v gpg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates gpg
+          fi
+
+          SWIFTLY_ARCH="$(uname -m)"
+          SWIFTLY_ARCHIVE="$RUNNER_TEMP/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz"
+          SWIFTLY_SIGNATURE="${SWIFTLY_ARCHIVE}.sig"
+          SWIFTLY_HOME_DIR="$HOME/.local/share/swiftly"
+          SWIFTLY_BIN_DIR="$HOME/.local/bin"
+          SWIFT_GNUPGHOME="$(mktemp -d)"
+          SWIFT_KEYS="$RUNNER_TEMP/swift-signing-keys.asc"
+          POST_INSTALL_SCRIPT="$(mktemp)"
+
+          mkdir -p "$SWIFTLY_BIN_DIR"
+          chmod 700 "$SWIFT_GNUPGHOME"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz" -o "$SWIFTLY_ARCHIVE"
+          curl -fsSL "https://download.swift.org/swiftly/linux/swiftly-${SWIFTLY_VERSION}-${SWIFTLY_ARCH}.tar.gz.sig" -o "$SWIFTLY_SIGNATURE"
+          curl -fsSL --compressed "https://www.swift.org/keys/all-keys.asc" -o "$SWIFT_KEYS"
+          GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --import "$SWIFT_KEYS"
+          SIGNATURE_STATUS="$(GNUPGHOME="$SWIFT_GNUPGHOME" gpg --batch --status-fd=1 \
+            --verify "$SWIFTLY_SIGNATURE" "$SWIFTLY_ARCHIVE" 2>&1)"
+          printf '%s\n' "$SIGNATURE_STATUS"
+          grep -Fq "[GNUPG:] VALIDSIG ${SWIFTLY_SIGNING_FINGERPRINT} " <<< "$SIGNATURE_STATUS"
+          tar -xzf "$SWIFTLY_ARCHIVE" -C /tmp
+          /tmp/swiftly init --assume-yes --skip-install
+
+          . "$SWIFTLY_HOME_DIR/env.sh"
+          echo "$SWIFTLY_BIN_DIR" >> "$GITHUB_PATH"
+          echo "SWIFTLY_HOME_DIR=$SWIFTLY_HOME_DIR" >> "$GITHUB_ENV"
+          echo "SWIFTLY_BIN_DIR=$SWIFTLY_BIN_DIR" >> "$GITHUB_ENV"
+
+          swiftly install "$SWIFT_VERSION" --use --assume-yes --verify --post-install-file "$POST_INSTALL_SCRIPT"
+          if [[ -s "$POST_INSTALL_SCRIPT" ]]; then
+            sudo apt-get update
+            sudo bash "$POST_INSTALL_SCRIPT"
+          fi
+
+          hash -r
+          swift --version
+
+      - name: Install Swift Static Linux SDK
+        if: matrix.swift-sdk != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift sdk install "$SWIFT_STATIC_LINUX_SDK_URL" --checksum "$SWIFT_STATIC_LINUX_SDK_CHECKSUM"
+          swift sdk list | grep -Fx "${{ matrix.swift-sdk }}"
+
+          sdk_root="$(
+            find "$HOME" -type d -path "*/${{ matrix.swift-sdk }}.artifactbundle/${{ matrix.swift-sdk }}/swift-linux-musl" | head -n1
+          )"
+          if [[ -z "$sdk_root" ]]; then
+            echo "Swift SDK root not found." >&2
+            exit 1
+          fi
+
+          python3 - "$sdk_root/swift-sdk.json" "${{ matrix.swift-sdk-triple }}" <<'PY'
+          import json
+          import sys
+
+          sdk_json_path, target_triple = sys.argv[1], sys.argv[2]
+          with open(sdk_json_path, encoding="utf-8") as handle:
+              sdk_json = json.load(handle)
+
+          target_triples = sdk_json.get("targetTriples", {})
+          if target_triple not in target_triples:
+              raise SystemExit(f"Swift SDK target triple not found: {target_triple}")
+
+          sdk_json["targetTriples"] = {target_triple: target_triples[target_triple]}
+          with open(sdk_json_path, "w", encoding="utf-8") as handle:
+              json.dump(sdk_json, handle, indent=2)
+              handle.write("\n")
+          PY
+
+          for sdk_arch in "$sdk_root"/musl-1.2.5.sdk/*; do
+            if [[ "$(basename "$sdk_arch")" != "${{ matrix.swift-sdk-arch }}" ]]; then
+              rm -rf "$sdk_arch"
+            fi
+          done
+
+      - name: Build static SQLite for musl SDK
+        if: matrix.swift-sdk != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing_packages=()
+          for tool in clang openssl unzip; do
+            if ! command -v "$tool" >/dev/null 2>&1; then
+              missing_packages+=("$tool")
+            fi
+          done
+          if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+            sudo apt-get update
+            sudo apt-get install -y "${missing_packages[@]}"
+          fi
+
+          sqlite_zip="$RUNNER_TEMP/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}.zip"
+          sqlite_src="$RUNNER_TEMP/sqlite-src"
+          sqlite_out="$RUNNER_TEMP/sqlite-${{ matrix.swift-sdk-triple }}"
+
+          curl -fsSL "https://www.sqlite.org/2026/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}.zip" -o "$sqlite_zip"
+          actual_sha3="$(openssl dgst -sha3-256 "$sqlite_zip" | awk '{print $NF}')"
+          if [[ "$actual_sha3" != "$SQLITE_AMALGAMATION_SHA3_256" ]]; then
+            echo "SQLite amalgamation checksum mismatch: $actual_sha3" >&2
+            exit 1
+          fi
+
+          rm -rf "$sqlite_src" "$sqlite_out"
+          mkdir -p "$sqlite_src" "$sqlite_out/build" "$sqlite_out/lib"
+          unzip -q "$sqlite_zip" -d "$sqlite_src"
+
+          sdk_bundle="$(
+            find "$HOME" -type d -name "${{ matrix.swift-sdk }}.artifactbundle" | head -n1
+          )"
+          if [[ -z "$sdk_bundle" ]]; then
+            echo "Swift SDK artifact bundle not found." >&2
+            exit 1
+          fi
+          sysroot="$sdk_bundle/${{ matrix.swift-sdk }}/swift-linux-musl/musl-1.2.5.sdk/${{ matrix.swift-sdk-arch }}"
+          if [[ ! -d "$sysroot" ]]; then
+            echo "Swift SDK sysroot not found: $sysroot" >&2
+            exit 1
+          fi
+
+          sqlite_amalgamation="$sqlite_src/sqlite-amalgamation-${SQLITE_AMALGAMATION_VERSION}"
+          mkdir -p "$sysroot/usr/include"
+          install -m 0644 "$sqlite_amalgamation/sqlite3.h" "$sysroot/usr/include/sqlite3.h"
+
+          clang \
+            -target "${{ matrix.swift-sdk-triple }}" \
+            --sysroot="$sysroot" \
+            -O2 \
+            -DSQLITE_OMIT_LOAD_EXTENSION=1 \
+            -c "$sqlite_amalgamation/sqlite3.c" \
+            -o "$sqlite_out/build/sqlite3.o"
+          llvm-ar crs "$sqlite_out/lib/libsqlite3.a" "$sqlite_out/build/sqlite3.o"
+
+          echo "CODEXBAR_SQLITE3_LIB_DIR=$sqlite_out/lib" >> "$GITHUB_ENV"
+
+      - name: Build CodexBarCLI (release)
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_ARGS=(swift build -c release --product CodexBarCLI)
+          if [[ -n "${{ matrix.swift-sdk }}" ]]; then
+            BUILD_ARGS+=(--swift-sdk "${{ matrix.swift-sdk }}" --triple "${{ matrix.swift-sdk-triple }}")
+          elif [[ -n "${{ matrix.build-arch }}" ]]; then
+            BUILD_ARGS+=(--arch "${{ matrix.build-arch }}")
+          fi
+          if [[ "${{ matrix.static-swift-stdlib }}" == "true" ]]; then
+            BUILD_ARGS+=(--static-swift-stdlib)
+          fi
+          "${BUILD_ARGS[@]}"
+
+          SHOW_BIN_ARGS=(swift build -c release --product CodexBarCLI --show-bin-path)
+          if [[ -n "${{ matrix.swift-sdk }}" ]]; then
+            SHOW_BIN_ARGS+=(--swift-sdk "${{ matrix.swift-sdk }}" --triple "${{ matrix.swift-sdk-triple }}")
+          elif [[ -n "${{ matrix.build-arch }}" ]]; then
+            SHOW_BIN_ARGS+=(--arch "${{ matrix.build-arch }}")
+          fi
+          if [[ "${{ matrix.static-swift-stdlib }}" == "true" ]]; then
+            SHOW_BIN_ARGS+=(--static-swift-stdlib)
+          fi
+
+          echo "bin_dir=$("${SHOW_BIN_ARGS[@]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test CodexBarCLI
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BIN_DIR="${{ steps.build.outputs.bin_dir }}"
+          BIN="$BIN_DIR/CodexBarCLI"
+          run_with_timeout() {
+            local output="$1"
+            shift
+            "$@" > "$output" &
+            local pid=$!
+            local run_status=
+            for _ in {1..20}; do
+              if ! kill -0 "$pid" 2>/dev/null; then
+                set +e
+                wait "$pid"
+                run_status=$?
+                set -e
+                break
+              fi
+              sleep 1
+            done
+            if [[ -z "$run_status" ]]; then
+              kill "$pid" 2>/dev/null || true
+              wait "$pid" 2>/dev/null || true
+              echo "$* timed out." >&2
+              exit 124
+            fi
+            if [[ "$run_status" -ne 0 ]]; then
+              cat "$output" >&2 || true
+              exit "$run_status"
+            fi
+          }
+
+          echo "BIN=$BIN"
+          file "$BIN"
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            lipo -archs "$BIN" | tr ' ' '\n' | grep -Fx "${{ matrix.asset-arch }}"
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "$BIN" config validate --format json
+          elif [[ -n "${{ matrix.swift-sdk }}" ]]; then
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-config-${{ matrix.name }}.json" "$BIN" config validate --format json
+            file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
+            file "$BIN" | grep -q "statically linked"
+          else
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
+            file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
+          fi
+          printf '%s\n' "${RELEASE_TAG#v}" > "$BIN_DIR/VERSION"
+          VERSION_OUTPUT="$RUNNER_TEMP/codexbar-cli-version-${{ matrix.name }}.txt"
+          run_with_timeout "$VERSION_OUTPUT" "$BIN" --version
+          grep -Fx "CodexBar ${RELEASE_TAG#v}" "$VERSION_OUTPUT"
+          rm "$BIN_DIR/VERSION"
+
+      - name: Package
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REF_NAME="${RELEASE_TAG}"
+          if [[ -z "$REF_NAME" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          SAFE_REF_NAME="${REF_NAME//\//-}"
+
+          BIN_DIR="${{ steps.build.outputs.bin_dir }}"
+          OUT_DIR="$(mktemp -d)"
+          install -m 0755 "$BIN_DIR/CodexBarCLI" "$OUT_DIR/CodexBarCLI"
+          ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
+          printf '%s\n' "${SAFE_REF_NAME#v}" > "$OUT_DIR/VERSION"
+
+          ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
+          (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar VERSION)
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
+          else
+            shasum -a 256 "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
+          fi
+
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${RELEASE_TAG}"
+          OUT_DIR="${{ steps.pkg.outputs.out_dir }}"
+          ASSET="${{ steps.pkg.outputs.asset }}"
+          gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
+
+      - name: Upload workflow artifact (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: codexbar-cli-${{ matrix.name }}
+          path: |
+            ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
+            ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
+
+  update-homebrew-tap:
+    runs-on: ubuntu-24.04
+    needs: build-cli
+    if: github.event_name == 'release'
+    steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${RELEASE_TAG}"
+          if [[ -z "$tag" ]]; then
+            echo "Missing release tag." >&2
+            exit 1
+          fi
+          if [[ ! "$tag" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "request_id=codexbar-${tag}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch tap update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          REQUEST_ID: ${{ steps.release.outputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          for attempt in {1..6}; do
+            if gh workflow run update-formula.yml \
+              --repo steipete/homebrew-tap \
+              -f formula=codexbar \
+              -f tag="$RELEASE_TAG" \
+              -f repository=steipete/CodexBar \
+              -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
+              -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
+              -f cask=codexbar \
+              -f cask_artifact='CodexBar-macos-universal-{version}.zip' \
+              -f request_id="$REQUEST_ID"; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 6 ]]; then
+              echo "Failed to dispatch tap update after ${attempt} attempts." >&2
+              exit 1
+            fi
+            sleep $((attempt * 30))
+          done
+
+      - name: Wait for tap update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          REQUEST_ID: ${{ steps.release.outputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in {1..20}; do
+            run_id="$(
+              gh run list \
+                --repo steipete/homebrew-tap \
+                --workflow update-formula.yml \
+                --json databaseId,displayTitle \
+                --jq '.[] | select(.displayTitle | contains(env.REQUEST_ID)) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
+                | head -n1 || true
+            )"
+            if [[ -n "$run_id" ]]; then
+              gh run watch "$run_id" --repo steipete/homebrew-tap --exit-status
+              exit 0
+            fi
+            cat /tmp/codexbar-tap-run-list.err >&2 || true
+            sleep 5
+          done
+          echo "Timed out waiting for tap workflow to appear." >&2
+          exit 1

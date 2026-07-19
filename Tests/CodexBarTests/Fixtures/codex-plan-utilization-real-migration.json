@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "preferredAccountKey": "codex:v1:provider-account:0c2a5eef-a612-45bb-9796-9aa83ce1bed7",
+  "unscoped": [],
+  "accounts": {
+    "3e31a7fdc57ea26c62fd7061d25dcab74a91b0da2d8f514b07e99aad800ee897": [
+      {
+        "name": "session",
+        "windowMinutes": 300,
+        "entries": [
+          {
+            "capturedAt": "2026-03-23T09:55:44Z",
+            "resetsAt": "2026-03-23T10:28:16Z",
+            "usedPercent": 9
+          },
+          {
+            "capturedAt": "2026-03-23T10:27:49Z",
+            "resetsAt": "2026-03-23T10:28:16Z",
+            "usedPercent": 13
+          },
+          {
+            "capturedAt": "2026-04-01T07:07:28Z",
+            "resetsAt": "2026-04-01T12:07:28Z",
+            "usedPercent": 0
+          },
+          {
+            "capturedAt": "2026-04-01T07:59:25Z",
+            "resetsAt": "2026-04-01T12:57:12Z",
+            "usedPercent": 0
+          },
+          {
+            "capturedAt": "2026-04-01T08:30:22Z",
+            "resetsAt": "2026-04-01T12:57:12Z",
+            "usedPercent": 6
+          }
+        ]
+      },
+      {
+        "name": "weekly",
+        "windowMinutes": 10080,
+        "entries": [
+          {
+            "capturedAt": "2026-03-23T09:55:44Z",
+            "resetsAt": "2026-03-25T17:41:02Z",
+            "usedPercent": 51
+          },
+          {
+            "capturedAt": "2026-03-23T10:54:47Z",
+            "resetsAt": "2026-03-25T17:41:02Z",
+            "usedPercent": 53
+          },
+          {
+            "capturedAt": "2026-03-23T11:59:59Z",
+            "resetsAt": "2026-03-25T17:41:02Z",
+            "usedPercent": 53
+          },
+          {
+            "capturedAt": "2026-04-01T07:43:34Z",
+            "resetsAt": "2026-04-03T05:42:22Z",
+            "usedPercent": 62
+          },
+          {
+            "capturedAt": "2026-04-01T07:59:25Z",
+            "resetsAt": "2026-04-08T07:57:12Z",
+            "usedPercent": 0
+          },
+          {
+            "capturedAt": "2026-04-01T08:30:22Z",
+            "resetsAt": "2026-04-08T07:57:12Z",
+            "usedPercent": 2
+          }
+        ]
+      }
+    ],
+    "ae933d834c92219543c3f3ee7d5117b129f89174b6c47b2ab793df968f3616f4": [
+      {
+        "name": "weekly",
+        "windowMinutes": 10080,
+        "entries": [
+          {
+            "capturedAt": "2026-03-28T06:50:16Z",
+            "resetsAt": "2026-04-02T20:34:15Z",
+            "usedPercent": 1
+          },
+          {
+            "capturedAt": "2026-03-29T13:32:29Z",
+            "resetsAt": "2026-04-02T20:34:15Z",
+            "usedPercent": 1
+          },
+          {
+            "capturedAt": "2026-03-29T14:45:59Z",
+            "resetsAt": "2026-04-02T20:34:15Z",
+            "usedPercent": 1
+          },
+          {
+            "capturedAt": "2026-03-31T13:49:22Z",
+            "resetsAt": "2026-04-02T20:34:16Z",
+            "usedPercent": 1
+          },
+          {
+            "capturedAt": "2026-03-31T16:58:41Z",
+            "resetsAt": "2026-04-02T20:34:15Z",
+            "usedPercent": 1
+          },
+          {
+            "capturedAt": "2026-03-31T17:07:31Z",
+            "resetsAt": "2026-04-02T20:34:15Z",
+            "usedPercent": 1
+          }
+        ]
+      }
+    ],
+    "codex:v1:email-hash:e0905a26346930c615f5517913dad1a23312d882159719fbc429819216ff42b2": [
+      {
+        "name": "session",
+        "windowMinutes": 300,
+        "entries": [
+          {
+            "capturedAt": "2026-03-29T16:53:28Z",
+            "usedPercent": 18
+          },
+          {
+            "capturedAt": "2026-03-29T17:24:28Z",
+            "usedPercent": 18
+          },
+          {
+            "capturedAt": "2026-04-01T15:03:43Z",
+            "usedPercent": 10
+          },
+          {
+            "capturedAt": "2026-04-01T16:37:42Z",
+            "usedPercent": 10
+          },
+          {
+            "capturedAt": "2026-04-01T19:49:10Z",
+            "usedPercent": 10
+          }
+        ]
+      }
+    ],
+    "codex:v1:provider-account:0c2a5eef-a612-45bb-9796-9aa83ce1bed7": [
+      {
+        "name": "session",
+        "windowMinutes": 300,
+        "entries": [
+          {
+            "capturedAt": "2026-04-01T08:58:21Z",
+            "resetsAt": "2026-04-01T12:57:13Z",
+            "usedPercent": 6
+          },
+          {
+            "capturedAt": "2026-04-01T09:54:18Z",
+            "resetsAt": "2026-04-01T12:57:13Z",
+            "usedPercent": 8
+          },
+          {
+            "capturedAt": "2026-04-01T18:58:52Z",
+            "resetsAt": "2026-04-01T22:57:27Z",
+            "usedPercent": 4
+          },
+          {
+            "capturedAt": "2026-04-01T19:44:58Z",
+            "resetsAt": "2026-04-01T22:57:27Z",
+            "usedPercent": 8
+          },
+          {
+            "capturedAt": "2026-04-01T20:33:41Z",
+            "resetsAt": "2026-04-01T22:57:27Z",
+            "usedPercent": 10
+          }
+        ]
+      },
+      {
+        "name": "weekly",
+        "windowMinutes": 10080,
+        "entries": [
+          {
+            "capturedAt": "2026-04-01T08:58:21Z",
+            "resetsAt": "2026-04-08T07:57:13Z",
+            "usedPercent": 2
+          },
+          {
+            "capturedAt": "2026-04-01T09:54:18Z",
+            "resetsAt": "2026-04-08T07:57:13Z",
+            "usedPercent": 2
+          },
+          {
+            "capturedAt": "2026-04-01T10:54:30Z",
+            "resetsAt": "2026-04-08T07:57:12Z",
+            "usedPercent": 3
+          },
+          {
+            "capturedAt": "2026-04-01T18:58:52Z",
+            "resetsAt": "2026-04-08T07:57:12Z",
+            "usedPercent": 10
+          },
+          {
+            "capturedAt": "2026-04-01T19:44:58Z",
+            "resetsAt": "2026-04-08T07:57:13Z",
+            "usedPercent": 12
+          },
+          {
+            "capturedAt": "2026-04-01T20:33:41Z",
+            "resetsAt": "2026-04-08T07:57:12Z",
+            "usedPercent": 12
+          }
+        ]
+      }
+    ]
+  }
+}
