@@ -195,6 +195,13 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
             return headers
         }
 
+        guard region.supportsBrowserCookieImport else {
+            throw AlibabaTokenPlanSettingsError.missingCookie(
+                details: "The Qwen Cloud personal token plan does not support browser cookie import. " +
+                    "Open https://home.qwencloud.com/billing/subscription/token-plan-individual, copy a " +
+                    "Cookie: header from the Network tab, and paste it as a manual cookie header.")
+        }
+
         do {
             var importLog: [String] = []
             let session = try AlibabaCodingPlanCookieImporter.importSession(

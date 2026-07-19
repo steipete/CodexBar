@@ -713,6 +713,12 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .alibabatokenplan,
+           settings?.alibabaTokenPlan?.cookieSource == .manual
+        {
+            // The quota fetch is plain URLSession + cookies; only browser import needs macOS.
+            return false
+        }
         if provider == .ollama,
            sourceMode == .auto
         {

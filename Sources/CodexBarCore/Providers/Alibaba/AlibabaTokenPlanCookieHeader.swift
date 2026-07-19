@@ -83,12 +83,15 @@ enum AlibabaTokenPlanCookieHeader {
         region: AlibabaTokenPlanAPIRegion = .international,
         environment: [String: String] = ProcessInfo.processInfo.environment) -> AlibabaTokenPlanCookieHeaders?
     {
-        guard let apiHeader = self.header(
-            from: cookies,
-            targetURL: AlibabaTokenPlanUsageFetcher.resolveQuotaURL(region: region, environment: environment)),
-            let dashboardHeader = self.header(
-                from: cookies,
-                targetURL: AlibabaTokenPlanUsageFetcher.dashboardURL(region: region, environment: environment))
+        let quotaURL = AlibabaTokenPlanUsageFetcher.resolveQuotaURL(region: region, environment: environment)
+        let dashboardURL = AlibabaTokenPlanUsageFetcher.dashboardURL(region: region, environment: environment)
+        // Qwen Cloud serves the console and the data gateway from sibling hosts, and host-scoped
+        // login cookies only match one of them; the browser sends both, so union the two sets.
+        // Where both hosts are the same (intl/cn) this must stay a strict no-op, otherwise
+        // dashboard path-scoped cookies would start leaking into the api header.
+        let apiTargets = quotaURL.host == dashboardURL.host ? [quotaURL] : [quotaURL, dashboardURL]
+        guard let apiHeader = self.header(from: cookies, targetURLs: apiTargets),
+              let dashboardHeader = self.header(from: cookies, targetURL: dashboardURL)
         else {
             return nil
         }
@@ -96,12 +99,16 @@ enum AlibabaTokenPlanCookieHeader {
     }
 
     static func header(from cookies: [HTTPCookie], targetURL: URL) -> String? {
+        self.header(from: cookies, targetURLs: [targetURL])
+    }
+
+    static func header(from cookies: [HTTPCookie], targetURLs: [URL]) -> String? {
         var byName: [String: HTTPCookie] = [:]
         for cookie in cookies {
             guard !cookie.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             guard !cookie.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             if let expiry = cookie.expiresDate, expiry < Date() { continue }
-            guard self.matchesRequestURL(cookie: cookie, url: targetURL) else { continue }
+            guard targetURLs.contains(where: { self.matchesRequestURL(cookie: cookie, url: $0) }) else { continue }
 
             if let existing = byName[cookie.name] {
                 if self.cookieSortKey(for: cookie) >= self.cookieSortKey(for: existing) {

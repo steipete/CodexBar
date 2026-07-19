@@ -2,7 +2,12 @@
 
 ## 0.45.2 — Unreleased
 
+### Added
+- Alibaba Token Plan: support the Qwen Cloud personal plan (`region: "qwen"`), which reports rolling 5-hour and weekly windows instead of a monthly credit pool (#2328). This region is manual-cookie only.
+
 ### Fixed
+- Alibaba Token Plan: allow the provider to run on Linux when cookies are configured manually; only browser cookie import needs macOS (#2328).
+- Alibaba Token Plan: escape `+` in form-encoded request bodies so a `sec_token` containing one is no longer decoded as a space.
 
 ## 0.45.1 — 2026-07-19
 

@@ -175,10 +175,7 @@ struct AlibabaTokenPlanUsageSnapshotTests {
         let reset = Date(timeIntervalSince1970: 1_700_100_000)
         let snapshot = AlibabaTokenPlanUsageSnapshot(
             planName: "TOKEN PLAN",
-            usedQuota: 250,
-            totalQuota: 1000,
-            remainingQuota: nil,
-            resetsAt: reset,
+            quota: .creditPool(used: 250, total: 1000, remaining: nil, resetsAt: reset),
             updatedAt: now)
 
         let usage = snapshot.toUsageSnapshot()
@@ -193,10 +190,7 @@ struct AlibabaTokenPlanUsageSnapshotTests {
     func `does not create primary window from balance only`() {
         let snapshot = AlibabaTokenPlanUsageSnapshot(
             planName: "TOKEN PLAN",
-            usedQuota: nil,
-            totalQuota: nil,
-            remainingQuota: 700,
-            resetsAt: nil,
+            quota: .creditPool(used: nil, total: nil, remaining: 700, resetsAt: nil),
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
 
         let usage = snapshot.toUsageSnapshot()
