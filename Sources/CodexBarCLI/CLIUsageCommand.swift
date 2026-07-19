@@ -714,9 +714,12 @@ extension CodexBarCLI {
             return false
         }
         if provider == .alibabatokenplan,
-           settings?.alibabaTokenPlan?.cookieSource == .manual
+           settings?.alibabaTokenPlan?.cookieSource == .manual ||
+           environment.map({ AlibabaTokenPlanSettingsReader.cookieHeader(environment: $0) != nil }) == true
         {
             // The quota fetch is plain URLSession + cookies; only browser import needs macOS.
+            // ALIBABA_TOKEN_PLAN_COOKIE is honored regardless of the configured cookie source,
+            // so it has to open the gate on its own too.
             return false
         }
         if provider == .ollama,

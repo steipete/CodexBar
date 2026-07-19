@@ -378,6 +378,29 @@ struct AlibabaTokenPlanLinuxGatingTests {
         #expect(CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .alibabatokenplan,
+            environment: [:],
+            settings: ProviderSettingsSnapshot.make(
+                alibabaTokenPlan: .init(cookieSource: .auto, manualCookieHeader: nil))))
+    }
+
+    /// `ALIBABA_TOKEN_PLAN_COOKIE` is honored even when the configured source is `auto`, so it has
+    /// to open the gate by itself — otherwise that documented setup stays unusable on Linux.
+    @Test
+    func `an environment cookie alone opens the gate`() {
+        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .alibabatokenplan,
+            environment: [AlibabaTokenPlanSettingsReader.cookieHeaderKey: "login_qwencloud_ticket=test"],
+            settings: ProviderSettingsSnapshot.make(
+                alibabaTokenPlan: .init(cookieSource: .auto, manualCookieHeader: nil))))
+    }
+
+    @Test
+    func `an empty environment cookie does not open the gate`() {
+        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .alibabatokenplan,
+            environment: [AlibabaTokenPlanSettingsReader.cookieHeaderKey: "   "],
             settings: ProviderSettingsSnapshot.make(
                 alibabaTokenPlan: .init(cookieSource: .auto, manualCookieHeader: nil))))
     }
