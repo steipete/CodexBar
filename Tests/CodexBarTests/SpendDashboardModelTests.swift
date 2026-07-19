@@ -19,6 +19,7 @@ struct SpendDashboardModelTests {
             #expect(codexBarLocalizedInteger(12) == "۱۲")
             #expect(spendDashboardDayRangeText(7) == "۷ روز")
             #expect(spendDashboardDayRangeText(30) == "۳۰ روز")
+            #expect(spendDashboardDayRangeText(365) == "همه")
             #expect(spendDashboardRankText(1234) == "#۱٬۲۳۴")
             #expect(spendDashboardRefreshFailureText(2) == "\(L("Refresh failures")): ۲")
             #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "پوشش: ۳ / ۳۰")
@@ -181,6 +182,62 @@ struct SpendDashboardModelTests {
     }
 
     @Test
+    func `all model chart starts at earliest available model day`() throws {
+        let earlier = try Self.calendar.startOfDay(for: #require(
+            Self.calendar.date(byAdding: .day, value: -74, to: Self.now)))
+        let input = SpendDashboardModel.ProviderInput(
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entry(day: "2026-05-03", cost: 1, model: "early"),
+                    Self.entry(day: "2026-07-16", cost: 1, model: "current"),
+                ],
+                historyDays: 365))
+        let model = SpendDashboardModel.build(
+            inputs: [input],
+            requestedDays: 365,
+            now: Self.now,
+            calendar: Self.calendar)
+        let domain = try #require(model.modelChartDomain)
+        let today = Self.calendar.startOfDay(for: Self.now)
+        let end = try #require(Self.calendar.date(byAdding: .day, value: 1, to: today))
+
+        #expect(domain == earlier...end)
+        #expect(model.modelAnalysis.rows.map(\.displayName) == ["early", "current"])
+    }
+
+    @Test
+    func `model range stays independent from overview range`() throws {
+        let earlier = try Self.calendar.startOfDay(for: #require(
+            Self.calendar.date(byAdding: .day, value: -74, to: Self.now)))
+        let input = SpendDashboardModel.ProviderInput(
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entry(day: "2026-05-03", cost: 1, model: "early"),
+                    Self.entry(day: "2026-07-16", cost: 1, model: "current"),
+                ],
+                historyDays: 365))
+        let model = SpendDashboardModel.build(
+            inputs: [input],
+            requestedDays: 30,
+            now: Self.now,
+            calendar: Self.calendar)
+        let allDomain = try #require(model.modelChartDomain(for: 365))
+        let today = Self.calendar.startOfDay(for: Self.now)
+        let end = try #require(Self.calendar.date(byAdding: .day, value: 1, to: today))
+
+        #expect(model.groups.first?.modelAnalysis.rows.map(\.displayName) == ["current"])
+        #expect(model.modelAnalysis(for: 30).rows.map(\.displayName) == ["current"])
+        #expect(model.modelAnalysis(for: 365).rows.map(\.displayName) == ["early", "current"])
+        #expect(allDomain == earlier...end)
+    }
+
+    @Test
     func `currency coverage intersects disjoint provider windows`() throws {
         let earlier = try SpendDashboardModel.ProviderInput(
             id: "earlier",
@@ -320,6 +377,107 @@ struct SpendDashboardModelTests {
     }
 
     @Test
+    func `model analysis merges exact normalized names without changing overview rows`() throws {
+        let first = SpendDashboardModel.ProviderInput(
+            id: "claude-source",
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: Self.snapshot(currency: "USD", entries: [
+                Self.entry(day: "2026-07-16", cost: 2, tokens: 20, model: " Model-A "),
+            ]))
+        let second = SpendDashboardModel.ProviderInput(
+            id: "codex-source",
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: Self.snapshot(currency: "USD", entries: [
+                Self.entry(day: "2026-07-16", cost: 3, tokens: 30, model: "model-a"),
+            ]))
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [first, second],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+        let row = try #require(group.modelAnalysis.rows.first)
+
+        #expect(group.models.count == 2)
+        #expect(group.modelAnalysis.rows.count == 1)
+        #expect(row.id == "model-a")
+        #expect(row.rawModelNames == ["Model-A", "model-a"])
+        #expect(row.totalTokens == 50)
+        #expect(row.estimatedCost == 5)
+        #expect(row.contributions.map(\.sourceID) == ["claude-source", "codex-source"])
+        #expect(group.modelAnalysis.dailyValues.map(\.totalTokens) == [50])
+        #expect(group.modelAnalysis.dailyValues.map(\.estimatedCost) == [5])
+        #expect(group.modelAnalysis.tokenCoverage == .complete)
+        #expect(group.modelAnalysis.costCoverage == .complete)
+    }
+
+    @Test
+    func `model analysis excludes incomplete source days and labels partial coverage`() throws {
+        let snapshot = Self.snapshot(currency: "USD", entries: [
+            Self.entry(day: "2026-07-16", cost: 4, tokens: 40, model: "model-a"),
+            Self.entryWithBreakdowns(
+                day: "2026-07-15",
+                totalCost: 5,
+                totalTokens: 50,
+                breakdowns: [.init(modelName: "model-a", costUSD: 3, totalTokens: 30)]),
+        ])
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+        let row = try #require(group.modelAnalysis.rows.first)
+
+        #expect(group.models.isEmpty)
+        #expect(row.totalTokens == 40)
+        #expect(row.estimatedCost == 4)
+        #expect(group.modelAnalysis.tokenCoverage == .partial)
+        #expect(group.modelAnalysis.costCoverage == .partial)
+        #expect(group.modelAnalysis.dailyValues.count == 1)
+    }
+
+    @Test
+    func `model analysis preserves complete token splits and leaves total-only models unchanged`() throws {
+        let snapshot = Self.snapshot(currency: "USD", entries: [
+            Self.entryWithBreakdowns(
+                day: "2026-07-16",
+                totalCost: 0,
+                totalTokens: 196,
+                breakdowns: [
+                    .init(
+                        modelName: "split-model",
+                        costUSD: 0,
+                        totalTokens: 100,
+                        inputTokens: 60,
+                        cacheReadTokens: 20,
+                        outputTokens: 20),
+                    .init(
+                        modelName: "total-only-model",
+                        costUSD: 0,
+                        totalTokens: 96),
+                ]),
+        ])
+        let analysis = SpendDashboardModel.build(
+            inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).modelAnalysis
+        let split = try #require(analysis.rows.first(where: { $0.id == "split-model" }))
+        let totalOnly = try #require(analysis.rows.first(where: { $0.id == "total-only-model" }))
+        let daily = try #require(analysis.dailyValues.first(where: { $0.modelID == "split-model" }))
+
+        #expect(split.totalTokens == 100)
+        #expect(split.inputTokens == 80)
+        #expect(split.outputTokens == 20)
+        #expect(totalOnly.totalTokens == 96)
+        #expect(totalOnly.inputTokens == nil)
+        #expect(totalOnly.outputTokens == nil)
+        #expect(daily.inputTokens == 80)
+        #expect(daily.outputTokens == 20)
+    }
+
+    @Test
     func `ISO history stays Gregorian while preserving the injected timezone`() throws {
         let timeZone = try #require(TimeZone(secondsFromGMT: 7 * 60 * 60))
         var gregorian = Calendar(identifier: .gregorian)
@@ -418,6 +576,10 @@ struct SpendDashboardModelTests {
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
         #expect(group.dailyPoints.isEmpty)
+        #expect(group.modelAnalysis.rows.first?.totalTokens == 40)
+        #expect(group.modelAnalysis.rows.first?.estimatedCost == 4)
+        #expect(group.modelAnalysis.tokenCoverage == .partial)
+        #expect(group.modelAnalysis.costCoverage == .partial)
     }
 
     @Test
@@ -595,7 +757,9 @@ struct SpendDashboardModelTests {
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
     }
+}
 
+extension SpendDashboardModelTests {
     @Test
     func `blank model names fail closed unless their usage is explicitly zero`() throws {
         let incomplete = Self.snapshot(currency: "USD", entries: [Self.entryWithBreakdowns(
@@ -753,7 +917,7 @@ struct SpendDashboardModelTests {
         #expect(!request.authFileWasReadable)
         #expect(request.displayName == "Codex · #2")
         #expect(request.cacheIdentity.count == 64)
-        #expect(SpendDashboardSource.scanDays == 30)
+        #expect(SpendDashboardSource.scanDays == 365)
         #expect(SpendDashboardSource.codexRequest(
             account: account,
             homePath: "relative/path",

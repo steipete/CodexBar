@@ -8,6 +8,7 @@ func spendDashboardDayRangeText(_ days: Int) -> String {
     switch days {
     case 7: template = L("7d")
     case 30: template = L("30d")
+    case 365: return L("All")
     default: return codexBarLocalizedInteger(days)
     }
     return template.replacingOccurrences(
@@ -48,6 +49,7 @@ struct SpendDashboardPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @State private var controller: SpendDashboardController
+    @State private var selectedModelDays = 365
 
     init(settings: SettingsStore, store: UsageStore) {
         self.settings = settings
@@ -145,8 +147,18 @@ struct SpendDashboardPane: View {
                 .frame(maxWidth: .infinity, minHeight: 220)
             }
         } else {
+            let modelHostGroupID = self.controller.model.groups.first?.id
             ForEach(self.controller.model.groups) { group in
-                SpendCurrencySection(group: group, requestedDays: self.controller.model.requestedDays)
+                SpendCurrencySection(
+                    group: group,
+                    requestedDays: self.controller.model.requestedDays,
+                    modelAnalysis: group.id == modelHostGroupID
+                        ? self.controller.model.modelAnalysis(for: self.selectedModelDays)
+                        : nil,
+                    modelChartDomain: group.id == modelHostGroupID
+                        ? self.controller.model.modelChartDomain(for: self.selectedModelDays)
+                        : nil,
+                    selectedModelDays: self.$selectedModelDays)
             }
         }
 
@@ -229,6 +241,9 @@ struct SpendDashboardPane: View {
 private struct SpendCurrencySection: View {
     let group: SpendDashboardModel.CurrencyGroup
     let requestedDays: Int
+    let modelAnalysis: SpendDashboardModel.ModelAnalysis?
+    let modelChartDomain: ClosedRange<Date>?
+    @Binding var selectedModelDays: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -269,7 +284,12 @@ private struct SpendCurrencySection: View {
             }
 
             SpendProviderPanel(group: self.group)
-            SpendModelPanel(group: self.group)
+            if let modelAnalysis {
+                SpendModelsSection(
+                    analysis: modelAnalysis,
+                    chartDomain: self.modelChartDomain,
+                    selectedDays: self.$selectedModelDays)
+            }
             SpendDailyChart(group: self.group)
         }
     }
@@ -317,65 +337,6 @@ private struct SpendProviderPanel: View {
                             .monospacedDigit()
                     }
                     .padding(.vertical, 9)
-                }
-            }
-        }
-    }
-}
-
-private struct SpendModelPanel: View {
-    let group: SpendDashboardModel.CurrencyGroup
-
-    var body: some View {
-        SpendDashboardPanel {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(L("Models")).font(.headline).padding(.bottom, 8)
-                let presentation = spendDashboardModelHistoryPresentation(self.group)
-                switch presentation {
-                case .unavailable:
-                    Text(L("Model breakdown unavailable"))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 10)
-                case .empty:
-                    Text(L("No model-level history"))
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 10)
-                case .partial, .complete:
-                    if presentation == .partial {
-                        Label(L("Model breakdown unavailable"), systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 6)
-                    }
-                    ForEach(self.group.models.prefix(8)) { row in
-                        if row.rank > 1 {
-                            Divider()
-                        }
-                        HStack(spacing: 10) {
-                            if presentation == .complete {
-                                Text(spendDashboardRankText(row.rank))
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.tertiary)
-                                    .frame(width: 26, alignment: .leading)
-                            } else {
-                                Image(systemName: "circle.dashed")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                                    .frame(width: 26, alignment: .leading)
-                            }
-                            SpendProviderIcon(provider: row.provider)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.modelName).lineLimit(1)
-                                Text(row.providerName).font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(row.totalCost.map {
-                                UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                            } ?? "—")
-                                .monospacedDigit()
-                        }
-                        .padding(.vertical, 9)
-                    }
                 }
             }
         }
@@ -492,7 +453,7 @@ private struct SpendProviderIcon: View {
     }
 }
 
-private struct SpendDashboardPanel<Content: View>: View {
+struct SpendDashboardPanel<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {

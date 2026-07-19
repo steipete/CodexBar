@@ -1271,6 +1271,15 @@
 "Subscriptions" = "การสมัครสมาชิก";
 "By subscription" = "แยกตามการสมัครสมาชิก";
 "No model-level history" = "ไม่มีประวัติระดับโมเดล";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "ค่าใช้จ่ายรายวันโดยประมาณ";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "เหลือโควตารายสัปดาห์ ≈%d ช่วงเต็ม 5 ชม. · อีก %d ช่วงจนรีเซ็ต";
 "Weekly cannot run out before reset at this pace" = "ด้วยอัตรานี้ โควตารายสัปดาห์จะไม่หมดก่อนรีเซ็ต";

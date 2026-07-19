@@ -1271,6 +1271,15 @@
 "Subscriptions" = "Abbonamenti";
 "By subscription" = "Per abbonamento";
 "No model-level history" = "Nessuna cronologia a livello di modello";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "Spesa giornaliera stimata";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d finestre complete da 5 h di quota settimanale · %d finestre al reset";
 "Weekly cannot run out before reset at this pace" = "La quota settimanale non può esaurirsi prima del reset a questo ritmo";

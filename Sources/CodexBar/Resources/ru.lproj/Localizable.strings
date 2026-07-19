@@ -1269,6 +1269,15 @@
 "Subscriptions" = "Подписки";
 "By subscription" = "По подпискам";
 "No model-level history" = "Нет истории по моделям";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "Предполагаемые ежедневные расходы";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d полных 5-часовых окон недельного лимита · %d окон до сброса";
 "Weekly cannot run out before reset at this pace" = "При таком темпе недельный лимит не может закончиться до сброса";

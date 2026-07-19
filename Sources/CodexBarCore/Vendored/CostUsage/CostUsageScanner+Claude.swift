@@ -816,7 +816,11 @@ extension CostUsageScanner {
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,
                         costUSD: cost,
-                        totalTokens: totalTokens))
+                        totalTokens: totalTokens,
+                        inputTokens: input,
+                        cacheReadTokens: cacheRead,
+                        cacheCreationTokens: cacheCreate,
+                        outputTokens: output))
                 if let cost {
                     dayCost += cost
                     dayCostSeen = true

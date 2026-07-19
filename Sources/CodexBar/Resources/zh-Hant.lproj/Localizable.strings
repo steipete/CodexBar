@@ -1298,6 +1298,15 @@
 "Subscriptions" = "訂閱";
 "By subscription" = "依訂閱";
 "No model-level history" = "尚無模型層級歷史";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "每日預估支出";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每週額度約剩 %d 個完整 5 小時視窗 · 距重置還有 %d 個視窗";
 "Weekly cannot run out before reset at this pace" = "依此速度，每週額度無法在重置前用完";

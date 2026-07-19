@@ -198,7 +198,10 @@ struct CostUsageScannerBreakdownTests {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "gpt-5.2-codex",
                 costUSD: first.data[0].costUSD,
-                totalTokens: 110),
+                totalTokens: 110,
+                inputTokens: 100,
+                cacheReadTokens: 20,
+                outputTokens: 10),
         ])
         #expect(first.data[0].totalTokens == 110)
         #expect((first.data[0].costUSD ?? 0) > 0)
@@ -6415,7 +6418,11 @@ struct CostUsageScannerBreakdownTests {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "claude-sonnet-4-20250514",
                 costUSD: report.data[0].costUSD,
-                totalTokens: 355),
+                totalTokens: 355,
+                inputTokens: 200,
+                cacheReadTokens: 25,
+                cacheCreationTokens: 50,
+                outputTokens: 80),
         ])
         #expect((report.data[0].costUSD ?? 0) > 0)
     }

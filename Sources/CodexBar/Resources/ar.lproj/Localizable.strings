@@ -1271,6 +1271,15 @@
 "Subscriptions" = "الاشتراكات";
 "By subscription" = "حسب الاشتراك";
 "No model-level history" = "لا يوجد سجل على مستوى النموذج";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "الإنفاق اليومي التقديري";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي · %d نافذة حتى إعادة التعيين";
 "Weekly cannot run out before reset at this pace" = "لا يمكن أن ينفد الحد الأسبوعي قبل إعادة التعيين بهذه الوتيرة";

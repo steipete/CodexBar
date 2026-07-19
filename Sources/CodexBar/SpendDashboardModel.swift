@@ -66,10 +66,77 @@ struct SpendDashboardModel: Equatable, Sendable {
         case incomplete
     }
 
+    enum ModelMetricCoverage: Equatable, Sendable {
+        case complete
+        case partial
+        case unavailable
+    }
+
+    struct ModelSourceContribution: Identifiable, Equatable, Sendable {
+        let sourceID: String
+        let provider: UsageProvider
+        let sourceName: String
+        let providerName: String
+        let rawModelNames: [String]
+        let totalTokens: Int?
+        let estimatedCost: Double?
+
+        var id: String {
+            "\(self.sourceID):\(self.rawModelNames.joined(separator: "\u{0}"))"
+        }
+    }
+
+    struct ModelAnalysisRow: Identifiable, Equatable, Sendable {
+        let id: String
+        let displayName: String
+        let rawModelNames: [String]
+        let providers: [UsageProvider]
+        let providerNames: [String]
+        let contributions: [ModelSourceContribution]
+        let totalTokens: Int?
+        let inputTokens: Int?
+        let outputTokens: Int?
+        let estimatedCost: Double?
+    }
+
+    struct ModelDailyValue: Identifiable, Equatable, Sendable {
+        let modelID: String
+        let modelName: String
+        let day: Date
+        let totalTokens: Int?
+        let inputTokens: Int?
+        let outputTokens: Int?
+        let estimatedCost: Double?
+
+        var id: String {
+            "\(self.modelID):\(Int(self.day.timeIntervalSince1970))"
+        }
+    }
+
+    struct ModelAnalysis: Equatable, Sendable {
+        let rows: [ModelAnalysisRow]
+        let dailyValues: [ModelDailyValue]
+        let trackedTokenTotal: Int?
+        let pricedCostTotal: Double?
+        let sourceCount: Int
+        let tokenCoverage: ModelMetricCoverage
+        let costCoverage: ModelMetricCoverage
+
+        static let empty = Self(
+            rows: [],
+            dailyValues: [],
+            trackedTokenTotal: nil,
+            pricedCostTotal: nil,
+            sourceCount: 0,
+            tokenCoverage: .unavailable,
+            costCoverage: .unavailable)
+    }
+
     struct CurrencyGroup: Identifiable, Equatable, Sendable {
         let currencyCode: String
         let providers: [ProviderRow]
         let models: [ModelRow]
+        var modelAnalysis: ModelAnalysis = .empty
         let dailyPoints: [DailyPoint]
         let totalTokens: Int?
         let totalCost: Double?
@@ -84,6 +151,58 @@ struct SpendDashboardModel: Equatable, Sendable {
 
     let requestedDays: Int
     let groups: [CurrencyGroup]
+    private let globalModelAnalysis: ModelAnalysis?
+    private let globalModelChartDomain: ClosedRange<Date>?
+    private let globalModelRanges: [Int: ModelRange]
+
+    private struct ModelRange: Equatable, Sendable {
+        let analysis: ModelAnalysis
+        let chartDomain: ClosedRange<Date>
+    }
+
+    var modelAnalysis: ModelAnalysis {
+        self.globalModelAnalysis ?? self.groups.first?.modelAnalysis ?? .empty
+    }
+
+    var modelChartDomain: ClosedRange<Date>? {
+        self.globalModelChartDomain ?? self.groups.first?.chartDomain
+    }
+
+    func modelAnalysis(for requestedDays: Int) -> ModelAnalysis {
+        self.globalModelRanges[Self.normalizedModelDays(requestedDays)]?.analysis ?? self.modelAnalysis
+    }
+
+    func modelChartDomain(for requestedDays: Int) -> ClosedRange<Date>? {
+        self.globalModelRanges[Self.normalizedModelDays(requestedDays)]?.chartDomain ?? self.modelChartDomain
+    }
+
+    init(
+        requestedDays: Int,
+        groups: [CurrencyGroup],
+        globalModelAnalysis: ModelAnalysis? = nil,
+        globalModelChartDomain: ClosedRange<Date>? = nil)
+    {
+        self.init(
+            requestedDays: requestedDays,
+            groups: groups,
+            globalModelAnalysis: globalModelAnalysis,
+            globalModelChartDomain: globalModelChartDomain,
+            globalModelRanges: [:])
+    }
+
+    private init(
+        requestedDays: Int,
+        groups: [CurrencyGroup],
+        globalModelAnalysis: ModelAnalysis?,
+        globalModelChartDomain: ClosedRange<Date>?,
+        globalModelRanges: [Int: ModelRange])
+    {
+        self.requestedDays = requestedDays
+        self.groups = groups
+        self.globalModelAnalysis = globalModelAnalysis
+        self.globalModelChartDomain = globalModelChartDomain
+        self.globalModelRanges = globalModelRanges
+    }
 
     static func build(
         inputs: [ProviderInput],
@@ -91,8 +210,27 @@ struct SpendDashboardModel: Equatable, Sendable {
         now: Date,
         calendar: Calendar = .current) -> Self
     {
-        let days = max(1, min(30, requestedDays))
+        let days = max(1, min(365, requestedDays))
         let calculationCalendar = Self.gregorianCalendar(timeZone: calendar.timeZone)
+        let bounds = Self.bounds(days: days, now: now, calendar: calculationCalendar)
+        let globalSummaries = inputs.map {
+            Self.inputSummary(input: $0, bounds: bounds, calendar: calculationCalendar)
+        }
+        let globalModelAnalysis = Self.modelAnalysis(summaries: globalSummaries)
+        let globalModelRanges = Dictionary(uniqueKeysWithValues: Set([7, 30, 365, days]).map { rangeDays in
+            let rangeBounds = Self.bounds(days: rangeDays, now: now, calendar: calculationCalendar)
+            let summaries = inputs.map {
+                Self.inputSummary(input: $0, bounds: rangeBounds, calendar: calculationCalendar)
+            }
+            let analysis = Self.modelAnalysis(summaries: summaries)
+            let chartDomain = rangeDays == 365
+                ? Self.allModelChartDomain(
+                    analysis: analysis,
+                    bounds: rangeBounds,
+                    calendar: calculationCalendar)
+                : Self.chartDomain(bounds: rangeBounds, calendar: calculationCalendar)
+            return (rangeDays, ModelRange(analysis: analysis, chartDomain: chartDomain))
+        })
         let classifiedInputs = inputs.compactMap { input -> (currencyCode: String, input: ProviderInput)? in
             guard let currencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }
             return (currencyCode, input)
@@ -107,7 +245,25 @@ struct SpendDashboardModel: Equatable, Sendable {
                     calendar: calculationCalendar)
             }
             .sorted { $0.currencyCode < $1.currencyCode }
-        return Self(requestedDays: days, groups: groups)
+        return Self(
+            requestedDays: days,
+            groups: groups,
+            globalModelAnalysis: globalModelAnalysis,
+            globalModelChartDomain: days == 365
+                ? Self.allModelChartDomain(
+                    analysis: globalModelAnalysis,
+                    bounds: bounds,
+                    calendar: calculationCalendar)
+                : Self.chartDomain(bounds: bounds, calendar: calculationCalendar),
+            globalModelRanges: globalModelRanges)
+    }
+
+    private static func normalizedModelDays(_ requestedDays: Int) -> Int {
+        switch requestedDays {
+        case 7: 7
+        case 30: 30
+        default: 365
+        }
     }
 
     private struct InputSummary {
@@ -147,6 +303,58 @@ struct SpendDashboardModel: Equatable, Sendable {
         let completeness: ModelHistoryCompleteness
     }
 
+    private struct ModelAnalysisAccumulator {
+        var rawNames: Set<String> = []
+        var displayNames: Set<String> = []
+        var providerNames: [UsageProvider: String] = [:]
+        var sourceContributions: [String: ModelAnalysisSourceAccumulator] = [:]
+        var tokens: Int? = 0
+        var inputTokens: Int? = 0
+        var outputTokens: Int? = 0
+        var cost: Double? = 0
+        var sawTokens = false
+        var sawTokenSplit = false
+        var sawCost = false
+        var invalidTokenSplit = false
+        var overflowedTokens = false
+        var overflowedInputTokens = false
+        var overflowedOutputTokens = false
+        var overflowedCost = false
+    }
+
+    private struct ModelAnalysisSourceAccumulator {
+        let provider: UsageProvider
+        let sourceName: String
+        let providerName: String
+        var rawNames: Set<String> = []
+        var tokens: Int? = 0
+        var cost: Double? = 0
+        var sawTokens = false
+        var sawCost = false
+        var overflowedTokens = false
+        var overflowedCost = false
+    }
+
+    private struct ModelAnalysisDailyKey: Hashable {
+        let modelID: String
+        let day: Date
+    }
+
+    private struct ModelAnalysisDailyAccumulator {
+        var tokens: Int? = 0
+        var inputTokens: Int? = 0
+        var outputTokens: Int? = 0
+        var cost: Double? = 0
+        var sawTokens = false
+        var sawTokenSplit = false
+        var sawCost = false
+        var invalidTokenSplit = false
+        var overflowedTokens = false
+        var overflowedInputTokens = false
+        var overflowedOutputTokens = false
+        var overflowedCost = false
+    }
+
     private struct DailyKey: Hashable {
         let day: Date
         let sourceID: String
@@ -159,7 +367,9 @@ struct SpendDashboardModel: Equatable, Sendable {
         var invalid = false
         var overflowed = false
     }
+}
 
+extension SpendDashboardModel {
     private static func buildCurrencyGroup(
         currencyCode: String,
         inputs: [ProviderInput],
@@ -177,6 +387,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             return Self.modelSummary(summaries: [summary]).completeness == .complete
         }
         let modelSummary = Self.modelSummary(summaries: completeModelSummaries)
+        let modelAnalysis = Self.modelAnalysis(summaries: summaries)
         let modelHistoryCompleteness = completeModelSummaries.count == summaries.count
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
@@ -185,6 +396,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             currencyCode: currencyCode,
             providers: providers,
             models: modelSummary.rows,
+            modelAnalysis: modelAnalysis,
             dailyPoints: dailyPoints,
             totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
             totalCost: Self.completeCostSum(providers.map(\.totalCost)),
@@ -349,6 +561,259 @@ struct SpendDashboardModel: Equatable, Sendable {
                 totalCost: row.totalCost)
         }
         return ModelSummary(rows: rows, completeness: completeness)
+    }
+
+    private static func modelAnalysis(summaries: [InputSummary]) -> ModelAnalysis {
+        var models: [String: ModelAnalysisAccumulator] = [:]
+        var daily: [ModelAnalysisDailyKey: ModelAnalysisDailyAccumulator] = [:]
+        var tokenCoverageIsPartial = false
+        var costCoverageIsPartial = false
+
+        for summary in summaries {
+            let input = summary.input
+            tokenCoverageIsPartial = tokenCoverageIsPartial || summary.totalTokens == nil
+            costCoverageIsPartial = costCoverageIsPartial || summary.totalCost == nil
+            for windowEntry in summary.entries {
+                let entry = windowEntry.entry
+                let tokenBreakdownIsComplete = Self.hasCompleteModelTokenCoverage(entry)
+                let costBreakdownIsComplete = Self.hasCompleteModelCostCoverage(entry)
+                tokenCoverageIsPartial = tokenCoverageIsPartial || !tokenBreakdownIsComplete
+                costCoverageIsPartial = costCoverageIsPartial || !costBreakdownIsComplete
+
+                for breakdown in entry.modelBreakdowns ?? [] {
+                    let rawName = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !rawName.isEmpty else { continue }
+                    let modelIdentity = Self.modelIdentity(rawName: rawName, provider: input.provider)
+                    let identity = modelIdentity.id
+                    var aggregate = models[identity] ?? ModelAnalysisAccumulator()
+                    aggregate.rawNames.insert(rawName)
+                    aggregate.displayNames.insert(modelIdentity.displayName)
+                    aggregate.providerNames[input.provider] = input.modelProviderName
+                    var source = aggregate.sourceContributions[input.id] ?? ModelAnalysisSourceAccumulator(
+                        provider: input.provider,
+                        sourceName: input.displayName,
+                        providerName: input.modelProviderName)
+                    source.rawNames.insert(rawName)
+
+                    let dailyKey = ModelAnalysisDailyKey(modelID: identity, day: windowEntry.day)
+                    var dailyValue = daily[dailyKey] ?? ModelAnalysisDailyAccumulator()
+                    if Self.addModelTokenBreakdown(
+                        breakdown,
+                        isComplete: tokenBreakdownIsComplete,
+                        aggregate: &aggregate,
+                        source: &source,
+                        dailyValue: &dailyValue)
+                    {
+                        daily[dailyKey] = dailyValue
+                    }
+
+                    if costBreakdownIsComplete, let cost = Self.validCost(breakdown.costUSD) {
+                        aggregate.sawCost = true
+                        aggregate.cost = Self.add(cost, to: aggregate.cost, overflowed: &aggregate.overflowedCost)
+                        source.sawCost = true
+                        source.cost = Self.add(cost, to: source.cost, overflowed: &source.overflowedCost)
+                        let key = ModelAnalysisDailyKey(modelID: identity, day: windowEntry.day)
+                        var value = daily[key] ?? ModelAnalysisDailyAccumulator()
+                        value.sawCost = true
+                        value.cost = Self.add(cost, to: value.cost, overflowed: &value.overflowedCost)
+                        daily[key] = value
+                    }
+
+                    aggregate.sourceContributions[input.id] = source
+                    models[identity] = aggregate
+                }
+            }
+        }
+
+        let rows = models.compactMap { identity, aggregate -> ModelAnalysisRow? in
+            let totalTokens = aggregate.sawTokens && !aggregate.overflowedTokens ? aggregate.tokens : nil
+            let hasCompleteTokenSplit = aggregate.sawTokenSplit
+                && !aggregate.invalidTokenSplit
+                && !aggregate.overflowedInputTokens
+                && !aggregate.overflowedOutputTokens
+            let inputTokens = hasCompleteTokenSplit ? aggregate.inputTokens : nil
+            let outputTokens = hasCompleteTokenSplit ? aggregate.outputTokens : nil
+            let estimatedCost = aggregate.sawCost && !aggregate.overflowedCost ? aggregate.cost : nil
+            guard totalTokens != nil || estimatedCost != nil else { return nil }
+            let rawNames = aggregate.rawNames.sorted(by: Self.modelNameOrder)
+            let displayNames = aggregate.displayNames.sorted(by: Self.modelNameOrder)
+            let contributions = aggregate.sourceContributions.map { sourceID, source in
+                ModelSourceContribution(
+                    sourceID: sourceID,
+                    provider: source.provider,
+                    sourceName: source.sourceName,
+                    providerName: source.providerName,
+                    rawModelNames: source.rawNames.sorted(by: Self.modelNameOrder),
+                    totalTokens: source.sawTokens && !source.overflowedTokens ? source.tokens : nil,
+                    estimatedCost: source.sawCost && !source.overflowedCost ? source.cost : nil)
+            }
+            .sorted { lhs, rhs in
+                if lhs.providerName != rhs.providerName { return lhs.providerName < rhs.providerName }
+                if lhs.sourceName != rhs.sourceName { return lhs.sourceName < rhs.sourceName }
+                return lhs.sourceID < rhs.sourceID
+            }
+            let providers = aggregate.providerNames.keys.sorted { lhs, rhs in
+                let left = aggregate.providerNames[lhs] ?? lhs.rawValue
+                let right = aggregate.providerNames[rhs] ?? rhs.rawValue
+                if left != right { return left < right }
+                return lhs.rawValue < rhs.rawValue
+            }
+            return ModelAnalysisRow(
+                id: identity,
+                displayName: displayNames.first ?? rawNames.first ?? identity,
+                rawModelNames: rawNames,
+                providers: providers,
+                providerNames: providers.map { aggregate.providerNames[$0] ?? $0.rawValue },
+                contributions: contributions,
+                totalTokens: totalTokens,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                estimatedCost: estimatedCost)
+        }
+        .sorted(by: Self.modelAnalysisRowOrder)
+
+        let namesByID: [String: String] = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.displayName) })
+        let dailyValues = daily.compactMap { key, value -> ModelDailyValue? in
+            let tokens = value.sawTokens && !value.overflowedTokens ? value.tokens : nil
+            let hasCompleteTokenSplit = value.sawTokenSplit
+                && !value.invalidTokenSplit
+                && !value.overflowedInputTokens
+                && !value.overflowedOutputTokens
+            let inputTokens = hasCompleteTokenSplit ? value.inputTokens : nil
+            let outputTokens = hasCompleteTokenSplit ? value.outputTokens : nil
+            let cost = value.sawCost && !value.overflowedCost ? value.cost : nil
+            guard tokens != nil || cost != nil, let name = namesByID[key.modelID] else { return nil }
+            return ModelDailyValue(
+                modelID: key.modelID,
+                modelName: name,
+                day: key.day,
+                totalTokens: tokens,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                estimatedCost: cost)
+        }
+        .sorted { lhs, rhs in
+            if lhs.day != rhs.day { return lhs.day < rhs.day }
+            return lhs.modelID < rhs.modelID
+        }
+
+        let trackedTokenTotal = Self.safeIntSum(rows.compactMap(\.totalTokens))
+        let pricedCostTotal = Self.safeCostSum(rows.compactMap(\.estimatedCost))
+        return ModelAnalysis(
+            rows: rows,
+            dailyValues: dailyValues,
+            trackedTokenTotal: trackedTokenTotal,
+            pricedCostTotal: pricedCostTotal,
+            sourceCount: Set(rows.flatMap(\.contributions).map(\.sourceID)).count,
+            tokenCoverage: Self.modelMetricCoverage(
+                hasValue: trackedTokenTotal != nil,
+                isPartial: tokenCoverageIsPartial),
+            costCoverage: Self.modelMetricCoverage(hasValue: pricedCostTotal != nil, isPartial: costCoverageIsPartial))
+    }
+
+    private static func addModelTokenBreakdown(
+        _ breakdown: CostUsageDailyReport.ModelBreakdown,
+        isComplete: Bool,
+        aggregate: inout ModelAnalysisAccumulator,
+        source: inout ModelAnalysisSourceAccumulator,
+        dailyValue: inout ModelAnalysisDailyAccumulator) -> Bool
+    {
+        guard isComplete, let tokens = nonnegative(breakdown.totalTokens) else {
+            aggregate.invalidTokenSplit = true
+            return false
+        }
+
+        aggregate.sawTokens = true
+        aggregate.tokens = Self.add(tokens, to: aggregate.tokens, overflowed: &aggregate.overflowedTokens)
+        source.sawTokens = true
+        source.tokens = Self.add(tokens, to: source.tokens, overflowed: &source.overflowedTokens)
+
+        dailyValue.sawTokens = true
+        dailyValue.tokens = Self.add(
+            tokens,
+            to: dailyValue.tokens,
+            overflowed: &dailyValue.overflowedTokens)
+        if let split = Self.modelTokenSplit(breakdown) {
+            aggregate.sawTokenSplit = true
+            aggregate.inputTokens = Self.add(
+                split.input,
+                to: aggregate.inputTokens,
+                overflowed: &aggregate.overflowedInputTokens)
+            aggregate.outputTokens = Self.add(
+                split.output,
+                to: aggregate.outputTokens,
+                overflowed: &aggregate.overflowedOutputTokens)
+            dailyValue.sawTokenSplit = true
+            dailyValue.inputTokens = Self.add(
+                split.input,
+                to: dailyValue.inputTokens,
+                overflowed: &dailyValue.overflowedInputTokens)
+            dailyValue.outputTokens = Self.add(
+                split.output,
+                to: dailyValue.outputTokens,
+                overflowed: &dailyValue.overflowedOutputTokens)
+        } else {
+            aggregate.invalidTokenSplit = true
+            dailyValue.invalidTokenSplit = true
+        }
+        return true
+    }
+
+    private static func modelMetricCoverage(hasValue: Bool, isPartial: Bool) -> ModelMetricCoverage {
+        guard hasValue else { return .unavailable }
+        return isPartial ? .partial : .complete
+    }
+
+    private static func modelTokenSplit(
+        _ breakdown: CostUsageDailyReport.ModelBreakdown) -> (input: Int, output: Int)?
+    {
+        guard self.nonnegative(breakdown.inputTokens) != nil,
+              breakdown.cacheReadTokens.map({ $0 >= 0 }) ?? true,
+              breakdown.cacheCreationTokens.map({ $0 >= 0 }) ?? true,
+              let total = nonnegative(breakdown.totalTokens),
+              let output = nonnegative(breakdown.outputTokens),
+              output <= total
+        else {
+            return nil
+        }
+        return (total - output, output)
+    }
+
+    private static func modelNameOrder(_ lhs: String, _ rhs: String) -> Bool {
+        if lhs.count != rhs.count { return lhs.count < rhs.count }
+        let comparison = lhs.localizedCaseInsensitiveCompare(rhs)
+        if comparison != .orderedSame { return comparison == .orderedAscending }
+        return lhs < rhs
+    }
+
+    private static func modelIdentity(rawName: String, provider _: UsageProvider) -> (id: String, displayName: String) {
+        let normalizedName = rawName.lowercased().hasPrefix("kimi-code/")
+            ? String(rawName.dropFirst("kimi-code/".count))
+            : rawName
+        let displayName = switch normalizedName.lowercased() {
+        case "k3", "kimi-k3": "Kimi K3"
+        case "k2.5", "kimi-k2.5": "Kimi K2.5"
+        case "k2", "kimi-k2": "Kimi K2"
+        case "kimi-for-coding": "Kimi for Coding"
+        case "kimi-for-coding-highspeed": "Kimi for Coding High-Speed"
+        default: normalizedName
+        }
+        return (displayName.lowercased(), displayName)
+    }
+
+    private static func modelAnalysisRowOrder(_ lhs: ModelAnalysisRow, _ rhs: ModelAnalysisRow) -> Bool {
+        switch (lhs.totalTokens, rhs.totalTokens) {
+        case let (left?, right?) where left != right: left > right
+        case (_?, nil): true
+        case (nil, _?): false
+        default:
+            switch (lhs.estimatedCost, rhs.estimatedCost) {
+            case let (left?, right?) where left != right: left > right
+            case (_?, nil): true
+            case (nil, _?): false
+            default: self.modelNameOrder(lhs.displayName, rhs.displayName)
+            }
+        }
     }
 
     private static func hasProvenZeroCost(_ entry: CostUsageDailyReport.Entry) -> Bool {
@@ -531,6 +996,16 @@ struct SpendDashboardModel: Equatable, Sendable {
     private static func chartDomain(bounds: ClosedRange<Date>, calendar: Calendar) -> ClosedRange<Date> {
         let end = calendar.date(byAdding: .day, value: 1, to: bounds.upperBound) ?? bounds.upperBound
         return bounds.lowerBound...end
+    }
+
+    private static func allModelChartDomain(
+        analysis: ModelAnalysis,
+        bounds: ClosedRange<Date>,
+        calendar: Calendar) -> ClosedRange<Date>
+    {
+        let start = analysis.dailyValues.map(\.day).min() ?? bounds.lowerBound
+        let end = calendar.date(byAdding: .day, value: 1, to: bounds.upperBound) ?? bounds.upperBound
+        return min(start, bounds.upperBound)...end
     }
 
     private static func coverageInterval(

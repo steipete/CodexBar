@@ -6,6 +6,57 @@ import Testing
 @MainActor
 struct SpendDashboardSourceConcurrencyTests {
     @Test
+    func `local Kimi history is appended without entering the cost provider pipeline`() async throws {
+        let now = Date(timeIntervalSince1970: 1_784_179_200)
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-07-16",
+            inputTokens: 4,
+            outputTokens: 2,
+            totalTokens: 6,
+            requestCount: 1,
+            costUSD: nil,
+            modelsUsed: ["kimi-code/k3"],
+            modelBreakdowns: [.init(modelName: "kimi-code/k3", costUSD: nil, totalTokens: 6)])
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 6,
+            last30DaysCostUSD: nil,
+            currencyCode: "XXX",
+            daily: [entry],
+            updatedAt: now)
+        let request = SpendDashboardLoadRequest(
+            configuration: SpendDashboardConfiguration(
+                costUsageEnabled: true,
+                providerIDs: [UsageProvider.kimi.rawValue],
+                codexAccountIdentities: []),
+            capturedInputs: [],
+            unavailableSourceIDs: [],
+            codexRequests: [],
+            kimiCodeHomePath: "/synthetic/kimi-code",
+            now: now,
+            force: false)
+
+        let result = await SpendDashboardSource.load(
+            request,
+            codexSnapshotLoader: { _ in
+                Issue.record("Codex loader should not run")
+                return snapshot
+            },
+            kimiCodeSnapshotLoader: { context in
+                #expect(context.homePath == "/synthetic/kimi-code")
+                return snapshot
+            })
+
+        let input = try #require(result.inputs.first)
+        #expect(input.id == "kimi:local")
+        #expect(input.provider == .kimi)
+        #expect(input.displayName == "Kimi Code CLI")
+        #expect(input.snapshot.currencyCode == "XXX")
+        #expect(result.failedSourceIDs.isEmpty)
+    }
+
+    @Test
     func `Codex batch revalidates completed and failed accounts after later scans`() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpendDashboardSourceConcurrencyTests-auth-\(UUID().uuidString)", isDirectory: true)

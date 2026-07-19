@@ -1235,6 +1235,15 @@
 "Subscriptions" = "구독";
 "By subscription" = "구독별";
 "No model-level history" = "모델별 내역이 없습니다";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "일별 예상 지출";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "주간 한도 약 %d개의 전체 5시간 창 남음 · 재설정까지 %d개 창";
 "Weekly cannot run out before reset at this pace" = "이 속도라면 재설정 전에 주간 한도를 소진할 수 없습니다";

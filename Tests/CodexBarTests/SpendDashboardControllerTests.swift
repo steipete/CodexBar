@@ -47,7 +47,7 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.cacheRoot.lastPathComponent == "inactive-cache")
         #expect(contexts.first?.now == now)
         #expect(contexts.first?.force == false)
-        #expect(contexts.first?.historyDays == 30)
+        #expect(contexts.first?.historyDays == 365)
         #expect(contexts.first?.refreshPricingInBackground == false)
         #expect(contexts.first?.includePiSessions == false)
     }
@@ -764,6 +764,9 @@ struct SpendDashboardControllerTests {
         controller.selectDays(7)
         #expect(controller.selectedDays == 7)
         #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
+        controller.selectDays(365)
+        #expect(controller.selectedDays == 365)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 365)
         controller.selectDays(9)
         #expect(controller.selectedDays == 30)
     }

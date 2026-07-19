@@ -1243,6 +1243,15 @@
 "Subscriptions" = "订阅";
 "By subscription" = "按订阅";
 "No model-level history" = "暂无模型级历史";
+"Tokens" = "令牌";
+"Tracked model tokens" = "已跟踪模型令牌";
+"Priced model spend" = "已定价模型支出";
+"Partial model history: incomplete source-days are excluded." = "模型历史不完整：已排除明细不完整的来源日期。";
+"No priced model history" = "暂无已定价模型历史";
+"Other" = "其他";
+"Show all %d models" = "显示全部 %d 个模型";
+"Show top 20" = "仅显示前 20 个";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "模型名称会在去除首尾空白并忽略大小写后精确合并；不同提供商之间不会自动去重。";
 "Daily estimated spend" = "每日估算支出";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每周额度约剩 %d 个完整 5 小时窗口 · 距重置还有 %d 个窗口";
 "Weekly cannot run out before reset at this pace" = "按此速度，每周额度无法在重置前用完";

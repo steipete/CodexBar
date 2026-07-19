@@ -1268,6 +1268,15 @@
 "Subscriptions" = "サブスクリプション";
 "By subscription" = "サブスクリプション別";
 "No model-level history" = "モデル別の履歴はありません";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "日別推定支出";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "週間枠は約%d回分の完全な5時間ウィンドウ · リセットまで%d回";
 "Weekly cannot run out before reset at this pace" = "このペースではリセット前に週間枠を使い切れません";
