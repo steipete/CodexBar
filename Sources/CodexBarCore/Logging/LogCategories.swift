@@ -96,4 +96,5 @@ public enum LogCategories {
     public static let zaiTokenStore = "zai-token-store"
     public static let zaiUsage = "zai-usage"
     public static let stepfunUsage = "stepfun-usage"
+    public static let zoommate = "zoommate"
 }

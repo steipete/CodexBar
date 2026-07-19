@@ -66,6 +66,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case wayfinder
     case zenmux
     case aiand
+    case zoommate
 }
 
 // swiftformat:enable sortDeclarations
@@ -132,6 +133,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case wayfinder
     case zenmux
     case aiand
+    case zoommate
     case combined
 }
 
@@ -160,6 +162,8 @@ public struct ProviderMetadata: Sendable {
     public let statusLinkURL: String?
     /// Google Workspace product ID for status polling (appsstatus dashboard).
     public let statusWorkspaceProductID: String?
+    /// Optional top-level component/group names to show from a provider status feed.
+    public let statusComponentAllowlist: Set<String>?
 
     public init(
         id: UsageProvider,
@@ -181,7 +185,8 @@ public struct ProviderMetadata: Sendable {
         changelogURL: String? = nil,
         statusPageURL: String?,
         statusLinkURL: String? = nil,
-        statusWorkspaceProductID: String? = nil)
+        statusWorkspaceProductID: String? = nil,
+        statusComponentAllowlist: Set<String>? = nil)
     {
         self.id = id
         self.displayName = displayName
@@ -203,6 +208,7 @@ public struct ProviderMetadata: Sendable {
         self.statusPageURL = statusPageURL
         self.statusLinkURL = statusLinkURL
         self.statusWorkspaceProductID = statusWorkspaceProductID
+        self.statusComponentAllowlist = statusComponentAllowlist
     }
 }
 
@@ -213,6 +219,14 @@ public enum ProviderDefaults {
 }
 
 public enum ProviderBrowserCookieDefaults {
+    public static var chromeOnlyImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
+
     public static var defaultImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
         Browser.defaultImportOrder

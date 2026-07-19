@@ -192,10 +192,10 @@ struct UsageMenuCardView: View {
                 let hasCost = liveModel.tokenUsage != nil || hasProviderCost
 
                 VStack(alignment: .leading, spacing: 12) {
-                    if hasUsage {
+                    if hasUsage, !liveModel.creditsOnlyInlineUsageDashboard {
                         UsageMenuCardUsageContentView(model: liveModel, showBottomDivider: false)
                     }
-                    if hasUsage, hasCredits || hasCost {
+                    if hasUsage, !liveModel.creditsOnlyInlineUsageDashboard, hasCredits || hasCost {
                         Divider()
                     }
                     if let credits = liveModel.creditsText {
@@ -207,6 +207,9 @@ struct UsageMenuCardView: View {
                             hintText: liveModel.creditsHintText,
                             hintCopyText: liveModel.creditsHintCopyText,
                             progressColor: liveModel.progressColor)
+                    }
+                    if liveModel.creditsOnlyInlineUsageDashboard, let dashboard = liveModel.inlineUsageDashboard {
+                        InlineUsageDashboardContent(model: dashboard)
                     }
                     if hasCredits, hasCost {
                         Divider()

@@ -1604,7 +1604,19 @@ extension StatusItemController {
     /// Providers that surface the live component list as a native submenu. Every other provider
     /// keeps the plain "Status Page" link that opens the website. Kept deliberately small: these
     /// are the statuspage.io/incident.io feeds we actively curate and trust to render well.
-    static let statusComponentsSubmenuProviders: Set<UsageProvider> = [.claude, .codex, .augment]
+    static let statusComponentsSubmenuProviders: Set<UsageProvider> = [.claude, .codex, .augment, .zoommate]
+
+    /// Filters `components` down to a provider's descriptor-owned named allowlist, if configured;
+    /// returns `components` unchanged when the provider has no allowlist. Matching is by exact
+    /// `name` equality at the top level only (groups and leaves alike).
+    static func filterStatusComponents(
+        _ components: [ProviderStatusComponent],
+        for provider: UsageProvider) -> [ProviderStatusComponent]
+    {
+        let metadata = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+        guard let allowlist = metadata.statusComponentAllowlist else { return components }
+        return components.filter { allowlist.contains($0.name) }
+    }
 
     /// Builds the status submenu (component rows + a website link) for the curated providers in
     /// `statusComponentsSubmenuProviders`. Gated on the provider being in that allowlist (and

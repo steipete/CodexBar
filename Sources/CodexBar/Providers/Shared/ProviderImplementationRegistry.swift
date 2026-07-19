@@ -76,6 +76,7 @@ enum ProviderImplementationRegistry {
         case .wayfinder: WayfinderProviderImplementation()
         case .zenmux: ZenMuxProviderImplementation()
         case .aiand: AiAndProviderImplementation()
+        case .zoommate: ZoomMateProviderImplementation()
         }
     }
 
