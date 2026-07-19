@@ -535,15 +535,16 @@ public struct CodexRolloutMetadata: Equatable, Sendable {
     }
 
     public func descriptiveName(threadMetadata: CodexThreadMetadata?) -> String? {
-        if self.isGuardian {
-            return "Approval review"
+        let taskName: String? = if self.isGuardian {
+            "Approval review"
+        } else if let agentPath = threadMetadata?.agentPath ?? self.agentPath {
+            AgentSessionNameFormatter.agentPath(agentPath)
+        } else {
+            nil
         }
-        if let agentPath = threadMetadata?.agentPath ?? self.agentPath,
-           let name = AgentSessionNameFormatter.agentPath(agentPath)
-        {
-            return name
-        }
-        return threadMetadata?.title.flatMap { AgentSessionNameFormatter.title($0) }
+        return AgentSessionNameFormatter.sessionName(
+            title: threadMetadata?.title,
+            taskName: taskName)
     }
 }
 
@@ -597,8 +598,39 @@ private enum AgentSessionNameFormatter {
         }
 
         let compact = line.split(whereSeparator: \ .isWhitespace).joined(separator: " ")
-        guard compact.count > maximumLength else { return compact }
-        return compact.prefix(maximumLength - 1).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+        return self.truncated(compact, maximumLength: maximumLength)
+    }
+
+    static func sessionName(title: String?, taskName: String?, maximumLength: Int = 64) -> String? {
+        let chatName = title.flatMap { self.title($0, maximumLength: .max) }
+        guard let chatName else {
+            return taskName.map { self.truncated($0, maximumLength: maximumLength) }
+        }
+        guard let taskName,
+              chatName.caseInsensitiveCompare(taskName) != .orderedSame
+        else {
+            return self.truncated(chatName, maximumLength: maximumLength)
+        }
+
+        let separator = " · "
+        let combined = chatName + separator + taskName
+        guard combined.count > maximumLength else { return combined }
+
+        let initialTaskLength = min(taskName.count, maximumLength / 3)
+        var compactTaskName = self.truncated(taskName, maximumLength: initialTaskLength)
+        let chatLength = max(1, maximumLength - separator.count - compactTaskName.count)
+        let compactChatName = self.truncated(chatName, maximumLength: chatLength)
+        if compactChatName.count == chatName.count {
+            let taskLength = max(1, maximumLength - separator.count - compactChatName.count)
+            compactTaskName = self.truncated(taskName, maximumLength: taskLength)
+        }
+        return compactChatName + separator + compactTaskName
+    }
+
+    private static func truncated(_ value: String, maximumLength: Int) -> String {
+        guard value.count > maximumLength else { return value }
+        guard maximumLength > 1 else { return String(value.prefix(max(0, maximumLength))) }
+        return value.prefix(maximumLength - 1).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
 }
 

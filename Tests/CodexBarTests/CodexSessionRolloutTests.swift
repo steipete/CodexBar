@@ -142,6 +142,42 @@ struct CodexSessionRolloutTests {
     }
 
     @Test
+    func `chat names stay primary for subagent and guardian sessions`() throws {
+        let subagentLine =
+            "{\"type\":\"session_meta\",\"payload\":{\"id\":\"subagent\",\"cwd\":\"/repo\"," +
+            "\"originator\":\"codex_vscode\",\"source\":{\"subagent\":{\"thread_spawn\":{\"agent_path\":" +
+            "\"/root/neon_patch_review2\"}}}}}"
+        let guardianLine =
+            "{\"type\":\"session_meta\",\"payload\":{\"id\":\"guardian\",\"cwd\":\"/repo\"," +
+            "\"originator\":\"codex_vscode\",\"source\":{\"subagent\":{\"other\":\"guardian\"}}}}"
+        let subagent = try #require(CodexRolloutFirstLineParser.parse(subagentLine))
+        let guardian = try #require(CodexRolloutFirstLineParser.parse(guardianLine))
+
+        #expect(subagent.descriptiveName(threadMetadata: CodexThreadMetadata(
+            title: "Website refresh",
+            agentPath: nil)) == "Website refresh · Neon patch review 2")
+        #expect(guardian.descriptiveName(threadMetadata: CodexThreadMetadata(
+            title: "Dependency audit",
+            agentPath: nil)) == "Dependency audit · Approval review")
+    }
+
+    @Test
+    func `chat and task names stay menu sized`() throws {
+        let line =
+            "{\"type\":\"session_meta\",\"payload\":{\"id\":\"subagent\",\"cwd\":\"/repo\"," +
+            "\"originator\":\"codex_vscode\",\"source\":{\"subagent\":{\"thread_spawn\":{\"agent_path\":" +
+            "\"/root/review_the_complete_rollout_and_report_every_regression\"}}}}}"
+        let metadata = try #require(CodexRolloutFirstLineParser.parse(line))
+
+        let name = metadata.descriptiveName(threadMetadata: CodexThreadMetadata(
+            title: "Continue work on the Concrete Authority website and compare every source",
+            agentPath: nil))
+
+        #expect(name == "Continue work on the Concrete Authority… · Review the complete…")
+        #expect((name?.count ?? .max) <= 64)
+    }
+
+    @Test
     func `current rollout agent path produces a descriptive subagent name without sqlite`() throws {
         let line =
             "{\"type\":\"session_meta\",\"payload\":{\"id\":\"subagent\",\"cwd\":\"/repo\"," +
