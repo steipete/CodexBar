@@ -576,7 +576,7 @@
 "show_provider_changelog_links_title" = "Mostrar enlaces al registro de cambios del proveedor";
 "show_provider_changelog_links_subtitle" = "Añade al menú enlaces a las notas de versión de los proveedores compatibles basados en CLI.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso adicional";
-"show_credits_extra_usage_subtitle" = "Mostrar las secciones de Créditos de Codex y Uso adicional de Claude en el menú.";
+"show_credits_extra_usage_subtitle" = "Muestra créditos y uso adicional para los proveedores compatibles.";
 "multi_account_layout_title" = "Diseño multicuenta";
 "multi_account_layout_subtitle" = "Elige cambio de cuenta segmentado o tarjetas de cuenta apiladas.";
 "multi_account_layout_segmented" = "Segmentado";

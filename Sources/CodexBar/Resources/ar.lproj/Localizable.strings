@@ -590,7 +590,7 @@
 "show_provider_changelog_links_title" = "اعرض روابط سجل التغييرات لمزود الخدمة";
 "show_provider_changelog_links_subtitle" = "يضيف روابط ملاحظات الإصدار لمزودي الخدمة المدعومين بدعم CLI إلى القائمة.";
 "show_credits_extra_usage_title" = "اعتمادات العرض + الاستخدام الإضافي";
-"show_credits_extra_usage_subtitle" = "عرض أقسام Codex الاعتمادات و Claude الاستخدام الإضافي في القائمة.";
+"show_credits_extra_usage_subtitle" = "عرض الأرصدة والاستخدام الإضافي لموفري الخدمات المدعومين.";
 "multi_account_layout_title" = "تخطيط الحسابات المتعددة";
 "multi_account_layout_subtitle" = "اختر تبديل الحسابات المجزأة أو بطاقات الحساب المكدسة.";
 "multi_account_layout_segmented" = "مقسم";

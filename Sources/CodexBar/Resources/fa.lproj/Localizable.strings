@@ -590,7 +590,7 @@
 "show_provider_changelog_links_title" = "لینک های تغییرات ارائه دهنده را نمایش دهید";
 "show_provider_changelog_links_subtitle" = "لینک های یادداشت های انتشار برای ارائه دهندگان پشتیبانی شده با پشتیبانی CLI به منو اضافه می شود.";
 "show_credits_extra_usage_title" = "نمایش اعتبارها + استفاده اضافی";
-"show_credits_extra_usage_subtitle" = "بخش های Codex اعتبارها و Claude استفاده اضافی را در منو نمایش دهید.";
+"show_credits_extra_usage_subtitle" = "اعتبارها و استفادهٔ اضافی را برای ارائه‌دهندگان پشتیبانی‌شده نمایش دهید.";
 "multi_account_layout_title" = "چیدمان چندحسابی";
 "multi_account_layout_subtitle" = "کارت های حساب سوئیچینگ تقسیم شده یا کارت های حساب انباشته را انتخاب کنید.";
 "multi_account_layout_segmented" = "بخش بندی شده";

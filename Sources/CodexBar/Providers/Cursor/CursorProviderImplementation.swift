@@ -85,7 +85,10 @@ struct CursorProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
-        guard let cost = context.snapshot?.providerCost, cost.currencyCode != "Quota" else { return }
+        guard context.settings.showOptionalCreditsAndExtraUsage,
+              let cost = context.snapshot?.providerCost,
+              cost.currencyCode != "Quota"
+        else { return }
         let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         if cost.limit > 0 {
             let limitStr = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)

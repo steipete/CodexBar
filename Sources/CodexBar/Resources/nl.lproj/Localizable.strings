@@ -584,7 +584,7 @@
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
 "show_provider_changelog_links_subtitle" = "Voegt koppelingen naar release-opmerkingen voor ondersteunde CLI-ondersteunde providers toe aan het menu.";
 "show_credits_extra_usage_title" = "Toon credits + extra gebruik";
-"show_credits_extra_usage_subtitle" = "Toon Codex Credits en Claude Extra gebruikssecties in het menu.";
+"show_credits_extra_usage_subtitle" = "Toon tegoeden en extra gebruik voor ondersteunde providers.";
 "multi_account_layout_title" = "Indeling voor meerdere accounts";
 "multi_account_layout_subtitle" = "Kies voor gesegmenteerd wisselen tussen accounts of gestapelde accountkaarten.";
 "multi_account_layout_segmented" = "Gesegmenteerd";

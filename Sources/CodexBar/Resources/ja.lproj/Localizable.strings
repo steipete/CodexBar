@@ -581,7 +581,7 @@
 "show_provider_changelog_links_title" = "プロバイダの変更履歴リンクを表示";
 "show_provider_changelog_links_subtitle" = "対応する CLI ベースのプロバイダのリリースノートへのリンクをメニューに追加します。";
 "show_credits_extra_usage_title" = "クレジットと追加使用量を表示";
-"show_credits_extra_usage_subtitle" = "Codex クレジットと Claude 追加使用量のセクションをメニューに表示します。";
+"show_credits_extra_usage_subtitle" = "対応プロバイダーのクレジットと追加使用量を表示します。";
 "multi_account_layout_title" = "複数アカウントのレイアウト";
 "multi_account_layout_subtitle" = "セグメント式のアカウント切替か、積み重ね式のアカウントカードを選択します。";
 "multi_account_layout_segmented" = "セグメント";

@@ -590,7 +590,7 @@
 "show_provider_changelog_links_title" = "แสดงลิงก์บันทึกการเปลี่ยนแปลงของผู้ให้บริการ";
 "show_provider_changelog_links_subtitle" = "เพิ่มลิงก์บันทึกประจํารุ่นสําหรับผู้ให้บริการที่ได้รับการสนับสนุน CLI ในเมนู";
 "show_credits_extra_usage_title" = "แสดงเครดิต + การใช้งานเพิ่มเติม";
-"show_credits_extra_usage_subtitle" = "แสดงส่วนเครดิต Codex และการใช้งานเพิ่มเติม Claude ในเมนู";
+"show_credits_extra_usage_subtitle" = "แสดงเครดิตและการใช้งานเพิ่มเติมสำหรับผู้ให้บริการที่รองรับ";
 "multi_account_layout_title" = "รูปแบบหลายบัญชี";
 "multi_account_layout_subtitle" = "เลือกการสลับบัญชีแบบแบ่งกลุ่มหรือบัตรบัญชีแบบเรียงซ้อน";
 "multi_account_layout_segmented" = "แบ่งกลุ่ม";

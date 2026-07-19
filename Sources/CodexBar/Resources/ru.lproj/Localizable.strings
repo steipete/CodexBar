@@ -585,7 +585,7 @@
 "show_provider_changelog_links_title" = "Показывать ссылки на журналы изменений провайдеров";
 "show_provider_changelog_links_subtitle" = "Добавляет в меню ссылки на заметки к релизам для поддерживаемых CLI-провайдеров.";
 "show_credits_extra_usage_title" = "Показывать кредиты и доп. использование";
-"show_credits_extra_usage_subtitle" = "Показывать в меню разделы кредитов Codex и дополнительного использования Claude.";
+"show_credits_extra_usage_subtitle" = "Показывать кредиты и дополнительное использование для поддерживаемых провайдеров.";
 "multi_account_layout_title" = "Макет нескольких аккаунтов";
 "multi_account_layout_subtitle" = "Выберите сегментированное переключение аккаунтов или сгруппированные карты аккаунтов.";
 "multi_account_layout_segmented" = "Сегментированный";

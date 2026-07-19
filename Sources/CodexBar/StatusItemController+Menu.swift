@@ -1310,9 +1310,7 @@ extension StatusItemController {
         }
 
         if hasCredits {
-            if hasExtraUsage || hasCost {
-                addSectionSeparator()
-            }
+            addSectionSeparator()
             let creditsView = UsageMenuCardCreditsSectionView(
                 model: model,
                 showBottomDivider: false,
@@ -1332,9 +1330,7 @@ extension StatusItemController {
             }
         }
         if hasExtraUsage {
-            if hasCredits {
-                addSectionSeparator()
-            }
+            addSectionSeparator()
             let extraUsageSubmenu = self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
             let extraUsageView = UsageMenuCardExtraUsageSectionView(
                 model: model,
@@ -1350,9 +1346,7 @@ extension StatusItemController {
                 submenu: extraUsageSubmenu))
         }
         if hasCost {
-            if hasCredits || hasExtraUsage {
-                addSectionSeparator()
-            }
+            addSectionSeparator()
             let costSubmenu = webItems.hasCostHistory ? self
                 .makeCostHistorySubmenu(provider: provider, width: width) : nil
             menu.addItem(self.makeCostMenuCardItem(

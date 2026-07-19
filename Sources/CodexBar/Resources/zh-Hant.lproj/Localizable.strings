@@ -583,7 +583,7 @@
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";
 "show_provider_changelog_links_subtitle" = "在選單中為支援的 CLI 提供者新增發行說明連結。";
 "show_credits_extra_usage_title" = "顯示額度 + 額外使用量";
-"show_credits_extra_usage_subtitle" = "在選單中顯示 Codex 額度和 Claude 額外使用量部分。";
+"show_credits_extra_usage_subtitle" = "顯示支援的供應商的額度和額外用量。";
 "multi_account_layout_title" = "多帳號版面配置";
 "multi_account_layout_subtitle" = "選擇分段帳號切換或堆疊帳號卡片。";
 "multi_account_layout_segmented" = "分段";

@@ -592,7 +592,7 @@
 "show_provider_changelog_links_title" = "Pokaż linki do changelogów dostawców";
 "show_provider_changelog_links_subtitle" = "Dodaje linki do informacji o wydaniach dla obsługiwanych dostawców CLI w menu.";
 "show_credits_extra_usage_title" = "Pokaż kredyty + dodatkowe użycie";
-"show_credits_extra_usage_subtitle" = "Pokazuje sekcje Codex Credits i Claude Extra usage w menu.";
+"show_credits_extra_usage_subtitle" = "Pokazuje kredyty i dodatkowe użycie dla obsługiwanych dostawców.";
 "multi_account_layout_title" = "Układ wielu kont";
 "multi_account_layout_subtitle" = "Wybierz przełączanie segmentowe kont lub ułożone karty kont.";
 "multi_account_layout_segmented" = "Segmentowy";

@@ -563,7 +563,7 @@
 "show_provider_changelog_links_title" = "Amosar as ligazóns ao rexistro de cambios do provedor";
 "show_provider_changelog_links_subtitle" = "Engade ao menú enlaces ás notas de versión dos provedores compatibles baseados en CLI.";
 "show_credits_extra_usage_title" = "Amosar créditos + uso adicional";
-"show_credits_extra_usage_subtitle" = "Amosa as seccións de Créditos de Codex e Uso adicional de Claude no menú.";
+"show_credits_extra_usage_subtitle" = "Amosa créditos e uso adicional para os provedores compatibles.";
 "multi_account_layout_title" = "Disposición multiconta";
 "multi_account_layout_subtitle" = "Escolle o cambio de conta segmentado ou tarxetas de conta apiladas.";
 "multi_account_layout_segmented" = "Segmentado";
