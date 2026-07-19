@@ -318,6 +318,31 @@ public enum BinaryLocator {
             home: home)
     }
 
+    public static func resolveKiroCLIBinary(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        loginPATH: [String]? = LoginShellPathCache.shared.current,
+        commandV: (String, String?, TimeInterval, FileManager) -> String? = ShellCommandLocator.commandV,
+        aliasResolver: (String, String?, TimeInterval, FileManager, String) -> String? = ShellCommandLocator
+            .resolveAlias,
+        fileManager: FileManager = .default,
+        home: String = NSHomeDirectory()) -> String?
+    {
+        self.resolveBinary(
+            name: "kiro-cli",
+            overrideKey: "KIRO_CLI_PATH",
+            env: env,
+            loginPATH: loginPATH,
+            commandV: commandV,
+            aliasResolver: aliasResolver,
+            wellKnownPaths: [
+                "\(home)/.local/bin/kiro-cli",
+                "/opt/homebrew/bin/kiro-cli",
+                "/usr/local/bin/kiro-cli",
+            ],
+            fileManager: fileManager,
+            home: home)
+    }
+
     // swiftlint:disable function_parameter_count
     private static func resolveBinary(
         name: String,

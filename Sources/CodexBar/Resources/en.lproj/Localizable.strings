@@ -637,6 +637,14 @@
 "Re-authenticate" = "Re-authenticate";
 "codex_reauthenticate_title" = "Codex OAuth";
 "codex_reauthenticate_subtitle" = "Runs 'codex login' to refresh your session when the OAuth token has expired.";
+"kiro_reauthenticate_title" = "Kiro CLI login";
+"kiro_reauthenticate_subtitle" = "Runs 'kiro-cli login' to refresh your session when it has expired.";
+"Kiro CLI not found" = "Kiro CLI not found";
+"Install kiro-cli and try again." = "Install kiro-cli and try again.";
+"Could not start kiro-cli login" = "Could not start kiro-cli login";
+"Kiro login timed out" = "Kiro login timed out";
+"kiro-cli login exited with status %d." = "kiro-cli login exited with status %d.";
+"Kiro login failed" = "Kiro login failed";
 
 /* About Pane */
 "about_tagline" = "May your tokens never run out—keep agent limits in view.";
