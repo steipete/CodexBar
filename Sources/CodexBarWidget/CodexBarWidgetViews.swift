@@ -3,7 +3,7 @@ import SwiftUI
 import WidgetKit
 
 extension EnvironmentValues {
-    @Entry fileprivate var widgetUsageShowsUsed: Bool = false
+    @Entry var widgetUsageShowsUsed: Bool = false
 }
 
 struct CodexBarUsageWidgetView: View {
@@ -890,7 +890,7 @@ private struct HeaderView: View {
     }
 }
 
-private struct UsageBarRow: View {
+struct UsageBarRow: View {
     @Environment(\.widgetUsageShowsUsed) private var showUsed
     let title: String
     let percentLeft: Double?

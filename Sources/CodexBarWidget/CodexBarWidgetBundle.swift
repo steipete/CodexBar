@@ -10,6 +10,7 @@ struct CodexBarWidgetBundle: WidgetBundle {
         CodexBarCompactWidget()
         CodexBarBurnDownWidget()
         CodexBarCombinedBurnDownWidget()
+        CodexBarOverviewWidget()
     }
 }
 
@@ -111,5 +112,21 @@ struct CodexBarCombinedBurnDownWidget: Widget {
         .configurationDisplayName("CodexBar Burn Down (Combined)")
         .description("Session and weekly burn-down charts in one tile.")
         .supportedFamilies([.systemMedium])
+    }
+}
+
+struct CodexBarOverviewWidget: Widget {
+    private let kind = "CodexBarOverviewWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: self.kind,
+            provider: CodexBarOverviewTimelineProvider())
+        { entry in
+            CodexBarOverviewWidgetView(entry: entry)
+        }
+        .configurationDisplayName("CodexBar Overview")
+        .description("Session and weekly usage for all enabled providers in one tile.")
+        .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
