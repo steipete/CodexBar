@@ -2,9 +2,6 @@
 
 ## 0.45.3 — Unreleased
 
-### Added
-- Claude: allow the Daily Routines usage row to be hidden from provider settings (#2353).
-
 ### Fixed
 
 ## 0.45.2 — 2026-07-19
