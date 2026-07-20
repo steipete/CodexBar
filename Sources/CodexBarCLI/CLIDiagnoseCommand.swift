@@ -297,6 +297,8 @@ extension CodexBarCLI {
         switch provider {
         case .alibabatokenplan:
             AlibabaTokenPlanSettingsReader.cookieHeader(environment: environment) != nil
+        case .qwencloud:
+            QwenCloudSettingsReader.cookieHeader(environment: environment) != nil
         case .kimi:
             KimiSettingsReader.authToken(environment: environment) != nil
         case .manus:

@@ -85,6 +85,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [OpenCode Go](docs/opencode.md) — Browser or local SQLite data for Go usage windows.
 - [Alibaba Coding Plan](docs/alibaba-coding-plan.md) — Web cookies or API key for coding-plan quotas.
 - [Alibaba Token Plan](docs/alibaba-token-plan.md) — Bailian browser/manual cookies for token-plan credits.
+- [Qwen Cloud](docs/qwen-cloud.md) — Qwen Cloud browser/manual cookies for individual token-plan credits (hosted Claude).
 - [Gemini](docs/gemini.md) — OAuth-backed quota API using Gemini CLI credentials (no browser cookies).
 - [Antigravity](docs/antigravity.md) — Local language server probe (experimental); no external auth.
 - [Droid](docs/factory.md) — Browser cookies + WorkOS token flows for Factory usage + billing.
