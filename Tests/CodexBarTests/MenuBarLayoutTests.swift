@@ -207,18 +207,14 @@ struct MenuBarLayoutTests {
             pace: pace,
             showUsed: true) ?? "nil"
 
-        // 2. Calculate new migrated rendering output (which maps legacy `.pace` to `.runsOut` layout token)
+        // 2. Calculate new migrated rendering output (which maps legacy `.pace` to `.pacePercent` layout token)
         let resolution = MenuBarLayoutResolution.legacy(
             iconStyle: .iconAndPercent,
             displayMode: .pace,
             metricPreference: .primary,
             resetTimeDisplayStyle: .countdown)
         let migratedTokens = Array(resolution.layout.lines.joined())
-        #expect(migratedTokens.contains(.runsOut))
-
-        // Get the text that .runsOut resolves to for the same pace
-        // weeklyDetail's rightLabel for willLastToReset is "Lasts until reset"
-        let runsOutText = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: Date()).rightLabel ?? "nil"
+        #expect(migratedTokens.contains(.pacePercent))
 
         let renderer = MenuBarLayoutRenderer()
         let data = MenuBarLayoutRenderData(
@@ -228,11 +224,12 @@ struct MenuBarLayoutTests {
             session: nil,
             weekly: nil,
             automatic: nil,
-            runsOut: runsOutText,
+            runsOut: nil,
+            pacePercent: legacyPaceString,
             costToday: nil,
             cost30d: nil)
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.runsOut]]),
+            layout: MenuBarLayout(lines: [[.pacePercent]]),
             data: data,
             icon: nil,
             options: MenuBarLayoutRenderOptions(
@@ -248,11 +245,11 @@ struct MenuBarLayoutTests {
         print("\n==================================================")
         print("REPRODUCTION - PACE METRIC DISCREPANCY COMPARISON")
         print("Legacy rendering output (using .pace displayMode): \(legacyPaceString)")
-        print("New layout rendering output (migrated to .runsOut token): \(newPaceString)")
+        print("New layout rendering output (migrated to .pacePercent token): \(newPaceString)")
         print("==================================================\n")
 
         #expect(legacyPaceString == "+15%")
-        #expect(newPaceString == "Lasts until reset")
+        #expect(newPaceString == "+15%")
     }
 
     @Test

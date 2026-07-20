@@ -1345,3 +1345,6 @@
 "Cost today unavailable" = "Costo oggi: Non disponibile";
 "30-day cost unavailable" = "Costo 30 gg: Non disponibile";
 "Resets" = "Ripristini";
+"menu_bar_layout_sample_pace_percent" = "+15%";
+"menu_bar_layout_token_pace_percent" = "Pace %";
+"Pace percent unavailable" = "Pace percent unavailable";

@@ -47,7 +47,9 @@ extension UsageStore {
            effectivePreference == .automatic,
            !self.settings.antigravityPrioritizeExhaustedQuotas
         {
-            return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
+            return Self.mostConstrainedAntigravityQuotaSummaryWindow(
+                snapshot: snapshot,
+                prioritizeExhausted: self.settings.antigravityPrioritizeExhaustedQuotas)
         }
         if provider == .codex {
             return self.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
@@ -99,7 +101,9 @@ extension UsageStore {
             if self.settings.antigravityPrioritizeExhaustedQuotas {
                 return MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot)
             }
-            let windows = Self.antigravityRenderedQuotaSummaryWindows(snapshot: snapshot)
+            let windows = Self.antigravityRenderedQuotaSummaryWindows(
+                snapshot: snapshot,
+                prioritizeExhausted: self.settings.antigravityPrioritizeExhaustedQuotas)
             guard !windows.isEmpty else { return true }
             return windows.allSatisfy { $0.usedPercent >= 100 }
         }
@@ -127,24 +131,42 @@ extension UsageStore {
     }
 
     private nonisolated static func mostConstrainedAntigravityQuotaSummaryWindow(
-        snapshot: UsageSnapshot)
+        snapshot: UsageSnapshot,
+        prioritizeExhausted: Bool)
         -> RateWindow?
     {
-        let windows = self.antigravityRenderedQuotaSummaryWindows(snapshot: snapshot)
+        let windows = self.antigravityRenderedQuotaSummaryWindows(
+            snapshot: snapshot,
+            prioritizeExhausted: prioritizeExhausted)
         guard !windows.isEmpty else { return nil }
 
         let usableWindows = windows.filter { $0.usedPercent < 100 }
-        if let maxUsable = usableWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
-            return maxUsable
+        if !usableWindows.isEmpty {
+            // Prefer 5-hour session windows over weekly windows: the session limit
+            // is the immediate constraint the user cares about.
+            let sessionWindows = usableWindows.filter {
+                $0.windowMinutes == 300
+            }
+            if let mostConstrainedSession = sessionWindows.max(by: {
+                $0.usedPercent < $1.usedPercent
+            }) {
+                return mostConstrainedSession
+            }
+            return usableWindows.max(by: { $0.usedPercent < $1.usedPercent })
         }
+        // All exhausted: show the most exhausted window.
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
     private nonisolated static func antigravityRenderedQuotaSummaryWindows(
-        snapshot: UsageSnapshot)
+        snapshot: UsageSnapshot,
+        prioritizeExhausted: Bool)
         -> [RateWindow]
     {
-        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
+        let windows = IconRemainingResolver.resolvedWindows(
+            snapshot: snapshot,
+            style: .antigravity,
+            antigravityPrioritizeExhaustedQuotas: prioritizeExhausted)
         return [windows.primary, windows.secondary].compactMap(\.self)
     }
 }

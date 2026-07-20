@@ -225,7 +225,8 @@ struct StatusIconView: View {
         }
         let remaining = IconRemainingResolver.resolvedRemaining(
             snapshot: snap,
-            style: self.store.style(for: self.provider))
+            style: self.store.style(for: self.provider),
+            antigravityPrioritizeExhaustedQuotas: self.store.settings.antigravityPrioritizeExhaustedQuotas)
         let primary = remaining.primary
         let percent = primary.map(Self.accessibilityPercentRemaining) ?? L("Unknown")
         let stale = self.store.isStale(provider: self.provider)
@@ -243,6 +244,7 @@ struct StatusIconView: View {
             IconRemainingResolver.resolvedRemaining(
                 snapshot: $0,
                 style: self.store.style(for: self.provider),
+                antigravityPrioritizeExhaustedQuotas: self.store.settings.antigravityPrioritizeExhaustedQuotas,
                 now: now)
         }
         let creditsProjection = self.store.codexConsumerProjectionIfNeeded(

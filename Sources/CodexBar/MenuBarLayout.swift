@@ -16,6 +16,7 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case resetCountdown
     case resetAbsolute
     case runsOut
+    case pacePercent
     case costToday
     case cost30d
     case separatorDot
@@ -220,13 +221,13 @@ extension MenuBarLayout {
                 .percent(window: Self.percentWindow(for: metricPreference, provider: provider)),
             ]])
         case .pace:
-            return MenuBarLayout(lines: [[icon, .runsOut]])
+            return MenuBarLayout(lines: [[icon, .pacePercent]])
         case .both:
             return MenuBarLayout(lines: [[
                 icon,
                 .percent(window: Self.percentWindow(for: metricPreference, provider: provider)),
                 .separatorDot,
-                .runsOut,
+                .pacePercent,
             ]])
         case .resetTime:
             let resetItem = resetTimeDisplayStyle == .absolute

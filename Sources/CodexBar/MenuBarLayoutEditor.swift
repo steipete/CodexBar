@@ -251,7 +251,7 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "time",
                 title: L("menu_bar_layout_group_time"),
-                tokens: [.resetCountdown, .resetAbsolute, .runsOut],
+                tokens: [.resetCountdown, .resetAbsolute, .runsOut, .pacePercent],
                 includesLineBreak: false),
             MenuBarLayoutPaletteGroup(
                 id: "money",
@@ -674,9 +674,12 @@ private struct MenuBarLayoutPreview: View {
                 now: now)
         }
         let paceWindow = weekly ?? automatic
-        let runsOut = paceWindow
+        let pace = paceWindow
             .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
+        let runsOut = pace
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
+        let pacePercent = pace
+            .flatMap { MenuBarDisplayText.paceText(pace: $0) }
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
         return MenuBarLayoutRenderData(
@@ -687,6 +690,7 @@ private struct MenuBarLayoutPreview: View {
             weekly: MenuBarLayoutRenderWindow(weekly),
             automatic: MenuBarLayoutRenderWindow(automatic),
             runsOut: runsOut,
+            pacePercent: pacePercent,
             costToday: costToday.map {
                 UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
             },
@@ -715,6 +719,7 @@ private struct MenuBarLayoutPreview: View {
             weekly: MenuBarLayoutRenderWindow(weekly),
             automatic: MenuBarLayoutRenderWindow(session),
             runsOut: L("menu_bar_layout_sample_runs_out"),
+            pacePercent: L("menu_bar_layout_sample_pace_percent"),
             costToday: "$1.25",
             cost30d: "$20.00")
     }
@@ -782,6 +787,7 @@ extension MenuBarLayoutToken {
         case .resetCountdown: L("menu_bar_layout_token_resets_in")
         case .resetAbsolute: L("menu_bar_layout_token_reset_at")
         case .runsOut: L("menu_bar_layout_token_runs_out")
+        case .pacePercent: L("menu_bar_layout_token_pace_percent")
         case .costToday: L("menu_bar_layout_token_cost_today")
         case .cost30d: L("menu_bar_layout_token_cost_30d")
         case .separatorDot: "·"
@@ -806,6 +812,7 @@ extension MenuBarLayoutToken {
         case .resetCountdown: "timer"
         case .resetAbsolute: "clock"
         case .runsOut: "hourglass.bottomhalf.filled"
+        case .pacePercent: "percent"
         case .costToday: "dollarsign.circle"
         case .cost30d: "calendar.badge.clock"
         case .separatorDot: "smallcircle.filled.circle"

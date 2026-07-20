@@ -1384,6 +1384,7 @@ extension StatusItemController {
                 snapshot: $0,
                 style: style,
                 showUsed: showUsed,
+                antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
                 secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: $0),
                 now: now)
         }

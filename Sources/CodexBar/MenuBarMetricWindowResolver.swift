@@ -272,7 +272,7 @@ enum MenuBarMetricWindowResolver {
         } ?? []
     }
 
-    private static func antigravityQuotaFamily(for row: NamedRateWindow) -> String? {
+    static func antigravityQuotaFamily(for row: NamedRateWindow) -> String? {
         let suffix = row.id.dropFirst(Self.antigravityQuotaSummaryWindowIDPrefix.count)
         var normalizedSuffix = suffix
             .lowercased()

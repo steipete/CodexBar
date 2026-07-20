@@ -392,6 +392,43 @@ extension UsageStoreHighestUsageTests {
     }
 
     @Test
+    func `antigravity automatic metric ignores exhausted family and prefers usable session window`() {
+        let settings = SettingsStore(
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-exhausted-family"),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.setMenuBarMetricPreference(.automatic, for: .antigravity)
+        settings.antigravityPrioritizeExhaustedQuotas = false
+
+        let registry = ProviderRegistry.shared
+        if let antigravityMeta = registry.metadata[.antigravity] {
+            settings.setProviderEnabled(provider: .antigravity, metadata: antigravityMeta, enabled: true)
+        }
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+
+        // Claude/GPT session (otherSession) is exhausted (100%), and Claude/GPT weekly (otherWeekly) is 70% used.
+        // Gemini session is 15% used and weekly is 20% used.
+        let snapshot = self.antigravityQuotaSummarySnapshot(
+            geminiSessionUsed: 15,
+            geminiWeeklyUsed: 20,
+            otherSessionUsed: 100,
+            otherWeeklyUsed: 70)
+        store._setSnapshotForTesting(snapshot, provider: .antigravity)
+
+        let highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .antigravity)
+        // Since prioritizeExhausted is false, we ignore the exhausted Claude family.
+        // The remaining usable family is Gemini, and we prefer its session window (15%) over weekly (20%).
+        #expect(highest?.usedPercent == 15)
+    }
+
+    @Test
     func `automatic metric ignores antigravity legacy detail rows`() {
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-antigravity-fallback-detail"),

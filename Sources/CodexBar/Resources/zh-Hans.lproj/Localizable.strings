@@ -1317,3 +1317,6 @@
 "Cost today unavailable" = "今日费用: 不可用";
 "30-day cost unavailable" = "30 天费用: 不可用";
 "Resets" = "重置";
+"menu_bar_layout_sample_pace_percent" = "+15%";
+"menu_bar_layout_token_pace_percent" = "进度 %";
+"Pace percent unavailable" = "进度百分比不可用";
