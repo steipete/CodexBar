@@ -93,6 +93,21 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsToggleDescriptor(
+                id: "claude-daily-routines-usage-visible",
+                title: "Show Daily Routines usage",
+                subtitle: [
+                    "Shows the Daily Routines quota row in the menu and provider preview.",
+                    "Requires optional credits and extra usage in Display settings.",
+                ].joined(separator: " "),
+                binding: context.boolBinding(\.claudeDailyRoutinesUsageVisible),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                isEnabled: { context.settings.showOptionalCreditsAndExtraUsage },
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
                 title: "Avoid Keychain prompts",
                 subtitle: subtitle,

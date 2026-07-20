@@ -80,6 +80,9 @@ Admin API key setup:
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
+- Preferences → Providers → Claude → Show Daily Routines usage hides only the Daily Routines row in menus and the
+  provider preview. The global optional credits and extra usage setting is its master switch. The Claude-specific
+  setting does not change fetching, history, notifications, widgets, hooks, model-scoped weekly limits, or CLI output.
 - Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
   remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to

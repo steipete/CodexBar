@@ -1251,6 +1251,8 @@
 "section_links" = "連結";
 "Show Codex Spark usage" = "顯示 Codex Spark 使用量";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "在選單和提供者預覽中顯示 Codex Spark 配額列。需要在「顯示」設定中啟用「顯示額度 + 額外使用量」。";
+"Show Daily Routines usage" = "顯示每日例行工作使用量";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "在選單和提供者預覽中顯示每日例行工作的配額列。需要在「顯示」設定中啟用「顯示額度 + 額外使用量」。";
 "Scroll to see more models" = "捲動查看更多模型";
 "Copy Image" = "拷貝影像";
 "Copy Stats" = "拷貝統計資料";

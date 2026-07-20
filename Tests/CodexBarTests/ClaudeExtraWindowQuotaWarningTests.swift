@@ -48,6 +48,8 @@ struct ClaudeExtraWindowQuotaWarningTests {
         settings.quotaWarningThresholds = [50, 20]
         settings.setQuotaWarningWindowEnabled(.session, enabled: true)
         settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+        settings.showOptionalCreditsAndExtraUsage = false
+        settings.claudeDailyRoutinesUsageVisible = false
 
         let notifier = SessionQuotaNotifierSpy()
         let store = UsageStore(
