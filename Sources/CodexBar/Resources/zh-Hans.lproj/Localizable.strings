@@ -546,7 +546,8 @@
 "usage_bars_fill_used" = "按已用量";
 "reset_times_title" = "重置时间";
 "reset_times_countdown" = "倒计时";
-"reset_times_clock" = "时钟时间";
+"reset_times_clock" = "仅日期";
+"reset_times_date" = "仅日期";
 "cost_summary_title" = "费用摘要";
 "cost_summary_off" = "关闭";
 "merge_icons_title" = "合并图标";

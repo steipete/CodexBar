@@ -4,6 +4,14 @@ public struct ZaiSettingsReader: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.zaiSettings)
 
     public static let apiTokenKey = "Z_AI_API_KEY"
+    /// Aliases commonly used for BigModel / 智谱 China coding-plan keys.
+    public static let apiTokenEnvironmentKeys = [
+        "Z_AI_API_KEY",
+        "BIGMODEL_API_KEY",
+        "ZHIPU_API_KEY",
+        "ZAI_API_KEY",
+        "GLM_API_KEY",
+    ]
     public static let apiHostKey = "Z_AI_API_HOST"
     public static let quotaURLKey = "Z_AI_QUOTA_URL"
     public static let bigModelOrganizationKey = "Z_AI_BIGMODEL_ORGANIZATION"
@@ -12,7 +20,9 @@ public struct ZaiSettingsReader: Sendable {
     public static func apiToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        if let token = self.cleaned(environment[apiTokenKey]) { return token }
+        for key in self.apiTokenEnvironmentKeys {
+            if let token = self.cleaned(environment[key]) { return token }
+        }
         return nil
     }
 
@@ -81,7 +91,8 @@ public enum ZaiSettingsError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingToken:
-            "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY."
+            "z.ai / GLM API key not found. Enable z.ai / GLM, paste a BigModel (open.bigmodel.cn) " +
+                "or z.ai key in Settings, or set Z_AI_API_KEY / BIGMODEL_API_KEY / ZHIPU_API_KEY."
         case let .invalidEndpointOverride(key):
             "z.ai endpoint override \(key) must use HTTPS or a bare host."
         }

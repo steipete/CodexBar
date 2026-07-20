@@ -44,7 +44,51 @@ public struct KimiUsageFetcher: Sendable {
             throw self.codeAPIError(statusCode: response.statusCode)
         }
 
-        return try self.parseCodeAPIUsage(from: data, now: now)
+        let base = try self.parseCodeAPIUsage(from: data, now: now)
+        // Monthly subscription pool lives on the web membership API (kimi-auth cookie),
+        // not on /coding/v1/usages. Enrich best-effort when a web session is available
+        // (Kimi Desktop cookies, browser import, or KIMI_AUTH_TOKEN).
+        return await self.enrichingWithSubscriptionStats(base, now: now, transport: transport)
+    }
+
+    /// Best-effort Monthly (+ Code 7-day) enrichment for Code API / CLI snapshots.
+    private static func enrichingWithSubscriptionStats(
+        _ snapshot: KimiUsageSnapshot,
+        now: Date,
+        transport: any ProviderHTTPTransport) async -> KimiUsageSnapshot
+    {
+        guard let webToken = self.resolveWebAuthTokenForEnrichment() else {
+            return snapshot
+        }
+        let sessionInfo = self.decodeSessionInfo(from: webToken)
+        guard let stats = try? await self.fetchSubscriptionStats(
+            authToken: webToken,
+            sessionInfo: sessionInfo,
+            transport: transport)
+        else {
+            return snapshot
+        }
+        return KimiUsageSnapshot(
+            weekly: snapshot.weekly,
+            rateLimit: snapshot.rateLimit,
+            subscriptionBalance: stats.subscriptionBalance,
+            subscriptionCodeWeeklyLimit: stats.ratelimitCode7d,
+            updatedAt: now)
+    }
+
+    private static func resolveWebAuthTokenForEnrichment() -> String? {
+        if let token = KimiSettingsReader.authToken() {
+            return token
+        }
+        if let token = KimiDesktopAuthToken.load() {
+            return token
+        }
+        #if os(macOS)
+        if let token = try? KimiCookieImporter.importSession().authToken {
+            return token
+        }
+        #endif
+        return nil
     }
 
     static func _parseCodeAPIUsageForTesting(_ data: Data, now: Date = Date()) throws -> KimiUsageSnapshot {

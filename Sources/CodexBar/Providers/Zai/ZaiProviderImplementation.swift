@@ -55,7 +55,41 @@ struct ZaiProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        []
+    func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
+        [
+            ProviderSettingsFieldDescriptor(
+                id: "zai-api-key",
+                title: "API key",
+                subtitle: "Required. For China mainland use a BigModel key from open.bigmodel.cn / bigmodel.cn " +
+                    "(region BigModel CN). Global uses a z.ai key. Stored in ~/.codexbar/config.json " +
+                    "(env: Z_AI_API_KEY, BIGMODEL_API_KEY, ZHIPU_API_KEY).",
+                kind: .secure,
+                placeholder: "Paste BigModel / z.ai API key…",
+                binding: context.stringBinding(\.zaiAPIToken),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "zai-open-bigmodel-keys",
+                        title: "BigModel keys",
+                        style: .link,
+                        isVisible: { context.settings.zaiAPIRegion == .bigmodelCN },
+                        perform: {
+                            if let url = URL(string: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }),
+                    ProviderSettingsActionDescriptor(
+                        id: "zai-open-global-console",
+                        title: "z.ai console",
+                        style: .link,
+                        isVisible: { context.settings.zaiAPIRegion == .global },
+                        perform: {
+                            if let url = URL(string: "https://z.ai/manage-apikey/apikey") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }),
+                ],
+                isVisible: nil,
+                onActivate: { context.settings.ensureZaiAPITokenLoaded() }),
+        ]
     }
 }

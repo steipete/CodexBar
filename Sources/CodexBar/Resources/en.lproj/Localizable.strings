@@ -574,7 +574,8 @@
 "usage_bars_fill_used" = "As used";
 "reset_times_title" = "Reset times";
 "reset_times_countdown" = "Countdown";
-"reset_times_clock" = "Clock time";
+"reset_times_clock" = "Date only";
+"reset_times_date" = "Date only";
 "cost_summary_title" = "Cost summary";
 "cost_summary_off" = "Off";
 "merge_icons_title" = "Merge icons";
