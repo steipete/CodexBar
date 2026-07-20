@@ -1216,6 +1216,8 @@
 "section_links" = "リンク";
 "Show Codex Spark usage" = "Codex Spark の使用量を表示";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "メニューとプロバイダのプレビューに Codex Spark のクォータ行を表示します。表示設定で「クレジットと追加使用量を表示」を有効にする必要があります。";
+"Show Daily Routines usage" = "デイリールーティンの使用量を表示";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "メニューとプロバイダのプレビューにデイリールーティンのクォータ行を表示します。表示設定で「クレジットと追加使用量を表示」を有効にする必要があります。";
 "Scroll to see more models" = "スクロールして他のモデルを表示";
 "Copy Image" = "画像をコピー";
 "Copy Stats" = "統計をコピー";

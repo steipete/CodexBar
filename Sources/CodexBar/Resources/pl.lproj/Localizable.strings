@@ -1233,6 +1233,8 @@
 "section_links" = "Linki";
 "Show Codex Spark usage" = "Pokaż użycie Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Pokazuje wiersze limitu Codex Spark w menu i podglądzie dostawcy. Wymaga włączenia opcji „Pokaż kredyty + dodatkowe użycie” w ustawieniach Wyświetlanie.";
+"Show Daily Routines usage" = "Pokaż użycie Codziennych rutyn";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Pokazuje wiersz limitu Codziennych rutyn w menu i podglądzie dostawcy. Wymaga włączenia opcji „Pokaż kredyty + dodatkowe użycie” w ustawieniach Wyświetlanie.";
 "Scroll to see more models" = "Przewiń, aby zobaczyć więcej modeli";
 
 /* Shareable usage card */

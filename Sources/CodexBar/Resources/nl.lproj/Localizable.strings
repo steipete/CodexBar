@@ -1215,6 +1215,8 @@
 "section_links" = "Links";
 "Show Codex Spark usage" = "Codex Spark-gebruik tonen";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Toont Codex Spark-quotumregels in het menu en de voorvertoning van de provider. Vereist dat ‘Toon credits + extra gebruik’ is ingeschakeld in de instellingen voor Weergave.";
+"Show Daily Routines usage" = "Gebruik van Dagelijkse routines tonen";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Toont de quotumregel voor Dagelijkse routines in het menu en de voorvertoning van de provider. Vereist dat ‘Toon credits + extra gebruik’ is ingeschakeld in de instellingen voor Weergave.";
 "Scroll to see more models" = "Scroll om meer modellen te bekijken";
 "Copy Image" = "Afbeelding kopiëren";
 "Copy Stats" = "Statistieken kopiëren";
