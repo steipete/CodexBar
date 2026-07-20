@@ -12,22 +12,39 @@ import SwiftUI
 struct CodexBarTouchBarView: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @State private var expandedProvider: UsageProvider?
 
     private let maxCards = 3
+    /// Tapping a card leaves the graph up long enough to read, then reverts to the overview
+    /// on its own — the Touch Bar has no natural "back" affordance besides tapping again.
+    private static let autoRevertSeconds: UInt64 = 8
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Array(self.cardProviders.enumerated()), id: \.element) { index, provider in
-                if index > 0 {
-                    Divider()
+            if let expandedProvider, self.cardProviders.contains(expandedProvider) {
+                TouchBarUsageGraphView(provider: expandedProvider, store: self.store)
+                    .contentShape(Rectangle())
+                    .onTapGesture { self.expandedProvider = nil }
+                    .task(id: expandedProvider) {
+                        try? await Task.sleep(nanoseconds: Self.autoRevertSeconds * 1_000_000_000)
+                        guard !Task.isCancelled else { return }
+                        self.expandedProvider = nil
+                    }
+            } else {
+                ForEach(Array(self.cardProviders.enumerated()), id: \.element) { index, provider in
+                    if index > 0 {
+                        Divider()
+                    }
+                    self.card(for: provider)
+                        .contentShape(Rectangle())
+                        .onTapGesture { self.expandedProvider = provider }
                 }
-                self.card(for: provider)
-            }
-            if self.cardProviders.isEmpty {
-                Text("No providers enabled")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
+                if self.cardProviders.isEmpty {
+                    Text("No providers enabled")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                }
             }
         }
     }
