@@ -91,6 +91,7 @@ final class MenuBarLayoutTitleCache {
 @MainActor
 final class MenuBarLayoutRenderer {
     private static let missingValue = "–"
+    private static let stackedBaselineOffset: CGFloat = -3 // Center multi-line NSStatusBarButton titles.
 
     private struct TokenStyle {
         let font: NSFont
@@ -138,11 +139,14 @@ final class MenuBarLayoutRenderer {
             paragraphStyle.maximumLineHeight = 9.5
             paragraphStyle.lineSpacing = -1
         }
-        let attributes: [NSAttributedString.Key: Any] = [
+        var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: foregroundColor,
             .paragraphStyle: paragraphStyle,
         ]
+        if isStacked {
+            attributes[.baselineOffset] = Self.stackedBaselineOffset
+        }
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
 
