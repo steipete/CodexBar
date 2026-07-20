@@ -190,9 +190,20 @@ enum MenuBarMetricWindowResolver {
         guard !windows.isEmpty else { return nil }
 
         let usableWindows = windows.filter { $0.usedPercent < 100 }
-        if let maxUsable = usableWindows.max(by: { $0.usedPercent < $1.usedPercent }) {
-            return maxUsable
+        if !usableWindows.isEmpty {
+            // Prefer 5-hour session windows over weekly windows: the session limit
+            // is the immediate constraint the user cares about.
+            let sessionWindows = usableWindows.filter {
+                $0.windowMinutes == Self.antigravitySessionCadence
+            }
+            if let mostConstrainedSession = sessionWindows.max(by: {
+                $0.usedPercent < $1.usedPercent
+            }) {
+                return mostConstrainedSession
+            }
+            return usableWindows.max(by: { $0.usedPercent < $1.usedPercent })
         }
+        // All exhausted: show the most exhausted window.
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
     }
 
@@ -247,6 +258,7 @@ enum MenuBarMetricWindowResolver {
         return !familyBlocked.isEmpty && familyBlocked.values.allSatisfy(\.self)
     }
 
+    private static let antigravitySessionCadence = 300
     private static let antigravitySupportedQuotaCadences: Set<Int> = [300, 10080]
 
     private static func isSupportedAntigravityQuotaCadence(_ windowMinutes: Int?) -> Bool {

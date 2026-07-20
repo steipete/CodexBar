@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+// swiftlint:disable:next type_body_length
 struct MenuBarMetricWindowResolverTests {
     @Test
     func `gemini metrics fall back to Flash when Pro is unavailable`() {
@@ -303,6 +304,51 @@ struct MenuBarMetricWindowResolverTests {
         #expect(defaultWindow?.windowMinutes == 300)
         #expect(optInWindow?.remainingPercent == 0)
         #expect(optInWindow?.windowMinutes == 300)
+    }
+
+    @Test
+    func `automatic metric prefers antigravity session window over weekly when none are exhausted`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini Models Five Hour Limit",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: "5h")),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini Models Weekly Limit",
+                    window: RateWindow(
+                        usedPercent: 15,
+                        windowMinutes: 10080,
+                        resetsAt: nil,
+                        resetDescription: "weekly")),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude and GPT models Five Hour Limit",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: "5h")),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude and GPT models Weekly Limit",
+                    window: RateWindow(
+                        usedPercent: 34,
+                        windowMinutes: 10080,
+                        resetsAt: nil,
+                        resetDescription: "weekly")),
+            ],
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        // Session (5-hour) windows should be preferred even though weekly windows
+        // have higher usedPercent, because the session limit is the immediate constraint.
+        #expect(window?.windowMinutes == 300)
+        #expect(window?.resetDescription == "5h")
     }
 
     @Test
