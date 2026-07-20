@@ -141,34 +141,19 @@ enum MenuBarMetricWindowResolver {
                 secondary: snapshot.tertiary,
                 tertiary: nil) ?? snapshot.secondary
         }
-        if provider == .factory || provider == .kimi {
-            return snapshot.secondary ?? snapshot.primary
-        }
-        if provider == .litellm {
-            return snapshot.secondary ?? snapshot.primary
-        }
-        if provider == .copilot,
-           let primary = snapshot.primary,
-           let secondary = snapshot.secondary
-        {
-            return primary.usedPercent >= secondary.usedPercent ? primary : secondary
-        }
         if provider == .cursor {
-            return Self.mostConstrainedCursorWindow(
+            return self.mostConstrainedCursorWindow(
                 total: snapshot.primary,
                 auto: snapshot.secondary,
                 api: snapshot.tertiary)
         }
-        if provider == .minimax {
-            return Self.mostConstrainedWindow(
-                primary: snapshot.primary,
-                secondary: snapshot.secondary,
-                tertiary: snapshot.tertiary)
-        }
-        if provider == .claude, let spendLimit = Self.claudeSpendLimitWindow(snapshot: snapshot) {
+        if provider == .claude, let spendLimit = claudeSpendLimitWindow(snapshot: snapshot) {
             return spendLimit
         }
-        return snapshot.primary ?? snapshot.secondary
+        return self.mostConstrainedWindow(
+            primary: snapshot.primary,
+            secondary: snapshot.secondary,
+            tertiary: snapshot.tertiary)
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"

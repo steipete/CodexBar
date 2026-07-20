@@ -211,6 +211,40 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `automatic metric prioritizes exhausted litellm personal budget over active team budget`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: "Personal"),
+            secondary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: "Team"),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .litellm,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.resetDescription == "Personal")
+        #expect(window?.usedPercent == 100)
+    }
+
+    @Test
+    func `automatic metric prioritizes exhausted litellm team budget over active personal budget`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: "Personal"),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: "Team"),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .litellm,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.resetDescription == "Team")
+        #expect(window?.usedPercent == 100)
+    }
+
+    @Test
     func `automatic metric uses constrained antigravity family lane`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Claude"),
@@ -808,5 +842,56 @@ struct MenuBarMetricWindowResolverTests {
             supportsAverage: false)
 
         #expect(window?.resetsAt == reset)
+    }
+
+    @Test
+    func `automatic metric prioritizes exhausted kimi weekly quota over active rate limit`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: "Weekly"),
+            secondary: RateWindow(usedPercent: 4, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .kimi,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.resetDescription == "Weekly")
+        #expect(window?.usedPercent == 100)
+    }
+
+    @Test
+    func `automatic metric prioritizes exhausted kimi rate limit over active weekly quota`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: "Weekly"),
+            secondary: RateWindow(usedPercent: 100, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .kimi,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.resetDescription == "5-hour")
+        #expect(window?.usedPercent == 100)
+    }
+
+    @Test
+    func `automatic metric shows most constrained kimi window when neither is exhausted`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: "Weekly"),
+            secondary: RateWindow(usedPercent: 4, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .kimi,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.resetDescription == "Weekly")
+        #expect(window?.usedPercent == 40)
     }
 }
