@@ -51,7 +51,6 @@ struct SessionEquivalentForecast: Equatable, Sendable {
               == self.sessionWindowMinutes,
               weeklyWindow.windowMinutes.map({ PlanUtilizationSeriesName.weekly.canonicalWindowMinutes($0) })
               == self.weeklyWindowMinutes,
-              let sessionResetsAt = sessionWindow.resetsAt,
               let weeklyResetsAt = weeklyWindow.resetsAt,
               weeklyWindow.usedPercent.isFinite,
               (0...100).contains(weeklyWindow.usedPercent),
@@ -64,12 +63,18 @@ struct SessionEquivalentForecast: Equatable, Sendable {
 
         let sessionSeconds = TimeInterval(Self.sessionWindowMinutes * 60)
         let weeklySeconds = TimeInterval(Self.weeklyWindowMinutes * 60)
-        let sessionRemaining = sessionResetsAt.timeIntervalSince(now)
+        if let sessionResetsAt = sessionWindow.resetsAt {
+            let sessionRemaining = sessionResetsAt.timeIntervalSince(now)
+            guard sessionRemaining.isFinite,
+                  sessionRemaining > 0,
+                  sessionRemaining <= sessionSeconds + Self.resetTolerance
+            else {
+                return nil
+            }
+        }
+
         let weeklyRemaining = weeklyResetsAt.timeIntervalSince(now)
-        guard sessionRemaining.isFinite,
-              sessionRemaining > 0,
-              sessionRemaining <= sessionSeconds + Self.resetTolerance,
-              weeklyRemaining.isFinite,
+        guard weeklyRemaining.isFinite,
               weeklyRemaining > 0,
               weeklyRemaining <= weeklySeconds + Self.resetTolerance
         else {
@@ -167,7 +172,7 @@ enum SessionEquivalentBurnEstimator {
 
     static func estimate(
         histories: [PlanUtilizationSeriesHistory],
-        currentSessionResetsAt: Date,
+        currentSessionResetsAt: Date?,
         now: Date,
         sampleLimit: Int = Self.defaultSampleLimit) -> SessionEquivalentBurnEstimate?
     {
@@ -188,14 +193,19 @@ enum SessionEquivalentBurnEstimator {
 
         let sessionDuration = TimeInterval(SessionEquivalentForecast.sessionWindowMinutes * 60)
         let weeklyDuration = TimeInterval(SessionEquivalentForecast.weeklyWindowMinutes * 60)
-        let currentSessionRemaining = currentSessionResetsAt.timeIntervalSince(now)
-        guard currentSessionRemaining.isFinite,
-              currentSessionRemaining > 0,
-              currentSessionRemaining <= sessionDuration + Self.resetEquivalenceTolerance,
-              Self.isChronologicallyOrdered(sessionHistory.entries),
+        guard Self.isChronologicallyOrdered(sessionHistory.entries),
               Self.isChronologicallyOrdered(weeklyHistory.entries)
         else {
             return nil
+        }
+        if let currentSessionResetsAt {
+            let currentSessionRemaining = currentSessionResetsAt.timeIntervalSince(now)
+            guard currentSessionRemaining.isFinite,
+                  currentSessionRemaining > 0,
+                  currentSessionRemaining <= sessionDuration + Self.resetEquivalenceTolerance
+            else {
+                return nil
+            }
         }
 
         var groups: [SessionGroup] = []
@@ -226,7 +236,10 @@ enum SessionEquivalentBurnEstimator {
         }
 
         let completedActiveGroups = groups.reversed().compactMap { group -> SessionGroup? in
-            guard group.resetsAt < currentSessionResetsAt.addingTimeInterval(-Self.resetEquivalenceTolerance),
+            let precedesCurrentSession = currentSessionResetsAt.map {
+                group.resetsAt < $0.addingTimeInterval(-Self.resetEquivalenceTolerance)
+            } ?? true
+            guard precedesCurrentSession,
                   group.resetsAt <= now,
                   group.maximumUsedPercent > 0
             else {
@@ -399,10 +412,13 @@ enum SessionEquivalentBurnEstimator {
 }
 
 private struct SessionEquivalentBurnCacheKey: Equatable {
+    static let idleTimeBucketSeconds: TimeInterval = 60
+
     let historyRevision: Int
     let historySelectionIdentity: String
-    let currentSessionResetsAt: Date
+    let currentSessionResetsAt: Date?
     let weeklyWindowID: String?
+    let idleTimeBucket: Int64?
 }
 
 struct SessionEquivalentBurnCacheEntry {
@@ -422,10 +438,12 @@ extension UsageStore {
         now: Date = .init()) -> SessionEquivalentForecast?
     {
         guard sessionWindow.windowMinutes.map({ PlanUtilizationSeriesName.session.canonicalWindowMinutes($0) })
-            == SessionEquivalentForecast.sessionWindowMinutes,
-            let currentSessionResetsAt = sessionWindow.resetsAt,
-            currentSessionResetsAt.timeIntervalSinceReferenceDate.isFinite
+            == SessionEquivalentForecast.sessionWindowMinutes
         else {
+            return nil
+        }
+        let currentSessionResetsAt = sessionWindow.resetsAt
+        guard currentSessionResetsAt?.timeIntervalSinceReferenceDate.isFinite ?? true else {
             return nil
         }
 
@@ -441,7 +459,11 @@ extension UsageStore {
             historyRevision: self.planUtilizationHistoryRevision,
             historySelectionIdentity: selection.cacheIdentity,
             currentSessionResetsAt: currentSessionResetsAt,
-            weeklyWindowID: weeklyWindowID)
+            weeklyWindowID: weeklyWindowID,
+            idleTimeBucket: currentSessionResetsAt == nil
+                ? Int64(floor(now.timeIntervalSinceReferenceDate /
+                        SessionEquivalentBurnCacheKey.idleTimeBucketSeconds))
+                : nil)
         let burnEstimate: SessionEquivalentBurnEstimate?
         if let cached = self.sessionEquivalentBurnCache[provider], cached.key == cacheKey {
             burnEstimate = cached.estimate
