@@ -1272,6 +1272,9 @@
 "Weekly cannot run out before reset at this pace" = "Het weeklimiet kan bij dit tempo niet vóór de reset opraken";
 "Weekly can run out ≈%d windows early" = "Het weeklimiet kan ≈%d vensters eerder opraken";
 "Estimated: %@" = "Schatting: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "sessiequotum";
+"session quotas" = "sessiequota";
 "Coding Plan" = "Codeerplan";
 "Agent Plan" = "Agentplan";
 "Team" = "Team";

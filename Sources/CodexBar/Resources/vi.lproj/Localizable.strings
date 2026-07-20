@@ -1273,6 +1273,9 @@
 "Weekly cannot run out before reset at this pace" = "Với tốc độ này, hạn mức tuần không thể hết trước khi đặt lại";
 "Weekly can run out ≈%d windows early" = "Hạn mức tuần có thể hết sớm ≈%d cửa sổ";
 "Estimated: %@" = "Ước tính: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "hạn mức phiên";
+"session quotas" = "hạn mức phiên";
 "Coding Plan" = "Gói lập trình";
 "Agent Plan" = "Gói tác nhân";
 "Team" = "Nhóm";

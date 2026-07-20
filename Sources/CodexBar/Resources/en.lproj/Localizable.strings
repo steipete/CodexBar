@@ -1276,7 +1276,10 @@
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d full 5h windows of weekly left · %d windows until reset";
 "Weekly cannot run out before reset at this pace" = "Weekly cannot run out before reset at this pace";
 "Weekly can run out ≈%d windows early" = "Weekly can run out ≈%d windows early";
-"Estimated: %@" = "Estimated: %@";
+"Estimated: %@" = "Est. %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "session quota";
+"session quotas" = "session quotas";
 "Coding Plan" = "Coding Plan";
 "Agent Plan" = "Agent Plan";
 "Team" = "Team";

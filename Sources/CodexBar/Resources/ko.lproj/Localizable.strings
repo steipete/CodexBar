@@ -1240,6 +1240,9 @@
 "Weekly cannot run out before reset at this pace" = "이 속도라면 재설정 전에 주간 한도를 소진할 수 없습니다";
 "Weekly can run out ≈%d windows early" = "주간 한도가 약 %d개 창 일찍 소진될 수 있습니다";
 "Estimated: %@" = "예상: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "세션 할당량";
+"session quotas" = "세션 할당량";
 "Coding Plan" = "코딩 요금제";
 "Agent Plan" = "에이전트 요금제";
 "Team" = "팀";

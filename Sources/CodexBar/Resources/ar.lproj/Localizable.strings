@@ -1276,6 +1276,9 @@
 "Weekly cannot run out before reset at this pace" = "لا يمكن أن ينفد الحد الأسبوعي قبل إعادة التعيين بهذه الوتيرة";
 "Weekly can run out ≈%d windows early" = "قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة";
 "Estimated: %@" = "تقديري: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "حصة الجلسة";
+"session quotas" = "حصص الجلسات";
 "Coding Plan" = "خطة البرمجة";
 "Agent Plan" = "خطة الوكيل";
 "Team" = "فريق";

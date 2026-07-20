@@ -1303,6 +1303,9 @@
 "Weekly cannot run out before reset at this pace" = "依此速度，每週額度無法在重置前用完";
 "Weekly can run out ≈%d windows early" = "每週額度可能提前約 %d 個視窗用完";
 "Estimated: %@" = "預估：%@";
+"session_quota_estimate_value_format" = "%1$@%2$@";
+"session quota" = "工作階段額度";
+"session quotas" = "工作階段額度";
 "Coding Plan" = "程式設計方案";
 "Agent Plan" = "智慧體方案";
 "Team" = "團隊";

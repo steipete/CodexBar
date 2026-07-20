@@ -552,16 +552,19 @@ private struct MetricRow: View {
                         }
                     }
                     if let sessionEquivalentDetail = self.metric.sessionEquivalentDetail {
-                        Text(sessionEquivalentDetail.verdictText)
-                            .font(.footnote)
-                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                            .lineLimit(1)
-                            .accessibilityLabel(sessionEquivalentDetail.verdictAccessibilityLabel)
-                        Text(sessionEquivalentDetail.numberText)
-                            .font(.footnote)
-                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            .lineLimit(1)
-                            .accessibilityLabel(sessionEquivalentDetail.numberAccessibilityLabel)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(sessionEquivalentDetail.leftText)
+                                .font(.footnote)
+                                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                                .lineLimit(1)
+                            Spacer()
+                            Text(sessionEquivalentDetail.rightText)
+                                .font(.footnote)
+                                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                                .lineLimit(1)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(sessionEquivalentDetail.accessibilityLabel)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
