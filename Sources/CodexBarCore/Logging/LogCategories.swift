@@ -90,6 +90,7 @@ public enum LogCategories {
     public static let veniceUsage = "venice-usage"
     public static let vertexAIFetcher = "vertexai-fetcher"
     public static let warpUsage = "warp-usage"
+    public static let widgetSnapshot = "widget-snapshot"
     public static let zed = "zed"
     public static let webkitTeardown = "webkit-teardown"
     public static let zaiSettings = "zai-settings"

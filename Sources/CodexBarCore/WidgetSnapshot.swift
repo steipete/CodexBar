@@ -182,11 +182,23 @@ public struct WidgetSnapshot: Codable, Sendable {
 
 public enum WidgetSnapshotStore {
     private static let filename = AppGroupSupport.widgetSnapshotFilename
+    private static let log = CodexBarLog.logger(LogCategories.widgetSnapshot)
 
     public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
         let url = self.snapshotURL(bundleID: bundleID)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? self.decoder.decode(WidgetSnapshot.self, from: data)
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            self.log.warning("Failed to read widget snapshot: \(error.localizedDescription)")
+            return nil
+        }
+        do {
+            return try self.decoder.decode(WidgetSnapshot.self, from: data)
+        } catch {
+            self.log.warning("Failed to decode widget snapshot: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
