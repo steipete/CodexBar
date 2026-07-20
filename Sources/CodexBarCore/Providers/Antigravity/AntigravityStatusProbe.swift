@@ -208,11 +208,15 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let primary = Self.quotaSummaryRepresentative(
-            matching: { $0.lowercased().contains("gemini") },
-            in: namedWindows)
+            matching: { name in
+                name.lowercased().contains("gemini")
+            },
+            in: namedWindows.filter { $0.window.windowMinutes == 5 * 60 })
         let secondary = Self.quotaSummaryRepresentative(
-            matching: { $0.lowercased().contains("claude") || $0.lowercased().contains("gpt") },
-            in: namedWindows)
+            matching: { name in
+                name.lowercased().contains("gemini")
+            },
+            in: namedWindows.filter { $0.window.windowMinutes == 7 * 24 * 60 })
 
         let identity = ProviderIdentitySnapshot(
             providerID: .antigravity,

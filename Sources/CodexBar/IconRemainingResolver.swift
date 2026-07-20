@@ -28,64 +28,9 @@ enum IconRemainingResolver {
         return projection.visibleRateLanes.compactMap { projection.menuBarSelectableRateWindow(for: $0) }
     }
 
-    private static func antigravityQuotaSummaryWindows(
-        snapshot: UsageSnapshot,
-        prioritizeExhausted: Bool)
-        -> (primary: RateWindow?, secondary: RateWindow?)?
-    {
-        let quotaSummaryWindows = snapshot.extraRateWindows?
-            .filter {
-                $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix)
-            } ?? []
-        guard !quotaSummaryWindows.isEmpty else { return nil }
-
-        var eligibleWindows = quotaSummaryWindows.filter(\.usageKnown)
-        if !prioritizeExhausted {
-            let exhaustedRows = eligibleWindows.filter { $0.window.usedPercent >= 100 }
-            let exhaustedFamilies = Set(exhaustedRows
-                .compactMap { MenuBarMetricWindowResolver.antigravityQuotaFamily(for: $0) })
-            let filtered = eligibleWindows.filter { row in
-                guard let family = MenuBarMetricWindowResolver.antigravityQuotaFamily(for: row) else {
-                    return true
-                }
-                return !exhaustedFamilies.contains(family)
-            }
-            if !filtered.isEmpty {
-                eligibleWindows = filtered
-            }
-        }
-
-        return self.antigravityQuotaSummaryPair(in: eligibleWindows)
-    }
-
-    private static func antigravityQuotaSummaryPair(
-        in windows: [NamedRateWindow])
-        -> (primary: RateWindow?, secondary: RateWindow?)?
-    {
-        let session = self.mostConstrainedWindow(in: windows, windowMinutes: Self.sessionWindowMinutes)
-        let weekly = self.mostConstrainedWindow(in: windows, windowMinutes: Self.weeklyWindowMinutes)
-        guard session != nil || weekly != nil else { return nil }
-        return (primary: session, secondary: weekly)
-    }
-
-    /// Returns the highest-usage window for an exact Antigravity compact-icon cadence.
-    private static func mostConstrainedWindow(in windows: [NamedRateWindow], windowMinutes: Int) -> RateWindow? {
-        windows
-            .filter { $0.window.windowMinutes == windowMinutes }
-            .max { lhs, rhs in
-                if lhs.window.usedPercent != rhs.window.usedPercent {
-                    return lhs.window.usedPercent < rhs.window.usedPercent
-                }
-                // max(by:) keeps the right-hand element when this returns true; use `>` so the smallest id wins ties.
-                return lhs.id > rhs.id
-            }?
-            .window
-    }
-
     static func resolvedWindows(
         snapshot: UsageSnapshot,
         style: IconStyle,
-        antigravityPrioritizeExhaustedQuotas: Bool = false,
         secondaryOverrideWindowID: String? = nil,
         now: Date = Date())
         -> (primary: RateWindow?, secondary: RateWindow?)
@@ -95,13 +40,6 @@ enum IconRemainingResolver {
             return (
                 primary: windows.first,
                 secondary: windows.dropFirst().first)
-        }
-        if style == .antigravity {
-            // Only current quota-summary buckets define the fixed session/weekly icon lanes.
-            return self.antigravityQuotaSummaryWindows(
-                snapshot: snapshot,
-                prioritizeExhausted: antigravityPrioritizeExhaustedQuotas)
-                ?? (primary: nil, secondary: nil)
         }
         if style == .codex {
             let windows = self.codexVisibleWindows(snapshot: snapshot, now: now)
@@ -125,7 +63,6 @@ enum IconRemainingResolver {
     static func resolvedRemaining(
         snapshot: UsageSnapshot,
         style: IconStyle,
-        antigravityPrioritizeExhaustedQuotas: Bool = false,
         secondaryOverrideWindowID: String? = nil,
         now: Date = Date())
         -> (primary: Double?, secondary: Double?)
@@ -133,7 +70,6 @@ enum IconRemainingResolver {
         let windows = self.resolvedWindows(
             snapshot: snapshot,
             style: style,
-            antigravityPrioritizeExhaustedQuotas: antigravityPrioritizeExhaustedQuotas,
             secondaryOverrideWindowID: secondaryOverrideWindowID,
             now: now)
         return (
@@ -146,7 +82,6 @@ enum IconRemainingResolver {
         style: IconStyle,
         showUsed: Bool,
         renderingStyle: IconStyle? = nil,
-        antigravityPrioritizeExhaustedQuotas: Bool = false,
         secondaryOverrideWindowID: String? = nil,
         now: Date = Date())
         -> (primary: Double?, secondary: Double?)
@@ -154,7 +89,6 @@ enum IconRemainingResolver {
         let windows = Self.resolvedWindows(
             snapshot: snapshot,
             style: style,
-            antigravityPrioritizeExhaustedQuotas: antigravityPrioritizeExhaustedQuotas,
             secondaryOverrideWindowID: secondaryOverrideWindowID,
             now: now)
         var percents = (
