@@ -1272,6 +1272,9 @@
 "Weekly cannot run out before reset at this pace" = "За такого темпу тижневий ліміт не може вичерпатися до скидання";
 "Weekly can run out ≈%d windows early" = "Тижневий ліміт може вичерпатися на ≈%d вікон раніше";
 "Estimated: %@" = "Оцінка: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "ліміт сесії";
+"session quotas" = "ліміти сесій";
 "Coding Plan" = "План кодування";
 "Agent Plan" = "План агента";
 "Team" = "Команда";

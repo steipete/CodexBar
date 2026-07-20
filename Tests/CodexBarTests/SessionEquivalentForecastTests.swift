@@ -155,8 +155,8 @@ struct SessionEquivalentForecastTests {
             hidePersonalInfo: true)
 
         let redactedDetail = try #require(redacted.first?.sessionEquivalentDetail)
-        #expect(redactedDetail.verdictText == detail.verdictText)
-        #expect(redactedDetail.numberText == detail.numberText)
+        #expect(redactedDetail.leftText == detail.leftText)
+        #expect(redactedDetail.rightText == detail.rightText)
     }
 
     @Test
@@ -244,7 +244,7 @@ struct SessionEquivalentForecastTests {
     }
 
     @Test
-    func `formats verdict first and number second`() {
+    func `formats session quota estimate and reset windows`() {
         let early = SessionEquivalentForecast(
             estimatedWindowsToExhaustWeekly: 4,
             windowsUntilReset: 9,
@@ -261,22 +261,22 @@ struct SessionEquivalentForecastTests {
         let earlyText = UsagePaceText.sessionEquivalentDetail(forecast: early)
         let strandedText = UsagePaceText.sessionEquivalentDetail(forecast: stranded)
 
-        #expect(earlyText.verdictText == "Weekly can run out ≈5 windows early")
-        #expect(earlyText.numberText == "≈4 full 5h windows of weekly left · 9 windows until reset")
-        #expect(earlyText.verdictAccessibilityLabel == "Estimated: Weekly can run out ≈5 windows early")
-        #expect(strandedText.verdictText == "Weekly cannot run out before reset at this pace")
+        #expect(earlyText.leftText == "Est. 4 session quotas left")
+        #expect(earlyText.rightText == "9 windows until reset")
+        #expect(earlyText.accessibilityLabel == "Est. 4 session quotas left · 9 windows until reset")
+        #expect(strandedText.leftText == "Est. 10 session quotas left")
     }
 
     @Test
-    func `formats equality as lasting to reset and pluralizes singular windows`() {
+    func `formats quota estimates with up to one decimal and pluralizes units`() {
         let equal = UsagePaceText.sessionEquivalentDetail(forecast: SessionEquivalentForecast(
             estimatedWindowsToExhaustWeekly: 2,
             windowsUntilReset: 2,
             sampleCount: 7,
             weeklyResetsAt: Self.weeklyReset,
             weeklyUsedPercent: 80))
-        let singular = UsagePaceText.sessionEquivalentDetail(forecast: SessionEquivalentForecast(
-            estimatedWindowsToExhaustWeekly: 1,
+        let roundedSingular = UsagePaceText.sessionEquivalentDetail(forecast: SessionEquivalentForecast(
+            estimatedWindowsToExhaustWeekly: 1.04,
             windowsUntilReset: 2,
             sampleCount: 7,
             weeklyResetsAt: Self.weeklyReset,
@@ -288,25 +288,25 @@ struct SessionEquivalentForecastTests {
             weeklyResetsAt: Self.weeklyReset,
             weeklyUsedPercent: 14))
 
-        #expect(equal.verdictText == "Weekly cannot run out before reset at this pace")
-        #expect(singular.numberText == "≈1 full 5h window of weekly left · 2 windows until reset")
-        #expect(singular.verdictText == "Weekly can run out ≈1 window early")
-        #expect(close.numberText == "≈8 full 5h windows of weekly left · 9 windows until reset")
-        #expect(close.verdictText == "Weekly can run out ≈1 window early")
+        #expect(equal.leftText == "Est. 2 session quotas left")
+        #expect(roundedSingular.leftText == "Est. 1 session quota left")
+        #expect(roundedSingular.rightText == "2 windows until reset")
+        #expect(close.leftText == "Est. 8.6 session quotas left")
+        #expect(close.rightText == "9 windows until reset")
     }
 
     @Test
-    func `verdict uses fractional capacity while number line shows full windows`() {
+    func `formats sub-one quota and singular reset window`() {
         let detail = UsagePaceText.sessionEquivalentDetail(forecast: SessionEquivalentForecast(
-            estimatedWindowsToExhaustWeekly: 0.5,
-            windowsUntilReset: 0,
-            availableWindowsUntilReset: 0.8,
+            estimatedWindowsToExhaustWeekly: 0.3,
+            windowsUntilReset: 1,
+            availableWindowsUntilReset: 1.8,
             sampleCount: 7,
             weeklyResetsAt: Self.weeklyReset,
             weeklyUsedPercent: 95))
 
-        #expect(detail.verdictText == "Weekly can run out ≈1 window early")
-        #expect(detail.numberText == "≈0 full 5h windows of weekly left · 0 windows until reset")
+        #expect(detail.leftText == "Est. 0.3 session quota left")
+        #expect(detail.rightText == "1 window until reset")
     }
 
     @Test
@@ -396,7 +396,7 @@ struct SessionEquivalentForecastTests {
             sampleCount: 7,
             weeklyResetsAt: Self.weeklyReset,
             weeklyUsedPercent: 1))
-        #expect(huge.numberText.contains("full 5h windows"))
+        #expect(huge.leftText == "Est. 1,000,000 session quotas left")
     }
 
     @Test
@@ -447,7 +447,7 @@ struct SessionEquivalentForecastTests {
     @Test
     func `provider metric shows estimate only on its matching weekly window`() throws {
         let now = Date(timeIntervalSince1970: 1_900_000_000)
-        let weeklyReset = now.addingTimeInterval(2 * 24 * 3600)
+        let weeklyReset = now.addingTimeInterval((7 * 60 + 37) * 60)
         let snapshot = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 20,
@@ -455,18 +455,18 @@ struct SessionEquivalentForecastTests {
                 resetsAt: now.addingTimeInterval(3600),
                 resetDescription: nil),
             secondary: RateWindow(
-                usedPercent: 60,
+                usedPercent: 95,
                 windowMinutes: 10080,
                 resetsAt: weeklyReset,
                 resetDescription: nil),
             updatedAt: now)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
         let forecast = SessionEquivalentForecast(
-            estimatedWindowsToExhaustWeekly: 4,
-            windowsUntilReset: 9,
+            estimatedWindowsToExhaustWeekly: 0.3,
+            windowsUntilReset: 1,
             sampleCount: 7,
             weeklyResetsAt: weeklyReset,
-            weeklyUsedPercent: 60)
+            weeklyUsedPercent: 95)
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .claude,
@@ -486,13 +486,24 @@ struct SessionEquivalentForecastTests {
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
+            weeklyPace: UsagePace(
+                stage: .onTrack,
+                deltaPercent: -0.4,
+                expectedUsedPercent: 95.4,
+                actualUsedPercent: 95,
+                etaSeconds: nil,
+                willLastToReset: true),
             sessionEquivalentForecast: forecast,
             now: now))
 
         let sessionMetric = try #require(model.metrics.first { $0.id == "primary" })
         let weeklyMetric = try #require(model.metrics.first { $0.id == "secondary" })
         #expect(sessionMetric.sessionEquivalentDetail == nil)
-        #expect(weeklyMetric.sessionEquivalentDetail?.verdictText == "Weekly can run out ≈5 windows early")
+        #expect(weeklyMetric.percentLabel == "5% left")
+        #expect(weeklyMetric.detailLeftText == "On pace")
+        #expect(weeklyMetric.detailRightText == "Lasts until reset")
+        #expect(weeklyMetric.sessionEquivalentDetail?.leftText == "Est. 0.3 session quota left")
+        #expect(weeklyMetric.sessionEquivalentDetail?.rightText == "1 window until reset")
     }
 
     @MainActor

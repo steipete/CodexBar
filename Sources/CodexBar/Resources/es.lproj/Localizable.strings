@@ -1271,6 +1271,9 @@
 "Weekly cannot run out before reset at this pace" = "La cuota semanal no puede agotarse antes del reinicio a este ritmo";
 "Weekly can run out ≈%d windows early" = "La cuota semanal puede agotarse ≈%d ventanas antes";
 "Estimated: %@" = "Estimación: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "cuota de sesión";
+"session quotas" = "cuotas de sesión";
 "Coding Plan" = "Plan de programación";
 "Agent Plan" = "Plan de agente";
 "Team" = "Equipo";

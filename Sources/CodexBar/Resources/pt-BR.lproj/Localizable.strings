@@ -1273,6 +1273,9 @@
 "Weekly cannot run out before reset at this pace" = "A cota semanal não pode acabar antes da renovação nesse ritmo";
 "Weekly can run out ≈%d windows early" = "A cota semanal pode acabar ≈%d janelas antes";
 "Estimated: %@" = "Estimativa: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "cota da sessão";
+"session quotas" = "cotas da sessão";
 "Coding Plan" = "Plano de codificação";
 "Agent Plan" = "Plano de agente";
 "Team" = "Equipe";

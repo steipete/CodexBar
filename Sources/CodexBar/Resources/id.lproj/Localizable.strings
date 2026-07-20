@@ -1276,6 +1276,9 @@
 "Weekly cannot run out before reset at this pace" = "Kuota mingguan tidak dapat habis sebelum reset dengan laju ini";
 "Weekly can run out ≈%d windows early" = "Kuota mingguan dapat habis ≈%d jendela lebih awal";
 "Estimated: %@" = "Perkiraan: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "kuota sesi";
+"session quotas" = "kuota sesi";
 "Coding Plan" = "Paket Coding";
 "Agent Plan" = "Paket Agen";
 "Team" = "Tim";

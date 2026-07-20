@@ -1274,6 +1274,9 @@
 "Weekly cannot run out before reset at this pace" = "Bu hızda haftalık kota sıfırlamadan önce tükenemez";
 "Weekly can run out ≈%d windows early" = "Haftalık kota ≈%d pencere erken tükenebilir";
 "Estimated: %@" = "Tahmini: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "oturum kotası";
+"session quotas" = "oturum kotaları";
 "Coding Plan" = "Kodlama Planı";
 "Agent Plan" = "Ajan Planı";
 "Team" = "Ekip";

@@ -1273,6 +1273,9 @@
 "Weekly cannot run out before reset at this pace" = "このペースではリセット前に週間枠を使い切れません";
 "Weekly can run out ≈%d windows early" = "週間枠は約%dウィンドウ早く使い切る可能性があります";
 "Estimated: %@" = "推定：%@";
+"session_quota_estimate_value_format" = "%1$@%2$@";
+"session quota" = "セッション枠";
+"session quotas" = "セッション枠";
 "Coding Plan" = "コーディングプラン";
 "Agent Plan" = "エージェントプラン";
 "Team" = "チーム";

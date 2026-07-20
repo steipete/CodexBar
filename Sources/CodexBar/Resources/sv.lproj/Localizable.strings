@@ -1271,6 +1271,9 @@
 "Weekly cannot run out before reset at this pace" = "Veckokvoten kan inte ta slut före återställningen i den här takten";
 "Weekly can run out ≈%d windows early" = "Veckokvoten kan ta slut ≈%d fönster tidigare";
 "Estimated: %@" = "Uppskattning: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "sessionskvot";
+"session quotas" = "sessionskvoter";
 "Coding Plan" = "Kodningsplan";
 "Agent Plan" = "Agentplan";
 "Team" = "Team";

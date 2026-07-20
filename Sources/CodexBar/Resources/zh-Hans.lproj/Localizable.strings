@@ -1248,6 +1248,9 @@
 "Weekly cannot run out before reset at this pace" = "按此速度，每周额度无法在重置前用完";
 "Weekly can run out ≈%d windows early" = "每周额度可能提前约 %d 个窗口用完";
 "Estimated: %@" = "估算：%@";
+"session_quota_estimate_value_format" = "%1$@%2$@";
+"session quota" = "会话额度";
+"session quotas" = "会话额度";
 "Coding Plan" = "编程套餐";
 "Agent Plan" = "智能体套餐";
 "Team" = "团队";
