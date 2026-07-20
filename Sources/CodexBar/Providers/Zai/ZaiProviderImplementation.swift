@@ -60,11 +60,11 @@ struct ZaiProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "zai-api-key",
                 title: "API key",
-                subtitle: "Required. For China mainland use a BigModel key from open.bigmodel.cn / bigmodel.cn " +
-                    "(region BigModel CN). Global uses a z.ai key. Stored in ~/.codexbar/config.json " +
-                    "(env: Z_AI_API_KEY, BIGMODEL_API_KEY, ZHIPU_API_KEY).",
+                subtitle: "Coding Plan key (5-hour token window). China: BigModel open.bigmodel.cn key + " +
+                    "region BigModel CN. Also auto-reads ~/.coding-relay/glm-api-key or " +
+                    "Z_AI_API_KEY / BIGMODEL_API_KEY / ZHIPU_API_KEY / GLM_API_KEY.",
                 kind: .secure,
-                placeholder: "Paste BigModel / z.ai API key…",
+                placeholder: "Paste Coding Plan API key…",
                 binding: context.stringBinding(\.zaiAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(

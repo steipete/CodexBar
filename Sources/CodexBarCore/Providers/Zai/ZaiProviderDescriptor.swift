@@ -9,8 +9,9 @@ public enum ZaiProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .zai,
                 displayName: "z.ai / GLM",
-                sessionLabel: "Tokens",
-                weeklyLabel: "MCP",
+                // Coding Plan: primary bar is the 5-hour token window.
+                sessionLabel: "5-hour",
+                weeklyLabel: "Weekly",
                 opusLabel: "5-hour",
                 supportsOpus: true,
                 supportsCredits: false,

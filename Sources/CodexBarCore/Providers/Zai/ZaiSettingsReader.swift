@@ -9,8 +9,15 @@ public struct ZaiSettingsReader: Sendable {
         "Z_AI_API_KEY",
         "BIGMODEL_API_KEY",
         "ZHIPU_API_KEY",
+        "ZHIPUAI_API_KEY",
         "ZAI_API_KEY",
         "GLM_API_KEY",
+    ]
+    /// Local one-line key files used by coding relays / scripts on this machine.
+    public static let localAPIKeyRelativePaths = [
+        ".coding-relay/glm-api-key",
+        ".config/bigmodel/api_key",
+        ".config/zhipu/api_key",
     ]
     public static let apiHostKey = "Z_AI_API_HOST"
     public static let quotaURLKey = "Z_AI_QUOTA_URL"
@@ -18,10 +25,26 @@ public struct ZaiSettingsReader: Sendable {
     public static let bigModelProjectKey = "Z_AI_BIGMODEL_PROJECT"
 
     public static func apiToken(
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String?
     {
         for key in self.apiTokenEnvironmentKeys {
             if let token = self.cleaned(environment[key]) { return token }
+        }
+        return self.localAPIKeyFileToken(homeDirectory: homeDirectory)
+    }
+
+    /// Reads a single-line API key from well-known home-relative paths (e.g. coding-relay).
+    public static func localAPIKeyFileToken(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String?
+    {
+        for relative in self.localAPIKeyRelativePaths {
+            let url = homeDirectory.appendingPathComponent(relative)
+            guard FileManager.default.isReadableFile(atPath: url.path),
+                  let raw = try? String(contentsOf: url, encoding: .utf8),
+                  let token = self.cleaned(raw.split(separator: "\n").first.map(String.init))
+            else { continue }
+            return token
         }
         return nil
     }
@@ -91,8 +114,9 @@ public enum ZaiSettingsError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingToken:
-            "z.ai / GLM API key not found. Enable z.ai / GLM, paste a BigModel (open.bigmodel.cn) " +
-                "or z.ai key in Settings, or set Z_AI_API_KEY / BIGMODEL_API_KEY / ZHIPU_API_KEY."
+            "z.ai / GLM Coding Plan key not found. Enable z.ai / GLM, paste a BigModel key, set " +
+                "Z_AI_API_KEY / BIGMODEL_API_KEY / ZHIPU_API_KEY / GLM_API_KEY, or place a one-line key at " +
+                "~/.coding-relay/glm-api-key."
         case let .invalidEndpointOverride(key):
             "z.ai endpoint override \(key) must use HTTPS or a bare host."
         }
