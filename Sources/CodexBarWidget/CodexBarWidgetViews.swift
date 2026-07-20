@@ -2,8 +2,16 @@ import CodexBarCore
 import SwiftUI
 import WidgetKit
 
+// Manual EnvironmentKey (instead of @Entry) so the widget builds without SwiftUIMacros / full Xcode.
+private struct WidgetUsageShowsUsedKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
 extension EnvironmentValues {
-    @Entry fileprivate var widgetUsageShowsUsed: Bool = false
+    fileprivate var widgetUsageShowsUsed: Bool {
+        get { self[WidgetUsageShowsUsedKey.self] }
+        set { self[WidgetUsageShowsUsedKey.self] = newValue }
+    }
 }
 
 struct CodexBarUsageWidgetView: View {
@@ -313,7 +321,7 @@ private struct ProviderSwitchChip: View {
         case .opencodego: "OpenCode Go"
         case .alibaba: "Alibaba"
         case .alibabatokenplan: "Token Plan"
-        case .zai: "z.ai"
+        case .zai: "GLM"
         case .factory: "Droid"
         case .copilot: "Copilot"
         case .devin: "Devin"
@@ -324,7 +332,7 @@ private struct ProviderSwitchChip: View {
         case .kiro: "Kiro"
         case .augment: "Augment"
         case .jetbrains: "JetBrains"
-        case .kimi: "Kimi"
+        case .kimi: "Kimi Code"
         case .moonshot: "Moonshot"
         case .amp: "Amp"
         case .t3chat: "T3 Chat"

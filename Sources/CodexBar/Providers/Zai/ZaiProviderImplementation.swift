@@ -45,7 +45,8 @@ struct ZaiProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "zai-api-region",
                 title: "API region",
-                subtitle: "Use BigModel for the China mainland endpoints (open.bigmodel.cn).",
+                subtitle: "Global uses api.z.ai. China mainland GLM Coding Plan uses open.bigmodel.cn " +
+                    "(BigModel keys from bigmodel.cn — not interchangeable with global z.ai keys).",
                 binding: binding,
                 options: options,
                 isVisible: nil,

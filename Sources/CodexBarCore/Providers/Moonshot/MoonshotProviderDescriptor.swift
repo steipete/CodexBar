@@ -8,19 +8,20 @@ public enum MoonshotProviderDescriptor {
             id: .moonshot,
             metadata: ProviderMetadata(
                 id: .moonshot,
-                displayName: "Moonshot / Kimi API",
+                displayName: "Moonshot / Kimi Open Platform",
                 sessionLabel: "Balance",
                 weeklyLabel: "Balance",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
                 creditsHint: "",
-                toggleTitle: "Show Moonshot / Kimi API balance",
+                toggleTitle: "Show Moonshot / Kimi open-platform balance",
                 cliName: "moonshot",
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
+                // International console by default; China uses platform.kimi.com via region-aware UI actions.
                 dashboardURL: "https://platform.moonshot.ai/console/account",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -34,7 +35,7 @@ public enum MoonshotProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Moonshot / Kimi API cost summary is not available." }),
+                noDataMessage: { "Moonshot / Kimi open-platform cost summary is not available." }),
             fetchPlan: .apiToken(
                 strategyID: "moonshot.api",
                 resolveToken: { ProviderTokenResolver.moonshotToken(environment: $0) },
@@ -48,7 +49,8 @@ public enum MoonshotProviderDescriptor {
                 }),
             cli: ProviderCLIConfig(
                 name: "moonshot",
-                aliases: [],
+                // Common aliases when users look for “Kimi China / open platform”.
+                aliases: ["kimi-open", "kimi-cn", "moonshot-cn"],
                 versionDetector: nil))
     }
 }

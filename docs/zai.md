@@ -5,7 +5,15 @@ read_when:
   - Updating z.ai API endpoints
 ---
 
-# z.ai provider
+# z.ai / GLM provider
+
+z.ai (international) and BigModel (China mainland GLM) share one CodexBar provider with an
+**API region** switch:
+
+- Global: `api.z.ai`
+- China mainland: `open.bigmodel.cn` (`region: bigmodel-cn`)
+
+Use a key from the same region you select. Keys are not interchangeable across regions.
 
 z.ai is API-token based. No browser cookies.
 

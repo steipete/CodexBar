@@ -75,8 +75,10 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "kimi-usage-source",
                 title: "Usage source",
-                subtitle: "Auto tries your configured API key, then a signed-in Kimi Code CLI credential, " +
-                    "then browser cookies.",
+                subtitle: "Tracks the Kimi Code subscription only (api.kimi.com weekly quota). " +
+                    "Auto tries your Code API key, then a signed-in Kimi Code CLI credential, then browser cookies. " +
+                    "China open-platform balance (api.moonshot.cn) is a different product — enable " +
+                    "Moonshot / Kimi Open Platform and set API region to China mainland.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -89,7 +91,7 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "kimi-cookie-source",
                 title: "Cookie source",
-                subtitle: "Automatic imports browser cookies.",
+                subtitle: "Automatic imports browser cookies from kimi.com (Code console).",
                 dynamicSubtitle: subtitle,
                 binding: cookieBinding,
                 options: options,
@@ -103,19 +105,32 @@ struct KimiProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "kimi-api-key",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide KIMI_CODE_API_KEY.",
+                title: "Kimi Code API key",
+                subtitle: "Code subscription key from www.kimi.com/code (not platform.kimi.com open-platform keys). " +
+                    "Stored in ~/.codexbar/config.json. You can also provide KIMI_CODE_API_KEY. " +
+                    "For China open-platform balance, use Moonshot / Kimi Open Platform instead.",
                 kind: .secure,
                 placeholder: "Paste Kimi Code API key...",
                 binding: context.stringBinding(\.kimiAPIKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "kimi-open-api-docs",
-                        title: "Open API docs",
+                        title: "Open Code docs",
                         style: .link,
                         isVisible: nil,
                         perform: {
                             if let url = URL(string: "https://www.kimi.com/code/docs/en/") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }),
+                    ProviderSettingsActionDescriptor(
+                        id: "kimi-open-open-platform-china",
+                        title: "China open platform",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            // Jump to the product that actually has a China API host.
+                            if let url = URL(string: "https://platform.kimi.com/console/account") {
                                 NSWorkspace.shared.open(url)
                             }
                         }),
@@ -132,7 +147,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "kimi-open-console",
-                        title: "Open Console",
+                        title: "Open Code console",
                         style: .link,
                         isVisible: nil,
                         perform: {

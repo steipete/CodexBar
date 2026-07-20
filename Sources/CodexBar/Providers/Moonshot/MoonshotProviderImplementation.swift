@@ -49,7 +49,10 @@ struct MoonshotProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "moonshot-api-region",
                 title: "API region",
-                subtitle: "Choose the Moonshot/Kimi API host for international or China mainland accounts.",
+                subtitle: "Open-platform pay-as-you-go balance only. " +
+                    "China mainland uses api.moonshot.cn (platform.kimi.com keys). " +
+                    "International uses api.moonshot.ai. " +
+                    "Kimi Code weekly subscription is a different product under Kimi Code.",
                 binding: binding,
                 options: options,
                 isVisible: nil,
@@ -63,20 +66,19 @@ struct MoonshotProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "moonshot-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json.",
+                subtitle: "Open-platform key for the selected region. Stored in ~/.codexbar/config.json " +
+                    "(or MOONSHOT_API_KEY). Do not paste a Kimi Code subscription key here.",
                 kind: .secure,
                 placeholder: "sk-...",
                 binding: context.stringBinding(\.moonshotAPIToken),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "moonshot-open-dashboard",
-                        title: "Open Moonshot Console",
+                        title: "Open console",
                         style: .link,
                         isVisible: nil,
                         perform: {
-                            if let url = URL(string: "https://platform.moonshot.ai/console/account") {
-                                NSWorkspace.shared.open(url)
-                            }
+                            NSWorkspace.shared.open(context.settings.moonshotRegion.consoleURL)
                         }),
                 ],
                 isVisible: nil,

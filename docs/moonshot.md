@@ -1,33 +1,41 @@
 ---
-summary: "Moonshot / Kimi API provider data sources: API key + balance endpoint."
+summary: "Moonshot / Kimi open-platform balance: API key + China/intl region."
 read_when:
   - Adding or tweaking Moonshot balance parsing
-  - Updating Moonshot / Kimi API key handling
-  - Documenting Moonshot / Kimi API provider behavior
+  - Updating Moonshot / Kimi open-platform key handling
+  - Documenting China vs international Kimi API hosts
 ---
 
-# Moonshot / Kimi API provider
+# Moonshot / Kimi Open Platform provider
 
-Moonshot / Kimi API is API-only. Balance is reported by `GET /v1/users/me/balance`,
-so CodexBar only needs a valid API key to show the current account balance.
+Tracks **open-platform pay-as-you-go balance** via `GET /v1/users/me/balance`.
+This is the product with a real **China mainland** API host (`api.moonshot.cn`).
+
+## Not Kimi Code subscription
+
+| Product | Host | CodexBar provider |
+| --- | --- | --- |
+| **Open platform (this page)** | `api.moonshot.cn` / `api.moonshot.ai` | `moonshot` |
+| **Kimi Code weekly quota** | `api.kimi.com` only | `kimi` — see [kimi.md](kimi.md) |
+
+Do not paste a Kimi Code subscription key into this provider. Keys from
+`platform.kimi.com` (China) or `platform.moonshot.ai` (intl) belong here.
+
+CLI aliases: `moonshot`, `kimi-open`, `kimi-cn`, `moonshot-cn`.
 
 ## Rationale
 
-Kimi API docs use the Moonshot API surface for current Kimi models: examples read
-`MOONSHOT_API_KEY` and call `https://api.moonshot.ai/v1`, including the Kimi K2.6
-quickstart. This provider is therefore named after the account and billing surface,
-not a specific Kimi model version.
-
-CodexBar uses the official Moonshot account and billing surface rather than unofficial
-third-party Kimi relays.
+Kimi open-platform docs use the Moonshot API surface: examples read `MOONSHOT_API_KEY`
+and call `https://api.moonshot.ai/v1` (global) or `https://api.moonshot.cn/v1` (China).
+CodexBar names this after the billing surface, not a single model version.
 
 ## Data sources
 
 1. **API key** stored in `~/.codexbar/config.json` or supplied via `MOONSHOT_API_KEY` / `MOONSHOT_KEY`.
-   CodexBar stores the key in config after you paste it in Settings → Providers → Moonshot / Kimi API.
+   CodexBar stores the key after you paste it in Settings → Providers → Moonshot / Kimi Open Platform.
 2. **Region**
-   - International: `https://api.moonshot.ai/v1/users/me/balance`
-   - China mainland: `https://api.moonshot.cn/v1/users/me/balance`
+   - International: `https://api.moonshot.ai/v1/users/me/balance` (console: platform.moonshot.ai)
+   - China mainland: `https://api.moonshot.cn/v1/users/me/balance` (console: platform.kimi.com)
    - Configure with Settings → Providers → Moonshot → API region or `MOONSHOT_REGION`.
 3. **Balance endpoint**
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
@@ -37,7 +45,7 @@ third-party Kimi relays.
 
 - The menu card shows the available balance.
 - If `cash_balance` is negative, the card also surfaces the deficit.
-- There is no session or weekly window — Moonshot / Kimi API does not expose per-window quota via API.
+- There is no session or weekly window — the open platform does not expose per-window quota via this API.
 - Settings config takes precedence over environment variables when both are present.
 
 ## Key files

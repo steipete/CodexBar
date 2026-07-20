@@ -6,9 +6,23 @@ read_when:
   - Adjusting Kimi menu labels or settings
 ---
 
-# Kimi Provider
+# Kimi Code Provider
 
-Tracks usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar.
+Tracks **Kimi Code subscription** usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar
+(`api.kimi.com` weekly quota + rate limits).
+
+## Not the China open platform
+
+Kimi has two official products that are easy to confuse:
+
+| Product | Host | What CodexBar shows | Provider id |
+| --- | --- | --- | --- |
+| **Kimi Code** (this page) | `api.kimi.com` / `www.kimi.com` | Weekly coding quota | `kimi` |
+| **Moonshot / Kimi open platform** | `api.moonshot.cn` (China) or `api.moonshot.ai` (intl) | Cash/voucher **balance** | `moonshot` |
+
+There is **no** separate Kimi Code usage host for China (`api.moonshot.cn/coding/v1/usages` is 404).
+If you need mainland open-platform balance, enable **Moonshot / Kimi Open Platform** and set
+API region to **China mainland**. See [moonshot.md](moonshot.md).
 
 ## Features
 
