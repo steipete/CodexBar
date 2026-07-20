@@ -16,6 +16,7 @@ extension StatusItemController {
         self.measuredStandardMenuWidthCache.removeAll(keepingCapacity: false)
         self.mergedSwitcherContentCaches.removeAll(keepingCapacity: false)
         self.menuCardViewRecyclePool.removeAll(keepingCapacity: false)
+        self.menuBarLayoutRenderer.removeAll()
 
         return summary
     }

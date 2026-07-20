@@ -14,12 +14,14 @@ actor CodexCLISession {
         case launchFailed(String)
         case timedOut
         case processExited
+        case outputTooLarge
 
         var errorDescription: String? {
             switch self {
             case let .launchFailed(msg): "Failed to launch Codex CLI session: \(msg)"
             case .timedOut: "Codex CLI session timed out."
             case .processExited: "Codex CLI session exited."
+            case .outputTooLarge: "Codex CLI session produced more output than CodexBar can safely process."
             }
         }
     }
@@ -126,7 +128,13 @@ actor CodexCLISession {
         var statusScanBuffer = RollingBuffer(maxNeedle: statusMaxNeedle)
         var updateScanBuffer = RollingBuffer(maxNeedle: updateMaxNeedle)
 
-        var buffer = Data()
+        var buffer = BoundedOutputBuffer()
+        func appendOutput(_ data: Data) throws {
+            guard buffer.append(data) else {
+                self.cleanup()
+                throw SessionError.outputTooLarge
+            }
+        }
         let deadline = Date().addingTimeInterval(options.timeout)
         var nextCursorCheckAt = Date(timeIntervalSince1970: 0)
 
@@ -143,7 +151,7 @@ actor CodexCLISession {
         while Date() < deadline {
             let newData = self.readChunk()
             if !newData.isEmpty {
-                buffer.append(newData)
+                try appendOutput(newData)
             }
             let scanData = statusScanBuffer.append(newData)
             if Date() >= nextCursorCheckAt,
@@ -234,7 +242,7 @@ actor CodexCLISession {
             while Date() < settleDeadline {
                 let newData = self.readChunk()
                 if !newData.isEmpty {
-                    buffer.append(newData)
+                    try appendOutput(newData)
                 }
                 let scanData = statusScanBuffer.append(newData)
                 if Date() >= nextCursorCheckAt,
@@ -248,7 +256,7 @@ actor CodexCLISession {
             }
         }
 
-        guard !buffer.isEmpty, let text = String(data: buffer, encoding: .utf8) else {
+        guard !buffer.data.isEmpty, let text = String(data: buffer.data, encoding: .utf8) else {
             throw SessionError.timedOut
         }
         return text

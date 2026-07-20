@@ -1,8 +1,13 @@
 /* Arabic localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "تحتاج ملفات تعريف ارتباط Safari إلى وصول كامل إلى القرص لتطبيق CodexBar (إعدادات النظام > الخصوصية والأمان).";
+"ollama_browser_cookie_decryption_denied" = "تم رفض فك تشفير ملفات تعريف ارتباط %@ في سلسلة المفاتيح؛ أعد المحاولة بتحديث يدوي.";
+"ollama_browser_cookie_decryption_disabled" = "فك تشفير ملفات تعريف ارتباط %@ معطل في CodexBar؛ فعّل الوصول إلى سلسلة المفاتيح ثم حدّث.";
+
 " providers" = " providers";
 "(System)" = "(النظام)";
 "30d" = "30 يومًا";
+"7d" = "7 أيام";
 "A managed Codex login is already running. Wait for it to finish before adding " = "تسجيل دخول Codex المدار يعمل بالفعل. انتظر حتى ينتهي قبل إضافة  ";
 "API key" = "مفتاح API";
 "API region" = "منطقة API";
@@ -58,13 +63,16 @@
 "Check for updates automatically" = "تحقق تلقائيا من التحديثات";
 "Check if you like your agents having some fun up there." = "تحقق إذا كنت تحب وكلائنك يستمتعون هناك.";
 "Check provider status" = "تحقق من حالة المزود";
+"Choose a supported browser so CodexBar can read the matching account." = "اختر متصفحًا مدعومًا حتى يتمكن CodexBar من قراءة الحساب المطابق.";
 "Choose Codex workspace" = "اختر Codex مساحة العمل";
+"Choose Cursor account" = "اختر حساب Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "اختر المضيف MiniMax (.io العالمي أو .com البر الرئيسي الصيني).";
 "Choose up to " = "اختر حتى  ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "اختر حتى \\(Self.maxOverviewProviders) المزودين";
 "Choose up to \\(count) providers" = "اختر حتى \\(count) المزودين";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "اختر ما تريد عرضه في شريط القائمة (Pace يظهر الاستخدام مقابل المتوقع).";
 "Choose which Codex account CodexBar should follow." = "اختر أي حساب Codex يجب CodexBar اتباعه.";
+"Choose which Cursor account CodexBar should use." = "اختر حساب Cursor الذي يجب أن يستخدمه CodexBar.";
 "Choose which window drives the menu bar percent." = "اختر أي نافذة تحدد نسبة شريط القوائم.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI لم يعثر عليه";
@@ -300,7 +308,6 @@
 "Store multiple OpenCode Go Cookie headers." = "تخزين عدة رؤوس OpenCode Go Cookie.";
 "Stored in the CodexBar config file." = "مخزنة في ملف الإعدادات CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "مخزنة في ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "مخزن في ~/.codexbar/config.json. تولد واحدا عند kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "مخزنة في ~/.codexbar/config.json. الصق المفتاح من لوحة Synthetic.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "مخزن في ~/.codexbar/config.json. الصق مفتاح خطة البرمجة الخاصة بك API من Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "مخزن في ~/.codexbar/config.json. الصق مفتاح MiniMax API الخاص بك.";
@@ -330,6 +337,7 @@
 "Usage breakdown" = "تفصيل الاستخدام";
 "Usage history (30 days)" = "تاريخ الاستخدام";
 "Usage source" = "مصدر الاستخدام";
+"Use Account" = "استخدام الحساب";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "استخدم BigModel لنقاط نهاية البر الرئيسي للصين (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "استخدم أيقونة شريط قائمة واحدة مع محول المزود.";
 "Use international or China mainland console gateways for quota fetches." = "استخدم بوابات الكونسول الدولية أو الصينية لجلب الحصص.";
@@ -440,7 +448,7 @@
 "cost_history_days_title" = "نافذة التاريخ: %d أيام";
 "cost_comparison_periods_title" = "إظهار فترات مقارنة أقصر";
 "cost_comparison_periods_subtitle" = "أضف إجماليات 7 و30 و90 يومًا عندما تقع ضمن نافذة التاريخ المحددة. تعيد هذه الإجماليات استخدام الفحص المحلي نفسه.";
-"cost_auto_refresh_info" = "تحديث تلقائي: كل ساعة · وقت الاستراحة: 10m";
+"cost_auto_refresh_info" = "تحديث تلقائي: الفاصل الزمني العام (الحد الأدنى 5 دقائق) · المهلة: 10 دقائق";
 "refresh_interval_title" = "فاصل التحديث";
 "manual_refresh_hint" = "التحديث التلقائي مغلق؛ استخدم أمر التحديث في القائمة.";
 "refresh_on_open_title" = "التحديث عند فتح القائمة";
@@ -502,7 +510,28 @@
 "tab_menu_bar" = "شريط القوائم";
 "tab_menu" = "القائمة";
 "tab_advanced" = "متقدمة";
+"tab_hooks" = "الخطافات";
 "tab_about" = "حول";
+
+/* Hooks Pane */
+"hooks_enable_title" = "تفعيل الخطافات";
+"hooks_enable_subtitle" = "تشغيل أوامر خارجية عند وقوع أحداث الحصة أو المزود.";
+"hooks_trust_warning" = "يمكن للخطافات تنفيذ أوامر محلية على جهاز Mac. اضبط فقط الأوامر التي تثق بها.";
+"hooks_rules_header" = "القواعد";
+"hooks_empty" = "لا توجد خطافات مُهيأة.";
+"hooks_add_rule" = "إضافة قاعدة";
+"hooks_delete_rule" = "حذف القاعدة";
+"hooks_rule_enabled" = "مُفعّل";
+"hooks_event" = "الحدث";
+"hooks_provider" = "المزود";
+"hooks_any_provider" = "أي مزود";
+"hooks_threshold" = "التشغيل عند الاستخدام ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "الوسائط";
+"hooks_argument_placeholder" = "الوسيطة";
+"hooks_add_argument" = "إضافة وسيطة";
+"hooks_delete_argument" = "حذف الوسيطة";
 "tab_debug" = "تصحيح الأخطاء";
 
 /* Providers Pane */
@@ -526,13 +555,14 @@
 "menu_bar_metric_subtitle_deepseek" = "يظهر توازن DeepSeek في شريط القوائم.";
 "menu_bar_metric_subtitle_moonshot" = "يظهر توازن Moonshot / Kimi API في شريط القوائم.";
 "menu_bar_metric_subtitle_mistral" = "يعرض الإنفاق Mistral API الشهري الحالي في شريط القوائم.";
-"menu_bar_metric_subtitle_kimik2" = "يعرض Kimi اعتمادات K2 API المفاتيح في شريط القوائم.";
 "automatic" = "أوتوماتيكي";
 "primary_api_key_limit" = "الحد الأساسي (API المفاتيح)";
 
 /* Display Pane */
 "menu_bar_style_title" = "نمط شريط القوائم";
 "menu_bar_style_subtitle" = "كيفية رسم عنصر شريط القوائم.";
+"menu_bar_inactive_display_contrast_title" = "تحسين الوضوح على الشاشات غير النشطة";
+"menu_bar_inactive_display_contrast_subtitle" = "استخدم عرضًا عالي التباين لإبقاء الأيقونة والمقياس قابلين للقراءة على الشاشات الأخرى.";
 "menu_bar_style_critters" = "الكائنات الصغيرة";
 "menu_bar_style_bars" = "أشرطة القياس";
 "menu_bar_style_icon_percent" = "الأيقونة والنسبة المئوية";
@@ -575,6 +605,12 @@
 "agent_sessions_subtitle" = "إظهار جلسات Codex وClaude Code المحلية والمكتشفة عبر SSH في القائمة.";
 "agent_sessions_hosts_title" = "مضيفو SSH إضافيون";
 "agent_sessions_footer" = "يتم اكتشاف أجهزة Mac على شبكة tailnet تلقائيًا. يتم تحديث الجلسات المحلية كل 30 ثانية؛ والمضيفون البعيدون كل 60 ثانية وعند فتح القائمة.";
+"agent_session_labels_title" = "تسميات الجلسات";
+"agent_session_labels_subtitle" = "اختر كيفية تسمية جلسات الوكلاء.";
+"agent_session_label_project" = "المشروع";
+"agent_session_label_descriptive" = "وصفي";
+"agent_session_label_descriptive_and_project" = "وصفي + المشروع";
+"agent_session_unknown_project" = "مشروع غير معروف";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "اختصار لوحة المفاتيح";
@@ -706,13 +742,19 @@
 "refresh_15min" = "15 دقيقة";
 "refresh_30min" = "30 دقيقة";
 "refresh_adaptive" = "تكيفي";
+"refresh_adaptive_agent_aware" = "تكيفي (مدرك لنشاط الوكيل)";
+"adaptive_activity_consent_title" = "السماح بالتحديث المستجيب للنشاط؟";
+"adaptive_activity_consent_message" = "يمكن لوضع التحديث التكيفي المدرك لنشاط الوكيل فحص قائمة العمليات المحلية قيد التشغيل، بما في ذلك أسطر الأوامر، للتعرّف على Codex وClaude، ثم قراءة بيانات تعريف الجلسات المعروفة كل 30 ثانية أثناء البرمجة. عند إيقاف Agent Sessions، لا يستخدم CodexBar سوى وقت أحدث نشاط في الذاكرة ويتجاهل مسارات الجلسات وهوياتها. لا تُرسل بيانات النشاط هذه إلى أي مكان، ويظل الاكتشاف عن بُعد وSSH متوقفين. إذا رفضت، فسيعود CodexBar إلى الوضع التكيفي العادي دون عمليات فحص النشاط المحلي.";
+"adaptive_activity_consent_allow" = "السماح بالنشاط المحلي";
+"adaptive_activity_consent_decline" = "استخدام التحديث التكيفي العادي";
 
 /* Additional keys */
 "not_found" = "لم يعثر عليه";
 
 /* Cost estimation */
-"cost_header_estimated" = "التكلفة (تقديرية)";
 "cost_estimate_hint" = "تقديرات من سجلات محلية · قد تختلف عن فاتورتك";
+"codex_api_estimate_hint" = "تقدير استنادًا إلى استخدام الرموز · ليست فاتورة اشتراك";
+"cost_data_explanation" = "قد تكون التكاليف واردة من المزوّد أو مقدّرة من استخدام الرموز وفق أسعار API العامة. التقديرات ليست رسوم اشتراك.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "لم يتم اكتشاف أي JetBrains IDE مع مساعدة الذكاء الاصطناعي. قم بتثبيت JetBrains IDE وفعل AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API الرمز غير مكون. حدد OPENROUTER_API_KEY متغير البيئة أو قم بالتكوين في الإعدادات.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API الرمز لم يعثر عليه. اضبط apiKey في ~/.codexbar/config.json أو Z_AI_API_KEY.";
@@ -742,6 +784,7 @@
 "Today" = "اليوم";
 "Today tokens" = "الرموز اليوم";
 "30d cost" = "تكلفة 30d";
+"%@ cost" = "تكلفة %@";
 "30d tokens" = "رموز 30d";
 "Latest tokens" = "أحدث الرموز";
 "Top model" = "أفضل موديل";
@@ -887,7 +930,7 @@
 "Hourly Usage" = "الاستخدام بالساعة";
 "Usage remaining" = "الاستخدام المتبقي";
 "Usage used" = "الاستخدام المستخدم";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "تم التحقق من API المفتاح. Ollama لا يكشف حدود حصص السحابة عبر API.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "تم التحقق من مفتاح API. تتطلب حصص Cloud ملفات تعريف ارتباط المتصفح. سجّل الدخول إلى Ollama.";
 "Last 30 days: %@ tokens" = "آخر 30 يوما: %@ الرموز";
 "7d spend" = "7d تنفق";
 "30d spend" = "30d تنفق";
@@ -898,6 +941,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax اتجاه استخدام الرموز خلال 30 يوما";
 "Today cash" = "اليوم نقدا";
 "DeepSeek 30 day token usage trend" = "DeepSeek اتجاه استخدام الرموز خلال 30 يوما";
+"Detailed usage unavailable." = "الاستخدام التفصيلي غير متاح.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في Chrome لعرض الاستخدام التفصيلي.";
+"Select a DeepSeek Chrome profile in Settings." = "حدد ملف تعريف Chrome لـ DeepSeek في الإعدادات.";
+"DeepSeek this month token usage trend" = "اتجاه استخدام رموز DeepSeek لهذا الشهر";
+"Chrome profile" = "ملف تعريف Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "اختر جلسة DeepSeek Platform المسجّل دخولها التي توفّر تفاصيل الاستخدام.";
+"Select profile…" = "اختر ملفًا شخصيًا…";
 "cache-hit input" = "إدخال الضربات المؤقتة";
 "cache-miss input" = "إدخال ذاكرة تخزين مؤقت (CACHE-miss)";
 "output" = "الإنتاج";
@@ -1021,7 +1071,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain رأس الكوكيز Cursor الخاص بك حتى يتمكن من استخدام الاستخدام. انقر موافقا للمتابعة.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain رأس الكوكيز Factory الخاص بك حتى يتمكن من استخدام الاستخدام. انقر موافقا للمتابعة.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain رمز GitHub Copilot الخاص بك حتى يتمكن من استدعاء الاستخدام. انقر موافقا للمتابعة.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain مفتاح API K2 Kimi الخاص بك حتى يتمكن من جلب الاستخدام. انقر موافقا للمتابعة.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain رمز التوثيق Kimi الخاص بك حتى يتمكن من استدعاء الاستخدام. انقر موافقا للمتابعة.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain رمز MiniMax API الخاص بك حتى يتمكن من استدعاء الاستخدام. انقر موافقا للمتابعة.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar سيطلب macOS Keychain رأس الكوكيز MiniMax الخاص بك حتى يتمكن من استخدام الاستخدام. انقر موافقا للمتابعة.";
@@ -1172,7 +1221,6 @@
 "byte_unit_megabytes" = "ميغابايتات";
 "byte_unit_gigabyte" = "غيغابايت";
 "byte_unit_gigabytes" = "غيغابايتات";
-"CrossModel API spend trend" = "اتجاه إنفاق CrossModel API";
 
 /* Settings sidebar redesign */
 "Enable" = "تفعيل";
@@ -1187,3 +1235,113 @@
 "Show Codex Spark usage" = "عرض استخدام Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "يعرض صفوف حصة Codex Spark في القائمة ومعاينة المزوّد. يتطلب تفعيل «عرض الاعتمادات + الاستخدام الإضافي» في إعدادات العرض.";
 "Scroll to see more models" = "مرر لرؤية المزيد من النماذج";
+/* Shareable usage card */
+"Copy Image" = "نسخ الصورة";
+"Copy Stats" = "نسخ الإحصاءات";
+"Could not copy image" = "تعذر نسخ الصورة";
+"Image copied" = "تم نسخ الصورة";
+"Image saved" = "تم حفظ الصورة";
+"Nothing is uploaded. This image is created on your Mac." = "لا يتم رفع أي شيء. تُنشأ هذه الصورة على جهاز Mac.";
+"Save..." = "حفظ...";
+"Share AI Usage" = "مشاركة استخدام الذكاء الاصطناعي";
+"Share Stats…" = "مشاركة الإحصاءات…";
+"Stats copied" = "تم نسخ الإحصاءات";
+"Finish switching to a different Cursor account in your browser, then try again." = "أكمل التبديل إلى حساب Cursor مختلف في متصفحك، ثم حاول مرة أخرى.";
+"Timed out waiting for Cursor account switch. %@" = "انتهت مهلة انتظار تبديل حساب Cursor. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "انتهت مهلة انتظار تبديل حساب Cursor. %@ آخر خطأ: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "الاستخدام والإنفاق";
+"Usage & Spend" = "الاستخدام والإنفاق";
+"Local estimated cost history across supported providers." = "سجل التكاليف التقديري المحلي عبر المزوّدين المدعومين.";
+"Time range" = "النطاق الزمني";
+"Track costs" = "تتبّع التكاليف";
+"Cost tracking is off" = "تتبّع التكاليف متوقف";
+"Turn on Track costs to build local estimates." = "فعّل «تتبّع التكاليف» لإنشاء تقديرات محلية.";
+"No local cost history yet" = "لا يوجد سجل تكاليف محلي بعد";
+"Turn on cost tracking or refresh after using a supported provider." = "فعّل تتبّع التكاليف أو حدّث بعد استخدام مزوّد مدعوم.";
+"Refresh failures" = "حالات فشل التحديث";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "تبقى العملات الأصلية منفصلة؛ تستبعد صفوف حساب Codex سجل جلسات Pi.";
+"Spend unavailable" = "الإنفاق غير متاح";
+"Model breakdown unavailable" = "تفصيل الإنفاق حسب النموذج غير متاح";
+"Local estimated history" = "السجل التقديري المحلي";
+"Coverage" = "التغطية";
+"Estimated spend" = "الإنفاق التقديري";
+"Tracked tokens" = "الرموز المتتبعة";
+"Subscriptions" = "الاشتراكات";
+"By subscription" = "حسب الاشتراك";
+"No model-level history" = "لا يوجد سجل على مستوى النموذج";
+"Daily estimated spend" = "الإنفاق اليومي التقديري";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي · %d نافذة حتى إعادة التعيين";
+"Weekly cannot run out before reset at this pace" = "لا يمكن أن ينفد الحد الأسبوعي قبل إعادة التعيين بهذه الوتيرة";
+"Weekly can run out ≈%d windows early" = "قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة";
+"Estimated: %@" = "تقديري: %@";
+"Coding Plan" = "خطة البرمجة";
+"Agent Plan" = "خطة الوكيل";
+"Team" = "فريق";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "التخطيط";
+"menu_bar_layout_footer" = "اسحب العناصر لترتيب شريط القوائم. انقر على عنصر لإضافته؛ حدّد عنصراً موضوعاً واضغط Delete لإزالته.";
+"menu_bar_layout_group_identity" = "الهوية";
+"menu_bar_layout_group_usage" = "الاستخدام";
+"menu_bar_layout_group_time" = "الوقت";
+"menu_bar_layout_group_money" = "التكلفة";
+"menu_bar_layout_group_structure" = "البنية";
+"menu_bar_layout_scope_all" = "كل المزوّدين";
+"menu_bar_layout_scope_help" = "عدّل التخطيط الافتراضي أو خصّص مزوّداً واحداً.";
+"menu_bar_layout_use_all" = "استخدام تخطيط كل المزوّدين";
+"menu_bar_layout_preset" = "إعداد تخطيط مسبق";
+"menu_bar_layout_preset_icon_percent" = "الأيقونة والنسبة";
+"menu_bar_layout_preset_icon_only" = "الأيقونة فقط";
+"menu_bar_layout_preset_percent_reset" = "النسبة وإعادة الضبط";
+"menu_bar_layout_preset_compact_stacked" = "مكدّس مضغوط";
+"menu_bar_layout_preset_custom" = "العرف";
+"menu_bar_layout_live_preview" = "معاينة مباشرة";
+"menu_bar_layout_strip" = "شريط القوائم";
+"menu_bar_layout_remove_line_break" = "إزالة فاصل السطر";
+"menu_bar_layout_chip_hint" = "حدّد أو اسحب لإعادة الترتيب أو استخدم إجراء الإزالة.";
+"menu_bar_layout_palette_hint" = "انقر للإضافة أو اسحب إلى التخطيط.";
+"menu_bar_layout_empty_line" = "أفلت عنصراً هنا";
+"menu_bar_layout_line" = "السطر %d";
+"menu_bar_layout_drag_remove" = "اسحب هنا للإزالة";
+"menu_bar_layout_size" = "الحجم";
+"menu_bar_layout_size_small" = "صغير";
+"menu_bar_layout_size_regular" = "عادي";
+"menu_bar_layout_gap" = "المسافة";
+"menu_bar_layout_gap_tight" = "ضيّق";
+"menu_bar_layout_gap_regular" = "عادي";
+"menu_bar_layout_keyboard_hint" = "يحذف Delete العنصر المحدد";
+"menu_bar_layout_sample_account" = "حساب";
+"menu_bar_layout_sample_runs_out" = "ينفد الجمعة";
+"menu_bar_layout_token_icon" = "الأيقونة";
+"menu_bar_layout_token_provider" = "اسم المزوّد";
+"menu_bar_layout_token_account" = "الحساب";
+"menu_bar_layout_token_session" = "الجلسة %";
+"menu_bar_layout_token_weekly" = "الأسبوعي %";
+"menu_bar_layout_token_auto" = "نسبة تلقائية";
+"menu_bar_layout_token_bar" = "شريط الاستخدام";
+"menu_bar_layout_token_resets_in" = "إعادة الضبط خلال";
+"menu_bar_layout_token_reset_at" = "إعادة الضبط عند";
+"menu_bar_layout_token_runs_out" = "ينفد";
+"menu_bar_layout_token_cost_today" = "تكلفة اليوم";
+"menu_bar_layout_token_cost_30d" = "تكلفة 30 يوماً";
+"menu_bar_layout_token_space" = "مسافة";
+"menu_bar_layout_token_line_break" = "فاصل سطر";
+"menu_bar_layout_token_separator_accessibility" = "نقطة فاصلة";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "الأيقونة: غير متوفر";
+"%@ icon" = "%@: الأيقونة";
+"Provider name unavailable" = "اسم المزوّد: غير متوفر";
+"Account unavailable" = "الحساب: غير متوفر";
+"%@ unavailable" = "%@: غير متوفر";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "شريط الاستخدام: غير متوفر";
+"Usage bar, %d of 3 filled" = "شريط الاستخدام: %d/3 ممتلئ";
+"Reset countdown unavailable" = "إعادة الضبط خلال: غير متوفر";
+"Reset time unavailable" = "إعادة الضبط عند: غير متوفر";
+"Run-out estimate unavailable" = "ينفد: غير متوفر";
+"Cost today unavailable" = "تكلفة اليوم: غير متوفر";
+"30-day cost unavailable" = "تكلفة 30 يوماً: غير متوفر";
+"Resets" = "إعادات الضبط";

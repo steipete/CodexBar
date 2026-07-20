@@ -25,73 +25,84 @@ struct TTYCommandRunnerEnvTests {
 
     @Test
     func `shutdown fence drains tracked TTY processes`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 1001, binary: "codex"))
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+            #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 1001, binary: "codex"))
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
 
-        let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
-        #expect(drained.count == 1)
-        #expect(drained[0].pid == 1001)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
+            #expect(drained.count == 1)
+            #expect(drained[0].pid == 1001)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `cached CLI sessions share shutdown tracking`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner.registerActiveProcessForAppShutdown(pid: 3001, binary: "codex"))
-        TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: 3001, processGroup: 3001)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
+            #expect(TTYCommandRunner.registerActiveProcessForAppShutdown(pid: 3001, binary: "codex"))
+            TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: 3001, processGroup: 3001)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 1)
 
-        TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: 3001)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: 3001)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `tracked process helpers ignore invalid PID`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        TTYCommandRunner._test_trackProcess(pid: 0, binary: "codex", processGroup: nil)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            TTYCommandRunner._test_trackProcess(pid: 0, binary: "codex", processGroup: nil)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `shutdown fence rejects new registrations`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2001, binary: "codex"))
-        let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
-        #expect(drained.count == 1)
+            #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2001, binary: "codex"))
+            let drained = TTYCommandRunner._test_drainTrackedProcessesForShutdown()
+            #expect(drained.count == 1)
 
-        #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex") == false)
-        #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+            #expect(TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex") == false)
+            #expect(TTYCommandRunner._test_trackedProcessCount() == 0)
+        }
     }
 
     @Test
     func `shutdown waits for launch cleanup before draining`() {
-        TTYCommandRunner._test_resetTrackedProcesses()
-        defer { TTYCommandRunner._test_resetTrackedProcesses() }
+        TTYCommandRunner.withIsolatedActiveProcessRegistryForTesting {
+            TTYCommandRunner._test_resetTrackedProcesses()
+            defer { TTYCommandRunner._test_resetTrackedProcesses() }
 
-        #expect(TTYCommandRunner._test_beginTrackedProcessLaunch())
-        let fenceSet = DispatchSemaphore(value: 0)
-        let completed = DispatchSemaphore(value: 0)
-        Thread.detachNewThread {
-            _ = TTYCommandRunner._test_drainTrackedProcessesForShutdown {
+            #expect(TTYCommandRunner._test_beginTrackedProcessLaunch())
+            let fenceSet = DispatchSemaphore(value: 0)
+            let completed = DispatchSemaphore(value: 0)
+            let drain = TTYCommandRunner._test_makeDrainTrackedProcessesForShutdownOperation {
                 fenceSet.signal()
             }
-            completed.signal()
-        }
+            Thread.detachNewThread {
+                _ = drain()
+                completed.signal()
+            }
 
-        #expect(fenceSet.wait(timeout: .now() + 1) == .success)
-        #expect(completed.wait(timeout: .now() + 0.05) == .timedOut)
-        #expect(!TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex"))
-        TTYCommandRunner._test_endTrackedProcessLaunch()
-        #expect(completed.wait(timeout: .now() + 1) == .success)
+            #expect(fenceSet.wait(timeout: .now() + 1) == .success)
+            #expect(completed.wait(timeout: .now() + 0.05) == .timedOut)
+            #expect(!TTYCommandRunner._test_registerTrackedProcess(pid: 2002, binary: "codex"))
+            TTYCommandRunner._test_endTrackedProcessLaunch()
+            #expect(completed.wait(timeout: .now() + 1) == .success)
+        }
     }
 
     @Test
@@ -229,7 +240,11 @@ struct TTYCommandRunnerEnvTests {
         let result = try runner.run(
             binary: "/bin/pwd",
             send: "",
-            options: .init(timeout: Self.harnessPTYTimeout, workingDirectory: dir))
+            options: .init(
+                timeout: Self.harnessPTYTimeout,
+                workingDirectory: dir,
+                stopOnSubstrings: [dir.path],
+                returnOnEmptyProcessExit: true))
         let clean = result.text.replacingOccurrences(of: "\r", with: "")
         #expect(clean.contains(dir.path))
     }
@@ -354,7 +369,9 @@ struct TTYCommandRunnerEnvTests {
         TTYCommandRunner.drainRemainingOutput(
             until: Date().addingTimeInterval(1),
             readChunk: {
-                if reads.isEmpty { return .closed }
+                if reads.isEmpty {
+                    return .closed
+                }
                 return reads.removeFirst()
             },
             processChunk: { data in
@@ -382,7 +399,9 @@ struct TTYCommandRunnerEnvTests {
             until: Date().addingTimeInterval(1),
             readChunk: {
                 readCount += 1
-                if reads.isEmpty { return .closed }
+                if reads.isEmpty {
+                    return .closed
+                }
                 return reads.removeFirst()
             },
             processChunk: { data in
@@ -408,6 +427,61 @@ struct TTYCommandRunnerEnvTests {
             sleep: { _ in })
 
         #expect(readCount == 1)
+    }
+
+    @Test
+    func `deadline drain preserves timeout while collecting late output`() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("codexbar-tty-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+
+        let scriptURL = dir.appendingPathComponent("late-output.sh")
+        let script = """
+        #!/bin/sh
+        /bin/sleep 0.12
+        printf 'https://claude.ai/oauth/authorize?test=late\\n'
+        """
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let runner = TTYCommandRunner()
+        let result = try TTYCommandRunner.withPostDeadlineDrainDurationOverrideForTesting(10) {
+            try runner.run(
+                binary: scriptURL.path,
+                send: "",
+                options: .init(timeout: 0.01, initialDelay: 0, settleAfterStop: 0.5))
+        }
+
+        #expect(result.completion == .deadlineExceeded)
+        #expect(result.text.contains("https://claude.ai/oauth/authorize?test=late"))
+    }
+
+    @Test
+    func `PTY closure keeps waiting for child exit before deadline`() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("codexbar-tty-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+
+        let scriptURL = dir.appendingPathComponent("close-pty-exit.sh")
+        let script = """
+        #!/bin/sh
+        exec </dev/null >/dev/null 2>/dev/null
+        /bin/sleep 2
+        exit 0
+        """
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let runner = TTYCommandRunner()
+        let result = try runner.run(
+            binary: scriptURL.path,
+            send: "",
+            options: .init(timeout: 10, initialDelay: 0, returnOnEmptyProcessExit: true))
+
+        #expect(result.completion == .processExited(status: 0))
+        #expect(result.text.isEmpty)
     }
 
     @Test

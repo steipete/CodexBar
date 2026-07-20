@@ -44,7 +44,9 @@ See `docs/configuration.md` for the schema.
 ## Command
 - `codexbar` defaults to the `usage` command.
   - `--format text|json` (default: text).
-- `codexbar cost` prints local token cost usage for Claude + Codex without web/CLI access.
+- `codexbar cost` prints token cost usage for Claude, Codex, and Cursor.
+  - Claude and Codex are scanned from local session logs without web/CLI access.
+  - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
@@ -53,18 +55,34 @@ See `docs/configuration.md` for the schema.
   - `--brief` renders a compact table (Provider / Usage / Reset) instead of the card grid.
   - Stdout is always rendered text; `--json-output` only affects stderr logs (no JSON card payload).
   - Failed providers are summarized in a footer (not rendered as error cards).
+  - When the opt-in Claude claude-swap integration returns two or more accounts—or one account with
+    `claudeSwapShowSingleAccount` enabled—cards renders every account in active-first/slot order instead of the
+    ambient or token-account Claude cards. This applies on macOS and Linux, including an explicit
+    `--provider claude`; `--source auto` remains eligible.
+  - `--account`, `--account-index`, `--all-accounts`, and explicit non-auto source flags preserve their requested
+    ambient behavior and do not invoke claude-swap. Zero-account lists always retain ambient Claude output;
+    one-account lists do so unless `claudeSwapShowSingleAccount` is enabled.
+  - claude-swap sentinel accounts remain successful cards with their problem text and no fabricated usage metrics.
+    A list adapter, parser, or timeout failure retains useful ambient Claude output, adds a distinct
+    `Claude (claude-swap)` failure footer entry, and makes the command exit non-zero.
+  - This precedence is cards-only: `codexbar usage` and `codexbar serve` keep their existing output cardinality.
   - Honors `$COLUMNS` for layout; falls back to 80 columns. Use `--no-color` for plain output.
   - Kitty, Ghostty, WezTerm, and other truecolor terminals auto-enable enhanced gradients/outlines.
   - Force enhanced mode elsewhere with `CODEXBAR_CARDS_ENHANCED=1`.
   - Exit code is non-zero when any provider fetch fails.
-- `codexbar serve` starts a foreground localhost-only HTTP server for usage and cost JSON.
+- `codexbar serve` starts a foreground HTTP server for usage and cost JSON plus a token-gated dashboard snapshot.
+  - `--host <host>` accepts `localhost` or an IPv4 address and defaults to `127.0.0.1`; `localhost` is normalized to `127.0.0.1`. Binding a non-loopback host requires a dashboard token **and** `--allow-plain-http` (see `docs/dashboard-api.md` for the threat model).
   - `--port <port>` defaults to `8080`.
   - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.
   - `--request-timeout <seconds>` defaults to `30` and bounds each request before returning `504 Gateway Timeout`; use `0` to keep waiting indefinitely.
+  - `--dashboard-token <token>` sets the static bearer token for `GET /dashboard/v1/snapshot`. Prefer the `CODEXBAR_DASHBOARD_TOKEN` environment variable (it wins over the flag; a flag value leaks via `ps`). Empty or whitespace-only tokens are startup errors. Without a token the snapshot route fails closed with `401`.
+  - On a **non-loopback** host the token gates **all data routes** — `/usage`, `/cost`, and `/dashboard/v1/snapshot` all require `Authorization: Bearer YOUR_TOKEN`, so account data is never exposed to the network unauthenticated. `/health` is always open. On the default loopback bind, `/usage` and `/cost` stay unauthenticated.
+  - `--allow-plain-http` is the explicit acknowledgment that the bearer token crosses the network **in cleartext on every request** when serving on a non-loopback host. `serve` refuses to start on a non-loopback host without it.
   - Provider config is reloaded for each usage/cost request; cache entries are keyed by the loaded config so provider toggles and source changes do not require restarting `serve`.
   - Transient refresh failures fall back to the last good response for up to ten refresh intervals (minimum five minutes) so polling clients do not flicker between data and errors; disabled when `--refresh-interval 0`.
-  - v1 binds to `127.0.0.1` only and rejects non-loopback `Host` headers. It does not expose remote bind, auth, CORS, TLS, or daemon mode.
-  - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`.
+  - The default loopback bind rejects non-loopback `Host` headers; a configured non-loopback `--host` additionally accepts its own name. No CORS, TLS, or daemon mode.
+  - Endpoints: `GET /health`, `GET /usage`, `GET /usage?provider=<id|both|all>`, `GET /cost`, `GET /cost?provider=<id|both|all>`, `GET /dashboard/v1/snapshot`.
+  - `GET /dashboard/v1/snapshot` requires `Authorization: Bearer YOUR_TOKEN`; responses (and all `401`s) carry `Cache-Control: no-store`. The token is never accepted via query string. See `docs/dashboard-api.md` for the payload contract.
   - `GET /health` returns `{"status":"ok"}` plus a `version` field with the running build (e.g. `"0.37.2"`) when resolvable; clients can compare it against `codexbar --version` to detect a `serve` process still running an older binary after an update.
   - Codex usage responses include every visible Codex account, matching the menu bar switcher.
 - `codexbar cache clear` clears local CodexBar caches.
@@ -72,6 +90,18 @@ See `docs/configuration.md` for the schema.
   - `--cookies --provider <id>` removes browser-cookie cache entries for that provider, including managed Codex account scopes.
   - `--cost` removes local cost-usage scan caches.
   - `--all` clears both cookies and cost caches. `--provider` is cookie-only and cannot be combined with `--cost` or `--all`.
+- `codexbar cookie refresh` ignores the provider's current cookie caches while importing a replacement through its web strategy. A failed or interrupted import leaves existing cookies intact.
+  - Choose exactly one of `--provider <id>` or `--all`; provider support comes from shared browser-cookie metadata rather than a fixed CLI list.
+  - Prompt-capable Chromium imports require `--allow-keychain-prompt`. Without it, the command fails before cache mutation with an interactive-retry hint.
+  - A six-hour Keychain-denial cooldown is bypassed only by that explicit acknowledgment flag. Output never includes cookie values.
+  - Providers configured for Manual or Off cookie sources are skipped.
+- `codexbar guard --provider <id>` gates automation on one provider's remaining quota.
+  - `--min-remaining <percent>` sets the inclusive threshold (default: `10`; valid range: `0...100`).
+  - `--window session|weekly` selects the primary/session window or secondary/weekly window (default: `session`).
+  - `--timeout <seconds>` bounds the complete fetch (range: `0...86400`; default: `60`; `0` disables this guard-level deadline while provider-specific timeouts still apply).
+  - `--json` emits the provider, window, remaining quota, threshold, decision, unavailable reason, and exit code; add `--pretty` for formatted JSON.
+  - Stable guard exit codes: `0` means safe, `1` means below threshold, `64` (`EX_USAGE`) means invalid arguments, and `69` (`EX_UNAVAILABLE`) means the quota could not be checked or the selected window is unavailable. `--fail-open` changes only unavailable results from `69` to `0`; JSON still reports `decision: "unknown"` and the reason.
+  - Guard fetches are read-only and use background interaction policy, matching `codexbar usage`; they never request interactive Keychain access.
 - `--provider <id|both|all>` (default: enabled providers in config; falls back to defaults when missing).
   - Provider IDs live in the config file (see `docs/configuration.md`).
   - With three or more providers enabled, the default stays scoped to enabled providers; use `--provider all` to query
@@ -86,7 +116,7 @@ See `docs/configuration.md` for the schema.
     - `web`: web-only where that provider exposes an explicit web source; no CLI/API fallback. Browser import is macOS-only, while supported providers can use configured manual cookies on Linux.
     - `cli`: CLI/local-helper source where the provider exposes one (for example Codex RPC/PTy, Claude PTY, Kilo CLI fallback, Kiro CLI, local probes).
     - `oauth`: OAuth-backed source where supported (Codex, Claude, Vertex AI).
-    - `api`: API-key/token flow when the provider supports it (OpenAI, Claude Admin API, z.ai, Gemini, Alibaba, Copilot, Kilo, Kimi, Kimi K2, MiniMax, Ollama, Warp, OpenRouter, ElevenLabs, Deepgram, Synthetic, DeepSeek, Moonshot, Doubao, Codebuff, Crof, Venice, AWS Bedrock).
+    - `api`: API-key/token flow when the provider supports it (OpenAI, Claude Admin API, z.ai, Gemini, Alibaba, Copilot, Kilo, Kimi, MiniMax, Ollama, Warp, OpenRouter, ElevenLabs, Deepgram, Synthetic, DeepSeek, DeepInfra, Moonshot, Doubao, Codebuff, Crof, Venice, AWS Bedrock).
     - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, or provider CLI label).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
@@ -103,6 +133,12 @@ See `docs/configuration.md` for the schema.
   - `--format text|json`, `--pretty`, and `--json-only` are supported.
   - Warnings keep exit code 0; errors exit non-zero.
 - `codexbar config dump` prints the normalized config JSON.
+- `codexbar hooks list` shows the local hook configuration; `--format json` and `--pretty` are supported.
+- `codexbar hooks enable|disable` changes the explicit top-level opt-in switch in the local config file.
+- `codexbar hooks test <event> --provider <id>` invokes matching enabled rules with a representative event. Hook
+  commands run directly without a shell and receive `CODEXBAR_*` variables plus JSON on stdin. `--format json` and
+  `--json-only` return structured per-rule results. See
+  `docs/configuration.md#external-event-hooks` for the event, payload, timeout, and security contract.
 
 ### Token accounts
 The CLI reads multi-account tokens from the same resolved config file as the app.
@@ -121,12 +157,14 @@ payloads include the visible account label in `account`.
 
 ### Cost JSON payload
 `codexbar cost --format json` emits an array of payloads (one per provider).
-- `provider`, `source`, `updatedAt`
+- `provider`, `source` (`local` for Claude/Codex log scans, `web` for Cursor dashboard data), `updatedAt`
 - `sessionTokens`, `sessionCostUSD`
 - `last30DaysTokens`, `last30DaysCostUSD`
+- Cursor only: `meteredCostUSD` — what Cursor's plan actually deducts over the window, alongside the API-rate estimate in `last30DaysCostUSD`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
 - Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
+- `error`: structured provider error when a fetch fails (for example Cursor requested while its cookie source is Off).
 
 ## Example usage
 ```
@@ -135,12 +173,16 @@ codexbar --provider claude        # force Claude
 codexbar --provider all           # query all registered providers
 codexbar --format json --pretty   # machine output
 codexbar --format json --provider both
-codexbar cost                     # local cost usage (default 30-day window + today)
+codexbar cost                     # cost usage (default 30-day window + today)
 codexbar cost --days 90           # choose a 1...365 day cost window
 codexbar cost --provider codex --group-by project
 codexbar cost --provider claude --format json --pretty
+codexbar guard --provider codex --min-remaining 20 --window weekly --json
+codexbar cost --provider cursor   # Cursor dashboard cost (API-rate + Cursor-metered)
 codexbar serve --port 8080        # localhost HTTP JSON server
 codexbar serve --request-timeout 0 # disable serve request deadlines
+CODEXBAR_DASHBOARD_TOKEN=YOUR_TOKEN codexbar serve # token-gated dashboard snapshot
+CODEXBAR_DASHBOARD_TOKEN=... codexbar serve --host 0.0.0.0 --allow-plain-http # LAN, cleartext accepted
 COPILOT_API_TOKEN=... codexbar --provider copilot --format json --pretty
 codexbar --status                 # include status page indicator/description
 codexbar --provider codex --source oauth --format json --pretty
@@ -159,6 +201,7 @@ codexbar config enable --provider grok
 codexbar cache clear --cookies
 codexbar cache clear --cookies --provider claude
 codexbar cache clear --all --format json --pretty
+codexbar cookie refresh --provider opencodego --allow-keychain-prompt
 ```
 
 ### Sample output (text)

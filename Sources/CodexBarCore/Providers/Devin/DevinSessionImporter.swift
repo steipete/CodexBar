@@ -5,8 +5,26 @@ import SweetCookieKit
 
 #if os(macOS)
 enum DevinSessionImporter {
-    nonisolated(unsafe) static var importSessionOverrideForTesting:
-        ((BrowserDetection, String?, ((String) -> Void)?) -> SessionInfo?)?
+    #if DEBUG
+    final class ImportSessionOverrideStore: @unchecked Sendable {
+        let importSession: (BrowserDetection, String?, ((String) -> Void)?) -> SessionInfo?
+
+        init(importSession: @escaping (BrowserDetection, String?, ((String) -> Void)?) -> SessionInfo?) {
+            self.importSession = importSession
+        }
+    }
+
+    @TaskLocal private static var taskImportSessionOverrideStore: ImportSessionOverrideStore?
+
+    static func withImportSessionOverrideForTesting<T>(
+        _ override: ((BrowserDetection, String?, ((String) -> Void)?) -> SessionInfo?)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionOverrideStore.withValue(override.map(ImportSessionOverrideStore.init)) {
+            try await operation()
+        }
+    }
+    #endif
 
     private static let storageOrigin = "https://app.devin.ai"
     private static let externalOrgPrefix = "last-internal-org-for-external-org-v1-"
@@ -28,9 +46,11 @@ enum DevinSessionImporter {
         organizationOverride: String? = nil,
         logger: ((String) -> Void)? = nil) -> SessionInfo?
     {
-        if let override = self.importSessionOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportSessionOverrideStore?.importSession {
             return override(browserDetection, organizationOverride, logger)
         }
+        #endif
 
         let sessions = self.importSessions(
             browserDetection: browserDetection,
@@ -44,9 +64,11 @@ enum DevinSessionImporter {
         organizationOverride: String? = nil,
         logger: ((String) -> Void)? = nil) -> [SessionInfo]
     {
-        if let override = self.importSessionOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportSessionOverrideStore?.importSession {
             return override(browserDetection, organizationOverride, logger).map { [$0] } ?? []
         }
+        #endif
 
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
         let candidates = self.chromeLocalStorageCandidates(browserDetection: browserDetection)

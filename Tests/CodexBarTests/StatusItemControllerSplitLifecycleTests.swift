@@ -209,6 +209,9 @@ struct StatusItemControllerSplitLifecycleTests {
         #expect(controller.statusItem.button?.accessibilityTitle() == "CodexBar")
         #expect(codexButton.accessibilityTitle() == "CodexBar")
         #expect(claudeButton.accessibilityTitle() == "CodexBar")
+        #expect(controller.statusItem.button?.toolTip == nil)
+        #expect(codexButton.toolTip == nil)
+        #expect(claudeButton.toolTip == nil)
     }
 
     @Test

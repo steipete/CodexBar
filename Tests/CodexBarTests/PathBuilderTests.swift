@@ -96,7 +96,7 @@ struct PathBuilderTests {
         let escapedMarker = Self.shellSingleQuoted(marker)
         let script = """
         (
-          trap '' TERM
+          trap '' HUP TERM
           touch \(escapedMarker)
           while :; do sleep 1; done
         ) &

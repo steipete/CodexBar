@@ -25,7 +25,12 @@ public enum WindsurfProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .windsurf,
                 iconResourceName: "ProviderIcon-windsurf",
-                color: ProviderColor(red: 52 / 255, green: 232 / 255, blue: 187 / 255)),
+                color: ProviderColor(red: 52 / 255, green: 232 / 255, blue: 187 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x000000),
+                    ProviderColor(hex: 0x09B6A2),
+                    ProviderColor(hex: 0x34E8BB),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Windsurf cost summary is not supported." }),

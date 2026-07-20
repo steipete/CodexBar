@@ -28,8 +28,10 @@ Command Code support uses browser cookies or a manually pasted cookie header.
    and paste a `Cookie:` header/cURL capture from Command Code.
 
 Automatic import looks for better-auth session cookies from `commandcode.ai`
-and `www.commandcode.ai`. If automatic import cannot find a session, use the
-manual cookie field.
+and `www.commandcode.ai`. It tries each detected browser profile in order until
+one authenticates, so stale cookies in an earlier browser do not mask a later
+active session. If automatic import cannot find a session, use the manual cookie
+field.
 
 On Linux, browser import is unavailable. Set `cookieSource` to `manual` and
 provide the Command Code `Cookie` header in `cookieHeader`; both `auto` and

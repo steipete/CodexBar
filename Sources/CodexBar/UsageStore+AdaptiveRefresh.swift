@@ -18,6 +18,7 @@ extension UsageStore {
     nonisolated static func adaptiveRefreshDecision(
         now: Date,
         lastMenuOpenAt: Date?,
+        lastCodingActivityAt: Date? = nil,
         lowPowerModeEnabled: Bool,
         thermalState: ProcessInfo.ThermalState,
         policy: AdaptiveRefreshPolicy = AdaptiveRefreshPolicy()) -> AdaptiveRefreshPolicy.Decision
@@ -25,6 +26,7 @@ extension UsageStore {
         policy.nextDelay(for: AdaptiveRefreshPolicy.Input(
             now: now,
             lastMenuOpenAt: lastMenuOpenAt,
+            lastCodingActivityAt: lastCodingActivityAt,
             lowPowerModeEnabled: lowPowerModeEnabled,
             thermalState: thermalState))
     }
@@ -32,6 +34,28 @@ extension UsageStore {
     nonisolated static func shouldAdvanceAdaptiveTimer(scheduledAt: Date?, candidate: Date) -> Bool {
         guard let scheduledAt else { return true }
         return candidate < scheduledAt
+    }
+
+    func noteCodingActivityObserved(at date: Date, now: Date = Date()) {
+        guard self.settings.adaptiveActivityScanningEnabled else { return }
+        self.retainCodingActivityIfNewer(date)
+        self.advanceAdaptiveTimerIfEarlier(at: now)
+    }
+
+    func advanceAdaptiveTimerIfEarlier(at date: Date) {
+        guard self.settings.refreshFrequency.usesAdaptivePolicy else { return }
+        let decision = Self.adaptiveRefreshDecision(
+            now: date,
+            lastMenuOpenAt: self.lastMenuOpenAt,
+            lastCodingActivityAt: self.settings.adaptiveActivityScanningEnabled ? self.lastCodingActivityAt : nil,
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            thermalState: ProcessInfo.processInfo.thermalState)
+        let candidate = date.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
+        guard Self.shouldAdvanceAdaptiveTimer(
+            scheduledAt: self.adaptiveRefreshScheduledAt,
+            candidate: candidate)
+        else { return }
+        self.restartAdaptiveTimerPreservingResetBoundary()
     }
 
     /// Advances a fixed timer from the last scheduled tick instead of the refresh completion time.
@@ -94,6 +118,9 @@ extension UsageStore {
         let decision = Self.adaptiveRefreshDecision(
             now: now,
             lastMenuOpenAt: store.lastMenuOpenAt,
+            lastCodingActivityAt: store.settings.adaptiveActivityScanningEnabled
+                ? store.lastCodingActivityAt
+                : nil,
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
         store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
@@ -112,10 +139,13 @@ extension UsageStore {
         switch self.settings.refreshFrequency {
         case .manual:
             nil
-        case .adaptive:
+        case .adaptive, .adaptiveAgentAware:
             TimeInterval(Self.adaptiveRefreshDecision(
                 now: Date(),
                 lastMenuOpenAt: self.lastMenuOpenAt,
+                lastCodingActivityAt: self.settings.adaptiveActivityScanningEnabled
+                    ? self.lastCodingActivityAt
+                    : nil,
                 lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
                 thermalState: ProcessInfo.processInfo.thermalState).delay.components.seconds)
         default:

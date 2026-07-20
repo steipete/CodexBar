@@ -154,6 +154,15 @@ struct MistralUsageParserTests {
         #expect(snapshot.currency == "EUR")
     }
 
+    @Test(arguments: ["{}", #"{"currency":"   ","currency_symbol":"  "}"#])
+    func `missing currency stays explicitly unknown`(json: String) throws {
+        let snapshot = try MistralUsageFetcher.parseResponse(data: Data(json.utf8), updatedAt: Date())
+
+        #expect(snapshot.currency == "XXX")
+        #expect(snapshot.currencySymbol == "¤")
+        #expect(snapshot.toCostUsageTokenSnapshot().currencyCode == "XXX")
+    }
+
     @Test
     func `parses credits response`() throws {
         let json = """
@@ -383,8 +392,8 @@ struct MistralUsageSnapshotConversionTests {
     }
 
     @Test
-    func `converts billing usage into cost token snapshot`() {
-        let now = Date(timeIntervalSince1970: 1_700_179_200)
+    func `requested one day trims rows totals and latest session to observed UTC day`() throws {
+        let now = try #require(ISO8601DateFormatter().date(from: "2023-11-15T12:00:00Z"))
         let snapshot = MistralUsageSnapshot(
             totalCost: 1.75,
             currency: "eur",
@@ -429,21 +438,303 @@ struct MistralUsageSnapshotConversionTests {
 
         let cost = snapshot.toCostUsageTokenSnapshot(historyDays: 1)
         #expect(cost.currencyCode == "EUR")
-        #expect(cost.historyLabel == "This month")
-        #expect(cost.historyDays == 2)
+        #expect(cost.historyLabel == nil)
+        #expect(cost.historyDays == 1)
         #expect(cost.sessionCostUSD == 0.25)
         #expect(cost.sessionTokens == 330)
-        #expect(cost.last30DaysCostUSD == 1.75)
-        #expect(cost.last30DaysTokens == 500)
-        #expect(cost.daily.count == 2)
-        #expect(cost.daily.last?.modelsUsed == ["mistral-small"])
+        #expect(cost.last30DaysCostUSD == 0.25)
+        #expect(cost.last30DaysTokens == 330)
+        #expect(cost.daily.map(\.date) == ["2023-11-15"])
+        #expect(cost.daily.first?.modelsUsed == ["mistral-small"])
     }
 
     @Test
-    func `clamps negative billing adjustments in cost token snapshot`() {
+    func `sparse daily usage reports inclusive covered day span`() throws {
+        let updatedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
+        let snapshot = Self.coverageSnapshot(
+            dailyDays: ["2026-07-01", "2026-07-16"],
+            updatedAt: updatedAt)
+
+        #expect(snapshot.toCostUsageTokenSnapshot().historyDays == 16)
+        let sevenDays = snapshot.toCostUsageTokenSnapshot(historyDays: 7)
+        #expect(sevenDays.historyDays == 1)
+        #expect(sevenDays.daily.map(\.date) == ["2026-07-16"])
+        #expect(sevenDays.last30DaysCostUSD == 1)
+        #expect(sevenDays.last30DaysTokens == 1)
+    }
+
+    @Test
+    func `metadata free coverage ends on latest valid billing bucket`() throws {
+        let formatter = ISO8601DateFormatter()
+        let updatedAt = try #require(formatter.date(from: "2026-07-16T12:00:00Z"))
+        let fetchDay = try #require(formatter.date(from: "2026-07-16T00:00:00Z"))
+        let latestBucket = try #require(formatter.date(from: "2026-07-15T00:00:00Z"))
+        let snapshot = Self.coverageSnapshot(
+            dailyDays: ["2026-07-14", "2026-07-15"],
+            updatedAt: updatedAt)
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.historyDays == 2)
+        #expect(cost.updatedAt == latestBucket)
+        #expect(cost.last30DaysCostUSD == 2)
+        #expect(cost.last30DaysTokens == 2)
+
+        let empty = Self.coverageSnapshot(dailyDays: [], updatedAt: updatedAt)
+            .toCostUsageTokenSnapshot()
+        #expect(empty.historyDays == 1)
+        #expect(!empty.historyCoverageIsEstablished)
+        #expect(empty.updatedAt == fetchDay)
+        #expect(empty.last30DaysCostUSD == nil)
+        #expect(empty.last30DaysTokens == nil)
+
+        let invalid = MistralUsageSnapshot(
+            totalCost: 1,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 1,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            daily: [Self.bucket(day: "not-a-day")],
+            startDate: nil,
+            endDate: nil,
+            updatedAt: updatedAt)
+            .toCostUsageTokenSnapshot()
+        #expect(invalid.historyDays == 1)
+        #expect(!invalid.historyCoverageIsEstablished)
+        #expect(invalid.updatedAt == fetchDay)
+        #expect(invalid.last30DaysCostUSD == nil)
+        #expect(invalid.last30DaysTokens == nil)
+
+        let outsideWindow = Self.coverageSnapshot(
+            dailyDays: ["2026-07-01"],
+            updatedAt: updatedAt)
+            .toCostUsageTokenSnapshot(historyDays: 7)
+        #expect(!outsideWindow.historyCoverageIsEstablished)
+        #expect(outsideWindow.daily.isEmpty)
+        #expect(outsideWindow.last30DaysCostUSD == nil)
+        #expect(outsideWindow.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `metadata coverage uses UTC dates and stops at earlier boundary`() throws {
+        let formatter = ISO8601DateFormatter()
+        let start = try #require(formatter.date(from: "2026-07-01T23:59:59Z"))
+        let monthEnd = try #require(formatter.date(from: "2026-07-31T23:59:59Z"))
+        let updatedAt = try #require(formatter.date(from: "2026-07-16T00:00:01Z"))
+        let secondDay = try #require(formatter.date(from: "2026-07-02T00:00:01Z"))
+        let longRangeStart = try #require(formatter.date(from: "2020-01-01T00:00:00Z"))
+
+        let currentMonth = Self.coverageSnapshot(
+            dailyDays: ["2026-07-16"],
+            startDate: start,
+            endDate: monthEnd,
+            updatedAt: updatedAt)
+        let endedRange = Self.coverageSnapshot(
+            dailyDays: ["2026-07-01", "2026-07-02"],
+            startDate: start,
+            endDate: secondDay,
+            updatedAt: updatedAt)
+        let longRange = Self.coverageSnapshot(
+            dailyDays: [],
+            startDate: longRangeStart,
+            endDate: monthEnd,
+            updatedAt: updatedAt)
+
+        #expect(currentMonth.toCostUsageTokenSnapshot().historyDays == 16)
+        #expect(currentMonth.toCostUsageTokenSnapshot().historyLabel == "This month")
+        let endedCost = endedRange.toCostUsageTokenSnapshot()
+        #expect(endedCost.historyDays == 2)
+        #expect(endedCost.historyLabel == nil)
+        #expect(endedCost.updatedAt == formatter.date(from: "2026-07-02T00:00:00Z"))
+        #expect(endedRange.toUsageSnapshot().updatedAt == updatedAt)
+        #expect(longRange.toCostUsageTokenSnapshot(historyDays: 900).historyDays == 365)
+    }
+
+    @Test
+    func `metadata preserves empty covered days while excluding rows before requested window`() throws {
+        let formatter = ISO8601DateFormatter()
+        let start = try #require(formatter.date(from: "2026-07-01T00:00:00Z"))
+        let end = try #require(formatter.date(from: "2026-07-31T23:59:59Z"))
+        let updatedAt = try #require(formatter.date(from: "2026-07-16T12:00:00Z"))
+        let snapshot = Self.coverageSnapshot(
+            dailyDays: ["2026-07-01", "2026-07-10", "2026-07-16"],
+            startDate: start,
+            endDate: end,
+            updatedAt: updatedAt)
+
+        let cost = snapshot.toCostUsageTokenSnapshot(historyDays: 7)
+        #expect(cost.historyDays == 7)
+        #expect(cost.historyLabel == nil)
+        #expect(cost.daily.map(\.date) == ["2026-07-10", "2026-07-16"])
+        #expect(cost.last30DaysCostUSD == 2)
+        #expect(cost.last30DaysTokens == 2)
+    }
+
+    @Test
+    func `empty current month still reports metadata coverage`() throws {
+        let formatter = ISO8601DateFormatter()
+        let start = try #require(formatter.date(from: "2026-07-01T00:00:00Z"))
+        let end = try #require(formatter.date(from: "2026-07-31T23:59:59Z"))
+        let updatedAt = try #require(formatter.date(from: "2026-07-02T12:00:00Z"))
+        let snapshot = Self.coverageSnapshot(
+            dailyDays: [],
+            startDate: start,
+            endDate: end,
+            updatedAt: updatedAt)
+
+        #expect(snapshot.toCostUsageTokenSnapshot().historyDays == 2)
+        #expect(snapshot.toCostUsageTokenSnapshot().historyLabel == "This month")
+    }
+
+    @Test(arguments: [
+        "not-a-day",
+        "2026-07-01junk",
+        "２０２６-０７-０１",
+        "2026-02-30",
+        " 2026-07-01",
+    ])
+    func `invalid coverage provenance fails closed after requested clamp`(day: String) {
+        let snapshot = Self.coverageSnapshot(
+            dailyDays: [day],
+            updatedAt: Date())
+
+        #expect(snapshot.toCostUsageTokenSnapshot(historyDays: 900).historyDays == 1)
+    }
+
+    @Test
+    func `malformed nonzero row keeps requested window unavailable`() throws {
+        let updatedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
+        let snapshot = Self.coverageSnapshot(
+            dailyDays: ["2026-07-01junk", "2026-07-16"],
+            updatedAt: updatedAt)
+
+        let cost = snapshot.toCostUsageTokenSnapshot(historyDays: 1)
+        #expect(cost.historyDays == 1)
+        #expect(cost.daily.map(\.date) == ["2026-07-01junk", "2026-07-16"])
+        #expect(cost.daily.allSatisfy { $0.costUSD == nil && $0.totalTokens == nil })
+        #expect(cost.sessionCostUSD == nil)
+        #expect(cost.sessionTokens == nil)
+        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `negative aggregate token counter fails closed despite equal signed net`() {
+        let snapshot = Self.tokenValidationSnapshot(
+            totalInputTokens: -5,
+            totalOutputTokens: 15,
+            daily: [Self.tokenBucket(day: "2026-07-16", inputTokens: 10)])
+
+        Self.expectTokenDataUnavailable(snapshot.toCostUsageTokenSnapshot())
+    }
+
+    @Test
+    func `negative daily token counter fails closed despite equal signed net`() {
+        let snapshot = Self.tokenValidationSnapshot(
+            totalInputTokens: 10,
+            daily: [Self.tokenBucket(day: "2026-07-16", inputTokens: 15, cachedTokens: -5)])
+
+        Self.expectTokenDataUnavailable(snapshot.toCostUsageTokenSnapshot())
+    }
+
+    @Test
+    func `negative model token counter fails closed despite equal signed net`() {
+        let snapshot = Self.tokenValidationSnapshot(
+            totalInputTokens: 10,
+            daily: [
+                Self.tokenBucket(
+                    day: "2026-07-16",
+                    inputTokens: 10,
+                    modelInputTokens: 15,
+                    modelOutputTokens: -5),
+            ])
+
+        Self.expectTokenDataUnavailable(snapshot.toCostUsageTokenSnapshot())
+    }
+
+    @Test
+    func `zero and positive token counters remain complete`() {
+        let snapshot = Self.tokenValidationSnapshot(
+            totalInputTokens: 4,
+            totalCachedTokens: 2,
+            totalOutputTokens: 4,
+            daily: [
+                Self.tokenBucket(day: "2026-07-15", inputTokens: 0),
+                Self.tokenBucket(day: "2026-07-16", inputTokens: 4, cachedTokens: 2, outputTokens: 4),
+            ])
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.last30DaysTokens == 10)
+        #expect(cost.sessionTokens == 10)
+        #expect(cost.daily.map(\.totalTokens) == [0, 10])
+        #expect(cost.daily.map { $0.modelBreakdowns?.first?.totalTokens } == [0, 10])
+        #expect(cost.last30DaysCostUSD == 2)
+    }
+
+    @Test
+    func `negative excluded cost bucket cannot prove selected empty window is zero`() throws {
+        let updatedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
+        let snapshot = Self.costValidationSnapshot(
+            totalCost: 10,
+            daily: [
+                Self.costBucket(day: "2026-07-14", cost: -5),
+                Self.costBucket(day: "2026-07-15", cost: 15),
+            ],
+            updatedAt: updatedAt)
+
+        let cost = snapshot.toCostUsageTokenSnapshot(historyDays: 1)
+        #expect(cost.daily.isEmpty)
+        #expect(!cost.historyCoverageIsEstablished)
+        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.sessionCostUSD == nil)
+        #expect(cost.last30DaysTokens == nil)
+    }
+
+    @Test
+    func `negative model cost invalidates cost proof while preserving valid tokens`() {
+        let snapshot = Self.costValidationSnapshot(
+            totalCost: 1,
+            totalInputTokens: 10,
+            daily: [
+                Self.costBucket(
+                    day: "2026-07-16",
+                    cost: 1,
+                    modelCosts: [-1, 2],
+                    tokens: 10),
+            ])
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.sessionCostUSD == nil)
+        #expect(cost.daily.first?.costUSD == nil)
+        #expect(cost.daily.first?.modelBreakdowns?.allSatisfy { $0.costUSD == nil } == true)
+        #expect(cost.last30DaysTokens == 10)
+        #expect(cost.sessionTokens == 10)
+    }
+
+    @Test
+    func `zero and positive costs remain complete`() {
+        let snapshot = Self.costValidationSnapshot(
+            totalCost: 2,
+            daily: [
+                Self.costBucket(day: "2026-07-15", cost: 0),
+                Self.costBucket(day: "2026-07-16", cost: 2),
+            ])
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.last30DaysCostUSD == 2)
+        #expect(cost.sessionCostUSD == 2)
+        #expect(cost.daily.map(\.costUSD) == [0, 2])
+        #expect(cost.daily.map { $0.modelBreakdowns?.first?.costUSD } == [0, 2])
+        #expect(cost.last30DaysTokens == 0)
+    }
+
+    @Test
+    func `negative billing adjustment fails closed in cost token snapshot`() {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let snapshot = MistralUsageSnapshot(
-            totalCost: -2,
+            totalCost: -1.5,
             currency: "EUR",
             currencySymbol: "€",
             totalInputTokens: 100,
@@ -471,14 +762,17 @@ struct MistralUsageSnapshotConversionTests {
             updatedAt: now)
 
         let cost = snapshot.toCostUsageTokenSnapshot()
-        #expect(cost.sessionCostUSD == 0)
-        #expect(cost.last30DaysCostUSD == 0)
-        #expect(cost.daily.first?.costUSD == 0)
-        #expect(cost.daily.first?.modelBreakdowns?.first?.costUSD == 0)
+        #expect(cost.sessionCostUSD == nil)
+        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.daily.first?.costUSD == nil)
+        #expect(cost.daily.first?.modelBreakdowns?.first?.costUSD == nil)
+        #expect(cost.last30DaysTokens == 125)
+        #expect(cost.sessionTokens == 125)
+        #expect(snapshot.toUsageSnapshot().identity?.loginMethod == "API spend: €0.0000 this month")
     }
 
     @Test
-    func `preserves net monthly cost when billing includes credits`() {
+    func `credit adjusted window fails closed without changing primary monthly spend`() {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let snapshot = MistralUsageSnapshot(
             totalCost: 8,
@@ -509,9 +803,141 @@ struct MistralUsageSnapshotConversionTests {
             updatedAt: now)
 
         let cost = snapshot.toCostUsageTokenSnapshot()
-        #expect(cost.last30DaysCostUSD == 8)
-        #expect(cost.sessionCostUSD == 0)
-        #expect(cost.daily.map(\.costUSD) == [10, 0])
+        #expect(cost.last30DaysCostUSD == nil)
+        #expect(cost.sessionCostUSD == nil)
+        #expect(cost.daily.map(\.costUSD) == [nil, nil])
+        #expect(snapshot.toUsageSnapshot().identity?.loginMethod == "API spend: €8.0000 this month")
+    }
+
+    private static func bucket(day: String) -> MistralDailyUsageBucket {
+        MistralDailyUsageBucket(
+            day: day,
+            cost: 1,
+            inputTokens: 1,
+            cachedTokens: 0,
+            outputTokens: 0,
+            models: [])
+    }
+
+    private static func tokenBucket(
+        day: String,
+        inputTokens: Int,
+        cachedTokens: Int = 0,
+        outputTokens: Int = 0,
+        modelInputTokens: Int? = nil,
+        modelCachedTokens: Int? = nil,
+        modelOutputTokens: Int? = nil) -> MistralDailyUsageBucket
+    {
+        MistralDailyUsageBucket(
+            day: day,
+            cost: 1,
+            inputTokens: inputTokens,
+            cachedTokens: cachedTokens,
+            outputTokens: outputTokens,
+            models: [
+                .init(
+                    name: "test-model",
+                    cost: 1,
+                    inputTokens: modelInputTokens ?? inputTokens,
+                    cachedTokens: modelCachedTokens ?? cachedTokens,
+                    outputTokens: modelOutputTokens ?? outputTokens),
+            ])
+    }
+
+    private static func costBucket(
+        day: String,
+        cost: Double,
+        modelCosts: [Double]? = nil,
+        tokens: Int = 0) -> MistralDailyUsageBucket
+    {
+        let costs = modelCosts ?? [cost]
+        return MistralDailyUsageBucket(
+            day: day,
+            cost: cost,
+            inputTokens: tokens,
+            cachedTokens: 0,
+            outputTokens: 0,
+            models: costs.enumerated().map { index, modelCost in
+                .init(
+                    name: "test-model-\(index)",
+                    cost: modelCost,
+                    inputTokens: index == 0 ? tokens : 0,
+                    cachedTokens: 0,
+                    outputTokens: 0)
+            })
+    }
+
+    private static func costValidationSnapshot(
+        totalCost: Double,
+        totalInputTokens: Int = 0,
+        daily: [MistralDailyUsageBucket],
+        updatedAt: Date = Date(timeIntervalSince1970: 1_784_179_200)) -> MistralUsageSnapshot
+    {
+        MistralUsageSnapshot(
+            totalCost: totalCost,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: totalInputTokens,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: daily.flatMap(\.models).count,
+            daily: daily,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: updatedAt)
+    }
+
+    private static func tokenValidationSnapshot(
+        totalInputTokens: Int,
+        totalCachedTokens: Int = 0,
+        totalOutputTokens: Int = 0,
+        daily: [MistralDailyUsageBucket]) -> MistralUsageSnapshot
+    {
+        MistralUsageSnapshot(
+            totalCost: Double(daily.count),
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: totalInputTokens,
+            totalOutputTokens: totalOutputTokens,
+            totalCachedTokens: totalCachedTokens,
+            modelCount: 1,
+            daily: daily,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_784_179_200))
+    }
+
+    private static func expectTokenDataUnavailable(_ snapshot: CostUsageTokenSnapshot) {
+        #expect(snapshot.last30DaysTokens == nil)
+        #expect(snapshot.sessionTokens == nil)
+        #expect(snapshot.daily.allSatisfy {
+            $0.inputTokens == nil
+                && $0.cacheReadTokens == nil
+                && $0.outputTokens == nil
+                && $0.totalTokens == nil
+                && $0.modelBreakdowns?.allSatisfy { $0.totalTokens == nil } == true
+        })
+        #expect(snapshot.last30DaysCostUSD == 1)
+    }
+
+    private static func coverageSnapshot(
+        dailyDays: [String],
+        startDate: Date? = nil,
+        endDate: Date? = nil,
+        updatedAt: Date) -> MistralUsageSnapshot
+    {
+        MistralUsageSnapshot(
+            totalCost: Double(dailyDays.count),
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: dailyDays.count,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: dailyDays.isEmpty ? 0 : 1,
+            daily: dailyDays.map(self.bucket(day:)),
+            startDate: startDate,
+            endDate: endDate,
+            updatedAt: updatedAt)
     }
 }
 

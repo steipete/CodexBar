@@ -36,6 +36,28 @@ struct SubprocessRunnerTests {
     }
 
     @Test
+    func `rejects oversized output when strict limit is configured`() async throws {
+        do {
+            _ = try await SubprocessRunner.run(
+                binary: "/usr/bin/python3",
+                arguments: ["-c", "print('x' * 10_000)"],
+                environment: ProcessInfo.processInfo.environment,
+                timeout: 5,
+                maxOutputBytes: 1024,
+                label: "python strict output limit")
+            Issue.record("Expected strict output limit failure")
+        } catch let error as SubprocessRunnerError {
+            guard case let .outputTooLarge(label) = error else {
+                Issue.record("Expected outputTooLarge, got \(error)")
+                return
+            }
+            #expect(label == "python strict output limit")
+        } catch {
+            Issue.record("Expected SubprocessRunnerError, got \(error)")
+        }
+    }
+
+    @Test
     func `preserves captured prefix when limit splits three byte scalar`() async throws {
         let asciiCount = ProcessPipeCapture.defaultMaxBytes - 1
         let script = "import sys; sys.stdout.buffer.write(b'x' * \(asciiCount) + bytes([0xe2, 0x82, 0xac]) + b'tail')"

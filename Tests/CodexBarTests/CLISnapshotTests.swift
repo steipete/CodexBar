@@ -820,7 +820,8 @@ struct CLISnapshotTests {
             credits: nil,
             antigravityPlanInfo: nil,
             openaiDashboard: nil,
-            error: nil)
+            error: nil,
+            diagnostic: "Grok team usage is unavailable from the current billing surface.")
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         let data = try encoder.encode(payload)
@@ -833,6 +834,7 @@ struct CLISnapshotTests {
         #expect(json.contains("\"version\":\"1.2.3\""))
         #expect(json.contains("\"status\""))
         #expect(json.contains("status.example.com"))
+        #expect(json.contains("Grok team usage is unavailable from the current billing surface."))
         #expect(json.contains("\"primary\""))
         #expect(json.contains("\"windowMinutes\":300"))
         #expect(json.contains("1700000000"))

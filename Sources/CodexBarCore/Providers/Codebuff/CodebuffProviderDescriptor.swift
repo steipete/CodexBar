@@ -27,7 +27,12 @@ public enum CodebuffProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .codebuff,
                 iconResourceName: "ProviderIcon-codebuff",
-                color: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255)),
+                color: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x9EFC62),
+                    ProviderColor(hex: 0xFFFFFF),
+                    ProviderColor(hex: 0x000000),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Codebuff cost summary is not yet supported." }),

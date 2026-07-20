@@ -46,6 +46,19 @@ struct ClaudeScopedWeeklyLimitMapperTests {
         #expect(ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: limits).isEmpty)
     }
 
+    @Test
+    func `all models scope stays in the primary weekly lane`() {
+        let limits = [
+            Self.limit(modelID: nil, modelName: "All models"),
+            Self.limit(modelID: "claude/all_models", modelName: "Weekly"),
+            Self.limit(modelID: nil, modelName: "Fable"),
+        ]
+
+        let windows = ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: limits)
+
+        #expect(windows.map(\.title) == ["Fable only"])
+    }
+
     private static func limit(
         kind: String = "weekly_scoped",
         group: String = "weekly",

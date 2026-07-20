@@ -42,7 +42,8 @@ extension ClaudeOAuthCredentialsStore {
     }
 
     /// Attempts a Claude keychain read via `/usr/bin/security` when the experimental reader is enabled.
-    /// - Important: `interaction` is diagnostics context only and does not gate CLI execution.
+    /// - Important: `interaction` is diagnostics context only. The stored Never policy still blocks the CLI because
+    ///   `security` can prompt.
     static func loadFromClaudeKeychainViaSecurityCLIIfEnabled(
         interaction: ProviderInteraction,
         readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current())
@@ -92,6 +93,7 @@ extension ClaudeOAuthCredentialsStore {
         -> Data?
     {
         guard self.shouldPreferSecurityCLIKeychainRead(readStrategy: readStrategy) else { return nil }
+        guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return nil }
         let interactionMetadata = interaction == .userInitiated ? "user" : "background"
 
         do {
@@ -102,7 +104,7 @@ extension ClaudeOAuthCredentialsStore {
             let stderrLength: Int
             let durationMs: Double
             #if DEBUG
-            if let override = self.taskSecurityCLIReadOverride ?? self.securityCLIReadOverride {
+            if let override = self.taskSecurityCLIReadOverride {
                 switch override {
                 case let .data(data):
                     output = data ?? Data()
@@ -357,7 +359,16 @@ extension ClaudeOAuthCredentialsStore {
         guard !keychainAccessDisabled || self.isolatedSecurityCLIKeychainPath(environment: environment) != nil else {
             return false
         }
-        guard ClaudeOAuthKeychainPromptPreference.effectiveMode(readStrategy: readStrategy) != .never else {
+        let promptMode = ClaudeOAuthKeychainPromptPreference.effectiveMode(readStrategy: readStrategy)
+        guard promptMode != .never else {
+            return false
+        }
+        // A Security.framework query configured as "no UI" can still display a legacy Keychain ACL dialog.
+        // Respect the user-action-only policy before background discovery touches Claude Code credentials.
+        guard readStrategy != .securityFramework
+            || promptMode != .onlyOnUserAction
+            || interaction == .userInitiated
+        else {
             return false
         }
         let payload: Data? = switch readStrategy {

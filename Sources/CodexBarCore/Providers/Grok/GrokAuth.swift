@@ -10,6 +10,9 @@ public struct GrokCredentials: Sendable {
     public let firstName: String?
     public let lastName: String?
     public let teamId: String?
+    /// The principal scope reported by Grok's cached OIDC credential, when available.
+    /// Keep this optional because older auth.json entries do not include it.
+    public let principalType: String?
     public let oidcIssuer: String?
     public let oidcClientId: String?
     public let expiresAt: Date?
@@ -25,6 +28,7 @@ public struct GrokCredentials: Sendable {
         firstName: String?,
         lastName: String?,
         teamId: String?,
+        principalType: String? = nil,
         oidcIssuer: String?,
         oidcClientId: String?,
         expiresAt: Date?,
@@ -39,6 +43,7 @@ public struct GrokCredentials: Sendable {
         self.firstName = firstName
         self.lastName = lastName
         self.teamId = teamId
+        self.principalType = principalType
         self.oidcIssuer = oidcIssuer
         self.oidcClientId = oidcClientId
         self.expiresAt = expiresAt
@@ -54,6 +59,11 @@ public struct GrokCredentials: Sendable {
     public var isExpired: Bool {
         guard let expiresAt else { return false }
         return Date() >= expiresAt
+    }
+
+    public var isTeamPrincipal: Bool {
+        self.principalType?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("team") == .orderedSame
     }
 
     public var loginMethod: String? {
@@ -147,6 +157,7 @@ public enum GrokCredentialsStore {
             firstName: (entry["first_name"] as? String)?.nilIfEmpty,
             lastName: (entry["last_name"] as? String)?.nilIfEmpty,
             teamId: (entry["team_id"] as? String)?.nilIfEmpty,
+            principalType: (entry["principal_type"] as? String)?.nilIfEmpty,
             oidcIssuer: (entry["oidc_issuer"] as? String)?.nilIfEmpty,
             oidcClientId: (entry["oidc_client_id"] as? String)?.nilIfEmpty,
             expiresAt: Self.parseDate(entry["expires_at"]),
@@ -175,7 +186,9 @@ public enum GrokCredentialsStore {
         guard let value = raw as? String, !value.isEmpty else { return nil }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
+        if let date = formatter.date(from: value) {
+            return date
+        }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
     }

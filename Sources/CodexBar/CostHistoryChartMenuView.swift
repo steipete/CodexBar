@@ -48,6 +48,7 @@ struct CostHistoryChartMenuView: View {
     private let historyDays: Int
     private let windowLabel: String?
     private let projects: [CostUsageProjectBreakdown]
+    private let sessions: [CostUsageSessionBreakdown]
     private let width: CGFloat
     @State private var selectedDateKey: String?
 
@@ -59,6 +60,7 @@ struct CostHistoryChartMenuView: View {
         historyDays: Int = 30,
         windowLabel: String? = nil,
         projects: [CostUsageProjectBreakdown] = [],
+        sessions: [CostUsageSessionBreakdown] = [],
         width: CGFloat)
     {
         self.provider = provider
@@ -68,6 +70,7 @@ struct CostHistoryChartMenuView: View {
         self.historyDays = max(1, min(365, historyDays))
         self.windowLabel = windowLabel
         self.projects = projects
+        self.sessions = sessions
         self.width = width
     }
 
@@ -232,15 +235,24 @@ struct CostHistoryChartMenuView: View {
             }
 
             if let total = self.totalCostUSD {
-                Text(String(
-                    format: L("Est. total (%@): %@"),
-                    self.windowLabel ?? Self.windowLabel(days: self.historyDays),
-                    self.costString(total)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(
+                        format: L("Est. total (%@): %@"),
+                        self.windowLabel ?? Self.windowLabel(days: self.historyDays),
+                        self.costString(total)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                    if let disclaimer = Self.estimateDisclaimer(provider: self.provider) {
+                        Text(disclaimer)
+                            .font(.caption2)
+                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
             }
 
             if !self.projects.isEmpty {
@@ -277,10 +289,18 @@ struct CostHistoryChartMenuView: View {
                 }
                 .frame(height: Self.projectBlockHeight(projects: self.projects), alignment: .topLeading)
             }
+
+            if !self.sessions.isEmpty {
+                self.sessionsBlock
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, Self.verticalPadding)
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .top)
+    }
+
+    static func estimateDisclaimer(provider: UsageProvider) -> String? {
+        provider == .codex ? L("codex_api_estimate_hint") : nil
     }
 
     private struct Model {
@@ -316,7 +336,94 @@ struct CostHistoryChartMenuView: View {
     private static let projectSourceIndent: CGFloat = 10
     private static let projectMoreRowHeight: CGFloat = 16
     private static let maxVisibleProjectSourceRows = 2
+    private static let sessionRowHeight: CGFloat = 44
+    private static let sessionRowSpacing: CGFloat = 5
+    private static let maxVisibleSessionRows = 5
     static let verticalPadding: CGFloat = 10
+
+    private var sessionsBlock: some View {
+        let visibleCount = min(self.sessions.count, Self.maxVisibleSessionRows)
+        return VStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
+            HStack {
+                Text("Conversations (\(self.windowLabel ?? Self.windowLabel(days: self.historyDays)))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Text("\(self.sessions.count)")
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+            }
+            .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
+                    ForEach(self.sessions) { session in
+                        self.sessionRow(session)
+                    }
+                }
+            }
+            .scrollIndicators(self.sessions.count > visibleCount ? .visible : .hidden)
+            .frame(
+                height: CGFloat(visibleCount) * Self.sessionRowHeight
+                    + CGFloat(max(visibleCount - 1, 0)) * Self.sessionRowSpacing,
+                alignment: .topLeading)
+        }
+        .frame(
+            height: Self.detailPrimaryLineHeight + Self.sessionRowSpacing
+                + CGFloat(visibleCount) * Self.sessionRowHeight
+                + CGFloat(max(visibleCount - 1, 0)) * Self.sessionRowSpacing,
+            alignment: .topLeading)
+    }
+
+    private func sessionRow(_ session: CostUsageSessionBreakdown) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Session \(Self.shortSessionID(session.sessionID))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text(Self.sessionUsageLine(session))
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(session.lastActivity, format: .dateTime.month(.abbreviated).day().hour().minute())
+                    .font(.caption2)
+                    .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Text(session.costUSD.map(self.costString) ?? "—")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(height: Self.sessionRowHeight, alignment: .topLeading)
+        .accessibilityElement(children: .combine)
+    }
+
+    static func shortSessionID(_ sessionID: String) -> String {
+        let trimmed = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 12 else { return trimmed }
+        return "\(trimmed.prefix(4))...\(trimmed.suffix(8))"
+    }
+
+    private static func sessionUsageLine(_ session: CostUsageSessionBreakdown) -> String {
+        let models = session.modelBreakdowns.map(\.modelName)
+        let modelLabel = if models.isEmpty {
+            "Unknown model"
+        } else if models.count == 1 {
+            models[0]
+        } else {
+            "\(models[0]) +\(models.count - 1)"
+        }
+        let input = session.inputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+        let cached = session.cachedInputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+        let output = session.outputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+        return "\(modelLabel) · \(input) input · \(cached) cached · \(output) output"
+    }
 
     static func windowLabel(days: Int) -> String {
         if days == 1 {
@@ -777,6 +884,7 @@ extension CostHistoryChartMenuView {
         let hasDailyEntries: Bool
         let daily: [VisibleDailyFingerprint]
         let projects: [VisibleProjectFingerprint]
+        let sessions: [VisibleSessionFingerprint]
     }
 
     struct VisibleDailyFingerprint: Equatable {
@@ -813,11 +921,23 @@ extension CostHistoryChartMenuView {
         let totalCostBitPattern: UInt64?
     }
 
+    struct VisibleSessionFingerprint: Equatable {
+        let sessionID: String
+        let lastActivityBitPattern: UInt64
+        let inputTokens: Int?
+        let cachedInputTokens: Int?
+        let outputTokens: Int?
+        let totalTokens: Int?
+        let costBitPattern: UInt64?
+        let models: [VisibleModelBreakdownFingerprint]
+    }
+
     static func renderFingerprint(
         from snapshot: CostUsageTokenSnapshot,
         provider: UsageProvider) -> RenderFingerprint
     {
         let projects = provider == .codex ? snapshot.projects : []
+        let sessions = provider == .codex ? snapshot.sessions : []
         return RenderFingerprint(
             currencyCode: snapshot.currencyCode,
             historyDays: snapshot.historyDays,
@@ -842,6 +962,26 @@ extension CostHistoryChartMenuView {
                             path: source.path,
                             totalTokens: source.totalTokens,
                             totalCostBitPattern: source.totalCostUSD.map(\.bitPattern))
+                    })
+            },
+            sessions: sessions.map { session in
+                VisibleSessionFingerprint(
+                    sessionID: session.sessionID,
+                    lastActivityBitPattern: session.lastActivity.timeIntervalSince1970.bitPattern,
+                    inputTokens: session.inputTokens,
+                    cachedInputTokens: session.cachedInputTokens,
+                    outputTokens: session.outputTokens,
+                    totalTokens: session.totalTokens,
+                    costBitPattern: session.costUSD.map(\.bitPattern),
+                    models: session.modelBreakdowns.map { item in
+                        VisibleModelBreakdownFingerprint(
+                            modelName: item.modelName,
+                            costBitPattern: item.costUSD.map(\.bitPattern),
+                            totalTokens: item.totalTokens,
+                            standardCostBitPattern: item.standardCostUSD.map(\.bitPattern),
+                            priorityCostBitPattern: item.priorityCostUSD.map(\.bitPattern),
+                            standardTokens: item.standardCostUSD == nil ? nil : item.standardTokens,
+                            priorityTokens: item.priorityCostUSD == nil ? nil : item.priorityTokens)
                     })
             })
     }

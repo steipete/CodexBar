@@ -116,12 +116,12 @@ struct CLIDiagnoseCommandTests {
     }
 
     @Test
-    func `generic diagnose auth summary detects CrossModel environment credentials`() {
+    func `generic diagnose auth summary detects Neuralwatt environment credentials`() {
         let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
-            provider: .crossmodel,
+            provider: .neuralwatt,
             account: nil,
             config: nil,
-            environment: [CrossModelSettingsReader.envKey: "cm-test"],
+            environment: [NeuralWattSettingsReader.apiKeyEnvironmentKey: "sk-test"],
             settings: nil)
 
         #expect(summary.configured)

@@ -28,6 +28,9 @@ You can also configure the API key in CodexBar Settings → Providers → OpenRo
 
 ### CLI config
 
+To monitor multiple OpenRouter accounts, add labeled API keys in the same provider settings. CodexBar fetches each
+key independently. Choose the segmented account switcher or stacked account cards under Settings → Display.
+
 ```bash
 printf '%s' "$OPENROUTER_API_KEY" | codexbar config set-api-key --provider openrouter --stdin
 ```
@@ -54,6 +57,8 @@ The OpenRouter menu card shows:
 ```bash
 codexbar --provider openrouter
 codexbar -p or  # alias
+codexbar --provider openrouter --account Personal
+codexbar --provider openrouter --all-accounts --format json --pretty
 ```
 
 ## Environment Variables

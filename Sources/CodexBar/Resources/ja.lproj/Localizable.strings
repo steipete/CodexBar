@@ -1,8 +1,33 @@
 /* Japanese localization for CodexBar */
 
+"tab_hooks" = "フック";
+"hooks_enable_title" = "フックを有効にする";
+"hooks_enable_subtitle" = "クォータまたはプロバイダーのイベント発生時に外部コマンドを実行します。";
+"hooks_trust_warning" = "フックはMac上でローカルコマンドを実行できます。信頼できるコマンドのみ設定してください。";
+"hooks_rules_header" = "ルール";
+"hooks_empty" = "フックは設定されていません。";
+"hooks_add_rule" = "ルールを追加";
+"hooks_delete_rule" = "ルールを削除";
+"hooks_rule_enabled" = "有効";
+"hooks_event" = "イベント";
+"hooks_provider" = "プロバイダー";
+"hooks_any_provider" = "すべてのプロバイダー";
+"hooks_threshold" = "使用率 ≥ で実行";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "引数";
+"hooks_argument_placeholder" = "引数";
+"hooks_add_argument" = "引数を追加";
+"hooks_delete_argument" = "引数を削除";
+
+"ollama_safari_cookie_access_hint" = "Safari Cookie を読み込むには、CodexBar にフルディスクアクセスが必要です（システム設定 > プライバシーとセキュリティ）。";
+"ollama_browser_cookie_decryption_denied" = "%@ Cookie の復号がキーチェーンで拒否されました。手動で更新して再試行してください。";
+"ollama_browser_cookie_decryption_disabled" = "%@ Cookie の復号が CodexBar で無効です。キーチェーンへのアクセスを有効にして更新してください。";
+
 " providers" = " 件のプロバイダ";
 "(System)" = "（システム）";
 "30d" = "30日";
+"7d" = "7日";
 "A managed Codex login is already running. Wait for it to finish before adding " = "管理対象の Codex ログインがすでに実行中です。完了を待ってから追加してください ";
 "API key" = "API キー";
 "API region" = "API リージョン";
@@ -297,7 +322,6 @@
 "Store multiple OpenCode Go Cookie headers." = "複数の OpenCode Go Cookie ヘッダーを保存します。";
 "Stored in the CodexBar config file." = "CodexBar の設定ファイルに保存されます。";
 "Stored in ~/.codexbar/config.json. " = "~/.codexbar/config.json に保存されます。 ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "~/.codexbar/config.json に保存されます。kimi-k2.ai で生成できます。";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "~/.codexbar/config.json に保存されます。Synthetic ダッシュボードのキーを貼り付けてください。";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "~/.codexbar/config.json に保存されます。Model Studio の Coding Plan API キーを貼り付けてください。";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json に保存されます。MiniMax API キーを貼り付けてください。";
@@ -434,7 +458,7 @@
 "cost_history_window_title" = "履歴期間";
 "cost_history_window_help" = "メニューに表示するローカル使用ログの日数を設定します。";
 "cost_history_days_title" = "履歴期間: %d 日";
-"cost_auto_refresh_info" = "自動更新: 1 時間ごと · タイムアウト: 10 分";
+"cost_auto_refresh_info" = "自動更新: グローバル間隔（最短 5 分）· タイムアウト: 10 分";
 "cost_comparison_periods_title" = "短い比較期間を表示";
 "cost_comparison_periods_subtitle" = "選択した履歴期間に収まる場合、7日、30日、90日の合計を追加します。これらの合計には同じローカルスキャンを再利用します。";
 "refresh_interval_title" = "更新間隔";
@@ -522,13 +546,14 @@
 "menu_bar_metric_subtitle_deepseek" = "DeepSeek の残高をメニューバーに表示します。";
 "menu_bar_metric_subtitle_moonshot" = "Moonshot / Kimi API の残高をメニューバーに表示します。";
 "menu_bar_metric_subtitle_mistral" = "今月の Mistral API 支出をメニューバーに表示します。";
-"menu_bar_metric_subtitle_kimik2" = "Kimi K2 API キーのクレジットをメニューバーに表示します。";
 "automatic" = "自動";
 "primary_api_key_limit" = "プライマリ（API キー上限）";
 
 /* Display Pane */
 "menu_bar_style_title" = "メニューバーのスタイル";
 "menu_bar_style_subtitle" = "メニューバー項目の表示方法です。";
+"menu_bar_inactive_display_contrast_title" = "非アクティブなディスプレイでの視認性を向上";
+"menu_bar_inactive_display_contrast_subtitle" = "高コントラスト表示を使用し、ほかのディスプレイでもアイコンと指標を読みやすくします。";
 "menu_bar_style_critters" = "クリッター";
 "menu_bar_style_bars" = "メーターバー";
 "menu_bar_style_icon_percent" = "アイコンとパーセント";
@@ -571,6 +596,12 @@
 "agent_sessions_subtitle" = "ローカルおよび SSH で検出された Codex と Claude Code のセッションをメニューに表示します。";
 "agent_sessions_hosts_title" = "追加の SSH ホスト";
 "agent_sessions_footer" = "tailnet 上の Mac は自動的に検出されます。ローカルセッションは 30 秒ごと、リモートホストは 60 秒ごと、およびメニューを開いたときに更新されます。";
+"agent_session_labels_title" = "セッションラベル";
+"agent_session_labels_subtitle" = "エージェントセッションの名前の付け方を選択します。";
+"agent_session_label_project" = "プロジェクト";
+"agent_session_label_descriptive" = "説明";
+"agent_session_label_descriptive_and_project" = "説明 + プロジェクト";
+"agent_session_unknown_project" = "不明なプロジェクト";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "キーボードショートカット";
@@ -702,13 +733,19 @@
 "refresh_15min" = "15分";
 "refresh_30min" = "30分";
 "refresh_adaptive" = "アダプティブ";
+"refresh_adaptive_agent_aware" = "アダプティブ（エージェント対応）";
+"adaptive_activity_consent_title" = "アクティビティ対応の更新を許可しますか？";
+"adaptive_activity_consent_message" = "エージェント対応のアダプティブ更新では、Codex と Claude を識別するために、コマンドラインを含むローカルの実行中プロセス一覧を調べ、コーディング中は既知のセッションメタデータを 30 秒ごとに読み取ることができます。Agent Sessions がオフの場合、CodexBar は最新のアクティビティ時刻だけをメモリで使用し、セッションのパスと識別情報を破棄します。このデータが外部に送信されることはなく、リモート検出と SSH はオフのままです。許可しない場合は、ローカルスキャンを行わない通常のアダプティブに戻ります。";
+"adaptive_activity_consent_allow" = "ローカルアクティビティを許可";
+"adaptive_activity_consent_decline" = "通常のアダプティブを使用";
 
 /* Additional keys */
 "not_found" = "見つかりません";
 
 /* Cost estimation */
-"cost_header_estimated" = "コスト（推定）";
 "cost_estimate_hint" = "ローカルログからの推定値 · 請求額と異なる場合があります";
+"codex_api_estimate_hint" = "トークン使用量からの見積もり · サブスクリプションの請求額ではありません";
+"cost_data_explanation" = "コストはプロバイダーから報告される場合と、トークン使用量を公開 API 価格で換算して見積もられる場合があります。見積もりはサブスクリプション料金ではありません。";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "AI Assistant 対応の JetBrains IDE が検出されませんでした。JetBrains IDE をインストールし、AI Assistant を有効にしてください。";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API トークンが設定されていません。環境変数 OPENROUTER_API_KEY を設定するか、設定で構成してください。";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API トークンが見つかりません。~/.codexbar/config.json の apiKey または Z_AI_API_KEY を設定してください。";
@@ -738,6 +775,7 @@
 "Today" = "今日";
 "Today tokens" = "今日のトークン";
 "30d cost" = "過去30日間のコスト";
+"%@ cost" = "%@のコスト";
 "30d tokens" = "過去30日間のトークン";
 "Latest tokens" = "最新のトークン";
 "Top model" = "最多使用モデル";
@@ -882,7 +920,7 @@
 "Hourly Usage" = "時間別使用量";
 "Usage remaining" = "残りの使用量";
 "Usage used" = "使用済みの使用量";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API キーを確認しました。OllamaはAPI経由でCloudクォータ上限を公開していません。";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "APIキーを確認しました。CloudクォータにはブラウザCookieが必要です。Ollamaにサインインしてください。";
 "Last 30 days: %@ tokens" = "過去30日間: %@ トークン";
 "7d spend" = "7日間の支出";
 "30d spend" = "過去30日間の支出";
@@ -1013,7 +1051,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Cursor の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Factory の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに GitHub Copilot のトークンへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Kimi K2 の API キーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Kimi の認証トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに MiniMax の API トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに MiniMax の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
@@ -1166,7 +1203,6 @@
 "byte_unit_megabytes" = "メガバイト";
 "byte_unit_gigabyte" = "ギガバイト";
 "byte_unit_gigabytes" = "ギガバイト";
-"CrossModel API spend trend" = "CrossModel API の支出推移";
 
 /* Settings sidebar redesign */
 "Enable" = "有効にする";
@@ -1181,3 +1217,128 @@
 "Show Codex Spark usage" = "Codex Spark の使用量を表示";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "メニューとプロバイダのプレビューに Codex Spark のクォータ行を表示します。表示設定で「クレジットと追加使用量を表示」を有効にする必要があります。";
 "Scroll to see more models" = "スクロールして他のモデルを表示";
+"Copy Image" = "画像をコピー";
+"Copy Stats" = "統計をコピー";
+"Could not copy image" = "画像をコピーできませんでした";
+"Image copied" = "画像をコピーしました";
+"Image saved" = "画像を保存しました";
+"Nothing is uploaded. This image is created on your Mac." = "アップロードは行われません。この画像はMac上で作成されます。";
+"Save..." = "保存...";
+"Share AI Usage" = "AI使用状況を共有";
+"Share Stats…" = "統計を共有…";
+"Stats copied" = "統計をコピーしました";
+"DeepSeek this month token usage trend" = "今月の DeepSeek トークン使用量の推移";
+"Chrome profile" = "Chrome プロファイル";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "詳細な使用状況を取得する、ログイン済みの DeepSeek Platform セッションを選択します。";
+"Detailed usage unavailable." = "詳細な使用状況を取得できません。";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "詳細な使用状況を確認するには、Chrome で DeepSeek Platform にログインしてください。";
+"Select a DeepSeek Chrome profile in Settings." = "設定で DeepSeek の Chrome プロファイルを選択してください。";
+"Select profile…" = "プロファイルを選択…";
+
+"%@: %@" = "%@: %@";
+"Alternatively, set a custom path in Settings." = "または、設定でカスタムパスを指定します。";
+"Choose a supported browser so CodexBar can read the matching account." = "CodexBar が対応するアカウントを読み取れるよう、サポート対象のブラウザを選択してください。";
+"Choose Cursor account" = "Cursor アカウントを選択";
+"Choose which Cursor account CodexBar should use." = "CodexBar で使用する Cursor アカウントを選択してください。";
+"Finish switching to a different Cursor account in your browser, then try again." = "ブラウザで別の Cursor アカウントへの切り替えを完了してから、もう一度試してください。";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "AI Assistant を有効にした JetBrains IDE をインストールしてから、CodexBar を更新してください。";
+"Request quota: %@ / %@" = "リクエスト上限: %@ / %@";
+"Sign in with Claude Code..." = "Claude Code でサインイン...";
+"Timed out waiting for Cursor account switch. %@" = "Cursor アカウントの切り替え待機中にタイムアウトしました。%@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Cursor アカウントの切り替え待機中にタイムアウトしました。%@ 最後のエラー: %@";
+"Use Account" = "アカウントを使用する";
+/* Spend dashboard */
+"tab_usage_spend" = "使用量と支出";
+"Usage & Spend" = "使用量と支出";
+"Local estimated cost history across supported providers." = "対応プロバイダ全体のローカル推定コスト履歴。";
+"Time range" = "期間";
+"Track costs" = "コストを追跡";
+"Cost tracking is off" = "コスト追跡はオフです";
+"Turn on Track costs to build local estimates." = "「コストを追跡」をオンにしてローカル推定を作成してください。";
+"No local cost history yet" = "ローカルのコスト履歴はまだありません";
+"Turn on cost tracking or refresh after using a supported provider." = "コスト追跡をオンにするか、対応プロバイダの使用後に更新してください。";
+"Refresh failures" = "更新失敗";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "各通貨は別々に扱われ、Codex アカウント行には Pi セッション履歴を含めません。";
+"Spend unavailable" = "支出を取得できません";
+"Model breakdown unavailable" = "モデル別の内訳を取得できません";
+"Local estimated history" = "ローカル推定履歴";
+"Coverage" = "対象範囲";
+"Estimated spend" = "推定支出";
+"Tracked tokens" = "追跡対象トークン";
+"Subscriptions" = "サブスクリプション";
+"By subscription" = "サブスクリプション別";
+"No model-level history" = "モデル別の履歴はありません";
+"Daily estimated spend" = "日別推定支出";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "週間枠は約%d回分の完全な5時間ウィンドウ · リセットまで%d回";
+"Weekly cannot run out before reset at this pace" = "このペースではリセット前に週間枠を使い切れません";
+"Weekly can run out ≈%d windows early" = "週間枠は約%dウィンドウ早く使い切る可能性があります";
+"Estimated: %@" = "推定：%@";
+"Coding Plan" = "コーディングプラン";
+"Agent Plan" = "エージェントプラン";
+"Team" = "チーム";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "レイアウト";
+"menu_bar_layout_footer" = "トークンをドラッグしてメニューバーを並べます。クリックすると追加でき、配置済みのトークンを選択して Delete キーを押すと削除できます。";
+"menu_bar_layout_group_identity" = "識別情報";
+"menu_bar_layout_group_usage" = "使用量";
+"menu_bar_layout_group_time" = "時間";
+"menu_bar_layout_group_money" = "コスト";
+"menu_bar_layout_group_structure" = "構造";
+"menu_bar_layout_scope_all" = "すべてのプロバイダー";
+"menu_bar_layout_scope_help" = "既定のレイアウトを編集するか、プロバイダーごとに上書きします。";
+"menu_bar_layout_use_all" = "全プロバイダーのレイアウトを使用";
+"menu_bar_layout_preset" = "レイアウトプリセット";
+"menu_bar_layout_preset_icon_percent" = "アイコンと割合";
+"menu_bar_layout_preset_icon_only" = "アイコンのみ";
+"menu_bar_layout_preset_percent_reset" = "割合とリセット";
+"menu_bar_layout_preset_compact_stacked" = "コンパクトな2段表示";
+"menu_bar_layout_preset_custom" = "カスタム";
+"menu_bar_layout_live_preview" = "ライブプレビュー";
+"menu_bar_layout_strip" = "メニューバー表示";
+"menu_bar_layout_remove_line_break" = "改行を削除";
+"menu_bar_layout_chip_hint" = "選択、ドラッグで並べ替え、または削除アクションを使用します。";
+"menu_bar_layout_palette_hint" = "クリックで追加するか、レイアウトへドラッグします。";
+"menu_bar_layout_empty_line" = "ここにトークンをドロップ";
+"menu_bar_layout_line" = "%d 行目";
+"menu_bar_layout_drag_remove" = "ここへドラッグして削除";
+"menu_bar_layout_size" = "サイズ";
+"menu_bar_layout_size_small" = "小";
+"menu_bar_layout_size_regular" = "標準";
+"menu_bar_layout_gap" = "間隔";
+"menu_bar_layout_gap_tight" = "狭い";
+"menu_bar_layout_gap_regular" = "標準";
+"menu_bar_layout_keyboard_hint" = "Delete キーで選択したトークンを削除";
+"menu_bar_layout_sample_account" = "アカウント";
+"menu_bar_layout_sample_runs_out" = "金曜に使い切る";
+"menu_bar_layout_token_icon" = "アイコン";
+"menu_bar_layout_token_provider" = "プロバイダー名";
+"menu_bar_layout_token_account" = "アカウント";
+"menu_bar_layout_token_session" = "セッション %";
+"menu_bar_layout_token_weekly" = "週間 %";
+"menu_bar_layout_token_auto" = "自動 %";
+"menu_bar_layout_token_bar" = "使用量バー";
+"menu_bar_layout_token_resets_in" = "リセットまで";
+"menu_bar_layout_token_reset_at" = "リセット時刻";
+"menu_bar_layout_token_runs_out" = "使い切り";
+"menu_bar_layout_token_cost_today" = "今日のコスト";
+"menu_bar_layout_token_cost_30d" = "30日間のコスト";
+"menu_bar_layout_token_space" = "空白";
+"menu_bar_layout_token_line_break" = "改行";
+"menu_bar_layout_token_separator_accessibility" = "区切り点";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "アイコン: 利用不可";
+"%@ icon" = "%@: アイコン";
+"Provider name unavailable" = "プロバイダー名: 利用不可";
+"Account unavailable" = "アカウント: 利用不可";
+"%@ unavailable" = "%@: 利用不可";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "使用量バー: 利用不可";
+"Usage bar, %d of 3 filled" = "使用量バー: %d/3 点灯";
+"Reset countdown unavailable" = "リセットまで: 利用不可";
+"Reset time unavailable" = "リセット時刻: 利用不可";
+"Run-out estimate unavailable" = "使い切り: 利用不可";
+"Cost today unavailable" = "今日のコスト: 利用不可";
+"30-day cost unavailable" = "30日間のコスト: 利用不可";
+"Resets" = "リセット";

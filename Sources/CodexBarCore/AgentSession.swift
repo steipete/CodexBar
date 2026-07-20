@@ -25,6 +25,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
     public var pid: Int32?
     public var cwd: String?
     public var projectName: String?
+    public var sessionName: String?
     public var startedAt: Date?
     public var lastActivityAt: Date?
     public var transcriptPath: String?
@@ -38,6 +39,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
         pid: Int32?,
         cwd: String?,
         projectName: String?,
+        sessionName: String? = nil,
         startedAt: Date?,
         lastActivityAt: Date?,
         transcriptPath: String?,
@@ -50,6 +52,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
         self.pid = pid
         self.cwd = cwd
         self.projectName = projectName
+        self.sessionName = sessionName
         self.startedAt = startedAt
         self.lastActivityAt = lastActivityAt
         self.transcriptPath = transcriptPath
@@ -60,15 +63,106 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
 public struct SessionScanConfig: Equatable, Sendable {
     public var activeWindow: TimeInterval
     public var fileOnlyWindow: TimeInterval
+    public var maxProcessCount: Int
+    public var maxCodexRolloutCount: Int
+    public var maxClaudeTranscriptCountPerProject: Int
+    public var maxDirectoryEntryCount: Int
+    public var maxDirectoryDepth: Int
+    public var directoryScanBudget: TimeInterval
+    public var adaptiveDirectoryScanBudget: TimeInterval
 
-    public init(activeWindow: TimeInterval = 120, fileOnlyWindow: TimeInterval = 30 * 60) {
+    public init(
+        activeWindow: TimeInterval = 120,
+        fileOnlyWindow: TimeInterval = 30 * 60,
+        maxProcessCount: Int = 64,
+        maxCodexRolloutCount: Int = 128,
+        maxClaudeTranscriptCountPerProject: Int = 64,
+        maxDirectoryEntryCount: Int = 512,
+        maxDirectoryDepth: Int = 1,
+        directoryScanBudget: TimeInterval = 0.25,
+        adaptiveDirectoryScanBudget: TimeInterval = 0.15)
+    {
         self.activeWindow = activeWindow
         self.fileOnlyWindow = fileOnlyWindow
+        self.maxProcessCount = maxProcessCount
+        self.maxCodexRolloutCount = maxCodexRolloutCount
+        self.maxClaudeTranscriptCountPerProject = maxClaudeTranscriptCountPerProject
+        self.maxDirectoryEntryCount = maxDirectoryEntryCount
+        self.maxDirectoryDepth = maxDirectoryDepth
+        self.directoryScanBudget = directoryScanBudget
+        self.adaptiveDirectoryScanBudget = adaptiveDirectoryScanBudget
     }
 
     public func state(lastActivityAt: Date?, now: Date, hasLiveProcess: Bool) -> AgentSession.State {
         guard let lastActivityAt else { return hasLiveProcess ? .active : .idle }
         return now.timeIntervalSince(lastActivityAt) <= self.activeWindow ? .active : .idle
+    }
+}
+
+struct DirectoryMetadataScanBudget {
+    private var remainingEntryCount: Int
+    let maxDepth: Int
+    private let deadline: Date
+    private let didVisitEntry: (@Sendable () -> Void)?
+
+    init(
+        maxEntryCount: Int,
+        maxDepth: Int,
+        timeLimit: TimeInterval,
+        startedAt: Date = Date(),
+        didVisitEntry: (@Sendable () -> Void)? = nil)
+    {
+        self.remainingEntryCount = max(0, maxEntryCount)
+        self.maxDepth = max(0, maxDepth)
+        self.deadline = startedAt.addingTimeInterval(max(0, timeLimit))
+        self.didVisitEntry = didVisitEntry
+    }
+
+    mutating func files(
+        in directory: URL,
+        fileManager: FileManager = .default,
+        clock: () -> Date = Date.init) -> [URL]
+    {
+        self.entries(in: directory, fileManager: fileManager, clock: clock)
+            .compactMap { entry in entry.isDirectory ? nil : entry.url }
+    }
+
+    mutating func childDirectories(
+        in directory: URL,
+        fileManager: FileManager = .default,
+        clock: () -> Date = Date.init) -> [URL]
+    {
+        self.entries(in: directory, fileManager: fileManager, clock: clock)
+            .compactMap { entry in entry.isDirectory ? entry.url : nil }
+    }
+
+    func hasTimeRemaining(clock: () -> Date = Date.init) -> Bool {
+        clock() < self.deadline
+    }
+
+    private mutating func entries(
+        in directory: URL,
+        fileManager: FileManager,
+        clock: () -> Date) -> [(url: URL, isDirectory: Bool)]
+    {
+        guard self.maxDepth > 0,
+              self.remainingEntryCount > 0,
+              clock() < self.deadline,
+              let enumerator = fileManager.enumerator(
+                  at: directory,
+                  includingPropertiesForKeys: [.isDirectoryKey],
+                  options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants])
+        else { return [] }
+
+        var entries: [(url: URL, isDirectory: Bool)] = []
+        while self.remainingEntryCount > 0, clock() < self.deadline {
+            guard let url = enumerator.nextObject() as? URL else { break }
+            self.remainingEntryCount -= 1
+            self.didVisitEntry?()
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            entries.append((url, isDirectory))
+        }
+        return entries
     }
 }
 
@@ -270,25 +364,67 @@ public enum ClaudeSessionProjectMapper {
     public static func transcripts(
         cwd: String,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default) -> [Transcript]
+        fileManager: FileManager = .default,
+        limit: Int? = nil,
+        now: Date = Date()) -> [Transcript]
     {
-        self.projectDirectories(cwd: cwd, homeDirectory: homeDirectory, fileManager: fileManager)
-            .flatMap { directory -> [(URL, Date)] in
-                guard let files = try? fileManager.contentsOfDirectory(
-                    at: directory,
-                    includingPropertiesForKeys: [.contentModificationDateKey],
-                    options: [.skipsHiddenFiles])
-                else { return [] }
-                return files.compactMap { file in
-                    guard file.pathExtension == "jsonl",
-                          let modifiedAt = try? file.resourceValues(
-                              forKeys: [.contentModificationDateKey]).contentModificationDate
-                    else { return nil }
-                    return (file, modifiedAt)
-                }
+        var budget = DirectoryMetadataScanBudget(
+            maxEntryCount: 4096,
+            maxDepth: 1,
+            timeLimit: 1)
+        return self.transcripts(
+            cwd: cwd,
+            homeDirectory: homeDirectory,
+            fileManager: fileManager,
+            limit: limit,
+            now: now,
+            budget: &budget)
+    }
+
+    static func transcripts(
+        cwd: String,
+        homeDirectory: URL,
+        fileManager: FileManager = .default,
+        limit: Int?,
+        now: Date,
+        budget: inout DirectoryMetadataScanBudget,
+        clampModificationDate: (URL, Date, Date) -> Date = { _, modifiedAt, now in min(modifiedAt, now) })
+        -> [Transcript]
+    {
+        let transcripts = self.projectDirectories(
+            cwd: cwd,
+            homeDirectory: homeDirectory,
+            fileManager: fileManager,
+            budget: &budget)
+            .flatMap { directory in budget.files(in: directory, fileManager: fileManager) }
+            .compactMap { file -> (URL, Date)? in
+                guard budget.hasTimeRemaining(),
+                      file.pathExtension == "jsonl",
+                      let modifiedAt = try? file.resourceValues(
+                          forKeys: [.contentModificationDateKey]).contentModificationDate
+                else { return nil }
+                return (file, clampModificationDate(file, modifiedAt, now))
             }
             .sorted { $0.1 > $1.1 }
             .map { Transcript(url: $0.0, modifiedAt: $0.1) }
+        guard let limit else { return transcripts }
+        return Array(transcripts.prefix(max(0, limit)))
+    }
+
+    private static func projectDirectories(
+        cwd: String,
+        homeDirectory: URL,
+        fileManager: FileManager,
+        budget: inout DirectoryMetadataScanBudget) -> [URL]
+    {
+        let standardRoot = homeDirectory
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("projects", isDirectory: true)
+        return ([standardRoot] + ClaudeDesktopProjectsLocator.roots(
+            homeDirectory: homeDirectory,
+            fileManager: fileManager,
+            budget: &budget))
+            .map { $0.appendingPathComponent(self.escapedCWD(cwd), isDirectory: true) }
     }
 }
 
@@ -297,7 +433,9 @@ public enum AgentSessionCorrelation {
         processes.sorted { lhs, rhs in
             let lhsDate = lhs.startedAt ?? .distantPast
             let rhsDate = rhs.startedAt ?? .distantPast
-            if lhsDate != rhsDate { return lhsDate > rhsDate }
+            if lhsDate != rhsDate {
+                return lhsDate > rhsDate
+            }
             return lhs.pid > rhs.pid
         }
     }
@@ -361,12 +499,23 @@ public struct CodexRolloutMetadata: Equatable, Sendable {
     public let cwd: String?
     public let originator: String?
     public let source: String?
+    public let agentPath: String?
+    public let isGuardian: Bool
 
-    public init(sessionID: String, cwd: String?, originator: String?, source: String?) {
+    public init(
+        sessionID: String,
+        cwd: String?,
+        originator: String?,
+        source: String?,
+        agentPath: String? = nil,
+        isGuardian: Bool = false)
+    {
         self.sessionID = sessionID
         self.cwd = cwd
         self.originator = originator
         self.source = source
+        self.agentPath = agentPath
+        self.isGuardian = isGuardian
     }
 
     public var sessionSource: AgentSession.Source {
@@ -384,6 +533,73 @@ public struct CodexRolloutMetadata: Equatable, Sendable {
         }
         return .unknown
     }
+
+    public func descriptiveName(threadMetadata: CodexThreadMetadata?) -> String? {
+        if self.isGuardian {
+            return "Approval review"
+        }
+        if let agentPath = threadMetadata?.agentPath ?? self.agentPath,
+           let name = AgentSessionNameFormatter.agentPath(agentPath)
+        {
+            return name
+        }
+        return threadMetadata?.title.flatMap { AgentSessionNameFormatter.title($0) }
+    }
+}
+
+private enum AgentSessionNameFormatter {
+    private static let uppercaseWords: Set<String> = [
+        "ai", "api", "ci", "cli", "db", "pr", "qa", "seo", "sql", "ui", "ux",
+    ]
+
+    static func agentPath(_ path: String) -> String? {
+        guard let component = path.split(separator: "/").last else { return nil }
+        var normalized = ""
+        var previous: Character?
+        for character in component {
+            if character == "_" || character == "-" {
+                if !normalized.hasSuffix(" ") {
+                    normalized.append(" ")
+                }
+                previous = nil
+                continue
+            }
+            if let previous,
+               (character.isNumber && !previous.isNumber) ||
+               (character.isLetter && previous.isNumber) ||
+               (character.isUppercase && previous.isLowercase)
+            {
+                normalized.append(" ")
+            }
+            normalized.append(character)
+            previous = character
+        }
+
+        let words = normalized.split(whereSeparator: \ .isWhitespace).map(String.init)
+        guard !words.isEmpty else { return nil }
+        return words.enumerated().map { index, word in
+            let lowercase = word.lowercased()
+            if self.uppercaseWords.contains(lowercase) {
+                return lowercase.uppercased()
+            }
+            return index == 0 ? word.prefix(1).uppercased() + word.dropFirst() : lowercase
+        }.joined(separator: " ")
+    }
+
+    static func title(_ title: String, maximumLength: Int = 64) -> String? {
+        let lines = title
+            .split(whereSeparator: \ .isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let line = lines.first(where: { !$0.hasPrefix("/") }) ?? lines.first else { return nil }
+        if line.hasPrefix("/"), let command = self.agentPath(String(line.dropFirst())) {
+            return command
+        }
+
+        let compact = line.split(whereSeparator: \ .isWhitespace).joined(separator: " ")
+        guard compact.count > maximumLength else { return compact }
+        return compact.prefix(maximumLength - 1).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
 }
 
 public enum CodexRolloutFirstLineParser {
@@ -394,11 +610,16 @@ public enum CodexRolloutFirstLineParser {
               let payload = object["payload"] as? [String: Any],
               let sessionID = (payload["session_id"] as? String) ?? (payload["id"] as? String)
         else { return nil }
+        let sourceObject = payload["source"] as? [String: Any]
+        let subagent = sourceObject?["subagent"] as? [String: Any]
+        let threadSpawn = subagent?["thread_spawn"] as? [String: Any]
         return CodexRolloutMetadata(
             sessionID: sessionID,
             cwd: payload["cwd"] as? String,
             originator: payload["originator"] as? String,
-            source: payload["source"] as? String)
+            source: payload["source"] as? String,
+            agentPath: (payload["agent_path"] as? String) ?? (threadSpawn?["agent_path"] as? String),
+            isGuardian: (subagent?["other"] as? String)?.lowercased() == "guardian")
     }
 
     public static func read(from url: URL) -> CodexRolloutMetadata? {

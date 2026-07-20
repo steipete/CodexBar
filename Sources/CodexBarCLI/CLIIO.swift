@@ -37,10 +37,16 @@ extension CodexBarCLI {
             print(Self.serveHelp(version: version))
         case "config", "validate", "dump":
             print(Self.configHelp(version: version))
+        case "hooks":
+            print(Self.hooksHelp(version: version))
         case "cache", "clear":
             print(Self.cacheHelp(version: version))
+        case "cookie", "refresh":
+            print(Self.cookieHelp(version: version))
         case "diagnose":
             print(Self.diagnoseHelp(version: version))
+        case "guard":
+            print(Self.guardHelp(version: version))
         default:
             print(Self.rootHelp(version: version))
         }

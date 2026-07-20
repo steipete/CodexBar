@@ -9,7 +9,7 @@ extension UsageStore {
 
     func codexCreditsFetcher() -> UsageFetcher {
         // Credits are remote Codex account state, so they need the same managed-home routing as the
-        // primary Codex usage fetch. Local token-cost scanning intentionally stays ambient-system scoped.
+        // primary Codex usage fetch. Token-cost scanning owns its selected managed or ambient scope separately.
         self.makeFetchContext(provider: .codex, override: nil).fetcher
     }
 

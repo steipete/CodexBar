@@ -31,7 +31,12 @@ public enum AbacusProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .abacus,
                 iconResourceName: "ProviderIcon-abacus",
-                color: ProviderColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255)),
+                color: ProviderColor(red: 56 / 255, green: 189 / 255, blue: 248 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x35BEE2),
+                    ProviderColor(hex: 0xC64AF9),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Abacus AI cost summary is not supported." }),

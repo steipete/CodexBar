@@ -15,14 +15,11 @@ struct DeepSeekAmountPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.code = try container.decodeIfPresent(Int.self, forKey: .code)
         self.msg = try container.decodeIfPresent(String.self, forKey: .msg)
-        if container.contains(.data) {
-            if let dataValue = try? container.decodeIfPresent(DeepSeekAmountData.self, forKey: .data) {
-                self.data = dataValue
-            } else {
-                self.data = nil
-            }
+        if let code, code != 0 {
+            // Error envelopes are not schema-stable. Preserve their code even if `data` has an unexpected shape.
+            self.data = try? container.decodeIfPresent(DeepSeekAmountData.self, forKey: .data)
         } else {
-            self.data = nil
+            self.data = try container.decodeIfPresent(DeepSeekAmountData.self, forKey: .data)
         }
     }
 }
@@ -42,14 +39,10 @@ struct DeepSeekAmountData: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.bizCode = try container.decodeIfPresent(Int.self, forKey: .bizCode)
         self.bizMsg = try container.decodeIfPresent(String.self, forKey: .bizMsg)
-        if container.contains(.bizData) {
-            if let dataValue = try? container.decodeIfPresent(DeepSeekAmountBizData.self, forKey: .bizData) {
-                self.bizData = dataValue
-            } else {
-                self.bizData = nil
-            }
+        if let bizCode, bizCode != 0 {
+            self.bizData = try? container.decodeIfPresent(DeepSeekAmountBizData.self, forKey: .bizData)
         } else {
-            self.bizData = nil
+            self.bizData = try container.decodeIfPresent(DeepSeekAmountBizData.self, forKey: .bizData)
         }
     }
 }
@@ -78,14 +71,10 @@ struct DeepSeekCostPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.code = try container.decodeIfPresent(Int.self, forKey: .code)
         self.msg = try container.decodeIfPresent(String.self, forKey: .msg)
-        if container.contains(.data) {
-            if let dataValue = try? container.decodeIfPresent(DeepSeekCostData.self, forKey: .data) {
-                self.data = dataValue
-            } else {
-                self.data = nil
-            }
+        if let code, code != 0 {
+            self.data = try? container.decodeIfPresent(DeepSeekCostData.self, forKey: .data)
         } else {
-            self.data = nil
+            self.data = try container.decodeIfPresent(DeepSeekCostData.self, forKey: .data)
         }
     }
 }
@@ -105,7 +94,11 @@ struct DeepSeekCostData: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.bizCode = try container.decodeIfPresent(Int.self, forKey: .bizCode)
         self.bizMsg = try container.decodeIfPresent(String.self, forKey: .bizMsg)
-        self.bizData = try container.decodeIfPresent([DeepSeekCostBizDataItem].self, forKey: .bizData)
+        if let bizCode, bizCode != 0 {
+            self.bizData = try? container.decodeIfPresent([DeepSeekCostBizDataItem].self, forKey: .bizData)
+        } else {
+            self.bizData = try container.decodeIfPresent([DeepSeekCostBizDataItem].self, forKey: .bizData)
+        }
     }
 }
 
@@ -287,25 +280,37 @@ enum DeepSeekUsageCostParser {
         do {
             amountPayload = try self.decodeAmountPayload(data: amountData)
         } catch {
-            throw DeepSeekUsageError.parseFailed("amount: \(error.localizedDescription)")
+            throw DeepSeekUsageError.parseFailed("amount: \(self.decodingFailureDescription(error))")
         }
         do {
             costPayload = try self.decodeCostPayload(data: costData)
         } catch {
-            throw DeepSeekUsageError.parseFailed("cost: \(error.localizedDescription)")
+            throw DeepSeekUsageError.parseFailed("cost: \(self.decodingFailureDescription(error))")
         }
 
         // Validate responses
         if let code = amountPayload.code, code != 0 {
+            if self.isAuthenticationError(code) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
             throw DeepSeekUsageError.apiError("amount code \(code)")
         }
         if let bizCode = amountPayload.data?.bizCode, bizCode != 0 {
+            if self.isAuthenticationError(bizCode) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
             throw DeepSeekUsageError.apiError("amount biz_code \(bizCode)")
         }
         if let code = costPayload.code, code != 0 {
+            if self.isAuthenticationError(code) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
             throw DeepSeekUsageError.apiError("cost code \(code)")
         }
         if let bizCode = costPayload.data?.bizCode, bizCode != 0 {
+            if self.isAuthenticationError(bizCode) {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
             throw DeepSeekUsageError.apiError("cost biz_code \(bizCode)")
         }
 
@@ -331,6 +336,17 @@ enum DeepSeekUsageCostParser {
             currency: currency,
             now: now,
             calendar: calendar))
+    }
+
+    private static func isAuthenticationError(_ code: Int) -> Bool {
+        code == 40002 || code == 40003
+    }
+
+    private static func decodingFailureDescription(_ error: any Error) -> String {
+        if error is DecodingError {
+            return String(describing: error)
+        }
+        return error.localizedDescription
     }
 
     // MARK: - Aggregation

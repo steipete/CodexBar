@@ -5,6 +5,52 @@ import Testing
 
 struct DoubaoMenuCardModelTests {
     @Test
+    @MainActor
+    func `team plan metric title discloses its edition`() throws {
+        let now = Date(timeIntervalSince1970: 1_742_771_200)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "doubao-coding-team-session",
+                    title: "5-hour",
+                    window: RateWindow(
+                        usedPercent: 25,
+                        windowMinutes: 300,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ],
+            updatedAt: now,
+            identity: nil)
+        let metadata = try #require(ProviderDefaults.metadata[.doubao])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .doubao,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let metric = try #require(model.metrics.first)
+        #expect(metric.id == "doubao-coding-team-session")
+        #expect(UsageMenuCardView.popupMetricTitle(provider: .doubao, metric: metric) == "5-hour (Team)")
+    }
+
+    @Test
     func `coding plan monthly quota shows deficit and run out details`() throws {
         let now = Date(timeIntervalSince1970: 10_368_000) // 1970-05-01T00:00:00Z
         let reset = now.addingTimeInterval(6 * 24 * 3600)

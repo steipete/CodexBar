@@ -13,6 +13,25 @@ resolve_package_signing_mode() {
   SIGNING_MODE="$requested"
 }
 
+verify_no_quarantine_attribute() {
+  local bundle="$1"
+  local quarantined
+  quarantined="$(xattr -r -p com.apple.quarantine "$bundle" 2>/dev/null || true)"
+  if [[ -n "$quarantined" ]]; then
+    echo "ERROR: Packaged app still has com.apple.quarantine: ${bundle}" >&2
+    return 1
+  fi
+}
+
+verify_packaged_app_integrity() {
+  local bundle="$1"
+  local sparkle="$bundle/Contents/Frameworks/Sparkle.framework"
+
+  verify_no_quarantine_attribute "$bundle" || return 1
+  codesign --verify --deep --strict --verbose=2 "$sparkle" || return 1
+  codesign --verify --deep --strict --verbose=2 "$bundle" || return 1
+}
+
 CONF=${1:-release}
 ALLOW_LLDB=${CODEXBAR_ALLOW_LLDB:-0}
 SIGNING_MODE=
@@ -275,6 +294,19 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CodexBuildTimestamp</key><string>${BUILD_TIMESTAMP}</string>
     <key>CodexGitCommit</key><string>${GIT_COMMIT}</string>
     <key>CodexBarTeamID</key><string>${APP_TEAM_ID}</string>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key><string>com.steipete.codexbar.menu-layout-item</string>
+            <key>UTTypeDescription</key><string>CodexBar menu bar layout token</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict/>
+        </dict>
+    </array>
 </dict>
 </plist>
 PLIST
@@ -538,4 +570,5 @@ codesign "${CODESIGN_ARGS[@]}" \
 rm -rf "$APP_FINAL"
 mv "$APP" "$APP_FINAL"
 APP="$APP_FINAL"
+verify_packaged_app_integrity "$APP"
 echo "Created $APP"

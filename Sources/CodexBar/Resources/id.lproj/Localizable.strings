@@ -1,8 +1,13 @@
 /* Indonesian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Cookie Safari memerlukan Akses Disk Penuh untuk CodexBar (Pengaturan Sistem > Privasi & Keamanan).";
+"ollama_browser_cookie_decryption_denied" = "Dekripsi cookie %@ ditolak di Rantai Kunci; coba lagi dengan penyegaran manual.";
+"ollama_browser_cookie_decryption_disabled" = "Dekripsi cookie %@ dinonaktifkan di CodexBar; aktifkan akses Rantai Kunci lalu segarkan.";
+
 " providers" = " penyedia";
 "(System)" = "(Sistem)";
 "30d" = "30 hari";
+"7d" = "7 hari";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Login Codex terkelola sudah berjalan. Tunggu hingga selesai sebelum menambahkan ";
 "API key" = "Kunci API";
 "API region" = "Wilayah API";
@@ -58,13 +63,16 @@
 "Check for updates automatically" = "Periksa pembaruan secara otomatis";
 "Check if you like your agents having some fun up there." = "Centang jika Anda suka agen bersenang-senang di atas sana.";
 "Check provider status" = "Periksa status penyedia";
+"Choose a supported browser so CodexBar can read the matching account." = "Pilih browser yang didukung agar CodexBar dapat membaca akun yang sesuai.";
 "Choose Codex workspace" = "Pilih workspace Codex";
+"Choose Cursor account" = "Pilih akun Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "Pilih host MiniMax (global .io atau Tiongkok daratan .com).";
 "Choose up to " = "Pilih hingga ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "Pilih hingga \\(Self.maxOverviewProviders) penyedia";
 "Choose up to \\(count) providers" = "Pilih hingga \\(count) penyedia";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Pilih apa yang ditampilkan di menu bar (Pace menampilkan penggunaan vs. perkiraan).";
 "Choose which Codex account CodexBar should follow." = "Pilih akun Codex mana yang harus diikuti CodexBar.";
+"Choose which Cursor account CodexBar should use." = "Pilih akun Cursor yang harus digunakan CodexBar.";
 "Choose which window drives the menu bar percent." = "Pilih jendela mana yang menggerakkan persentase menu bar.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI tidak ditemukan";
@@ -300,7 +308,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Simpan beberapa header Cookie OpenCode Go.";
 "Stored in the CodexBar config file." = "Disimpan dalam file konfigurasi CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "Disimpan di ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Disimpan di ~/.codexbar/config.json. Buat satu di kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Disimpan di ~/.codexbar/config.json. Tempel kunci dari dasbor Synthetic.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Disimpan di ~/.codexbar/config.json. Tempel kunci API Coding Plan Anda dari Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Disimpan di ~/.codexbar/config.json. Tempel kunci API MiniMax Anda.";
@@ -330,6 +337,7 @@
 "Usage breakdown" = "Rincian penggunaan";
 "Usage history (30 days)" = "Riwayat penggunaan";
 "Usage source" = "Sumber penggunaan";
+"Use Account" = "Gunakan Akun";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Gunakan BigModel untuk endpoint Tiongkok daratan (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Gunakan satu ikon menu bar dengan pengalih penyedia.";
 "Use international or China mainland console gateways for quota fetches." = "Gunakan gateway konsol internasional atau Tiongkok daratan untuk pengambilan kuota.";
@@ -442,7 +450,7 @@
 "cost_history_days_title" = "Jendela riwayat: %d hari";
 "cost_comparison_periods_title" = "Tampilkan periode perbandingan yang lebih singkat";
 "cost_comparison_periods_subtitle" = "Tambahkan total 7, 30, dan 90 hari jika termasuk dalam rentang riwayat yang dipilih. Total ini menggunakan kembali pemindaian lokal yang sama.";
-"cost_auto_refresh_info" = "Penyegaran otomatis: per jam · Batas waktu: 10m";
+"cost_auto_refresh_info" = "Penyegaran otomatis: interval global (minimum 5 menit) · Batas waktu: 10 menit";
 "refresh_interval_title" = "Interval penyegaran";
 "manual_refresh_hint" = "Penyegaran otomatis nonaktif; gunakan perintah Segarkan di menu.";
 "refresh_on_open_title" = "Segarkan saat menu dibuka";
@@ -504,6 +512,27 @@
 "tab_menu_bar" = "Menu bar";
 "tab_menu" = "Menu";
 "tab_advanced" = "Lanjutan";
+"tab_hooks" = "Hook";
+
+/* Hooks Pane */
+"hooks_enable_title" = "Aktifkan hook";
+"hooks_enable_subtitle" = "Jalankan perintah eksternal saat terjadi peristiwa kuota atau penyedia.";
+"hooks_trust_warning" = "Hook dapat menjalankan perintah lokal di Mac Anda. Hanya konfigurasikan perintah yang Anda percayai.";
+"hooks_rules_header" = "Aturan";
+"hooks_empty" = "Belum ada hook yang dikonfigurasi.";
+"hooks_add_rule" = "Tambah aturan";
+"hooks_delete_rule" = "Hapus aturan";
+"hooks_rule_enabled" = "Aktif";
+"hooks_event" = "Peristiwa";
+"hooks_provider" = "Penyedia";
+"hooks_any_provider" = "Penyedia apa pun";
+"hooks_threshold" = "Picu saat penggunaan ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "Argumen";
+"hooks_argument_placeholder" = "Argumen";
+"hooks_add_argument" = "Tambah argumen";
+"hooks_delete_argument" = "Hapus argumen";
 "tab_about" = "Tentang";
 "tab_debug" = "Debug";
 
@@ -528,13 +557,14 @@
 "menu_bar_metric_subtitle_deepseek" = "Menampilkan saldo DeepSeek di menu bar.";
 "menu_bar_metric_subtitle_moonshot" = "Menampilkan saldo API Moonshot / Kimi di menu bar.";
 "menu_bar_metric_subtitle_mistral" = "Menampilkan pengeluaran API Mistral bulan ini di menu bar.";
-"menu_bar_metric_subtitle_kimik2" = "Menampilkan kredit kunci API Kimi K2 di menu bar.";
 "automatic" = "Otomatis";
 "primary_api_key_limit" = "Utama (batas kunci API)";
 
 /* Display Pane */
 "menu_bar_style_title" = "Gaya menu bar";
 "menu_bar_style_subtitle" = "Cara item menu bar digambar.";
+"menu_bar_inactive_display_contrast_title" = "Tingkatkan visibilitas di layar tidak aktif";
+"menu_bar_inactive_display_contrast_subtitle" = "Gunakan rendering kontras tinggi agar ikon dan metrik tetap terbaca di layar lain.";
 "menu_bar_style_critters" = "Critter";
 "menu_bar_style_bars" = "Bilah meter";
 "menu_bar_style_icon_percent" = "Ikon & persentase";
@@ -577,6 +607,12 @@
 "agent_sessions_subtitle" = "Tampilkan sesi Codex dan Claude Code lokal serta yang ditemukan melalui SSH di menu.";
 "agent_sessions_hosts_title" = "Host SSH tambahan";
 "agent_sessions_footer" = "Mac di tailnet Anda ditemukan secara otomatis. Sesi lokal disegarkan setiap 30 detik; host jarak jauh setiap 60 detik dan saat menu dibuka.";
+"agent_session_labels_title" = "Label sesi";
+"agent_session_labels_subtitle" = "Pilih cara penamaan sesi agen.";
+"agent_session_label_project" = "Proyek";
+"agent_session_label_descriptive" = "Deskriptif";
+"agent_session_label_descriptive_and_project" = "Deskriptif + proyek";
+"agent_session_unknown_project" = "Proyek tidak dikenal";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Pintasan keyboard";
@@ -708,13 +744,19 @@
 "refresh_15min" = "15 mnt";
 "refresh_30min" = "30 mnt";
 "refresh_adaptive" = "Adaptif";
+"refresh_adaptive_agent_aware" = "Adaptif (peka agen)";
+"adaptive_activity_consent_title" = "Izinkan penyegaran yang peka terhadap aktivitas?";
+"adaptive_activity_consent_message" = "Mode Adaptif yang peka terhadap agen dapat memeriksa daftar proses lokal yang sedang berjalan, termasuk baris perintah, untuk mengenali Codex dan Claude, lalu membaca metadata sesi yang dikenal setiap 30 detik saat Anda menulis kode. Saat Agent Sessions dinonaktifkan, CodexBar hanya menggunakan waktu aktivitas terbaru di memori serta membuang jalur dan identitas sesi. Data ini tidak dikirim ke mana pun, dan penemuan jarak jauh serta SSH tetap nonaktif. Jika Anda menolak, CodexBar kembali ke mode Adaptif biasa tanpa pemindaian aktivitas lokal.";
+"adaptive_activity_consent_allow" = "Izinkan Aktivitas Lokal";
+"adaptive_activity_consent_decline" = "Gunakan Adaptif Biasa";
 
 /* Additional keys */
 "not_found" = "Tidak ditemukan";
 
 /* Cost estimation */
-"cost_header_estimated" = "Biaya (perkiraan)";
 "cost_estimate_hint" = "Diperkirakan dari log lokal · mungkin berbeda dari tagihan Anda";
+"codex_api_estimate_hint" = "Diperkirakan dari penggunaan token · bukan tagihan langganan";
+"cost_data_explanation" = "Biaya dapat dilaporkan oleh penyedia atau diperkirakan dari penggunaan token dengan harga API publik. Estimasi bukan biaya langganan.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Tidak ada JetBrains IDE dengan AI Assistant terdeteksi. Pasang JetBrains IDE dan aktifkan AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "Token API OpenRouter belum dikonfigurasi. Atur variabel lingkungan OPENROUTER_API_KEY atau konfigurasi di Pengaturan.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "Token API z.ai tidak ditemukan. Atur apiKey di ~/.codexbar/config.json atau Z_AI_API_KEY.";
@@ -744,6 +786,7 @@
 "Today" = "Hari ini";
 "Today tokens" = "Token hari ini";
 "30d cost" = "Biaya 30 hari";
+"%@ cost" = "Biaya %@";
 "30d tokens" = "Token 30 hari";
 "Latest tokens" = "Token terbaru";
 "Top model" = "Model teratas";
@@ -889,7 +932,7 @@
 "Hourly Usage" = "Penggunaan Per Jam";
 "Usage remaining" = "Penggunaan tersisa";
 "Usage used" = "Penggunaan terpakai";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "Kunci API terverifikasi. Ollama tidak menampilkan batas kuota Cloud melalui API.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "Kunci API terverifikasi. Kuota Cloud memerlukan cookie browser. Masuk ke Ollama.";
 "Last 30 days: %@ tokens" = "30 hari terakhir: %@ token";
 "7d spend" = "Pengeluaran 7 hari";
 "30d spend" = "Pengeluaran 30 hari";
@@ -900,6 +943,13 @@
 "MiniMax 30 day token usage trend" = "Tren penggunaan token 30 hari MiniMax";
 "Today cash" = "Kas hari ini";
 "DeepSeek 30 day token usage trend" = "Tren penggunaan token 30 hari DeepSeek";
+"DeepSeek this month token usage trend" = "Tren penggunaan token DeepSeek bulan ini";
+"Chrome profile" = "Profil Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Pilih sesi DeepSeek Platform yang telah masuk untuk menyediakan rincian penggunaan.";
+"Detailed usage unavailable." = "Rincian penggunaan tidak tersedia.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Masuk ke DeepSeek Platform di Chrome untuk melihat rincian penggunaan.";
+"Select a DeepSeek Chrome profile in Settings." = "Pilih profil Chrome DeepSeek di Pengaturan.";
+"Select profile…" = "Pilih profil…";
 "cache-hit input" = "input cache-hit";
 "cache-miss input" = "input cache-miss";
 "output" = "output";
@@ -1023,7 +1073,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie Cursor Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie Factory Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token GitHub Copilot Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk kunci API Kimi K2 Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token auth Kimi Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token API MiniMax Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie MiniMax Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
@@ -1171,7 +1220,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
-"CrossModel API spend trend" = "Tren pengeluaran API CrossModel";
 
 /* Settings sidebar redesign */
 "Enable" = "Aktifkan";
@@ -1186,3 +1234,114 @@
 "Show Codex Spark usage" = "Tampilkan penggunaan Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Menampilkan baris kuota Codex Spark di menu dan pratinjau penyedia. Mengharuskan “Tampilkan kredit + penggunaan ekstra” diaktifkan di pengaturan Tampilan.";
 "Scroll to see more models" = "Gulir untuk melihat model lainnya";
+
+/* Shareable usage card */
+"Copy Image" = "Salin Gambar";
+"Copy Stats" = "Salin Statistik";
+"Could not copy image" = "Gambar tidak dapat disalin";
+"Image copied" = "Gambar disalin";
+"Image saved" = "Gambar disimpan";
+"Nothing is uploaded. This image is created on your Mac." = "Tidak ada data yang diunggah. Gambar ini dibuat di Mac Anda.";
+"Save..." = "Simpan...";
+"Share AI Usage" = "Bagikan Penggunaan AI";
+"Share Stats…" = "Bagikan Statistik…";
+"Stats copied" = "Statistik disalin";
+"Finish switching to a different Cursor account in your browser, then try again." = "Selesaikan peralihan ke akun Cursor lain di browser Anda, lalu coba lagi.";
+"Timed out waiting for Cursor account switch. %@" = "Waktu tunggu untuk beralih akun Cursor habis. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Waktu tunggu untuk beralih akun Cursor habis. %@ Kesalahan terakhir: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Penggunaan & Pengeluaran";
+"Usage & Spend" = "Penggunaan & Pengeluaran";
+"Local estimated cost history across supported providers." = "Riwayat perkiraan biaya lokal di seluruh penyedia yang didukung.";
+"Time range" = "Rentang waktu";
+"Track costs" = "Lacak biaya";
+"Cost tracking is off" = "Pelacakan biaya dinonaktifkan";
+"Turn on Track costs to build local estimates." = "Aktifkan “Lacak biaya” untuk membuat perkiraan lokal.";
+"No local cost history yet" = "Belum ada riwayat biaya lokal";
+"Turn on cost tracking or refresh after using a supported provider." = "Aktifkan pelacakan biaya atau segarkan setelah menggunakan penyedia yang didukung.";
+"Refresh failures" = "Kegagalan penyegaran";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Mata uang asli tetap dipisahkan; baris akun Codex tidak menyertakan riwayat sesi Pi.";
+"Spend unavailable" = "Data pengeluaran tidak tersedia";
+"Model breakdown unavailable" = "Rincian per model tidak tersedia";
+"Local estimated history" = "Riwayat perkiraan lokal";
+"Coverage" = "Cakupan";
+"Estimated spend" = "Perkiraan pengeluaran";
+"Tracked tokens" = "Token yang dilacak";
+"Subscriptions" = "Langganan";
+"By subscription" = "Berdasarkan langganan";
+"No model-level history" = "Tidak ada riwayat tingkat model";
+"Daily estimated spend" = "Perkiraan pengeluaran harian";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d jendela 5 jam penuh dari kuota mingguan tersisa · %d jendela hingga reset";
+"Weekly cannot run out before reset at this pace" = "Kuota mingguan tidak dapat habis sebelum reset dengan laju ini";
+"Weekly can run out ≈%d windows early" = "Kuota mingguan dapat habis ≈%d jendela lebih awal";
+"Estimated: %@" = "Perkiraan: %@";
+"Coding Plan" = "Paket Coding";
+"Agent Plan" = "Paket Agen";
+"Team" = "Tim";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "Tata letak";
+"menu_bar_layout_footer" = "Seret token untuk mengatur bar menu. Klik token untuk menambahkannya; pilih token yang sudah ditempatkan lalu tekan Delete untuk menghapusnya.";
+"menu_bar_layout_group_identity" = "Identitas";
+"menu_bar_layout_group_usage" = "Penggunaan";
+"menu_bar_layout_group_time" = "Waktu";
+"menu_bar_layout_group_money" = "Biaya";
+"menu_bar_layout_group_structure" = "Struktur";
+"menu_bar_layout_scope_all" = "Semua penyedia";
+"menu_bar_layout_scope_help" = "Edit tata letak bawaan atau timpa untuk satu penyedia.";
+"menu_bar_layout_use_all" = "Gunakan tata letak semua penyedia";
+"menu_bar_layout_preset" = "Prasetel tata letak";
+"menu_bar_layout_preset_icon_percent" = "Ikon & persentase";
+"menu_bar_layout_preset_icon_only" = "Ikon saja";
+"menu_bar_layout_preset_percent_reset" = "Persentase + reset";
+"menu_bar_layout_preset_compact_stacked" = "Tumpukan ringkas";
+"menu_bar_layout_preset_custom" = "Kustom";
+"menu_bar_layout_live_preview" = "Pratinjau langsung";
+"menu_bar_layout_strip" = "Strip bar menu";
+"menu_bar_layout_remove_line_break" = "Hapus pemisah baris";
+"menu_bar_layout_chip_hint" = "Pilih, seret untuk mengurutkan ulang, atau gunakan tindakan Hapus.";
+"menu_bar_layout_palette_hint" = "Klik untuk menambahkan atau seret ke tata letak.";
+"menu_bar_layout_empty_line" = "Letakkan token di sini";
+"menu_bar_layout_line" = "Baris %d";
+"menu_bar_layout_drag_remove" = "Seret ke sini untuk menghapus";
+"menu_bar_layout_size" = "Ukuran";
+"menu_bar_layout_size_small" = "Kecil";
+"menu_bar_layout_size_regular" = "Reguler";
+"menu_bar_layout_gap" = "Jarak";
+"menu_bar_layout_gap_tight" = "Rapat";
+"menu_bar_layout_gap_regular" = "Reguler";
+"menu_bar_layout_keyboard_hint" = "Delete menghapus token yang dipilih";
+"menu_bar_layout_sample_account" = "akun";
+"menu_bar_layout_sample_runs_out" = "habis Jum.";
+"menu_bar_layout_token_icon" = "Ikon";
+"menu_bar_layout_token_provider" = "Nama penyedia";
+"menu_bar_layout_token_account" = "Akun";
+"menu_bar_layout_token_session" = "Sesi %";
+"menu_bar_layout_token_weekly" = "Mingguan %";
+"menu_bar_layout_token_auto" = "% otomatis";
+"menu_bar_layout_token_bar" = "Bar penggunaan";
+"menu_bar_layout_token_resets_in" = "Reset dalam";
+"menu_bar_layout_token_reset_at" = "Reset pukul";
+"menu_bar_layout_token_runs_out" = "Habis";
+"menu_bar_layout_token_cost_today" = "Biaya hari ini";
+"menu_bar_layout_token_cost_30d" = "Biaya 30 hari";
+"menu_bar_layout_token_space" = "Spasi";
+"menu_bar_layout_token_line_break" = "Pemisah baris";
+"menu_bar_layout_token_separator_accessibility" = "Titik pemisah";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "Ikon: Tidak tersedia";
+"%@ icon" = "%@: Ikon";
+"Provider name unavailable" = "Nama penyedia: Tidak tersedia";
+"Account unavailable" = "Akun: Tidak tersedia";
+"%@ unavailable" = "%@: Tidak tersedia";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "Bar penggunaan: Tidak tersedia";
+"Usage bar, %d of 3 filled" = "Bar penggunaan: %d/3 terisi";
+"Reset countdown unavailable" = "Reset dalam: Tidak tersedia";
+"Reset time unavailable" = "Reset pukul: Tidak tersedia";
+"Run-out estimate unavailable" = "Habis: Tidak tersedia";
+"Cost today unavailable" = "Biaya hari ini: Tidak tersedia";
+"30-day cost unavailable" = "Biaya 30 hari: Tidak tersedia";
+"Resets" = "Reset";

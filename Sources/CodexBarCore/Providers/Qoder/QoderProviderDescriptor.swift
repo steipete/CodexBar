@@ -27,7 +27,12 @@ public enum QoderProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .qoder,
                 iconResourceName: "ProviderIcon-qoder",
-                color: ProviderColor(red: 16 / 255, green: 185 / 255, blue: 129 / 255)),
+                color: ProviderColor(red: 16 / 255, green: 185 / 255, blue: 129 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x2ADB5C),
+                    ProviderColor(hex: 0x111113),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Qoder cost summary is not supported." }),

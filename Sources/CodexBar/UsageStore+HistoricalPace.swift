@@ -13,7 +13,7 @@ extension UsageStore {
         // Codex can refine pace with historical samples because its dashboard exposes enough weekly history to build
         // an account-scoped usage curve. Other providers should not need a hard-coded allowlist: if their RateWindow
         // includes a reset time and window duration, the generic linear pace calculation is already defensible.
-        if provider == .codex, self.settings.historicalTrackingEnabled {
+        if provider == .codex, self.settings.historicalTrackingEnabled, workDays == nil {
             let codexAccountKey = self.codexOwnershipContext().canonicalKey
             if self.codexHistoricalDatasetAccountKey == codexAccountKey,
                let historical = CodexHistoricalPaceEvaluator.evaluate(
@@ -25,6 +25,10 @@ extension UsageStore {
             } else {
                 resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
             }
+        } else if provider == .codex, self.settings.historicalTrackingEnabled {
+            // An explicit work-day schedule is the user's declared plan and takes precedence over learned history.
+            // Keep collecting history in the background so Automatic can resume historical pacing immediately.
+            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
         } else {
             // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
             // windows without windowMinutes would fabricate a weekly pace for non-weekly windows

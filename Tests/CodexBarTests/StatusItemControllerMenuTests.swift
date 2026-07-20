@@ -29,6 +29,7 @@ struct StatusItemControllerMenuTests {
         primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
+        extraRateWindows: [NamedRateWindow]? = nil,
         providerCost: ProviderCostSnapshot? = nil)
         -> UsageSnapshot
     {
@@ -36,8 +37,85 @@ struct StatusItemControllerMenuTests {
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
+            extraRateWindows: extraRateWindows,
             providerCost: providerCost,
             updatedAt: Date())
+    }
+
+    @Test
+    func `switcher prefers weekly allowance over primary session allowance`() {
+        let session = RateWindow(
+            usedPercent: 20,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let weekly = RateWindow(
+            usedPercent: 65,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: session, secondary: weekly)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 35)
+    }
+
+    @Test
+    func `switcher uses most constrained named weekly allowance`() {
+        let session = RateWindow(
+            usedPercent: 10,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(
+            primary: session,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: RateWindow(
+                        usedPercent: 40,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-claude-weekly",
+                    title: "Claude/GPT weekly",
+                    window: RateWindow(
+                        usedPercent: 75,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ])
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .antigravity,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 25)
+    }
+
+    @Test
+    func `switcher preserves provider quota when no weekly allowance exists`() {
+        let monthly = RateWindow(
+            usedPercent: 28,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(primary: monthly, secondary: nil)
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .copilot,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 72)
     }
 
     @Test

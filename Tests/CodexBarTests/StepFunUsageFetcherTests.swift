@@ -206,6 +206,174 @@ struct StepFunUsageFetcherParsingTests {
         // 100% remaining → 0% used (integer 1 parsed as 1.0)
         #expect(usage.secondary?.usedPercent == 0.0)
     }
+
+    // MARK: - Credit-plan parsing
+
+    @Test
+    func `parses credit-plan response and maps credit as primary window`() throws {
+        // Real StepFun Mini-plan response: plan_family=2 with credit data.
+        // The 5h/weekly rate fields are 0 (no rate-limit window for credit plans).
+        let json = """
+        {
+            "status": 1,
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.9641096,
+                "subscription_credit_reset_time": "1786288293",
+                "topup_credit_left_rate": 0,
+                "credit_buckets": [
+                    {
+                        "type": 1,
+                        "credit_total": "400000000",
+                        "credit_residual": "385643853",
+                        "expire_at": "1792416128",
+                        "next_reset_at": "1786288293"
+                    }
+                ]
+            }
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+
+        #expect(snapshot.isCreditPlan == true)
+        #expect(snapshot.creditLeftRate ?? 0 > 0.96)
+        let usage = snapshot.toUsageSnapshot()
+
+        // Credit balance → primary window: ~3.6% used (1 - 0.9641)
+        let primaryUsed = usage.primary?.usedPercent ?? -1
+        #expect(primaryUsed > 3.5 && primaryUsed < 3.7)
+
+        // No secondary window for credit plans.
+        #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `does not treat rate-window plan as credit plan`() throws {
+        // plan_family absent → classic rate-window plan, unchanged behavior.
+        let json = """
+        {
+            "status": 1,
+            "five_hour_usage_left_rate": 0.8,
+            "weekly_usage_left_rate": 0.6,
+            "five_hour_usage_reset_time": "1746000000",
+            "weekly_usage_reset_time": "1746500000"
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+
+        #expect(snapshot.isCreditPlan == false)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent ?? 0 > 19.9 && usage.primary?.usedPercent ?? 0 < 20.1)
+        #expect(usage.secondary?.usedPercent ?? 0 > 39.9 && usage.secondary?.usedPercent ?? 0 < 40.1)
+    }
+
+    @Test
+    func `uses credit buckets when explicit rate is absent`() throws {
+        // No subscription_credit_left_rate, but buckets provide residual/total.
+        let json = """
+        {
+            "status": 1,
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_reset_time": "1786288293",
+                "credit_buckets": [
+                    {
+                        "credit_total": "1000",
+                        "credit_residual": "750",
+                        "expire_at": "1792416128",
+                        "next_reset_at": "1786288293"
+                    }
+                ]
+            }
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+
+        #expect(snapshot.isCreditPlan == true)
+        // 750/1000 = 0.75 remaining
+        #expect(snapshot.creditLeftRate ?? 0 > 0.749 && snapshot.creditLeftRate ?? 0 < 0.751)
+        let usage = snapshot.toUsageSnapshot()
+        // 25% used
+        #expect(usage.primary?.usedPercent ?? -1 > 24.9 && usage.primary?.usedPercent ?? -1 < 25.1)
+    }
+
+    @Test
+    func `weights mixed subscription and top-up credit buckets`() throws {
+        let json = """
+        {
+            "status": 1,
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.8,
+                "topup_credit_left_rate": 0.5,
+                "credit_buckets": [
+                    { "credit_total": "100", "credit_residual": "80" },
+                    { "credit_total": "300", "credit_residual": "150" }
+                ]
+            }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+
+        // The independent rates sum to 1.3, but the weighted balance is
+        // (80 + 150) / (100 + 300) = 0.575 remaining, or 42.5% used.
+        #expect(snapshot.creditLeftRate == 0.575)
+        #expect(abs((snapshot.toUsageSnapshot().primary?.usedPercent ?? 0) - 42.5) < 0.0001)
+    }
+
+    @Test
+    func `falls back to subscription rate for incomplete credit buckets`() throws {
+        let json = """
+        {
+            "status": 1,
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.6,
+                "topup_credit_left_rate": 0.4,
+                "credit_buckets": [
+                    { "credit_total": "100" }
+                ]
+            }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+
+        #expect(snapshot.creditLeftRate == 0.6)
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 40)
+    }
+
+    @Test
+    func `credit plan does not throw when rate fields are missing`() throws {
+        // A credit-plan response might omit the rate-window fields entirely.
+        let json = """
+        {
+            "status": 1,
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.5,
+                "subscription_credit_reset_time": "1786288293"
+            }
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+
+        #expect(snapshot.isCreditPlan == true)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == 50.0)
+        #expect(usage.secondary == nil)
+    }
 }
 
 struct StepFunTokenNormalizerTests {
@@ -531,6 +699,59 @@ struct StepFunTokenRefreshTests {
     }
 
     @Test
+    func `password login matches web ID to registered device`() async throws {
+        let registeredDeviceID = "registered-device"
+        let registeredJWT = try Self.jwt(deviceID: registeredDeviceID)
+        let anonymousPair = "anon-access...\(registeredJWT)"
+
+        try await self.withStubProtocol { _ in
+            StepFunStubURLProtocol.handler = { request in
+                let path = request.url?.path ?? ""
+                if path.isEmpty || path == "/" {
+                    return Self.jsonResponse(
+                        for: request,
+                        body: "{}",
+                        headers: ["Set-Cookie": "INGRESSCOOKIE=ingress-cookie; Path=/"])
+                }
+
+                if path.contains("RegisterDevice") {
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                        {
+                            "accessToken": {"raw": "anon-access"},
+                            "refreshToken": {"raw": "\(registeredJWT)"}
+                        }
+                        """)
+                }
+
+                if path.contains("SignInByPassword") {
+                    #expect(request.value(forHTTPHeaderField: "oasis-webid") == registeredDeviceID)
+                    #expect(request.value(forHTTPHeaderField: "Cookie") ==
+                        "Oasis-Token=\(anonymousPair); " +
+                        "Oasis-Webid=\(registeredDeviceID); " +
+                        "INGRESSCOOKIE=ingress-cookie")
+                    return Self.jsonResponse(
+                        for: request,
+                        body: """
+                        {
+                            "accessToken": {"raw": "login-access"},
+                            "refreshToken": {"raw": "login-refresh"}
+                        }
+                        """)
+                }
+
+                return Self.jsonResponse(for: request, statusCode: 404, body: #"{"error":"unexpected"}"#)
+            }
+
+            let authenticatedPair = try await StepFunUsageFetcher.login(
+                username: "user@example.com",
+                password: "pw")
+            #expect(authenticatedPair == "login-access...login-refresh")
+        }
+    }
+
+    @Test
     func `post refresh non auth usage failure is not rewritten as auth guidance`() async throws {
         try await self.withStubProtocol { recorder in
             StepFunStubURLProtocol.handler = { request in
@@ -710,6 +931,15 @@ struct StepFunTokenRefreshTests {
             """)
     }
 
+    private static func jwt(deviceID: String) throws -> String {
+        let payload = try JSONSerialization.data(withJSONObject: ["device_id": deviceID])
+        let encodedPayload = payload.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "header.\(encodedPayload).signature"
+    }
+
     private static func jsonResponse(
         for request: URLRequest,
         statusCode: Int = 200,
@@ -769,7 +999,11 @@ private final class StepFunRequestRecorder: @unchecked Sendable {
 }
 
 private final class StepFunStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<(@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with request: URLRequest) -> Bool {
         request.url?.host == "platform.stepfun.com"

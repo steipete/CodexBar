@@ -5,6 +5,14 @@ import Testing
 
 struct CodexBarWidgetProviderTests {
     @Test
+    func `widget token counts use compact shared formatting`() {
+        #expect(WidgetFormat.tokenCount(999) == "999 tokens")
+        #expect(WidgetFormat.tokenCount(9_400_000) == "9.4M tokens")
+        #expect(WidgetFormat.tokenCount(94_500_000) == "94M tokens")
+        #expect(WidgetFormat.tokenCount(10_600_000_000) == "11B tokens")
+    }
+
+    @Test
     func `usage display follows remaining and used preference`() {
         #expect(WidgetUsageDisplay.percent(fromRemaining: 48, showUsed: false) == 48)
         #expect(WidgetUsageDisplay.percent(fromRemaining: 48, showUsed: true) == 52)
@@ -945,8 +953,15 @@ extension CodexBarWidgetProviderTests {
         let todayMetric = CompactMetricFormatter.display(for: entry, metric: .todayCost)
         let historyMetric = CompactMetricFormatter.display(for: entry, metric: .last30DaysCost)
 
-        #expect(todayMetric.label.hasPrefix("Today cost · "))
-        #expect(historyMetric.label.hasPrefix("30d cost · "))
+        #expect(todayMetric.label.hasPrefix("Today API est. · not billed · "))
+        #expect(historyMetric.label.hasPrefix("30d API est. · not billed · "))
+        #expect(CompactMetricFormatter.costMetricLabel("7d", provider: .codex) == "7d API est. · not billed")
+        #expect(CompactMetricFormatter.costMetricLabel("90d", provider: .codex) == "90d API est. · not billed")
+        #expect(CompactMetricFormatter.costMetricLabel("This month", provider: .codex) ==
+            "This month API est. · not billed")
+        #expect(CompactMetricFormatter.costMetricLabel(
+            "This month API est. · not billed",
+            provider: .codex) == "This month API est. · not billed")
     }
 
     @Test

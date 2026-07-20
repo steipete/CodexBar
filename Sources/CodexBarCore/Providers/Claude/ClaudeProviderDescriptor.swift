@@ -28,7 +28,12 @@ public enum ClaudeProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .claude,
                 iconResourceName: "ProviderIcon-claude",
-                color: ProviderColor(red: 204 / 255, green: 124 / 255, blue: 94 / 255)),
+                color: ProviderColor(red: 204 / 255, green: 124 / 255, blue: 94 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0xD97757),
+                    ProviderColor(hex: 0xF0EEE6),
+                    ProviderColor(hex: 0x141413),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage),
@@ -328,6 +333,14 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 guard sourceMode == .auto else { return true }
                 guard claudeCLIAvailable else { return false }
                 guard ProviderInteractionContext.current == .background else { return true }
+                // An expired Claude CLI credential requires the delegated Claude CLI refresh path.
+                // That child process can access Keychain outside CodexBar's no-UI controls, so do
+                // not plan it during background Auto refresh without an explicit opt-in.
+                guard !KeychainAccessGate.isDisabled,
+                      ClaudeOAuthKeychainPromptPreference.storedMode() == .always
+                else {
+                    return false
+                }
                 return !Self.hasMcpOAuthOnlyClaudeKeychainPayload(environment: environment)
             case .environment:
                 return sourceMode != .auto
@@ -336,19 +349,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
 
         guard sourceMode == .auto else { return true }
 
-        let fallbackPromptMode = ClaudeOAuthKeychainPromptPreference.securityFrameworkFallbackMode()
         let promptPolicyApplicable = ClaudeOAuthKeychainPromptPreference.isApplicable()
         if ProviderInteractionContext.current == .userInitiated {
             _ = ClaudeOAuthKeychainAccessGate.clearDenied()
-        }
-
-        let shouldAllowStartupBootstrap = runtime == .app &&
-            ProviderRefreshContext.current == .startup &&
-            ProviderInteractionContext.current == .background &&
-            fallbackPromptMode == .onlyOnUserAction &&
-            !ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: environment)
-        if shouldAllowStartupBootstrap {
-            return ClaudeOAuthKeychainAccessGate.shouldAllowPrompt()
         }
 
         if promptPolicyApplicable,
@@ -380,8 +383,6 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             dataSource: .oauth,
             oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
             allowBackgroundDelegatedRefresh: false,
-            allowStartupBootstrapPrompt: context.runtime == .app &&
-                (context.sourceMode == .auto || context.sourceMode == .oauth),
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return ProviderFetchResult(
@@ -641,12 +642,23 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let hasWebFallback: Bool
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI runtime and background
-        // app Auto refreshes must establish authentication through the non-interactive status command first.
-        let requiresAuthPreflight = context.runtime == .cli || (
-            context.runtime == .app &&
-                context.sourceMode == .auto &&
-                ProviderInteractionContext.current == .background)
+        // Claude's "auth status" command is a child process that may invoke /usr/bin/security itself. A no-prompt
+        // policy in CodexBar cannot constrain that child process, so background Auto refresh must not launch it
+        // unless the user explicitly opted into Keychain access for background work.
+        let isBackgroundAutoRefresh = context.runtime == .app
+            && context.sourceMode == .auto
+            && ProviderInteractionContext.current == .background
+        if isBackgroundAutoRefresh {
+            guard !KeychainAccessGate.isDisabled,
+                  ClaudeOAuthKeychainPromptPreference.storedMode() == .always
+            else {
+                return false
+            }
+        }
+
+        // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI runtime and the
+        // explicitly opted-in background Auto path establish authentication through the status command first.
+        let requiresAuthPreflight = context.runtime == .cli || isBackgroundAutoRefresh
         guard requiresAuthPreflight else { return true }
         guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
         return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)

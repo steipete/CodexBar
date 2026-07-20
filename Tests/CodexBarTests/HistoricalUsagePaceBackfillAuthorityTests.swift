@@ -286,7 +286,7 @@ extension HistoricalUsagePaceTests {
 
     @MainActor
     @Test
-    func `usage store falls back to linear when history disabled or insufficient`() throws {
+    func `usage store falls back to linear when Codex history is insufficient`() throws {
         let suite = "HistoricalUsagePaceTests-usage-store"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -303,13 +303,12 @@ extension HistoricalUsagePaceTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
         settings.historicalTrackingEnabled = true
-        settings.weeklyProgressWorkDays = 5
+        settings.weeklyProgressWorkDays = nil
 
         let planHistoryStore = testPlanUtilizationHistoryStore(
             suiteName: "HistoricalUsagePaceTests-\(UUID().uuidString)")
@@ -341,19 +340,19 @@ extension HistoricalUsagePaceTests {
         store._setCodexHistoricalDatasetForTesting(twoWeeksDataset)
 
         let computed = store.weeklyPace(provider: .codex, window: window, now: now)
-        let workdayAware = UsagePace.weekly(
+        let linear = UsagePace.weekly(
             window: window,
             now: now,
             defaultWindowMinutes: 10080,
-            workDays: 5)
+            workDays: nil)
         #expect(computed != nil)
-        #expect(abs((computed?.deltaPercent ?? 0) - (workdayAware?.deltaPercent ?? 0)) < 0.001)
+        #expect(abs((computed?.deltaPercent ?? 0) - (linear?.deltaPercent ?? 0)) < 0.001)
     }
 
     @MainActor
     @Test
-    func `usage store preserves historical Codex pace when work days are off`() throws {
-        let suite = "HistoricalUsagePaceTests-workdays-off-preserve-history-\(UUID().uuidString)"
+    func `usage store preserves historical Codex pace in Automatic mode`() throws {
+        let suite = "HistoricalUsagePaceTests-workdays-automatic-preserve-history-\(UUID().uuidString)"
         let store = try Self.makeUsageStoreForBackfillTests(
             suite: suite,
             historyFileURL: Self.makeTempURL())
@@ -367,7 +366,7 @@ extension HistoricalUsagePaceTests {
             windowMinutes: 10080,
             resetsAt: resetsAt,
             resetDescription: nil)
-        let dataset = CodexHistoricalDataset(weeks: (0..<4).map { index in
+        let dataset = CodexHistoricalDataset(weeks: (0..<5).map { index in
             HistoricalWeekProfile(
                 resetsAt: resetsAt.addingTimeInterval(-duration * Double(index + 1)),
                 windowMinutes: 10080,
@@ -385,6 +384,7 @@ extension HistoricalUsagePaceTests {
         let computed = try #require(store.weeklyPace(provider: .codex, window: window, now: now))
 
         #expect(abs(expected.expectedUsedPercent - linear.expectedUsedPercent) > 0.001)
+        #expect(expected.runOutProbability != nil)
         #expect(abs(computed.expectedUsedPercent - expected.expectedUsedPercent) < 0.001)
         #expect(abs(computed.deltaPercent - expected.deltaPercent) < 0.001)
         #expect(computed.etaSeconds == expected.etaSeconds)
@@ -393,44 +393,63 @@ extension HistoricalUsagePaceTests {
     }
 
     @MainActor
-    @Test
-    func `usage store preserves historical Codex pace when work days are configured`() throws {
-        let suite = "HistoricalUsagePaceTests-workdays-preserve-history-\(UUID().uuidString)"
+    @Test(arguments: [4, 5, 7])
+    func `explicit work day schedule overrides historical Codex pace`(workDays: Int) throws {
+        let suite = "HistoricalUsagePaceTests-workdays-override-history-\(workDays)-\(UUID().uuidString)"
         let store = try Self.makeUsageStoreForBackfillTests(
             suite: suite,
             historyFileURL: Self.makeTempURL())
-        store.settings.weeklyProgressWorkDays = 5
+        store.settings.weeklyProgressWorkDays = workDays
 
-        let now = Date(timeIntervalSince1970: 0)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 14)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 6,
+            day: 11)))
         let duration = TimeInterval(10080 * 60)
-        let resetsAt = now.addingTimeInterval(duration / 2)
         let window = RateWindow(
             usedPercent: 60,
             windowMinutes: 10080,
             resetsAt: resetsAt,
             resetDescription: nil)
-        let weeks = (0..<4).map { index in
+        let weeks = (0..<5).map { index in
             HistoricalWeekProfile(
                 resetsAt: resetsAt.addingTimeInterval(-duration * Double(index + 1)),
                 windowMinutes: 10080,
-                curve: Self.linearCurve(end: 80))
+                curve: Self.linearCurve(end: 100))
         }
         let dataset = CodexHistoricalDataset(weeks: weeks)
-        let expected = try #require(CodexHistoricalPaceEvaluator.evaluate(
+        let historical = try #require(CodexHistoricalPaceEvaluator.evaluate(
             window: window,
             now: now,
             dataset: dataset))
+        let scheduled = try #require(UsagePace.weekly(
+            window: window,
+            now: now,
+            workDays: workDays,
+            calendar: calendar))
         store._setCodexHistoricalDatasetForTesting(
             dataset,
             accountKey: store.codexOwnershipContext().canonicalKey)
 
         let computed = try #require(store.weeklyPace(provider: .codex, window: window, now: now))
 
-        #expect(abs(computed.expectedUsedPercent - expected.expectedUsedPercent) < 0.001)
-        #expect(abs(computed.deltaPercent - expected.deltaPercent) < 0.001)
-        #expect(computed.etaSeconds == expected.etaSeconds)
-        #expect(computed.willLastToReset == expected.willLastToReset)
-        #expect(computed.runOutProbability == expected.runOutProbability)
+        #expect(historical.runOutProbability != nil)
+        #expect(abs(computed.expectedUsedPercent - scheduled.expectedUsedPercent) < 0.001)
+        #expect(abs(computed.deltaPercent - scheduled.deltaPercent) < 0.001)
+        #expect(computed.etaSeconds == scheduled.etaSeconds)
+        #expect(computed.willLastToReset == scheduled.willLastToReset)
+        #expect(computed.runOutProbability == nil)
+        #expect(computed.speedMultiplierToReset == scheduled.speedMultiplierToReset)
     }
 
     @MainActor

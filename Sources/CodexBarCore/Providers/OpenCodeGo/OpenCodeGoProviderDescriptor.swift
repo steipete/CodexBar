@@ -26,10 +26,17 @@ public enum OpenCodeGoProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .opencodego,
                 iconResourceName: "ProviderIcon-opencodego",
-                color: ProviderColor(red: 59 / 255, green: 130 / 255, blue: 246 / 255)),
+                color: ProviderColor(red: 59 / 255, green: 130 / 255, blue: 246 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x211E1E),
+                    ProviderColor(hex: 0xA3BE8C),
+                    ProviderColor(hex: 0xCFCECD),
+                ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "OpenCode Go cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: {
+                    "No OpenCode Go local usage history found in ~/.local/share/opencode/opencode.db."
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -42,10 +49,33 @@ public enum OpenCodeGoProviderDescriptor {
         if context.sourceMode == .web {
             return [OpenCodeGoUsageFetchStrategy()]
         }
+        if self.requiresScopedWebStrategy(context: context) {
+            return [
+                OpenCodeGoUsageFetchStrategy(),
+                OpenCodeGoLocalUsageFetchStrategy(),
+            ]
+        }
         return [
-            OpenCodeGoUsageFetchStrategy(),
             OpenCodeGoLocalUsageFetchStrategy(),
+            OpenCodeGoUsageFetchStrategy(),
         ]
+    }
+
+    private static func requiresScopedWebStrategy(context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+        if context.selectedTokenAccountID != nil { return true }
+        if context.settings?.opencodego?.cookieSource == .manual { return true }
+        if self.normalizedWorkspaceID(context.settings?.opencodego?.workspaceID) != nil { return true }
+        return self.normalizedWorkspaceID(context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]) != nil
+    }
+
+    private static func normalizedWorkspaceID(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty
+        else {
+            return nil
+        }
+        return trimmed
     }
 }
 
@@ -69,7 +99,7 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     }
 
     private func snapshot(context: ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot {
-        let snapshot = try OpenCodeGoLocalUsageReader().fetch()
+        let snapshot = try OpenCodeGoLocalUsageReader().fetch(historyDays: context.costUsageHistoryDays)
         guard context.includeOptionalUsage,
               context.settings?.opencodego?.cookieSource != .off
         else {

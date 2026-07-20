@@ -40,11 +40,10 @@ extension UsageStore {
 
     private func makeWidgetEntry(for provider: UsageProvider, now: Date) -> WidgetSnapshot.ProviderEntry? {
         let snapshot = self.snapshots[provider]
-        let storedTokenSnapshot = self.tokenSnapshots[provider]
+        let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         guard snapshot != nil || (provider == .claude && storedTokenSnapshot != nil) else { return nil }
 
-        let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) ?? self
-            .tokenSnapshots[provider]
+        let tokenSnapshot = storedTokenSnapshot
         let dailyUsage = tokenSnapshot?.daily.map { entry in
             WidgetSnapshot.DailyUsagePoint(
                 dayKey: entry.date,
@@ -91,15 +90,26 @@ extension UsageStore {
             providerCost: providerCost)
     }
 
-    private nonisolated static func widgetTokenUsageSummary(
+    nonisolated static func widgetTokenUsageSummary(
         from snapshot: CostUsageTokenSnapshot?,
         provider: UsageProvider) -> WidgetSnapshot.TokenUsageSummary?
     {
         guard let snapshot else { return nil }
         let fallbackTokens = snapshot.daily.compactMap(\.totalTokens).reduce(0, +)
         let monthTokensValue = snapshot.last30DaysTokens ?? (fallbackTokens > 0 ? fallbackTokens : nil)
-        let sessionLabel = provider == .bedrock || provider == .mistral ? "Latest billing day" : "Today"
-        let monthLabel = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "Today" : "\(snapshot.historyDays)d")
+        let sessionLabel = if provider == .bedrock || provider == .mistral {
+            "Latest billing day"
+        } else if provider == .codex {
+            "Today API est. · not billed"
+        } else {
+            "Today"
+        }
+        let defaultMonthLabel = snapshot.historyDays == 1 ? "Today" : "\(snapshot.historyDays)d"
+        let monthLabel = if provider == .codex {
+            "\(snapshot.historyLabel ?? defaultMonthLabel) API est. · not billed"
+        } else {
+            snapshot.historyLabel ?? defaultMonthLabel
+        }
         return WidgetSnapshot.TokenUsageSummary(
             sessionCostUSD: snapshot.sessionCostUSD,
             sessionTokens: snapshot.sessionTokens,

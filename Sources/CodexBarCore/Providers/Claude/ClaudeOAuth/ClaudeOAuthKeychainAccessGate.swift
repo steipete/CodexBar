@@ -7,6 +7,7 @@ public enum ClaudeOAuthKeychainAccessGate {
     private struct State {
         var loaded = false
         var deniedUntil: Date?
+        var promptAttemptGeneration: UInt64 = 0
     }
 
     private static let lock = OSAllocatedUnfairLock<State>(initialState: State())
@@ -45,6 +46,22 @@ public enum ClaudeOAuthKeychainAccessGate {
                 self.persist(state)
             }
             return true
+        }
+    }
+
+    static func promptAttemptGeneration() -> UInt64 {
+        self.lock.withLock { state in
+            self.loadIfNeeded(&state)
+            return state.promptAttemptGeneration
+        }
+    }
+
+    /// Advances the generation after an interactive attempt so callers waiting on the prompt lock reuse its outcome.
+    static func recordPromptAttemptCompleted() -> UInt64 {
+        self.lock.withLock { state in
+            self.loadIfNeeded(&state)
+            state.promptAttemptGeneration &+= 1
+            return state.promptAttemptGeneration
         }
     }
 
@@ -135,6 +152,7 @@ public enum ClaudeOAuthKeychainAccessGate {
             // Keep deterministic during tests: avoid re-loading UserDefaults written by unrelated code paths.
             state.loaded = true
             state.deniedUntil = nil
+            state.promptAttemptGeneration = 0
             UserDefaults.standard.removeObject(forKey: self.defaultsKey)
         }
     }
@@ -143,6 +161,7 @@ public enum ClaudeOAuthKeychainAccessGate {
         self.lock.withLock { state in
             state.loaded = false
             state.deniedUntil = nil
+            state.promptAttemptGeneration = 0
         }
     }
     #endif
@@ -170,6 +189,14 @@ public enum ClaudeOAuthKeychainAccessGate {
     }
 
     public static func recordDenied(now _: Date = Date()) {}
+
+    static func promptAttemptGeneration() -> UInt64 {
+        0
+    }
+
+    static func recordPromptAttemptCompleted() -> UInt64 {
+        0
+    }
 
     public static func clearDenied(now _: Date = Date()) -> Bool {
         false

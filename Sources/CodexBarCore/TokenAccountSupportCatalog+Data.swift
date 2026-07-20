@@ -10,6 +10,13 @@ extension TokenAccountSupportCatalog {
             requiresManualCookieSource: false,
             cookieName: nil,
             environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]),
+        .openrouter: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple OpenRouter API keys.",
+            placeholder: "sk-or-v1-...",
+            injection: .environment(key: OpenRouterSettingsReader.envKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .claude: TokenAccountSupport(
             title: "Claude credentials",
             subtitle: "Store Claude sessionKey cookies, OAuth tokens, or Anthropic Admin API keys.",
@@ -22,6 +29,13 @@ extension TokenAccountSupportCatalog {
             subtitle: "Store multiple DeepSeek API keys.",
             placeholder: "Paste API key…",
             injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
+        .deepinfra: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple DeepInfra API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: DeepInfraSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
         .antigravity: TokenAccountSupport(
@@ -136,6 +150,14 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: ElevenLabsSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .neuralwatt: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple Neuralwatt API keys.",
+            placeholder: "sk-...",
+            injection: .environment(key: NeuralWattSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil,
+            minimumDelayBetweenAccountRefreshes: .seconds(1)),
         .groq: TokenAccountSupport(
             title: "API keys",
             subtitle: "Store multiple Groq API keys.",

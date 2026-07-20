@@ -67,6 +67,19 @@ extension SettingsStore {
         }
     }
 
+    var claudeSwapShowSingleAccount: Bool {
+        get { self.configSnapshot.providerConfig(for: .claude)?.claudeSwapShowSingleAccount ?? false }
+        set {
+            self.updateProviderConfig(provider: .claude) { entry in
+                entry.claudeSwapShowSingleAccount = newValue
+            }
+            self.logProviderModeChange(
+                provider: .claude,
+                field: "claudeSwapShowSingleAccount",
+                value: String(newValue))
+        }
+    }
+
     var claudeSwapExecutablePath: String {
         get { self.configSnapshot.providerConfig(for: .claude)?.sanitizedClaudeSwapExecutablePath ?? "" }
         set {

@@ -12,9 +12,29 @@ read_when:
 - Merge Icons toggle combines providers into one status item with a switcher.
 - Provider status items use stable autosave names and are reused across provider toggles so macOS can preserve icon
   positions.
-- When Overview has selected providers, the switcher includes an Overview tab that renders up to 3 provider rows.
+- When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
 - The global open-menu keyboard shortcut toggles the currently tracked menu closed before opening a new one.
+- Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
+  palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
+  per provider. Manual edits select the Custom preset.
+- Small/Regular controls the token font scale. Tight/Regular controls status-item padding. Compact stacked uses two
+  tightly spaced lines sized to fit the menu bar.
+
+### Layout tokens
+
+| Group | Tokens | Behavior |
+| --- | --- | --- |
+| Identity | Icon, Provider name, Account | Provider-scoped branding and identity |
+| Usage | Session %, Weekly %, Auto %, Usage bar | Window percentage or a compact three-glyph usage bar |
+| Time | Resets in, Reset at, Runs out | Relative reset, absolute reset, or pace estimate |
+| Money | Cost today, Cost 30d | Local cost estimate for the selected period |
+| Structure | Separator dot, Space, Line break | Spacing and optional two-line composition |
+
+Auto % uses the same provider-aware automatic-window resolution as the legacy menu bar metric setting. If a snapshot
+does not provide a token's data, that token renders an en dash while its siblings remain visible. Existing installs
+derive their first layout from the prior style, display mode, metric, and reset settings; those legacy keys remain
+untouched for downgrade safety, while a saved token layout takes precedence.
 
 ## Icon rendering
 - 18×18 template image.
@@ -23,8 +43,8 @@ read_when:
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
-- Display → Menu bar: menu bar can show provider branding icons with a percent label instead of critter bars.
-- Providers → Codex → Menu bar metric can combine the session-window and weekly percentages in one compact label.
+- The token renderer composes provider branding and text through the same attributed-title path used for high-contrast
+  status items. Critter and bar styles keep their existing renderers.
 
 ## Menu card
 - Provider-specific rows with resets (countdown by default; optional absolute clock display). Primary, secondary,
@@ -41,6 +61,8 @@ read_when:
 
 Pace compares your actual usage against the expected consumption rate for the current window. Most providers use an even-consumption budget; Codex can use historical pace data when historical tracking is available.
 
+The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Selecting 4, 5, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic.
+
 - **On pace** – usage matches the expected rate.
 - **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.
 - **X% in reserve** – you're consuming slower than the even rate; you have headroom to spare.
@@ -54,7 +76,7 @@ window has elapsed.
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
 - Advanced: “Show provider storage usage” enables background scans of known provider-owned local paths; CodexBar only
   reports sizes and cleanup ideas, it does not delete files.
-- Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 3).
+- Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 6).
 - If no providers are selected for Overview, the Overview tab is hidden.
 - Providers → Claude: “Avoid Keychain prompts” selects the Security.framework reader's `Never prompt` policy.
 - The lower-level “Keychain prompt policy” picker remains visible as the source of truth for Claude OAuth prompts.

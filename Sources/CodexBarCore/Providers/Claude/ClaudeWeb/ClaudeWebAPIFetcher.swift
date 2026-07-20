@@ -43,7 +43,9 @@ private actor ClaudeWebBrowserFetchGate {
     private var waiters: [Waiter] = []
 
     func acquire(id: UUID) async -> Bool {
-        if Task.isCancelled { return false }
+        if Task.isCancelled {
+            return false
+        }
         guard self.ownerID != nil else {
             self.ownerID = id
             return true
@@ -54,7 +56,9 @@ private actor ClaudeWebBrowserFetchGate {
     }
 
     func cancel(id: UUID) {
-        if self.ownerID == id { return }
+        if self.ownerID == id {
+            return
+        }
         guard let index = self.waiters.firstIndex(where: { $0.id == id }) else { return }
         let waiter = self.waiters.remove(at: index)
         waiter.continuation.resume(returning: false)
@@ -493,7 +497,9 @@ public enum ClaudeWebAPIFetcher {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionKeyInfo
     {
-        if let override = ClaudeWebSessionKeyImport.currentOverride { return override }
+        if let override = ClaudeWebSessionKeyImport.currentOverride {
+            return override
+        }
         let log: (String) -> Void = { msg in logger?(msg) }
 
         let cookieDomains = ["claude.ai"]
@@ -758,6 +764,12 @@ public enum ClaudeWebAPIFetcher {
 
         struct Membership: Decodable {
             let organization: Organization
+            let seatTier: String?
+
+            enum CodingKeys: String, CodingKey {
+                case organization
+                case seatTier = "seat_tier"
+            }
 
             struct Organization: Decodable {
                 let uuid: String?
@@ -806,7 +818,8 @@ public enum ClaudeWebAPIFetcher {
         let membership = Self.selectMembership(response.memberships, orgId: orgId)
         let plan = ClaudePlan.webLoginMethod(
             rateLimitTier: membership?.organization.rateLimitTier,
-            billingType: membership?.organization.billingType)
+            billingType: membership?.organization.billingType,
+            seatTier: membership?.seatTier)
         return WebAccountInfo(email: email, loginMethod: plan)
     }
 
@@ -816,7 +829,9 @@ public enum ClaudeWebAPIFetcher {
     {
         guard let memberships, !memberships.isEmpty else { return nil }
         if let orgId {
-            if let match = memberships.first(where: { $0.organization.uuid == orgId }) { return match }
+            if let match = memberships.first(where: { $0.organization.uuid == orgId }) {
+                return match
+            }
         }
         return memberships.first
     }
@@ -868,7 +883,9 @@ public enum ClaudeWebAPIFetcher {
         regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
             guard let match, let r = Range(match.range(at: 0), in: text) else { return }
             let value = String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !value.isEmpty { results.append(value) }
+            if !value.isEmpty {
+                results.append(value)
+            }
         }
         return Array(Set(results)).sorted()
     }
@@ -881,7 +898,9 @@ public enum ClaudeWebAPIFetcher {
         regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
             guard let match, let r = Range(match.range(at: 1), in: text) else { return }
             let value = String(text[r]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !value.isEmpty { results.append(value) }
+            if !value.isEmpty {
+                results.append(value)
+            }
         }
         return Array(Set(results)).sorted()
     }
@@ -897,7 +916,9 @@ public enum ClaudeWebAPIFetcher {
         }
 
         func appendValue(_ keyPath: String, value: Any) {
-            if results.count >= 40 { return }
+            if results.count >= 40 {
+                return
+            }
             let rendered: String
             switch value {
             case let str as String:

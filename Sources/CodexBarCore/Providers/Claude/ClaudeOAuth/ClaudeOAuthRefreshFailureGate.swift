@@ -42,10 +42,38 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     #if DEBUG
     @TaskLocal static var shouldAttemptOverride: Bool?
-    private nonisolated(unsafe) static var fingerprintProviderOverride: (() -> AuthFingerprint?)?
 
-    static func setFingerprintProviderOverrideForTesting(_ provider: (() -> AuthFingerprint?)?) {
-        self.fingerprintProviderOverride = provider
+    final class FingerprintProviderOverrideStore: @unchecked Sendable {
+        let provider: () -> AuthFingerprint?
+
+        init(provider: @escaping () -> AuthFingerprint?) {
+            self.provider = provider
+        }
+    }
+
+    @TaskLocal private static var taskFingerprintProviderOverrideStore: FingerprintProviderOverrideStore?
+
+    static func withFingerprintProviderOverrideForTesting<T>(
+        _ override: (() -> AuthFingerprint?)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskFingerprintProviderOverrideStore.withValue(
+            override.map(FingerprintProviderOverrideStore.init(provider:)))
+        {
+            try operation()
+        }
+    }
+
+    static func withFingerprintProviderOverrideForTesting<T>(
+        _ override: (() -> AuthFingerprint?)?,
+        isolation _: isolated (any Actor)? = #isolation,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskFingerprintProviderOverrideStore.withValue(
+            override.map(FingerprintProviderOverrideStore.init(provider:)))
+        {
+            try await operation()
+        }
     }
 
     public static func resetInMemoryStateForTesting() {
@@ -216,7 +244,7 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     private static func currentFingerprint() -> AuthFingerprint? {
         #if DEBUG
-        if let override = self.fingerprintProviderOverride { return override() }
+        if let override = self.taskFingerprintProviderOverrideStore { return override.provider() }
         #endif
         return AuthFingerprint(
             keychain: ClaudeOAuthCredentialsStore.currentClaudeKeychainFingerprintWithoutPromptForAuthGate(),
@@ -363,7 +391,21 @@ public enum ClaudeOAuthRefreshFailureGate {
     public static func recordSuccess() {}
 
     #if DEBUG
-    static func setFingerprintProviderOverrideForTesting(_: (() -> Any?)?) {}
+    static func withFingerprintProviderOverrideForTesting<T>(
+        _ override: (() -> Any?)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try operation()
+    }
+
+    static func withFingerprintProviderOverrideForTesting<T>(
+        _ override: (() -> Any?)?,
+        isolation _: isolated (any Actor)? = #isolation,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await operation()
+    }
+
     public static func resetInMemoryStateForTesting() {}
     public static func resetForTesting() {}
     #endif

@@ -25,7 +25,12 @@ public enum JetBrainsProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .jetbrains,
                 iconResourceName: "ProviderIcon-jetbrains",
-                color: ProviderColor(red: 255 / 255, green: 51 / 255, blue: 153 / 255)),
+                color: ProviderColor(red: 255 / 255, green: 51 / 255, blue: 153 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x6B57FF),
+                    ProviderColor(hex: 0x21D789),
+                    ProviderColor(hex: 0x000000),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "JetBrains AI cost summary is not supported." }),

@@ -132,13 +132,18 @@ struct SettingsStoreCoverageTests {
 
         let initial = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
         #expect(initial.agentSessionsEnabled == false)
+        #expect(initial.agentSessionLabelStyle == .project)
         #expect(defaults.object(forKey: "agentSessionsEnabled") == nil)
+        #expect(defaults.object(forKey: "agentSessionLabelStyle") == nil)
 
         initial.agentSessionsEnabled = true
+        initial.agentSessionLabelStyle = .descriptiveAndProject
         #expect(defaults.object(forKey: "agentSessionsEnabled") as? Bool == true)
+        #expect(defaults.string(forKey: "agentSessionLabelStyle") == "descriptiveAndProject")
 
         let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
         #expect(reloaded.agentSessionsEnabled)
+        #expect(reloaded.agentSessionLabelStyle == .descriptiveAndProject)
     }
 
     @Test
@@ -486,7 +491,6 @@ struct SettingsStoreCoverageTests {
         settings.ensureMiniMaxCookieLoaded()
         settings.ensureMiniMaxAPITokenLoaded()
         settings.ensureKimiAuthTokenLoaded()
-        settings.ensureKimiK2APITokenLoaded()
         settings.ensureAugmentCookieLoaded()
         settings.ensureAmpCookieLoaded()
         settings.ensureOllamaCookieLoaded()
@@ -850,7 +854,6 @@ struct SettingsStoreCoverageTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

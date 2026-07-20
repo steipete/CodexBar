@@ -5,6 +5,21 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthKeychainAccessGateTests {
     @Test
+    func `completed prompt attempt advances generation for queued callers`() {
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            ClaudeOAuthKeychainAccessGate.resetForTesting()
+            defer { ClaudeOAuthKeychainAccessGate.resetForTesting() }
+
+            let generation = ClaudeOAuthKeychainAccessGate.promptAttemptGeneration()
+
+            _ = ClaudeOAuthKeychainAccessGate.recordPromptAttemptCompleted()
+
+            #expect(ClaudeOAuthKeychainAccessGate.promptAttemptGeneration() == generation + 1)
+            #expect(ClaudeOAuthKeychainAccessGate.shouldAllowPrompt())
+        }
+    }
+
+    @Test
     func `blocks until cooldown expires`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             let store = ClaudeOAuthKeychainAccessGate.DeniedUntilStore()

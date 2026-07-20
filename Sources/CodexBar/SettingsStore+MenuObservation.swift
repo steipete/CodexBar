@@ -5,6 +5,7 @@ extension SettingsStore {
         _ = self.providerOrder
         _ = self.providerEnablement
         _ = self.refreshFrequency
+        _ = self.adaptiveActivityScanConsent
         _ = self.launchAtLogin
         _ = self.debugMenuEnabled
         _ = self.debugDisableKeychainAccess
@@ -27,6 +28,7 @@ extension SettingsStore {
         _ = self.providerChangelogLinksEnabled
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.menuBarHidesCritters
+        _ = self.menuBarHighContrastOnInactiveDisplays
         _ = self.menuBarShowsHighestUsage
         _ = self.menuBarDisplayMode
         _ = self.menuBarShowsResetTimeWhenExhausted
@@ -34,8 +36,13 @@ extension SettingsStore {
         _ = self.historicalTrackingEnabled
         _ = self.multiAccountMenuLayout
         _ = self.menuBarMetricPreferencesRaw
+        _ = self.menuBarLayout
+        _ = self.menuBarLayoutOverrides
+        _ = self.menuBarLayoutSize
+        _ = self.menuBarLayoutGap
         _ = self.copilotIconSecondaryWindowIDRaw
         _ = self.costUsageEnabled
+        _ = self.codexLocalSessionCostLedgerEnabled
         _ = self.costUsageHistoryDays
         _ = self.costComparisonPeriodsEnabled
         _ = self.costSummaryDisplayStyle
@@ -54,6 +61,7 @@ extension SettingsStore {
         _ = self.openAIWebBatterySaverEnabled
         _ = self.providerStorageFootprintsEnabled
         _ = self.agentSessionsEnabled
+        _ = self.agentSessionLabelStyle
         _ = self.agentSessionsManualHosts
         _ = self.codexUsageDataSource
         _ = self.codexActiveSource
@@ -89,7 +97,6 @@ extension SettingsStore {
         _ = self.minimaxCookieHeader
         _ = self.minimaxAPIToken
         _ = self.kimiManualCookieHeader
-        _ = self.kimiK2APIToken
         _ = self.kiloAPIToken
         _ = self.augmentCookieHeader
         _ = self.ampCookieHeader

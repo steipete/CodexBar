@@ -63,8 +63,70 @@ public enum CodexBarConfigValidator {
         for entry in config.providers {
             self.validateProvider(entry, issues: &issues)
         }
+        self.validateHooks(config.hooks, issues: &issues)
 
         return issues
+    }
+
+    private static func validateHooks(_ hooks: HooksConfig?, issues: inout [CodexBarConfigIssue]) {
+        guard let hooks else { return }
+        var seenIDs: Set<String> = []
+
+        if hooks.events.count > HooksConfig.maximumRuleCount {
+            issues.append(self.hookIssue(
+                field: "hooks.events",
+                code: "too_many_hook_rules",
+                message: "Hooks support at most \(HooksConfig.maximumRuleCount) rules."))
+        }
+
+        for (index, rule) in hooks.events.enumerated() {
+            let field = "hooks.events[\(index)]"
+            if !seenIDs.insert(rule.id).inserted {
+                issues.append(self.hookIssue(
+                    field: field,
+                    code: "duplicate_hook_id",
+                    message: "Hook rule IDs must be unique."))
+            }
+            if !rule.hasValidExecutablePath {
+                issues.append(self.hookIssue(
+                    field: "\(field).executable",
+                    code: "invalid_hook_executable",
+                    message: "Hook executables must use a non-empty absolute path."))
+            }
+            if !rule.hasKnownProvider {
+                issues.append(self.hookIssue(
+                    field: "\(field).provider",
+                    code: "invalid_hook_provider",
+                    message: "Hook provider '\(rule.provider ?? "")' is not recognized."))
+            }
+            if !rule.hasValidThreshold {
+                issues.append(self.hookIssue(
+                    field: "\(field).threshold",
+                    code: "invalid_hook_threshold",
+                    message: "Hook thresholds must be greater than 0 and at most 1."))
+            }
+            if !rule.hasValidTimeout {
+                issues.append(self.hookIssue(
+                    field: "\(field).timeoutSeconds",
+                    code: "invalid_hook_timeout",
+                    message: "Hook timeouts must be between 0.1 and 300 seconds."))
+            }
+            if !rule.hasValidCommandShape {
+                issues.append(self.hookIssue(
+                    field: field,
+                    code: "invalid_hook_command_size",
+                    message: "Hook IDs, arguments, or aggregate command size exceed supported limits."))
+            }
+        }
+    }
+
+    private static func hookIssue(field: String, code: String, message: String) -> CodexBarConfigIssue {
+        CodexBarConfigIssue(
+            severity: .error,
+            provider: nil,
+            field: field,
+            code: code,
+            message: message)
     }
 
     private static func validateProvider(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {

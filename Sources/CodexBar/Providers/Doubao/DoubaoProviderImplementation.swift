@@ -18,8 +18,8 @@ struct DoubaoProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "doubao-api-token",
                 title: "API key / Access key ID",
-                subtitle: "Use a Volcengine access key ID with the secret field for Coding Plan usage, "
-                    + "or leave the secret blank to use an Ark API key.",
+                subtitle: "Without configured API credentials, install and authenticate 'arkcli' for "
+                    + "Coding/Agent Plan usage. Existing API credentials remain authoritative.",
                 kind: .secure,
                 placeholder: "ark-... or AKLT...",
                 binding: context.stringBinding(\.doubaoAPIToken),
@@ -40,7 +40,7 @@ struct DoubaoProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "doubao-secret-access-key",
                 title: "Secret access key",
-                subtitle: "Volcengine secret access key for the signed Coding Plan usage API.",
+                subtitle: "Optional. Only needed if arkcli is unavailable and you use Volcengine AK/SK signing.",
                 kind: .secure,
                 placeholder: "",
                 binding: context.stringBinding(\.doubaoSecretAccessKey),

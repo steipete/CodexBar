@@ -1,8 +1,8 @@
-import CodexBarCore
 import Foundation
 import Observation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct UsageStoreCoverageTests {
@@ -64,6 +64,116 @@ struct UsageStoreCoverageTests {
 
         store._setErrorForTesting("error", provider: .codex)
         #expect(store.isStale)
+    }
+
+    @Test
+    func `cursor credential fingerprint is stable and does not expose the cookie`() {
+        let cookie = "fixture=a"
+        let fingerprint = CookieHeaderCache.credentialFingerprint(cookie)
+
+        #expect(fingerprint == CookieHeaderCache.credentialFingerprint("  \(cookie)  "))
+        #expect(fingerprint != CookieHeaderCache.credentialFingerprint("fixture=b"))
+        #expect(!fingerprint.contains("fixture=a"))
+    }
+
+    @Test
+    func `cursor manual cost refresh rejects an empty cookie without falling back`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-manual-cost")
+        settings.costUsageEnabled = true
+        settings.cursorCookieSource = .manual
+        settings.cursorCookieHeader = "  "
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let invoked = ObservationFlag()
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
+            invoked.set()
+            return CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: nil,
+                last30DaysCostUSD: nil,
+                meteredCostUSD: 1,
+                daily: [],
+                updatedAt: now)
+        }
+
+        await store.refreshTokenUsage(.cursor, force: true)
+
+        #expect(!invoked.get())
+        #expect(store.tokenSnapshot(for: .cursor) == nil)
+        #expect(store.tokenError(for: .cursor)?.contains("non-empty Manual cookie header") == true)
+        #expect(store.tokenSnapshotScopeSignature(for: .cursor).contains("manual:missing"))
+    }
+
+    @Test
+    func `cursor metered-only cost refresh publishes the snapshot`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-metered-only")
+        settings.costUsageEnabled = true
+        settings.cursorCookieSource = .manual
+        settings.cursorCookieHeader = "fixture=cursor"
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
+            CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: nil,
+                last30DaysCostUSD: nil,
+                meteredCostUSD: 1.25,
+                daily: [],
+                updatedAt: now)
+        }
+
+        await store.refreshTokenUsage(.cursor, force: true)
+
+        #expect(store.tokenSnapshot(for: .cursor)?.meteredCostUSD == 1.25)
+        #expect(store.tokenError(for: .cursor) == nil)
+    }
+
+    @Test
+    func `cursor auto credential resolution cannot relax a changed history window`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-history-race")
+        settings.costUsageEnabled = true
+        settings.costUsageHistoryDays = 30
+        settings.cursorCookieSource = .auto
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let cookie = "fixture=resolved"
+        let fingerprint = CookieHeaderCache.credentialFingerprint(cookie)
+        let generation = CookieHeaderCache.beginDisplayReadGenerationForTesting(provider: .cursor)
+        let previousEntry = CookieHeaderCache.currentDisplayEntryForTesting(provider: .cursor)
+        _ = CookieHeaderCache.commitDisplaySnapshotIfCurrentForTesting(
+            provider: .cursor,
+            entry: CookieHeaderCache.Entry(
+                cookieHeader: cookie,
+                storedAt: Date(),
+                sourceLabel: "test"),
+            generation: generation)
+        defer {
+            _ = CookieHeaderCache.commitDisplaySnapshotIfCurrentForTesting(
+                provider: .cursor,
+                entry: previousEntry,
+                generation: generation)
+        }
+
+        let initialSignature = store.cursorCostScopeSignature(
+            historyDays: 30,
+            source: .auto,
+            credentialFingerprint: "unresolved")
+        let revision = store.providerPublicationRevision(for: .cursor)
+        let providerConfigRevision = settings.providerConfigRevision(for: .cursor)
+        settings.costUsageHistoryDays = 7
+
+        #expect(!store.tokenRefreshPublicationIsCurrent(
+            provider: .cursor,
+            publicationRevision: revision,
+            providerConfigRevision: providerConfigRevision,
+            historyDays: 30,
+            costScopeSignature: initialSignature,
+            fetchedCredentialScopeFingerprint: fingerprint))
     }
 
     @Test
@@ -503,15 +613,20 @@ extension UsageStoreCoverageTests {
     @Test
     func `widget snapshot projects provider derived token usage`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-widget-provider-cost")
+        settings.costUsageEnabled = true
         let store = Self.makeUsageStore(settings: settings)
+        let formatter = ISO8601DateFormatter()
+        let updatedAt = try #require(formatter.date(from: "2026-05-26T12:00:00Z"))
+        let startDate = try #require(formatter.date(from: "2026-05-01T00:00:00Z"))
+        let endDate = try #require(formatter.date(from: "2026-05-31T23:59:59Z"))
         let day = MistralDailyUsageBucket(
             day: "2026-05-26",
-            cost: 1.2,
+            cost: 9,
             inputTokens: 10,
             cachedTokens: 0,
             outputTokens: 5,
             models: [])
-        store._setSnapshotForTesting(MistralUsageSnapshot(
+        let providerSnapshot = MistralUsageSnapshot(
             totalCost: 9,
             currency: "eur",
             currencySymbol: "€",
@@ -520,9 +635,14 @@ extension UsageStoreCoverageTests {
             totalCachedTokens: 0,
             modelCount: 1,
             daily: [day],
-            startDate: nil,
-            endDate: nil,
-            updatedAt: Date()).toUsageSnapshot(), provider: .mistral)
+            startDate: startDate,
+            endDate: endDate,
+            updatedAt: updatedAt).toUsageSnapshot()
+        store._setSnapshotForTesting(providerSnapshot, provider: .mistral)
+        let tokenSnapshot = try #require(store.tokenSnapshot(
+            fromProviderSnapshot: providerSnapshot,
+            provider: .mistral))
+        store._setTokenSnapshotForTesting(tokenSnapshot, provider: .mistral)
 
         var widgetSnapshots: [WidgetSnapshot] = []
         store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
@@ -864,7 +984,6 @@ extension UsageStoreCoverageTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

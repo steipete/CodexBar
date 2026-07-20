@@ -19,10 +19,6 @@ extension ProvidersPane {
         self.moveProviders(fromOffsets: fromOffsets, toOffset: toOffset)
     }
 
-    func _test_menuBarMetricPicker(for provider: UsageProvider) -> ProviderSettingsPickerDescriptor? {
-        self.menuBarMetricPicker(for: provider)
-    }
-
     func _test_settingsPickers(for provider: UsageProvider) -> [ProviderSettingsPickerDescriptor] {
         guard let impl = ProviderCatalog.implementation(for: provider) else { return [] }
         var statusTextByID: [String: String] = [:]
@@ -150,10 +146,6 @@ enum ProvidersPaneTestHarness {
         _ = pane._test_providerSubtitle(.minimax)
         _ = pane._test_providerSubtitle(.kimi)
         _ = pane._test_providerSubtitle(.gemini)
-
-        _ = pane._test_menuBarMetricPicker(for: .codex)
-        _ = pane._test_menuBarMetricPicker(for: .gemini)
-        _ = pane._test_menuBarMetricPicker(for: .zai)
 
         if let descriptor = pane._test_tokenAccountDescriptor(for: .claude) {
             _ = descriptor.isVisible?()

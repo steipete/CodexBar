@@ -15,7 +15,7 @@ enum ReplayPolicyName: String, CaseIterable, Sendable {
         case .adaptive:
             AdaptiveReplayPolicy()
         case .adaptiveActivity:
-            CodingActivityAdaptivePolicy()
+            AgentAwareAdaptiveReplayPolicy()
         case .fixed2Minutes:
             FixedIntervalPolicy(minutes: 2)
         case .fixed5Minutes:

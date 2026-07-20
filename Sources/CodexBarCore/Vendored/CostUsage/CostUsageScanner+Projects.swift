@@ -1,6 +1,83 @@
 import Foundation
 
 extension CostUsageScanner {
+    static func codexCache(_ cache: CostUsageCache, scopedTo roots: [URL]) -> CostUsageCache {
+        var scoped = cache
+        scoped.files = cache.files.filter { filePath, _ in
+            Self.isWithinCodexRoots(fileURL: URL(fileURLWithPath: filePath), roots: roots)
+        }
+        scoped.days = [:]
+        for usage in scoped.files.values {
+            Self.applyFileDays(cache: &scoped, fileDays: usage.days, sign: 1)
+        }
+        return scoped
+    }
+
+    static func buildCodexSessionBreakdownsFromCache(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil,
+        sessionRoots: [URL]? = nil,
+        priorityTurns: [String: CodexPriorityTurnMetadata] = [:],
+        modelsDevCatalogLoader: (URL?) -> ModelsDevCatalog? = {
+            CostUsagePricing.modelsDevCatalog(cacheRoot: $0)
+        }) -> [CostUsageSessionBreakdown]
+    {
+        let resolvedModelsDevCatalog = modelsDevCatalog
+            ?? modelsDevCatalogLoader(modelsDevCacheRoot)
+            ?? ModelsDevCatalog(providers: [:])
+        var latestFileBySessionID: [String: (path: String, usage: CostUsageFileUsage)] = [:]
+
+        for (filePath, usage) in cache.files {
+            if let sessionRoots,
+               !Self.isWithinCodexRoots(fileURL: URL(fileURLWithPath: filePath), roots: sessionRoots)
+            {
+                continue
+            }
+            guard usage.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) else {
+                continue
+            }
+            let sessionID = usage.sessionId ?? URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
+            guard !sessionID.isEmpty else { continue }
+            if let existing = latestFileBySessionID[sessionID], existing.usage.mtimeUnixMs >= usage.mtimeUnixMs {
+                continue
+            }
+            latestFileBySessionID[sessionID] = (filePath, usage)
+        }
+
+        return latestFileBySessionID.compactMap { sessionID, file in
+            var fileCache = CostUsageCache()
+            fileCache.files[file.path] = file.usage
+            fileCache.days = file.usage.days
+            let report = Self.buildCodexReportFromCache(
+                cache: fileCache,
+                range: range,
+                modelsDevCatalog: resolvedModelsDevCatalog,
+                priorityTurns: priorityTurns)
+            guard !report.data.isEmpty else { return nil }
+
+            let summary = report.summary
+            let requestCounts = report.data.compactMap(\.requestCount)
+            return CostUsageSessionBreakdown(
+                sessionID: sessionID,
+                lastActivity: Date(timeIntervalSince1970: TimeInterval(file.usage.mtimeUnixMs) / 1000),
+                inputTokens: summary?.totalInputTokens,
+                cachedInputTokens: summary?.cacheReadTokens,
+                outputTokens: summary?.totalOutputTokens,
+                totalTokens: summary?.totalTokens,
+                requestCount: requestCounts.isEmpty ? nil : requestCounts.reduce(0, +),
+                costUSD: summary?.totalCostUSD,
+                modelBreakdowns: Self.codexProjectModelBreakdowns(from: report.data) ?? [])
+        }
+        .sorted { lhs, rhs in
+            if lhs.lastActivity != rhs.lastActivity {
+                return lhs.lastActivity > rhs.lastActivity
+            }
+            return lhs.sessionID > rhs.sessionID
+        }
+    }
+
     static func buildCodexProjectBreakdownsFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
@@ -55,10 +132,14 @@ extension CostUsageScanner {
         .sorted { lhs, rhs in
             let lhsCost = lhs.totalCostUSD ?? -1
             let rhsCost = rhs.totalCostUSD ?? -1
-            if lhsCost != rhsCost { return lhsCost > rhsCost }
+            if lhsCost != rhsCost {
+                return lhsCost > rhsCost
+            }
             let lhsTokens = lhs.totalTokens ?? -1
             let rhsTokens = rhs.totalTokens ?? -1
-            if lhsTokens != rhsTokens { return lhsTokens > rhsTokens }
+            if lhsTokens != rhsTokens {
+                return lhsTokens > rhsTokens
+            }
             return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
@@ -96,10 +177,14 @@ extension CostUsageScanner {
         .sorted { lhs, rhs in
             let lhsCost = lhs.totalCostUSD ?? -1
             let rhsCost = rhs.totalCostUSD ?? -1
-            if lhsCost != rhsCost { return lhsCost > rhsCost }
+            if lhsCost != rhsCost {
+                return lhsCost > rhsCost
+            }
             let lhsTokens = lhs.totalTokens ?? -1
             let rhsTokens = rhs.totalTokens ?? -1
-            if lhsTokens != rhsTokens { return lhsTokens > rhsTokens }
+            if lhsTokens != rhsTokens {
+                return lhsTokens > rhsTokens
+            }
             return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }

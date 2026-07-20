@@ -71,14 +71,18 @@ struct ClaudeWebFetchDeadlineTests {
         let cliFetchOverride: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot =
             { _, _, _ in Self.makeClaudeStatus() }
 
-        let outcome = await ClaudeWebFetchStrategy.$availabilityProbeOverrideForTesting.withValue(
-            availabilityOverride)
-        {
-            await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(oauthLoadOverride) {
-                await ClaudeStatusProbe.$fetchOverride.withValue(cliFetchOverride) {
-                    await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
-                        context: context,
-                        provider: .claude)
+        let outcome = await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                await ClaudeWebFetchStrategy.$availabilityProbeOverrideForTesting.withValue(
+                    availabilityOverride)
+                {
+                    await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(oauthLoadOverride) {
+                        await ClaudeStatusProbe.$fetchOverride.withValue(cliFetchOverride) {
+                            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                                context: context,
+                                provider: .claude)
+                        }
+                    }
                 }
             }
         }

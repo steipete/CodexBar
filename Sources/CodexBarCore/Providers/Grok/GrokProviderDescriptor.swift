@@ -28,7 +28,12 @@ public enum GrokProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .grok,
                 iconResourceName: "ProviderIcon-grok",
-                color: ProviderColor(red: 16 / 255, green: 163 / 255, blue: 127 / 255)),
+                color: ProviderColor(red: 16 / 255, green: 163 / 255, blue: 127 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x000000),
+                    ProviderColor(hex: 0x868686),
+                    ProviderColor(hex: 0xFDFDFD),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Grok cost summary is not supported yet." }),
@@ -71,8 +76,12 @@ public enum GrokProviderDescriptor {
     private static func primaryLabel(duration seconds: TimeInterval) -> String? {
         guard seconds > 3600 else { return nil }
         let days = Int((seconds / 86400).rounded(.toNearestOrAwayFromZero))
-        if (4...12).contains(days) { return "Weekly" }
-        if (20...45).contains(days) { return "Monthly" }
+        if (4...12).contains(days) {
+            return "Weekly"
+        }
+        if (20...45).contains(days) {
+            return "Monthly"
+        }
         return nil
     }
 }
@@ -90,7 +99,8 @@ struct GrokCLIFetchStrategy: ProviderFetchStrategy {
         let snap = try await probe.fetch(env: context.env)
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
-            sourceLabel: "grok-cli")
+            sourceLabel: "grok-cli",
+            diagnostic: snap.diagnostic)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
@@ -101,6 +111,10 @@ struct GrokCLIFetchStrategy: ProviderFetchStrategy {
 struct GrokWebFetchStrategy: ProviderFetchStrategy {
     let id: String = "grok.web"
     let kind: ProviderFetchKind = .web
+    typealias WebBillingFetch = @Sendable () async throws -> (
+        snapshot: GrokWebBillingSnapshot,
+        sourceLabel: String,
+        authenticatedByAuthFile: Bool)
 
     static func canImportBrowserCookies(runtime: ProviderRuntime, env: [String: String]) -> Bool {
         runtime == .app || env["CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT"] == "1"
@@ -118,7 +132,36 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let (webBilling, sourceLabel, authenticatedByAuthFile) = try await self.fetchWebBilling(context: context)
+        try await self.fetch(context, webBilling: { [self] in
+            try await self.fetchWebBilling(context: context)
+        })
+    }
+
+    func fetch(
+        _ context: ProviderFetchContext,
+        webBilling fetchWebBilling: @escaping WebBillingFetch) async throws -> ProviderFetchResult
+    {
+        let webBilling: GrokWebBillingSnapshot
+        let sourceLabel: String
+        let authenticatedByAuthFile: Bool
+        do {
+            (webBilling, sourceLabel, authenticatedByAuthFile) = try await fetchWebBilling()
+        } catch GrokWebBillingError.teamUsageUnsupported {
+            guard let authState = try? GrokCredentialsStore.load(env: context.env),
+                  !authState.isExpired,
+                  authState.isTeamPrincipal
+            else {
+                throw GrokWebBillingError.teamUsageUnsupported
+            }
+            let identitySnapshot = GrokStatusProbe.identityOnlySnapshot(
+                credentials: authState,
+                localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+                cliVersion: GrokStatusProbe.detectVersion(env: context.env))
+            return self.makeResult(
+                usage: identitySnapshot.toUsageSnapshot(),
+                sourceLabel: "grok-web",
+                diagnostic: identitySnapshot.diagnostic)
+        }
         let credentials = Self.credentialsForWebBillingSnapshot(
             credentials: try? GrokCredentialsStore.load(env: context.env),
             authenticatedByAuthFile: authenticatedByAuthFile)
@@ -198,17 +241,21 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 credentials: credentials)
         }
         var lastError: Error?
+        var teamUsageUnsupportedError: Error?
         for session in sessions {
             for authCredentials in Self.cookieAuthAttempts(credentials: credentials) {
                 do {
                     let snapshot = try await fetchSnapshot(session.cookieHeader, authCredentials)
                     return (snapshot, session.sourceLabel)
                 } catch {
+                    if case GrokWebBillingError.teamUsageUnsupported = error {
+                        teamUsageUnsupportedError = error
+                    }
                     lastError = error
                 }
             }
         }
-        throw lastError ?? GrokWebBillingError.missingCredentials
+        throw teamUsageUnsupportedError ?? lastError ?? GrokWebBillingError.missingCredentials
     }
 
     static func cookieAuthAttempts(credentials: GrokCredentials?) -> [GrokCredentials?] {

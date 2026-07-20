@@ -24,7 +24,12 @@ public enum Sub2APIProviderDescriptor {
         branding: ProviderBranding(
             iconStyle: .sub2api,
             iconResourceName: "ProviderIcon-sub2api",
-            color: ProviderColor(red: 45 / 255, green: 198 / 255, blue: 216 / 255)),
+            color: ProviderColor(red: 45 / 255, green: 198 / 255, blue: 216 / 255),
+            confettiPalette: [
+                ProviderColor(hex: 0x1F62FF),
+                ProviderColor(hex: 0x60EDF6),
+                ProviderColor(hex: 0x74F9B0),
+            ]),
         tokenCost: ProviderTokenCostConfig(
             supportsTokenCost: false,
             noDataMessage: { "sub2api spend is reported by its usage API." }),

@@ -10,8 +10,19 @@ if [[ -z "$changed_paths_file" || ! -f "$changed_paths_file" ]]; then
 fi
 
 macos_tests=false
+macos_tests_deferred=false
 macos_tests_reason=""
 path_count=0
+draft_pull_request="${CI_PULL_REQUEST_DRAFT:-false}"
+
+case "$draft_pull_request" in
+  true|false)
+    ;;
+  *)
+    printf 'CI_PULL_REQUEST_DRAFT must be true or false.\n' >&2
+    exit 2
+    ;;
+esac
 
 require_macos_tests() {
   local path="$1"
@@ -86,7 +97,10 @@ if [[ "$path_count" -eq 0 ]]; then
   require_macos_tests '<empty diff>' 'no changed paths were reported'
 fi
 
-if [[ "$macos_tests" == true ]]; then
+if [[ "$macos_tests" == true && "$draft_pull_request" == true ]]; then
+  macos_tests_deferred=true
+  summary_reason="draft pull request: macOS Swift tests deferred until ready for review"
+elif [[ "$macos_tests" == true ]]; then
   summary_reason="$macos_tests_reason"
 else
   summary_reason="docs/site-only changes covered by portable checks"
@@ -94,12 +108,15 @@ fi
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   printf 'macos-tests=%s\n' "$macos_tests" >> "$GITHUB_OUTPUT"
+  printf 'macos-tests-deferred=%s\n' "$macos_tests_deferred" >> "$GITHUB_OUTPUT"
   printf 'macos-tests-reason=%s\n' "$summary_reason" >> "$GITHUB_OUTPUT"
   printf 'changed-path-count=%s\n' "$path_count" >> "$GITHUB_OUTPUT"
 fi
 
-if [[ "$macos_tests" == true ]]; then
+if [[ "$macos_tests_deferred" == true ]]; then
+  printf 'macOS Swift tests required but deferred until ready for review: %s.\n' "$macos_tests_reason"
+elif [[ "$macos_tests" == true ]]; then
   printf 'macOS Swift tests required for this change set: %s.\n' "$macos_tests_reason"
 else
-  printf 'Skipping macOS Swift tests for docs/site-only changes covered by portable checks.\n'
+  printf 'Skipping macOS Swift tests: %s.\n' "$summary_reason"
 fi

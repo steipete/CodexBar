@@ -7,6 +7,8 @@ struct CLICardsBriefRow: Sendable, Equatable {
     let sourceLabel: String
     let planBadge: String?
     let accountLabel: String?
+    let isActive: Bool
+    let accountProblem: String?
     let metricLabel: String?
     let usedPercent: Double?
     let resetLabel: String?
@@ -44,6 +46,8 @@ enum CLICardsBriefRenderer {
                 sourceLabel: card.sourceLabel,
                 planBadge: card.planBadge,
                 accountLabel: card.accountLine,
+                isActive: card.isActive,
+                accountProblem: card.accountProblem,
                 metricLabel: metric?.label,
                 usedPercent: usedPercent,
                 resetLabel: resetLabel,
@@ -145,7 +149,8 @@ enum CLICardsBriefRenderer {
 
     private static func providerPlainLabel(_ row: CLICardsBriefRow) -> String {
         if let account = row.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !account.isEmpty {
-            return "\(row.providerName) · \(account) · \(row.sourceLabel)"
+            let active = row.isActive ? " [active]" : ""
+            return "\(row.providerName)\(active) · \(account) · \(row.sourceLabel)"
         }
         if let plan = row.planBadge, !plan.isEmpty {
             return "\(row.providerName) · \(row.sourceLabel) · \(plan)"
@@ -287,6 +292,13 @@ enum CLICardsBriefRenderer {
         useColor: Bool,
         enhanced: Bool) -> String
     {
+        if row.isActive, width < row.providerName.count + " [active]".count {
+            let fitted = Self.fitCell("[active]", width: width)
+            if useColor, enhanced {
+                return CLIRenderer.colorizeEnhancedReadable(fitted)
+            }
+            return useColor ? CLIRenderer.colorizeReadable(fitted) : fitted
+        }
         if row.accountLabel?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
             let fitted = Self.fitCell(Self.providerPlainLabel(row), width: width)
             if useColor, enhanced {
@@ -388,7 +400,16 @@ enum CLICardsBriefRenderer {
             useColor: useColor,
             enhanced: enhanced)
         let usage: String
-        if let used = row.usedPercent {
+        if let problem = row.accountProblem, !problem.isEmpty {
+            let fitted = Self.fitCell(problem, width: columns.usage)
+            if useColor, enhanced {
+                usage = CLIRenderer.colorizeEnhancedReadable(fitted)
+            } else if useColor {
+                usage = CLIRenderer.colorizeReadable(fitted)
+            } else {
+                usage = fitted
+            }
+        } else if let used = row.usedPercent {
             let percent = String(format: "%.0f%%", used.rounded())
             let barWidth = max(4, min(Self.usageBarMaxWidth, columns.usage - Self.visibleLength(percent) - 1))
             let bar: String = if useColor, enhanced {

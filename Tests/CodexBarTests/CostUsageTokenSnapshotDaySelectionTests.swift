@@ -86,6 +86,58 @@ struct CostUsageTokenSnapshotDaySelectionTests {
     }
 
     @Test
+    func `cursor window start snaps to the local day boundary`() throws {
+        let calendar = Calendar.current
+
+        // historyDays > 1: a midday instant several days back snaps to that day's 00:00.
+        let midday = try Self.localNoon(year: 2026, month: 5, day: 15)
+        let snapped = try #require(CostUsageFetcher.cursorWindowStart(midday, calendar: calendar))
+        #expect(snapped == calendar.startOfDay(for: midday))
+        #expect(snapped <= midday)
+
+        // historyDays == 1: `since` is `now`, so the window must still cover all of today (00:00 today),
+        // not collapse to the current instant.
+        let now = try Self.localNoon(year: 2026, month: 5, day: 18)
+        let today = try #require(CostUsageFetcher.cursorWindowStart(now, calendar: calendar))
+        #expect(today == calendar.startOfDay(for: now))
+        #expect(calendar.isDate(today, inSameDayAs: now))
+        #expect(today <= now)
+
+        #expect(CostUsageFetcher.cursorWindowStart(nil, calendar: calendar) == nil)
+    }
+
+    @Test
+    func `token snapshot distinguishes omitted and explicitly unknown currency`() {
+        let omitted = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            daily: [],
+            updatedAt: Date())
+        let blank = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            currencyCode: "  ",
+            daily: [],
+            updatedAt: Date())
+        let euro = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            currencyCode: " eur ",
+            daily: [],
+            updatedAt: Date())
+
+        #expect(omitted.currencyCode == "USD")
+        #expect(blank.currencyCode == "XXX")
+        #expect(euro.currencyCode == "EUR")
+    }
+
+    @Test
     func `latest entry ignores invalid calendar dates`() {
         let latest = CostUsageTokenSnapshot.latestEntry(in: [
             CostUsageDailyReport.Entry(

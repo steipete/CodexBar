@@ -44,4 +44,16 @@ struct CLIArgumentsTests {
         }
         #expect(policyNames == ReplayPolicyName.allCases)
     }
+
+    @Test
+    func `agent aware activity policy remains a distinct selectable mode`() {
+        let arguments = CLIArguments.parse(["trace.jsonl", "--policy", "adaptive-activity"])
+
+        guard case let .run(_, policyNames, _, _) = arguments else {
+            Issue.record("Expected the released alias to remain accepted")
+            return
+        }
+        #expect(policyNames == [.adaptiveActivity])
+        #expect(policyNames.map(\.policy.name) == ["adaptive-activity"])
+    }
 }

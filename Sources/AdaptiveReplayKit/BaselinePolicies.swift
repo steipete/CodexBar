@@ -16,6 +16,7 @@ public struct AdaptiveReplayPolicy: ReplayPolicy, Sendable {
         let decision = AdaptiveRefreshPolicyCore().nextDelay(for: AdaptiveRefreshPolicyCore.Input(
             now: input.now,
             lastMenuOpenAt: input.lastMenuOpenAt,
+            lastCodingActivityAt: nil,
             lowPowerModeEnabled: input.lowPowerModeEnabled,
             thermalPressure: input.thermalState.isConstrained ? .constrained : .nominal))
         return ReplayPolicyDecision(

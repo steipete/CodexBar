@@ -91,6 +91,7 @@ struct MenuDescriptor {
         updateReady: Bool,
         includeContextualActions: Bool = true,
         agentSessionsEnabled: Bool = false,
+        agentSessionLabelStyle: AgentSessionLabelStyle = .project,
         localAgentSessions: [AgentSession] = [],
         remoteAgentHosts: [RemoteSessionHostResult] = [],
         now: Date = Date()) -> MenuDescriptor
@@ -146,6 +147,7 @@ struct MenuDescriptor {
             sections.append(Self.agentSessionsSection(
                 localSessions: localAgentSessions,
                 remoteHosts: remoteAgentHosts,
+                labelStyle: agentSessionLabelStyle,
                 now: now))
         }
         sections.append(Self.metaSection(updateReady: updateReady))
@@ -156,6 +158,7 @@ struct MenuDescriptor {
     static func agentSessionsSection(
         localSessions: [AgentSession],
         remoteHosts: [RemoteSessionHostResult],
+        labelStyle: AgentSessionLabelStyle = .project,
         now: Date = Date()) -> Section
     {
         let totalCount = localSessions.count + remoteHosts.reduce(0) { $0 + $1.sessions.count }
@@ -163,7 +166,7 @@ struct MenuDescriptor {
 
         for session in localSessions {
             entries.append(.action(
-                self.agentSessionRowTitle(session, now: now),
+                self.agentSessionRowTitle(session, labelStyle: labelStyle, now: now),
                 .focusAgentSession(session, remoteHost: nil)))
         }
         for remoteHost in remoteHosts {
@@ -174,7 +177,7 @@ struct MenuDescriptor {
             entries.append(.text("\(remoteHost.host) — \(remoteHost.sessions.count)", .secondary))
             for session in remoteHost.sessions {
                 entries.append(.action(
-                    self.agentSessionRowTitle(session, now: now),
+                    self.agentSessionRowTitle(session, labelStyle: labelStyle, now: now),
                     .focusAgentSession(session, remoteHost: remoteHost.host)))
             }
         }
@@ -184,11 +187,15 @@ struct MenuDescriptor {
         return Section(entries: entries)
     }
 
-    private static func agentSessionRowTitle(_ session: AgentSession, now: Date) -> String {
+    private static func agentSessionRowTitle(
+        _ session: AgentSession,
+        labelStyle: AgentSessionLabelStyle,
+        now: Date) -> String
+    {
         let state = session.state == .active ? "●" : "○"
         let providerGlyph = session.provider == .codex ? "⌘" : "✦"
-        let project = session.projectName ?? "Unknown project"
-        return "\(state) \(providerGlyph) \(project) — \(session.provider.rawValue) · " +
+        let label = labelStyle.label(for: session)
+        return "\(state) \(providerGlyph) \(label) — \(session.provider.rawValue) · " +
             "\(session.source.rawValue) · \(self.agentSessionAge(session, now: now))"
     }
 
@@ -228,8 +235,8 @@ struct MenuDescriptor {
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
-                    provider == .deepseek || provider == .azureopenai || provider == .mimo || provider == .qoder ||
-                    provider == .sub2api
+                    provider == .deepseek || provider == .deepinfra || provider == .neuralwatt ||
+                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -457,10 +464,6 @@ struct MenuDescriptor {
             }
             for detail in kiloLogin.details {
                 entries.append(.text("\(L("Activity")): \(detail)", .secondary))
-            }
-        } else if provider == .crossmodel {
-            if let loginMethodText, !loginMethodText.isEmpty {
-                entries.append(.text("\(L("Auth")): \(loginMethodText)", .secondary))
             }
         } else if let loginMethodText, !loginMethodText.isEmpty {
             if provider == .openrouter || provider == .mimo || provider == .poe,

@@ -186,7 +186,6 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         if snapshot.mistralUsage != nil { providerSpecificData.append("mistralUsage") }
         if snapshot.deepgramUsage != nil { providerSpecificData.append("deepgramUsage") }
         if snapshot.cursorRequests != nil { providerSpecificData.append("cursorRequests") }
-        if snapshot.crossModelUsage != nil { providerSpecificData.append("crossModelUsage") }
 
         self.updatedAt = snapshot.updatedAt
         self.dataConfidence = snapshot.dataConfidence.rawValue

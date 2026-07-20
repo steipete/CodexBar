@@ -1,8 +1,13 @@
 /* Turkish localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "Safari çerezleri için CodexBar’a Tam Disk Erişimi gerekir (Sistem Ayarları > Gizlilik ve Güvenlik).";
+"ollama_browser_cookie_decryption_denied" = "%@ çerezlerinin şifresini çözme Anahtar Zinciri’nde reddedildi; manuel yenilemeyle tekrar deneyin.";
+"ollama_browser_cookie_decryption_disabled" = "%@ çerezlerinin şifresini çözme CodexBar’da devre dışı; Anahtar Zinciri erişimini etkinleştirip yenileyin.";
+
 " providers" = " sağlayıcı";
 "(System)" = "(Sistem)";
 "30d" = "30 gün";
+"7d" = "7 gün";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Yönetilen bir Codex girişi zaten çalışıyor. Eklemeden önce bitmesini bekleyin ";
 "API key" = "API anahtarı";
 "API region" = "API bölgesi";
@@ -58,13 +63,16 @@
 "Check for updates automatically" = "Güncellemeleri otomatik denetle";
 "Check if you like your agents having some fun up there." = "Ajanlarınızın yukarıda biraz eğlenmesini istiyorsanız işaretleyin.";
 "Check provider status" = "Sağlayıcı durumunu denetle";
+"Choose a supported browser so CodexBar can read the matching account." = "CodexBar'ın eşleşen hesabı okuyabilmesi için desteklenen bir tarayıcı seçin.";
 "Choose Codex workspace" = "Codex çalışma alanını seçin";
+"Choose Cursor account" = "Cursor hesabını seçin";
 "Choose the MiniMax host (global .io or China mainland .com)." = "MiniMax sunucusunu seçin (küresel .io veya Çin anakarası .com).";
 "Choose up to " = "En fazla seçin ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "En fazla \\(Self.maxOverviewProviders) sağlayıcı seçin";
 "Choose up to \\(count) providers" = "En fazla \\(count) sağlayıcı seçin";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Menü çubuğunda ne gösterileceğini seçin (Hız, kullanımı beklentiyle karşılaştırır).";
 "Choose which Codex account CodexBar should follow." = "CodexBar'ın hangi Codex hesabını izleyeceğini seçin.";
+"Choose which Cursor account CodexBar should use." = "CodexBar'ın hangi Cursor hesabını kullanacağını seçin.";
 "Choose which window drives the menu bar percent." = "Menü çubuğu yüzdesini hangi pencerenin belirleyeceğini seçin.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI bulunamadı";
@@ -300,7 +308,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Birden fazla OpenCode Go Çerez başlığı depolayın.";
 "Stored in the CodexBar config file." = "CodexBar yapılandırma dosyasında depolandı.";
 "Stored in ~/.codexbar/config.json. " = "~/.codexbar/config.json dosyasında depolandı. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "~/.codexbar/config.json dosyasında depolandı. kimi-k2.ai adresinden bir tane oluşturun.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "~/.codexbar/config.json dosyasında depolandı. Synthetic panelinden anahtarı yapıştırın.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "~/.codexbar/config.json dosyasında depolandı. Model Studio'dan Kodlama Planı API anahtarınızı yapıştırın.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "~/.codexbar/config.json dosyasında depolandı. MiniMax API anahtarınızı yapıştırın.";
@@ -328,6 +335,7 @@
 "Usage breakdown" = "Kullanım dağılımı";
 "Usage history (30 days)" = "Kullanım geçmişi";
 "Usage source" = "Kullanım kaynağı";
+"Use Account" = "Hesabı Kullan";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Çin anakarası uç noktaları için BigModel kullanın (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Sağlayıcı değiştiricisiyle tek bir menü çubuğu simgesi kullan.";
 "Use international or China mainland console gateways for quota fetches." = "Kota getirmeleri için uluslararası veya Çin anakarası konsol ağ geçitlerini kullan.";
@@ -440,7 +448,7 @@
 "cost_history_days_title" = "Geçmiş penceresi: %d gün";
 "cost_comparison_periods_title" = "Daha kısa karşılaştırma dönemlerini göster";
 "cost_comparison_periods_subtitle" = "Seçilen geçmiş aralığına sığdığında 7, 30 ve 90 günlük toplamları ekler. Bu toplamlar aynı yerel taramayı yeniden kullanır.";
-"cost_auto_refresh_info" = "Otomatik yenileme: saatlik · Zaman aşımı: 10 dk";
+"cost_auto_refresh_info" = "Otomatik yenileme: genel aralık (en az 5 dk) · Zaman aşımı: 10 dk";
 "refresh_interval_title" = "Yenileme aralığı";
 "manual_refresh_hint" = "Otomatik yenileme kapalı; menüdeki Yenile komutunu kullanın.";
 "refresh_on_open_title" = "Menü açıldığında yenile";
@@ -502,6 +510,27 @@
 "tab_menu_bar" = "Menü çubuğu";
 "tab_menu" = "Menü";
 "tab_advanced" = "Gelişmiş";
+"tab_hooks" = "Kancalar";
+
+/* Hooks Pane */
+"hooks_enable_title" = "Kancaları etkinleştir";
+"hooks_enable_subtitle" = "Kota veya sağlayıcı olayları gerçekleştiğinde harici komutlar çalıştır.";
+"hooks_trust_warning" = "Kancalar Mac'inizde yerel komutlar çalıştırabilir. Yalnızca güvendiğiniz komutları yapılandırın.";
+"hooks_rules_header" = "Kurallar";
+"hooks_empty" = "Yapılandırılmış kanca yok.";
+"hooks_add_rule" = "Kural ekle";
+"hooks_delete_rule" = "Kuralı sil";
+"hooks_rule_enabled" = "Etkin";
+"hooks_event" = "Olay";
+"hooks_provider" = "Sağlayıcı";
+"hooks_any_provider" = "Herhangi bir sağlayıcı";
+"hooks_threshold" = "Şu kullanımda tetikle ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "Argümanlar";
+"hooks_argument_placeholder" = "Argüman";
+"hooks_add_argument" = "Argüman ekle";
+"hooks_delete_argument" = "Argümanı sil";
 "tab_about" = "Hakkında";
 "tab_debug" = "Hata Ayıklama";
 
@@ -526,13 +555,14 @@
 "menu_bar_metric_subtitle_deepseek" = "Menü çubuğunda DeepSeek bakiyesini gösterir.";
 "menu_bar_metric_subtitle_moonshot" = "Menü çubuğunda Moonshot / Kimi API bakiyesini gösterir.";
 "menu_bar_metric_subtitle_mistral" = "Menü çubuğunda geçerli ayın Mistral API harcamasını gösterir.";
-"menu_bar_metric_subtitle_kimik2" = "Menü çubuğunda Kimi K2 API anahtarı kredilerini gösterir.";
 "automatic" = "Otomatik";
 "primary_api_key_limit" = "Birincil (API anahtarı limiti)";
 
 /* Display Pane */
 "menu_bar_style_title" = "Menü çubuğu stili";
 "menu_bar_style_subtitle" = "Menü çubuğu öğesinin nasıl çizileceğini belirler.";
+"menu_bar_inactive_display_contrast_title" = "Etkin olmayan ekranlarda görünürlüğü artır";
+"menu_bar_inactive_display_contrast_subtitle" = "Simge ve ölçümün diğer ekranlarda okunabilir kalması için yüksek kontrastlı işleme kullanır.";
 "menu_bar_style_critters" = "Canavarlar";
 "menu_bar_style_bars" = "Ölçüm çubukları";
 "menu_bar_style_icon_percent" = "Simge ve yüzde";
@@ -575,6 +605,12 @@
 "agent_sessions_subtitle" = "Menüde yerel ve SSH ile keşfedilen Codex ve Claude Code oturumlarını göster.";
 "agent_sessions_hosts_title" = "Ek SSH sunucuları";
 "agent_sessions_footer" = "Tailnet'inizdeki Mac'ler otomatik olarak keşfedilir. Yerel oturumlar 30 saniyede bir; uzak sunucular 60 saniyede bir ve menü açıldığında yenilenir.";
+"agent_session_labels_title" = "Oturum etiketleri";
+"agent_session_labels_subtitle" = "Ajan oturumlarının nasıl adlandırılacağını seçin.";
+"agent_session_label_project" = "Proje";
+"agent_session_label_descriptive" = "Açıklayıcı";
+"agent_session_label_descriptive_and_project" = "Açıklayıcı + proje";
+"agent_session_unknown_project" = "Bilinmeyen proje";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Klavye kısayolu";
@@ -702,13 +738,19 @@
 "refresh_15min" = "15 dak";
 "refresh_30min" = "30 dak";
 "refresh_adaptive" = "Uyarlanabilir";
+"refresh_adaptive_agent_aware" = "Uyarlanabilir (ajan etkinliğine duyarlı)";
+"adaptive_activity_consent_title" = "Etkinliğe duyarlı yenilemeye izin verilsin mi?";
+"adaptive_activity_consent_message" = "Ajan etkinliğine duyarlı Uyarlanabilir mod, Codex ve Claude'u tanımak için komut satırları dahil yerel çalışan işlemler listesini inceleyebilir, ardından siz kod yazarken bilinen oturum meta verilerini 30 saniyede bir okuyabilir. Agent Sessions kapalıyken CodexBar bellekte yalnızca en son etkinlik zamanını kullanır ve oturum yolları ile kimliklerini atar. Bu veriler hiçbir yere gönderilmez; uzaktan keşif ve SSH kapalı kalır. Reddederseniz CodexBar yerel etkinlik taraması olmadan normal Uyarlanabilir moda döner.";
+"adaptive_activity_consent_allow" = "Yerel Etkinliğe İzin Ver";
+"adaptive_activity_consent_decline" = "Normal Uyarlanabilir Modu Kullan";
 
 /* Additional keys */
 "not_found" = "Bulunamadı";
 
 /* Cost estimation */
-"cost_header_estimated" = "Maliyet (tahmini)";
 "cost_estimate_hint" = "Yerel günlüklerden tahmini · faturanızdan farklı olabilir";
+"codex_api_estimate_hint" = "Token kullanımından tahmin edilmiştir · abonelik faturası değildir";
+"cost_data_explanation" = "Maliyetler sağlayıcı tarafından bildirilebilir veya herkese açık API fiyatlarıyla token kullanımından tahmin edilebilir. Tahminler abonelik ücreti değildir.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "AI Asistan içeren JetBrains IDE algılanmadı. Bir JetBrains IDE kurun ve AI Asistan'ı etkinleştirin.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API jetonu yapılandırılmamış. OPENROUTER_API_KEY ortam değişkenini ayarlayın veya Ayarlar'dan yapılandırın.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API jetonu bulunamadı. ~/.codexbar/config.json dosyasında apiKey ayarlayın veya Z_AI_API_KEY kullanın.";
@@ -738,6 +780,7 @@
 "Today" = "Bugün";
 "Today tokens" = "Bugünkü jetonlar";
 "30d cost" = "30 günlük maliyet";
+"%@ cost" = "%@ maliyeti";
 "30d tokens" = "30 günlük jetonlar";
 "Latest tokens" = "Son jetonlar";
 "Top model" = "En çok kullanılan model";
@@ -883,7 +926,7 @@
 "Hourly Usage" = "Saatlik Kullanım";
 "Usage remaining" = "Kalan kullanım";
 "Usage used" = "Harcanan kullanım";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API anahtarı doğrulandı. Ollama, Cloud kota limitlerini API üzerinden göstermez.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API anahtarı doğrulandı. Cloud kotaları için tarayıcı çerezleri gerekir. Ollama'da oturum açın.";
 "Last 30 days: %@ tokens" = "Son 30 gün: %@ jeton";
 "7d spend" = "7 günlük harcama";
 "30d spend" = "30 günlük harcama";
@@ -894,6 +937,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax 30 günlük jeton kullanım trendi";
 "Today cash" = "Bugünkü nakit";
 "DeepSeek 30 day token usage trend" = "DeepSeek 30 günlük jeton kullanım trendi";
+"DeepSeek this month token usage trend" = "DeepSeek bu ayki jeton kullanım trendi";
+"Chrome profile" = "Chrome profili";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Ayrıntılı kullanımı sağlayacak, oturum açılmış DeepSeek Platform oturumunu seçin.";
+"Detailed usage unavailable." = "Ayrıntılı kullanım kullanılamıyor.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Ayrıntılı kullanım için Chrome'da DeepSeek Platform'a giriş yapın.";
+"Select a DeepSeek Chrome profile in Settings." = "Ayarlarda bir DeepSeek Chrome profili seçin.";
+"Select profile…" = "Profil seç…";
 "cache-hit input" = "önbellek-isabetli girdi";
 "cache-miss input" = "önbellek-kaçan girdi";
 "output" = "çıktı";
@@ -1016,7 +1066,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Cursor çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Factory çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan GitHub Copilot jetonunuzu isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Kimi K2 API anahtarınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan Kimi kimlik doğrulama jetonunuzu isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan MiniMax API jetonunuzu isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı getirmek için macOS Anahtarlığı'ndan MiniMax çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
@@ -1169,7 +1218,6 @@
 "byte_unit_megabytes" = "megabayt";
 "byte_unit_gigabyte" = "gigabayt";
 "byte_unit_gigabytes" = "gigabayt";
-"CrossModel API spend trend" = "CrossModel API harcama eğilimi";
 
 /* Settings sidebar redesign */
 "Enable" = "Etkinleştir";
@@ -1184,3 +1232,114 @@
 "Show Codex Spark usage" = "Codex Spark kullanımını göster";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Codex Spark kota satırlarını menüde ve sağlayıcı önizlemesinde gösterir. Görünüm ayarlarında “Krediler + ekstra kullanımı göster” seçeneğinin etkin olmasını gerektirir.";
 "Scroll to see more models" = "Daha fazla model görmek için kaydırın";
+
+/* Shareable usage card */
+"Copy Image" = "Görseli Kopyala";
+"Copy Stats" = "İstatistikleri Kopyala";
+"Could not copy image" = "Görsel kopyalanamadı";
+"Image copied" = "Görsel kopyalandı";
+"Image saved" = "Görsel kaydedildi";
+"Nothing is uploaded. This image is created on your Mac." = "Hiçbir şey yüklenmez. Bu görsel Mac'inizde oluşturulur.";
+"Save..." = "Kaydet...";
+"Share AI Usage" = "Yapay Zekâ Kullanımını Paylaş";
+"Share Stats…" = "İstatistikleri Paylaş…";
+"Stats copied" = "İstatistikler kopyalandı";
+"Finish switching to a different Cursor account in your browser, then try again." = "Tarayıcınızda farklı bir Cursor hesabına geçişi tamamlayın, ardından yeniden deneyin.";
+"Timed out waiting for Cursor account switch. %@" = "Cursor hesap değişikliği beklenirken zaman aşımına uğradı. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Cursor hesap değişikliği beklenirken zaman aşımına uğradı. %@ Son hata: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Kullanım ve Harcama";
+"Usage & Spend" = "Kullanım ve Harcama";
+"Local estimated cost history across supported providers." = "Desteklenen sağlayıcılardaki yerel tahmini maliyet geçmişi.";
+"Time range" = "Zaman aralığı";
+"Track costs" = "Maliyetleri izle";
+"Cost tracking is off" = "Maliyet takibi kapalı";
+"Turn on Track costs to build local estimates." = "Yerel tahminler oluşturmak için “Maliyetleri izle” seçeneğini açın.";
+"No local cost history yet" = "Henüz yerel maliyet geçmişi yok";
+"Turn on cost tracking or refresh after using a supported provider." = "Maliyet takibini açın veya desteklenen bir sağlayıcıyı kullandıktan sonra yenileyin.";
+"Refresh failures" = "Yenileme hataları";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Kaynak para birimleri ayrı tutulur; Codex hesap satırlarına Pi oturum geçmişi dahil edilmez.";
+"Spend unavailable" = "Harcama verisi kullanılamıyor";
+"Model breakdown unavailable" = "Model dökümü kullanılamıyor";
+"Local estimated history" = "Yerel tahmini geçmiş";
+"Coverage" = "Kapsam";
+"Estimated spend" = "Tahmini harcama";
+"Tracked tokens" = "İzlenen tokenlar";
+"Subscriptions" = "Abonelikler";
+"By subscription" = "Aboneliğe göre";
+"No model-level history" = "Model düzeyinde geçmiş yok";
+"Daily estimated spend" = "Günlük tahmini harcama";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "Haftalık kotadan ≈%d tam 5 saatlik pencere kaldı · sıfırlamaya %d pencere";
+"Weekly cannot run out before reset at this pace" = "Bu hızda haftalık kota sıfırlamadan önce tükenemez";
+"Weekly can run out ≈%d windows early" = "Haftalık kota ≈%d pencere erken tükenebilir";
+"Estimated: %@" = "Tahmini: %@";
+"Coding Plan" = "Kodlama Planı";
+"Agent Plan" = "Ajan Planı";
+"Team" = "Ekip";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "Düzen";
+"menu_bar_layout_footer" = "Menü çubuğunu düzenlemek için belirteçleri sürükleyin. Eklemek için bir belirtece tıklayın; yerleştirilmiş bir belirteci seçip silmek için Delete tuşuna basın.";
+"menu_bar_layout_group_identity" = "Kimlik";
+"menu_bar_layout_group_usage" = "Kullanım";
+"menu_bar_layout_group_time" = "Zaman";
+"menu_bar_layout_group_money" = "Maliyet";
+"menu_bar_layout_group_structure" = "Yapı";
+"menu_bar_layout_scope_all" = "Tüm sağlayıcılar";
+"menu_bar_layout_scope_help" = "Varsayılan düzeni değiştirin veya bir sağlayıcı için geçersiz kılın.";
+"menu_bar_layout_use_all" = "Tüm sağlayıcılar düzenini kullan";
+"menu_bar_layout_preset" = "Düzen ön ayarı";
+"menu_bar_layout_preset_icon_percent" = "Simge ve yüzde";
+"menu_bar_layout_preset_icon_only" = "Yalnızca simge";
+"menu_bar_layout_preset_percent_reset" = "Yüzde ve sıfırlama";
+"menu_bar_layout_preset_compact_stacked" = "Kompakt yığın";
+"menu_bar_layout_preset_custom" = "Özel";
+"menu_bar_layout_live_preview" = "Canlı önizleme";
+"menu_bar_layout_strip" = "Menü çubuğu şeridi";
+"menu_bar_layout_remove_line_break" = "Satır sonunu kaldır";
+"menu_bar_layout_chip_hint" = "Seçin, yeniden sıralamak için sürükleyin veya Kaldır eylemini kullanın.";
+"menu_bar_layout_palette_hint" = "Eklemek için tıklayın veya düzene sürükleyin.";
+"menu_bar_layout_empty_line" = "Buraya bir belirteç bırakın";
+"menu_bar_layout_line" = "Satır %d";
+"menu_bar_layout_drag_remove" = "Kaldırmak için buraya sürükleyin";
+"menu_bar_layout_size" = "Boyut";
+"menu_bar_layout_size_small" = "Küçük";
+"menu_bar_layout_size_regular" = "Normal";
+"menu_bar_layout_gap" = "Boşluk";
+"menu_bar_layout_gap_tight" = "Dar";
+"menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_keyboard_hint" = "Delete seçili belirteci kaldırır";
+"menu_bar_layout_sample_account" = "hesap";
+"menu_bar_layout_sample_runs_out" = "Cum. biter";
+"menu_bar_layout_token_icon" = "Simge";
+"menu_bar_layout_token_provider" = "Sağlayıcı adı";
+"menu_bar_layout_token_account" = "Hesap";
+"menu_bar_layout_token_session" = "Oturum %";
+"menu_bar_layout_token_weekly" = "Haftalık %";
+"menu_bar_layout_token_auto" = "Otomatik %";
+"menu_bar_layout_token_bar" = "Kullanım çubuğu";
+"menu_bar_layout_token_resets_in" = "Sıfırlamaya";
+"menu_bar_layout_token_reset_at" = "Sıfırlama saati";
+"menu_bar_layout_token_runs_out" = "Biter";
+"menu_bar_layout_token_cost_today" = "Bugünkü maliyet";
+"menu_bar_layout_token_cost_30d" = "30 günlük maliyet";
+"menu_bar_layout_token_space" = "Boşluk";
+"menu_bar_layout_token_line_break" = "Satır sonu";
+"menu_bar_layout_token_separator_accessibility" = "Ayırıcı nokta";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "Simge: Kullanılamıyor";
+"%@ icon" = "%@: Simge";
+"Provider name unavailable" = "Sağlayıcı adı: Kullanılamıyor";
+"Account unavailable" = "Hesap: Kullanılamıyor";
+"%@ unavailable" = "%@: Kullanılamıyor";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "Kullanım çubuğu: Kullanılamıyor";
+"Usage bar, %d of 3 filled" = "Kullanım çubuğu: %d/3 dolu";
+"Reset countdown unavailable" = "Sıfırlamaya: Kullanılamıyor";
+"Reset time unavailable" = "Sıfırlama saati: Kullanılamıyor";
+"Run-out estimate unavailable" = "Biter: Kullanılamıyor";
+"Cost today unavailable" = "Bugünkü maliyet: Kullanılamıyor";
+"30-day cost unavailable" = "30 günlük maliyet: Kullanılamıyor";
+"Resets" = "Sıfırlamalar";

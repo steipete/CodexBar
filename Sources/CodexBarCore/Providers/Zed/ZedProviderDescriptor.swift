@@ -25,7 +25,12 @@ public enum ZedProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .zed,
                 iconResourceName: "ProviderIcon-zed",
-                color: ProviderColor(red: 8 / 255, green: 78 / 255, blue: 255 / 255)),
+                color: ProviderColor(red: 8 / 255, green: 78 / 255, blue: 255 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x084CCF),
+                    ProviderColor(hex: 0x000000),
+                    ProviderColor(hex: 0xFFFFFF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Zed cost summary is not supported." }),

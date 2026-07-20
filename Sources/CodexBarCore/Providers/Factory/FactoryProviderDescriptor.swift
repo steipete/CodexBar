@@ -27,7 +27,12 @@ public enum FactoryProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .factory,
                 iconResourceName: "ProviderIcon-factory",
-                color: ProviderColor(red: 255 / 255, green: 107 / 255, blue: 53 / 255)),
+                color: ProviderColor(red: 255 / 255, green: 107 / 255, blue: 53 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0xEE6018),
+                    ProviderColor(hex: 0xA0CA92),
+                    ProviderColor(hex: 0x1D1A18),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Droid cost summary is not supported." }),

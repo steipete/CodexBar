@@ -251,8 +251,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     var lastWidgetDisplaySettingsSignature = ""
-    private var lastAgentSessionsEnabled: Bool
-    private var lastAgentSessionsManualHosts: String
+    var lastAgentSessionsEnabled: Bool
+    var lastAgentSessionsManualHosts: String
+    var lastAgentSessionsRefreshFrequency: RefreshFrequency
+    var lastAdaptiveActivityScanningEnabled: Bool
     /// Tracks which `usageBarsShowUsed` mode the provider switcher was built with.
     /// Used to decide whether we can "smart update" menu content without rebuilding the switcher.
     var lastSwitcherUsageBarsShowUsed: Bool
@@ -286,6 +288,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredMergedIconRenderAfterTracking = false
     var lastAppliedMergedIconRenderSignature: String?
     var lastAppliedProviderIconRenderSignatures: [UsageProvider: String] = [:]
+    let menuBarLayoutRenderer = MenuBarLayoutRenderer()
     var lastObservedStoreIconWorkSignature: String?
     var iconPerfRefreshCycleMetrics: IconPerfRefreshCycleMetrics?
     var iconPerfUpdatePassActive = false
@@ -299,11 +302,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         set { self.settings.selectedMenuProvider = newValue }
     }
 
-    private static func makeStatusItem(
+    static func makeStatusItem(
         statusBar: NSStatusBar,
         identity: StatusItemIdentity,
         defaults: UserDefaults,
-        legacyDefaultItemIndex: Int?)
+        legacyDefaultItemIndex: Int?,
+        onCreated: ((NSStatusItem) -> Void)? = nil)
         -> NSStatusItem
     {
         MenuBarStatusItemPlacementPreflight.prepare(
@@ -311,6 +315,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             autosaveName: identity.autosaveName,
             legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
+        onCreated?(item)
         item.autosaveName = identity.autosaveName
         if let button = item.button {
             let title = self.statusItemAccessibilityTitle(
@@ -319,7 +324,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             button.imageScaling = .scaleNone
             button.setAccessibilityIdentifier(identity.accessibilityIdentifier)
             button.setAccessibilityTitle(title)
-            button.toolTip = title
         }
         return item
     }
@@ -355,7 +359,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             preference: self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot),
             provider: provider,
             snapshot: snapshot,
-            supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
+            supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
+            antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
+            now: now)
     }
 
     private func codexMenuBarMetricWindow(snapshot: UsageSnapshot?, now: Date) -> RateWindow? {
@@ -400,6 +406,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
         self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
         self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
+        self.lastAgentSessionsRefreshFrequency = settings.refreshFrequency
+        self.lastAdaptiveActivityScanningEnabled = settings.adaptiveActivityScanningEnabled
         self.lastSwitcherUsageBarsShowUsed = settings.usageBarsShowUsed
         self.menuCardRenderingEnabledForController = menuCardRenderingEnabled
         self.menuRefreshEnabledForController = menuRefreshEnabled
@@ -423,9 +431,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMenuAdjunctReadinessBaselineVersion = self.menuSession.contentVersion
         self.lastWidgetDisplaySettingsSignature = self.widgetDisplaySettingsSignature()
         self.wireBindings()
-        self.agentSessions.onUpdate = { [weak self] in
-            self?.invalidateMenus(refreshOpenMenus: true)
-        }
+        self.wireAgentSessionUpdates()
         if !SettingsStore.isRunningTests {
             self.agentSessions.start()
         }
@@ -667,13 +673,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
-        let agentSessionsSettingsChanged = self.settings.agentSessionsEnabled != self.lastAgentSessionsEnabled ||
-            self.settings.agentSessionsManualHosts != self.lastAgentSessionsManualHosts
-        if agentSessionsSettingsChanged {
-            self.lastAgentSessionsEnabled = self.settings.agentSessionsEnabled
-            self.lastAgentSessionsManualHosts = self.settings.agentSessionsManualHosts
-            self.agentSessions.settingsDidChange()
-        }
+        self.synchronizeAgentSessionsForSettingsChange()
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let localizationChanged = self.menuLocalizationSignature() != self.lastMenuLocalizationSignature
@@ -737,20 +737,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var isMergedMenuOpen: Bool {
         guard let mergedMenu else { return false }
         return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
-    }
-
-    /// Lazily retrieves or creates a status item for the given provider
-    func lazyStatusItem(for provider: UsageProvider) -> NSStatusItem {
-        if let existing = self.statusItems[provider] {
-            return existing
-        }
-        let item = Self.makeStatusItem(
-            statusBar: self.statusBar,
-            identity: .provider(provider),
-            defaults: self.settings.userDefaults,
-            legacyDefaultItemIndex: self.legacyDefaultItemIndex(forNewProvider: provider))
-        self.statusItems[provider] = item
-        return item
     }
 
     func recreateStatusItemsForVisibilityRecovery() {
@@ -1007,7 +993,7 @@ extension StatusItemController {
 #endif
 
 extension StatusItemController {
-    private func legacyDefaultItemIndex(forNewProvider provider: UsageProvider) -> Int? {
+    func legacyDefaultItemIndex(forNewProvider provider: UsageProvider) -> Int? {
         let visibleProviders = self.settings.orderedProviders().filter { self.isVisible($0) }
         guard let providerOffset = visibleProviders.firstIndex(of: provider) else { return nil }
         return Self.mergedLegacyDefaultItemIndex + 1 + providerOffset

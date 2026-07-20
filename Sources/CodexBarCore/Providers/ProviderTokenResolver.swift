@@ -48,6 +48,12 @@ public enum ProviderTokenResolver {
         self.claudeAdminAPIResolution(environment: environment)?.token
     }
 
+    public static func clinePassToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.clinePassResolution(environment: environment)?.token
+    }
+
     public static func copilotToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.copilotResolution(environment: environment)?.token
     }
@@ -70,10 +76,6 @@ public enum ProviderTokenResolver {
 
     public static func kimiAPIToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         self.kimiAPIResolution(environment: environment)?.token
-    }
-
-    public static func kimiK2Token(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.kimiK2Resolution(environment: environment)?.token
     }
 
     public static func moonshotToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
@@ -99,14 +101,16 @@ public enum ProviderTokenResolver {
         self.openRouterResolution(environment: environment)?.token
     }
 
-    public static func crossModelToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        self.crossModelResolution(environment: environment)?.token
-    }
-
     public static func elevenLabsToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         self.elevenLabsResolution(environment: environment)?.token
+    }
+
+    public static func neuralWattToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.neuralWattResolution(environment: environment)?.token
     }
 
     public static func groqToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
@@ -157,6 +161,12 @@ public enum ProviderTokenResolver {
         self.veniceResolution(environment: environment)?.token
     }
 
+    public static func deepInfraToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.deepInfraResolution(environment: environment)?.token
+    }
+
     public static func stepfunToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -189,6 +199,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(DeepSeekSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func deepInfraResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(DeepInfraSettingsReader.apiKey(environment: environment))
     }
 
     public static func poeResolution(
@@ -258,6 +274,12 @@ public enum ProviderTokenResolver {
         self.resolveEnv(ClaudeAdminAPISettingsReader.apiKey(environment: environment))
     }
 
+    public static func clinePassResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(ClinePassSettingsReader.apiKey(environment: environment))
+    }
+
     public static func copilotResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -307,12 +329,6 @@ public enum ProviderTokenResolver {
         self.resolveEnv(KimiSettingsReader.apiKey(environment: environment))
     }
 
-    public static func kimiK2Resolution(
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
-    {
-        self.resolveEnv(KimiK2SettingsReader.apiKey(environment: environment))
-    }
-
     public static func moonshotResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
@@ -350,16 +366,16 @@ public enum ProviderTokenResolver {
         self.resolveEnv(OpenRouterSettingsReader.apiToken(environment: environment))
     }
 
-    public static func crossModelResolution(
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
-    {
-        self.resolveEnv(CrossModelSettingsReader.apiToken(environment: environment))
-    }
-
     public static func elevenLabsResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(ElevenLabsSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func neuralWattResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(NeuralWattSettingsReader.apiKey(environment: environment))
     }
 
     public static func groqResolution(

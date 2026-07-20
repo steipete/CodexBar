@@ -36,22 +36,41 @@ public enum MistralCookieImporter {
 
     public static func importSession(
         browserDetection: BrowserDetection,
-        preferredBrowsers: [Browser] = [.chrome],
+        preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
+        try self.importSessions(
+            browserDetection: browserDetection,
+            preferredBrowsers: preferredBrowsers,
+            excludingSourceLabels: [],
+            limit: 1,
+            logger: logger)[0]
+    }
+
+    static func importSessions(
+        browserDetection: BrowserDetection,
+        preferredBrowsers: [Browser]? = nil,
+        excludingSourceLabels: Set<String>,
+        limit: Int? = nil,
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+    {
         let log: (String) -> Void = { msg in logger?("[mistral-cookie] \(msg)") }
-        let installedBrowsers = preferredBrowsers.isEmpty
-            ? mistralCookieImportOrder.cookieImportCandidates(using: browserDetection)
-            : preferredBrowsers.cookieImportCandidates(using: browserDetection)
+        let order = self.resolvedImportOrder(preferredBrowsers)
+        let installedBrowsers = order.cookieImportCandidates(using: browserDetection)
+        var sessions: [SessionInfo] = []
 
         for browserSource in installedBrowsers {
             do {
-                let query = BrowserCookieQuery(domains: self.cookieDomains)
+                let query = self.cookieQuery()
                 let sources = try Self.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)
                 for source in sources where !source.records.isEmpty {
+                    guard !excludingSourceLabels.contains(source.label) else {
+                        log("Skipping rejected cookie source \(source.label)")
+                        continue
+                    }
                     let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                     if !httpCookies.isEmpty {
                         guard Self.hasSessionCookie(httpCookies) else {
@@ -59,7 +78,10 @@ public enum MistralCookieImporter {
                             continue
                         }
                         log("Found \(httpCookies.count) Mistral cookies in \(source.label)")
-                        return SessionInfo(cookies: httpCookies, sourceLabel: source.label)
+                        sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
+                        if sessions.count == limit {
+                            return sessions
+                        }
                     }
                 }
             } catch {
@@ -68,12 +90,28 @@ public enum MistralCookieImporter {
             }
         }
 
-        throw MistralCookieImportError.noCookies
+        guard !sessions.isEmpty else { throw MistralCookieImportError.noCookies }
+        return sessions
+    }
+
+    static func resolvedImportOrder(_ preferredBrowsers: [Browser]?) -> [Browser] {
+        guard let preferredBrowsers, !preferredBrowsers.isEmpty else {
+            return mistralCookieImportOrder
+        }
+        return preferredBrowsers
+    }
+
+    static func cookieQuery(referenceDate: Date = Date()) -> BrowserCookieQuery {
+        BrowserCookieQuery(
+            domains: self.cookieDomains,
+            domainMatch: .exact,
+            includeExpired: false,
+            referenceDate: referenceDate)
     }
 
     public static func hasSession(
         browserDetection: BrowserDetection,
-        preferredBrowsers: [Browser] = [.chrome],
+        preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) -> Bool
     {
         do {

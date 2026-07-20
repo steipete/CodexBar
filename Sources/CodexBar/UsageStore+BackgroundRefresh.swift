@@ -12,8 +12,13 @@ extension UsageStore {
     /// Settings, token-account configuration, historical datasets, credits/dashboard caches,
     /// and disk-backed Codex account snapshots intentionally remain owned by their existing lifetimes.
     func clearProviderState(_ provider: UsageProvider) {
-        self.providerRefreshCoordinator.invalidateRequests(for: provider)
+        self.invalidateProviderRefreshRequests(provider)
         self.clearProviderRuntimeState(provider)
+    }
+
+    /// Cancels and retires in-flight work without clearing the provider's current presentation state.
+    func invalidateProviderRefreshRequests(_ provider: UsageProvider) {
+        self.providerRefreshCoordinator.invalidateRequests(for: provider)
     }
 
     /// The active refresh uses this when it discovers its own provider is disabled. Its replacing
@@ -25,6 +30,10 @@ extension UsageStore {
         self.snapshots.removeValue(forKey: provider)
         self.lastKnownResetSnapshots.removeValue(forKey: provider)
         self.errors[provider] = nil
+        self.diagnostics[provider] = nil
+        if provider == .deepseek {
+            self.clearDeepSeekProfileTransition()
+        }
         if provider == .gemini {
             self.clearGeminiConsumerTierDeprecationObservation()
         }
@@ -43,7 +52,7 @@ extension UsageStore {
         if provider == .claude {
             self.clearClaudeSwapAccountState()
         }
-        self.tokenSnapshots.removeValue(forKey: provider)
+        self.clearTokenSnapshot(for: provider)
         self.tokenErrors[provider] = nil
         self.providerStorageFootprints.removeValue(forKey: provider)
         self.failureGates[provider]?.reset()

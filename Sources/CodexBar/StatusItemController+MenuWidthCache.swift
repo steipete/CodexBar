@@ -45,6 +45,7 @@ extension StatusItemController {
             updateReady: self.updater.updateStatus.isUpdateReady,
             includeContextualActions: includeContextualActions,
             agentSessionsEnabled: self.settings.agentSessionsEnabled,
+            agentSessionLabelStyle: self.settings.agentSessionLabelStyle,
             localAgentSessions: self.agentSessions.localSessions,
             remoteAgentHosts: self.agentSessions.remoteHosts)
     }

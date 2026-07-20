@@ -28,10 +28,14 @@ public enum CursorProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .cursor,
                 iconResourceName: "ProviderIcon-cursor",
-                color: ProviderColor(red: 0 / 255, green: 191 / 255, blue: 165 / 255)),
+                color: ProviderColor(red: 0 / 255, green: 191 / 255, blue: 165 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x1B1913),
+                    ProviderColor(hex: 0xEDECEC),
+                ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Cursor cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No Cursor cost usage found. Sign in to Cursor in your browser or the Cursor app." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CursorStatusFetchStrategy()] })),

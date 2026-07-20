@@ -34,9 +34,15 @@ private func appLanguageDefaults() -> UserDefaults {
 
 private let isRunningTestsProcessAtStartup: Bool = {
     let env = ProcessInfo.processInfo.environment
-    if env["XCTestConfigurationFilePath"] != nil { return true }
-    if env["TESTING_LIBRARY_VERSION"] != nil { return true }
-    if env["SWIFT_TESTING"] != nil { return true }
+    if env["XCTestConfigurationFilePath"] != nil {
+        return true
+    }
+    if env["TESTING_LIBRARY_VERSION"] != nil {
+        return true
+    }
+    if env["SWIFT_TESTING"] != nil {
+        return true
+    }
     return NSClassFromString("XCTestCase") != nil
 }()
 
@@ -210,7 +216,11 @@ func L(_ key: String, language: String) -> String {
 func codexBarLocalizedLocale() -> Locale {
     let language = resolvedAppLanguage()
     guard !language.isEmpty else { return .current }
-    switch language.lowercased() {
+    let normalized = language.lowercased()
+    if normalized == "ar" || normalized.hasPrefix("ar-") {
+        return Locale(identifier: "\(language)@numbers=arab")
+    }
+    switch normalized {
     case "zh-hans":
         return Locale(identifier: "zh-Hans")
     case "zh-hant":
@@ -220,6 +230,10 @@ func codexBarLocalizedLocale() -> Locale {
     default:
         return Locale(identifier: language)
     }
+}
+
+func codexBarLocalizedInteger(_ value: Int) -> String {
+    value.formatted(.number.locale(codexBarLocalizedLocale()))
 }
 
 func codexBarLocalizedString(_ key: String, bundle: Bundle, resourceBundle: Bundle) -> String {

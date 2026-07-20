@@ -15,16 +15,21 @@ browser session when the CLI surface does not expose billing.
 
 ## Data sources + fallback order
 
-1) **`~/.grok/auth.json` (primary; always works for SuperGrok subscribers)**
-   - Reads `email`, `team_id`, `first_name`/`last_name`, plan-hint (`auth_mode`)
-     for the identity row in the menu.
+1) **`~/.grok/auth.json` (primary identity source)**
+   - Reads `email`, `team_id`, `first_name`/`last_name`, plan-hint (`auth_mode`),
+     and the optional `principal_type` for the identity row in the menu.
+   - Team principals are recognized on the CLI and web billing paths. Until Grok
+     exposes a supported team usage surface, CodexBar keeps the identity row and
+     reports that team usage is unavailable instead of exposing the personal-team
+     rejection verbatim.
 2) **`grok agent stdio` ACP JSON-RPC** (best-effort, currently disabled in grok 0.1.210)
    - We spawn `grok agent stdio` and call `initialize` + `x.ai/billing` (no params).
    - **Known limitation:** in grok 0.1.210 the `x.ai/billing` extension method
      is only wired in the interactive TUI; the agent-stdio surface returns
-     `-32601 Method not found`. The provider degrades silently to identity-only
-     when this happens. When xAI exposes billing on the agent protocol, no
-     code change is required.
+     `-32601 Method not found`. Personal/unknown principals continue to the web
+     fallback, while a team principal degrades to identity-only with an explicit
+     unsupported-team-usage diagnostic. When xAI exposes billing on the agent
+     protocol, no code change is required.
    - One non-obvious quirk: grok's ACP parser does not unescape `\/` in method
      names. `Foundation.JSONSerialization.data` defaults to escaping forward
      slashes, so payloads must be re-encoded with `\/` → `/` before being
@@ -60,6 +65,7 @@ browser session when the CLI surface does not expose billing.
   `https://accounts.x.ai/sign-in` (legacy session).
 - Required fields per entry: `key` (bearer token), `refresh_token`, `expires_at`,
   `auth_mode`, `email`, `team_id`, `user_id`, `first_name`/`last_name`.
+  `principal_type` is optional because older auth files do not include it.
 - Tokens are issued by `grok login` and expire after ~7 days; refresh is handled by
   the CLI itself (CodexBar does not refresh; it just reads the cached credential).
 

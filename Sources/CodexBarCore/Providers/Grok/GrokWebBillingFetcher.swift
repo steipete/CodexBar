@@ -19,6 +19,7 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
     case invalidResponse
     case requestFailed(Int, String)
     case rpcFailed(Int, String)
+    case teamUsageUnsupported
     case parseFailed
 
     public var errorDescription: String? {
@@ -41,6 +42,8 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
             } else {
                 "Grok web billing RPC failed with status \(status): \(message)"
             }
+        case .teamUsageUnsupported:
+            "Grok team usage is unavailable from the current billing surface."
         case .parseFailed:
             "Could not parse Grok web billing usage."
         }
@@ -76,6 +79,7 @@ public enum GrokWebBillingFetcher {
         try await self.fetch(
             authorizationHeader: "Bearer \(credentials.accessToken)",
             cookieHeader: nil,
+            principalType: credentials.isExpired ? nil : credentials.principalType,
             transport: transport,
             endpoint: endpoint)
     }
@@ -104,6 +108,7 @@ public enum GrokWebBillingFetcher {
         return try await self.fetch(
             authorizationHeader: authorizationHeader,
             cookieHeader: cookieHeader,
+            principalType: credentials.flatMap { $0.isExpired ? nil : $0.principalType },
             transport: transport,
             endpoint: endpoint)
     }
@@ -111,6 +116,7 @@ public enum GrokWebBillingFetcher {
     private static func fetch(
         authorizationHeader: String?,
         cookieHeader: String?,
+        principalType: String?,
         transport: any ProviderHTTPTransport,
         endpoint: URL) async throws -> GrokWebBillingSnapshot
     {
@@ -120,13 +126,31 @@ public enum GrokWebBillingFetcher {
                 cookieHeader: cookieHeader,
                 transport: transport,
                 endpoint: endpoint)
-        } catch where self.shouldRetry(error) {
-            return try await self.fetchOnce(
-                authorizationHeader: authorizationHeader,
-                cookieHeader: cookieHeader,
-                transport: transport,
-                endpoint: endpoint)
+        } catch {
+            if self.shouldRetry(error) {
+                do {
+                    return try await self.fetchOnce(
+                        authorizationHeader: authorizationHeader,
+                        cookieHeader: cookieHeader,
+                        transport: transport,
+                        endpoint: endpoint)
+                } catch {
+                    throw self.classified(error, principalType: principalType)
+                }
+            }
+            throw self.classified(error, principalType: principalType)
         }
+    }
+
+    private static func classified(_ error: Error, principalType: String?) -> Error {
+        guard principalType?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("team") == .orderedSame,
+            case let GrokWebBillingError.rpcFailed(status, message) = error,
+            self.isTeamBillingUnavailable(status: status, message: message)
+        else {
+            return error
+        }
+        return GrokWebBillingError.teamUsageUnsupported
     }
 
     private static func fetchOnce(
@@ -277,6 +301,12 @@ public enum GrokWebBillingFetcher {
             return
         }
         throw GrokWebBillingError.rpcFailed(status, fields["grpc-message"] ?? "")
+    }
+
+    static func isTeamBillingUnavailable(status: Int, message: String) -> Bool {
+        guard status == 9 else { return false }
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "no personal team" || normalized == "no personal team."
     }
 
     static func grpcHeaderFields(from headers: [AnyHashable: Any]) -> [String: String] {

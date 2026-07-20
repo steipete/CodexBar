@@ -35,6 +35,21 @@ private final class MistralRequestPathLog: @unchecked Sendable {
     }
 }
 
+private final class MistralCookieHeaderLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedHeaders: [String] = []
+
+    var headers: [String] {
+        self.lock.withLock { self.storedHeaders }
+    }
+
+    func record(_ request: URLRequest) {
+        self.lock.withLock {
+            self.storedHeaders.append(request.value(forHTTPHeaderField: "Cookie") ?? "")
+        }
+    }
+}
+
 struct MistralVibeUsageTests {
     #if os(macOS)
     @Test
@@ -44,6 +59,49 @@ struct MistralVibeUsageTests {
             "admin.mistral.ai",
             "auth.mistral.ai",
             "console.mistral.ai",
+        ])
+
+        let referenceDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let query = MistralCookieImporter.cookieQuery(referenceDate: referenceDate)
+        #expect(query.domains == MistralCookieImporter.cookieDomains)
+        #expect(query.includeExpired == false)
+        #expect(query.referenceDate == referenceDate)
+        guard case .exact = query.domainMatch else {
+            Issue.record("Expected exact Mistral cookie-domain matching")
+            return
+        }
+    }
+
+    @Test
+    func `tries later browser sessions after invalid credentials`() async throws {
+        let headerLog = MistralCookieHeaderLog()
+        let usageData = Data(Self.billingUsageResponseJSON.utf8)
+        let sessions = try [
+            Self.session(cookieName: "ory_session_chrome", value: "stale", sourceLabel: "Chrome"),
+            Self.session(cookieName: "ory_session_firefox", value: "stale", sourceLabel: "Firefox"),
+            Self.session(cookieName: "ory_session_safari", value: "valid", sourceLabel: "Safari"),
+        ]
+        let transport = ProviderHTTPTransportHandler { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.host == "admin.mistral.ai", url.path == "/api/billing/v2/usage" {
+                headerLog.record(request)
+                let cookieHeader = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                let statusCode = cookieHeader.contains("ory_session_safari=valid") ? 200 : 401
+                return try (usageData, Self.response(url: url, statusCode: statusCode))
+            }
+            return try (Data(), Self.response(url: url, statusCode: 404))
+        }
+
+        let (_, session) = try await MistralWebFetchStrategy.fetchUsageFromSessions(
+            sessions,
+            timeout: 2,
+            transport: transport)
+
+        #expect(session.sourceLabel == "Safari")
+        #expect(headerLog.headers == [
+            "ory_session_chrome=stale",
+            "ory_session_firefox=stale",
+            "ory_session_safari=valid",
         ])
     }
     #endif
@@ -252,6 +310,20 @@ struct MistralVibeUsageTests {
         }}}}]
         """
     }
+
+    #if os(macOS)
+    private static func session(cookieName: String, value: String, sourceLabel: String) throws
+        -> MistralCookieImporter.SessionInfo
+    {
+        let cookie = try #require(HTTPCookie(properties: [
+            .domain: "admin.mistral.ai",
+            .path: "/",
+            .name: cookieName,
+            .value: value,
+        ]))
+        return MistralCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: sourceLabel)
+    }
+    #endif
 
     private static var billingUsageResponseJSON: String {
         """

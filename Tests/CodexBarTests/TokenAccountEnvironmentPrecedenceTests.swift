@@ -698,6 +698,13 @@ struct TokenAccountEnvironmentPrecedenceTests {
 
     @Test
     func `codex CLI ignores relative profile homes`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-cli-relative-profile-\(UUID().uuidString)", isDirectory: true)
+        let ambientHome = root.appendingPathComponent("ambient", isDirectory: true)
+        let managedStoreURL = root.appendingPathComponent("managed-codex-accounts.json")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: ambientHome, withIntermediateDirectories: true)
+
         let config = CodexBarConfig(providers: [
             ProviderConfig(
                 id: .codex,
@@ -708,16 +715,17 @@ struct TokenAccountEnvironmentPrecedenceTests {
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
             config: config,
             verbose: false,
-            baseEnvironment: ["CODEX_HOME": "/tmp/ambient-codex"])
+            baseEnvironment: ["CODEX_HOME": ambientHome.path],
+            managedCodexAccountStoreURL: managedStoreURL)
 
         let environment = context.environment(
-            base: ["CODEX_HOME": "/tmp/ambient-codex"],
+            base: ["CODEX_HOME": ambientHome.path],
             provider: .codex,
             account: nil,
             codexActiveSourceOverride: .profileHome(path: "relative-codex-home"))
 
         #expect(context.visibleCodexAccounts().visibleAccounts.isEmpty)
-        #expect(environment["CODEX_HOME"] == "/tmp/ambient-codex")
+        #expect(environment["CODEX_HOME"] == ambientHome.path)
     }
 
     @Test
@@ -1045,7 +1053,6 @@ extension TokenAccountEnvironmentPrecedenceTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

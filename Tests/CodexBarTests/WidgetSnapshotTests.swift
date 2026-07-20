@@ -1,8 +1,29 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 struct WidgetSnapshotTests {
+    @Test
+    func `Codex widget labels disclose API estimates`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 1200,
+            sessionCostUSD: 1.25,
+            last30DaysTokens: 9000,
+            last30DaysCostUSD: 9.99,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let codex = UsageStore.widgetTokenUsageSummary(from: snapshot, provider: .codex)
+        let claude = UsageStore.widgetTokenUsageSummary(from: snapshot, provider: .claude)
+
+        #expect(codex?.sessionLabel == "Today API est. · not billed")
+        #expect(codex?.last30DaysLabel == "30d API est. · not billed")
+        #expect(claude?.sessionLabel == "Today")
+        #expect(claude?.last30DaysLabel == "30d")
+    }
+
     @Test
     func `widget snapshot round trip`() throws {
         let entry = WidgetSnapshot.ProviderEntry(

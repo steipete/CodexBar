@@ -8,101 +8,159 @@ import Musl
 import Foundation
 
 private enum TTYCommandRunnerActiveProcessRegistry {
-    private static let condition = NSCondition()
-    private nonisolated(unsafe) static var processes: [pid_t: ProcessInfo] = [:]
-    private nonisolated(unsafe) static var isShuttingDown = false
-    private nonisolated(unsafe) static var launchesInProgress = 0
-
     private struct ProcessInfo {
         let binary: String
         var processGroup: pid_t?
     }
 
-    @discardableResult
+    private final class State: @unchecked Sendable {
+        private let condition = NSCondition()
+        private var processes: [pid_t: ProcessInfo] = [:]
+        private var isShuttingDown = false
+        private var launchesInProgress = 0
+
+        @discardableResult
+        func register(pid: pid_t, binary: String) -> Bool {
+            guard pid > 0 else { return false }
+            self.condition.lock()
+            defer { self.condition.unlock() }
+            guard !self.isShuttingDown else { return false }
+            self.processes[pid] = ProcessInfo(binary: binary, processGroup: nil)
+            return true
+        }
+
+        func beginLaunch() -> Bool {
+            self.condition.lock()
+            defer { self.condition.unlock() }
+            guard !self.isShuttingDown else { return false }
+            self.launchesInProgress += 1
+            return true
+        }
+
+        func endLaunch() {
+            self.condition.lock()
+            self.launchesInProgress = max(0, self.launchesInProgress - 1)
+            if self.launchesInProgress == 0 {
+                self.condition.broadcast()
+            }
+            self.condition.unlock()
+        }
+
+        func updateProcessGroup(pid: pid_t, processGroup: pid_t?) {
+            guard pid > 0 else { return }
+            self.condition.lock()
+            guard var existing = self.processes[pid] else {
+                self.condition.unlock()
+                return
+            }
+            existing.processGroup = processGroup
+            self.processes[pid] = existing
+            self.condition.unlock()
+        }
+
+        func unregister(pid: pid_t) {
+            guard pid > 0 else { return }
+            self.condition.lock()
+            self.processes.removeValue(forKey: pid)
+            self.condition.unlock()
+        }
+
+        func drainForShutdown(
+            onFenceSet: (() -> Void)? = nil)
+            -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+        {
+            self.condition.lock()
+            self.isShuttingDown = true
+            onFenceSet?()
+            while self.launchesInProgress > 0 {
+                self.condition.wait()
+            }
+            let drained = self.processes.map {
+                (pid: $0.key, binary: $0.value.binary, processGroup: $0.value.processGroup)
+            }
+            self.processes.removeAll()
+            self.condition.unlock()
+            return drained
+        }
+
+        func reset() {
+            self.condition.lock()
+            self.processes.removeAll()
+            self.isShuttingDown = false
+            self.launchesInProgress = 0
+            self.condition.broadcast()
+            self.condition.unlock()
+        }
+
+        func count() -> Int {
+            self.condition.lock()
+            let count = self.processes.count
+            self.condition.unlock()
+            return count
+        }
+
+        func testTrackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
+            guard pid > 0 else { return }
+            self.condition.lock()
+            self.processes[pid] = ProcessInfo(binary: binary, processGroup: processGroup)
+            self.condition.unlock()
+        }
+    }
+
+    private static let shared = State()
+    @TaskLocal private static var stateOverrideForTesting: State?
+
+    private static var current: State {
+        self.stateOverrideForTesting ?? self.shared
+    }
+
     static func register(pid: pid_t, binary: String) -> Bool {
-        guard pid > 0 else { return false }
-        self.condition.lock()
-        defer { self.condition.unlock() }
-        guard !self.isShuttingDown else { return false }
-        self.processes[pid] = ProcessInfo(binary: binary, processGroup: nil)
-        return true
+        self.current.register(pid: pid, binary: binary)
     }
 
     static func beginLaunch() -> Bool {
-        self.condition.lock()
-        defer { self.condition.unlock() }
-        guard !self.isShuttingDown else { return false }
-        self.launchesInProgress += 1
-        return true
+        self.current.beginLaunch()
     }
 
     static func endLaunch() {
-        self.condition.lock()
-        self.launchesInProgress = max(0, self.launchesInProgress - 1)
-        if self.launchesInProgress == 0 {
-            self.condition.broadcast()
-        }
-        self.condition.unlock()
+        self.current.endLaunch()
     }
 
     static func updateProcessGroup(pid: pid_t, processGroup: pid_t?) {
-        guard pid > 0 else { return }
-        self.condition.lock()
-        guard var existing = self.processes[pid] else {
-            self.condition.unlock()
-            return
-        }
-        existing.processGroup = processGroup
-        self.processes[pid] = existing
-        self.condition.unlock()
+        self.current.updateProcessGroup(pid: pid, processGroup: processGroup)
     }
 
     static func unregister(pid: pid_t) {
-        guard pid > 0 else { return }
-        self.condition.lock()
-        self.processes.removeValue(forKey: pid)
-        self.condition.unlock()
+        self.current.unregister(pid: pid)
     }
 
-    static func drainForShutdown(
-        onFenceSet: (() -> Void)? = nil)
+    static func drainForShutdown(onFenceSet: (() -> Void)? = nil)
         -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
     {
-        self.condition.lock()
-        self.isShuttingDown = true
-        onFenceSet?()
-        while self.launchesInProgress > 0 {
-            self.condition.wait()
-        }
-        let drained = self.processes.map {
-            (pid: $0.key, binary: $0.value.binary, processGroup: $0.value.processGroup)
-        }
-        self.processes.removeAll()
-        self.condition.unlock()
-        return drained
+        self.current.drainForShutdown(onFenceSet: onFenceSet)
     }
 
     static func reset() {
-        self.condition.lock()
-        self.processes.removeAll()
-        self.isShuttingDown = false
-        self.launchesInProgress = 0
-        self.condition.broadcast()
-        self.condition.unlock()
+        self.current.reset()
     }
 
     static func count() -> Int {
-        self.condition.lock()
-        let count = self.processes.count
-        self.condition.unlock()
-        return count
+        self.current.count()
     }
 
     static func testTrackProcess(pid: pid_t, binary: String, processGroup: pid_t?) {
-        guard pid > 0 else { return }
-        self.condition.lock()
-        self.processes[pid] = ProcessInfo(binary: binary, processGroup: processGroup)
-        self.condition.unlock()
+        self.current.testTrackProcess(pid: pid, binary: binary, processGroup: processGroup)
+    }
+
+    static func withIsolatedStateForTesting<T>(_ operation: () throws -> T) rethrows -> T {
+        try self.$stateOverrideForTesting.withValue(State(), operation: operation)
+    }
+
+    static func makeDrainOperationForTesting(onFenceSet: (@Sendable () -> Void)? = nil)
+        -> @Sendable () -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        let state = self.current
+        return { state.drainForShutdown(onFenceSet: onFenceSet) }
     }
 }
 
@@ -206,6 +264,10 @@ enum TTYProcessTreeTerminator {
     }
 }
 
+private enum TTYCommandRunnerTestingOverrides {
+    @TaskLocal static var postDeadlineDrainDuration: TimeInterval?
+}
+
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
@@ -287,6 +349,7 @@ public struct TTYCommandRunner {
         case binaryNotFound(String)
         case launchFailed(String)
         case timedOut
+        case outputTooLarge
 
         public var errorDescription: String? {
             switch self {
@@ -294,6 +357,7 @@ public struct TTYCommandRunner {
                 "Missing CLI '\(bin)'. Install it (e.g. npm i -g @openai/codex) or add it to PATH."
             case let .launchFailed(msg): "Failed to launch process: \(msg)"
             case .timedOut: "PTY command timed out."
+            case .outputTooLarge: "PTY command produced more output than CodexBar can safely process."
             }
         }
     }
@@ -397,7 +461,9 @@ public struct TTYCommandRunner {
                 let dst = dest.bindMemory(to: UInt8.self)
                 for idx in 0..<src.count {
                     var byte = src[idx]
-                    if byte >= 65, byte <= 90 { byte += 32 }
+                    if byte >= 65, byte <= 90 {
+                        byte += 32
+                    }
                     dst[idx] = byte
                 }
             }
@@ -424,7 +490,9 @@ public struct TTYCommandRunner {
     }
 
     static func drainReadResult(for data: Data, terminalRead: Int, errno err: Int32) -> DrainReadResult {
-        if !data.isEmpty { return .data(data) }
+        if !data.isEmpty {
+            return .data(data)
+        }
 
         if terminalRead == 0 {
             return .closed
@@ -465,7 +533,9 @@ public struct TTYCommandRunner {
         }
 
         let mainURL = Bundle.main.bundleURL
-        if mainURL.pathExtension == "app", let found = candidate(inAppBundleURL: mainURL) { return found }
+        if mainURL.pathExtension == "app", let found = candidate(inAppBundleURL: mainURL) {
+            return found
+        }
 
         if let argv0 = CommandLine.arguments.first {
             var url = URL(fileURLWithPath: argv0)
@@ -475,8 +545,12 @@ public struct TTYCommandRunner {
             var probe = url
             for _ in 0..<6 {
                 let parent = probe.deletingLastPathComponent()
-                if parent.pathExtension == "app", let found = candidate(inAppBundleURL: parent) { return found }
-                if parent.path == probe.path { break }
+                if parent.pathExtension == "app", let found = candidate(inAppBundleURL: parent) {
+                    return found
+                }
+                if parent.path == probe.path {
+                    break
+                }
                 probe = parent
             }
         }
@@ -545,7 +619,9 @@ public struct TTYCommandRunner {
                         retries = 0
                         continue
                     }
-                    if written == 0 { break }
+                    if written == 0 {
+                        break
+                    }
 
                     let err = errno
                     if err == EAGAIN || err == EWOULDBLOCK {
@@ -664,7 +740,16 @@ public struct TTYCommandRunner {
         let isCodex = (binaryName == "codex") || options.forceCodexStatusMode
         let isCodexStatus = isCodex && trimmed == "/status"
 
-        var buffer = Data()
+        var buffer = BoundedOutputBuffer()
+        var didExceedOutputLimit = false
+
+        func checkOutputLimit() throws {
+            if didExceedOutputLimit {
+                Self.log.warning("PTY output exceeded memory limit", metadata: ["binary": binaryName])
+                throw Error.outputTooLarge
+            }
+        }
+
         func readChunkResult() -> (data: Data, terminalRead: Int, errno: Int32) {
             var appended = Data()
             var terminalRead = 0
@@ -675,7 +760,10 @@ public struct TTYCommandRunner {
                 let n = read(primaryFD, &tmp, tmp.count)
                 if n > 0 {
                     let slice = tmp.prefix(n)
-                    buffer.append(contentsOf: slice)
+                    guard buffer.append(Data(slice)) else {
+                        didExceedOutputLimit = true
+                        break
+                    }
                     appended.append(contentsOf: slice)
                     continue
                 }
@@ -691,6 +779,9 @@ public struct TTYCommandRunner {
         }
 
         func readDrainChunk() -> DrainReadResult {
+            if didExceedOutputLimit {
+                return .closed
+            }
             let result = readChunkResult()
             return Self.drainReadResult(for: result.data, terminalRead: result.terminalRead, errno: result.errno)
         }
@@ -741,6 +832,7 @@ public struct TTYCommandRunner {
             var lastEnter = Date()
             var stoppedEarly = false
             var urlSeen = false
+            var ptyClosed = false
             var triggeredSends = Set<Data>()
             var recentText = ""
             var lastOutputAt = Date()
@@ -802,12 +894,17 @@ public struct TTYCommandRunner {
             while Date() < deadline {
                 try checkCancellation()
                 let readResult = readDrainChunk()
-                let newData = switch readResult {
+                let newData: Data
+                switch readResult {
                 case let .data(data):
-                    data
-                case .wouldBlock, .closed:
-                    Data()
+                    newData = data
+                case .wouldBlock:
+                    newData = Data()
+                case .closed:
+                    ptyClosed = true
+                    newData = Data()
                 }
+                try checkOutputLimit()
                 if processNonCodexChunk(newData, allowSends: true, allowStop: true) {
                     stoppedEarly = true
                     break
@@ -826,9 +923,31 @@ public struct TTYCommandRunner {
                     lastEnter = Date()
                 }
 
-                if case .closed = readResult, !process.isRunning { break }
-                if !process.isRunning { break }
+                if ptyClosed, !process.isRunning {
+                    break
+                }
+                if !process.isRunning {
+                    break
+                }
                 usleep(60000)
+            }
+
+            let exitStatusBeforeDrain: Int32? = if !stoppedEarly,
+                                                   let exitObservedAt = process.exitObservationDate,
+                                                   exitObservedAt <= deadline
+            {
+                process.finishSynchronously()
+            } else {
+                nil
+            }
+
+            func drainNonCodexOutput(for duration: TimeInterval) {
+                let drainFor = max(0, duration)
+                guard drainFor > 0 else { return }
+                Self.drainRemainingOutput(
+                    until: Date().addingTimeInterval(drainFor),
+                    readChunk: readDrainChunk,
+                    processChunk: { _ = processNonCodexChunk($0, allowSends: false, allowStop: false) })
             }
 
             if stoppedEarly {
@@ -838,6 +957,7 @@ public struct TTYCommandRunner {
                     while Date() < settleDeadline {
                         try checkCancellation()
                         let newData = readChunk()
+                        try checkOutputLimit()
                         let scanData = scanBuffer.append(newData)
                         if Date() >= nextCursorCheckAt,
                            !scanData.isEmpty,
@@ -849,21 +969,23 @@ public struct TTYCommandRunner {
                         usleep(50000)
                     }
                 }
-            } else if !process.isRunning {
+            } else {
                 // PTY-backed scripts can exit before their final echo becomes readable on the parent side.
                 // Give the kernel a brief non-blocking drain window so we don't lose the last line of output.
-                let drainFor = max(0, min(0.2, deadline.timeIntervalSinceNow))
-                if drainFor > 0 {
-                    Self.drainRemainingOutput(
-                        until: Date().addingTimeInterval(drainFor),
-                        readChunk: readDrainChunk,
-                        processChunk: { _ = processNonCodexChunk($0, allowSends: false, allowStop: false) })
-                }
+                let defaultDrainDuration = min(0.5, max(0.2, options.settleAfterStop))
+                let drainDuration = TTYCommandRunnerTestingOverrides.postDeadlineDrainDuration ?? defaultDrainDuration
+                drainNonCodexOutput(for: drainDuration)
             }
 
-            let text = String(data: buffer, encoding: .utf8) ?? ""
-            let completion: Result.Completion = if !process.isRunning {
-                .processExited(status: process.finishSynchronously() ?? 1)
+            try checkOutputLimit()
+            let text = String(data: buffer.data, encoding: .utf8) ?? ""
+            let exitStatus: Int32? = if stoppedEarly {
+                !process.isRunning ? process.finishSynchronously() : nil
+            } else {
+                exitStatusBeforeDrain
+            }
+            let completion: Result.Completion = if let exitStatus {
+                .processExited(status: exitStatus)
             } else if terminatedForIdle {
                 .idleTimeout
             } else if stoppedEarly {
@@ -919,6 +1041,7 @@ public struct TTYCommandRunner {
         while Date() < deadline {
             try checkCancellation()
             let newData = readChunk()
+            try checkOutputLimit()
             let scanData = statusScanBuffer.append(newData)
             if Date() >= nextCursorCheckAt,
                !scanData.isEmpty,
@@ -1000,7 +1123,9 @@ public struct TTYCommandRunner {
                     continue
                 }
             }
-            if sawCodexStatus { break }
+            if sawCodexStatus {
+                break
+            }
             usleep(120_000)
         }
 
@@ -1009,6 +1134,7 @@ public struct TTYCommandRunner {
             while Date() < settleDeadline {
                 try checkCancellation()
                 let newData = readChunk()
+                try checkOutputLimit()
                 let scanData = statusScanBuffer.append(newData)
                 if Date() >= nextCursorCheckAt,
                    !scanData.isEmpty,
@@ -1021,7 +1147,8 @@ public struct TTYCommandRunner {
             }
         }
 
-        guard let text = String(data: buffer, encoding: .utf8), !text.isEmpty else {
+        try checkOutputLimit()
+        guard let text = String(data: buffer.data, encoding: .utf8), !text.isEmpty else {
             throw Error.timedOut
         }
 
@@ -1039,9 +1166,24 @@ public struct TTYCommandRunner {
 }
 
 extension TTYCommandRunner {
+    static func withIsolatedActiveProcessRegistryForTesting<T>(_ operation: () throws -> T) rethrows -> T {
+        try TTYCommandRunnerActiveProcessRegistry.withIsolatedStateForTesting(operation)
+    }
+
+    static func withPostDeadlineDrainDurationOverrideForTesting<T>(
+        _ duration: TimeInterval,
+        operation: () throws -> T) rethrows -> T
+    {
+        try TTYCommandRunnerTestingOverrides.$postDeadlineDrainDuration.withValue(duration, operation: operation)
+    }
+
     public static func which(_ tool: String) -> String? {
-        if tool == "codex", let located = BinaryLocator.resolveCodexBinary() { return located }
-        if tool == "claude", let located = BinaryLocator.resolveClaudeBinary() { return located }
+        if tool == "codex", let located = BinaryLocator.resolveCodexBinary() {
+            return located
+        }
+        if tool == "claude", let located = BinaryLocator.resolveClaudeBinary() {
+            return located
+        }
         return self.runWhich(tool)
     }
 
@@ -1185,6 +1327,13 @@ extension TTYCommandRunner {
         -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
     {
         TTYCommandRunnerActiveProcessRegistry.drainForShutdown(onFenceSet: onFenceSet)
+    }
+
+    static func _test_makeDrainTrackedProcessesForShutdownOperation(
+        onFenceSet: (@Sendable () -> Void)? = nil)
+        -> @Sendable () -> [(pid: pid_t, binary: String, processGroup: pid_t?)]
+    {
+        TTYCommandRunnerActiveProcessRegistry.makeDrainOperationForTesting(onFenceSet: onFenceSet)
     }
 
     static func _test_resolveShutdownTargets(

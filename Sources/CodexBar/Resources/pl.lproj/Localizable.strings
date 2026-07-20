@@ -1,8 +1,13 @@
 /* English localization for CodexBar (base/fallback) */
 
+"ollama_safari_cookie_access_hint" = "Pliki cookie Safari wymagają pełnego dostępu do dysku dla CodexBar (Ustawienia systemowe > Prywatność i ochrona).";
+"ollama_browser_cookie_decryption_denied" = "Odszyfrowanie plików cookie %@ zostało odrzucone w Pęku kluczy; spróbuj ponownie przez ręczne odświeżenie.";
+"ollama_browser_cookie_decryption_disabled" = "Odszyfrowanie plików cookie %@ jest wyłączone w CodexBar; włącz dostęp do Pęku kluczy i odśwież.";
+
 " providers" = " providers";
 "(System)" = "(System)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Trwa już zarządzane logowanie Codex. Poczekaj na jego zakończenie, zanim dodasz ";
 "API key" = "Klucz API";
 "API region" = "Region API";
@@ -58,13 +63,16 @@
 "Check for updates automatically" = "Sprawdzaj aktualizacje automatycznie";
 "Check if you like your agents having some fun up there." = "Sprawdź, czy lubisz, gdy twoi agenci trochę się tam bawią.";
 "Check provider status" = "Sprawdź status dostawcy";
+"Choose a supported browser so CodexBar can read the matching account." = "Wybierz obsługiwaną przeglądarkę, aby CodexBar mógł odczytać odpowiednie konto.";
 "Choose Codex workspace" = "Wybierz workspace Codex";
+"Choose Cursor account" = "Wybierz konto Cursor";
 "Choose the MiniMax host (global .io or China mainland .com)." = "Wybierz host MiniMax (.io globalny lub .com dla Chin kontynentalnych).";
 "Choose up to " = "Wybierz maksymalnie ";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "Wybierz maksymalnie \\(Self.maxOverviewProviders) dostawców";
 "Choose up to \\(count) providers" = "Wybierz maksymalnie \\(count) dostawców";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "Wybierz, co pokazywać na pasku menu (Tempo pokazuje użycie względem oczekiwanego).";
 "Choose which Codex account CodexBar should follow." = "Wybierz, które konto Codex ma śledzić CodexBar.";
+"Choose which Cursor account CodexBar should use." = "Wybierz konto Cursor, którego CodexBar powinien używać.";
 "Choose which window drives the menu bar percent." = "Wybierz, które okno steruje procentem na pasku menu.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Nie znaleziono Claude CLI";
@@ -300,7 +308,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Przechowuj wiele nagłówków Cookie dla OpenCode Go.";
 "Stored in the CodexBar config file." = "Przechowywane w pliku konfiguracyjnym CodexBar.";
 "Stored in ~/.codexbar/config.json. " = "Przechowywane w ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Przechowywane w ~/.codexbar/config.json. Wygeneruj jeden na kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Przechowywane w ~/.codexbar/config.json. Wklej klucz z panelu Synthetic.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Przechowywane w ~/.codexbar/config.json. Wklej klucz API Coding Plan z Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Przechowywane w ~/.codexbar/config.json. Wklej swój klucz API MiniMax.";
@@ -330,6 +337,7 @@
 "Usage breakdown" = "Podział użycia";
 "Usage history (30 days)" = "Historia użycia (30 dni)";
 "Usage source" = "Źródło użycia";
+"Use Account" = "Użyj konta";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "Użyj BigModel dla punktów końcowych Chin kontynentalnych (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "Używaj jednej ikony paska menu z przełącznikiem dostawcy.";
 "Use international or China mainland console gateways for quota fetches." = "Używaj międzynarodowych lub chińskich bram konsoli do pobierania limitów.";
@@ -442,7 +450,7 @@
 "cost_history_days_title" = "Zakres historii: %d dni";
 "cost_comparison_periods_title" = "Pokaż krótsze okresy porównawcze";
 "cost_comparison_periods_subtitle" = "Dodaj sumy z 7, 30 i 90 dni, gdy mieszczą się w wybranym zakresie historii. Sumy te wykorzystują to samo skanowanie lokalne.";
-"cost_auto_refresh_info" = "Auto-odświeżanie: co godzinę · Limit czasu: 10 min";
+"cost_auto_refresh_info" = "Auto-odświeżanie: interwał globalny (minimum 5 min) · Limit czasu: 10 min";
 "refresh_interval_title" = "Częstotliwość odświeżania";
 "manual_refresh_hint" = "Auto-odświeżanie jest wyłączone; użyj polecenia Odśwież w menu.";
 "refresh_on_open_title" = "Odśwież po otwarciu menu";
@@ -504,6 +512,27 @@
 "tab_menu_bar" = "Pasek menu";
 "tab_menu" = "Menu";
 "tab_advanced" = "Zaawansowane";
+"tab_hooks" = "Haki";
+
+/* Hooks Pane */
+"hooks_enable_title" = "Włącz haki";
+"hooks_enable_subtitle" = "Uruchamiaj polecenia zewnętrzne, gdy wystąpią zdarzenia limitu lub dostawcy.";
+"hooks_trust_warning" = "Haki mogą uruchamiać lokalne polecenia na Twoim Macu. Konfiguruj tylko polecenia, którym ufasz.";
+"hooks_rules_header" = "Reguły";
+"hooks_empty" = "Nie skonfigurowano haków.";
+"hooks_add_rule" = "Dodaj regułę";
+"hooks_delete_rule" = "Usuń regułę";
+"hooks_rule_enabled" = "Włączone";
+"hooks_event" = "Zdarzenie";
+"hooks_provider" = "Dostawca";
+"hooks_any_provider" = "Dowolny dostawca";
+"hooks_threshold" = "Uruchom przy użyciu ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "Argumenty";
+"hooks_argument_placeholder" = "Argument";
+"hooks_add_argument" = "Dodaj argument";
+"hooks_delete_argument" = "Usuń argument";
 "tab_about" = "O aplikacji";
 "tab_debug" = "Debugowanie";
 
@@ -528,13 +557,14 @@
 "menu_bar_metric_subtitle_deepseek" = "Pokazuje saldo DeepSeek na pasku menu.";
 "menu_bar_metric_subtitle_moonshot" = "Pokazuje saldo API Moonshot / Kimi na pasku menu.";
 "menu_bar_metric_subtitle_mistral" = "Pokazuje wydatki Mistral API z bieżącego miesiąca na pasku menu.";
-"menu_bar_metric_subtitle_kimik2" = "Pokazuje kredyty klucza API Kimi K2 na pasku menu.";
 "automatic" = "Automatycznie";
 "primary_api_key_limit" = "Główny (limit klucza API)";
 
 /* Display Pane */
 "menu_bar_style_title" = "Styl paska menu";
 "menu_bar_style_subtitle" = "Sposób rysowania elementu paska menu.";
+"menu_bar_inactive_display_contrast_title" = "Popraw widoczność na nieaktywnych ekranach";
+"menu_bar_inactive_display_contrast_subtitle" = "Używa renderowania o wysokim kontraście, aby ikona i wskaźnik pozostały czytelne na innych ekranach.";
 "menu_bar_style_critters" = "Stworki";
 "menu_bar_style_bars" = "Paski miernika";
 "menu_bar_style_icon_percent" = "Ikona i procent";
@@ -577,6 +607,12 @@
 "agent_sessions_subtitle" = "Pokazuj w menu lokalne oraz wykryte przez SSH sesje Codex i Claude Code.";
 "agent_sessions_hosts_title" = "Dodatkowe hosty SSH";
 "agent_sessions_footer" = "Komputery Mac w twojej sieci tailnet są wykrywane automatycznie. Sesje lokalne są odświeżane co 30 sekund; hosty zdalne co 60 sekund i po otwarciu menu.";
+"agent_session_labels_title" = "Etykiety sesji";
+"agent_session_labels_subtitle" = "Wybierz sposób nazywania sesji agentów.";
+"agent_session_label_project" = "Projekt";
+"agent_session_label_descriptive" = "Opisowa";
+"agent_session_label_descriptive_and_project" = "Opisowa + projekt";
+"agent_session_unknown_project" = "Nieznany projekt";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Skrót klawiaturowy";
@@ -708,13 +744,19 @@
 "refresh_15min" = "Co 15 min";
 "refresh_30min" = "Co 30 min";
 "refresh_adaptive" = "Adaptacyjny";
+"refresh_adaptive_agent_aware" = "Adaptacyjny (aktywność agentów)";
+"adaptive_activity_consent_title" = "Zezwolić na odświeżanie uwzględniające aktywność?";
+"adaptive_activity_consent_message" = "Tryb adaptacyjny uwzględniający aktywność agentów może sprawdzać listę uruchomionych procesów lokalnych, w tym wiersze poleceń, aby rozpoznać Codex i Claude, a następnie podczas programowania co 30 sekund odczytywać metadane znanych sesji. Gdy Agent Sessions jest wyłączone, CodexBar używa w pamięci tylko czasu ostatniej aktywności i odrzuca ścieżki oraz tożsamości sesji. Te dane nie są nigdzie wysyłane, a wykrywanie zdalne i SSH pozostają wyłączone. Jeśli odmówisz, CodexBar wróci do zwykłego trybu adaptacyjnego bez skanowania aktywności lokalnej.";
+"adaptive_activity_consent_allow" = "Zezwól na lokalną aktywność";
+"adaptive_activity_consent_decline" = "Używaj zwykłego Adaptacyjnego";
 
 /* Additional keys */
 "not_found" = "Nie znaleziono";
 
 /* Cost estimation */
-"cost_header_estimated" = "Koszt (szacowany)";
 "cost_estimate_hint" = "Oszacowano na podstawie lokalnych logów · może różnić się od rachunku";
+"codex_api_estimate_hint" = "Oszacowano na podstawie użycia tokenów · to nie jest rachunek za subskrypcję";
+"cost_data_explanation" = "Koszty mogą być raportowane przez dostawcę lub szacowane na podstawie użycia tokenów według publicznych cen API. Szacunki nie są opłatami za subskrypcję.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Nie wykryto IDE JetBrains z AI Assistant. Zainstaluj IDE JetBrains i włącz AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "Token API OpenRouter nie jest skonfigurowany. Ustaw zmienną środowiskową OPENROUTER_API_KEY albo skonfiguruj go w Ustawieniach.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "Nie znaleziono tokenu API z.ai. Ustaw `apiKey` w ~/.codexbar/config.json albo Z_AI_API_KEY.";
@@ -744,6 +786,7 @@
 "Today" = "Dziś";
 "Today tokens" = "Dzisiejsze tokeny";
 "30d cost" = "Koszt 30 dni";
+"%@ cost" = "Koszt %@";
 "30d tokens" = "Tokeny 30 dni";
 "Latest tokens" = "Najnowsze tokeny";
 "Top model" = "Najlepszy model";
@@ -889,7 +932,7 @@
 "Hourly Usage" = "Użycie godzinowe";
 "Usage remaining" = "Pozostałe użycie";
 "Usage used" = "Wykorzystane użycie";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "Klucz API został zweryfikowany. Ollama nie udostępnia limitów Cloud przez API.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "Klucz API został zweryfikowany. Limity Cloud wymagają plików cookie przeglądarki. Zaloguj się do Ollama.";
 "Last 30 days: %@ tokens" = "Ostatnie 30 dni: %@ tokenów";
 "7d spend" = "Wydatki 7 dni";
 "30d spend" = "Wydatki 30 dni";
@@ -900,6 +943,13 @@
 "MiniMax 30 day token usage trend" = "Trend użycia tokenów MiniMax z 30 dni";
 "Today cash" = "Dzisiejsza gotówka";
 "DeepSeek 30 day token usage trend" = "Trend użycia tokenów DeepSeek z 30 dni";
+"DeepSeek this month token usage trend" = "Trend użycia tokenów DeepSeek w tym miesiącu";
+"Chrome profile" = "Profil Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Wybierz zalogowaną sesję DeepSeek Platform, która ma dostarczać szczegółowe dane użycia.";
+"Detailed usage unavailable." = "Szczegółowe dane użycia są niedostępne.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Zaloguj się do DeepSeek Platform w Chrome, aby uzyskać szczegółowe dane użycia.";
+"Select a DeepSeek Chrome profile in Settings." = "Wybierz profil Chrome DeepSeek w Ustawieniach.";
+"Select profile…" = "Wybierz profil…";
 "cache-hit input" = "wejście trafienia pamięci podręcznej";
 "cache-miss input" = "wejście chybienia pamięci podręcznej";
 "output" = "wynik";
@@ -1023,7 +1073,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o nagłówek Cookie Cursor, aby pobrać użycie. Kliknij OK, aby kontynuować.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o nagłówek Cookie Factory, aby pobrać użycie. Kliknij OK, aby kontynuować.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o token GitHub Copilot, aby pobrać użycie. Kliknij OK, aby kontynuować.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o klucz API Kimi K2, aby pobrać użycie. Kliknij OK, aby kontynuować.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o token uwierzytelniania Kimi, aby pobrać użycie. Kliknij OK, aby kontynuować.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o token API MiniMax, aby pobrać użycie. Kliknij OK, aby kontynuować.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar poprosi pęk kluczy macOS o nagłówek Cookie MiniMax, aby pobrać użycie. Kliknij OK, aby kontynuować.";
@@ -1171,7 +1220,6 @@
 "byte_unit_megabytes" = "megabajty";
 "byte_unit_gigabyte" = "gigabajt";
 "byte_unit_gigabytes" = "gigabajty";
-"CrossModel API spend trend" = "Trend wydatków API CrossModel";
 
 /* Settings sidebar redesign */
 "Enable" = "Włącz";
@@ -1186,3 +1234,114 @@
 "Show Codex Spark usage" = "Pokaż użycie Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Pokazuje wiersze limitu Codex Spark w menu i podglądzie dostawcy. Wymaga włączenia opcji „Pokaż kredyty + dodatkowe użycie” w ustawieniach Wyświetlanie.";
 "Scroll to see more models" = "Przewiń, aby zobaczyć więcej modeli";
+
+/* Shareable usage card */
+"Copy Image" = "Kopiuj obraz";
+"Copy Stats" = "Kopiuj statystyki";
+"Could not copy image" = "Nie udało się skopiować obrazu";
+"Image copied" = "Obraz skopiowany";
+"Image saved" = "Obraz zapisany";
+"Nothing is uploaded. This image is created on your Mac." = "Nic nie jest przesyłane. Ten obraz jest tworzony na Twoim Macu.";
+"Save..." = "Zapisz...";
+"Share AI Usage" = "Udostępnij użycie AI";
+"Share Stats…" = "Udostępnij statystyki…";
+"Stats copied" = "Statystyki skopiowane";
+"Finish switching to a different Cursor account in your browser, then try again." = "Dokończ przełączanie na inne konto Cursor w przeglądarce, a następnie spróbuj ponownie.";
+"Timed out waiting for Cursor account switch. %@" = "Upłynął limit czasu oczekiwania na przełączenie konta Cursor. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Upłynął limit czasu oczekiwania na przełączenie konta Cursor. %@ Ostatni błąd: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "Użycie i wydatki";
+"Usage & Spend" = "Użycie i wydatki";
+"Local estimated cost history across supported providers." = "Lokalna historia szacowanych kosztów u obsługiwanych dostawców.";
+"Time range" = "Zakres czasu";
+"Track costs" = "Śledź koszty";
+"Cost tracking is off" = "Śledzenie kosztów jest wyłączone";
+"Turn on Track costs to build local estimates." = "Włącz opcję „Śledź koszty”, aby tworzyć lokalne szacunki.";
+"No local cost history yet" = "Brak lokalnej historii kosztów";
+"Turn on cost tracking or refresh after using a supported provider." = "Włącz śledzenie kosztów lub odśwież po użyciu obsługiwanego dostawcy.";
+"Refresh failures" = "Błędy odświeżania";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Waluty źródłowe pozostają rozdzielone; wiersze kont Codex nie obejmują historii sesji Pi.";
+"Spend unavailable" = "Wydatki niedostępne";
+"Model breakdown unavailable" = "Podział według modeli jest niedostępny";
+"Local estimated history" = "Lokalna historia szacunkowa";
+"Coverage" = "Pokrycie";
+"Estimated spend" = "Szacowane wydatki";
+"Tracked tokens" = "Śledzone tokeny";
+"Subscriptions" = "Subskrypcje";
+"By subscription" = "Według subskrypcji";
+"No model-level history" = "Brak historii na poziomie modeli";
+"Daily estimated spend" = "Szacowane dzienne wydatki";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d pełnych 5-godz. okien limitu tygodniowego · %d okien do resetu";
+"Weekly cannot run out before reset at this pace" = "Przy tym tempie limit tygodniowy nie może wyczerpać się przed resetem";
+"Weekly can run out ≈%d windows early" = "Limit tygodniowy może wyczerpać się ≈%d okien wcześniej";
+"Estimated: %@" = "Szacunek: %@";
+"Coding Plan" = "Plan kodowania";
+"Agent Plan" = "Plan agenta";
+"Team" = "Zespół";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "Układ";
+"menu_bar_layout_footer" = "Przeciągaj elementy, aby ułożyć pasek menu. Kliknij element, aby go dodać; zaznacz umieszczony element i naciśnij Delete, aby go usunąć.";
+"menu_bar_layout_group_identity" = "Tożsamość";
+"menu_bar_layout_group_usage" = "Zużycie";
+"menu_bar_layout_group_time" = "Czas";
+"menu_bar_layout_group_money" = "Koszt";
+"menu_bar_layout_group_structure" = "Struktura";
+"menu_bar_layout_scope_all" = "Wszyscy dostawcy";
+"menu_bar_layout_scope_help" = "Edytuj układ domyślny lub zastąp go dla jednego dostawcy.";
+"menu_bar_layout_use_all" = "Użyj układu wszystkich dostawców";
+"menu_bar_layout_preset" = "Ustawienie układu";
+"menu_bar_layout_preset_icon_percent" = "Ikona i procent";
+"menu_bar_layout_preset_icon_only" = "Tylko ikona";
+"menu_bar_layout_preset_percent_reset" = "Procent i reset";
+"menu_bar_layout_preset_compact_stacked" = "Kompaktowy stos";
+"menu_bar_layout_preset_custom" = "Niestandardowe";
+"menu_bar_layout_live_preview" = "Podgląd na żywo";
+"menu_bar_layout_strip" = "Pasek menu";
+"menu_bar_layout_remove_line_break" = "Usuń podział wiersza";
+"menu_bar_layout_chip_hint" = "Zaznacz, przeciągnij, aby zmienić kolejność, lub użyj akcji Usuń.";
+"menu_bar_layout_palette_hint" = "Kliknij, aby dodać, lub przeciągnij do układu.";
+"menu_bar_layout_empty_line" = "Upuść element tutaj";
+"menu_bar_layout_line" = "Wiersz %d";
+"menu_bar_layout_drag_remove" = "Przeciągnij tutaj, aby usunąć";
+"menu_bar_layout_size" = "Rozmiar";
+"menu_bar_layout_size_small" = "Mały";
+"menu_bar_layout_size_regular" = "Zwykły";
+"menu_bar_layout_gap" = "Odstęp";
+"menu_bar_layout_gap_tight" = "Wąski";
+"menu_bar_layout_gap_regular" = "Zwykły";
+"menu_bar_layout_keyboard_hint" = "Delete usuwa zaznaczony element";
+"menu_bar_layout_sample_account" = "konto";
+"menu_bar_layout_sample_runs_out" = "wyczerpie się pt.";
+"menu_bar_layout_token_icon" = "Ikona";
+"menu_bar_layout_token_provider" = "Nazwa dostawcy";
+"menu_bar_layout_token_account" = "Konto";
+"menu_bar_layout_token_session" = "Sesja %";
+"menu_bar_layout_token_weekly" = "Tydzień %";
+"menu_bar_layout_token_auto" = "Automatycznie %";
+"menu_bar_layout_token_bar" = "Pasek użycia";
+"menu_bar_layout_token_resets_in" = "Reset za";
+"menu_bar_layout_token_reset_at" = "Reset o";
+"menu_bar_layout_token_runs_out" = "Wyczerpie się";
+"menu_bar_layout_token_cost_today" = "Koszt dzisiaj";
+"menu_bar_layout_token_cost_30d" = "Koszt 30 dni";
+"menu_bar_layout_token_space" = "Odstęp";
+"menu_bar_layout_token_line_break" = "Podział wiersza";
+"menu_bar_layout_token_separator_accessibility" = "Kropka oddzielająca";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "Ikona: Niedostępne";
+"%@ icon" = "%@: Ikona";
+"Provider name unavailable" = "Nazwa dostawcy: Niedostępne";
+"Account unavailable" = "Konto: Niedostępne";
+"%@ unavailable" = "%@: Niedostępne";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "Pasek użycia: Niedostępne";
+"Usage bar, %d of 3 filled" = "Pasek użycia: %d/3 wypełnione";
+"Reset countdown unavailable" = "Reset za: Niedostępne";
+"Reset time unavailable" = "Reset o: Niedostępne";
+"Run-out estimate unavailable" = "Wyczerpie się: Niedostępne";
+"Cost today unavailable" = "Koszt dzisiaj: Niedostępne";
+"30-day cost unavailable" = "Koszt 30 dni: Niedostępne";
+"Resets" = "Resety";

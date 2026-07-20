@@ -9,10 +9,44 @@ public enum ManusCookieImporter {
     private static let cookieDomains = ["manus.im", "www.manus.im"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.manus]?.browserCookieOrder ?? Browser.defaultImportOrder
-    nonisolated(unsafe) static var importSessionOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?
-    nonisolated(unsafe) static var importSessionsOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo])?
+    #if DEBUG
+    final class ImportSessionOverrideStore: @unchecked Sendable {
+        let importSession: (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo
+
+        init(importSession: @escaping (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo) {
+            self.importSession = importSession
+        }
+    }
+
+    final class ImportSessionsOverrideStore: @unchecked Sendable {
+        let importSessions: (BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo]
+
+        init(importSessions: @escaping (BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo]) {
+            self.importSessions = importSessions
+        }
+    }
+
+    @TaskLocal private static var taskImportSessionOverrideStore: ImportSessionOverrideStore?
+    @TaskLocal private static var taskImportSessionsOverrideStore: ImportSessionsOverrideStore?
+
+    static func withImportSessionOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionOverrideStore.withValue(override.map(ImportSessionOverrideStore.init)) {
+            try await operation()
+        }
+    }
+
+    static func withImportSessionsOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo])?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionsOverrideStore.withValue(override.map(ImportSessionsOverrideStore.init)) {
+            try await operation()
+        }
+    }
+    #endif
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
@@ -32,12 +66,14 @@ public enum ManusCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        if let override = self.importSessionsOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportSessionsOverrideStore?.importSessions {
             return try override(browserDetection, logger)
         }
-        if let override = self.importSessionOverrideForTesting {
+        if let override = self.taskImportSessionOverrideStore?.importSession {
             return try [override(browserDetection, logger)]
         }
+        #endif
 
         var sessions: [SessionInfo] = []
         let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)

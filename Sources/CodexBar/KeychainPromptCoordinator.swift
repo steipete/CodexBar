@@ -37,9 +37,6 @@ private enum KeychainPromptMessage {
     static let kimiToken =
         "CodexBar will ask macOS Keychain for your Kimi auth token " +
         "so it can fetch usage. Click OK to continue."
-    static let kimiK2Token =
-        "CodexBar will ask macOS Keychain for your Kimi K2 API key " +
-        "so it can fetch usage. Click OK to continue."
     static let minimaxCookie =
         "CodexBar will ask macOS Keychain for your MiniMax cookie header " +
         "so it can fetch usage. Click OK to continue."
@@ -153,8 +150,6 @@ enum KeychainPromptCoordinator {
             L(KeychainPromptMessage.copilotToken)
         case .kimiToken:
             L(KeychainPromptMessage.kimiToken)
-        case .kimiK2Token:
-            L(KeychainPromptMessage.kimiK2Token)
         case .minimaxCookie:
             L(KeychainPromptMessage.minimaxCookie)
         case .minimaxToken:

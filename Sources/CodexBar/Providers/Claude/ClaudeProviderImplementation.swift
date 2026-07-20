@@ -26,6 +26,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
         _ = settings.claudeSwapEnabled
+        _ = settings.claudeSwapShowSingleAccount
         _ = settings.claudeSwapExecutablePath
     }
 
@@ -86,6 +87,9 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         let claudeSwapBinding = Binding(
             get: { context.settings.claudeSwapEnabled },
             set: { context.settings.claudeSwapEnabled = $0 })
+        let claudeSwapShowSingleAccountBinding = Binding(
+            get: { context.settings.claudeSwapShowSingleAccount },
+            set: { context.settings.claudeSwapShowSingleAccount = $0 })
 
         return [
             ProviderSettingsToggleDescriptor(
@@ -109,6 +113,18 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 statusText: { Self.claudeSwapStatusText(store: context.store, settings: context.settings) },
                 actions: [],
                 isVisible: nil,
+                isEnabled: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-swap-show-single-account",
+                title: "Show account card when only one account is available",
+                subtitle: "Prefer claude-swap over the ambient Claude account presentation.",
+                binding: claudeSwapShowSingleAccountBinding,
+                statusText: nil,
+                actions: [],
+                isVisible: { context.settings.claudeSwapEnabled },
                 isEnabled: nil,
                 onChange: nil,
                 onAppDidBecomeActive: nil,

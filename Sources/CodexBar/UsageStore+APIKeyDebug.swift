@@ -42,15 +42,6 @@ extension UsageStore {
             hasEnvToken: { OpenRouterSettingsReader.apiToken(environment: $0) != nil })
     }
 
-    func crossModelAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        self.apiKeyDebugContext(
-            provider: .crossmodel,
-            label: "CROSSMODEL_API_KEY",
-            processEnvironment: processEnvironment,
-            resolution: ProviderTokenResolver.crossModelResolution,
-            hasEnvToken: { CrossModelSettingsReader.apiToken(environment: $0) != nil })
-    }
-
     func elevenLabsAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
         self.apiKeyDebugContext(
             provider: .elevenlabs,

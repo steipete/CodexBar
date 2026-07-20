@@ -28,7 +28,12 @@ public enum CodexProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .codex,
                 iconResourceName: "ProviderIcon-codex",
-                color: ProviderColor(red: 73 / 255, green: 163 / 255, blue: 176 / 255)),
+                color: ProviderColor(red: 73 / 255, green: 163 / 255, blue: 176 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x736BD4),
+                    ProviderColor(hex: 0x97A9F7),
+                    ProviderColor(hex: 0xCFD4F7),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage),
@@ -321,7 +326,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             dashboard: oauthResult.dashboard,
             sourceLabel: oauthResult.sourceLabel,
             strategyID: oauthResult.strategyID,
-            strategyKind: oauthResult.strategyKind)
+            strategyKind: oauthResult.strategyKind,
+            diagnostic: oauthResult.diagnostic)
     }
 
     private static func fetchResetCreditsIfRequested(

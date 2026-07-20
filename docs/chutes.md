@@ -9,6 +9,13 @@ read_when:
 
 CodexBar reads subscription and quota usage from Chutes' management API with a manually configured API key.
 
+## Service context
+
+Chutes' [terms are governed by the laws of Nevis, Saint Kitts and Nevis](https://chutes.ai/terms), and its
+[decentralized backend uses independent miners](https://chutes.ai/docs/miner-resources/overview). Its pricing surface
+has changed over time and should be treated as historically unstable; check the [current pricing page](https://chutes.ai/pricing)
+before relying on a plan or rate.
+
 ## Authentication
 
 Create a Chutes API key using the [official authentication guide](https://chutes.ai/docs/getting-started/authentication), then add it in CodexBar Settings → Providers → Chutes.

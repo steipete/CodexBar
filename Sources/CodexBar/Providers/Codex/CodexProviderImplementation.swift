@@ -70,12 +70,32 @@ struct CodexProviderImplementation: ProviderImplementation {
                 }
             })
         let batterySaverBinding = context.boolBinding(\.openAIWebBatterySaverEnabled)
+        let historicalTrackingSubtitle = [
+            L("Stores local Codex usage history (8 weeks) to personalize Pace predictions."),
+            "[\(L("weekly_progress_work_days_title")) = \(L("Automatic"))]",
+        ].joined(separator: " ")
 
         return [
             ProviderSettingsToggleDescriptor(
+                id: "codex-local-session-cost-ledger",
+                title: "Local session cost estimates",
+                subtitle: [
+                    "Uses this Mac's Codex sessions instead of the selected managed account's session history.",
+                    "Works with organization API keys and does not require OpenAI billing or administrator access.",
+                    "Uses locally cached or bundled model prices without making a network request.",
+                    "This provider-specific toggle does not enable cost summaries for other providers.",
+                ].joined(separator: " "),
+                binding: context.boolBinding(\.codexLocalSessionCostLedgerEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "codex-historical-tracking",
                 title: "Historical tracking",
-                subtitle: "Stores local Codex usage history (8 weeks) to personalize Pace predictions.",
+                subtitle: historicalTrackingSubtitle,
                 binding: context.boolBinding(\.historicalTrackingEnabled),
                 statusText: nil,
                 actions: [],
@@ -161,8 +181,11 @@ struct CodexProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsPickerDescriptor(
                 id: "codex-usage-source",
-                title: "Usage source",
-                subtitle: "Auto falls back to the next source if the preferred one fails.",
+                title: "Quota usage source",
+                subtitle: [
+                    "Controls live session and weekly quota fetching only.",
+                    "Local session cost estimates work independently.",
+                ].joined(separator: " "),
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,

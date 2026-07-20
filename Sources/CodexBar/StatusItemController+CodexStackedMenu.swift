@@ -27,7 +27,9 @@ extension StatusItemController {
                     snapshotOverride: accountSnapshot?.snapshot,
                     errorOverride: health.label,
                     forceOverrideCard: accountSnapshot == nil,
-                    accountOverride: self.accountInfo(for: account))
+                    accountOverride: self.accountInfo(for: account),
+                    historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
+                        forVisibleAccount: account))
                 guard let model else { continue }
                 menu.addItem(self.makeMenuCardItem(
                     UsageMenuCardView(model: model, width: context.menuWidth),

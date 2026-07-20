@@ -15,12 +15,16 @@ balance and, when the required CSRF/session cookies are present, best-effort Mis
 
 1. Open **Settings -> Providers**.
 2. Enable **Mistral**.
-3. Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in Chrome.
+3. Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in Chrome, Firefox, or Safari.
 4. Leave Cookie source on **Automatic**, or switch to **Manual** and paste a `Cookie:` header from a request to
    `admin.mistral.ai`.
 
 Manual cookies must include an `ory_session_*` cookie. A `csrftoken` cookie enables authenticated billing and Vibe
 requests that require the `X-CSRFTOKEN` header.
+
+Automatic import tries Chrome, Firefox (including Developer Edition), then Safari. Safari requires Full Disk Access.
+Other Chromium browsers remain available through Manual mode. Automatic import reads only unexpired cookies from
+the documented Mistral domains.
 
 ## Data Sources
 
@@ -55,7 +59,7 @@ codexbar usage --provider mistral --verbose
 
 ### "No Mistral session cookies found"
 
-Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in Chrome, then refresh.
+Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in Chrome, Firefox, or Safari, then refresh.
 
 ### "Mistral cookie header is invalid"
 

@@ -83,6 +83,45 @@ enum CostSummaryOption: String, CaseIterable {
     }
 }
 
+enum AgentSessionLabelStyle: String, CaseIterable {
+    case project
+    case descriptive
+    case descriptiveAndProject
+
+    var label: String {
+        switch self {
+        case .project: L("agent_session_label_project")
+        case .descriptive: L("agent_session_label_descriptive")
+        case .descriptiveAndProject: L("agent_session_label_descriptive_and_project")
+        }
+    }
+
+    func label(for session: AgentSession) -> String {
+        let project = session.projectName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let descriptive = session.sessionName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch self {
+        case .project:
+            return project?.nilIfEmpty ?? L("agent_session_unknown_project")
+        case .descriptive:
+            return descriptive?.nilIfEmpty ?? project?.nilIfEmpty ?? L("agent_session_unknown_project")
+        case .descriptiveAndProject:
+            guard let descriptive = descriptive?.nilIfEmpty else {
+                return project?.nilIfEmpty ?? L("agent_session_unknown_project")
+            }
+            guard let project = project?.nilIfEmpty,
+                  descriptive.caseInsensitiveCompare(project) != .orderedSame
+            else { return descriptive }
+            return "\(descriptive) · \(project)"
+        }
+    }
+}
+
+extension String {
+    fileprivate var nilIfEmpty: String? {
+        self.isEmpty ? nil : self
+    }
+}
+
 extension SettingsStore {
     var menuBarIconStyle: MenuBarIconStyle {
         get {
@@ -292,8 +331,9 @@ extension SettingsStore {
     }
 
     func isCostUsageEffectivelyEnabled(for provider: UsageProvider) -> Bool {
-        self.costUsageEnabled
-            && ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost
+        let isEnabled = self.costUsageEnabled ||
+            (provider == .codex && self.codexLocalSessionCostLedgerEnabled)
+        return isEnabled && ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost
     }
 
     var resetTimeDisplayStyle: ResetTimeDisplayStyle {
@@ -302,7 +342,7 @@ extension SettingsStore {
 
     static func isBalanceOnlyProvider(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .deepseek, .mistral, .kimik2, .moonshot, .poe, .crossmodel:
+        case .deepseek, .deepinfra, .mistral, .moonshot, .poe:
             true
         default:
             false

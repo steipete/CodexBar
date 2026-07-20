@@ -36,10 +36,38 @@ struct CLICardModel: Sendable, Equatable {
     let sourceLabel: String
     let planBadge: String?
     let accountLine: String?
+    let isActive: Bool
+    let accountProblem: String?
     let infoLines: [String]
     let metrics: [CLICardMetric]
     let extraLines: [String]
     let statusLine: String?
+
+    init(
+        provider: UsageProvider,
+        title: String,
+        sourceLabel: String,
+        planBadge: String?,
+        accountLine: String?,
+        isActive: Bool = false,
+        accountProblem: String? = nil,
+        infoLines: [String],
+        metrics: [CLICardMetric],
+        extraLines: [String],
+        statusLine: String?)
+    {
+        self.provider = provider
+        self.title = title
+        self.sourceLabel = sourceLabel
+        self.planBadge = planBadge
+        self.accountLine = accountLine
+        self.isActive = isActive
+        self.accountProblem = accountProblem
+        self.infoLines = infoLines
+        self.metrics = metrics
+        self.extraLines = extraLines
+        self.statusLine = statusLine
+    }
 }
 
 struct CLICardFailure: Sendable, Equatable {
@@ -146,6 +174,62 @@ enum CLICardsRenderer {
             statusLine: statusLine)
     }
 
+    static func makeClaudeSwapCard(
+        account: ProviderAccountUsageSnapshot,
+        renderOptions: CLIClaudeSwapCardsRenderOptions) -> CLICardModel
+    {
+        let sanitizedLabel = CLIClaudeSwapText.sanitizeLabel(account.displayLabel)
+        let label = sanitizedLabel.isEmpty
+            ? CLIClaudeSwapText.sanitizeLabel("Account \(account.id.opaqueID)")
+            : sanitizedLabel
+        let problem = account.error.map(CLIClaudeSwapText.sanitizeDiagnostic)
+        if let snapshot = account.snapshot {
+            let base = Self.makeCard(CLICardBuildInput(
+                provider: .claude,
+                snapshot: snapshot,
+                credits: nil,
+                source: ClaudeSwapAccountProjection.sourceLabel,
+                status: renderOptions.status,
+                notes: [],
+                useColor: renderOptions.useColor,
+                resetStyle: renderOptions.resetStyle,
+                weeklyWorkDays: renderOptions.weeklyWorkDays,
+                now: renderOptions.now))
+            return CLICardModel(
+                provider: base.provider,
+                title: base.title,
+                sourceLabel: base.sourceLabel,
+                planBadge: nil,
+                accountLine: label,
+                isActive: account.isActive,
+                accountProblem: problem,
+                infoLines: base.infoLines,
+                metrics: base.metrics,
+                extraLines: base.extraLines,
+                statusLine: base.statusLine)
+        }
+
+        let statusLine: String? = renderOptions.status.map { status in
+            let line = "Status: \(status.indicator.label)\(status.descriptionSuffix)"
+            return CLIRenderer.colorizeStatusLine(
+                line,
+                indicator: status.indicator,
+                useColor: renderOptions.useColor)
+        }
+        return CLICardModel(
+            provider: .claude,
+            title: ProviderDescriptorRegistry.descriptor(for: .claude).metadata.displayName,
+            sourceLabel: ClaudeSwapAccountProjection.sourceLabel,
+            planBadge: nil,
+            accountLine: label,
+            isActive: account.isActive,
+            accountProblem: problem,
+            infoLines: [],
+            metrics: [],
+            extraLines: [],
+            statusLine: statusLine)
+    }
+
     static func render(
         cards: [CLICardModel],
         failures: [CLICardFailure],
@@ -199,7 +283,9 @@ enum CLICardsRenderer {
         lines.append(Self.headerLine(card: card, innerWidth: innerWidth, useColor: useColor, enhanced: enhanced))
 
         if let account = card.accountLine?.trimmingCharacters(in: .whitespacesAndNewlines), !account.isEmpty {
-            let accountText = "@ \(account)"
+            let active = card.isActive ? " [active]" : ""
+            let labelWidth = max(1, innerWidth - 2 - active.count)
+            let accountText = "@ \(Self.truncatePlain(account, width: labelWidth))\(active)"
             lines.append(Self.contentLine(
                 accountText,
                 innerWidth: innerWidth,
@@ -209,6 +295,16 @@ enum CLICardsRenderer {
         }
 
         lines.append(Self.separatorLine(innerWidth: innerWidth, useColor: useColor, enhanced: enhanced))
+
+        if let problem = card.accountProblem, !problem.isEmpty {
+            for problemLine in Self.wrapPlainText(problem, width: innerWidth) {
+                lines.append(Self.contentLine(
+                    problemLine,
+                    innerWidth: innerWidth,
+                    useColor: useColor,
+                    enhanced: enhanced))
+            }
+        }
 
         for infoLine in card.infoLines {
             lines.append(Self.detailLine(
@@ -482,6 +578,38 @@ enum CLICardsRenderer {
         guard text.count > width else { return text }
         if width <= 1 { return String(text.prefix(width)) }
         return String(text.prefix(width - 1)) + "…"
+    }
+
+    private static func wrapPlainText(_ text: String, width: Int) -> [String] {
+        guard width > 0 else { return [] }
+        var lines: [String] = []
+        var line = ""
+        for word in text.split(whereSeparator: \.isWhitespace).map(String.init) {
+            if word.count > width {
+                if !line.isEmpty {
+                    lines.append(line)
+                    line = ""
+                }
+                var remainder = word[...]
+                while remainder.count > width {
+                    let end = remainder.index(remainder.startIndex, offsetBy: width)
+                    lines.append(String(remainder[..<end]))
+                    remainder = remainder[end...]
+                }
+                line = String(remainder)
+            } else if line.isEmpty {
+                line = word
+            } else if line.count + 1 + word.count <= width {
+                line += " " + word
+            } else {
+                lines.append(line)
+                line = word
+            }
+        }
+        if !line.isEmpty {
+            lines.append(line)
+        }
+        return lines
     }
 
     private static func fitContent(_ text: String, width: Int) -> String {

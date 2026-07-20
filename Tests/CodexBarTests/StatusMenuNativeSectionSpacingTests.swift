@@ -156,6 +156,82 @@ struct StatusMenuNativeSectionSpacingTests {
         })
     }
 
+    @Test
+    func `opencodego cost history hangs off the cost row not the usage pane`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .opencodego
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
+        self.enableOnlyOpenCodeGo(settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let opencodegoSnapshot = OpenCodeGoUsageSnapshot(
+            hasMonthlyUsage: true,
+            rollingUsagePercent: 12,
+            weeklyUsagePercent: 57,
+            monthlyUsagePercent: 34,
+            rollingResetInSec: 3600,
+            weeklyResetInSec: 86400,
+            monthlyResetInSec: 864_000,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    requestCount: 5,
+                    costUSD: 1.23,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date())
+        let opencodegoUsageSnapshot = opencodegoSnapshot.toUsageSnapshot()
+        store._setSnapshotForTesting(opencodegoUsageSnapshot, provider: .opencodego)
+        // A completed refresh also caches the projected token snapshot (UsageStore+Refresh.swift);
+        // populate it here so `openAIWebContext.hasCostHistory` matches real post-refresh state.
+        store._setTokenSnapshotForTesting(
+            store.tokenSnapshot(fromProviderSnapshot: opencodegoUsageSnapshot, provider: .opencodego),
+            provider: .opencodego)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu(for: .opencodego)
+        controller.menuWillOpen(menu)
+
+        let usageIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardUsage"
+        })
+        let usageHistoryIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "usageHistorySubmenu"
+        })
+        let costIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardCost"
+        })
+
+        // The rate-limit bars pane keeps its own submenu-free row; the cost history chart hangs
+        // off the dedicated "Cost" row instead, matching Codex/Claude's structure.
+        #expect(menu.items[usageIndex].submenu == nil)
+        #expect(menu.items[usageHistoryIndex].title == "Plan Usage")
+        #expect(usageIndex < usageHistoryIndex)
+        #expect(usageHistoryIndex < costIndex)
+        #expect(menu.items[costIndex].submenu != nil)
+    }
+
     private func makeSettings() -> SettingsStore {
         let suite = "StatusMenuNativeSectionSpacingTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -173,6 +249,13 @@ struct StatusMenuNativeSectionSpacingTests {
         for provider in UsageProvider.allCases {
             guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
             settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+        }
+    }
+
+    private func enableOnlyOpenCodeGo(_ settings: SettingsStore) {
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .opencodego)
         }
     }
 }

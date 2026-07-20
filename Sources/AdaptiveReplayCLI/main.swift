@@ -194,9 +194,8 @@ enum AdaptiveReplayCLI {
     counterfactual policy events; recorded live schedule evaluations are audited separately.
 
     Policies:
-      adaptive       The shared production adaptive policy. Advances on menu-open interactions,
-                     same as UsageStore.noteMenuOpened(at:).
-      adaptive-activity  Experimental adaptive table capped at 5m after observed coding activity.
+      adaptive       Plain production Adaptive policy. Uses menu opens only.
+      adaptive-activity  Agent-aware Adaptive policy. Also uses local coding-activity fields.
       fixed-2m       Fixed 2 minute cadence. Unaffected by menu-open interactions.
       fixed-5m       Fixed 5 minute cadence.
       fixed-15m      Fixed 15 minute cadence.

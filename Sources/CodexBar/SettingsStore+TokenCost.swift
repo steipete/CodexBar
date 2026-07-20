@@ -3,7 +3,11 @@ import Foundation
 
 extension SettingsStore {
     func costSummaryShowsInlineDashboard(for provider: UsageProvider) -> Bool {
-        self.isCostUsageEffectivelyEnabled(for: provider) &&
+        // DeepSeek has no cost submenu, so any enabled cost-summary style falls back to inline.
+        if provider == .deepseek {
+            return self.costUsageEnabled
+        }
+        return self.isCostUsageEffectivelyEnabled(for: provider) &&
             self.costSummaryDisplayStyle.showsInlineSummary
     }
 
@@ -13,6 +17,8 @@ extension SettingsStore {
     }
 
     func applyTokenCostDefaultIfNeeded() {
+        // Tests cover detection directly; skip filesystem-driven auto-enablement to keep startup deterministic.
+        guard !Self.isRunningTests else { return }
         // Settings are persisted in UserDefaults.standard.
         guard UserDefaults.standard.object(forKey: "tokenCostUsageEnabled") == nil else { return }
 
@@ -65,8 +71,12 @@ extension SettingsStore {
                 .appendingPathComponent("archived_sessions", isDirectory: true)
         }()
 
-        if hasAnyJsonl(in: codexRoot) { return true }
-        if let archivedCodexRoot, hasAnyJsonl(in: archivedCodexRoot) { return true }
+        if hasAnyJsonl(in: codexRoot) {
+            return true
+        }
+        if let archivedCodexRoot, hasAnyJsonl(in: archivedCodexRoot) {
+            return true
+        }
 
         let claudeRoots: [URL] = {
             if let env = env["CLAUDE_CONFIG_DIR"]?.trimmingCharacters(in: .whitespacesAndNewlines),

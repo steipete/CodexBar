@@ -160,24 +160,6 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
-    func `diagnostic usage summary includes CrossModel data`() {
-        let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let usage = CrossModelUsageSnapshot(
-            currency: "USD",
-            balance: 8.06,
-            uncollected: 0,
-            daily: nil,
-            weekly: nil,
-            monthly: nil,
-            updatedAt: now).toUsageSnapshot()
-
-        let summary = ProviderDiagnosticUsageSummary(from: usage)
-
-        #expect(summary.windows.isEmpty)
-        #expect(summary.providerSpecificData == ["crossModelUsage"])
-    }
-
-    @Test
     func `diagnostic usage summary defaults legacy payloads to unknown confidence`() throws {
         let json = """
         {

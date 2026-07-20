@@ -9,7 +9,7 @@ read_when:
 # WebKit usage
 
 CodexBar uses WebKit in two places:
-- Visible login/purchase windows (e.g. Cursor login, credits purchase).
+- Visible purchase windows (e.g. credits purchase).
 - Offscreen WebViews for OpenAI dashboard scraping.
 
 ## Teardown helper

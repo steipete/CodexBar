@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 59 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 63 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -19,6 +19,19 @@ Cookie-based providers expose a Cookie source picker (Automatic or Manual) in Se
 Some browser cookie imports are cached in Keychain and reused until the session is invalid. API keys, manual cookie
 headers, source selection, provider ordering, and token accounts are stored in `~/.codexbar/config.json`.
 
+## Usage & Spend settings
+
+Settings → Usage & Spend combines local 7- or 30-day estimated history only for enabled descriptors that advertise
+token-cost support: Codex, Claude, Vertex AI, OpenAI, Mistral, and AWS Bedrock. Providers without a cost-history
+contract are omitted instead of appearing as empty subscriptions.
+
+Each native currency has its own total, subscription/model ranking, and daily chart. CodexBar never adds or ranks
+amounts across currencies. Coverage text reports how many days of the selected local calendar window are covered by
+the scan window; a 30-day selection is not labeled as complete when the available scan window covers fewer days.
+
+The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
+scan fails, while provider/account configuration changes replace obsolete results.
+
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
@@ -27,9 +40,9 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
-| Cursor | Web API via cookies → stored WebKit session (`web`). |
+| Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
-| OpenCode Go | Web dashboard via cookies (`web`) -> local SQLite usage (`local`) in auto mode; optional workspace ID. |
+| OpenCode Go | Unscoped Auto: local SQLite usage (`local`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local. Explicit Web: web only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
@@ -40,7 +53,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Kimi | Kimi Code API key (`api`), then `kimi-auth` cookie/manual token/env fallback (`web`). |
 | Kilo | API token from config/env → usage API (`api`); auto falls back to CLI session auth (`cli`). |
 | Copilot | Device-flow/env/config token → `copilot_internal` API (`api`). |
-| Kimi K2 (unofficial) | API key from config/env → legacy credit endpoint (`api`). |
 | Kiro | CLI command via `kiro-cli chat --no-interactive "/usage"` (`cli`). |
 | Vertex AI | Google ADC OAuth (gcloud) → Cloud Monitoring quota usage (`oauth`). |
 | Augment | `auggie` CLI first, then browser-cookie web fallback (`cli`, `web`). |
@@ -53,7 +65,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
-| CrossModel | API key from config/env → credits + usage API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
@@ -61,11 +72,13 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing, credit balance, and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
+| DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
 | Crof | API key from config/env → credit balance + requests quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
+| ClinePass | API key from config/env → 5-hour, weekly, and monthly subscription usage limits (`api`). |
 | StepFun | Username/password login or manual Oasis token (`web`). |
 | AWS Bedrock | AWS credentials → Cost Explorer spend/budgets and optional CloudWatch Claude activity (`api`). |
 | Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via Chrome session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
@@ -76,6 +89,9 @@ headers, source selection, provider ordering, and token accounts are stored in `
 | LiteLLM | API key + base URL → `/key/info`, then `/user/info` or `/team/info` budget usage (`api`). |
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
+| Neuralwatt | API key from config/env → `/v1/quota` subscription kWh usage and prepaid balance (`api`). |
+| ZenMux | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
+| ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 
 ## Codex
@@ -156,13 +172,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: none yet.
 - Details: `docs/kilo.md`.
 
-## Kimi K2 (unofficial)
-- API key via `~/.codexbar/config.json` or `KIMI_K2_API_KEY`/`KIMI_API_KEY` env var.
-- Shows credit usage from the legacy `kimi-k2.ai` consumed/remaining totals.
-- Use Moonshot / Kimi API for the official Kimi API account and billing surface.
-- Status: none yet.
-- Details: `docs/kimi-k2.md`.
-
 ## Gemini
 - OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.
 - Token refresh via Google OAuth if expired.
@@ -178,7 +187,8 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Cursor
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).
-- Fallback: stored WebKit session.
+- Fallbacks: a legacy stored session, then Cursor.app local auth.
+- Add Account and Switch Account open Cursor's authenticator in a supported browser; Switch Account prefers stable account IDs and falls back to normalized email when IDs are unavailable. CodexBar uses the supported system HTTPS handler when possible and otherwise asks the user to choose an eligible supported browser.
 - Status: Statuspage.io (Cursor).
 - Details: `docs/cursor.md`.
 
@@ -189,7 +199,10 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## OpenCode Go
 - Web dashboard via browser or manual cookies (`opencode.ai`).
-- Auto mode falls back to local usage from `~/.local/share/opencode/opencode.db` on macOS and Linux.
+- Unscoped Auto mode prefers local usage from `~/.local/share/opencode/opencode.db` on macOS and Linux, then falls back
+  to web when local history is unavailable.
+- Auto mode stays web-first for selected token accounts, manual cookies, and workspace overrides; explicit Web mode does
+  not include local fallback.
 - Uses the workspace Go page/server data for rolling 5-hour, weekly, and optional monthly usage windows.
 - Optional workspace ID comes from `~/.codexbar/config.json` (`providers[].workspaceID`) or `CODEXBAR_OPENCODEGO_WORKSPACE_ID`.
 - Status: none yet.
@@ -315,13 +328,6 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Status: `https://status.openrouter.ai` (link only, no auto-polling yet).
 - Details: `docs/openrouter.md`.
 
-## CrossModel
-- API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `CROSSMODEL_API_KEY` env var.
-- Reads wallet balance (`/v1/credits`) and matching-currency UTC day/week/month spend (`/v1/usage`).
-- Shows balance plus today/this week/this month spend; no quota meter (prepaid wallet, no per-key limit).
-- Override base URL with `CROSSMODEL_API_URL` env var (loopback HTTP allowed for local testing).
-- Details: `docs/crossmodel.md`.
-
 ## Perplexity
 - Browser session cookie from automatic import, manual header/token, or `PERPLEXITY_SESSION_TOKEN` / `PERPLEXITY_COOKIE`.
 - Tracks recurring credits, bonus/promotional credits, purchased credits, and renewal date when present.
@@ -359,6 +365,7 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Mistral
 - Session cookie (`ory_session_*`) from browser auto-import or manual `Cookie:` header.
+- Cookie import order: Chrome → Firefox → Safari. Chrome first preserves the original behavior for existing users; Firefox (including Developer Edition) is detected automatically; Safari follows for Full Disk Access users. Other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from the documented Mistral domains.
 - CSRF token (`csrftoken` cookie) sent as `X-CSRFTOKEN` for billing and Vibe usage requests.
 - Domains: `admin.mistral.ai` for API billing and credit balance, and `console.mistral.ai` for optional Vibe subscription usage. Console requests forward only `csrftoken` and `ory_session_*`; all other admin cookies stay origin-bound.
 - Reads monthly usage and pricing from the billing usage endpoint, plus credit balance from the billing credits endpoint, using the Mistral web session.
@@ -374,6 +381,14 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Shows total balance with paid vs. granted breakdown; USD preferred when multiple currencies present.
 - Status: `https://status.deepseek.com` (link only, no auto-polling).
 - Details: `docs/deepseek.md`.
+
+## DeepInfra
+- API key via `DEEPINFRA_API_KEY` / `DEEPINFRA_TOKEN` env var or DeepInfra token accounts.
+- Reads prepaid balance, current billing-cycle spend, spending limit, and account suspension state from the billing checklist endpoint.
+- Reads current-month spend from the billing usage endpoint.
+- The automatic menu-bar metric shows the available balance; the provider card shows balance text rather than an inferred percentage, plus real spending-limit progress when configured.
+- Status: `https://status.deepinfra.com` (link only, no auto-polling).
+- Details: `docs/deepinfra.md`.
 
 ## Moonshot / Kimi API
 - API key via `MOONSHOT_API_KEY` / `MOONSHOT_KEY` env var or provider config.
@@ -412,6 +427,12 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Status: none yet.
 - Details: `docs/command-code.md`.
+
+## ClinePass
+- API key from `~/.codexbar/config.json`, `CLINE_API_KEY`, or `CLINEPASS_API_KEY`.
+- Reads 5-hour, weekly, and monthly usage limits from `GET https://api.cline.bot/api/v1/users/me/plan/usage-limits`.
+- ClinePass subscription limits are distinct from Cline pay-as-you-go balance and usage.
+- Status: none yet.
 
 ## Qoder
 - Chrome session cookies from automatic import, or a manual `Cookie:` header/cURL capture on macOS or Linux.
@@ -499,11 +520,25 @@ headers, source selection, provider ordering, and token accounts are stored in `
 - Uses Chutes' management API at `https://api.chutes.ai`; `CHUTES_API_URL` can override it with an HTTPS endpoint.
 - Details: `docs/chutes.md`.
 
+## Neuralwatt
+- API key from config or `NEURALWATT_API_KEY`.
+- Reads `GET /v1/quota` from `api.neuralwatt.com`; `NEURALWATT_API_URL` can override it with an HTTPS endpoint.
+- Shows active subscription kWh usage as the quota window and the separate prepaid USD balance as PAYG credit.
+- Shows an optional per-key spending allowance when configured.
+- Details: `docs/neuralwatt.md`.
+
 ## StepFun
 - Username/password login or manual Oasis-Token.
 - Reads Step Plan 5-hour and weekly rate-limit windows from `platform.stepfun.com`.
 - Shows subscription plan name when the Step Plan status API returns one.
 - Status: none yet.
 - Details: `docs/stepfun.md`.
+
+## ai&
+- API key from config or `AIAND_API_KEY` (org-scoped `sk-` key from console.aiand.com).
+- Sums the last 30 days of organization spend from `GET https://api.aiand.com/logs` (per-request `cost` in the org's billing currency, USD or JPY, read from the rows — never assumed), following `next_after`/`next_after_id` cursor pagination up to 10 pages. An empty window shows no spend row.
+- The live `/analytics/summary` endpoint carries no cost field despite its docs, so the request log is the spend source; a hit page cap is labeled "Last 30 days (partial)" instead of silently truncating.
+- Prepaid credits with no quota windows; no session or weekly meters are synthesized. The credit balance is console-only and not shown.
+- Details: `docs/aiand.md`.
 
 See also: `docs/provider.md` for architecture notes.

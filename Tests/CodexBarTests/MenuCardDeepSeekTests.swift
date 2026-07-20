@@ -25,7 +25,11 @@ struct MenuCardDeepSeekTests {
             updatedAt: now)
     }
 
-    private static func makeSnapshot(now: Date, usageSummary: DeepSeekUsageSummary? = nil) -> UsageSnapshot {
+    private static func makeSnapshot(
+        now: Date,
+        usageSummary: DeepSeekUsageSummary? = nil,
+        detailedUsageState: DeepSeekDetailedUsageState? = nil) -> UsageSnapshot
+    {
         DeepSeekUsageSnapshot(
             isAvailable: true,
             currency: "USD",
@@ -33,6 +37,7 @@ struct MenuCardDeepSeekTests {
             grantedBalance: 0,
             toppedUpBalance: 9.32,
             usageSummary: usageSummary,
+            detailedUsageState: detailedUsageState,
             updatedAt: now)
             .toUsageSnapshot()
     }
@@ -85,10 +90,172 @@ struct MenuCardDeepSeekTests {
     }
 
     @Test
-    func `model hides optional deepseek usage when extras disabled`() throws {
+    func `model hides deepseek usage when extras are disabled despite cost summary enabled`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.deepseek])
         let snapshot = Self.makeSnapshot(now: now, usageSummary: Self.sampleDeepSeekSummary(now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.usageNotes.isEmpty)
+    }
+
+    @Test
+    func `model shows deepseek usage when cost summary and extras are enabled`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now, usageSummary: Self.sampleDeepSeekSummary(now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard?.accessibilityLabel == "DeepSeek this month token usage trend")
+        #expect(model.usageNotes.contains { $0.contains("Today:") })
+    }
+
+    @Test
+    func `model explains unavailable deepseek usage when cost summary is enabled`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.usageNotes == ["Detailed usage unavailable."])
+    }
+
+    @Test
+    func `model shows balance without stale deepseek usage while refreshing`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now, usageSummary: Self.sampleDeepSeekSummary(now: now))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: true,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.usageNotes.isEmpty)
+        let balance = try #require(model.metrics.first)
+        #expect(balance.title == "Balance")
+        #expect(balance.statusText == "$9.32 (Paid: $9.32 / Granted: $0.00)")
+    }
+
+    @Test
+    func `model explains that detailed usage needs a platform session`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now, detailedUsageState: .webSessionRequired)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+    }
+
+    @Test
+    func `browser only sign in remains visible when cost summary is disabled`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = DeepSeekUsageSnapshot(
+            hasBalance: false,
+            isAvailable: false,
+            currency: "USD",
+            totalBalance: 0,
+            grantedBalance: 0,
+            toppedUpBalance: 0,
+            detailedUsageState: .webSessionRequired,
+            updatedAt: now)
+            .toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .deepseek,
@@ -110,12 +277,42 @@ struct MenuCardDeepSeekTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard == nil)
-        #expect(model.usageNotes.isEmpty)
+        #expect(model.metrics.isEmpty)
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
     }
 
     @Test
-    func `model shows optional deepseek usage when extras enabled`() throws {
+    func `model asks for a profile when multiple deepseek sessions are valid`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now, detailedUsageState: .profileSelectionRequired)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .deepseek,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.usageNotes == ["Select a DeepSeek Chrome profile in Settings."])
+    }
+
+    @Test
+    func `model hides deepseek usage when cost summary is disabled despite extras enabled`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.deepseek])
         let snapshot = Self.makeSnapshot(now: now, usageSummary: Self.sampleDeepSeekSummary(now: now))
@@ -140,7 +337,7 @@ struct MenuCardDeepSeekTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard?.accessibilityLabel == "DeepSeek 30 day token usage trend")
-        #expect(model.usageNotes.contains { $0.contains("Today:") })
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.usageNotes.isEmpty)
     }
 }

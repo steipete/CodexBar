@@ -16,6 +16,7 @@ struct GrokAuthTests {
             "first_name": "Ada",
             "last_name": "Lovelace",
             "team_id": "team-uuid",
+            "principal_type": "Team",
             "refresh_token": "refresh-secret",
             "expires_at": "2026-05-22T19:31:33.384327Z",
             "oidc_issuer": "https://auth.x.ai",
@@ -30,6 +31,8 @@ struct GrokAuthTests {
         #expect(creds.refreshToken == "refresh-secret")
         #expect(creds.email == "user@example.com")
         #expect(creds.teamId == "team-uuid")
+        #expect(creds.principalType == "Team")
+        #expect(creds.isTeamPrincipal)
         #expect(creds.authMode == "oidc")
         #expect(creds.displayName == "Ada Lovelace")
         #expect(creds.loginMethod == "SuperGrok")
@@ -141,6 +144,66 @@ struct GrokAuthTests {
         #expect(GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.requestFailed(403, "forbidden")))
         #expect(GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.rpcFailed(16, "token expired")))
         #expect(!GrokStatusProbe.shouldSurfaceRemoteAuthError(GrokWebBillingError.parseFailed))
+    }
+
+    @Test
+    func `team method unavailable is classified without broadening other rpc failures`() {
+        #expect(GrokStatusProbe.isBillingMethodUnavailable(
+            GrokRPCError.requestFailed("Method not found")))
+        #expect(GrokStatusProbe.isBillingMethodUnavailable(
+            GrokRPCError.requestFailed("Method not found: x.ai/billing")))
+        #expect(!GrokStatusProbe.isBillingMethodUnavailable(
+            GrokRPCError.requestFailed("Authentication required")))
+        #expect(!GrokStatusProbe.isBillingMethodUnavailable(nil))
+    }
+
+    @Test
+    func `team identity fallback requires an attempted billing call`() throws {
+        let json = #"{"https://auth.x.ai::client":{"key":"token","principal_type":"Team"}}"#
+        let credentials = try GrokCredentialsStore.parse(data: Data(json.utf8))
+        let methodNotFound = GrokRPCError.requestFailed("Method not found")
+
+        #expect(GrokStatusProbe.shouldUseIdentityOnlyFallback(
+            credentials: credentials,
+            billingAttempted: true,
+            error: methodNotFound))
+        #expect(!GrokStatusProbe.shouldUseIdentityOnlyFallback(
+            credentials: credentials,
+            billingAttempted: false,
+            error: methodNotFound))
+    }
+
+    @Test
+    func `principal type matching is case and whitespace insensitive`() throws {
+        let json = #"{"https://auth.x.ai::client":{"key":"token","principal_type":" team "}}"#
+        let credentials = try GrokCredentialsStore.parse(data: Data(json.utf8))
+        #expect(credentials.isTeamPrincipal)
+    }
+
+    @Test
+    func `identity-only team snapshot retains identity and diagnostic`() throws {
+        let json = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "token",
+            "email": "team@example.com",
+            "team_id": "team-123",
+            "principal_type": "Team"
+          }
+        }
+        """#
+        let credentials = try GrokCredentialsStore.parse(data: Data(json.utf8))
+        let snapshot = GrokStatusProbe.identityOnlySnapshot(
+            credentials: credentials,
+            localSummary: nil,
+            cliVersion: "0.1.210",
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.accountEmail(for: .grok) == "team@example.com")
+        #expect(usage.accountOrganization(for: .grok) == "team-123")
+        #expect(snapshot.diagnostic == GrokStatusProbe.teamUsageUnavailableMessage)
     }
 
     @Test

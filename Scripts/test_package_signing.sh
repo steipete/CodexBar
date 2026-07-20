@@ -12,9 +12,16 @@ import sys
 from pathlib import Path
 
 script = Path(sys.argv[1]).read_text()
-start = script.index('resolve_package_signing_mode() {')
-end = script.index('\n}\n', start) + 3
-Path(sys.argv[2]).write_text(script[start:end])
+functions = []
+for name in (
+    'resolve_package_signing_mode',
+    'verify_no_quarantine_attribute',
+    'verify_packaged_app_integrity',
+):
+    start = script.index(f'{name}() {{')
+    end = script.index('\n}\n', start) + 3
+    functions.append(script[start:end])
+Path(sys.argv[2]).write_text('\n\n'.join(functions))
 PY
 
 source "$FUNCTIONS_FILE"
@@ -35,5 +42,38 @@ if resolve_package_signing_mode 2>/dev/null; then
 fi
 
 grep -Fq 'CODEXBAR_SIGNING=identity ./Scripts/package_app.sh release' "$RELEASE_SCRIPT"
+
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/codexbar-package-signing.XXXXXX")
+trap 'rm -f "$FUNCTIONS_FILE"; rm -rf "$TEMP_DIR"' EXIT
+APP="$TEMP_DIR/CodexBar.app"
+mkdir -p "$APP/Contents/Frameworks/Sparkle.framework"
+
+xattr() {
+  if [[ "${MOCK_QUARANTINE:-0}" == "1" ]]; then
+    printf '0081;fake;Safari;https://example.invalid\n'
+    return 0
+  fi
+  return 1
+}
+
+codesign() {
+  return "${MOCK_CODESIGN_STATUS:-0}"
+}
+
+verify_packaged_app_integrity "$APP"
+
+export MOCK_QUARANTINE=1
+if verify_packaged_app_integrity "$APP" 2>/dev/null; then
+  echo "Quarantined app unexpectedly passed integrity verification" >&2
+  exit 1
+fi
+unset MOCK_QUARANTINE
+
+export MOCK_CODESIGN_STATUS=1
+if verify_packaged_app_integrity "$APP" 2>/dev/null; then
+  echo "App with an invalid signature unexpectedly passed integrity verification" >&2
+  exit 1
+fi
+unset MOCK_CODESIGN_STATUS
 
 echo "Package signing tests passed."

@@ -18,6 +18,16 @@ extension SettingsStore {
         return data.accounts[index]
     }
 
+    /// Returns the saved account that currently owns provider fetches and account-scoped state.
+    /// Cursor keeps saved manual credentials when browser login switches back to Automatic, but those credentials
+    /// stay passive until the user explicitly selects one again.
+    func effectiveSelectedTokenAccount(for provider: UsageProvider) -> ProviderTokenAccount? {
+        if provider == .cursor, self.cursorCookieSource == .auto {
+            return nil
+        }
+        return self.selectedTokenAccount(for: provider)
+    }
+
     func setActiveTokenAccountIndex(_ index: Int, for provider: UsageProvider) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let clamped = min(max(index, 0), data.accounts.count - 1)
@@ -28,6 +38,7 @@ extension SettingsStore {
         self.updateProviderConfig(provider: provider) { entry in
             entry.tokenAccounts = updated
         }
+        self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Active token account updated",
             metadata: [

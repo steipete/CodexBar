@@ -56,7 +56,10 @@ struct ProviderRegistry {
                         runtime: .app,
                         sourceMode: sourceMode,
                         includeCredits: false,
-                        includeOptionalUsage: settings.showOptionalCreditsAndExtraUsage,
+                        includeOptionalUsage: ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                            provider: provider,
+                            settings: settings,
+                            override: nil),
                         webTimeout: 60,
                         webDebugDumpHTML: false,
                         verbose: verbose,
@@ -101,7 +104,7 @@ struct ProviderRegistry {
     /// when specs are built, so `.adaptive` maps to the policy's nominal interval instead of a
     /// live decision; `.manual` stays nil.
     static func nominalRefreshInterval(for frequency: RefreshFrequency) -> TimeInterval? {
-        frequency == .adaptive ? AdaptiveRefreshPolicy.nominalIntervalForHeuristics : frequency.seconds
+        frequency.usesAdaptivePolicy ? AdaptiveRefreshPolicy.nominalIntervalForHeuristics : frequency.seconds
     }
 
     @MainActor

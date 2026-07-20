@@ -229,7 +229,7 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
-    func `automatic metric skips exhausted antigravity five hour bucket when another remains usable`() {
+    func `automatic metric preserves usable first by default and prioritizes exhausted lane when enabled`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             secondary: RateWindow(usedPercent: 67, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
@@ -253,14 +253,22 @@ struct MenuBarMetricWindowResolverTests {
             ],
             updatedAt: Date())
 
-        let window = MenuBarMetricWindowResolver.rateWindow(
+        let defaultWindow = MenuBarMetricWindowResolver.rateWindow(
             preference: .automatic,
             provider: .antigravity,
             snapshot: snapshot,
             supportsAverage: false)
+        let optInWindow = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
 
-        #expect(window?.remainingPercent == 29)
-        #expect(window?.windowMinutes == 300)
+        #expect(defaultWindow?.remainingPercent == 29)
+        #expect(defaultWindow?.windowMinutes == 300)
+        #expect(optInWindow?.remainingPercent == 0)
+        #expect(optInWindow?.windowMinutes == 300)
     }
 
     @Test
@@ -326,6 +334,268 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
+    func `automatic metric keeps legacy antigravity compact fallback usable first semantics`() {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-compact-fallback-exhausted",
+                    title: "Exhausted",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: nil,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-compact-fallback-usable",
+                    title: "Usable",
+                    window: RateWindow(
+                        usedPercent: 64,
+                        windowMinutes: nil,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ],
+            updatedAt: Date())
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .antigravity,
+            snapshot: snapshot,
+            supportsAverage: false)
+
+        #expect(window?.usedPercent == 64)
+    }
+
+    @Test
+    func `antigravity quota ranking filters unknown and unsupported lanes`() {
+        let now = Date(timeIntervalSince1970: 100_000)
+        let expectedReset = now.addingTimeInterval(120)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-session",
+                    title: "Gemini Session",
+                    window: RateWindow(
+                        usedPercent: 85,
+                        windowMinutes: 300,
+                        resetsAt: expectedReset,
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-daily",
+                    title: "Gemini Daily",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 1440,
+                        resetsAt: now.addingTimeInterval(60),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini Weekly",
+                    window: RateWindow(
+                        usedPercent: 99,
+                        windowMinutes: 10080,
+                        resetsAt: now.addingTimeInterval(30),
+                        resetDescription: nil),
+                    usageKnown: false),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-invalid-session",
+                    title: "Invalid Session",
+                    window: RateWindow(
+                        usedPercent: .nan,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(10),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now)
+
+        let window = MenuBarMetricWindowResolver.antigravityQuotaSummaryRankingWindow(
+            snapshot: snapshot,
+            now: now)
+
+        #expect(window?.usedPercent == 85)
+        #expect(window?.resetsAt == expectedReset)
+    }
+
+    @Test
+    func `antigravity quota ranking breaks usage ties by valid nearest reset`() {
+        let now = Date(timeIntervalSince1970: 100_000)
+        let nearestFutureReset = now.addingTimeInterval(60)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-session",
+                    title: "Gemini Session",
+                    window: RateWindow(
+                        usedPercent: 90,
+                        windowMinutes: 300,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-claude-session",
+                    title: "Claude Session",
+                    window: RateWindow(
+                        usedPercent: 90,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(-60),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gpt-session",
+                    title: "GPT Session",
+                    window: RateWindow(
+                        usedPercent: 90,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(120),
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-other-session",
+                    title: "Other Session",
+                    window: RateWindow(
+                        usedPercent: 90,
+                        windowMinutes: 300,
+                        resetsAt: nearestFutureReset,
+                        resetDescription: nil)),
+            ],
+            updatedAt: now)
+
+        let window = MenuBarMetricWindowResolver.antigravityQuotaSummaryRankingWindow(
+            snapshot: snapshot,
+            now: now)
+
+        #expect(window?.resetsAt == nearestFutureReset)
+    }
+
+    @Test
+    func `antigravity quota ranking breaks complete ties by stable row ID`() {
+        let now = Date(timeIntervalSince1970: 100_000)
+        let rows = [
+            NamedRateWindow(
+                id: "antigravity-quota-summary-a-weekly",
+                title: "A Weekly",
+                window: RateWindow(
+                    usedPercent: 90,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: "a")),
+            NamedRateWindow(
+                id: "antigravity-quota-summary-z-session",
+                title: "Z Session",
+                window: RateWindow(
+                    usedPercent: 90,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: "z")),
+        ]
+
+        for orderedRows in [rows, Array(rows.reversed())] {
+            let snapshot = UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: orderedRows,
+                updatedAt: now)
+            let window = MenuBarMetricWindowResolver.antigravityQuotaSummaryRankingWindow(
+                snapshot: snapshot,
+                now: now)
+
+            #expect(window?.resetDescription == "z")
+        }
+    }
+
+    @Test
+    func `antigravity families are blocked only when every understood family has an exhausted lane`() {
+        let snapshot = Self.antigravitySummarySnapshot(rows: [
+            ("gemini-session", 300, 100, true),
+            ("gemini-weekly", 10080, 20, true),
+            ("3p-5-hour", 300, 10, true),
+            ("3p-weekly", 10080, 100, true),
+        ])
+
+        #expect(MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot))
+
+        let availableFamily = Self.antigravitySummarySnapshot(rows: [
+            ("gemini-session", 300, 100, true),
+            ("3p-session", 300, 99, true),
+        ])
+        #expect(!MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: availableFamily))
+    }
+
+    @Test
+    func `antigravity family blocking accepts underscore cadence delimiters`() {
+        let snapshot = Self.antigravitySummarySnapshot(rows: [
+            ("gemini_session", 300, 100, true),
+            ("gemini_weekly", 10080, 20, true),
+            ("third_party_five_hour", 300, 100, true),
+        ])
+
+        #expect(MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot))
+    }
+
+    @Test
+    func `antigravity family blocking accepts limit suffixed cadence`() {
+        let snapshot = Self.antigravitySummarySnapshot(rows: [
+            ("gemini-5h limit", 300, 100, true),
+            ("gemini-weekly limit", 10080, 20, true),
+            ("third-party-session limit", 300, 100, true),
+        ])
+
+        #expect(MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot))
+    }
+
+    @Test(arguments: [
+        ("gemini-session", 300, 100.0, false),
+        ("gemini-daily", 1440, 100.0, true),
+        ("-session", 300, 100.0, true),
+        ("gemini-daily", 300, 100.0, true),
+        ("gem ini-session", 300, 100.0, true),
+        ("invalid-session", 300, Double.nan, true),
+    ])
+    func `antigravity family blocking fails open for incomplete summary rows`(
+        idSuffix: String,
+        windowMinutes: Int,
+        usedPercent: Double,
+        usageKnown: Bool)
+    {
+        let snapshot = Self.antigravitySummarySnapshot(rows: [
+            ("safe-session", 300, 100, true),
+            (idSuffix, windowMinutes, usedPercent, usageKnown),
+        ])
+
+        #expect(!MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot))
+    }
+
+    @Test
+    func `antigravity family blocking fails open without quota summary rows`() {
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+
+        #expect(!MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot))
+    }
+
+    private static func antigravitySummarySnapshot(
+        rows: [(idSuffix: String, windowMinutes: Int, usedPercent: Double, usageKnown: Bool)])
+        -> UsageSnapshot
+    {
+        UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: rows.map { row in
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-\(row.idSuffix)",
+                    title: row.idSuffix,
+                    window: RateWindow(
+                        usedPercent: row.usedPercent,
+                        windowMinutes: row.windowMinutes,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    usageKnown: row.usageKnown)
+            },
+            updatedAt: Date())
+    }
+
+    @Test
     func `explicit antigravity metric keeps requested family lane`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: "Claude"),
@@ -337,17 +607,20 @@ struct MenuBarMetricWindowResolverTests {
             preference: .primary,
             provider: .antigravity,
             snapshot: snapshot,
-            supportsAverage: false)
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
         let secondary = MenuBarMetricWindowResolver.rateWindow(
             preference: .secondary,
             provider: .antigravity,
             snapshot: snapshot,
-            supportsAverage: false)
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
         let tertiary = MenuBarMetricWindowResolver.rateWindow(
             preference: .tertiary,
             provider: .antigravity,
             snapshot: snapshot,
-            supportsAverage: false)
+            supportsAverage: false,
+            antigravityPrioritizeExhaustedQuotas: true)
 
         #expect(primary?.resetDescription == "Claude")
         #expect(secondary?.resetDescription == "Gemini Pro")

@@ -3,6 +3,29 @@ import Commander
 import Foundation
 
 extension CodexBarCLI {
+    static func runConfig(path: [String], values: ParsedValues) {
+        switch path {
+        case ["config", "validate"]:
+            self.runConfigValidate(values)
+        case ["config", "dump"]:
+            self.runConfigDump(values)
+        case ["config", "providers"]:
+            self.runConfigProviders(values)
+        case ["config", "enable"]:
+            self.runConfigSetProviderEnabled(values, enabled: true)
+        case ["config", "disable"]:
+            self.runConfigSetProviderEnabled(values, enabled: false)
+        case ["config", "set-api-key"]:
+            self.runConfigSetAPIKey(values)
+        default:
+            self.exit(
+                code: .failure,
+                message: "Unknown command",
+                output: CLIOutputPreferences.from(values: values),
+                kind: .args)
+        }
+    }
+
     static func runConfigValidate(_ values: ParsedValues) {
         let output = CLIOutputPreferences.from(values: values)
         let config = Self.loadConfig(output: output)

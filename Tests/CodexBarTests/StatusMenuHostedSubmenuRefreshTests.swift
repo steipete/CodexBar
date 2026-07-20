@@ -181,7 +181,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
 
         let costItem = try #require(menu.items.first { ($0.representedObject as? String) == "menuCardCost" })
         #expect(costItem.view == nil)
-        #expect(costItem.title == StatusItemController.costMenuTitle)
+        #expect(costItem.title == StatusItemController.costMenuTitleForProvider(.claude))
         #expect(costItem.isEnabled)
         let submenu = try #require(costItem.submenu)
         #expect(submenu.items.first?.representedObject as? String == StatusItemController.costHistoryChartID)

@@ -447,9 +447,13 @@ struct UsageStoreDisabledProviderCleanupTests {
             unreadablePaths: [],
             components: [],
             updatedAt: Date())
-        store.quotaWarningState[UsageStore.QuotaWarningStateKey(provider: .kilo, window: .session)] =
+        store.quotaWarningState[
+            UsageStore.QuotaWarningStateKey(provider: .kilo, window: .session, accountDiscriminator: nil),
+        ] =
             UsageStore.QuotaWarningState(lastRemaining: 20, firedThresholds: [50], source: .primary)
-        store.quotaWarningState[UsageStore.QuotaWarningStateKey(provider: .codex, window: .session)] =
+        store.quotaWarningState[
+            UsageStore.QuotaWarningStateKey(provider: .codex, window: .session, accountDiscriminator: nil),
+        ] =
             UsageStore.QuotaWarningState(lastRemaining: 80, firedThresholds: [20], source: .primary)
         store.predictivePaceWarningNotifiedKeys = [
             PredictivePaceWarningStateKey(
@@ -472,13 +476,17 @@ struct UsageStoreDisabledProviderCleanupTests {
         #expect(store.lastKnownResetSnapshots[.kilo] == nil)
         #expect(store.kiloScopeSnapshots.isEmpty)
         #expect(store.providerStorageFootprints[.kilo] == nil)
-        #expect(store.quotaWarningState[UsageStore.QuotaWarningStateKey(provider: .kilo, window: .session)] == nil)
+        #expect(store.quotaWarningState[
+            UsageStore.QuotaWarningStateKey(provider: .kilo, window: .session, accountDiscriminator: nil),
+        ] == nil)
         #expect(store.predictivePaceWarningNotifiedKeys.allSatisfy { $0.provider != .kilo })
         #expect(store.lastTokenFetchAt[.kilo] == nil)
         #expect(store.lastTokenFetchScope[.kilo] == nil)
 
         #expect(store.lastKnownResetSnapshots[.codex]?.primary?.usedPercent == 12)
-        #expect(store.quotaWarningState[UsageStore.QuotaWarningStateKey(provider: .codex, window: .session)] != nil)
+        #expect(store.quotaWarningState[
+            UsageStore.QuotaWarningStateKey(provider: .codex, window: .session, accountDiscriminator: nil),
+        ] != nil)
         #expect(store.predictivePaceWarningNotifiedKeys.contains { $0.provider == .codex })
     }
 
@@ -634,7 +642,6 @@ struct UsageStoreDisabledProviderCleanupTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

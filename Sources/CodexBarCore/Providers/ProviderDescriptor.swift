@@ -57,6 +57,7 @@ public enum ProviderDescriptorRegistry {
         .openai: OpenAIAPIProviderDescriptor.descriptor,
         .azureopenai: AzureOpenAIProviderDescriptor.descriptor,
         .claude: ClaudeProviderDescriptor.descriptor,
+        .clinepass: ClinePassProviderDescriptor.descriptor,
         .cursor: CursorProviderDescriptor.descriptor,
         .opencode: OpenCodeProviderDescriptor.descriptor,
         .opencodego: OpenCodeGoProviderDescriptor.descriptor,
@@ -76,7 +77,6 @@ public enum ProviderDescriptorRegistry {
         .vertexai: VertexAIProviderDescriptor.descriptor,
         .augment: AugmentProviderDescriptor.descriptor,
         .jetbrains: JetBrainsProviderDescriptor.descriptor,
-        .kimik2: KimiK2ProviderDescriptor.descriptor,
         .moonshot: MoonshotProviderDescriptor.descriptor,
         .amp: AmpProviderDescriptor.descriptor,
         .t3chat: T3ChatProviderDescriptor.descriptor,
@@ -94,6 +94,7 @@ public enum ProviderDescriptorRegistry {
         .abacus: AbacusProviderDescriptor.descriptor,
         .mistral: MistralProviderDescriptor.descriptor,
         .deepseek: DeepSeekProviderDescriptor.descriptor,
+        .deepinfra: DeepInfraProviderDescriptor.descriptor,
         .codebuff: CodebuffProviderDescriptor.descriptor,
         .crof: CrofProviderDescriptor.descriptor,
         .venice: VeniceProviderDescriptor.descriptor,
@@ -108,10 +109,13 @@ public enum ProviderDescriptorRegistry {
         .deepgram: DeepgramProviderDescriptor.descriptor,
         .poe: PoeProviderDescriptor.descriptor,
         .chutes: ChutesProviderDescriptor.descriptor,
-        .crossmodel: CrossModelProviderDescriptor.descriptor,
+        .neuralwatt: NeuralWattProviderDescriptor.descriptor,
         .clawrouter: ClawRouterProviderDescriptor.descriptor,
+        .longcat: LongCatProviderDescriptor.descriptor,
         .sub2api: Sub2APIProviderDescriptor.descriptor,
         .wayfinder: WayfinderProviderDescriptor.descriptor,
+        .zenmux: ZenMuxProviderDescriptor.descriptor,
+        .aiand: AiAndProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

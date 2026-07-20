@@ -29,6 +29,27 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `implicit test store override stays isolated from explicit test store`() {
+        let service = "implicit-test-store-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let explicitEntry = TestEntry(value: "explicit", storedAt: Date(timeIntervalSince1970: 1))
+        let implicitEntry = TestEntry(value: "implicit", storedAt: Date(timeIntervalSince1970: 2))
+
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        KeychainCacheStore.withServiceOverrideForTesting(service) {
+            KeychainCacheStore.store(key: key, entry: explicitEntry)
+            KeychainCacheStore.withImplicitTestStoreForTesting {
+                #expect(self.loadedEntry(for: key) == nil)
+                KeychainCacheStore.store(key: key, entry: implicitEntry)
+                #expect(self.loadedEntry(for: key) == implicitEntry)
+            }
+            #expect(self.loadedEntry(for: key) == explicitEntry)
+        }
+    }
+
+    @Test
     func `background interaction keeps real keychain cache available for no UI reads writes and deletes`() {
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             ProviderInteractionContext.$current.withValue(.background) {
@@ -36,6 +57,11 @@ struct KeychainCacheStoreTests {
                 #expect(KeychainCacheStore.canEnumerateOrDeleteRealKeychainForTesting == true)
             }
         }
+    }
+
+    private func loadedEntry(for key: KeychainCacheStore.Key) -> TestEntry? {
+        guard case let .found(entry) = KeychainCacheStore.load(key: key, as: TestEntry.self) else { return nil }
+        return entry
     }
 
     @Test

@@ -8,6 +8,7 @@ struct AdaptiveRefreshPolicy: Sendable {
     struct Input: Sendable, Equatable {
         let now: Date
         let lastMenuOpenAt: Date?
+        let lastCodingActivityAt: Date?
         let lowPowerModeEnabled: Bool
         let thermalState: ProcessInfo.ThermalState
     }
@@ -25,6 +26,7 @@ struct AdaptiveRefreshPolicy: Sendable {
         AdaptiveRefreshPolicyCore().nextDelay(for: AdaptiveRefreshPolicyCore.Input(
             now: input.now,
             lastMenuOpenAt: input.lastMenuOpenAt,
+            lastCodingActivityAt: input.lastCodingActivityAt,
             lowPowerModeEnabled: input.lowPowerModeEnabled,
             thermalPressure: Self.isConstrained(input.thermalState) ? .constrained : .nominal))
     }

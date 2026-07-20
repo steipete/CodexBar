@@ -1,8 +1,13 @@
 /* Persian localization for CodexBar */
 
+"ollama_safari_cookie_access_hint" = "کوکی‌های Safari برای CodexBar به دسترسی کامل دیسک نیاز دارند (تنظیمات سیستم > حریم خصوصی و امنیت).";
+"ollama_browser_cookie_decryption_denied" = "رمزگشایی کوکی‌های %@ در Keychain رد شد؛ با یک تازه‌سازی دستی دوباره تلاش کنید.";
+"ollama_browser_cookie_decryption_disabled" = "رمزگشایی کوکی‌های %@ در CodexBar غیرفعال است؛ دسترسی Keychain را فعال و تازه‌سازی کنید.";
+
 " providers" = " providers";
 "(System)" = "(سیستم)";
 "30d" = "30 روز";
+"7d" = "7 روز";
 "A managed Codex login is already running. Wait for it to finish before adding " = "یک ورود Codex مدیریت شده هم اکنون در حال اجرا است. صبر کنید تا تمام شود و بعد   را اضافه کنید";
 "API key" = "کلید API";
 "API region" = "منطقه API";
@@ -58,13 +63,16 @@
 "Check for updates automatically" = "به طور خودکار به روزرسانی ها را بررسی کنید";
 "Check if you like your agents having some fun up there." = "بررسی کن که آیا دوست داری مأمورانت آنجا خوش بگذرانند یا نه.";
 "Check provider status" = "وضعیت ارائه دهنده را بررسی کنید";
+"Choose a supported browser so CodexBar can read the matching account." = "یک مرورگر پشتیبانی‌شده انتخاب کنید تا CodexBar بتواند حساب منطبق را بخواند.";
 "Choose Codex workspace" = "فضای کاری Codex را انتخاب کنید";
+"Choose Cursor account" = "حساب Cursor را انتخاب کنید";
 "Choose the MiniMax host (global .io or China mainland .com)." = "میزبان MiniMax را انتخاب کنید (جهانی .io یا .com سرزمین اصلی چین).";
 "Choose up to " = "تا   انتخاب کنید";
 "Choose up to \\(Self.maxOverviewProviders) providers" = "تا \\(Self.maxOverviewProviders) ارائه دهنده را انتخاب کنید";
 "Choose up to \\(count) providers" = "تا \\(count) ارائه دهنده را انتخاب کنید";
 "Choose what to show in the menu bar (Pace shows usage vs. expected)." = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
 "Choose which Codex account CodexBar should follow." = "انتخاب کنید که کدام حساب Codex را دنبال CodexBar.";
+"Choose which Cursor account CodexBar should use." = "انتخاب کنید CodexBar از کدام حساب Cursor استفاده کند.";
 "Choose which window drives the menu bar percent." = "انتخاب کنید کدام پنجره درصد نوار منو را تنظیم کند.";
 "Chrome" = "Chrome";
 "Claude CLI not found" = "Claude CLI پیدا نشد";
@@ -300,7 +308,6 @@
 "Store multiple OpenCode Go Cookie headers." = "چندین هدر OpenCode Go Cookie را ذخیره کنید.";
 "Stored in the CodexBar config file." = "در فایل پیکربندی CodexBar ذخیره شده است.";
 "Stored in ~/.codexbar/config.json. " = "ذخیره شده در ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "ذخیره شده در ~/.codexbar/config.json. یکی را در kimi-k2.ai تولید کنید.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "ذخیره شده در ~/.codexbar/config.json. کلید را از داشبورد Synthetic پیست کنید.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "ذخیره شده در ~/.codexbar/config.json. کلید API برنامه کدنویسی خود را از مدل استودیو چسبانده کنید.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "ذخیره شده در ~/.codexbar/config.json. کلید MiniMax API خود را بچسبانید.";
@@ -330,6 +337,7 @@
 "Usage breakdown" = "تفکیک استفاده";
 "Usage history (30 days)" = "تاریخچه استفاده";
 "Usage source" = "منبع استفاده";
+"Use Account" = "استفاده از حساب";
 "Use BigModel for the China mainland endpoints (open.bigmodel.cn)." = "برای نقاط پایانی سرزمین اصلی چین از BigModel استفاده کنید (open.bigmodel.cn).";
 "Use a single menu bar icon with a provider switcher." = "از یک آیکون نوار منو با یک تغییر دهنده ارائه دهنده استفاده کنید.";
 "Use international or China mainland console gateways for quota fetches." = "برای دریافت سهمیه از دروازه های کنسول بین المللی یا چین استفاده کنید.";
@@ -440,7 +448,7 @@
 "cost_history_days_title" = "پنجره تاریخچه: %d روز";
 "cost_comparison_periods_title" = "نمایش دوره‌های مقایسه کوتاه‌تر";
 "cost_comparison_periods_subtitle" = "وقتی در پنجره تاریخچه انتخاب‌شده جا می‌گیرند، مجموع‌های ۷، ۳۰ و ۹۰ روزه را اضافه کنید. این مجموع‌ها از همان اسکن محلی استفاده می‌کنند.";
-"cost_auto_refresh_info" = "تازه سازی خودکار: ساعتی · زمان استراحت: 10m";
+"cost_auto_refresh_info" = "تازه‌سازی خودکار: بازه سراسری (حداقل ۵ دقیقه) · مهلت: ۱۰ دقیقه";
 "refresh_interval_title" = "فاصله تازه‌سازی";
 "manual_refresh_hint" = "تازه سازی خودکار خاموش است؛ از فرمان تازه سازی منو استفاده کنید.";
 "refresh_on_open_title" = "بازخوانی هنگام باز کردن منو";
@@ -502,7 +510,28 @@
 "tab_menu_bar" = "نوار منو";
 "tab_menu" = "منو";
 "tab_advanced" = "پیشرفته";
+"tab_hooks" = "قلاب‌ها";
 "tab_about" = "درباره";
+
+/* Hooks Pane */
+"hooks_enable_title" = "فعال‌سازی قلاب‌ها";
+"hooks_enable_subtitle" = "اجرای دستورهای خارجی هنگام رخ‌دادن رویدادهای سهمیه یا ارائه‌دهنده.";
+"hooks_trust_warning" = "قلاب‌ها می‌توانند دستورهای محلی را روی مک شما اجرا کنند. فقط دستورهایی را تنظیم کنید که به آن‌ها اعتماد دارید.";
+"hooks_rules_header" = "قوانین";
+"hooks_empty" = "هیچ قلابی پیکربندی نشده است.";
+"hooks_add_rule" = "افزودن قانون";
+"hooks_delete_rule" = "حذف قانون";
+"hooks_rule_enabled" = "فعال";
+"hooks_event" = "رویداد";
+"hooks_provider" = "ارائه‌دهنده";
+"hooks_any_provider" = "هر ارائه‌دهنده";
+"hooks_threshold" = "اجرا در مصرف ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "آرگومان‌ها";
+"hooks_argument_placeholder" = "آرگومان";
+"hooks_add_argument" = "افزودن آرگومان";
+"hooks_delete_argument" = "حذف آرگومان";
 "tab_debug" = "اشکال زدایی";
 
 /* Providers Pane */
@@ -526,13 +555,14 @@
 "menu_bar_metric_subtitle_deepseek" = "تعادل DeepSeek را در نوار منو نشان می دهد.";
 "menu_bar_metric_subtitle_moonshot" = "تعادل Moonshot / Kimi API را در نوار منو نشان می دهد.";
 "menu_bar_metric_subtitle_mistral" = "هزینه های Mistral API ماه جاری را در نوار منو نشان می دهد.";
-"menu_bar_metric_subtitle_kimik2" = "Kimi تیتراژ API کلید K2 در نوار منو نمایش داده می شود.";
 "automatic" = "اتوماتیک";
 "primary_api_key_limit" = "کلید اصلی (API حد کلید)";
 
 /* Display Pane */
 "menu_bar_style_title" = "سبک نوار منو";
 "menu_bar_style_subtitle" = "نحوه نمایش آیتم نوار منو.";
+"menu_bar_inactive_display_contrast_title" = "بهبود خوانایی در نمایشگرهای غیرفعال";
+"menu_bar_inactive_display_contrast_subtitle" = "از نمایش با کنتراست بالا استفاده می‌کند تا نماد و معیار در نمایشگرهای دیگر خوانا بمانند.";
 "menu_bar_style_critters" = "موجودات";
 "menu_bar_style_bars" = "نوارهای اندازه‌گیری";
 "menu_bar_style_icon_percent" = "آیکون و درصد";
@@ -575,6 +605,12 @@
 "agent_sessions_subtitle" = "جلسات محلی و جلسات Codex و Claude Code یافته‌شده از طریق SSH را در منو نمایش دهید.";
 "agent_sessions_hosts_title" = "میزبان‌های SSH اضافی";
 "agent_sessions_footer" = "مک‌های موجود در tailnet شما به‌طور خودکار شناسایی می‌شوند. جلسات محلی هر ۳۰ ثانیه و میزبان‌های راه دور هر ۶۰ ثانیه و هنگام باز شدن منو تازه‌سازی می‌شوند.";
+"agent_session_labels_title" = "برچسب‌های جلسه";
+"agent_session_labels_subtitle" = "نحوه نام‌گذاری جلسات عامل را انتخاب کنید.";
+"agent_session_label_project" = "پروژه";
+"agent_session_label_descriptive" = "توصیفی";
+"agent_session_label_descriptive_and_project" = "توصیفی + پروژه";
+"agent_session_unknown_project" = "پروژه ناشناخته";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "میانبر کیبورد";
@@ -706,13 +742,19 @@
 "refresh_15min" = "۱۵ دقیقه";
 "refresh_30min" = "۳۰ دقیقه";
 "refresh_adaptive" = "تطبیقی";
+"refresh_adaptive_agent_aware" = "تطبیقی (آگاه از عامل)";
+"adaptive_activity_consent_title" = "اجازه به تازه‌سازی آگاه از فعالیت؟";
+"adaptive_activity_consent_message" = "حالت تطبیقی آگاه از عامل می‌تواند برای شناسایی Codex و Claude فهرست فرایندهای محلی در حال اجرا، از جمله خط‌های فرمان، را بررسی کند و هنگام کدنویسی هر ۳۰ ثانیه فرادادهٔ نشست‌های شناخته‌شده را بخواند. وقتی Agent Sessions خاموش است، CodexBar فقط زمان آخرین فعالیت را در حافظه نگه می‌دارد و مسیرها و هویت‌های نشست را دور می‌ریزد. این داده به هیچ‌جا ارسال نمی‌شود و شناسایی راه‌دور و SSH خاموش می‌مانند. اگر رد کنید، CodexBar بدون پویش فعالیت محلی به حالت تطبیقی عادی بازمی‌گردد.";
+"adaptive_activity_consent_allow" = "اجازه به فعالیت محلی";
+"adaptive_activity_consent_decline" = "استفاده از حالت تطبیقی عادی";
 
 /* Additional keys */
 "not_found" = "پیدا نشد";
 
 /* Cost estimation */
-"cost_header_estimated" = "هزینه (تخمینی)";
 "cost_estimate_hint" = "برآورد شده از چوب های محلی · ممکن است با صورتحساب شما متفاوت باشد";
+"codex_api_estimate_hint" = "برآوردشده از مصرف توکن · صورتحساب اشتراک نیست";
+"cost_data_explanation" = "هزینه‌ها ممکن است توسط ارائه‌دهنده گزارش شوند یا بر اساس مصرف توکن و قیمت‌های عمومی API برآورد شوند. برآوردها هزینه اشتراک نیستند.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "هیچ JetBrains IDE ای با AI Assistant شناسایی نشد. یک JetBrains IDE نصب کنید و AI Assistant را فعال کنید.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API توکن پیکربندی نشده است. متغیر محیطی OPENROUTER_API_KEY تنظیم کنید یا در تنظیمات پیکربندی کنید.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API توکن پیدا نشد. apiKey را در ~/.codexbar/config.json یا Z_AI_API_KEY تنظیم کنید.";
@@ -742,6 +784,7 @@
 "Today" = "امروز";
 "Today tokens" = "توکن های امروزی";
 "30d cost" = "هزینه 30d";
+"%@ cost" = "هزینه %@";
 "30d tokens" = "توکن های 30d";
 "Latest tokens" = "جدیدترین توکن ها";
 "Top model" = "مدل برتر";
@@ -887,7 +930,7 @@
 "Hourly Usage" = "استفاده ساعتی";
 "Usage remaining" = "کاربرد باقی مانده";
 "Usage used" = "کاربرد مورد استفاده";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API کلید تأیید شد. Ollama محدودیت های سهمیه ابری را از طریق API آشکار نمی کند.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "کلید API تأیید شد. سهمیه‌های Cloud به کوکی‌های مرورگر نیاز دارند. وارد Ollama شوید.";
 "Last 30 days: %@ tokens" = "۳۰ روز آخر: توکن های %@";
 "7d spend" = "7d خرج می کنم";
 "30d spend" = "30d خرج می کنم";
@@ -898,6 +941,13 @@
 "MiniMax 30 day token usage trend" = "MiniMax روند استفاده ۳۰ روزه از توکن";
 "Today cash" = "امروزه پول نقد";
 "DeepSeek 30 day token usage trend" = "DeepSeek روند استفاده ۳۰ روزه از توکن";
+"Detailed usage unavailable." = "جزئیات استفاده در دسترس نیست.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "برای مشاهده جزئیات استفاده، در Chrome وارد DeepSeek Platform شوید.";
+"Select a DeepSeek Chrome profile in Settings." = "یک نمایه Chrome دیپ‌سیک را در تنظیمات انتخاب کنید.";
+"DeepSeek this month token usage trend" = "روند استفاده از توکن DeepSeek در این ماه";
+"Chrome profile" = "نمایه Chrome";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "انتخاب کنید کدام نشست واردشدهٔ DeepSeek Platform جزئیات استفاده را ارائه دهد.";
+"Select profile…" = "انتخاب نمایه…";
 "cache-hit input" = "ورودی کش و ضربه";
 "cache-miss input" = "ورودی کش-خطا";
 "output" = "خروجی";
@@ -1021,7 +1071,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain Cursor هدر کوکی تان را می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain Factory هدر کوکی تان را می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain توکن GitHub Copilot شما را درخواست می کند تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain کلید API K2 Kimi می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain توکن احراز هویت Kimi می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain توکن MiniMax API شما را درخواست می کند تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar از macOS Keychain MiniMax هدر کوکی تان را می خواهید تا بتواند استفاده را دریافت کند. برای ادامه روی OK کلیک کنید.";
@@ -1172,7 +1221,6 @@
 "byte_unit_megabytes" = "مگابایت";
 "byte_unit_gigabyte" = "گیگابایت";
 "byte_unit_gigabytes" = "گیگابایت";
-"CrossModel API spend trend" = "روند هزینه‌ی CrossModel API";
 
 /* Settings sidebar redesign */
 "Enable" = "فعال‌سازی";
@@ -1187,3 +1235,113 @@
 "Show Codex Spark usage" = "نمایش استفاده از Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "ردیف‌های سهمیه Codex Spark را در منو و پیش‌نمایش ارائه‌دهنده نمایش می‌دهد. لازم است «نمایش اعتبارها + استفاده اضافی» در تنظیمات نمایش فعال باشد.";
 "Scroll to see more models" = "برای دیدن مدل‌های بیشتر پیمایش کنید";
+/* Shareable usage card */
+"Copy Image" = "کپی تصویر";
+"Copy Stats" = "کپی آمار";
+"Could not copy image" = "تصویر کپی نشد";
+"Image copied" = "تصویر کپی شد";
+"Image saved" = "تصویر ذخیره شد";
+"Nothing is uploaded. This image is created on your Mac." = "چیزی بارگذاری نمی‌شود. این تصویر روی Mac شما ساخته می‌شود.";
+"Save..." = "ذخیره...";
+"Share AI Usage" = "اشتراک‌گذاری مصرف هوش مصنوعی";
+"Share Stats…" = "اشتراک‌گذاری آمار…";
+"Stats copied" = "آمار کپی شد";
+"Finish switching to a different Cursor account in your browser, then try again." = "تغییر به یک حساب Cursor دیگر را در مرورگر کامل کنید، سپس دوباره تلاش کنید.";
+"Timed out waiting for Cursor account switch. %@" = "مهلت انتظار برای تغییر حساب Cursor به پایان رسید. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "مهلت انتظار برای تغییر حساب Cursor به پایان رسید. %@ آخرین خطا: %@";
+
+/* Spend dashboard */
+"tab_usage_spend" = "مصرف و هزینه";
+"Usage & Spend" = "مصرف و هزینه";
+"Local estimated cost history across supported providers." = "تاریخچه برآورد هزینه محلی در ارائه‌دهندگان پشتیبانی‌شده.";
+"Time range" = "بازه زمانی";
+"Track costs" = "پیگیری هزینه‌ها";
+"Cost tracking is off" = "پیگیری هزینه خاموش است";
+"Turn on Track costs to build local estimates." = "برای ایجاد برآوردهای محلی، «پیگیری هزینه‌ها» را روشن کنید.";
+"No local cost history yet" = "هنوز تاریخچه هزینه محلی وجود ندارد";
+"Turn on cost tracking or refresh after using a supported provider." = "پیگیری هزینه را روشن کنید یا پس از استفاده از یک ارائه‌دهنده پشتیبانی‌شده تازه‌سازی کنید.";
+"Refresh failures" = "خطاهای تازه‌سازی";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "ارزهای اصلی جدا نگه داشته می‌شوند؛ ردیف‌های حساب Codex تاریخچه نشست‌های Pi را دربر نمی‌گیرند.";
+"Spend unavailable" = "هزینه در دسترس نیست";
+"Model breakdown unavailable" = "تفکیک مدل در دسترس نیست";
+"Local estimated history" = "تاریخچه برآورد محلی";
+"Coverage" = "پوشش";
+"Estimated spend" = "برآورد هزینه";
+"Tracked tokens" = "توکن‌های پیگیری‌شده";
+"Subscriptions" = "اشتراک‌ها";
+"By subscription" = "بر اساس اشتراک";
+"No model-level history" = "تاریخچه‌ای در سطح مدل وجود ندارد";
+"Daily estimated spend" = "برآورد هزینه روزانه";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "حدود %d بازه کامل ۵ ساعته از سهم هفتگی مانده · %d بازه تا بازنشانی";
+"Weekly cannot run out before reset at this pace" = "با این روند، سهم هفتگی پیش از بازنشانی تمام نمی‌شود";
+"Weekly can run out ≈%d windows early" = "سهم هفتگی ممکن است حدود %d بازه زودتر تمام شود";
+"Estimated: %@" = "برآوردی: %@";
+"Coding Plan" = "طرح کدنویسی";
+"Agent Plan" = "طرح عامل";
+"Team" = "تیم";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "چیدمان";
+"menu_bar_layout_footer" = "نشانه‌ها را برای چیدمان نوار منو بکشید. برای افزودن روی نشانه کلیک کنید؛ نشانهٔ قرارگرفته را انتخاب کنید و برای حذف Delete را بزنید.";
+"menu_bar_layout_group_identity" = "هویت";
+"menu_bar_layout_group_usage" = "کاربرد";
+"menu_bar_layout_group_time" = "زمان";
+"menu_bar_layout_group_money" = "هزینه";
+"menu_bar_layout_group_structure" = "ساختار";
+"menu_bar_layout_scope_all" = "همهٔ ارائه‌دهندگان";
+"menu_bar_layout_scope_help" = "چیدمان پیش‌فرض را ویرایش کنید یا برای یک ارائه‌دهنده بازنویسی کنید.";
+"menu_bar_layout_use_all" = "استفاده از چیدمان همهٔ ارائه‌دهندگان";
+"menu_bar_layout_preset" = "پیش‌تنظیم چیدمان";
+"menu_bar_layout_preset_icon_percent" = "نماد و درصد";
+"menu_bar_layout_preset_icon_only" = "فقط نماد";
+"menu_bar_layout_preset_percent_reset" = "درصد و بازنشانی";
+"menu_bar_layout_preset_compact_stacked" = "پشتهٔ فشرده";
+"menu_bar_layout_preset_custom" = "عرف";
+"menu_bar_layout_live_preview" = "پیش‌نمایش زنده";
+"menu_bar_layout_strip" = "نوار منو";
+"menu_bar_layout_remove_line_break" = "حذف شکست خط";
+"menu_bar_layout_chip_hint" = "انتخاب کنید، برای مرتب‌سازی بکشید یا از عمل حذف استفاده کنید.";
+"menu_bar_layout_palette_hint" = "برای افزودن کلیک کنید یا به چیدمان بکشید.";
+"menu_bar_layout_empty_line" = "نشانه را اینجا رها کنید";
+"menu_bar_layout_line" = "خط %d";
+"menu_bar_layout_drag_remove" = "برای حذف به اینجا بکشید";
+"menu_bar_layout_size" = "اندازه";
+"menu_bar_layout_size_small" = "کوچک";
+"menu_bar_layout_size_regular" = "معمولی";
+"menu_bar_layout_gap" = "فاصله";
+"menu_bar_layout_gap_tight" = "فشرده";
+"menu_bar_layout_gap_regular" = "معمولی";
+"menu_bar_layout_keyboard_hint" = "Delete نشانهٔ انتخاب‌شده را حذف می‌کند";
+"menu_bar_layout_sample_account" = "حساب";
+"menu_bar_layout_sample_runs_out" = "جمعه تمام می‌شود";
+"menu_bar_layout_token_icon" = "آیکون";
+"menu_bar_layout_token_provider" = "نام ارائه‌دهنده";
+"menu_bar_layout_token_account" = "حساب";
+"menu_bar_layout_token_session" = "جلسه %";
+"menu_bar_layout_token_weekly" = "هفتگی %";
+"menu_bar_layout_token_auto" = "درصد خودکار";
+"menu_bar_layout_token_bar" = "نوار مصرف";
+"menu_bar_layout_token_resets_in" = "بازنشانی در";
+"menu_bar_layout_token_reset_at" = "بازنشانی در ساعت";
+"menu_bar_layout_token_runs_out" = "تمام می‌شود";
+"menu_bar_layout_token_cost_today" = "هزینهٔ امروز";
+"menu_bar_layout_token_cost_30d" = "هزینهٔ ۳۰ روز";
+"menu_bar_layout_token_space" = "فاصله";
+"menu_bar_layout_token_line_break" = "شکست خط";
+"menu_bar_layout_token_separator_accessibility" = "نقطهٔ جداکننده";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "آیکون: در دسترس نیست";
+"%@ icon" = "%@: آیکون";
+"Provider name unavailable" = "نام ارائه‌دهنده: در دسترس نیست";
+"Account unavailable" = "حساب: در دسترس نیست";
+"%@ unavailable" = "%@: در دسترس نیست";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "نوار مصرف: در دسترس نیست";
+"Usage bar, %d of 3 filled" = "نوار مصرف: %d/3 پر";
+"Reset countdown unavailable" = "بازنشانی در: در دسترس نیست";
+"Reset time unavailable" = "بازنشانی در ساعت: در دسترس نیست";
+"Run-out estimate unavailable" = "تمام می‌شود: در دسترس نیست";
+"Cost today unavailable" = "هزینهٔ امروز: در دسترس نیست";
+"30-day cost unavailable" = "هزینهٔ ۳۰ روز: در دسترس نیست";
+"Resets" = "بازنشانی‌ها";

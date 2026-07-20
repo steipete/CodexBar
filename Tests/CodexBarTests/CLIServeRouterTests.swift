@@ -13,6 +13,37 @@ import Glibc
 // swiftlint:disable:next type_body_length
 struct CLIServeRouterTests {
     @Test
+    func `local HTTP connection gate caps pre-auth clients`() {
+        let gate = CLILocalHTTPConnectionGate(maximumConnections: 2)
+
+        #expect(gate.tryAcquire())
+        #expect(gate.tryAcquire())
+        #expect(!gate.tryAcquire())
+        #expect(gate.activeCount == 2)
+        gate.release()
+        #expect(gate.tryAcquire())
+        #expect(gate.activeCount == 2)
+        gate.release()
+        gate.release()
+        #expect(gate.activeCount == 0)
+    }
+
+    @Test
+    func `usage operation fingerprint separates dashboard account mode`() {
+        let allAccounts = CodexBarCLI.serveUsageOperationFingerprint(
+            configFingerprint: "config",
+            includeAllCodexAccounts: true)
+        let selectedAccount = CodexBarCLI.serveUsageOperationFingerprint(
+            configFingerprint: "config",
+            includeAllCodexAccounts: false)
+
+        #expect(allAccounts != selectedAccount)
+        #expect(allAccounts == CodexBarCLI.serveUsageOperationFingerprint(
+            configFingerprint: "config",
+            includeAllCodexAccounts: true))
+    }
+
+    @Test
     func `termination monitor handles interactive and hangup signals`() {
         #expect(CLITerminationSignalMonitor.signalNumbers == [SIGINT, SIGTERM, SIGHUP])
     }
@@ -48,6 +79,55 @@ struct CLIServeRouterTests {
     }
 
     @Test
+    func `local http parser captures a single authorization header`() throws {
+        let raw = [
+            "GET /usage HTTP/1.1",
+            "Host: localhost",
+            "authorization: Bearer token",
+            "",
+            "",
+        ].joined(separator: "\r\n")
+        let request = try CLILocalHTTPRequest.parse(Data(raw.utf8)).get()
+
+        #expect(request.authorization == "Bearer token")
+        #expect(try Self.parsedRequest(host: "localhost").authorization == nil)
+        Self.expectParseFailure(
+            raw: "GET /usage HTTP/1.1\r\nHost: localhost\r\nAuthorization: a\r\nAuthorization: b\r\n\r\n",
+            .duplicateAuthorization)
+    }
+
+    @Test
+    func `local http parser extends the allowed host set without replacing loopback`() throws {
+        let raw = "GET /usage HTTP/1.1\r\nHost: 192.168.1.10:8080\r\n\r\n"
+
+        Self.expectParseFailure(raw: raw, .disallowedHost)
+
+        let allowed = CLILocalHTTPAllowedHosts.loopbackAnd(["192.168.1.10"])
+        let request = try CLILocalHTTPRequest.parse(Data(raw.utf8), allowedHosts: allowed).get()
+        #expect(request.host == "192.168.1.10:8080")
+        #expect(request.path == "/usage")
+        let loopback = try CLILocalHTTPRequest.parse(
+            Data("GET /usage HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8),
+            allowedHosts: allowed).get()
+        #expect(loopback.host == "localhost")
+        Self.expectParseFailure(
+            raw: "GET /usage HTTP/1.1\r\nHost: evil.test\r\n\r\n",
+            .disallowedHost,
+            allowedHosts: allowed)
+
+        let wildcard = try CLILocalHTTPRequest.parse(Data(raw.utf8), allowedHosts: .any).get()
+        #expect(wildcard.host == "192.168.1.10:8080")
+        let alternateLoopback = try CLILocalHTTPRequest.parse(
+            Data("GET /usage HTTP/1.1\r\nHost: 127.0.0.2\r\n\r\n".utf8),
+            allowedHosts: CLIServeSecurity.allowedHosts(forBindHost: "127.0.0.2")).get()
+        #expect(alternateLoopback.host == "127.0.0.2")
+        Self.expectParseFailure(
+            raw: "GET /usage HTTP/1.1\r\nHost: 192.168.1.10, evil.test\r\n\r\n",
+            .disallowedHost,
+            allowedHosts: .any)
+    }
+
+    @Test
     func `routes health usage and cost endpoints`() throws {
         #expect(try CLIServeRouter.route(method: "GET", path: "/health", queryItems: [:]) == .health)
         #expect(try CLIServeRouter.route(method: "GET", path: "/usage", queryItems: [:]) == .usage(provider: nil))
@@ -61,6 +141,11 @@ struct CLIServeRouterTests {
                 method: "GET",
                 path: "/cost",
                 queryItems: ["provider": "codex"]) == .cost(provider: "codex"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: [:]) == .dashboardSnapshot)
     }
 
     @Test
@@ -1404,8 +1489,12 @@ struct CLIServeRouterTests {
         return try CLILocalHTTPRequest.parse(Data(raw.utf8)).get()
     }
 
-    private static func expectParseFailure(raw: String, _ expected: CLILocalHTTPRequestParseError) {
-        switch CLILocalHTTPRequest.parse(Data(raw.utf8)) {
+    private static func expectParseFailure(
+        raw: String,
+        _ expected: CLILocalHTTPRequestParseError,
+        allowedHosts: CLILocalHTTPAllowedHosts = .loopbackOnly)
+    {
+        switch CLILocalHTTPRequest.parse(Data(raw.utf8), allowedHosts: allowedHosts) {
         case .success:
             Issue.record("Expected \(expected)")
         case let .failure(error):

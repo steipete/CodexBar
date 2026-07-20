@@ -86,5 +86,25 @@ struct BrowserCookieOrderStatusStringTests {
         #expect(ProviderDefaults.metadata[.copilot]?.browserCookieOrder == [.chrome])
         #expect(ProviderBrowserCookieDefaults.copilotCookieImportOrder == [.chrome])
     }
+
+    @Test
+    func `mistral cookie import order supports chrome firefox and safari`() {
+        let order = ProviderDefaults.metadata[.mistral]?.browserCookieOrder ?? Browser.defaultImportOrder
+        #expect(order == ProviderBrowserCookieDefaults.mistralCookieImportOrder)
+        #expect(order == [.chrome, .firefox, .safari])
+        #expect(order.first == .chrome)
+        #expect(order.contains(.firefox))
+        #expect(!order.contains(.edge))
+        #expect(!order.contains(.arc))
+        #expect(MistralCookieImporter.resolvedImportOrder(nil) == order)
+        #expect(MistralCookieImporter.resolvedImportOrder([]) == order)
+        #expect(MistralCookieImporter.resolvedImportOrder([.firefox]) == [.firefox])
+    }
+
+    @Test
+    func `longcat cookie imports default to chrome only`() {
+        #expect(ProviderDefaults.metadata[.longcat]?.browserCookieOrder == [.chrome])
+        #expect(ProviderBrowserCookieDefaults.longcatCookieImportOrder == [.chrome])
+    }
     #endif
 }

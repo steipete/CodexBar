@@ -1514,7 +1514,7 @@ private func codexWeeklySnapshot(
             loginMethod: "test"))
 }
 
-private final class SessionLimitResetEventRecorder: @unchecked Sendable {
+final class SessionLimitResetEventRecorder: @unchecked Sendable {
     struct Event {
         let provider: UsageProvider
         let accountLabel: String?
@@ -1577,7 +1577,7 @@ private final class SessionLimitResetEventRecorder: @unchecked Sendable {
     }
 }
 
-private final class WeeklyLimitResetEventRecorder: @unchecked Sendable {
+final class WeeklyLimitResetEventRecorder: @unchecked Sendable {
     struct Event {
         let provider: UsageProvider
         let accountLabel: String?

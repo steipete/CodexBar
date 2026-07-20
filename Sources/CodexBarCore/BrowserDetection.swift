@@ -94,7 +94,7 @@ public final class BrowserDetection: Sendable {
     ///
     /// This is intentionally stricter than `isAppInstalled`: non-Safari browsers must still be installed,
     /// and Chromium browsers must have profile data (to avoid stale sources and unnecessary Keychain prompts).
-    public func isCookieSourceAvailable(_ browser: Browser) -> Bool {
+    public func isCookieSourceAvailable(_ browser: Browser, applicationURL: URL? = nil) -> Bool {
         let homeURL = URL(fileURLWithPath: self.homeDirectory, isDirectory: true)
         guard BrowserCookieAccessGate.cookieStoreAccessDecision(homeDirectories: [homeURL]) == .allowed else {
             return false
@@ -106,7 +106,7 @@ public final class BrowserDetection: Sendable {
         }
 
         // Do not cache app presence here: uninstalling a browser must remove it from the next import attempt.
-        guard self.detectAppInstalled(for: browser) else { return false }
+        guard self.hasInstalledApplication(browser, applicationURL: applicationURL) else { return false }
 
         // For browsers that typically require keychain-backed decryption, ensure an actual cookie store exists.
         if self.requiresProfileValidation(browser) {
@@ -114,6 +114,29 @@ public final class BrowserDetection: Sendable {
         }
 
         return self.hasUsableProfileData(browser)
+    }
+
+    /// Interactive login can create a browser profile or cookie store after launch. Allow an installed browser when
+    /// its profile root is absent or readable, while rejecting a known profile root that CodexBar cannot inspect.
+    /// The concrete application URL lets callers recognize renamed bundles after separately validating their bundle ID.
+    /// Ordinary background imports remain stricter and still require an existing cookie store.
+    func isInteractiveCookieSourceAvailable(_ browser: Browser, applicationURL: URL? = nil) -> Bool {
+        let homeURL = URL(fileURLWithPath: self.homeDirectory, isDirectory: true)
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(homeDirectories: [homeURL]) == .allowed else {
+            return false
+        }
+
+        if browser == .safari {
+            return self.hasReadableSafariCookieSource()
+        }
+
+        guard self.hasInstalledApplication(browser, applicationURL: applicationURL),
+              let profilePath = self.profilePath(for: browser, homeDirectory: self.homeDirectory)
+        else {
+            return false
+        }
+
+        return self.profileAccessIssue(profilePath) == nil
     }
 
     func cookieSourceProfileAccessIssue(_ browser: Browser) -> BrowserProfileAccessIssue? {
@@ -127,6 +150,18 @@ public final class BrowserDetection: Sendable {
         }
 
         return self.profileAccessIssue(profilePath)
+    }
+
+    /// Cursor interactive login needs a concrete readable Safari source before it can safely pin Safari. Keep the
+    /// general Safari importer best-effort because it can discover new storage paths at read time.
+    func hasReadableSafariCookieSource() -> Bool {
+        let homeURL = URL(fileURLWithPath: self.homeDirectory, isDirectory: true)
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(homeDirectories: [homeURL]) == .allowed else {
+            return false
+        }
+        return self.safariCookieAccessProbePaths().contains { path in
+            self.fileExists(path) && self.profileAccessIssue(path) == nil
+        }
     }
 
     public func hasUsableProfileData(_ browser: Browser) -> Bool {
@@ -166,13 +201,21 @@ public final class BrowserDetection: Sendable {
     }
 
     private func detectAppInstalled(for browser: Browser) -> Bool {
-        let appPaths = self.applicationPaths(for: browser)
-        for path in appPaths where self.fileExists(path) {
-            return true
+        self.applicationNames(for: browser).contains { appName in
+            let appPaths = [
+                "/Applications/\(appName).app",
+                "\(self.homeDirectory)/Applications/\(appName).app",
+            ]
+            return appPaths.contains(where: self.fileExists) ||
+                self.applicationURLs(appName).contains { self.fileExists($0.path) }
         }
+    }
 
-        guard let appName = self.applicationName(for: browser) else { return false }
-        return self.applicationURLs(appName).contains { self.fileExists($0.path) }
+    private func hasInstalledApplication(_ browser: Browser, applicationURL: URL?) -> Bool {
+        if let applicationURL {
+            return self.fileExists(applicationURL.path)
+        }
+        return self.detectAppInstalled(for: browser)
     }
 
     private func detectUsableProfileData(for browser: Browser) -> Bool {
@@ -204,17 +247,11 @@ public final class BrowserDetection: Sendable {
         return self.hasValidCookieStore(for: browser, at: profilePath)
     }
 
-    private func applicationPaths(for browser: Browser) -> [String] {
-        guard let appName = self.applicationName(for: browser) else { return [] }
-
-        return [
-            "/Applications/\(appName).app",
-            "\(self.homeDirectory)/Applications/\(appName).app",
-        ]
-    }
-
-    private func applicationName(for browser: Browser) -> String? {
-        browser.appBundleName
+    private func applicationNames(for browser: Browser) -> [String] {
+        if browser == .firefox {
+            return [browser.appBundleName, "Firefox Developer Edition"]
+        }
+        return [browser.appBundleName]
     }
 
     private static func registeredApplicationURLs(named appName: String) -> [URL] {
@@ -238,6 +275,17 @@ public final class BrowserDetection: Sendable {
         }
 
         return nil
+    }
+
+    /// Directories Cursor's Safari importer may need to traverse. Probing directory metadata detects Full Disk Access
+    /// failures without opening or parsing the cookie files themselves.
+    private func safariCookieAccessProbePaths() -> [String] {
+        [
+            "\(self.homeDirectory)/Library/Cookies",
+            "\(self.homeDirectory)/Library/Containers/com.apple.Safari/Data/Library/Cookies",
+            "\(self.homeDirectory)/Library/Containers/com.apple.Safari/Data/Library/WebKit/WebsiteDataStore",
+            "\(self.homeDirectory)/Library/WebKit/WebsiteDataStore",
+        ]
     }
 
     private func requiresProfileValidation(_ browser: Browser) -> Bool {
@@ -312,14 +360,26 @@ public final class BrowserDetection: Sendable {
             if self.isPermissionError(error) {
                 return .accessDenied
             }
-            let nsError = error as NSError
-            if nsError.domain == NSCocoaErrorDomain,
-               nsError.code == CocoaError.fileNoSuchFile.rawValue
-            {
+            if self.isMissingFileError(error) {
                 return nil
             }
             return .unreadable
         }
+    }
+
+    private static func isMissingFileError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain,
+           nsError.code == CocoaError.fileNoSuchFile.rawValue ||
+           nsError.code == CocoaError.fileReadNoSuchFile.rawValue
+        {
+            return true
+        }
+        if nsError.domain == NSPOSIXErrorDomain, nsError.code == Int(ENOENT) {
+            return true
+        }
+        guard let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error else { return false }
+        return Self.isMissingFileError(underlying)
     }
 
     private static func isPermissionError(_ error: Error) -> Bool {
@@ -364,8 +424,9 @@ public struct BrowserDetection: Sendable {
         false
     }
 
-    public func isCookieSourceAvailable(_ browser: Browser) -> Bool {
-        false
+    public func isCookieSourceAvailable(_ browser: Browser, applicationURL: URL? = nil) -> Bool {
+        _ = applicationURL
+        return false
     }
 
     public func hasUsableProfileData(_ browser: Browser) -> Bool {

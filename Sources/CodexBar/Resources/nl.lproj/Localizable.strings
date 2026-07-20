@@ -1,8 +1,33 @@
 /* Dutch localization for CodexBar */
 
+"tab_hooks" = "Hooks";
+"hooks_enable_title" = "Hooks inschakelen";
+"hooks_enable_subtitle" = "Voer externe opdrachten uit bij quota- of providergebeurtenissen.";
+"hooks_trust_warning" = "Hooks kunnen lokale opdrachten op je Mac uitvoeren. Configureer alleen opdrachten die je vertrouwt.";
+"hooks_rules_header" = "Regels";
+"hooks_empty" = "Geen hooks geconfigureerd.";
+"hooks_add_rule" = "Regel toevoegen";
+"hooks_delete_rule" = "Regel verwijderen";
+"hooks_rule_enabled" = "Ingeschakeld";
+"hooks_event" = "Gebeurtenis";
+"hooks_provider" = "Provider";
+"hooks_any_provider" = "Elke provider";
+"hooks_threshold" = "Uitvoeren bij gebruik ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "Argumenten";
+"hooks_argument_placeholder" = "Argument";
+"hooks_add_argument" = "Argument toevoegen";
+"hooks_delete_argument" = "Argument verwijderen";
+
+"ollama_safari_cookie_access_hint" = "Safari-cookies vereisen volledige schijftoegang voor CodexBar (Systeeminstellingen > Privacy en beveiliging).";
+"ollama_browser_cookie_decryption_denied" = "Het ontsleutelen van %@-cookies is geweigerd in Sleutelhanger; probeer opnieuw met handmatig vernieuwen.";
+"ollama_browser_cookie_decryption_disabled" = "Het ontsleutelen van %@-cookies is uitgeschakeld in CodexBar; schakel Sleutelhangertoegang in en vernieuw.";
+
 " providers" = " providers";
 "(System)" = "(Systeem)";
 "30d" = "30d";
+"7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Er is al een beheerde Codex-aanmelding actief. Wacht tot het klaar is voordat je het toevoegt";
 "API key" = "API-sleutel";
 "API region" = "API-regio";
@@ -297,7 +322,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Bewaar meerdere OpenCode Go Cookie-headers.";
 "Stored in the CodexBar config file." = "Opgeslagen in het CodexBar-configuratiebestand.";
 "Stored in ~/.codexbar/config.json. " = "Opgeslagen in ~/.codexbar/config.json.";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Opgeslagen in ~/.codexbar/config.json. Genereer er een op kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Opgeslagen in ~/.codexbar/config.json. Plak de sleutel uit het synthetische dashboard.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Opgeslagen in ~/.codexbar/config.json. Plak de API-sleutel van uw codeerplan uit Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Opgeslagen in ~/.codexbar/config.json. Plak uw MiniMax API-sleutel.";
@@ -437,7 +461,7 @@
 "cost_history_window_title" = "Geschiedenisvenster";
 "cost_history_window_help" = "Stelt in hoeveel dagen lokale gebruikslogboeken in het menu verschijnen.";
 "cost_history_days_title" = "Geschiedenisvenster: %d dagen";
-"cost_auto_refresh_info" = "Automatisch vernieuwen: elk uur · Time-out: 10m";
+"cost_auto_refresh_info" = "Automatisch vernieuwen: algemeen interval (minimaal 5 min) · Time-out: 10 min";
 "cost_comparison_periods_title" = "Kortere vergelijkingsperioden tonen";
 "cost_comparison_periods_subtitle" = "Voegt totalen voor 7, 30 en 90 dagen toe wanneer ze binnen het geselecteerde geschiedenisvenster vallen. Deze totalen gebruiken dezelfde lokale scan.";
 "refresh_interval_title" = "Vernieuwingsinterval";
@@ -525,13 +549,14 @@
 "menu_bar_metric_subtitle_deepseek" = "Toont het DeepSeek-saldo in de menubalk.";
 "menu_bar_metric_subtitle_moonshot" = "Toont het Moonshot / Kimi API-saldo in de menubalk.";
 "menu_bar_metric_subtitle_mistral" = "Toont de Mistral API-uitgaven van de huidige maand in de menubalk.";
-"menu_bar_metric_subtitle_kimik2" = "Toont Kimi K2 API-sleutelcredits in de menubalk.";
 "automatic" = "Automatisch";
 "primary_api_key_limit" = "Primair (API-sleutellimiet)";
 
 /* Display Pane */
 "menu_bar_style_title" = "Menubalkstijl";
 "menu_bar_style_subtitle" = "Hoe het menubalkitem wordt weergegeven.";
+"menu_bar_inactive_display_contrast_title" = "Zichtbaarheid op inactieve beeldschermen verbeteren";
+"menu_bar_inactive_display_contrast_subtitle" = "Gebruikt weergave met hoog contrast zodat het pictogram en de metriek leesbaar blijven op andere beeldschermen.";
 "menu_bar_style_critters" = "Critters";
 "menu_bar_style_bars" = "Meterbalken";
 "menu_bar_style_icon_percent" = "Pictogram en percentage";
@@ -574,6 +599,12 @@
 "agent_sessions_subtitle" = "Toon lokale en via SSH gevonden Codex- en Claude Code-sessies in het menu.";
 "agent_sessions_hosts_title" = "Aanvullende SSH-hosts";
 "agent_sessions_footer" = "Macs op uw tailnet worden automatisch gevonden. Lokale sessies worden elke 30 seconden vernieuwd; externe hosts elke 60 seconden en wanneer het menu wordt geopend.";
+"agent_session_labels_title" = "Sessielabels";
+"agent_session_labels_subtitle" = "Kies hoe agentsessies worden benoemd.";
+"agent_session_label_project" = "Project";
+"agent_session_label_descriptive" = "Beschrijvend";
+"agent_session_label_descriptive_and_project" = "Beschrijvend + project";
+"agent_session_unknown_project" = "Onbekend project";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Sneltoets";
@@ -705,13 +736,19 @@
 "refresh_15min" = "15 minuten";
 "refresh_30min" = "30 min";
 "refresh_adaptive" = "Adaptief";
+"refresh_adaptive_agent_aware" = "Adaptief (agentactiviteit)";
+"adaptive_activity_consent_title" = "Activiteitsgestuurd vernieuwen toestaan?";
+"adaptive_activity_consent_message" = "De agentbewuste adaptieve modus kan de lijst met lokaal actieve processen, inclusief opdrachtregels, controleren om Codex en Claude te herkennen en vervolgens tijdens het programmeren elke 30 seconden bekende sessiemetadata lezen. Als Agent Sessions uitstaat, gebruikt CodexBar in het geheugen alleen het tijdstip van de meest recente activiteit en verwijdert het sessiepaden en identiteiten. Deze gegevens worden nergens naartoe gestuurd en detectie op afstand en SSH blijven uitgeschakeld. Als je weigert, keert CodexBar terug naar de gewone adaptieve modus zonder lokale activiteitsscans.";
+"adaptive_activity_consent_allow" = "Lokale activiteit toestaan";
+"adaptive_activity_consent_decline" = "Gewoon Adaptief gebruiken";
 
 /* Additional keys */
 "not_found" = "Niet gevonden";
 
 /* Cost estimation */
-"cost_header_estimated" = "Kosten (geschat)";
 "cost_estimate_hint" = "Geschat op basis van lokale logboeken · kan afwijken van uw factuur";
+"codex_api_estimate_hint" = "Geschat op basis van tokengebruik · geen abonnementsfactuur";
+"cost_data_explanation" = "Kosten kunnen door de provider worden gerapporteerd of worden geschat op basis van tokengebruik tegen openbare API-prijzen. Schattingen zijn geen abonnementskosten.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Geen JetBrains IDE met AI Assistant gedetecteerd. Installeer een JetBrains IDE en schakel AI Assistant in.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter API-token niet geconfigureerd. Stel de omgevingsvariabele OPENROUTER_API_KEY in of configureer deze in Instellingen.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai API-token niet gevonden. Stel apiKey in ~/.codexbar/config.json of Z_AI_API_KEY.";
@@ -741,6 +778,7 @@
 "Today" = "Vandaag";
 "Today tokens" = "Vandaag tokens";
 "30d cost" = "30d kosten";
+"%@ cost" = "%@ kosten";
 "30d tokens" = "30d-tokens";
 "Latest tokens" = "Nieuwste tokens";
 "Top model" = "Topmodel";
@@ -885,7 +923,7 @@
 "Hourly Usage" = "Uurgebruik";
 "Usage remaining" = "Resterend gebruik";
 "Usage used" = "Gebruik gebruikt";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API-sleutel geverifieerd. Ollama stelt geen Cloud-quotumlimieten bloot via de API.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API-sleutel geverifieerd. Cloud-quota vereisen browsercookies. Meld je aan bij Ollama.";
 "Last 30 days: %@ tokens" = "Afgelopen 30 dagen: %@ tokens";
 "7d spend" = "7d uitgaven";
 "30d spend" = "30d uitgaven";
@@ -1016,7 +1054,6 @@
 "CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar zal macOS Keychain om uw Cursor-cookieheader vragen, zodat deze het gebruik kan ophalen. Klik op OK om door te gaan.";
 "CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar zal macOS Keychain om uw Factory-cookieheader vragen, zodat deze het gebruik kan ophalen. Klik op OK om door te gaan.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar zal macOS Keychain om uw GitHub Copilot-token vragen, zodat deze het gebruik kan ophalen. Klik op OK om door te gaan.";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar vraagt ​​macOS Keychain om je Kimi K2 API-sleutel, zodat deze het gebruik kan ophalen. Klik op OK om door te gaan.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar vraagt ​​macOS Keychain om je Kimi-authenticatietoken, zodat het gebruik kan worden opgehaald. Klik op OK om door te gaan.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar zal macOS Keychain om uw MiniMax API-token vragen, zodat deze het gebruik kan ophalen. Klik op OK om door te gaan.";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar zal macOS Keychain om uw MiniMax-cookieheader vragen, zodat deze het gebruik kan ophalen. Klik op OK om door te gaan.";
@@ -1165,7 +1202,6 @@
 "byte_unit_megabytes" = "megabytes";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabytes";
-"CrossModel API spend trend" = "CrossModel API-uitgaventrend";
 
 /* Settings sidebar redesign */
 "Enable" = "Inschakelen";
@@ -1180,3 +1216,128 @@
 "Show Codex Spark usage" = "Codex Spark-gebruik tonen";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Toont Codex Spark-quotumregels in het menu en de voorvertoning van de provider. Vereist dat ‘Toon credits + extra gebruik’ is ingeschakeld in de instellingen voor Weergave.";
 "Scroll to see more models" = "Scroll om meer modellen te bekijken";
+"Copy Image" = "Afbeelding kopiëren";
+"Copy Stats" = "Statistieken kopiëren";
+"Could not copy image" = "Afbeelding kon niet worden gekopieerd";
+"Image copied" = "Afbeelding gekopieerd";
+"Image saved" = "Afbeelding bewaard";
+"Nothing is uploaded. This image is created on your Mac." = "Er wordt niets geüpload. Deze afbeelding wordt op je Mac gemaakt.";
+"Save..." = "Bewaar...";
+"Share AI Usage" = "AI-gebruik delen";
+"Share Stats…" = "Statistieken delen…";
+"Stats copied" = "Statistieken gekopieerd";
+"DeepSeek this month token usage trend" = "Trend van DeepSeek-tokengebruik deze maand";
+"Chrome profile" = "Chrome-profiel";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Kies welke aangemelde DeepSeek Platform-sessie gedetailleerd gebruik levert.";
+"Detailed usage unavailable." = "Gedetailleerd gebruik niet beschikbaar.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Meld je in Chrome aan bij DeepSeek Platform voor gedetailleerd gebruik.";
+"Select a DeepSeek Chrome profile in Settings." = "Selecteer een DeepSeek Chrome-profiel in Instellingen.";
+"Select profile…" = "Profiel selecteren…";
+
+"%@: %@" = "%@: %@";
+"Alternatively, set a custom path in Settings." = "U kunt ook een aangepast pad instellen in Instellingen.";
+"Choose a supported browser so CodexBar can read the matching account." = "Kies een ondersteunde browser zodat CodexBar het overeenkomende account kan lezen.";
+"Choose Cursor account" = "Kies Cursoraccount";
+"Choose which Cursor account CodexBar should use." = "Kies welk Cursor-account CodexBar moet gebruiken.";
+"Finish switching to a different Cursor account in your browser, then try again." = "Voltooi het overschakelen naar een ander Cursor-account in uw browser en probeer het vervolgens opnieuw.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Installeer een JetBrains IDE met AI Assistant ingeschakeld en vernieuw vervolgens CodexBar.";
+"Request quota: %@ / %@" = "Aanvraagquotum: %@ / %@";
+"Sign in with Claude Code..." = "Aanmelden met Claude Code...";
+"Timed out waiting for Cursor account switch. %@" = "Er is een time-out opgetreden tijdens het wachten op het wisselen van Cursor-account. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Er is een time-out opgetreden tijdens het wachten op het wisselen van Cursor-account. %@ Laatste fout: %@";
+"Use Account" = "Gebruik account";
+/* Spend dashboard */
+"tab_usage_spend" = "Gebruik en uitgaven";
+"Usage & Spend" = "Gebruik en uitgaven";
+"Local estimated cost history across supported providers." = "Lokale geschiedenis met geschatte kosten voor ondersteunde aanbieders.";
+"Time range" = "Tijdsbereik";
+"Track costs" = "Kosten bijhouden";
+"Cost tracking is off" = "Kostenregistratie is uitgeschakeld";
+"Turn on Track costs to build local estimates." = "Schakel ‘Kosten bijhouden’ in om lokale schattingen op te bouwen.";
+"No local cost history yet" = "Nog geen lokale kostengeschiedenis";
+"Turn on cost tracking or refresh after using a supported provider." = "Schakel kostenregistratie in of vernieuw nadat je een ondersteunde aanbieder hebt gebruikt.";
+"Refresh failures" = "Mislukte vernieuwingen";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Oorspronkelijke valuta’s blijven gescheiden; rijen met Codex-accounts sluiten Pi-sessiegeschiedenis uit.";
+"Spend unavailable" = "Uitgaven niet beschikbaar";
+"Model breakdown unavailable" = "Uitsplitsing per model niet beschikbaar";
+"Local estimated history" = "Lokaal geschatte geschiedenis";
+"Coverage" = "Dekking";
+"Estimated spend" = "Geschatte uitgaven";
+"Tracked tokens" = "Bijgehouden tokens";
+"Subscriptions" = "Abonnementen";
+"By subscription" = "Per abonnement";
+"No model-level history" = "Geen geschiedenis op modelniveau";
+"Daily estimated spend" = "Geschatte dagelijkse uitgaven";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d volledige vensters van 5 uur aan weeklimiet over · %d vensters tot reset";
+"Weekly cannot run out before reset at this pace" = "Het weeklimiet kan bij dit tempo niet vóór de reset opraken";
+"Weekly can run out ≈%d windows early" = "Het weeklimiet kan ≈%d vensters eerder opraken";
+"Estimated: %@" = "Schatting: %@";
+"Coding Plan" = "Codeerplan";
+"Agent Plan" = "Agentplan";
+"Team" = "Team";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "Indeling";
+"menu_bar_layout_footer" = "Sleep tokens om de menubalk in te delen. Klik op een token om deze toe te voegen; selecteer een geplaatst token en druk op Delete om het te verwijderen.";
+"menu_bar_layout_group_identity" = "Identiteit";
+"menu_bar_layout_group_usage" = "Gebruik";
+"menu_bar_layout_group_time" = "Tijd";
+"menu_bar_layout_group_money" = "Kosten";
+"menu_bar_layout_group_structure" = "Structuur";
+"menu_bar_layout_scope_all" = "Alle providers";
+"menu_bar_layout_scope_help" = "Bewerk de standaardindeling of overschrijf deze voor één provider.";
+"menu_bar_layout_use_all" = "Indeling voor alle providers gebruiken";
+"menu_bar_layout_preset" = "Indelingsvoorinstelling";
+"menu_bar_layout_preset_icon_percent" = "Pictogram en percentage";
+"menu_bar_layout_preset_icon_only" = "Alleen pictogram";
+"menu_bar_layout_preset_percent_reset" = "Percentage en reset";
+"menu_bar_layout_preset_compact_stacked" = "Compact gestapeld";
+"menu_bar_layout_preset_custom" = "Aangepast";
+"menu_bar_layout_live_preview" = "Livevoorvertoning";
+"menu_bar_layout_strip" = "Menubalkstrook";
+"menu_bar_layout_remove_line_break" = "Regeleinde verwijderen";
+"menu_bar_layout_chip_hint" = "Selecteer, sleep om te herschikken of gebruik de actie Verwijderen.";
+"menu_bar_layout_palette_hint" = "Klik om toe te voegen of sleep naar de indeling.";
+"menu_bar_layout_empty_line" = "Zet hier een token neer";
+"menu_bar_layout_line" = "Regel %d";
+"menu_bar_layout_drag_remove" = "Sleep hierheen om te verwijderen";
+"menu_bar_layout_size" = "Grootte";
+"menu_bar_layout_size_small" = "Klein";
+"menu_bar_layout_size_regular" = "Normaal";
+"menu_bar_layout_gap" = "Tussenruimte";
+"menu_bar_layout_gap_tight" = "Krap";
+"menu_bar_layout_gap_regular" = "Normaal";
+"menu_bar_layout_keyboard_hint" = "Delete verwijdert het geselecteerde token";
+"menu_bar_layout_sample_account" = "account";
+"menu_bar_layout_sample_runs_out" = "op vr.";
+"menu_bar_layout_token_icon" = "Pictogram";
+"menu_bar_layout_token_provider" = "Providernaam";
+"menu_bar_layout_token_account" = "Account";
+"menu_bar_layout_token_session" = "Sessie %";
+"menu_bar_layout_token_weekly" = "Wekelijks %";
+"menu_bar_layout_token_auto" = "Automatisch %";
+"menu_bar_layout_token_bar" = "Gebruiksbalk";
+"menu_bar_layout_token_resets_in" = "Reset over";
+"menu_bar_layout_token_reset_at" = "Reset om";
+"menu_bar_layout_token_runs_out" = "Op";
+"menu_bar_layout_token_cost_today" = "Kosten vandaag";
+"menu_bar_layout_token_cost_30d" = "Kosten 30 dagen";
+"menu_bar_layout_token_space" = "Spatie";
+"menu_bar_layout_token_line_break" = "Regeleinde";
+"menu_bar_layout_token_separator_accessibility" = "Scheidingspunt";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "Pictogram: Niet beschikbaar";
+"%@ icon" = "%@: Pictogram";
+"Provider name unavailable" = "Providernaam: Niet beschikbaar";
+"Account unavailable" = "Account: Niet beschikbaar";
+"%@ unavailable" = "%@: Niet beschikbaar";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "Gebruiksbalk: Niet beschikbaar";
+"Usage bar, %d of 3 filled" = "Gebruiksbalk: %d/3 gevuld";
+"Reset countdown unavailable" = "Reset over: Niet beschikbaar";
+"Reset time unavailable" = "Reset om: Niet beschikbaar";
+"Run-out estimate unavailable" = "Op: Niet beschikbaar";
+"Cost today unavailable" = "Kosten vandaag: Niet beschikbaar";
+"30-day cost unavailable" = "Kosten 30 dagen: Niet beschikbaar";
+"Resets" = "Resets";

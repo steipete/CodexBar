@@ -25,6 +25,43 @@ struct CostUsageFetcherUnknownModelPricingTests {
     }
 
     @Test
+    func `pricing retry preserves disabled pi session merging`() async throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        let piAssistant: [String: Any] = [
+            "type": "message",
+            "timestamp": fixture.environment.isoString(for: fixture.day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "openai/gpt-5.4",
+                "timestamp": Int(fixture.day.timeIntervalSince1970 * 1000),
+                "usage": ["input": 50, "output": 10, "totalTokens": 60],
+            ],
+        ]
+        _ = try fixture.environment.writePiSessionFile(
+            relativePath: "2026-04-12T12-00-00-000Z_retry.jsonl",
+            contents: fixture.environment.jsonl([piAssistant]))
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: fixture.environment.piSessionsRoot,
+            cacheRoot: fixture.environment.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: fixture.day,
+            refreshPricingInBackground: false,
+            includePiSessions: false,
+            scannerOptions: fixture.options,
+            piScannerOptions: piOptions,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
+                data: fixture.refreshedCatalog)))
+
+        #expect(snapshot.daily.first?.totalTokens == 110)
+        #expect(snapshot.daily.first?.modelBreakdowns?.map(\.modelName) == ["gpt-new"])
+    }
+
+    @Test
     func `background pricing refresh returns unpriced usage before catalog download finishes`() async throws {
         let fixture = try UnknownModelPricingFixture()
         defer { fixture.environment.cleanup() }
@@ -128,6 +165,27 @@ struct CostUsageFetcherUnknownModelPricingTests {
         #expect(breakdown.totalTokens == 110)
         #expect(breakdown.costUSD == nil)
         #expect(requestCount == 0)
+    }
+
+    @Test
+    func `local only fetch skips every pricing network refresh`() async throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        let counter = UnknownModelPricingRequestCounter()
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: fixture.day,
+            allowPricingRefresh: false,
+            refreshPricingInBackground: false,
+            scannerOptions: fixture.options,
+            modelsDevClient: ModelsDevClient(
+                transport: CostUsageFetcherCountingModelsDevTransport(counter: counter)))
+
+        let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
+        #expect(breakdown.modelName == "gpt-new")
+        #expect(breakdown.costUSD == nil)
+        #expect(await counter.requestCount == 0)
     }
 }
 

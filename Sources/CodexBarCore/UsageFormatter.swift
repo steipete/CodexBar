@@ -237,6 +237,8 @@ public enum UsageFormatter {
         case .claude:
             "Estimated from local Claude logs at API rates; token totals include cache read/write tokens " +
                 "and may differ from Claude Code /status."
+        case .cursor:
+            "From Cursor's usage dashboard at vendor token rates; may differ from your invoice."
         default:
             self.costEstimateHint
         }

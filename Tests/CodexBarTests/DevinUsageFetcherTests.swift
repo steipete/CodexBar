@@ -314,33 +314,33 @@ struct DevinUsageFetcherTests {
     #if os(macOS)
     @Test
     func `empty app organization setting preserves imported organization`() async throws {
-        defer { DevinSessionImporter.importSessionOverrideForTesting = nil }
-        DevinSessionImporter.importSessionOverrideForTesting = { _, organizationOverride, _ in
+        try await DevinSessionImporter.withImportSessionOverrideForTesting { _, organizationOverride, _ in
             #expect(organizationOverride == nil)
             return DevinSessionImporter.SessionInfo(
-                accessToken: "auth1_abcdefghijklmnopqrstuvwxyz0123456789",
+                accessToken: "test-access-token",
                 organization: "org/example-org",
                 internalOrganizationID: "org_GQ6LhcfkW1TSinM6",
                 sourceLabel: "Chrome Default")
-        }
-        let stub = ProviderHTTPTransportStub { request in
-            #expect(request.url?.path == "/api/org_GQ6LhcfkW1TSinM6/billing/quota/usage")
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: nil)!
-            return (Data(#"{"daily_percentage":0,"weekly_percentage":0}"#.utf8), response)
-        }
+        } operation: {
+            let stub = ProviderHTTPTransportStub { request in
+                #expect(request.url?.path == "/api/org_GQ6LhcfkW1TSinM6/billing/quota/usage")
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil)!
+                return (Data(#"{"daily_percentage":0,"weekly_percentage":0}"#.utf8), response)
+            }
 
-        let snapshot = try await DevinUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0)).fetch(
-            organizationOverride: "",
-            now: Self.now,
-            transport: stub)
+            let snapshot = try await DevinUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0)).fetch(
+                organizationOverride: "",
+                now: Self.now,
+                transport: stub)
 
-        #expect(snapshot.organization == "example-org")
-        #expect(snapshot.daily?.usedPercent == 0)
-        #expect(snapshot.weekly?.usedPercent == 0)
+            #expect(snapshot.organization == "example-org")
+            #expect(snapshot.daily?.usedPercent == 0)
+            #expect(snapshot.weekly?.usedPercent == 0)
+        }
     }
 
     @Test

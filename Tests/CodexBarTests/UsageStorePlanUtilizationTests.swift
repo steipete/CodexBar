@@ -200,6 +200,36 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `opencodego history tabs include the monthly series`() {
+        let histories = [
+            planSeries(name: .session, windowMinutes: 300, entries: [
+                planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: 12),
+            ]),
+            planSeries(name: .weekly, windowMinutes: 10080, entries: [
+                planEntry(at: Date(timeIntervalSince1970: 1_700_086_400), usedPercent: 57),
+            ]),
+            planSeries(name: .monthly, windowMinutes: 43200, entries: [
+                planEntry(at: Date(timeIntervalSince1970: 1_700_086_400), usedPercent: 34),
+            ]),
+        ]
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 57, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 34, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(timeIntervalSince1970: 1_700_086_400),
+            identity: nil)
+
+        let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+            histories: histories,
+            provider: .opencodego,
+            snapshot: snapshot)
+
+        #expect(model.visibleSeries == ["session:300", "weekly:10080", "monthly:43200"])
+        #expect(model.selectedSeries == "session:300")
+    }
+
+    @MainActor
+    @Test
     func `session chart uses native reset boundaries and fills missing windows`() throws {
         let calendar = Calendar(identifier: .gregorian)
         let firstBoundary = try #require(calendar.date(from: DateComponents(
@@ -541,6 +571,44 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `cursor automatic history ignores dormant saved token account`() async throws {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        store.settings.addTokenAccount(
+            provider: .cursor,
+            label: "Dormant manual account",
+            token: "fixture")
+        let dormantAccount = try #require(store.settings.selectedTokenAccount(for: .cursor))
+        let dormantAccountKey = try #require(
+            UsageStore._planUtilizationTokenAccountKeyForTesting(
+                provider: .cursor,
+                account: dormantAccount))
+        store.settings.cursorCookieSource = .auto
+
+        let browserSnapshot = Self.makeSnapshot(provider: .cursor, email: "browser@example.com")
+        let browserAccountKey = try #require(
+            UsageStore._planUtilizationAccountKeyForTesting(
+                provider: .cursor,
+                snapshot: browserSnapshot))
+        store._setSnapshotForTesting(browserSnapshot, provider: .cursor)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .cursor,
+            snapshot: browserSnapshot,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let histories = store.planUtilizationHistory(for: .cursor)
+        let buckets = try #require(store.planUtilizationHistory[.cursor])
+        #expect(store.settings.selectedTokenAccount(for: .cursor)?.id == dormantAccount.id)
+        #expect(store.settings.effectiveSelectedTokenAccount(for: .cursor) == nil)
+        #expect(buckets.preferredAccountKey == browserAccountKey)
+        #expect(buckets.accounts[dormantAccountKey] == nil)
+        #expect(histories == buckets.accounts[browserAccountKey])
+        #expect(!histories.isEmpty)
+    }
+
+    @MainActor
+    @Test
     func `plan utilization menu hides while refreshing without current snapshot`() throws {
         let store = Self.makeStore()
         let claudeKey = try #require(
@@ -736,6 +804,42 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `opencodego plan history is always supported like codex and claude`() {
+        let store = Self.makeStore()
+        #expect(store.settings.historicalTrackingEnabled == false)
+        #expect(store.supportsPlanUtilizationHistory(for: .opencodego))
+    }
+
+    @MainActor
+    @Test
+    func `record plan history stores opencodego monthly series`() async {
+        let store = Self.makeStore()
+        // historicalTrackingEnabled defaults to false; opencodego must still record, like codex/claude.
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 57, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: RateWindow(usedPercent: 34, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .opencodego,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        store._setSnapshotForTesting(snapshot, provider: .opencodego)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .opencodego,
+            snapshot: snapshot,
+            now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let histories = store.planUtilizationHistory(for: .opencodego)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 12)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 57)
+        #expect(findSeries(histories, name: .monthly, windowMinutes: 43200)?.entries.last?.usedPercent == 34)
+    }
+
+    @MainActor
+    @Test
     func `generic provider weekly lane is persisted to provider history json`() async throws {
         let store = Self.makeStore()
         store.settings.historicalTrackingEnabled = true
@@ -765,7 +869,7 @@ struct UsageStorePlanUtilizationTests {
 
         let histories = store.planUtilizationHistory(for: .zai)
         #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.map(\.usedPercent) == [42, 58])
-        #expect(findSeries(histories, name: .session, windowMinutes: 300) == nil)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.map(\.usedPercent) == [15, 25])
 
         let providerURL = try #require(store.planUtilizationHistoryStore.directoryURL?
             .appendingPathComponent("zai.json", isDirectory: false))
@@ -1038,7 +1142,7 @@ struct UsageStorePlanUtilizationTests {
             .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
             .appendingPathComponent("history", isDirectory: true)
         let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
-        let buckets = PlanUtilizationHistoryBuckets(
+        var buckets = PlanUtilizationHistoryBuckets(
             preferredAccountKey: "alice",
             unscoped: [
                 planSeries(name: .session, windowMinutes: 300, entries: [
@@ -1055,11 +1159,28 @@ struct UsageStorePlanUtilizationTests {
                     ]),
                 ],
             ])
+        buckets.setSessionEquivalentWindowPairIdentity("session:standard|weekly:standard", for: "alice")
 
         store.save([.codex: buckets])
         let loaded = store.load()
 
         #expect(loaded == [.codex: buckets])
+    }
+
+    @Test
+    func `store persists an invalidated pair identity without histories`() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let directoryURL = root
+            .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
+            .appendingPathComponent("history", isDirectory: true)
+        let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
+        var buckets = PlanUtilizationHistoryBuckets()
+        buckets.invalidateSessionEquivalentWindowPairIdentity(for: nil)
+
+        store.save([.zai: buckets])
+
+        #expect(store.load() == [.zai: buckets])
     }
 }
 

@@ -70,6 +70,7 @@ enum ProviderChoice: String, AppEnum {
         case .openai: return nil // OpenAI not yet supported in widgets
         case .azureopenai: return nil // Azure OpenAI not yet supported in widgets
         case .claude: self = .claude
+        case .clinepass: return nil // ClinePass not yet supported in widgets
         case .gemini: self = .gemini
         case .alibaba: self = .alibaba
         case .alibabatokenplan: self = .alibabatokenplan
@@ -89,14 +90,12 @@ enum ProviderChoice: String, AppEnum {
         case .augment: return nil // Augment not yet supported in widgets
         case .jetbrains: return nil // JetBrains not yet supported in widgets
         case .kimi: self = .kimi
-        case .kimik2: return nil // Kimi K2 not yet supported in widgets
         case .moonshot: return nil // Moonshot not yet supported in widgets
         case .amp: return nil // Amp not yet supported in widgets
         case .t3chat: return nil // T3 Chat not yet supported in widgets
         case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets
-        case .crossmodel: return nil // CrossModel not yet supported in widgets
         case .clawrouter: return nil // ClawRouter not yet supported in widgets
         case .sub2api: return nil // sub2api not yet supported in widgets
         case .wayfinder: return nil // Wayfinder not yet supported in widgets
@@ -110,6 +109,7 @@ enum ProviderChoice: String, AppEnum {
         case .abacus: return nil // Abacus AI not yet supported in widgets
         case .mistral: self = .mistral
         case .deepseek: return nil // DeepSeek not yet supported in widgets
+        case .deepinfra: return nil // DeepInfra not yet supported in widgets
         case .codebuff: return nil // Codebuff not yet supported in widgets
         case .crof: return nil // Crof not yet supported in widgets
         case .venice: return nil // Venice not yet supported in widgets
@@ -124,7 +124,11 @@ enum ProviderChoice: String, AppEnum {
         case .deepgram: return nil // Deepgram not yet supported in widgets
         case .poe: return nil // Poe not yet supported in widgets
         case .chutes: return nil // Chutes not yet supported in widgets
+        case .longcat: return nil // LongCat not yet supported in widgets
         case .zed: return nil // Zed not yet supported in widgets
+        case .neuralwatt: return nil // Neuralwatt not yet supported in widgets
+        case .zenmux: return nil // ZenMux not yet supported in widgets
+        case .aiand: return nil // ai& not yet supported in widgets
         }
     }
 }

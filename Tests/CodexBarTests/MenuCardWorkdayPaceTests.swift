@@ -5,7 +5,7 @@ import Testing
 
 struct MenuCardWorkdayPaceTests {
     @Test
-    func `codex weekly lane shows exhausted pace before first configured workday`() throws {
+    func `codex weekly lane hides exhausted pace before first configured workday`() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         let now = try #require(calendar.date(from: DateComponents(
@@ -73,7 +73,7 @@ struct MenuCardWorkdayPaceTests {
             now: now))
 
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
-        #expect(weekly.detailLeftText == "100% in deficit")
-        #expect(weekly.detailRightText == "Runs out now")
+        #expect(weekly.detailLeftText == nil)
+        #expect(weekly.detailRightText == nil)
     }
 }

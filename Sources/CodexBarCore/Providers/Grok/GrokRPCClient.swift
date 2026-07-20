@@ -61,7 +61,8 @@ final class GrokRPCClient: @unchecked Sendable {
 
         let stdoutHandle = self.stdoutPipe.fileHandleForReading
         let stdoutLineContinuation = self.stdoutLineContinuation
-        let stdoutBuffer = LineBuffer()
+        let stdoutBuffer = BoundedLineBuffer()
+        let process = self.process
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -69,8 +70,15 @@ final class GrokRPCClient: @unchecked Sendable {
                 stdoutLineContinuation.finish()
                 return
             }
-            let lines = stdoutBuffer.appendAndDrainLines(data)
-            for lineData in lines {
+            let result = stdoutBuffer.appendAndDrainLines(data)
+            if result.didExceedLimit {
+                Self.log.warning("Grok RPC line exceeded memory limit; terminating process")
+                handle.readabilityHandler = nil
+                process.terminate()
+                stdoutLineContinuation.finish()
+                return
+            }
+            for lineData in result.lines {
                 stdoutLineContinuation.yield(lineData)
             }
         }
@@ -241,26 +249,6 @@ final class GrokRPCClient: @unchecked Sendable {
         case let int as Int: int
         case let number as NSNumber: number.intValue
         default: nil
-        }
-    }
-
-    private final class LineBuffer: @unchecked Sendable {
-        private var buffer = Data()
-        private let lock = NSLock()
-
-        func appendAndDrainLines(_ data: Data) -> [Data] {
-            self.lock.lock()
-            defer { lock.unlock() }
-            self.buffer.append(data)
-            var out: [Data] = []
-            while let newline = self.buffer.firstIndex(of: 0x0A) {
-                let lineData = Data(self.buffer[..<newline])
-                self.buffer.removeSubrange(...newline)
-                if !lineData.isEmpty {
-                    out.append(lineData)
-                }
-            }
-            return out
         }
     }
 }

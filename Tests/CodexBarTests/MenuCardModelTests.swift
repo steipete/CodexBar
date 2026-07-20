@@ -315,6 +315,9 @@ struct ProviderInlineDashboardModelTests {
 
     @Test
     func `mistral billing usage can show cost card summary`() throws {
+        let formatter = ISO8601DateFormatter()
+        let monthStart = try #require(formatter.date(from: "2023-11-01T00:00:00Z"))
+        let monthEnd = try #require(formatter.date(from: "2023-11-30T23:59:59Z"))
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.mistral])
         let snapshot = MistralUsageSnapshot(
@@ -341,8 +344,8 @@ struct ProviderInlineDashboardModelTests {
                             outputTokens: 50),
                     ]),
             ],
-            startDate: nil,
-            endDate: nil,
+            startDate: monthStart,
+            endDate: monthEnd,
             updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -1050,7 +1053,7 @@ struct MenuCardModelTests {
 
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
         #expect(model.tokenUsage?.monthLine.contains("tokens") == true)
-        #expect(model.tokenUsage?.hintLine == "Estimated from local Codex logs for the selected account.")
+        #expect(model.tokenUsage?.hintLine == "Estimated from token usage · not a subscription bill")
     }
 
     @Test

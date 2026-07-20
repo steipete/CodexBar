@@ -54,7 +54,7 @@ let package = Package(
     ],
     targets: {
         var targets: [Target] = [
-            // Host pkg-config paths contaminate cross-musl links; the module map supplies sqlite3 linkage.
+            // Both glibc and static-musl CLI builds use this target; the module map supplies sqlite3 linkage.
             .systemLibrary(
                 name: "CSQLite3",
                 providers: [
@@ -78,6 +78,7 @@ let package = Package(
                 dependencies: [
                     "CodexBarCore",
                     .product(name: "Commander", package: "Commander"),
+                    .product(name: "Crypto", package: "swift-crypto"),
                 ],
                 path: "Sources/CodexBarCLI",
                 swiftSettings: [

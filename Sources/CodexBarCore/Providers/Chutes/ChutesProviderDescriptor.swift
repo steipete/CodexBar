@@ -26,7 +26,12 @@ public enum ChutesProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .chutes,
                 iconResourceName: "ProviderIcon-chutes",
-                color: ProviderColor(red: 49 / 255, green: 132 / 255, blue: 255 / 255)),
+                color: ProviderColor(red: 49 / 255, green: 132 / 255, blue: 255 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x121212),
+                    ProviderColor(hex: 0xFFFFFF),
+                    ProviderColor(hex: 0x63D297),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Chutes cost history is not available from CodexBar." }),

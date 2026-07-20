@@ -17,6 +17,10 @@ struct UsagePaceTextTests {
         "Runs out in %@",
         "1.5× headroom",
         "≈ %d%% run-out risk",
+        "≈%d full 5h windows of weekly left · %d windows until reset",
+        "Weekly cannot run out before reset at this pace",
+        "Weekly can run out ≈%d windows early",
+        "Estimated: %@",
         "%@ · %@",
     ]
 

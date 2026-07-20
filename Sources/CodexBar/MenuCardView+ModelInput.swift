@@ -22,6 +22,7 @@ extension UsageMenuCardView.Model {
         let usageBarsShowUsed: Bool
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
+        let codexLocalSessionCostLedgerEnabled: Bool
         let tokenCostInlineDashboardEnabled: Bool
         let tokenCostMenuSectionEnabled: Bool
         let costComparisonPeriodsEnabled: Bool
@@ -32,6 +33,7 @@ extension UsageMenuCardView.Model {
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
         let weeklyPace: UsagePace?
+        let sessionEquivalentForecast: SessionEquivalentForecast?
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
         let workDaysPerWeek: Int?
         let usesLiveSubtitle: Bool
@@ -57,6 +59,7 @@ extension UsageMenuCardView.Model {
             usageBarsShowUsed: Bool,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
+            codexLocalSessionCostLedgerEnabled: Bool = false,
             tokenCostInlineDashboardEnabled: Bool? = nil,
             tokenCostMenuSectionEnabled: Bool? = nil,
             costComparisonPeriodsEnabled: Bool = false,
@@ -67,6 +70,7 @@ extension UsageMenuCardView.Model {
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
             weeklyPace: UsagePace? = nil,
+            sessionEquivalentForecast: SessionEquivalentForecast? = nil,
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
             workDaysPerWeek: Int? = nil,
             usesLiveSubtitle: Bool = false,
@@ -91,6 +95,7 @@ extension UsageMenuCardView.Model {
             self.usageBarsShowUsed = usageBarsShowUsed
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
+            self.codexLocalSessionCostLedgerEnabled = codexLocalSessionCostLedgerEnabled
             self.tokenCostInlineDashboardEnabled = tokenCostInlineDashboardEnabled ?? tokenCostUsageEnabled
             self.tokenCostMenuSectionEnabled = tokenCostMenuSectionEnabled ?? tokenCostUsageEnabled
             self.costComparisonPeriodsEnabled = costComparisonPeriodsEnabled
@@ -101,6 +106,7 @@ extension UsageMenuCardView.Model {
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
             self.weeklyPace = weeklyPace
+            self.sessionEquivalentForecast = sessionEquivalentForecast
             self.quotaWarningThresholds = quotaWarningThresholds
             self.workDaysPerWeek = workDaysPerWeek
             self.usesLiveSubtitle = usesLiveSubtitle

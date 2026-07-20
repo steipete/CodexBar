@@ -76,6 +76,7 @@ Admin API key setup:
   - `five_hour` → session window.
   - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
+  - `limits[].weekly_scoped` → model-specific weekly windows; generic `All models` scopes stay in the main weekly row.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
@@ -123,27 +124,44 @@ The accepted multi-account design in
   [`cswap`](https://github.com/realiti4/claude-swap) executable (for example `~/.local/bin/cswap`).
 - Behavior: on each Claude refresh, CodexBar runs `cswap --list --json` independently of the ambient Claude fetch (no
   shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
-  active state, usage status, email (display only), and the 5-hour/7-day windows.
-- Display: when claude-swap reports more than one account, the Claude menu shows one stacked card per
-  account (active account first) alongside nothing else changing; with zero or one account the menu is
-  unchanged. Account identity is `claude-swap:<slot>`.
+  active state, usage status, email (display only), the 5-hour/7-day windows, and optional display-only model-scoped
+  weekly windows from `usage.scoped`.
+- Display: when claude-swap reports more than one account, the Claude menu and `codexbar cards` show one card per
+  account (active account first, then numeric slot) instead of ambient/token-account Claude cards. To use this
+  presentation with one account, enable “Show account card when only one account is available” or set
+  `claudeSwapShowSingleAccount: true` on the Claude provider in the resolved config file (normally
+  `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
+  zero accounts still use the ambient presentation, and account identity is `claude-swap:<slot>`, never the display
+  email.
+- Terminal scope: this automatic precedence is cards-only and works on every supported CLI platform. An explicit
+  Claude provider or `--source auto` remains eligible, while `--account`, `--account-index`, `--all-accounts`, and
+  explicit non-auto source flags bypass the adapter. `codexbar usage` and `codexbar serve` are unchanged.
 - Isolation: CodexBar never reads claude-swap or Claude Code credential storage for this feature; the
-  subprocess handles its own credential access. Adapter failures keep the last successful accounts as
-  stale data, surface the error in provider settings, and never affect the ambient Claude usage card.
+  subprocess handles its own credential access. In the app, adapter failures keep the last successful accounts as
+  stale data, surface the error in provider settings, and never affect the ambient Claude usage card. In terminal
+  cards, a list failure retains the current ambient output, adds a distinct `Claude (claude-swap)` footer entry, and
+  exits non-zero.
 - Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
-  `unavailable`) render as per-account notes instead of usage bars.
+  `unavailable`, and unknown future values) render as per-account notes instead of usage bars in both full and brief
+  cards. Active rows are marked `[active]`; no claude-swap row infers a plan badge.
 - Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
   `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
   Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs.
 - Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable. A failed switch remains visible
   on that account without discarding its last successful usage. A running Claude Code process can take up to the
   claude-swap Keychain cache interval to observe the new account.
-- When multiple claude-swap accounts are available, they take explicit precedence over Claude
+- Multiple claude-swap accounts—and a single account when explicitly enabled—take precedence over Claude
   token-account presentation (stacked cards and the segmented switcher).
 
 Packaged synthetic proof (fake `cswap` executable, no real accounts or credentials):
 
 ![Stacked claude-swap account cards](screenshots/claude-swap-accounts-synthetic-proof.png)
+
+Model-scoped weekly-window proof (synthetic data, no real accounts or credentials):
+
+| Before | After |
+| --- | --- |
+| ![claude-swap card before scoped windows](screenshots/claude-swap-scoped-before.png) | ![claude-swap card with a Fable scoped weekly window](screenshots/claude-swap-scoped-after.png) |
 
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
@@ -178,19 +196,21 @@ Packaged synthetic proof (fake `cswap` executable, no real accounts or credentia
         - `~/Library/Application Support/Claude/claude-code-sessions/**/.claude/projects`
     - Current Claude Desktop metadata under `claude-code-sessions` points to shared CLI session JSONL by
       `cliSessionId`; metadata-only directories are not treated as usage sources.
-  - Supported pi sessions:
+  - Supported pi-compatible sessions:
     - `~/.pi/agent/sessions/**/*.jsonl`
+    - `~/.omp/agent/sessions/**/*.jsonl`
 - Files: `**/*.jsonl` under the native project roots, discovered Claude Desktop project roots,
-  plus supported pi session files.
+  plus supported pi-compatible session files.
 - Parsing:
   - Native Claude logs parse lines with `type: "assistant"` and `message.usage`.
   - Uses per-model token counts (input, cache read/create, output).
   - Deduplicates streaming chunks by `message.id + requestId` (usage is cumulative per chunk).
-  - pi sessions attribute `anthropic` assistant usage to Claude and bucket it by assistant-turn timestamp, so a single pi
-    session can contribute to multiple models/days.
+  - pi and OMP sessions attribute `anthropic` assistant usage to Claude and bucket it by assistant-turn timestamp, so a
+    single pi-compatible session can contribute to multiple models/days.
+  - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
   - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v2.json`
-  - pi session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v1.json`
+  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
 
 ## Key files
 - OAuth: `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/*`

@@ -95,6 +95,10 @@ struct TokenAccountCLIContext {
             let settings = self.cookieSettings(provider: provider, account: account, config: config)
             return self.makeSnapshot(qoder: self.makeProviderCookieSettings(settings))
         }
+        if provider == .longcat {
+            let settings = self.cookieSettings(provider: provider, account: account, config: config)
+            return self.makeSnapshot(longcat: self.makeProviderCookieSettings(settings))
+        }
         if let snapshot = self.makeCookieBackedSnapshot(provider: provider, account: account, config: config) {
             return snapshot
         }
@@ -243,6 +247,7 @@ struct TokenAccountCLIContext {
         moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings? = nil,
         kilo: ProviderSettingsSnapshot.KiloProviderSettings? = nil,
         kimi: ProviderSettingsSnapshot.KimiProviderSettings? = nil,
+        longcat: ProviderSettingsSnapshot.LongCatProviderSettings? = nil,
         augment: ProviderSettingsSnapshot.AugmentProviderSettings? = nil,
         amp: ProviderSettingsSnapshot.AmpProviderSettings? = nil,
         commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings? = nil,
@@ -269,6 +274,7 @@ struct TokenAccountCLIContext {
             zai: zai,
             kilo: kilo,
             kimi: kimi,
+            longcat: longcat,
             augment: augment,
             moonshot: moonshot,
             amp: amp,
@@ -433,7 +439,9 @@ struct TokenAccountCLIContext {
         let routing = self.claudeCredentialRouting(account: account, config: config)
 
         if base == .auto {
-            if routing.adminAPIKey != nil { return .api }
+            if routing.adminAPIKey != nil {
+                return .api
+            }
             return routing.isOAuth ? .oauth : base
         }
 

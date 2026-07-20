@@ -181,4 +181,117 @@ struct OpenCodeGoMenuCardModelTests {
 
         #expect(model.providerCost == nil)
     }
+
+    @Test
+    func `inline dashboard falls back to inline chart when cost row is unavailable`() throws {
+        // "Inline only" cost display style: tokenCostMenuSectionEnabled is false (no Cost row),
+        // but tokenCostInlineDashboardEnabled is true. OpenCode Go should behave like
+        // Codex/Claude/Cursor here and still surface its cost history via the inline chart.
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 34, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now,
+            identity: nil)
+        let metadata = try #require(ProviderDefaults.metadata[.opencodego])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: 0.78,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: 22.13,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-17",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    requestCount: 200,
+                    costUSD: 0.78,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .opencodego,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            tokenCostInlineDashboardEnabled: true,
+            tokenCostMenuSectionEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.tokenUsage == nil)
+        #expect(model.inlineUsageDashboard != nil)
+    }
+
+    @Test
+    func `cost row takes precedence over inline chart when both are enabled`() throws {
+        // "Both" cost display style: matches Codex/Claude, which show the Cost row and the
+        // inline chart simultaneously rather than one suppressing the other.
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 34, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now,
+            identity: nil)
+        let metadata = try #require(ProviderDefaults.metadata[.opencodego])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: 0.78,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: 22.13,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-17",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    requestCount: 200,
+                    costUSD: 0.78,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .opencodego,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            tokenCostInlineDashboardEnabled: true,
+            tokenCostMenuSectionEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.tokenUsage != nil)
+        #expect(model.inlineUsageDashboard != nil)
+    }
 }

@@ -9,6 +9,12 @@ const resources = path.join(repoRoot, "Sources/CodexBar/Resources");
 const english = readCatalog("en");
 const englishKeys = Object.keys(english).sort();
 const strictLocales = ["ar", "ca", "fa", "th"];
+// Catalogs that have reached full English-key coverage. New locales can remain
+// warning-only while they are being bootstrapped, then join this list once complete.
+const completeLocales = [
+  "ar", "ca", "de", "es", "fa", "fr", "gl", "id", "it", "ja", "ko", "nl", "pl", "pt-BR", "ru", "sv",
+  "th", "tr", "uk", "vi", "zh-Hans", "zh-Hant",
+];
 const languageKeys = ["language_arabic", "language_persian", "language_thai"];
 const isTest = process.argv.includes("--test");
 
@@ -90,6 +96,11 @@ if (isTest) {
     blankKeys({ alpha: "", beta: "  ", gamma: "ok" }, ["alpha", "beta", "gamma", "delta"]),
     ["alpha", "beta"],
     "blank keys");
+  assertEqual([...new Set(completeLocales)], completeLocales, "unique complete locales");
+  assertEqual(
+    strictLocales.filter((locale) => !completeLocales.includes(locale)),
+    [],
+    "strict locales are complete locales");
   console.log("app locale checker tests OK");
   process.exit(0);
 }
@@ -97,10 +108,10 @@ if (isTest) {
 let hasErrors = false;
 let checkedCount = 0;
 
-for (const strictLocale of strictLocales) {
-  const dirPath = path.join(resources, `${strictLocale}.lproj`);
+for (const completeLocale of completeLocales) {
+  const dirPath = path.join(resources, `${completeLocale}.lproj`);
   if (!fs.existsSync(dirPath)) {
-    console.error(`\x1b[31mError: Required strict locale catalog is completely missing: ${strictLocale}.lproj\x1b[0m`);
+    console.error(`\x1b[31mError: Required complete locale catalog is missing: ${completeLocale}.lproj\x1b[0m`);
     hasErrors = true;
   }
 }
@@ -120,9 +131,9 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
   const missingKeys = englishKeys.filter((key) => !catalogKeys.includes(key));
   if (missingKeys.length > 0) {
     const missingKeyList = formatKeyList(missingKeys);
-    if (strictLocales.includes(locale)) {
+    if (completeLocales.includes(locale)) {
       console.error(
-        `\x1b[31m[${locale}] Error: Missing ${missingKeys.length} keys in strict locale: ${missingKeyList}.\x1b[0m`);
+        `\x1b[31m[${locale}] Error: Missing ${missingKeys.length} keys in complete locale: ${missingKeyList}.\x1b[0m`);
       hasErrors = true;
     } else {
       console.warn(`\x1b[33m[${locale}] Warning: Missing ${missingKeys.length} keys: ${missingKeyList}.\x1b[0m`);

@@ -15,6 +15,7 @@ struct ProviderPayload: Encodable {
     let credits: CreditsSnapshot?
     let antigravityPlanInfo: AntigravityPlanInfoSummary?
     let openaiDashboard: OpenAIDashboardSnapshot?
+    let diagnostic: String?
     let error: ProviderErrorPayload?
     let pace: ProviderPacePayload?
 
@@ -28,6 +29,7 @@ struct ProviderPayload: Encodable {
         case credits
         case antigravityPlanInfo
         case openaiDashboard
+        case diagnostic
         case error
         case pace
     }
@@ -44,6 +46,7 @@ struct ProviderPayload: Encodable {
         antigravityPlanInfo: AntigravityPlanInfoSummary?,
         openaiDashboard: OpenAIDashboardSnapshot?,
         error: ProviderErrorPayload?,
+        diagnostic: String? = nil,
         pace: ProviderPacePayload? = nil)
     {
         self.provider = provider.rawValue
@@ -56,6 +59,7 @@ struct ProviderPayload: Encodable {
         self.credits = credits
         self.antigravityPlanInfo = antigravityPlanInfo
         self.openaiDashboard = openaiDashboard
+        self.diagnostic = diagnostic
         self.error = error
         self.pace = pace
     }
@@ -72,6 +76,7 @@ struct ProviderPayload: Encodable {
         antigravityPlanInfo: AntigravityPlanInfoSummary?,
         openaiDashboard: OpenAIDashboardSnapshot?,
         error: ProviderErrorPayload?,
+        diagnostic: String? = nil,
         pace: ProviderPacePayload? = nil)
     {
         self.provider = providerID
@@ -84,6 +89,7 @@ struct ProviderPayload: Encodable {
         self.credits = credits
         self.antigravityPlanInfo = antigravityPlanInfo
         self.openaiDashboard = openaiDashboard
+        self.diagnostic = diagnostic
         self.error = error
         self.pace = pace
     }

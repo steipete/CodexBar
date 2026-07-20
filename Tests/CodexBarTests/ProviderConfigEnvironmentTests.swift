@@ -54,18 +54,6 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
-    func `applies API key override for cross model`() {
-        let config = ProviderConfig(id: .crossmodel, apiKey: "cm-token")
-        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: [:],
-            provider: .crossmodel,
-            config: config)
-
-        #expect(env[CrossModelSettingsReader.envKey] == "cm-token")
-        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .crossmodel))
-    }
-
-    @Test
     func `applies API key override for doubao`() {
         let config = ProviderConfig(id: .doubao, apiKey: "db-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -266,6 +254,34 @@ struct ProviderConfigEnvironmentTests {
     }
 
     @Test
+    func `applies cookie header override for longcat`() {
+        let config = ProviderConfig(
+            id: .longcat,
+            cookieHeader: "Cookie: passport_token=abc; uid=42",
+            cookieSource: .manual)
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .longcat,
+            config: config)
+
+        #expect(env[LongCatSettingsReader.cookieHeaderKey] == "Cookie: passport_token=abc; uid=42")
+        #expect(LongCatSettingsReader.cookieHeader(environment: env) == "Cookie: passport_token=abc; uid=42")
+    }
+
+    @Test
+    func `does not expose stored longcat cookie outside manual mode`() {
+        for source in [ProviderCookieSource.auto, .off] {
+            let config = ProviderConfig(id: .longcat, cookieHeader: "stale=1", cookieSource: source)
+            let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+                base: [:],
+                provider: .longcat,
+                config: config)
+
+            #expect(env[LongCatSettingsReader.cookieHeaderKey] == nil)
+        }
+    }
+
+    @Test
     func `applies API key override for moonshot`() {
         let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -309,6 +325,19 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[ElevenLabsSettingsReader.apiKeyEnvironmentKey] == "xi-token")
         #expect(ProviderTokenResolver.elevenLabsToken(environment: env) == "xi-token")
+    }
+
+    @Test
+    func `applies API key override for NeuralWatt`() {
+        let config = ProviderConfig(id: .neuralwatt, apiKey: "sk-neuralwatt-config")
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: [:],
+            provider: .neuralwatt,
+            config: config)
+
+        #expect(env[NeuralWattSettingsReader.apiKeyEnvironmentKey] == "sk-neuralwatt-config")
+        #expect(ProviderTokenResolver.neuralWattToken(environment: env) == "sk-neuralwatt-config")
+        #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .neuralwatt))
     }
 
     @Test
@@ -584,6 +613,41 @@ struct ProviderConfigEnvironmentTests {
 
         #expect(env[key] == nil)
         #expect(ProviderTokenResolver.deepseekToken(environment: env) == nil)
+    }
+
+    @Test
+    func `projects the legacy DeepSeek Platform token and stable profile identifier`() {
+        let config = ProviderConfig(
+            id: .deepseek,
+            apiKey: "legacy-api-key",
+            cookieHeader: "browser-platform-token",
+            deepseekProfileID: "/profiles/Profile 2",
+            deepseekProfileScope: "account-id")
+        let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
+            base: [:],
+            provider: .deepseek,
+            config: config)
+
+        #expect(env[DeepSeekSettingsReader.apiKeyEnvironmentKey] == nil)
+        #expect(env[DeepSeekSettingsReader.platformTokenEnvironmentKey] == "browser-platform-token")
+        #expect(env[DeepSeekSettingsReader.profileIDEnvironmentKey] == "chrome:Profile 2")
+        #expect(env[DeepSeekSettingsReader.profileScopeEnvironmentKey] == "account-id")
+    }
+
+    @Test
+    func `normalization preserves a legacy DeepSeek browser token and canonicalizes the profile path`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .deepseek,
+                cookieHeader: "browser-platform-token",
+                deepseekProfileID: "/profiles/Profile 2",
+                deepseekProfileScope: " account-id "),
+        ]).normalized()
+        let deepseek = try #require(config.providerConfig(for: .deepseek))
+
+        #expect(deepseek.cookieHeader == "browser-platform-token")
+        #expect(deepseek.deepseekProfileID == "chrome:Profile 2")
+        #expect(deepseek.deepseekProfileScope == "account-id")
     }
 
     @Test

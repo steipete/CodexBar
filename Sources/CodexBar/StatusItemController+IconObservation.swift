@@ -44,6 +44,9 @@ extension StatusItemController {
             showUsed: self.settings.usageBarsShowUsed)
         let creditsRemaining = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
         let displayText = showBrandPercent ? self.menuBarDisplayText(for: provider, snapshot: snapshot) : nil
+        let layoutCostSignature = showBrandPercent
+            ? self.storedMenuBarLayoutCostSignature(for: provider)
+            : nil
 
         return [
             provider.rawValue,
@@ -56,6 +59,23 @@ extension StatusItemController {
             "anim=\(self.shouldAnimate(provider: provider) ? "1" : "0")",
             "refreshing=\(self.store.refreshingProviders.contains(provider) ? "1" : "0")",
             "text=\(displayText ?? "nil")",
+            "layoutCost=\(layoutCostSignature ?? "nil")",
         ].joined(separator: "|")
+    }
+
+    private func storedMenuBarLayoutCostSignature(for provider: UsageProvider) -> String? {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering else { return nil }
+
+        let tokens = resolution.layout.lines.joined()
+        let showsToday = tokens.contains(.costToday)
+        let showsLast30Days = tokens.contains(.cost30d)
+        guard showsToday || showsLast30Days else { return nil }
+
+        let costs = self.menuBarLayoutCostStrings(provider: provider)
+        return [
+            "today=\(showsToday ? costs.today ?? "nil" : "unused")",
+            "last30Days=\(showsLast30Days ? costs.last30Days ?? "nil" : "unused")",
+        ].joined(separator: ",")
     }
 }

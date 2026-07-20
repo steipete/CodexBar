@@ -2,6 +2,12 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    struct DeepSeekProfileTransition {
+        var snapshot: UsageSnapshot
+        let accountID: UUID?
+        let hasSyntheticBalance: Bool
+    }
+
     func version(for provider: UsageProvider) -> String? {
         self.versions[provider]
     }
@@ -12,6 +18,62 @@ extension UsageStore {
 
     var claudeSnapshot: UsageSnapshot? {
         self.snapshots[.claude]
+    }
+
+    func presentationSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        if provider == .deepseek,
+           let transition = self.deepseekProfileTransition,
+           transition.accountID == self.settings.selectedTokenAccount(for: .deepseek)?.id
+        {
+            return transition.snapshot
+        }
+        if let snapshot = self.snapshots[provider] {
+            return snapshot
+        }
+        guard provider == .deepseek, self.refreshingProviders.contains(provider) else { return nil }
+        return self.lastKnownResetSnapshots[provider]
+    }
+
+    func beginDeepSeekProfileTransition(preservingBalance: Bool = true) {
+        guard self.deepseekProfileTransition == nil,
+              let snapshot = self.snapshots[.deepseek] ?? self.lastKnownResetSnapshots[.deepseek]
+        else { return }
+        var transitionSnapshot = snapshot.withoutDeepSeekDetailedUsage()
+        if !preservingBalance {
+            transitionSnapshot = transitionSnapshot.with(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: L("Refreshing")),
+                secondary: nil)
+        }
+        self.deepseekProfileTransition = DeepSeekProfileTransition(
+            snapshot: transitionSnapshot,
+            accountID: self.settings.selectedTokenAccount(for: .deepseek)?.id,
+            hasSyntheticBalance: !preservingBalance)
+    }
+
+    func markDeepSeekProfileTransitionUnavailable() {
+        guard var transition = self.deepseekProfileTransition,
+              transition.hasSyntheticBalance
+        else { return }
+        transition.snapshot = transition.snapshot.with(
+            primary: RateWindow(
+                usedPercent: 0,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: L("Unavailable")),
+            secondary: nil)
+        self.deepseekProfileTransition = transition
+    }
+
+    func clearDeepSeekProfileTransition() {
+        self.deepseekProfileTransition = nil
+    }
+
+    var deepseekProfileTransitionSnapshot: UsageSnapshot? {
+        self.deepseekProfileTransition?.snapshot
     }
 
     var lastCodexError: String? {
@@ -38,10 +100,23 @@ extension UsageStore {
         self.errors[provider]
     }
 
+    func diagnostic(for provider: UsageProvider) -> String? {
+        self.diagnostics[provider]
+    }
+
     func userFacingError(for provider: UsageProvider) -> String? {
         if let raw = self.errors[provider] {
-            guard provider == .codex else { return raw }
-            return CodexUIErrorMapper.userFacingMessage(raw)
+            switch provider {
+            case .codex:
+                return CodexUIErrorMapper.userFacingMessage(raw)
+            case .ollama:
+                return OllamaUIErrorMapper.userFacingMessage(raw)
+            default:
+                return raw
+            }
+        }
+        if let diagnostic = self.diagnostics[provider] {
+            return diagnostic
         }
         return self.unavailableMessage(for: provider)
     }
@@ -60,8 +135,6 @@ extension UsageStore {
             return ZaiSettingsError.missingToken.errorDescription
         case .openrouter:
             return OpenRouterSettingsError.missingToken.errorDescription
-        case .crossmodel:
-            return CrossModelSettingsError.missingToken.errorDescription
         case .clawrouter:
             return ClawRouterUsageError.missingCredentials.errorDescription
         case .sub2api:
@@ -80,6 +153,8 @@ extension UsageStore {
             return ElevenLabsUsageError.missingCredentials.errorDescription
         case .deepseek:
             return DeepSeekUsageError.missingCredentials.errorDescription
+        case .deepinfra:
+            return DeepInfraUsageError.missingCredentials.errorDescription
         case .perplexity:
             return PerplexityAPIError.missingToken.errorDescription
         case .minimax:

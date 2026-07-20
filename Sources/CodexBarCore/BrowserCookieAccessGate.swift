@@ -63,6 +63,10 @@ public enum BrowserCookieAccessGate {
 
     static let allowTestCookieAccessEnvironmentKey = "CODEXBAR_ALLOW_TEST_BROWSER_COOKIE_ACCESS"
 
+    public static func requiresKeychainPromptAcknowledgement(for browsers: [Browser]) -> Bool {
+        browsers.contains(where: \.usesKeychainForCookieDecryption)
+    }
+
     static func cookieStoreAccessDecision(
         homeDirectories: [URL],
         processName: String = ProcessInfo.processInfo.processName,
@@ -82,6 +86,12 @@ public enum BrowserCookieAccessGate {
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
         guard browser.usesKeychainForCookieDecryption else { return true }
         guard !KeychainAccessGate.isDisabled else { return false }
+        guard ProviderInteractionContext.current == .userInitiated else {
+            self.log.info(
+                "Skipping background Chromium cookie import to avoid a Keychain prompt",
+                metadata: ["browser": browser.displayName])
+            return false
+        }
         if self.deniedBrowsersForTesting?.contains(browser) == true {
             return self.isExplicitRetryAllowed(for: browser)
         }
@@ -196,6 +206,19 @@ public enum BrowserCookieAccessGate {
                     "browser": browser.displayName,
                     "until": "\(blockedUntil.timeIntervalSince1970)",
                 ])
+    }
+
+    public static func hasActiveDenial(for browser: Browser, now: Date = Date()) -> Bool {
+        guard browser.usesKeychainForCookieDecryption else { return false }
+        return self.lock.withLock { state in
+            self.loadIfNeeded(&state)
+            guard let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] else { return false }
+            guard blockedUntil <= now else { return true }
+            state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
+            state.chromiumFamilyDeniedUntil = state.deniedUntilByBrowser.values.max()
+            self.persist(state)
+            return false
+        }
     }
 
     static func recordAllowed(for browser: Browser) {
@@ -325,6 +348,10 @@ extension BrowserCookieClient {
 }
 #else
 public enum BrowserCookieAccessGate {
+    public static func requiresKeychainPromptAcknowledgement(for browsers: [Browser]) -> Bool {
+        false
+    }
+
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
         true
     }
@@ -350,6 +377,10 @@ public enum BrowserCookieAccessGate {
 
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {}
     public static func recordDenied(for browser: Browser, now: Date = Date()) {}
+    public static func hasActiveDenial(for browser: Browser, now: Date = Date()) -> Bool {
+        false
+    }
+
     public static func resetForTesting() {}
 }
 #endif

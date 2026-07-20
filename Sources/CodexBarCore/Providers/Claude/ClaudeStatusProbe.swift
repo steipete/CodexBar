@@ -54,6 +54,7 @@ public struct ClaudeAccountIdentity: Sendable {
 
 public enum ClaudeStatusProbeError: LocalizedError, Sendable {
     case claudeNotInstalled
+    case authenticationFailed(String)
     case parseFailed(String)
     case timedOut
 
@@ -61,6 +62,8 @@ public enum ClaudeStatusProbeError: LocalizedError, Sendable {
         switch self {
         case .claudeNotInstalled:
             "Claude CLI is not installed or not on PATH."
+        case let .authenticationFailed(message):
+            message
         case let .parseFailed(msg):
             "Could not parse Claude usage: \(msg)"
         case .timedOut:
@@ -198,7 +201,7 @@ extension ClaudeStatusProbe {
                 reason: "usageError: \(usageError)",
                 usage: clean,
                 status: statusText)
-            throw ClaudeStatusProbeError.parseFailed(usageError)
+            throw self.usageProbeError(message: usageError)
         }
 
         let latestUsagePanel = self.trimToLatestUsagePanel(clean)
@@ -380,7 +383,7 @@ extension ClaudeStatusProbe {
     private static func validateUsageBeforeStatusProbe(_ text: String) throws {
         let clean = TextParsing.stripANSICodes(text)
         if let usageError = self.extractUsageError(text: clean) {
-            throw ClaudeStatusProbeError.parseFailed(usageError)
+            throw self.usageProbeError(message: usageError)
         }
 
         let latestUsagePanel = self.trimToLatestUsagePanel(clean)
@@ -610,15 +613,17 @@ extension ClaudeStatusProbe {
             appearing open `claude` once, choose “Yes, proceed”, then retry.
             """
         }
-        if lower.contains("token_expired") || lower.contains("token has expired") {
+        let failureLine = self.usageFailureLine(text: text)?.lowercased() ?? ""
+        if failureLine.contains("token_expired") || failureLine.contains("token has expired") {
             return "Claude CLI token expired. Run `claude login` to refresh."
         }
-        if lower.contains("authentication_error") {
+        if failureLine.contains("authentication_error") {
             return "Claude CLI authentication error. Run `claude login`."
         }
-        if lower.contains("rate_limit_error")
-            || lower.contains("rate limited")
-            || compact.contains("ratelimited")
+        let compactFailureLine = failureLine.filter { !$0.isWhitespace }
+        if failureLine.contains("rate_limit_error")
+            || failureLine.contains("rate limited")
+            || compactFailureLine.contains("ratelimited")
         {
             return "Claude CLI usage endpoint is rate limited right now. Please try again later."
         }
@@ -632,6 +637,46 @@ extension ClaudeStatusProbe {
             return "Claude CLI could not load usage data. Open the CLI and retry `/usage`."
         }
         return nil
+    }
+
+    private static func usageFailureLine(text: String) -> String? {
+        let pattern = #"failed\s*to\s*load\s*usage\s*data[^\r\n]*"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.matches(in: text, range: range).last,
+              let matchRange = Range(match.range, in: text)
+        else { return nil }
+        return String(text[matchRange])
+    }
+
+    private static func usageProbeError(message: String) -> ClaudeStatusProbeError {
+        let lower = message.lowercased()
+        let authenticationMarkers = [
+            "authentication_error",
+            "permission_error",
+            "token_expired",
+            "token expired",
+            "token has expired",
+            "oauth account information not found",
+            "does not have access to claude code",
+            "run /login",
+            "run `claude login`",
+            "run claude login",
+            "api error: 401",
+            "api error: 403",
+            "forbidden",
+            "invalid api key",
+            "invalid_api_key",
+            "invalid credential",
+            "not authenticated",
+            "not authorized",
+            "token revoked",
+            "unauthorized",
+        ]
+        if authenticationMarkers.contains(where: { lower.contains($0) }) {
+            return .authenticationFailed(message)
+        }
+        return .parseFailed(message)
     }
 
     private static func isUsageStillLoading(text: String) -> Bool {
@@ -1224,6 +1269,9 @@ extension ClaudeStatusProbe {
 
         if let code, code.lowercased().contains("token") {
             return "\(hint). Run `claude login` to refresh."
+        }
+        if type == "authentication_error" || type == "permission_error" {
+            return "Claude CLI authentication error: \(hint). Run `claude login`."
         }
         return "Claude CLI error: \(hint)"
     }

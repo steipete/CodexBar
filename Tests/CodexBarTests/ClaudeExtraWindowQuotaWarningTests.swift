@@ -74,9 +74,15 @@ struct ClaudeExtraWindowQuotaWarningTests {
 
         // Each window keeps independent fired-threshold state instead of clobbering the shared weekly key.
         let fableKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-weekly-scoped-fable")
+            provider: .claude,
+            window: .weekly,
+            accountDiscriminator: nil,
+            windowID: "claude-weekly-scoped-fable")
         let routinesKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-routines")
+            provider: .claude,
+            window: .weekly,
+            accountDiscriminator: nil,
+            windowID: "claude-routines")
         #expect(store.quotaWarningState[fableKey]?.firedThresholds.contains(50) == true)
         #expect(store.quotaWarningState[routinesKey]?.firedThresholds.contains(50) == true)
     }
@@ -170,9 +176,15 @@ struct ClaudeExtraWindowQuotaWarningTests {
         store.handleQuotaWarningTransitions(
             provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: 55, routinesUsed: 55))
         let fableKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-weekly-scoped-fable")
+            provider: .claude,
+            window: .weekly,
+            accountDiscriminator: nil,
+            windowID: "claude-weekly-scoped-fable")
         let routinesKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-routines")
+            provider: .claude,
+            window: .weekly,
+            accountDiscriminator: nil,
+            windowID: "claude-routines")
         #expect(store.quotaWarningState[fableKey] != nil)
         #expect(store.quotaWarningState[routinesKey] != nil)
 
@@ -185,8 +197,8 @@ struct ClaudeExtraWindowQuotaWarningTests {
     }
 
     @Test
-    func `disabling weekly warnings clears all claude extra-window state`() {
-        let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-disable")
+    func `claude extra-window reconciliation preserves sibling account state`() {
+        let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-account-prune")
         settings.refreshFrequency = .manual
         settings.statusChecksEnabled = false
         settings.quotaWarningNotificationsEnabled = true
@@ -201,22 +213,81 @@ struct ClaudeExtraWindowQuotaWarningTests {
             sessionQuotaNotifier: notifier)
 
         store.handleQuotaWarningTransitions(
-            provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: 40, routinesUsed: 40))
+            provider: .claude,
+            snapshot: self.claudeExtraWindowSnapshot(fableUsed: 40, routinesUsed: nil),
+            accountDiscriminator: "account-a")
         store.handleQuotaWarningTransitions(
-            provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: 55, routinesUsed: 55))
-        let fableKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-weekly-scoped-fable")
-        let routinesKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-routines")
-        #expect(store.quotaWarningState[fableKey] != nil)
-        #expect(store.quotaWarningState[routinesKey] != nil)
+            provider: .claude,
+            snapshot: self.claudeExtraWindowSnapshot(fableUsed: 55, routinesUsed: nil),
+            accountDiscriminator: "account-a")
+        let accountAFableKey = UsageStore.QuotaWarningStateKey(
+            provider: .claude,
+            window: .weekly,
+            accountDiscriminator: "account-a",
+            windowID: "claude-weekly-scoped-fable")
+        #expect(store.quotaWarningState[accountAFableKey] != nil)
+
+        store.handleQuotaWarningTransitions(
+            provider: .claude,
+            snapshot: self.claudeExtraWindowSnapshot(fableUsed: nil, routinesUsed: 40),
+            accountDiscriminator: "account-b")
+        #expect(store.quotaWarningState[accountAFableKey] != nil)
+
+        store.handleQuotaWarningTransitions(
+            provider: .claude,
+            snapshot: self.claudeExtraWindowSnapshot(fableUsed: 55, routinesUsed: nil),
+            accountDiscriminator: "account-a")
+
+        #expect(notifier.quotaWarningPosts.count == 1)
+        #expect(notifier.quotaWarningPosts.first?.event.windowID == "claude-weekly-scoped-fable")
+        #expect(notifier.quotaWarningPosts.first?.event.threshold == 50)
+    }
+
+    @Test
+    func `disabling weekly warnings clears all account-scoped claude extra-window state`() {
+        let settings = self.makeSettings(suiteName: "ClaudeExtraWindowQuotaWarningTests-disable")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50]
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        let accountIDs = ["account-a", "account-b"]
+        for accountID in accountIDs {
+            store.handleQuotaWarningTransitions(
+                provider: .claude,
+                snapshot: self.claudeExtraWindowSnapshot(fableUsed: 40, routinesUsed: 40),
+                accountDiscriminator: accountID)
+        }
+        let seededKeys = accountIDs.flatMap { accountID in
+            [
+                UsageStore.QuotaWarningStateKey(
+                    provider: .claude,
+                    window: .weekly,
+                    accountDiscriminator: accountID,
+                    windowID: "claude-weekly-scoped-fable"),
+                UsageStore.QuotaWarningStateKey(
+                    provider: .claude,
+                    window: .weekly,
+                    accountDiscriminator: accountID,
+                    windowID: "claude-routines"),
+            ]
+        }
+        #expect(seededKeys.allSatisfy { store.quotaWarningState[$0] != nil })
 
         settings.setQuotaWarningWindowEnabled(.weekly, enabled: false)
         store.handleQuotaWarningTransitions(
             provider: .claude,
-            snapshot: UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: nil, updatedAt: Date()))
-        #expect(store.quotaWarningState[fableKey] == nil)
-        #expect(store.quotaWarningState[routinesKey] == nil)
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: nil, updatedAt: Date()),
+            accountDiscriminator: accountIDs[0])
+        #expect(seededKeys.allSatisfy { store.quotaWarningState[$0] == nil })
     }
 
     @Test
@@ -242,7 +313,10 @@ struct ClaudeExtraWindowQuotaWarningTests {
             provider: .claude, snapshot: self.claudeExtraWindowSnapshot(fableUsed: 55, routinesUsed: nil))
         #expect(notifier.quotaWarningPosts.count == 1)
         let fableKey = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .weekly, windowID: "claude-weekly-scoped-fable")
+            provider: .claude,
+            window: .weekly,
+            accountDiscriminator: nil,
+            windowID: "claude-weekly-scoped-fable")
 
         // A failed web-extras fetch delivers nil extras while the main snapshot is intact. The fired
         // state must persist so the warning is not re-posted when extras recover.

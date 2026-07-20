@@ -614,11 +614,12 @@ extension StatusItemController {
             return false
         }
 
-        // Multiple claude-swap rows take precedence over Claude token-account cards; otherwise
+        // Eligible claude-swap rows take precedence over Claude token-account cards; otherwise
         // the stacked token-account branch below would return before rendering the adapter rows.
         if ClaudeSwapMenuPrecedence.prefersClaudeSwap(
             provider: context.currentProvider,
-            accountCount: self.store.claudeSwapAccountSnapshots.count)
+            accountCount: self.store.claudeSwapAccountSnapshots.count,
+            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
         {
             self.addClaudeSwapMenuCards(to: menu, captureMenu: captureMenu ?? menu, context: context)
             return false
@@ -652,7 +653,7 @@ extension StatusItemController {
         guard let model = self.menuCardModel(for: context.selectedProvider) else { return false }
         let renderedModel = self.menuCardRefreshMonitor.model(for: model.provider, fallback: model)
         if context.openAIContext.hasOpenAIWebMenuItems ||
-            self.hasProviderNativeCostHistorySubmenu(provider: context.currentProvider)
+            self.requiresSectionedMenuForProviderDerivedCost(provider: context.currentProvider)
         {
             let webItems = OpenAIWebMenuItems(
                 hasUsageBreakdown: context.openAIContext.hasUsageBreakdown,
@@ -1476,7 +1477,11 @@ extension StatusItemController {
         if provider == .openai {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
-        if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+        // Mistral's top usage pane has no rate-limit bars of its own, so its cost history hangs
+        // off this row instead. Other `tokenCostRequiresProviderSnapshot` providers (e.g.
+        // opencodego) show real rate-limit bars here and get their own "Cost" row instead
+        // (see `makeCostMenuCardItem`), matching Codex/Claude's structure.
+        if provider == .mistral {
             return self.makeCostHistorySubmenu(provider: provider, width: width)
         }
         if provider == .zai {
@@ -1573,7 +1578,14 @@ extension StatusItemController {
         provider == .openai && self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }
 
-    private func hasProviderNativeCostHistorySubmenu(provider: UsageProvider) -> Bool {
+    /// Unlike `makeUsageSubmenu`'s and `tokenCostMenuSectionEnabled`'s provider checks, this one
+    /// intentionally reuses `tokenCostRequiresProviderSnapshot`: any provider whose cost is
+    /// sourced by projecting a snapshot field (rather than the CostUsageFetcher pipeline) can only
+    /// render that cost through `addMenuCardSections`'s sectioned layout, so the two concepts are
+    /// genuinely coupled here, not coincidentally aliased. The name is deliberately broader than
+    /// "top-pane submenu" — opencodego satisfies this via its collapsible "Cost" row, not a
+    /// provider-native top-pane submenu like openai/mistral.
+    private func requiresSectionedMenuForProviderDerivedCost(provider: UsageProvider) -> Bool {
         UsageStore.tokenCostRequiresProviderSnapshot(provider) &&
             self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }

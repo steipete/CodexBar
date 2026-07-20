@@ -22,7 +22,7 @@ public struct AbacusUsageSnapshot: Sendable {
 
     public func toUsageSnapshot() -> UsageSnapshot {
         let percentUsed: Double = if let used = self.creditsUsed, let total = self.creditsTotal, total > 0 {
-            (used / total) * 100.0
+            min(100, max(0, (used / total) * 100.0))
         } else {
             0
         }

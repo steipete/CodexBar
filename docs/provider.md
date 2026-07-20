@@ -47,7 +47,7 @@ Provider behavior is descriptor-driven. Two explicit, exhaustive registries form
 Introduce a single descriptor per provider:
 - `id` (stable `UsageProvider`)
 - display/labels/URLs (menu title, dashboard URL, status URL)
-- UI branding (icon name, primary color)
+- UI branding (icon name, primary color, 2–3-color confetti palette)
 - capabilities (supportsCredits, supportsTokenCost, supportsStatusPolling, supportsLogin)
 - fetch plan (allowed `--source` modes + ordered strategy pipeline)
 - CLI metadata (cliName, aliases, version provider)
@@ -72,6 +72,7 @@ Each run returns a `ProviderFetchOutcome` with **attempts + errors** for debug U
 Expose a narrow set of protocols/structs that provider implementations can use:
 - `KeychainAPI`: read-only, allowlisted service/account pairs
 - `BrowserCookieAPI`: import cookies by domain list; returns cookie header + diagnostics
+- `BrowserLocalStorageAPI`: read origin-scoped key/value snapshots across browser profiles
 - `PTYAPI`: run CLI interactions with timeouts + “send on substring” + stop rules
 - `HTTPAPI`: URLSession wrapper with domain allowlist + standard headers + tracing
 - `WebViewScrapeAPI`: WKWebView lease + `evaluateJavaScript` + snapshot dumping
@@ -121,7 +122,11 @@ public enum ExampleProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .codex,
                 iconResourceName: "ProviderIcon-example",
-                color: ProviderColor(red: 0.2, green: 0.6, blue: 0.8)),
+                color: ProviderColor(red: 0.2, green: 0.6, blue: 0.8),
+                confettiPalette: [
+                    ProviderColor(hex: 0x3399CC),
+                    ProviderColor(hex: 0x66C2FF),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Example cost summary is not supported." }),
@@ -159,6 +164,18 @@ struct ExampleFetchStrategy: ProviderFetchStrategy {
 - Reliability: providers must be timeout-bounded; no unbounded waits on network/PTY/UI.
 - Degradation: prefer cached data over flapping; show clear errors when stale.
 
+## Hosted relay eligibility
+
+Hosted relays and upstream aggregators need enough public evidence for maintainers and users to evaluate the trust
+boundary:
+
+- An identifiable legal operator and jurisdiction.
+- Verifiable authorization to resell or provide the advertised upstream access; operator self-assertion alone is not
+  sufficient.
+- A public operating track record that supports ongoing reliability, security, and maintenance review.
+
+An integration can be restored when missing operator or authorization evidence becomes available.
+
 ## Adding a new provider (current flow)
 
 Checklist:
@@ -174,9 +191,10 @@ Checklist:
 - Add `Sources/CodexBar/Providers/<ProviderID>/<ProviderID>ProviderImplementation.swift`:
   - `ProviderImplementation` only for settings/login UI hooks.
 - Add an exhaustive case to `ProviderImplementationRegistry.makeImplementation(for:)`.
-- Add icons + color in descriptor:
+- Add icons + colors in descriptor:
   - `iconName` must match `ProviderIcon-<id>` asset.
   - Color used in menu cards + switcher.
+  - Provide a curated `confettiPalette` with 2–3 colors for reset celebrations.
 - If CLI-specific behavior is needed:
   - add `cliName`, `cliAliases`, `sourceModes`, `versionProvider` in descriptor.
   - strategies decide which `--source` modes apply.

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct CostUsageFetcherTests {
     @Test
     func `fetcher scopes codex history to selected codex home`() async throws {
@@ -17,23 +18,44 @@ struct CostUsageFetcherTests {
             filename: "ambient.jsonl",
             tokens: 100)
         try Self.writeCodexSessionFile(homeRoot: otherHome, env: env, day: day, filename: "managed.jsonl", tokens: 10)
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-04-08T10-00-00-000Z_ambient.jsonl",
+            contents: env.jsonl([[
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "openai/gpt-5.4",
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": ["input": 50, "output": 5, "totalTokens": 55],
+                ],
+            ]]))
 
         let options = CostUsageScanner.Options(cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
         let ambient = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
             codexHomePath: env.codexHomeRoot.path,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
         let managed = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
             codexHomePath: otherHome.path,
-            scannerOptions: options)
+            scannerOptions: options,
+            piScannerOptions: piOptions)
 
         #expect(ambient.sessionTokens == 100)
         #expect(managed.sessionTokens == 10)
     }
+}
 
+extension CostUsageFetcherTests {
     @Test
     func `fetcher refreshes codex cache when legacy roots metadata is missing`() async throws {
         let env = try CostUsageTestEnvironment()
@@ -555,6 +577,12 @@ struct CostUsageFetcherTests {
             now: day,
             scannerOptions: nativeOptions,
             piScannerOptions: piOptions)
+        let withoutPi = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            includePiSessions: false,
+            scannerOptions: nativeOptions,
+            piScannerOptions: piOptions)
 
         let nativeCost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.4",
@@ -570,11 +598,13 @@ struct CostUsageFetcherTests {
         #expect(snapshot.daily.count == 1)
         #expect(snapshot.daily.first?.date == "2026-04-08")
         #expect(snapshot.daily.first?.totalTokens == 170)
+        #expect(withoutPi.daily.first?.totalTokens == 110)
         #expect(abs((snapshot.daily.first?.costUSD ?? 0) - (nativeCost + piCost)) < 0.000001)
         let breakdown = try #require(snapshot.daily.first?.modelBreakdowns?.first)
         #expect(breakdown.modelName == "gpt-5.4")
         #expect(abs((breakdown.costUSD ?? 0) - (nativeCost + piCost)) < 0.000001)
         #expect(breakdown.totalTokens == 170)
+        #expect(snapshot.sessions.isEmpty)
     }
 
     @Test
@@ -866,5 +896,110 @@ struct CostUsageFetcherTests {
                 ],
             ],
         ]).write(to: url, atomically: true, encoding: .utf8)
+    }
+}
+
+extension CostUsageFetcherTests {
+    @Test
+    func `fetcher returns individual codex conversations for the selected history window`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let firstURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "first.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": env.isoString(for: day),
+                    "payload": ["session_id": "first-session"],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: day.addingTimeInterval(1)),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 100,
+                                "cached_input_tokens": 20,
+                                "output_tokens": 10,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+        let secondURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "second.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": env.isoString(for: day),
+                    "payload": ["session_id": "second-session"],
+                ],
+                [
+                    "type": "event_msg",
+                    "timestamp": env.isoString(for: day.addingTimeInterval(1)),
+                    "payload": [
+                        "type": "token_count",
+                        "info": [
+                            "model": "openai/gpt-5.4",
+                            "last_token_usage": [
+                                "input_tokens": 40,
+                                "cached_input_tokens": 5,
+                                "output_tokens": 5,
+                            ],
+                        ],
+                    ],
+                ],
+            ]))
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(10)],
+            ofItemAtPath: firstURL.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(20)],
+            ofItemAtPath: secondURL.path)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            allowPricingRefresh: false,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        #expect(snapshot.sessions.map(\.sessionID) == ["second-session", "first-session"])
+        let first = try #require(snapshot.sessions.first(where: { $0.sessionID == "first-session" }))
+        #expect(first.inputTokens == 100)
+        #expect(first.cachedInputTokens == 20)
+        #expect(first.outputTokens == 10)
+        #expect(first.totalTokens == 110)
+        #expect(first.requestCount == nil)
+        #expect(first.modelBreakdowns.map(\.modelName) == ["gpt-5.4"])
+        #expect(first.costUSD != nil)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+        let unrelatedRoot = env.root.appendingPathComponent("unrelated/sessions", isDirectory: true)
+        let filtered = CostUsageScanner.buildCodexSessionBreakdownsFromCache(
+            cache: cache,
+            range: range,
+            modelsDevCacheRoot: env.cacheRoot,
+            sessionRoots: [unrelatedRoot])
+        #expect(filtered.isEmpty)
+        let scopedCache = CostUsageScanner.codexCache(cache, scopedTo: [unrelatedRoot])
+        #expect(scopedCache.files.isEmpty)
+        #expect(scopedCache.days.isEmpty)
     }
 }

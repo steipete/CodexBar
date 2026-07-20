@@ -745,7 +745,10 @@ struct UsageStoreSessionQuotaTransitionTests {
             snapshot: self.antigravityLegacySnapshot(geminiUsed: 80, claudeUsed: 40))
 
         #expect(notifier.quotaWarningPosts.isEmpty)
-        let key = UsageStore.QuotaWarningStateKey(provider: .antigravity, window: .session)
+        let key = UsageStore.QuotaWarningStateKey(
+            provider: .antigravity,
+            window: .session,
+            accountDiscriminator: nil)
         #expect(store.quotaWarningState[key]?.lastRemaining == 20)
         #expect(store.quotaWarningState[key]?.source == .antigravityLegacy)
     }
@@ -788,7 +791,9 @@ struct UsageStoreSessionQuotaTransitionTests {
                 updatedAt: Date()))
 
         #expect(notifier.quotaWarningPosts.count == 1)
-        #expect(store.quotaWarningState[UsageStore.QuotaWarningStateKey(provider: .codex, window: .session)] == nil)
+        #expect(store.quotaWarningState[
+            UsageStore.QuotaWarningStateKey(provider: .codex, window: .session, accountDiscriminator: nil),
+        ] == nil)
     }
 
     private func minimaxSnapshot(sessionUsed: Double, weeklyUsed: Double) -> UsageSnapshot {

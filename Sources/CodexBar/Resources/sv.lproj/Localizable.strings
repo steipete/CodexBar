@@ -1,8 +1,33 @@
 /* Swedish localization for CodexBar */
 
+"tab_hooks" = "Hooks";
+"hooks_enable_title" = "Aktivera hooks";
+"hooks_enable_subtitle" = "Kör externa kommandon vid kvot- eller leverantörshändelser.";
+"hooks_trust_warning" = "Hooks kan köra lokala kommandon på din Mac. Konfigurera endast kommandon du litar på.";
+"hooks_rules_header" = "Regler";
+"hooks_empty" = "Inga hooks har konfigurerats.";
+"hooks_add_rule" = "Lägg till regel";
+"hooks_delete_rule" = "Ta bort regel";
+"hooks_rule_enabled" = "Aktiverad";
+"hooks_event" = "Händelse";
+"hooks_provider" = "Leverantör";
+"hooks_any_provider" = "Valfri leverantör";
+"hooks_threshold" = "Kör vid användning ≥";
+"hooks_threshold_placeholder" = "90";
+"hooks_executable_placeholder" = "/usr/local/bin/my-command";
+"hooks_arguments_placeholder" = "Argument";
+"hooks_argument_placeholder" = "Argument";
+"hooks_add_argument" = "Lägg till argument";
+"hooks_delete_argument" = "Ta bort argument";
+
+"ollama_safari_cookie_access_hint" = "Safari-cookies kräver full skivåtkomst för CodexBar (Systeminställningar > Integritet och säkerhet).";
+"ollama_browser_cookie_decryption_denied" = "Dekryptering av %@-cookies nekades i Nyckelhanteraren; försök igen med en manuell uppdatering.";
+"ollama_browser_cookie_decryption_disabled" = "Dekryptering av %@-cookies är inaktiverad i CodexBar; aktivera åtkomst till Nyckelhanteraren och uppdatera.";
+
 " providers" = " leverantörer";
 "(System)" = "(System)";
 "30d" = "30 d";
+"7d" = "7 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "En hanterad Codex-inloggning körs redan. Vänta tills den är klar innan du lägger till ";
 "API key" = "API-nyckel";
 "API region" = "API-region";
@@ -298,7 +323,6 @@
 "Store multiple OpenCode Go Cookie headers." = "Spara flera Cookie-headers för OpenCode Go.";
 "Stored in the CodexBar config file." = "Sparas i CodexBars konfigurationsfil.";
 "Stored in ~/.codexbar/config.json. " = "Sparas i ~/.codexbar/config.json. ";
-"Stored in ~/.codexbar/config.json. Generate one at kimi-k2.ai." = "Sparas i ~/.codexbar/config.json. Skapa en på kimi-k2.ai.";
 "Stored in ~/.codexbar/config.json. Paste the key from the Synthetic dashboard." = "Sparas i ~/.codexbar/config.json. Klistra in nyckeln från Synthetic-instrumentpanelen.";
 "Stored in ~/.codexbar/config.json. Paste your Coding Plan API key from Model Studio." = "Sparas i ~/.codexbar/config.json. Klistra in din Coding Plan-API-nyckel från Model Studio.";
 "Stored in ~/.codexbar/config.json. Paste your MiniMax API key." = "Sparas i ~/.codexbar/config.json. Klistra in din MiniMax-API-nyckel.";
@@ -437,7 +461,7 @@
 "cost_history_window_title" = "Historikfönster";
 "cost_history_window_help" = "Anger hur många dagar med lokala användningsloggar som visas i menyn.";
 "cost_history_days_title" = "Historikfönster: %d dagar";
-"cost_auto_refresh_info" = "Automatisk uppdatering: varje timme · Timeout: 10 min";
+"cost_auto_refresh_info" = "Automatisk uppdatering: globalt intervall (minst 5 min) · Timeout: 10 min";
 "cost_comparison_periods_title" = "Visa kortare jämförelseperioder";
 "cost_comparison_periods_subtitle" = "Lägger till summor för 7, 30 och 90 dagar när de ryms i det valda historikfönstret. Summorna återanvänder samma lokala genomsökning.";
 "refresh_interval_title" = "Uppdateringsintervall";
@@ -524,13 +548,14 @@
 "menu_bar_metric_subtitle_deepseek" = "Visar DeepSeek-saldot i menyraden.";
 "menu_bar_metric_subtitle_moonshot" = "Visar saldot för Moonshot/Kimi API i menyraden.";
 "menu_bar_metric_subtitle_mistral" = "Visar den aktuella månadens Mistral API-utgift i menyraden.";
-"menu_bar_metric_subtitle_kimik2" = "Visar Kimi K2-API-nyckelkrediter i menyraden.";
 "automatic" = "Automatiskt";
 "primary_api_key_limit" = "Primär (API-nyckelgräns)";
 
 /* Display Pane */
 "menu_bar_style_title" = "Menyradsstil";
 "menu_bar_style_subtitle" = "Hur menyradsobjektet visas.";
+"menu_bar_inactive_display_contrast_title" = "Förbättra synligheten på inaktiva skärmar";
+"menu_bar_inactive_display_contrast_subtitle" = "Använder kontrastrik rendering så att ikonen och mätvärdet förblir läsbara på andra skärmar.";
 "menu_bar_style_critters" = "Figurer";
 "menu_bar_style_bars" = "Mätarstaplar";
 "menu_bar_style_icon_percent" = "Ikon och procent";
@@ -573,6 +598,12 @@
 "agent_sessions_subtitle" = "Visa lokala och via SSH upptäckta Codex- och Claude Code-sessioner i menyn.";
 "agent_sessions_hosts_title" = "Ytterligare SSH-värdar";
 "agent_sessions_footer" = "Mac-datorer på ditt tailnet upptäcks automatiskt. Lokala sessioner uppdateras var 30:e sekund, fjärrvärdar var 60:e sekund och när menyn öppnas.";
+"agent_session_labels_title" = "Sessionsetiketter";
+"agent_session_labels_subtitle" = "Välj hur agentsessioner ska namnges.";
+"agent_session_label_project" = "Projekt";
+"agent_session_label_descriptive" = "Beskrivande";
+"agent_session_label_descriptive_and_project" = "Beskrivande + projekt";
+"agent_session_unknown_project" = "Okänt projekt";
 
 /* Advanced Pane */
 "section_keyboard_shortcut" = "Kortkommando";
@@ -704,13 +735,19 @@
 "refresh_15min" = "15 min";
 "refresh_30min" = "30 min";
 "refresh_adaptive" = "Adaptiv";
+"refresh_adaptive_agent_aware" = "Adaptiv (agentaktivitet)";
+"adaptive_activity_consent_title" = "Tillåta aktivitetsmedveten uppdatering?";
+"adaptive_activity_consent_message" = "Det agentmedvetna adaptiva läget kan granska listan över lokala processer som körs, inklusive kommandorader, för att identifiera Codex och Claude och sedan läsa kända sessionsmetadata var 30:e sekund medan du kodar. När Agent Sessions är avstängt använder CodexBar endast tiden för den senaste aktiviteten i minnet och kasserar sessionssökvägar och identiteter. Dessa data skickas ingenstans, och fjärridentifiering och SSH förblir avstängda. Om du avböjer återgår CodexBar till vanligt Adaptiv utan lokala aktivitetsskanningar.";
+"adaptive_activity_consent_allow" = "Tillåt lokal aktivitet";
+"adaptive_activity_consent_decline" = "Använd vanligt Adaptiv";
 
 /* Additional keys */
 "not_found" = "Hittades inte";
 
 /* Cost estimation */
-"cost_header_estimated" = "Kostnad (uppskattad)";
 "cost_estimate_hint" = "Uppskattat från lokala loggar · kan skilja sig från din faktura";
+"codex_api_estimate_hint" = "Uppskattat från tokenanvändning · inte en prenumerationsfaktura";
+"cost_data_explanation" = "Kostnader kan rapporteras av leverantören eller uppskattas från tokenanvändning med offentliga API-priser. Uppskattningar är inte prenumerationsavgifter.";
 "No JetBrains IDE with AI Assistant detected. Install a JetBrains IDE and enable AI Assistant." = "Ingen JetBrains IDE med AI Assistant hittades. Installera en JetBrains IDE och aktivera AI Assistant.";
 "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings." = "OpenRouter-API-token är inte konfigurerad. Ange miljövariabeln OPENROUTER_API_KEY eller konfigurera i Inställningar.";
 "z.ai API token not found. Set apiKey in ~/.codexbar/config.json or Z_AI_API_KEY." = "z.ai-API-token hittades inte. Ange apiKey i ~/.codexbar/config.json eller Z_AI_API_KEY.";
@@ -740,6 +777,7 @@
 "Today" = "Idag";
 "Today tokens" = "Token idag";
 "30d cost" = "Kostnad 30 d";
+"%@ cost" = "Kostnad %@";
 "30d tokens" = "Token 30 d";
 "Latest tokens" = "Senaste token";
 "Top model" = "Toppmodell";
@@ -1101,13 +1139,12 @@
 "Username" = "Användarnamn";
 "CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din MiniMax-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "30d spend" = "30 d kostnad";
-"API key verified. Ollama does not expose Cloud quota limits through the API." = "API-nyckeln har verifierats. Ollama exponerar inte Cloud-kvotgränser via API:t.";
+"API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API-nyckeln har verifierats. Cloud-kvoter kräver webbläsarcookies. Logga in på Ollama.";
 "Series" = "Serie";
 "Total (30d): %@ credits" = "Totalt (30 d): %@ krediter";
 "Paste a Cookie header or full cURL capture from T3 Chat settings." = "Klistra in en Cookie-header eller fullständig cURL-fångst från T3 Chat-inställningarna.";
 "%d days of credits data" = "%d dagar med kreditdata";
 "used after next regen" = "använt efter nästa regenerering";
-"CodexBar will ask macOS Keychain for your Kimi K2 API key so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Kimi K2-API-nyckel så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Usage breakdown chart" = "Diagram över användningsfördelning";
 "Could not open browser for Antigravity" = "Kunde inte öppna webbläsare för Antigravity";
 "Stored in ~/.codexbar/config.json. AZURE_OPENAI_API_KEY is also supported." = "Sparas i ~/.codexbar/config.json. AZURE_OPENAI_API_KEY stöds också.";
@@ -1164,7 +1201,6 @@
 "byte_unit_megabytes" = "megabyte";
 "byte_unit_gigabyte" = "gigabyte";
 "byte_unit_gigabytes" = "gigabyte";
-"CrossModel API spend trend" = "CrossModel API-utgiftstrend";
 
 /* Settings sidebar redesign */
 "Enable" = "Aktivera";
@@ -1179,3 +1215,128 @@
 "Show Codex Spark usage" = "Visa Codex Spark-användning";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Visar kvotrader för Codex Spark i menyn och i förhandsvisningen för leverantören. Kräver att ”Visa krediter och extra användning” är aktiverat under Visning i Inställningar.";
 "Scroll to see more models" = "Rulla för att se fler modeller";
+"Copy Image" = "Kopiera bild";
+"Copy Stats" = "Kopiera statistik";
+"Could not copy image" = "Kunde inte kopiera bilden";
+"Image copied" = "Bilden kopierades";
+"Image saved" = "Bilden sparades";
+"Nothing is uploaded. This image is created on your Mac." = "Inget laddas upp. Bilden skapas på din Mac.";
+"Save..." = "Spara...";
+"Share AI Usage" = "Dela AI-användning";
+"Share Stats…" = "Dela statistik…";
+"Stats copied" = "Statistiken kopierades";
+"DeepSeek this month token usage trend" = "Trend för DeepSeek-tokenanvändning den här månaden";
+"Chrome profile" = "Chrome-profil";
+"Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Välj vilken inloggad DeepSeek Platform-session som ska ge detaljerad användning.";
+"Detailed usage unavailable." = "Detaljerad användning är inte tillgänglig.";
+"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Logga in på DeepSeek Platform i Chrome för detaljerad användning.";
+"Select a DeepSeek Chrome profile in Settings." = "Välj en DeepSeek Chrome-profil i Inställningar.";
+"Select profile…" = "Välj profil…";
+
+"%@: %@" = "%@: %@";
+"Alternatively, set a custom path in Settings." = "Alternativt kan du ange en anpassad sökväg i Inställningar.";
+"Choose a supported browser so CodexBar can read the matching account." = "Välj en webbläsare som stöds så att CodexBar kan läsa det matchande kontot.";
+"Choose Cursor account" = "Välj Cursor-konto";
+"Choose which Cursor account CodexBar should use." = "Välj vilket Cursor-konto CodexBar ska använda.";
+"Finish switching to a different Cursor account in your browser, then try again." = "Slutför bytet till ett annat Cursor-konto i webbläsaren och försök igen.";
+"Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar." = "Installera en JetBrains IDE med AI Assistant aktiverad och uppdatera sedan CodexBar.";
+"Request quota: %@ / %@" = "Begäranskvot: %@ / %@";
+"Sign in with Claude Code..." = "Logga in med Claude Code...";
+"Timed out waiting for Cursor account switch. %@" = "Tidsgränsen överskreds i väntan på byte av Cursor-konto. %@";
+"Timed out waiting for Cursor account switch. %@ Last error: %@" = "Tidsgränsen överskreds i väntan på byte av Cursor-konto. %@ Senaste fel: %@";
+"Use Account" = "Använd konto";
+/* Spend dashboard */
+"tab_usage_spend" = "Användning och utgifter";
+"Usage & Spend" = "Användning och utgifter";
+"Local estimated cost history across supported providers." = "Lokal historik över uppskattade kostnader från leverantörer som stöds.";
+"Time range" = "Tidsintervall";
+"Track costs" = "Spåra kostnader";
+"Cost tracking is off" = "Kostnadsspårning är avstängd";
+"Turn on Track costs to build local estimates." = "Aktivera ”Spåra kostnader” för att skapa lokala uppskattningar.";
+"No local cost history yet" = "Ingen lokal kostnadshistorik än";
+"Turn on cost tracking or refresh after using a supported provider." = "Aktivera kostnadsspårning eller uppdatera efter att ha använt en leverantör som stöds.";
+"Refresh failures" = "Misslyckade uppdateringar";
+"Native currencies stay separate; Codex account rows exclude Pi session history." = "Ursprungliga valutor hålls åtskilda; rader för Codex-konton utesluter Pi-sessionshistorik.";
+"Spend unavailable" = "Utgifter ej tillgängliga";
+"Model breakdown unavailable" = "Modellfördelning ej tillgänglig";
+"Local estimated history" = "Lokal uppskattad historik";
+"Coverage" = "Täckning";
+"Estimated spend" = "Uppskattade utgifter";
+"Tracked tokens" = "Spårade token";
+"Subscriptions" = "Abonnemang";
+"By subscription" = "Per abonnemang";
+"No model-level history" = "Ingen historik på modellnivå";
+"Daily estimated spend" = "Uppskattade dagliga utgifter";
+"≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d fulla 5-timmarsfönster av veckokvoten kvar · %d fönster till återställning";
+"Weekly cannot run out before reset at this pace" = "Veckokvoten kan inte ta slut före återställningen i den här takten";
+"Weekly can run out ≈%d windows early" = "Veckokvoten kan ta slut ≈%d fönster tidigare";
+"Estimated: %@" = "Uppskattning: %@";
+"Coding Plan" = "Kodningsplan";
+"Agent Plan" = "Agentplan";
+"Team" = "Team";
+
+/* Menu bar layout editor */
+"menu_bar_layout_title" = "Layout";
+"menu_bar_layout_footer" = "Dra brickor för att ordna menyraden. Klicka på en bricka för att lägga till den; markera en placerad bricka och tryck Delete för att ta bort den.";
+"menu_bar_layout_group_identity" = "Identitet";
+"menu_bar_layout_group_usage" = "Användning";
+"menu_bar_layout_group_time" = "Tid";
+"menu_bar_layout_group_money" = "Kostnad";
+"menu_bar_layout_group_structure" = "Struktur";
+"menu_bar_layout_scope_all" = "Alla leverantörer";
+"menu_bar_layout_scope_help" = "Redigera standardlayouten eller åsidosätt den för en leverantör.";
+"menu_bar_layout_use_all" = "Använd layout för alla leverantörer";
+"menu_bar_layout_preset" = "Layoutförval";
+"menu_bar_layout_preset_icon_percent" = "Ikon och procent";
+"menu_bar_layout_preset_icon_only" = "Endast ikon";
+"menu_bar_layout_preset_percent_reset" = "Procent och återställning";
+"menu_bar_layout_preset_compact_stacked" = "Kompakt staplad";
+"menu_bar_layout_preset_custom" = "Anpassat";
+"menu_bar_layout_live_preview" = "Liveförhandsvisning";
+"menu_bar_layout_strip" = "Menyradsremsa";
+"menu_bar_layout_remove_line_break" = "Ta bort radbrytning";
+"menu_bar_layout_chip_hint" = "Markera, dra för att ändra ordning eller använd åtgärden Ta bort.";
+"menu_bar_layout_palette_hint" = "Klicka för att lägga till eller dra till layouten.";
+"menu_bar_layout_empty_line" = "Släpp en bricka här";
+"menu_bar_layout_line" = "Rad %d";
+"menu_bar_layout_drag_remove" = "Dra hit för att ta bort";
+"menu_bar_layout_size" = "Storlek";
+"menu_bar_layout_size_small" = "Liten";
+"menu_bar_layout_size_regular" = "Normal";
+"menu_bar_layout_gap" = "Mellanrum";
+"menu_bar_layout_gap_tight" = "Tätt";
+"menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_keyboard_hint" = "Delete tar bort den markerade brickan";
+"menu_bar_layout_sample_account" = "konto";
+"menu_bar_layout_sample_runs_out" = "tar slut fre.";
+"menu_bar_layout_token_icon" = "Ikon";
+"menu_bar_layout_token_provider" = "Leverantörsnamn";
+"menu_bar_layout_token_account" = "Konto";
+"menu_bar_layout_token_session" = "Session %";
+"menu_bar_layout_token_weekly" = "Vecka %";
+"menu_bar_layout_token_auto" = "Automatiskt %";
+"menu_bar_layout_token_bar" = "Användningsstapel";
+"menu_bar_layout_token_resets_in" = "Återställs om";
+"menu_bar_layout_token_reset_at" = "Återställs kl.";
+"menu_bar_layout_token_runs_out" = "Tar slut";
+"menu_bar_layout_token_cost_today" = "Kostnad idag";
+"menu_bar_layout_token_cost_30d" = "Kostnad 30 dagar";
+"menu_bar_layout_token_space" = "Blanksteg";
+"menu_bar_layout_token_line_break" = "Radbrytning";
+"menu_bar_layout_token_separator_accessibility" = "Avgränsarpunkt";
+
+/* Menu bar layout accessibility */
+"Icon unavailable" = "Ikon: Inte tillgänglig";
+"%@ icon" = "%@: Ikon";
+"Provider name unavailable" = "Leverantörsnamn: Inte tillgänglig";
+"Account unavailable" = "Konto: Inte tillgänglig";
+"%@ unavailable" = "%@: Inte tillgänglig";
+"%@ %@" = "%@ %@";
+"Usage bar unavailable" = "Användningsstapel: Inte tillgänglig";
+"Usage bar, %d of 3 filled" = "Användningsstapel: %d/3 fyllda";
+"Reset countdown unavailable" = "Återställs om: Inte tillgänglig";
+"Reset time unavailable" = "Återställs kl.: Inte tillgänglig";
+"Run-out estimate unavailable" = "Tar slut: Inte tillgänglig";
+"Cost today unavailable" = "Kostnad idag: Inte tillgänglig";
+"30-day cost unavailable" = "Kostnad 30 dagar: Inte tillgänglig";
+"Resets" = "Återställningar";

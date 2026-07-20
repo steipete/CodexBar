@@ -115,6 +115,42 @@ extension SettingsStore {
         }
     }
 
+    // MARK: - Hooks
+
+    var hooksConfig: HooksConfig {
+        self.configSnapshot.hooks ?? HooksConfig()
+    }
+
+    var hooksEnabled: Bool {
+        self.hooksConfig.enabled
+    }
+
+    var hookRules: [HookRule] {
+        self.hooksConfig.events
+    }
+
+    func setHooksEnabled(_ enabled: Bool) {
+        self.updateHooks { $0.enabled = enabled }
+    }
+
+    func addHookRule(_ rule: HookRule) {
+        self.updateHooks { $0.events.append(rule) }
+    }
+
+    func updateHookRule(_ rule: HookRule) {
+        self.updateHooks { config in
+            if let index = config.events.firstIndex(where: { $0.id == rule.id }) {
+                config.events[index] = rule
+            }
+        }
+    }
+
+    func removeHookRule(id: String) {
+        self.updateHooks { config in
+            config.events.removeAll { $0.id == id }
+        }
+    }
+
     var tokenAccountsByProvider: [UsageProvider: ProviderTokenAccountData] {
         get {
             Dictionary(uniqueKeysWithValues: self.configSnapshot.providers.compactMap { entry in

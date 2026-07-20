@@ -58,6 +58,40 @@ extension SettingsStore {
         }
     }
 
+    func updateHooks(_ mutate: (inout HooksConfig) -> Void) {
+        // Hooks never affect provider fetching, so mark the change as not affecting
+        // background work: the config persists and the pane re-renders (via
+        // configRevision), but no provider refresh is triggered.
+        self.updateConfig(reason: "hooks", affectsBackgroundWork: false) { config in
+            var hooks = config.hooks ?? HooksConfig()
+            mutate(&hooks)
+            config.hooks = (hooks.enabled || !hooks.events.isEmpty) ? hooks : nil
+        }
+    }
+
+    /// Persists provider settings that only affect an already-visible provider detail.
+    /// This avoids rebuilding status items and open menus for a local selection change.
+    func updateProviderDetailConfig(
+        provider: UsageProvider,
+        mutate: (inout ProviderConfig) -> Void)
+    {
+        guard !self.configLoading else { return }
+        var config = self.config
+        if let index = config.providers.firstIndex(where: { $0.id == provider }) {
+            var entry = config.providers[index]
+            mutate(&entry)
+            config.providers[index] = entry
+        } else {
+            var entry = ProviderConfig(id: provider)
+            mutate(&entry)
+            config.providers.append(entry)
+        }
+        self.config = config.normalized()
+        self.updateProviderState(config: self.config)
+        self.schedulePersistConfig()
+        self.providerDetailSettingsRevision &+= 1
+    }
+
     func updateProviderTokenAccounts(_ accounts: [UsageProvider: ProviderTokenAccountData]) {
         let summary = accounts
             .sorted { $0.key.rawValue < $1.key.rawValue }

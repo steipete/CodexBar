@@ -101,6 +101,8 @@ public struct ProviderFetchResult: Sendable {
     public let sourceLabel: String
     public let strategyID: String
     public let strategyKind: ProviderFetchKind
+    /// Optional live diagnostic retained alongside an otherwise usable snapshot.
+    public let diagnostic: String?
     /// Transient account ownership evidence for plan-utilization history.
     /// The raw Keychain reference never enters the persisted usage snapshot.
     public let claudeOAuthKeychainPersistentRefHash: String?
@@ -121,6 +123,7 @@ public struct ProviderFetchResult: Sendable {
         sourceLabel: String,
         strategyID: String,
         strategyKind: ProviderFetchKind,
+        diagnostic: String? = nil,
         claudeOAuthKeychainPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
         claudeOAuthKeychainCredentialMismatch: Bool = false,
@@ -133,6 +136,7 @@ public struct ProviderFetchResult: Sendable {
         self.sourceLabel = sourceLabel
         self.strategyID = strategyID
         self.strategyKind = strategyKind
+        self.diagnostic = diagnostic
         self.claudeOAuthKeychainPersistentRefHash = claudeOAuthKeychainPersistentRefHash
         self.claudeOAuthHistoryOwnerIdentifier = claudeOAuthHistoryOwnerIdentifier
         self.claudeOAuthKeychainCredentialMismatch = claudeOAuthKeychainCredentialMismatch
@@ -198,7 +202,8 @@ extension ProviderFetchStrategy {
         usage: UsageSnapshot,
         credits: CreditsSnapshot? = nil,
         dashboard: OpenAIDashboardSnapshot? = nil,
-        sourceLabel: String) -> ProviderFetchResult
+        sourceLabel: String,
+        diagnostic: String? = nil) -> ProviderFetchResult
     {
         ProviderFetchResult(
             usage: usage,
@@ -206,7 +211,8 @@ extension ProviderFetchStrategy {
             dashboard: dashboard,
             sourceLabel: sourceLabel,
             strategyID: self.id,
-            strategyKind: self.kind)
+            strategyKind: self.kind,
+            diagnostic: diagnostic)
     }
 }
 

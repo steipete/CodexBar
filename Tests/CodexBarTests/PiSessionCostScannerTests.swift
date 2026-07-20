@@ -92,6 +92,65 @@ struct PiSessionCostScannerTests {
     }
 
     @Test
+    func `scanner merges omp sessions with pi sessions`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 17)
+        func session(_ id: String) -> [String: Any] {
+            ["type": "session", "id": id, "timestamp": env.isoString(for: day)]
+        }
+        func assistant(input: Int, output: Int) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "api": "openai-codex-responses",
+                    "provider": "openai-codex",
+                    "model": "gpt-5.4",
+                    "usage": [
+                        "input": input,
+                        "output": output,
+                        "cacheRead": 0,
+                        "cacheWrite": 0,
+                        "totalTokens": input + output,
+                    ],
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-17T10-00-00-000Z_pi.jsonl",
+            contents: env.jsonl([session("pi-session"), assistant(input: 10, output: 5)]))
+        let ompSessionsRoot = env.root.appendingPathComponent("omp-sessions", isDirectory: true)
+        let ompSession = ompSessionsRoot.appendingPathComponent(
+            "nested/2026-07-17T11-00-00-000Z_omp.jsonl",
+            isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: ompSession.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try env.jsonl([session("omp-session"), assistant(input: 20, output: 10)])
+            .write(to: ompSession, atomically: true, encoding: .utf8)
+
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                ompSessionsRoot: ompSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0))
+
+        #expect(report.data.count == 1)
+        #expect(report.data.first?.totalTokens == 45)
+        #expect(report.data.first?.inputTokens == 30)
+        #expect(report.data.first?.outputTokens == 15)
+    }
+
+    @Test
     func `pi codex cache reads are billed once and use the true context size`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -691,8 +750,8 @@ struct PiSessionCostScannerTests {
         #expect(FileManager.default.fileExists(atPath: newCacheURL.path))
         let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
         let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
-        #expect(newCacheURL.lastPathComponent == "pi-sessions-v5.json")
-        #expect(newCache.version == 5)
+        #expect(newCacheURL.lastPathComponent == "pi-sessions-v7.json")
+        #expect(newCache.version == 7)
         #expect(rebuilt?.usageSampleCount == 1)
         #expect(rebuilt?.costSampleCount == 1)
         #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
@@ -700,7 +759,7 @@ struct PiSessionCostScannerTests {
 
     @Test
     func `pi scanner ignores v4 cache with stale gpt56 cache write pricing`() throws {
-        // v4 stored complete costNanos before cache-write rates existed; v5 must reprice.
+        // v4 stored complete costNanos before cache-write rates existed; v7 must reprice.
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -800,12 +859,92 @@ struct PiSessionCostScannerTests {
 
         let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
         let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
-        #expect(newCache.version == 5)
+        #expect(newCache.version == 7)
         #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
     }
 }
 
 extension PiSessionCostScannerTests {
+    @Test
+    func `scanner counts duplicate pi and omp session ids once`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 17)
+        let session: [String: Any] = [
+            "type": "session",
+            "id": "shared-session",
+            "timestamp": env.isoString(for: day),
+        ]
+        func assistant(id: String, input: Int, output: Int) -> [String: Any] {
+            [
+                "type": "message",
+                "id": id,
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "gpt-5.4",
+                    "usage": [
+                        "input": input,
+                        "output": output,
+                        "totalTokens": input + output,
+                    ],
+                ],
+            ]
+        }
+
+        let initial = try env.jsonl([session, assistant(id: "shared-turn", input: 10, output: 5)])
+        let piSession = try env.writePiSessionFile(
+            relativePath: "2026-07-17T10-00-00-000Z_shared.jsonl",
+            contents: initial)
+        let ompSessionsRoot = env.root.appendingPathComponent("omp-sessions", isDirectory: true)
+        let ompSession = ompSessionsRoot.appendingPathComponent(
+            "nested/2026-07-17T10-00-00-000Z_shared.jsonl",
+            isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: ompSession.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try initial.write(to: ompSession, atomically: true, encoding: .utf8)
+
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            ompSessionsRoot: ompSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+        let first = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(first.data.first?.totalTokens == 15)
+
+        let piHandle = try FileHandle(forWritingTo: piSession)
+        try piHandle.seekToEnd()
+        try piHandle.write(contentsOf: Data(env.jsonl([assistant(id: "pi-turn", input: 7, output: 3)]).utf8))
+        try piHandle.close()
+        let ompHandle = try FileHandle(forWritingTo: ompSession)
+        try ompHandle.seekToEnd()
+        try ompHandle.write(contentsOf: Data(env.jsonl([assistant(id: "omp-turn", input: 20, output: 10)]).utf8))
+        try ompHandle.close()
+
+        let second = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        #expect(second.data.first?.totalTokens == 55)
+        #expect(second.data.first?.inputTokens == 37)
+        #expect(second.data.first?.outputTokens == 18)
+
+        let cache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        #expect(cache.files.values.count == 2)
+        #expect(cache.files.values.allSatisfy { $0.sessionID == "shared-session" })
+        #expect(cache.files.values.flatMap(\.entryUsages.keys).count == 4)
+    }
+
     @Test
     func `pi scanner reprices unchanged files when catalog rates change`() throws {
         let env = try CostUsageTestEnvironment()

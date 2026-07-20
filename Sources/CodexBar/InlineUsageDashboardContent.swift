@@ -86,10 +86,30 @@ extension UsageMenuCardView.Model {
             ]
         }
 
-        if input.provider == .deepseek,
-           input.showOptionalCreditsAndExtraUsage,
-           let usage = input.snapshot?.deepseekUsage
-        {
+        if input.provider == .deepseek {
+            if input.isRefreshing {
+                return []
+            }
+            if input.snapshot?.primary == nil {
+                if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
+                    return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
+                }
+                if input.snapshot?.deepseekDetailedUsageState == .profileSelectionRequired {
+                    return [L("Select a DeepSeek Chrome profile in Settings.")]
+                }
+            }
+            guard input.tokenCostInlineDashboardEnabled,
+                  input.showOptionalCreditsAndExtraUsage
+            else { return nil }
+            guard let usage = input.snapshot?.deepseekUsage else {
+                if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
+                    return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
+                }
+                if input.snapshot?.deepseekDetailedUsageState == .profileSelectionRequired {
+                    return [L("Select a DeepSeek Chrome profile in Settings.")]
+                }
+                return [L("Detailed usage unavailable.")]
+            }
             let symbol = usage.currency == "CNY" ? "¥" : "$"
             let todayCostStr = usage.todayCost.map { "\(symbol)\(String(format: "%.4f", max(0, $0)))" } ?? "—"
             return [
@@ -110,7 +130,7 @@ extension UsageMenuCardView.Model {
         if input.provider == .ollama,
            input.snapshot?.identity?.loginMethod == "API key"
         {
-            return [L("API key verified. Ollama does not expose Cloud quota limits through the API.")]
+            return [L("API key verified. Cloud quotas need browser cookies. Sign in to Ollama.")]
         }
 
         return nil
@@ -208,11 +228,6 @@ extension UsageMenuCardView.Model {
         {
             return Self.openRouterInlineDashboard(usage)
         }
-        if input.provider == .crossmodel,
-           let usage = input.snapshot?.crossModelUsage
-        {
-            return Self.crossModelInlineDashboard(usage)
-        }
         if input.provider == .zai,
            let modelUsage = input.snapshot?.zaiUsage?.modelUsage
         {
@@ -226,6 +241,8 @@ extension UsageMenuCardView.Model {
             return Self.minimaxInlineDashboard(billing)
         }
         if input.provider == .deepseek,
+           !input.isRefreshing,
+           input.tokenCostInlineDashboardEnabled,
            input.showOptionalCreditsAndExtraUsage,
            let usage = input.snapshot?.deepseekUsage,
            !usage.daily.isEmpty
@@ -238,10 +255,10 @@ extension UsageMenuCardView.Model {
         {
             return Self.poeInlineDashboard(usage, now: input.now)
         }
-        if [.codex, .claude, .vertexai, .bedrock].contains(input.provider),
+        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego].contains(input.provider),
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
-           !tokenSnapshot.daily.isEmpty
+           !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
         {
             return Self.costHistoryInlineDashboard(
                 provider: input.provider,
@@ -252,7 +269,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
-        provider == .openai || provider == .mistral
+        provider == .openai || provider == .mistral || provider == .groq
     }
 
     static func primaryCostHistorySnapshot(input: Input) -> CostUsageTokenSnapshot? {
@@ -264,6 +281,11 @@ extension UsageMenuCardView.Model {
             return input.snapshot == nil ? input.tokenSnapshot : nil
         case .mistral:
             if let projected = input.snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
+                return projected
+            }
+            return input.snapshot == nil ? input.tokenSnapshot : nil
+        case .groq:
+            if let projected = input.snapshot?.groqConsoleUsage?.toCostUsageTokenSnapshot() {
                 return projected
             }
             return input.snapshot == nil ? input.tokenSnapshot : nil
@@ -338,12 +360,19 @@ extension UsageMenuCardView.Model {
         comparisonPeriodsEnabled: Bool) -> InlineUsageDashboardModel
     {
         let historyDays = max(1, min(365, snapshot.historyDays))
-        let historyTitle = snapshot.historyLabel
+        let defaultHistoryTitle = snapshot.historyLabel
             ?? (historyDays == 1
                 ? L("Today")
                 : historyDays == 30
                 ? L("30d cost")
                 : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))")
+        let codexHistoryPeriod = snapshot.historyLabel
+            ?? (historyDays == 1
+                ? L("Today")
+                : historyDays == 30
+                ? "30d"
+                : String(format: L("Last %d days"), historyDays))
+        let historyTitle = provider == .codex ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
                 ? L("Today tokens")
@@ -356,8 +385,13 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? L("30d requests")
                 : String(format: L("%@ requests"), String(format: L("Last %d days"), historyDays)))
-        let periodLabel = snapshot.historyLabel?.lowercased()
-            ?? (historyDays == 1 ? "today" : "\(historyDays) day")
+        let accessibilityCostLabel: String = if let historyLabel = snapshot.historyLabel {
+            L("%@ cost", historyLabel)
+        } else if historyDays == 30 {
+            L("30d cost")
+        } else {
+            L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
+        }
         let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
             guard let cost = entry.costUSD else { return nil }
             return InlineUsageDashboardModel.Point(
@@ -378,33 +412,63 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
-        if let requestCount = snapshot.last30DaysRequests {
-            details.append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
+        if provider == .codex {
+            details.append(L("codex_api_estimate_hint"))
         }
-        if let hint = Self.tokenUsageHint(provider: provider) {
-            details.append(hint)
-        } else {
-            details.append(L("cost_estimate_hint"))
+        if provider != .groq {
+            if let requestCount = snapshot.last30DaysRequests {
+                details
+                    .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
+            }
+            if provider != .codex {
+                let hintLines = Self.tokenUsageHintLines(provider: provider)
+                if hintLines.isEmpty == false {
+                    details.append(contentsOf: hintLines)
+                } else {
+                    details.append(L("cost_estimate_hint"))
+                }
+            }
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
-        var model = InlineUsageDashboardModel(
-            accessibilityLabel: "\(providerName) \(periodLabel) cost trend",
-            valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
-            kpis: [
+        let accessibilityLabel = L(
+            "%@: %@",
+            providerName,
+            accessibilityCostLabel)
+        var kpis = [
+            InlineUsageDashboardModel.KPI(
+                title: usesLatestPrimary ? L("Latest") : L("Today"),
+                value: primaryCostUSD.map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
+                emphasis: true),
+            .init(
+                title: historyTitle,
+                value: snapshot.last30DaysCostUSD
+                    .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
+                emphasis: false),
+        ]
+        let tokenHistoryKPI = InlineUsageDashboardModel.KPI(
+            title: tokenHistoryTitle,
+            value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
+            emphasis: false)
+        let trailingKPIs = Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest)
+        if snapshot.last30DaysRequests == nil {
+            kpis.append(contentsOf: trailingKPIs)
+            kpis.append(tokenHistoryKPI)
+        } else {
+            kpis.append(tokenHistoryKPI)
+            kpis.append(contentsOf: trailingKPIs)
+        }
+        if provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
+            kpis.insert(
                 .init(
-                    title: usesLatestPrimary ? L("Latest") : L("Today"),
-                    value: primaryCostUSD.map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
+                    title: "Cursor-metered",
+                    value: Self.costString(meteredCostUSD, currencyCode: snapshot.currencyCode),
                     emphasis: true),
-                .init(
-                    title: historyTitle,
-                    value: snapshot.last30DaysCostUSD
-                        .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
-                    emphasis: false),
-                .init(
-                    title: tokenHistoryTitle,
-                    value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
-                    emphasis: false),
-            ] + Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest),
+                at: 0)
+        }
+        var model = InlineUsageDashboardModel(
+            accessibilityLabel: accessibilityLabel,
+            valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
+            kpis: kpis,
             points: points,
             detailLines: details)
         model.currencyCode = snapshot.currencyCode
@@ -470,44 +534,6 @@ extension UsageMenuCardView.Model {
             points: points,
             detailLines: details)
         model.currencyCode = "USD"
-        return model
-    }
-
-    private static func crossModelInlineDashboard(_ usage: CrossModelUsageSnapshot) -> InlineUsageDashboardModel? {
-        let periodValues: [(String, String, Double?)] = [
-            ("day", L("Today"), usage.daily?.cost),
-            ("week", L("Week"), usage.weekly?.cost),
-            ("month", L("Month"), usage.monthly?.cost),
-        ]
-        let points = periodValues.compactMap { id, label, value -> InlineUsageDashboardModel.Point? in
-            guard let value else { return nil }
-            return InlineUsageDashboardModel.Point(
-                id: id,
-                label: label,
-                value: value,
-                accessibilityValue: "\(label): \(usage.currencyString(value))")
-        }
-        var model = InlineUsageDashboardModel(
-            accessibilityLabel: L("CrossModel API spend trend"),
-            valueStyle: Self.costValueStyle(currencyCode: usage.currency),
-            kpis: [
-                .init(title: L("Balance"), value: usage.balanceDisplay, emphasis: true),
-                .init(
-                    title: L("Today"),
-                    value: usage.daily.map { usage.currencyString($0.cost) } ?? "—",
-                    emphasis: false),
-                .init(
-                    title: L("Week"),
-                    value: usage.weekly.map { usage.currencyString($0.cost) } ?? "—",
-                    emphasis: false),
-                .init(
-                    title: L("Month"),
-                    value: usage.monthly.map { usage.currencyString($0.cost) } ?? "—",
-                    emphasis: false),
-            ],
-            points: points,
-            detailLines: [])
-        model.currencyCode = usage.currency
         return model
     }
 
@@ -673,7 +699,7 @@ extension UsageMenuCardView.Model {
         let monthTokensStr = UsageFormatter.tokenCountString(usage.currentMonthTokens)
 
         return InlineUsageDashboardModel(
-            accessibilityLabel: L("DeepSeek 30 day token usage trend"),
+            accessibilityLabel: L("DeepSeek this month token usage trend"),
             valueStyle: .tokens,
             kpis: [
                 .init(
@@ -705,7 +731,9 @@ extension UsageMenuCardView.Model {
             }
         }
         return tokens.max {
-            if $0.value == $1.value { return $0.key > $1.key }
+            if $0.value == $1.value {
+                return $0.key > $1.key
+            }
             return $0.value < $1.value
         }?.key
     }
@@ -718,7 +746,9 @@ extension UsageMenuCardView.Model {
             }
         }
         return tokens.max {
-            if $0.value == $1.value { return $0.key > $1.key }
+            if $0.value == $1.value {
+                return $0.key > $1.key
+            }
             return $0.value < $1.value
         }?.key
     }
@@ -736,7 +766,9 @@ extension UsageMenuCardView.Model {
     }
 
     private static func costValueStyle(currencyCode: String) -> InlineUsageDashboardModel.ValueStyle {
-        if currencyCode == "USD" { return .currencyUSD }
+        if currencyCode == "USD" {
+            return .currencyUSD
+        }
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currencyCode
@@ -768,7 +800,9 @@ extension UsageMenuCardView.Model {
             }
         }
         return scores.max {
-            if $0.value.cost == $1.value.cost { return $0.value.tokens < $1.value.tokens }
+            if $0.value.cost == $1.value.cost {
+                return $0.value.tokens < $1.value.tokens
+            }
             return $0.value.cost < $1.value.cost
         }?.key
     }

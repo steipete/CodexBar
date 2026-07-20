@@ -2,6 +2,7 @@ import Foundation
 
 struct SettingsDefaultsState {
     var refreshFrequency: RefreshFrequency
+    var adaptiveActivityScanConsent: AdaptiveActivityScanConsent
     var refreshAllProvidersOnMenuOpen: Bool
     var launchAtLogin: Bool
     var debugMenuEnabled: Bool
@@ -28,15 +29,21 @@ struct SettingsDefaultsState {
     var providerChangelogLinksEnabled: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarHidesCritters: Bool
+    var menuBarHighContrastOnInactiveDisplays: Bool
     var menuBarDisplayModeRaw: String?
     var menuBarShowsResetTimeWhenExhausted: Bool
     var kiroMenuBarDisplayModeRaw: String?
     var historicalTrackingEnabled: Bool
     var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
+    var storedMenuBarLayout: MenuBarLayout?
+    var menuBarLayoutOverridesRaw: [String: MenuBarLayout]
+    var menuBarLayoutSizeRaw: String
+    var menuBarLayoutGapRaw: String
     var copilotBudgetExtrasEnabled: Bool
     var copilotIconSecondaryWindowIDRaw: String
     var costUsageEnabled: Bool
+    var codexLocalSessionCostLedgerEnabled: Bool
     var costUsageHistoryDays: Int
     var costComparisonPeriodsEnabled: Bool
     var costSummaryDisplayStyleRaw: String
@@ -64,5 +71,6 @@ struct SettingsDefaultsState {
     var appLanguageRaw: String?
     var terminalAppRaw: String?
     var agentSessionsEnabled: Bool
+    var agentSessionLabelStyleRaw: String
     var agentSessionsManualHosts: String
 }

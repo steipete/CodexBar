@@ -75,6 +75,19 @@ struct MenuPane: View {
                         subtitle: L("agent_sessions_subtitle"))
                 }
 
+                SettingsMenuPicker(
+                    selection: self.$settings.agentSessionLabelStyle,
+                    options: MenuSettingsMenuOptions.agentSessionLabelStyles,
+                    label: {
+                        SettingsRowLabel(
+                            L("agent_session_labels_title"),
+                            subtitle: L("agent_session_labels_subtitle"))
+                    },
+                    optionLabel: { style in
+                        Text(style.label)
+                    })
+                    .disabled(!self.settings.agentSessionsEnabled)
+
                 TextField(L("agent_sessions_hosts_title"), text: self.$settings.agentSessionsManualHosts)
                     .disabled(!self.settings.agentSessionsEnabled)
             } header: {
@@ -126,16 +139,22 @@ struct CostSummarySettingsSection: View {
                         Text(L("cost_auto_refresh_info"))
                         self.costStatusLine(provider: .claude)
                         self.costStatusLine(provider: .codex)
+                        self.costStatusLine(provider: .cursor)
+                        Text(Self.costDataExplanation())
                     }
                 }
             }
         }
     }
 
+    static func costDataExplanation() -> String {
+        L("cost_data_explanation")
+    }
+
     private func costStatusLine(provider: UsageProvider) -> Text {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
-        guard provider == .claude || provider == .codex else {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
             return Text(String(format: L("cost_status_unsupported"), name))
         }
 

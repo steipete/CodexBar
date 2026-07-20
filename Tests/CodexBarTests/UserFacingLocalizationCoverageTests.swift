@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 
 struct UserFacingLocalizationCoverageTests {
     @Test
@@ -60,6 +61,9 @@ struct UserFacingLocalizationCoverageTests {
             "Sources/CodexBar/PreferencesProviderErrorView.swift": [
                 ".help(\"Copy error\")",
             ],
+            "Sources/CodexBar/PreferencesSpendDashboardPane.swift": [
+                "Text(\"Model breakdown unavailable\")",
+            ],
             "Sources/CodexBar/PreferencesProviderSettingsRows.swift": [
                 "Text(self.title)",
                 "Text(self.toggle.title)",
@@ -109,5 +113,61 @@ struct UserFacingLocalizationCoverageTests {
         #expect(
             violations.isEmpty,
             "Raw user-facing localization markers remain:\n\(violations.joined(separator: "\n"))")
+    }
+
+    @Test
+    func `spend dashboard model breakdown state stays precise and localized`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/CodexBar/PreferencesSpendDashboardPane.swift"),
+            encoding: .utf8)
+
+        #expect(source.contains(#"Text(L("Model breakdown unavailable"))"#))
+        #expect(source.contains(#"Text(L("No model-level history"))"#))
+    }
+
+    @Test
+    func `spend dashboard chart keeps validated points when aggregate total is unavailable`() {
+        let start = Date(timeIntervalSince1970: 1_783_036_800)
+        let points = [
+            SpendDashboardModel.DailyPoint(
+                sourceID: "healthy-claude",
+                provider: .claude,
+                providerName: "Claude",
+                day: start,
+                cost: 2,
+                stackStart: 0,
+                stackEnd: 2),
+            SpendDashboardModel.DailyPoint(
+                sourceID: "healthy-openai-1",
+                provider: .openai,
+                providerName: "OpenAI",
+                day: start,
+                cost: 3,
+                stackStart: 2,
+                stackEnd: 5),
+            SpendDashboardModel.DailyPoint(
+                sourceID: "healthy-openai-2",
+                provider: .openai,
+                providerName: "OpenAI",
+                day: start.addingTimeInterval(86400),
+                cost: 4,
+                stackStart: 0,
+                stackEnd: 4),
+        ]
+
+        let partial = SpendDailyChartPresentation(dailyPoints: points, aggregateTotal: nil)
+        #expect(partial.content == .chart)
+        #expect(partial.series.map(\.name) == ["Claude", "OpenAI"])
+        #expect(partial.dayCount == 2)
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(partial.accessibilityValue == "2 days of usage data across 2 services")
+        }
+
+        #expect(SpendDailyChartPresentation(dailyPoints: [], aggregateTotal: nil).content == .unavailable)
+        #expect(SpendDailyChartPresentation(dailyPoints: [], aggregateTotal: 0).content == .chart)
     }
 }

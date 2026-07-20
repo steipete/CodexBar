@@ -353,6 +353,7 @@ struct CostUsageFetcherCacheSnapshotTests {
 
         #expect(cached?.sessionTokens == 207)
         #expect(cached?.last30DaysTokens == 207)
+        #expect(cached?.sessions.isEmpty == true)
     }
 
     @Test

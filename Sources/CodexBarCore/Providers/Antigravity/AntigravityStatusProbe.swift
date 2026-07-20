@@ -360,14 +360,47 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func quotaBucketKind(for bucket: AntigravityQuotaSummaryBucket) -> QuotaBucketKind {
-        let combined = "\(bucket.bucketId) \(bucket.displayName)".lowercased()
-        if combined.contains("5h") || combined.contains("5-hour") || combined.contains("five hour") {
+        let candidates = Self.quotaCadenceCandidates(for: bucket)
+        if !candidates.isDisjoint(with: Self.sessionCadenceAliases) {
             return .session
         }
-        if combined.contains("weekly") {
+        if candidates.contains("weekly") {
             return .weekly
         }
         return .other
+    }
+
+    private static let sessionCadenceAliases: Set<String> = [
+        "session",
+        "5h",
+        "5-hour",
+        "five hour",
+        "five-hour",
+    ]
+
+    private static func quotaCadenceCandidates(for bucket: AntigravityQuotaSummaryBucket) -> Set<String> {
+        var candidates: Set<String> = []
+        for rawValue in [bucket.bucketId, bucket.displayName] {
+            let normalized = rawValue
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .replacingOccurrences(of: "_", with: "-")
+            guard !normalized.isEmpty else { continue }
+
+            var normalizedCandidates = [normalized]
+            if normalized.hasSuffix(" limit") {
+                normalizedCandidates.append(String(normalized.dropLast(" limit".count)))
+            }
+            for candidate in normalizedCandidates {
+                candidates.insert(candidate)
+                for alias in Self.sessionCadenceAliases.union(["weekly"])
+                    where candidate.hasSuffix("-\(alias)")
+                {
+                    candidates.insert(alias)
+                }
+            }
+        }
+        return candidates
     }
 
     static func quotaDisplayLabel(_ quota: AntigravityModelQuota) -> String {

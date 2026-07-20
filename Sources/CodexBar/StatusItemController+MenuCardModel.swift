@@ -18,6 +18,7 @@ extension StatusItemController {
         errorOverride: String? = nil,
         forceOverrideCard: Bool = false,
         accountOverride: AccountInfo? = nil,
+        historySelectionOverride: PlanUtilizationHistorySelection? = nil,
         planOverride: String? = nil) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
@@ -34,7 +35,7 @@ extension StatusItemController {
         let snapshot: UsageSnapshot? = if surface == .overrideCard {
             snapshotOverride
         } else {
-            snapshotOverride ?? self.store.snapshot(for: target)
+            snapshotOverride ?? self.store.presentationSnapshot(for: target)
         }
         let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
         let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)
@@ -89,6 +90,11 @@ extension StatusItemController {
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         // Abacus uses primary for monthly credits (no secondary window)
         let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
+        let sessionEquivalentHistorySelection = self.sessionEquivalentHistorySelection(
+            provider: target,
+            snapshot: snapshot,
+            usesOverrideCard: surface == .overrideCard,
+            override: historySelectionOverride)
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
@@ -97,6 +103,32 @@ extension StatusItemController {
             paceWindow.flatMap { window in
                 self.store.weeklyPace(provider: target, window: window, now: now)
             }
+        }
+        let sessionEquivalentForecast: SessionEquivalentForecast? = if let codexProjection,
+                                                                       let session = codexProjection
+                                                                           .rateWindow(for: .session),
+                                                                           let weekly = codexProjection
+                                                                               .rateWindow(for: .weekly)
+        {
+            self.store.sessionEquivalentForecast(
+                provider: target,
+                sessionWindow: session,
+                weeklyWindow: weekly,
+                historySelection: sessionEquivalentHistorySelection,
+                now: now)
+        } else if let snapshot,
+                  let windows = self.store.sessionEquivalentWindows(provider: target, snapshot: snapshot)
+        {
+            self.store.sessionEquivalentForecast(
+                provider: target,
+                sessionWindow: windows.session,
+                weeklyWindow: windows.weekly,
+                weeklyWindowID: windows.weeklyWindowID,
+                historyIdentity: windows.historyIdentity,
+                historySelection: sessionEquivalentHistorySelection,
+                now: now)
+        } else {
+            nil
         }
         let fallbackAccount = accountOverride
             ?? (metadata.usesAccountFallback
@@ -127,8 +159,17 @@ extension StatusItemController {
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: target),
+            codexLocalSessionCostLedgerEnabled: self.settings.codexLocalSessionCostLedgerEnabled,
             tokenCostInlineDashboardEnabled: self.settings.costSummaryShowsInlineDashboard(for: target),
-            tokenCostMenuSectionEnabled: !UsageStore.tokenCostRequiresProviderSnapshot(target) &&
+            // openai/mistral's cost history always surfaces via the inline dashboard or a
+            // dedicated top-pane submenu (see `makeUsageSubmenu`), so they skip the generic
+            // "Cost" row. This must stay an explicit provider check rather than reusing
+            // `usesProviderCostHistoryAsPrimaryDashboard` (or `tokenCostRequiresProviderSnapshot`):
+            // both of those sets are shared with unrelated concerns (inline-dashboard eligibility,
+            // provider-derived snapshot sourcing) and gain members for reasons that have nothing to
+            // do with whether this row should show, silently disabling the Cost row for those
+            // providers too (e.g. groq's addition to the inline-dashboard set previously did this).
+            tokenCostMenuSectionEnabled: target != .mistral && target != .openai &&
                 self.settings.costSummaryShowsSubmenu(for: target),
             costComparisonPeriodsEnabled: self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
@@ -138,6 +179,7 @@ extension StatusItemController {
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
+            sessionEquivalentForecast: sessionEquivalentForecast,
             quotaWarningThresholds: [
                 .session: self.quotaWarningMarkerThresholds(provider: target, window: .session),
                 .weekly: self.quotaWarningMarkerThresholds(provider: target, window: .weekly),
@@ -146,6 +188,20 @@ extension StatusItemController {
             usesLiveSubtitle: surface == .liveCard,
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    private func sessionEquivalentHistorySelection(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        usesOverrideCard: Bool,
+        override: PlanUtilizationHistorySelection?) -> PlanUtilizationHistorySelection?
+    {
+        guard usesOverrideCard else { return nil }
+        if let override {
+            return override
+        }
+        guard let snapshot else { return .unavailable }
+        return self.store.planUtilizationHistorySelection(for: provider, snapshotOverride: snapshot)
     }
 
     func accountInfo(for account: CodexVisibleAccount) -> AccountInfo {

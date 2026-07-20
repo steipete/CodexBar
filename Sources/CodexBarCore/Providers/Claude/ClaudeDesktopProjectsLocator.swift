@@ -55,6 +55,41 @@ public enum ClaudeDesktopProjectsLocator {
         return roots
     }
 
+    static func roots(
+        homeDirectory: URL,
+        fileManager: FileManager,
+        budget: inout DirectoryMetadataScanBudget) -> [URL]
+    {
+        let claudeApplicationSupport = homeDirectory
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Claude", isDirectory: true)
+        let sessionRoots = self.sessionDirectoryNames.map {
+            claudeApplicationSupport.appendingPathComponent($0, isDirectory: true)
+        }
+
+        var roots: [URL] = []
+        var queue = sessionRoots.map { (url: $0, depth: 0) }
+        var visited = Set(sessionRoots.map(\.standardizedFileURL.path))
+        var nextIndex = 0
+        while nextIndex < queue.count {
+            let current = queue[nextIndex]
+            nextIndex += 1
+            if let projects = self.projectsRoot(under: current.url, fileManager: fileManager) {
+                roots.append(projects)
+            }
+
+            guard current.depth < budget.maxDepth else { continue }
+            for child in budget.childDirectories(in: current.url, fileManager: fileManager) {
+                guard !self.skippedDirectoryNames.contains(child.lastPathComponent) else { continue }
+                let standardized = child.standardizedFileURL
+                guard visited.insert(standardized.path).inserted else { continue }
+                queue.append((standardized, current.depth + 1))
+            }
+        }
+        return roots
+    }
+
     private static func projectsRoot(under base: URL, fileManager: FileManager) -> URL? {
         let projects = base
             .appendingPathComponent(".claude", isDirectory: true)

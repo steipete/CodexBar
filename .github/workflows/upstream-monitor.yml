@@ -92,16 +92,23 @@ jobs:
       - name: Create or update issue
         if: steps.check.outputs.upstream_commits > 0 || steps.check.outputs.quotio_commits > 0
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          UPSTREAM_COMMITS: ${{ steps.check.outputs.upstream_commits }}
+          QUOTIO_COMMITS: ${{ steps.check.outputs.quotio_commits }}
+          UPSTREAM_REF: ${{ steps.check.outputs.upstream_ref }}
+          QUOTIO_REF: ${{ steps.check.outputs.quotio_ref }}
+          UPSTREAM_SUMMARY: ${{ steps.check.outputs.upstream_summary }}
+          QUOTIO_SUMMARY: ${{ steps.check.outputs.quotio_summary }}
         with:
           script: |
-            const upstreamCommits = '${{ steps.check.outputs.upstream_commits }}';
-            const quotioCommits = '${{ steps.check.outputs.quotio_commits }}';
-            const upstreamRef = '${{ steps.check.outputs.upstream_ref }}';
-            const quotioRef = '${{ steps.check.outputs.quotio_ref }}';
+            const upstreamCommits = process.env.UPSTREAM_COMMITS;
+            const quotioCommits = process.env.QUOTIO_COMMITS;
+            const upstreamRef = process.env.UPSTREAM_REF;
+            const quotioRef = process.env.QUOTIO_REF;
             const upstreamBranch = upstreamRef.replace('upstream/', '');
             const quotioBranch = quotioRef.replace('quotio/', '');
-            const upstreamSummary = `${{ steps.check.outputs.upstream_summary }}`;
-            const quotioSummary = `${{ steps.check.outputs.quotio_summary }}`;
+            const upstreamSummary = process.env.UPSTREAM_SUMMARY;
+            const quotioSummary = process.env.QUOTIO_SUMMARY;
             
             const body = `## 🔄 Upstream Changes Detected
             

@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct AmpUsageFetcherTests {
     private func makeContext(
         sourceMode: ProviderSourceMode,
@@ -159,4 +160,146 @@ struct AmpUsageFetcherTests {
         let evil = try #require(URL(string: "https://ampcode.com.evil.com/auth/sign-in"))
         #expect(!AmpUsageFetcher.isLoginRedirect(evil))
     }
+
+    @Test
+    func `temporary API session is finished after a successful request`() async throws {
+        defer { AmpStubURLProtocol.handler = nil }
+        AmpStubURLProtocol.handler = { request in
+            let displayText = "Amp Free: $8/$10 remaining (replenishes +$0.5/hour)"
+            let data = try JSONSerialization.data(withJSONObject: [
+                "ok": true,
+                "result": ["displayText": displayText],
+            ])
+            return try Self.makeResponse(request: request, data: data)
+        }
+        let recorder = AmpSessionFinishRecorder()
+        let fetcher = self.makeFetcher(recorder: recorder)
+
+        _ = try await fetcher.fetch(apiToken: "test")
+
+        #expect(recorder.count == 1)
+    }
+
+    @Test
+    func `temporary API session is finished after a transport failure`() async {
+        defer { AmpStubURLProtocol.handler = nil }
+        AmpStubURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        let recorder = AmpSessionFinishRecorder()
+        let fetcher = self.makeFetcher(recorder: recorder)
+
+        await #expect(throws: URLError.self) {
+            _ = try await fetcher.fetch(apiToken: "test")
+        }
+        #expect(recorder.count == 1)
+    }
+
+    @Test
+    func `temporary web session is finished after a successful request`() async throws {
+        defer { AmpStubURLProtocol.handler = nil }
+        AmpStubURLProtocol.handler = { request in
+            let html = """
+            <script>
+            __sveltekit_x.data = {user:{},
+            freeTierUsage:{bucket:"ubi",quota:1000,hourlyReplenishment:42,windowHours:24,used:338.5}};
+            </script>
+            """
+            return try Self.makeResponse(request: request, data: Data(html.utf8))
+        }
+        let recorder = AmpSessionFinishRecorder()
+        let fetcher = self.makeFetcher(recorder: recorder)
+
+        _ = try await fetcher.fetch(cookieHeaderOverride: "session=test")
+
+        #expect(recorder.count == 1)
+    }
+
+    @Test
+    func `temporary web session is finished after a transport failure`() async {
+        defer { AmpStubURLProtocol.handler = nil }
+        AmpStubURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        let recorder = AmpSessionFinishRecorder()
+        let fetcher = self.makeFetcher(recorder: recorder)
+
+        await #expect(throws: URLError.self) {
+            _ = try await fetcher.fetch(cookieHeaderOverride: "session=test")
+        }
+        #expect(recorder.count == 1)
+    }
+
+    private func makeFetcher(recorder: AmpSessionFinishRecorder) -> AmpUsageFetcher {
+        AmpUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            makeURLSession: { delegate in
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.protocolClasses = [AmpStubURLProtocol.self]
+                return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+            },
+            finishURLSession: { session in
+                recorder.record(session)
+                session.finishTasksAndInvalidate()
+            })
+    }
+
+    private static func makeResponse(
+        request: URLRequest,
+        data: Data,
+        statusCode: Int = 200) throws -> (HTTPURLResponse, Data)
+    {
+        let url = try #require(request.url)
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]))
+        return (response, data)
+    }
+}
+
+private final class AmpSessionFinishRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sessions: [URLSession] = []
+
+    var count: Int {
+        self.lock.withLock { self.sessions.count }
+    }
+
+    func record(_ session: URLSession) {
+        self.lock.withLock {
+            self.sessions.append(session)
+        }
+    }
+}
+
+private final class AmpStubURLProtocol: URLProtocol {
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool {
+        request.url?.host?.hasSuffix("ampcode.com") == true
+    }
+
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            self.client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(self.request)
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: data)
+            self.client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            self.client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }

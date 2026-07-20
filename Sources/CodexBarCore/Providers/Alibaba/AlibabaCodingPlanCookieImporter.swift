@@ -63,16 +63,45 @@ public enum AlibabaCodingPlanCookieImporter {
         }
     }
 
-    nonisolated(unsafe) static var importSessionOverrideForTesting:
-        ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?
+    #if DEBUG
+    final class ImportSessionOverrideStore: @unchecked Sendable {
+        let importSession: (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo
+
+        init(importSession: @escaping (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo) {
+            self.importSession = importSession
+        }
+    }
+
+    @TaskLocal private static var taskImportSessionOverrideStore: ImportSessionOverrideStore?
+
+    static func withImportSessionOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskImportSessionOverrideStore.withValue(override.map(ImportSessionOverrideStore.init)) {
+            try operation()
+        }
+    }
+
+    static func withImportSessionOverrideForTesting<T>(
+        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskImportSessionOverrideStore.withValue(override.map(ImportSessionOverrideStore.init)) {
+            try await operation()
+        }
+    }
+    #endif
 
     public static func importSession(
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        if let override = self.importSessionOverrideForTesting {
+        #if DEBUG
+        if let override = self.taskImportSessionOverrideStore?.importSession {
             return try override(browserDetection, logger)
         }
+        #endif
         let log: (String) -> Void = { msg in logger?("[alibaba-cookie] \(msg)") }
         var accessDeniedHints: [String] = []
         var failureDetails: [String] = []

@@ -171,6 +171,27 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
+    func `cookie session loop preserves team unsupported billing`() async throws {
+        let cookie = try #require(Self.cookie(name: "sso", value: "team-session"))
+        let sessions = [GrokCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: "Chrome")]
+
+        await #expect {
+            _ = try await GrokWebFetchStrategy.fetchFirstValidCookieSession(
+                sessions,
+                credentials: Self.credentials)
+            { _, authCredentials in
+                if authCredentials != nil {
+                    throw GrokWebBillingError.teamUsageUnsupported
+                }
+                throw GrokWebBillingError.rpcFailed(9, "No personal team")
+            }
+        } throws: { error in
+            guard case GrokWebBillingError.teamUsageUnsupported = error else { return false }
+            return true
+        }
+    }
+
+    @Test
     func `web strategy skips expired bearer for browser cookies`() async throws {
         let cookie = try #require(Self.cookie(name: "sso", value: "session"))
         let sessions = [GrokCookieImporter.SessionInfo(cookies: [cookie], sourceLabel: "Chrome")]
@@ -236,6 +257,149 @@ struct GrokWebBillingFetcherTests {
         #expect(!GrokWebBillingError.isAuthenticationFailure(
             status: 7,
             message: "OAuth2 access token lacks the required billing scope"))
+    }
+
+    @Test
+    func `only a team principal with no personal team gets unsupported billing guidance`() {
+        #expect(GrokWebBillingFetcher.isTeamBillingUnavailable(
+            status: 9,
+            message: "No personal team"))
+        #expect(GrokWebBillingFetcher.isTeamBillingUnavailable(
+            status: 9,
+            message: " no PERSONAL team "))
+        #expect(GrokWebBillingFetcher.isTeamBillingUnavailable(
+            status: 9,
+            message: "No personal team."))
+        #expect(!GrokWebBillingFetcher.isTeamBillingUnavailable(
+            status: 9,
+            message: "Permission denied"))
+        #expect(!GrokWebBillingFetcher.isTeamBillingUnavailable(
+            status: 7,
+            message: "No personal team"))
+        #expect(GrokWebBillingError.teamUsageUnsupported.errorDescription?.contains("identity") == false)
+    }
+
+    @Test
+    func `team principal status nine response is classified as unsupported billing`() async throws {
+        defer {
+            GrokWebBillingStubURLProtocol.requests = []
+            GrokWebBillingStubURLProtocol.requestBodies = []
+            GrokWebBillingStubURLProtocol.handler = nil
+        }
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GrokWebBillingStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+        let endpoint = try #require(URL(string: "https://grok.test/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig"))
+        let message = "No personal team.".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+            ?? "No personal team."
+        let body = Self.grpcFrame(
+            Data("grpc-status: 9\r\ngrpc-message: \(message)\r\n".utf8),
+            flags: 0x80)
+
+        GrokWebBillingStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let response = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/grpc-web+proto"])!
+            return (response, body)
+        }
+
+        await #expect {
+            _ = try await GrokWebBillingFetcher.fetch(
+                credentials: Self.credentials,
+                session: session,
+                endpoint: endpoint)
+        } throws: { error in
+            guard case GrokWebBillingError.teamUsageUnsupported = error else { return false }
+            return true
+        }
+
+        let expiredCredentials = GrokCredentials(
+            accessToken: "expired-token",
+            refreshToken: nil,
+            scope: Self.credentials.scope,
+            authMode: Self.credentials.authMode,
+            userId: Self.credentials.userId,
+            email: Self.credentials.email,
+            firstName: Self.credentials.firstName,
+            lastName: Self.credentials.lastName,
+            teamId: Self.credentials.teamId,
+            principalType: Self.credentials.principalType,
+            oidcIssuer: Self.credentials.oidcIssuer,
+            oidcClientId: Self.credentials.oidcClientId,
+            expiresAt: .distantPast,
+            createTime: Self.credentials.createTime)
+
+        await #expect {
+            _ = try await GrokWebBillingFetcher.fetch(
+                cookieHeader: "sso=team-session",
+                credentials: expiredCredentials,
+                session: session,
+                endpoint: endpoint)
+        } throws: { error in
+            guard case let GrokWebBillingError.rpcFailed(status, message) = error else { return false }
+            return status == 9 && message == "No personal team."
+        }
+
+        await #expect {
+            _ = try await GrokWebBillingFetcher.fetch(
+                credentials: expiredCredentials,
+                session: session,
+                endpoint: endpoint)
+        } throws: { error in
+            guard case let GrokWebBillingError.rpcFailed(status, message) = error else { return false }
+            return status == 9 && message == "No personal team."
+        }
+    }
+
+    @Test
+    func `web strategy publishes identity-only result for team billing`() async throws {
+        let grokHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBar-GrokTeamFallback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: grokHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: grokHome) }
+        let auth = #"""
+        {
+          "https://auth.x.ai::client": {
+            "key": "team-token",
+            "email": "team@example.com",
+            "team_id": "team-123",
+            "principal_type": "Team"
+          }
+        }
+        """#
+        try Data(auth.utf8).write(to: grokHome.appendingPathComponent("auth.json"))
+
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .web,
+            includeCredits: true,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [
+                "GROK_HOME": grokHome.path,
+                "GROK_CLI_PATH": grokHome.appendingPathComponent("missing-grok").path,
+                "PATH": grokHome.path,
+            ],
+            settings: nil,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+
+        let result = try await GrokWebFetchStrategy().fetch(context) {
+            throw GrokWebBillingError.teamUsageUnsupported
+        }
+
+        #expect(result.sourceLabel == "grok-web")
+        #expect(result.diagnostic == GrokStatusProbe.teamUsageUnavailableMessage)
+        #expect(result.usage.primary == nil)
+        #expect(result.usage.accountEmail(for: .grok) == "team@example.com")
+        #expect(result.usage.accountOrganization(for: .grok) == "team-123")
     }
 
     @Test
@@ -635,7 +799,9 @@ struct GrokWebBillingFetcherTests {
         #expect(attempts.current() == 2)
         #expect(snapshot.usedPercent == 25)
     }
+}
 
+extension GrokWebBillingFetcherTests {
     @Test
     func `web fetch can authenticate with browser cookies`() async throws {
         defer {
@@ -773,6 +939,7 @@ struct GrokWebBillingFetcherTests {
         firstName: "G",
         lastName: "Rok",
         teamId: "team-123",
+        principalType: "Team",
         oidcIssuer: "https://auth.x.ai",
         oidcClientId: "client",
         expiresAt: Date(timeIntervalSince1970: 1_900_000_000),
@@ -802,7 +969,9 @@ struct GrokWebBillingFetcherTests {
         repeat {
             var byte = UInt8(remaining & 0x7F)
             remaining >>= 7
-            if remaining != 0 { byte |= 0x80 }
+            if remaining != 0 {
+                byte |= 0x80
+            }
             bytes.append(byte)
         } while remaining != 0
         return bytes
@@ -833,7 +1002,11 @@ struct GrokWebBillingFetcherTests {
 final class GrokWebBillingStubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var requests: [URLRequest] = []
     nonisolated(unsafe) static var requestBodies: [Data?] = []
-    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<(@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with _: URLRequest) -> Bool {
         true
@@ -864,7 +1037,9 @@ final class GrokWebBillingStubURLProtocol: URLProtocol {
     override func stopLoading() {}
 
     private static func readBody(from request: URLRequest) -> Data? {
-        if let body = request.httpBody { return body }
+        if let body = request.httpBody {
+            return body
+        }
         guard let stream = request.httpBodyStream else { return nil }
         stream.open()
         defer { stream.close() }

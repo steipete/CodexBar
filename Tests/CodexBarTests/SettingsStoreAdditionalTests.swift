@@ -154,7 +154,7 @@ struct SettingsStoreAdditionalTests {
     func `menu bar metric preference restricts text only balance providers to automatic`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-text-only-metric")
 
-        for provider in [UsageProvider.deepseek, .kimik2, .poe, .crossmodel] {
+        for provider in [UsageProvider.deepseek, .poe] {
             settings.setMenuBarMetricPreference(.primary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
 
@@ -228,7 +228,6 @@ struct SettingsStoreAdditionalTests {
             minimaxCookieStore: InMemoryMiniMaxCookieStore(),
             minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
             kimiTokenStore: InMemoryKimiTokenStore(),
-            kimiK2TokenStore: InMemoryKimiK2TokenStore(),
             augmentCookieStore: InMemoryCookieHeaderStore(),
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),

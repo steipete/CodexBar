@@ -683,6 +683,78 @@ extension CodexSessionQuotaFalseRestoreTests {
     }
 
     @Test
+    func `selected Codex accounts keep independent quota warning episodes`() async throws {
+        let managedAccountID = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000002"))
+        let firstAccount = CodexVisibleAccount(
+            id: "live:first-quota-account",
+            email: "first-quota@example.test",
+            workspaceAccountID: "workspace-first-quota-account",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: true,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
+        let secondAccount = CodexVisibleAccount(
+            id: "managed:\(managedAccountID.uuidString.lowercased())",
+            email: "second-quota@example.test",
+            workspaceAccountID: "workspace-second-quota-account",
+            storedAccountID: managedAccountID,
+            selectionSource: .managedAccount(id: managedAccountID),
+            isActive: false,
+            isLive: false,
+            canReauthenticate: true,
+            canRemove: true)
+        let notifier = SessionQuotaNotifierSpy()
+        let store = Self.makeStore(notifier: notifier)
+        let isolatedCodexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexSessionQuotaFalseRestoreTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedCodexHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedCodexHome) }
+        store.settings._test_codexReconciliationEnvironment = ["CODEX_HOME": isolatedCodexHome.path]
+        defer { store.settings._test_codexReconciliationEnvironment = nil }
+        store.settings.sessionQuotaNotificationsEnabled = false
+        store.settings.quotaWarningNotificationsEnabled = true
+        store.settings.quotaWarningThresholds = [50]
+        store.settings.setQuotaWarningWindowEnabled(.session, enabled: true)
+        store.settings.setQuotaWarningWindowEnabled(.weekly, enabled: false)
+
+        for (account, usedPercent) in [
+            (firstAccount, 40.0),
+            (secondAccount, 40.0),
+            (firstAccount, 55.0),
+            (secondAccount, 30.0),
+            (firstAccount, 55.0),
+            (secondAccount, 55.0),
+        ] {
+            let snapshot = self.snapshot(
+                used: usedPercent,
+                resetBoundary: nil,
+                updatedAt: self.start,
+                email: account.email)
+            let result = ProviderFetchResult(
+                usage: snapshot,
+                credits: nil,
+                dashboard: nil,
+                sourceLabel: "fixture",
+                strategyID: "fixture.oauth",
+                strategyKind: .oauth)
+            await store.applySelectedCodexVisibleAccountOutcome(
+                ProviderFetchOutcome(result: .success(result), attempts: []),
+                account: account,
+                snapshot: snapshot,
+                sourceLabel: "fixture",
+                limitResetOwnerKey: nil)
+        }
+
+        #expect(notifier.quotaWarningPosts.map(\.accountDisplayName) == [
+            "first-quota@example.test",
+            "second-quota@example.test",
+        ])
+        #expect(notifier.quotaWarningPosts.allSatisfy { $0.threshold == 50 })
+    }
+
+    @Test
     func `selected email only Codex account keeps session notifications`() async {
         let email = "email-only-session@example.test"
         let account = CodexVisibleAccount(
@@ -990,15 +1062,18 @@ extension CodexSessionQuotaFalseRestoreTests {
 @MainActor
 private final class SessionQuotaNotifierSpy: SessionQuotaNotifying {
     private(set) var transitions: [SessionQuotaTransition] = []
+    private(set) var quotaWarningPosts: [QuotaWarningEvent] = []
 
     func post(transition: SessionQuotaTransition, provider _: UsageProvider, badge _: NSNumber?) {
         self.transitions.append(transition)
     }
 
     func postQuotaWarning(
-        event _: QuotaWarningEvent,
+        event: QuotaWarningEvent,
         provider _: UsageProvider,
         soundEnabled _: Bool,
         onScreenAlertEnabled _: Bool)
-    {}
+    {
+        self.quotaWarningPosts.append(event)
+    }
 }

@@ -28,7 +28,12 @@ public enum ElevenLabsProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .elevenlabs,
                 iconResourceName: "ProviderIcon-elevenlabs",
-                color: ProviderColor(red: 0.92, green: 0.92, blue: 0.90)),
+                color: ProviderColor(red: 0.92, green: 0.92, blue: 0.90),
+                confettiPalette: [
+                    ProviderColor(hex: 0x000000),
+                    ProviderColor(hex: 0x808080),
+                    ProviderColor(hex: 0xFDFCFC),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ElevenLabs cost history is not available via API yet." }),

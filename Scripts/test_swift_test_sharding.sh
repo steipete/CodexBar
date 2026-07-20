@@ -103,11 +103,23 @@ import re
 import sys
 
 workflow = pathlib.Path(sys.argv[1]).read_text()
+if "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]" not in workflow:
+    raise SystemExit("CI must rerun when a pull request becomes ready or draft")
+if "CI_PULL_REQUEST_DRAFT: ${{ github.event.pull_request.draft || false }}" not in workflow:
+    raise SystemExit("CI must pass draft state to the macOS test gate")
+if "macos-tests-deferred: ${{ steps.macos-tests.outputs.macos-tests-deferred }}" not in workflow:
+    raise SystemExit("CI must expose whether macOS tests were deferred")
 job_match = re.search(r"(?ms)^  swift-test-macos:\n(?P<body>.*?)(?=^  [a-zA-Z0-9_-]+:|\Z)", workflow)
 if not job_match:
     raise SystemExit("swift-test-macos job not found in CI workflow")
 
 job = job_match.group("body")
+required_not_deferred = (
+    "if: ${{ needs.changes.outputs.macos-tests == 'true' && "
+    "needs.changes.outputs.macos-tests-deferred != 'true' }}"
+)
+if required_not_deferred not in job:
+    raise SystemExit("swift-test-macos must skip only required tests explicitly deferred for drafts")
 if not re.search(r"(?m)^\s+shard-index:\s+\[0,\s*1\]\s*$", job):
     raise SystemExit("swift-test-macos must run exactly two shard indexes: [0, 1]")
 if not re.search(r"(?m)^\s+shard-count:\s+\[2\]\s*$", job):

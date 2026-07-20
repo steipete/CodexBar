@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>≈%d full 5h windows of weekly left · %d windows until reset</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@left@ · %#@until@</string>
+    <key>left</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>zero</key>
+      <string>≈%d نوافذ كاملة مدتها 5 ساعات متبقية من الأسبوعي</string>
+      <key>one</key>
+      <string>≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي</string>
+      <key>two</key>
+      <string>≈%d نافذتان كاملتان مدة كل منهما 5 ساعات متبقيتان من الأسبوعي</string>
+      <key>few</key>
+      <string>≈%d نوافذ كاملة مدة كل منها 5 ساعات متبقية من الأسبوعي</string>
+      <key>many</key>
+      <string>≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي</string>
+      <key>other</key>
+      <string>≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي</string>
+    </dict>
+    <key>until</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>zero</key>
+      <string>%d نوافذ حتى إعادة التعيين</string>
+      <key>one</key>
+      <string>%d نافذة حتى إعادة التعيين</string>
+      <key>two</key>
+      <string>%d نافذتان حتى إعادة التعيين</string>
+      <key>few</key>
+      <string>%d نوافذ حتى إعادة التعيين</string>
+      <key>many</key>
+      <string>%d نافذة حتى إعادة التعيين</string>
+      <key>other</key>
+      <string>%d نافذة حتى إعادة التعيين</string>
+    </dict>
+  </dict>
+  <key>Weekly can run out ≈%d windows early</key>
+  <dict>
+    <key>NSStringLocalizedFormatKey</key>
+    <string>%#@early@</string>
+    <key>early</key>
+    <dict>
+      <key>NSStringFormatSpecTypeKey</key>
+      <string>NSStringPluralRuleType</string>
+      <key>NSStringFormatValueTypeKey</key>
+      <string>d</string>
+      <key>zero</key>
+      <string>قد ينفد الحد الأسبوعي مبكرًا بنحو %d نوافذ</string>
+      <key>one</key>
+      <string>قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة</string>
+      <key>two</key>
+      <string>قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذتين</string>
+      <key>few</key>
+      <string>قد ينفد الحد الأسبوعي مبكرًا بنحو %d نوافذ</string>
+      <key>many</key>
+      <string>قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة</string>
+      <key>other</key>
+      <string>قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

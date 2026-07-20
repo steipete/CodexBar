@@ -26,7 +26,12 @@ public enum MoonshotProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .kimi,
                 iconResourceName: "ProviderIcon-kimi",
-                color: ProviderColor(red: 32 / 255, green: 93 / 255, blue: 235 / 255)),
+                color: ProviderColor(red: 32 / 255, green: 93 / 255, blue: 235 / 255),
+                confettiPalette: [
+                    ProviderColor(hex: 0x121212),
+                    ProviderColor(hex: 0x305140),
+                    ProviderColor(hex: 0x9F9F9F),
+                ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Moonshot / Kimi API cost summary is not available." }),

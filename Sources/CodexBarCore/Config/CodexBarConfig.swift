@@ -3,11 +3,48 @@ import Foundation
 public struct CodexBarConfig: Codable, Sendable {
     public static let currentVersion = 1
 
+    private static let log = CodexBarLog.logger(LogCategories.configStore)
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case providers
+    }
+
+    private enum ProviderCodingKeys: String, CodingKey {
+        case id
+    }
+
     public var version: Int
     public var providers: [ProviderConfig]
+    /// Optional external event hooks. Absent (nil) or disabled means no hooks run.
+    public var hooks: HooksConfig?
 
-    public init(version: Int = Self.currentVersion, providers: [ProviderConfig]) {
+    public init(
+        version: Int = Self.currentVersion,
+        providers: [ProviderConfig],
+        hooks: HooksConfig? = nil)
+    {
         self.version = version
+        self.providers = providers
+        self.hooks = hooks
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decode(Int.self, forKey: .version)
+
+        var providersContainer = try container.nestedUnkeyedContainer(forKey: .providers)
+        var providers: [ProviderConfig] = []
+        while !providersContainer.isAtEnd {
+            let providerDecoder = try providersContainer.superDecoder()
+            let providerContainer = try providerDecoder.container(keyedBy: ProviderCodingKeys.self)
+            let rawID = try providerContainer.decode(String.self, forKey: .id)
+            guard UsageProvider(rawValue: rawID) != nil else {
+                Self.log.warning("Ignoring unknown provider in config", metadata: ["provider": rawID])
+                continue
+            }
+            try providers.append(ProviderConfig(from: providerDecoder))
+        }
         self.providers = providers
     }
 
@@ -51,9 +88,13 @@ public struct CodexBarConfig: Codable, Sendable {
         var normalized: [ProviderConfig] = []
         normalized.reserveCapacity(max(self.providers.count, UsageProvider.allCases.count))
 
-        for provider in self.providers {
+        for var provider in self.providers {
             guard !seen.contains(provider.id) else { continue }
             seen.insert(provider.id)
+            if provider.id == .deepseek {
+                provider.deepseekProfileID = provider.sanitizedDeepSeekProfileID
+                provider.deepseekProfileScope = provider.sanitizedDeepSeekProfileScope
+            }
             normalized.append(provider)
         }
 
@@ -66,7 +107,8 @@ public struct CodexBarConfig: Codable, Sendable {
 
         return CodexBarConfig(
             version: Self.currentVersion,
-            providers: normalized)
+            providers: normalized,
+            hooks: self.hooks)
     }
 
     public func orderedProviders() -> [UsageProvider] {
@@ -120,14 +162,18 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var enterpriseHost: String?
     public var tokenAccounts: ProviderTokenAccountData?
     public var claudeSwapEnabled: Bool?
+    public var claudeSwapShowSingleAccount: Bool?
     public var claudeSwapExecutablePath: String?
     public var codexActiveSource: CodexActiveSource?
     public var codexProfileHomePaths: [String]?
+    public var antigravityPrioritizeExhaustedQuotas: Bool?
     public var quotaWarnings: QuotaWarningConfig?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
     public var awsProfile: String?
     public var awsAuthMode: String?
+    public var deepseekProfileID: String?
+    public var deepseekProfileScope: String?
 
     public init(
         id: UsageProvider,
@@ -143,14 +189,18 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         enterpriseHost: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
         claudeSwapEnabled: Bool? = nil,
+        claudeSwapShowSingleAccount: Bool? = nil,
         claudeSwapExecutablePath: String? = nil,
         codexActiveSource: CodexActiveSource? = nil,
         codexProfileHomePaths: [String]? = nil,
+        antigravityPrioritizeExhaustedQuotas: Bool? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
         kiloKnownOrganizations: [KiloOrganization]? = nil,
         kiloEnabledOrganizationIDs: [String]? = nil,
         awsProfile: String? = nil,
-        awsAuthMode: String? = nil)
+        awsAuthMode: String? = nil,
+        deepseekProfileID: String? = nil,
+        deepseekProfileScope: String? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -165,14 +215,18 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.enterpriseHost = enterpriseHost
         self.tokenAccounts = tokenAccounts
         self.claudeSwapEnabled = claudeSwapEnabled
+        self.claudeSwapShowSingleAccount = claudeSwapShowSingleAccount
         self.claudeSwapExecutablePath = claudeSwapExecutablePath
         self.codexActiveSource = codexActiveSource
         self.codexProfileHomePaths = codexProfileHomePaths
+        self.antigravityPrioritizeExhaustedQuotas = antigravityPrioritizeExhaustedQuotas
         self.quotaWarnings = quotaWarnings
         self.kiloKnownOrganizations = kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = kiloEnabledOrganizationIDs
         self.awsProfile = awsProfile
         self.awsAuthMode = awsAuthMode
+        self.deepseekProfileID = deepseekProfileID
+        self.deepseekProfileScope = deepseekProfileScope
     }
 
     public var sanitizedAPIKey: String? {
@@ -209,6 +263,14 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
 
     public var sanitizedAWSAuthMode: String? {
         Self.clean(self.awsAuthMode)
+    }
+
+    public var sanitizedDeepSeekProfileID: String? {
+        Self.clean(self.deepseekProfileID).map(DeepSeekSettingsReader.canonicalProfileID)
+    }
+
+    public var sanitizedDeepSeekProfileScope: String? {
+        Self.clean(self.deepseekProfileScope)
     }
 
     private static func clean(_ raw: String?) -> String? {

@@ -48,6 +48,7 @@ private struct UsageSuccessRenderInput {
     let dashboard: OpenAIDashboardSnapshot?
     let effectiveSourceMode: ProviderSourceMode
     let command: UsageCommandContext
+    let diagnostic: String?
     let notes: [String]
 }
 
@@ -231,7 +232,16 @@ extension CodexBarCLI {
 
         let selections = Self.accountSelections(from: accounts)
         var output = UsageCommandOutput()
-        for account in selections {
+        let accountRefreshDelay = TokenAccountSupportCatalog
+            .support(for: provider)?.minimumDelayBetweenAccountRefreshes
+        for (index, account) in selections.enumerated() {
+            if index > 0, let accountRefreshDelay {
+                do {
+                    try await Task.sleep(for: accountRefreshDelay)
+                } catch {
+                    return output
+                }
+            }
             let result = await Self.fetchUsageOutput(
                 provider: provider,
                 account: account,
@@ -287,6 +297,7 @@ extension CodexBarCLI {
         credits: CreditsSnapshot?,
         antigravityPlanInfo: AntigravityPlanInfoSummary?,
         dashboard: OpenAIDashboardSnapshot?,
+        diagnostic: String?,
         weeklyWorkDays: Int?) -> ProviderPayload
     {
         ProviderPayload(
@@ -301,6 +312,7 @@ extension CodexBarCLI {
             antigravityPlanInfo: antigravityPlanInfo,
             openaiDashboard: dashboard,
             error: nil,
+            diagnostic: diagnostic,
             pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays))
     }
 
@@ -354,6 +366,7 @@ extension CodexBarCLI {
                 credits: input.credits,
                 antigravityPlanInfo: input.antigravityPlanInfo,
                 dashboard: input.dashboard,
+                diagnostic: input.diagnostic,
                 weeklyWorkDays: input.command.weeklyWorkDays))
         }
     }
@@ -458,7 +471,7 @@ extension CodexBarCLI {
             let notes = Self.usageTextNotes(
                 provider: provider,
                 sourceMode: effectiveSourceMode,
-                resolvedSourceLabel: source)
+                resolvedSourceLabel: source) + (result.diagnostic.map { [$0] } ?? [])
 
             Self.appendSuccessRenderOutput(
                 UsageSuccessRenderInput(
@@ -474,6 +487,7 @@ extension CodexBarCLI {
                     dashboard: dashboard,
                     effectiveSourceMode: effectiveSourceMode,
                     command: command,
+                    diagnostic: result.diagnostic,
                     notes: notes),
                 output: &output)
         case let .failure(error):

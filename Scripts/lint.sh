@@ -29,6 +29,10 @@ check_package_signing() {
   "${ROOT_DIR}/Scripts/test_package_signing.sh"
 }
 
+check_package_info_plist() {
+  "${ROOT_DIR}/Scripts/test_package_info_plist.sh"
+}
+
 check_release_dsym_paths() {
   "${ROOT_DIR}/Scripts/test_release_dsym_paths.sh"
 }
@@ -84,6 +88,7 @@ run_portable_checks() {
   check_package_product_paths
   check_package_strip
   check_package_signing
+  check_package_info_plist
   check_release_dsym_paths
   check_sparkle_signing_paths
   check_swift_test_sharding

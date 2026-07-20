@@ -612,4 +612,90 @@ struct CLICardsRendererTests {
         #expect(output.contains("48;2;"))
         #expect(output.contains("[ "))
     }
+
+    @Test
+    func `claude swap active account renders without inferred plan`() {
+        let snapshot = UsageSnapshot(
+            primary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "active@example.com",
+                accountOrganization: nil,
+                loginMethod: "claude-swap"))
+        let account = ProviderAccountUsageSnapshot(
+            id: ProviderAccountIdentity(source: "claude-swap", opaqueID: "2"),
+            provider: .claude,
+            displayLabel: "active@example.com",
+            isActive: true,
+            snapshot: snapshot,
+            error: nil,
+            sourceLabel: "claude-swap")
+        let card = CLICardsRenderer.makeClaudeSwapCard(
+            account: account,
+            renderOptions: CLIClaudeSwapCardsRenderOptions(
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown,
+                weeklyWorkDays: nil,
+                now: Date(timeIntervalSince1970: 0)))
+        let full = CLICardsRenderer.renderCard(card, width: 38, useColor: false).joined(separator: "\n")
+        let brief = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: [card]),
+            failures: [],
+            terminalWidth: 40,
+            useColor: false,
+            now: Date(timeIntervalSince1970: 0))
+
+        #expect(card.planBadge == nil)
+        #expect(full.contains("@ active@example.com [active]"))
+        #expect(!full.contains("PLAN Claude-Swap"))
+        #expect(brief.contains("[active]"))
+        #expect(!brief.contains("Claude-Swap"))
+        #expect(full.split(separator: "\n").allSatisfy { $0.count == 38 })
+        #expect(brief.split(separator: "\n", omittingEmptySubsequences: false).allSatisfy { $0.count <= 40 })
+    }
+
+    @Test
+    func `claude swap sentinel text survives full and brief projections`() {
+        let account = ProviderAccountUsageSnapshot(
+            id: ProviderAccountIdentity(source: "claude-swap", opaqueID: "7"),
+            provider: .claude,
+            displayLabel: "bad\u{1B}[31m\r\n" + String(repeating: "x", count: 300),
+            isActive: true,
+            snapshot: nil,
+            error: "API-key account; subscription usage is unavailable.",
+            sourceLabel: "claude-swap")
+        let card = CLICardsRenderer.makeClaudeSwapCard(
+            account: account,
+            renderOptions: CLIClaudeSwapCardsRenderOptions(
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown,
+                weeklyWorkDays: nil,
+                now: Date(timeIntervalSince1970: 0)))
+        let full = CLICardsRenderer.renderCard(card, width: 42, useColor: false).joined(separator: "\n")
+        let brief = CLICardsBriefRenderer.render(
+            rows: CLICardsBriefRenderer.makeRows(cards: [card]),
+            failures: [],
+            terminalWidth: 80,
+            useColor: false,
+            now: Date(timeIntervalSince1970: 0))
+        let briefRow = brief.split(separator: "\n").first { $0.contains("API-key") } ?? ""
+
+        #expect(card.accountLine?.unicodeScalars.count == CLIClaudeSwapText.labelScalarLimit)
+        #expect(card.accountLine?.contains("\u{1B}") == false)
+        #expect(card.accountLine?.contains("\n") == false)
+        #expect(card.isActive)
+        #expect(full.contains("[active]"))
+        #expect(full.contains("API-key account;"))
+        #expect(full.contains("subscription usage"))
+        #expect(full.contains("unavailable."))
+        #expect(brief.contains("Claude [active]"))
+        #expect(brief.contains("API-key account"))
+        #expect(briefRow.hasSuffix(" — │"))
+        #expect(card.metrics.isEmpty)
+    }
 }

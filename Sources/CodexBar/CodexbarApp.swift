@@ -106,7 +106,16 @@ struct CodexBarApp: App {
     private func openSettings(pane: SettingsPane) {
         self.preferencesSelection.pane = pane
         NSApp.activate(ignoringOtherApps: true)
-        _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        let outcome = SettingsWindowOpener.live().open(preferred: .appKit)
+        let logger = CodexBarLog.logger(LogCategories.app)
+        switch outcome {
+        case .preferred:
+            break
+        case .fallback:
+            logger.warning("Settings AppKit action was not handled; used notification fallback")
+        case .failed:
+            logger.error("Failed to open Settings; AppKit action and notification fallback unavailable")
+        }
     }
 
     private static func applyLanguagePreference(from settings: SettingsStore) {
@@ -382,12 +391,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppNotifications.shared.requestAuthorizationOnStartup()
         self.memoryPressureMonitor.start()
         #if DEBUG
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let settings = self?.settings else { return }
+            AdaptiveActivityConsentPresenter.presentIfNeeded(settings: settings)
+            AppNotifications.shared.requestAuthorizationOnStartup()
+        }
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
             // KeyboardShortcuts dispatches both normal and menu-tracking hotkeys on the main event loop.
             MainActor.assumeIsolated {
@@ -450,6 +464,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         resetKind: String)
     {
         let origin = self.statusController?.celebrationOriginPoint(for: provider)
+        let palette = ProviderDescriptorRegistry.descriptor(for: provider).branding.confettiPalette
         self.confettiLogger.info(
             "Triggering confetti",
             metadata: [
@@ -458,7 +473,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "resetKind": resetKind,
                 "originKnown": origin == nil ? "0" : "1",
             ])
-        self.confettiOverlayController.play(originInScreen: origin)
+        self.confettiOverlayController.play(originInScreen: origin, colors: palette)
     }
 
     /// Use the classic (non-Liquid Glass) app icon on macOS versions before 26.
@@ -494,7 +509,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func ensureStatusController() {
-        if self.statusController != nil { return }
+        if self.statusController != nil {
+            return
+        }
 
         if let store,
            let settings,

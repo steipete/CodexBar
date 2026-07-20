@@ -17,6 +17,7 @@ enum ProviderImplementationRegistry {
         case .openai: OpenAIAPIProviderImplementation()
         case .azureopenai: AzureOpenAIProviderImplementation()
         case .claude: ClaudeProviderImplementation()
+        case .clinepass: ClinePassProviderImplementation()
         case .cursor: CursorProviderImplementation()
         case .opencode: OpenCodeProviderImplementation()
         case .opencodego: OpenCodeGoProviderImplementation()
@@ -36,7 +37,6 @@ enum ProviderImplementationRegistry {
         case .vertexai: VertexAIProviderImplementation()
         case .augment: AugmentProviderImplementation()
         case .jetbrains: JetBrainsProviderImplementation()
-        case .kimik2: KimiK2ProviderImplementation()
         case .moonshot: MoonshotProviderImplementation()
         case .amp: AmpProviderImplementation()
         case .t3chat: T3ChatProviderImplementation()
@@ -54,6 +54,7 @@ enum ProviderImplementationRegistry {
         case .abacus: AbacusProviderImplementation()
         case .mistral: MistralProviderImplementation()
         case .deepseek: DeepSeekProviderImplementation()
+        case .deepinfra: DeepInfraProviderImplementation()
         case .codebuff: CodebuffProviderImplementation()
         case .crof: CrofProviderImplementation()
         case .venice: VeniceProviderImplementation()
@@ -68,10 +69,13 @@ enum ProviderImplementationRegistry {
         case .deepgram: DeepgramProviderImplementation()
         case .poe: PoeProviderImplementation()
         case .chutes: ChutesProviderImplementation()
-        case .crossmodel: CrossModelProviderImplementation()
+        case .neuralwatt: NeuralWattProviderImplementation()
         case .clawrouter: ClawRouterProviderImplementation()
+        case .longcat: LongCatProviderImplementation()
         case .sub2api: Sub2APIProviderImplementation()
         case .wayfinder: WayfinderProviderImplementation()
+        case .zenmux: ZenMuxProviderImplementation()
+        case .aiand: AiAndProviderImplementation()
         }
     }
 

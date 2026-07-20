@@ -223,16 +223,16 @@ extension UsageStore {
         return "email:\(account)"
     }
 
-    static func predictivePaceWarningClaudeAccountDiscriminator(
+    static func warningClaudeAccountDiscriminator(
         strategyKind: ProviderFetchKind,
         observation: ClaudeOAuthActiveAccountObservation,
         oauthHistoryOwnerIdentifier: String? = nil) -> String?
     {
         switch strategyKind {
         case .cli:
-            return self.predictivePaceWarningClaudeActiveAccountDiscriminator(observation: observation)
+            return self.warningClaudeActiveAccountDiscriminator(observation: observation)
         case .oauth:
-            if let activeAccount = self.predictivePaceWarningClaudeActiveAccountDiscriminator(
+            if let activeAccount = self.warningClaudeActiveAccountDiscriminator(
                 observation: observation)
             {
                 return activeAccount
@@ -242,15 +242,15 @@ extension UsageStore {
                 .lowercased(),
                 !owner.isEmpty
             else { return nil }
-            // OAuth usage has no email. Keep a credential-scoped fallback so predictive warnings still work
-            // when Claude's active-account metadata is unavailable, without merging unrelated accounts.
+            // OAuth usage has no email. Keep a credential-scoped fallback so warning episodes remain
+            // account-scoped when Claude's active-account metadata is unavailable.
             return "claude-oauth-owner:\(owner)"
         case .apiToken, .localProbe, .web, .webDashboard:
             return nil
         }
     }
 
-    private static func predictivePaceWarningClaudeActiveAccountDiscriminator(
+    private static func warningClaudeActiveAccountDiscriminator(
         observation: ClaudeOAuthActiveAccountObservation) -> String?
     {
         guard case let .stable(identity) = observation,
@@ -260,7 +260,7 @@ extension UsageStore {
         return "claude-account:\(identity)"
     }
 
-    static func predictivePaceWarningTokenAccountDiscriminator(_ account: ProviderTokenAccount?) -> String? {
+    static func warningTokenAccountDiscriminator(_ account: ProviderTokenAccount?) -> String? {
         guard let account else { return nil }
         return "token-account:\(account.id.uuidString.lowercased())"
     }

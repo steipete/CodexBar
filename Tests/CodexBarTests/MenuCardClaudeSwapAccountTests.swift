@@ -22,7 +22,13 @@ struct MenuCardClaudeSwapAccountTests {
                     isActive: true,
                     usageStatus: .ok,
                     fiveHour: ClaudeSwapUsageWindow(usedPercent: 25, resetsAt: now.addingTimeInterval(3600)),
-                    sevenDay: ClaudeSwapUsageWindow(usedPercent: 60, resetsAt: now.addingTimeInterval(86400))),
+                    sevenDay: ClaudeSwapUsageWindow(usedPercent: 60, resetsAt: now.addingTimeInterval(86400)),
+                    scoped: [
+                        ClaudeSwapScopedUsageWindow(
+                            name: "Fable",
+                            usedPercent: 80,
+                            resetsAt: now.addingTimeInterval(86400)),
+                    ]),
             ])
         let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(from: list, now: now).first)
 
@@ -64,6 +70,9 @@ struct MenuCardClaudeSwapAccountTests {
         #expect(primary.percent == 25)
         let secondary = try #require(model.metrics.first(where: { $0.id == "secondary" }))
         #expect(secondary.percent == 60)
+        let scoped = try #require(model.metrics.first(where: { $0.id == "claude-weekly-scoped-fable" }))
+        #expect(scoped.title == "Fable only")
+        #expect(scoped.percent == 80)
     }
 
     @Test

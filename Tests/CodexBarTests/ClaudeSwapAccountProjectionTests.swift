@@ -125,6 +125,61 @@ struct ClaudeSwapAccountProjectionTests {
     }
 
     @Test
+    func `projects model scoped weekly windows through claude usage rows`() throws {
+        let reset = Date(timeIntervalSince1970: 1_784_620_800)
+        let list = ClaudeSwapAccountList(
+            activeAccountNumber: 1,
+            accounts: [
+                ClaudeSwapAccountRow(
+                    number: 1,
+                    email: "a@b.c",
+                    isActive: true,
+                    usageStatus: .ok,
+                    fiveHour: nil,
+                    sevenDay: nil,
+                    scoped: [
+                        ClaudeSwapScopedUsageWindow(name: "Fable", usedPercent: 33, resetsAt: reset),
+                        ClaudeSwapScopedUsageWindow(name: "All models", usedPercent: 42, resetsAt: reset),
+                    ]),
+            ])
+
+        let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(from: list, now: self.now).first)
+        let snapshot = try #require(account.snapshot)
+        #expect(account.error == nil)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        let scoped = try #require(snapshot.extraRateWindows)
+        #expect(scoped.count == 1)
+        #expect(scoped.first?.id == "claude-weekly-scoped-fable")
+        #expect(scoped.first?.title == "Fable only")
+        #expect(scoped.first?.window.usedPercent == 33)
+        #expect(scoped.first?.window.windowMinutes == 10080)
+        #expect(scoped.first?.window.resetsAt == reset)
+    }
+
+    @Test
+    func `filtered generic scope does not hide missing usage error`() throws {
+        let list = ClaudeSwapAccountList(
+            activeAccountNumber: 1,
+            accounts: [
+                ClaudeSwapAccountRow(
+                    number: 1,
+                    email: "a@b.c",
+                    isActive: true,
+                    usageStatus: .ok,
+                    fiveHour: nil,
+                    sevenDay: nil,
+                    scoped: [
+                        ClaudeSwapScopedUsageWindow(name: "All models", usedPercent: 42, resetsAt: nil),
+                    ]),
+            ])
+
+        let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(from: list, now: self.now).first)
+        #expect(account.snapshot == nil)
+        #expect(account.error == "No usage windows reported.")
+    }
+
+    @Test
     func `falls back to ordinal label when email is empty`() throws {
         let list = ClaudeSwapAccountList(
             activeAccountNumber: nil,

@@ -12,6 +12,10 @@ read_when:
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
+- Automatic token/cost refresh eligibility follows the global refresh frequency. One- and two-minute settings are
+  clamped to a five-minute minimum, both Adaptive modes use their nominal five-minute heuristic interval, and Manual
+  disables the automatic token timer. The floor limits repeated local-history scans and extra WidgetKit reload requests
+  so widgets do not exhaust the system-managed refresh budget.
 - Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
   session or weekly quota data.
 - If no snapshot is available, widgets fall back to preview/empty data.

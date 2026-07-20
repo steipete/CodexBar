@@ -43,7 +43,10 @@ extension UsageStore {
         now: Date) -> RateWindow?
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
-        if provider == .antigravity, effectivePreference == .automatic {
+        if provider == .antigravity,
+           effectivePreference == .automatic,
+           !self.settings.antigravityPrioritizeExhaustedQuotas
+        {
             return Self.mostConstrainedAntigravityQuotaSummaryWindow(snapshot: snapshot)
         }
         if provider == .codex {
@@ -53,7 +56,9 @@ extension UsageStore {
             preference: effectivePreference,
             provider: provider,
             snapshot: snapshot,
-            supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider))
+            supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
+            antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
+            now: now)
     }
 
     private func shouldExcludeFromHighestUsage(
@@ -91,6 +96,9 @@ extension UsageStore {
             return percents.allSatisfy { $0 >= 100 }
         }
         if provider == .antigravity, effectivePreference == .automatic {
+            if self.settings.antigravityPrioritizeExhaustedQuotas {
+                return MenuBarMetricWindowResolver.antigravityQuotaSummaryFamiliesAreAllBlocked(snapshot: snapshot)
+            }
             let windows = Self.antigravityRenderedQuotaSummaryWindows(snapshot: snapshot)
             guard !windows.isEmpty else { return true }
             return windows.allSatisfy { $0.usedPercent >= 100 }

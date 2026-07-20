@@ -667,7 +667,7 @@ struct AlibabaCodingPlanFallbackTests {
     }
 
     @Test
-    func `auto mode does not borrow manual cookie authority when browser import fails`() {
+    func `auto mode does not borrow manual cookie authority when browser import fails`() throws {
         let strategy = AlibabaCodingPlanWebFetchStrategy()
         let settings = ProviderSettingsSnapshot.make(
             alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
@@ -677,29 +677,26 @@ struct AlibabaCodingPlanFallbackTests {
         let context = self.makeContext(sourceMode: .auto, settings: settings)
 
         CookieHeaderCache.clear(provider: .alibaba)
-        AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = { _, _ in
+        try AlibabaCodingPlanCookieImporter.withImportSessionOverrideForTesting { _, _ in
             throw AlibabaCodingPlanSettingsError.missingCookie()
-        }
-        defer {
-            AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = nil
-        }
-
-        do {
-            _ = try AlibabaCodingPlanWebFetchStrategy.resolveCookieHeader(context: context, allowCached: false)
-            Issue.record("Expected auto mode to fail instead of borrowing the manual cookie header")
-        } catch let error as AlibabaCodingPlanSettingsError {
-            guard case .missingCookie = error else {
-                Issue.record("Expected missingCookie, got \(error)")
-                return
+        } operation: {
+            do {
+                _ = try AlibabaCodingPlanWebFetchStrategy.resolveCookieHeader(context: context, allowCached: false)
+                Issue.record("Expected auto mode to fail instead of borrowing the manual cookie header")
+            } catch let error as AlibabaCodingPlanSettingsError {
+                guard case .missingCookie = error else {
+                    Issue.record("Expected missingCookie, got \(error)")
+                    return
+                }
+                #expect(strategy.shouldFallback(on: error, context: context))
+            } catch {
+                Issue.record("Expected AlibabaCodingPlanSettingsError, got \(error)")
             }
-            #expect(strategy.shouldFallback(on: error, context: context))
-        } catch {
-            Issue.record("Expected AlibabaCodingPlanSettingsError, got \(error)")
         }
     }
 
     @Test
-    func `auto mode skips web when no alibaba session is available`() async {
+    func `auto mode skips web when no alibaba session is available`() async throws {
         let strategy = AlibabaCodingPlanWebFetchStrategy()
         let settings = ProviderSettingsSnapshot.make(
             alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings(
@@ -712,14 +709,11 @@ struct AlibabaCodingPlanFallbackTests {
             env: [AlibabaCodingPlanSettingsReader.apiTokenKey: "token-abc"])
 
         CookieHeaderCache.clear(provider: .alibaba)
-        AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = { _, _ in
+        try await AlibabaCodingPlanCookieImporter.withImportSessionOverrideForTesting { _, _ in
             throw AlibabaCodingPlanSettingsError.missingCookie()
+        } operation: {
+            #expect(await strategy.isAvailable(context) == false)
         }
-        defer {
-            AlibabaCodingPlanCookieImporter.importSessionOverrideForTesting = nil
-        }
-
-        #expect(await strategy.isAvailable(context) == false)
     }
 }
 
@@ -1076,7 +1070,11 @@ struct AlibabaCodingPlanUsageFetcherRequestTests {
 }
 
 final class AlibabaUsageFetcherStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with request: URLRequest) -> Bool {
         request.url?.host == "bailian.console.aliyun.com"
@@ -1106,7 +1104,11 @@ final class AlibabaUsageFetcherStubURLProtocol: URLProtocol {
 }
 
 final class AlibabaConsoleSECTokenStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private static let _handlerBox = LockIsolated<((URLRequest) throws -> (HTTPURLResponse, Data))?>(nil)
+    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get { Self._handlerBox.value }
+        set { Self._handlerBox.setValue(newValue) }
+    }
 
     override static func canInit(with request: URLRequest) -> Bool {
         guard let host = request.url?.host else { return false }

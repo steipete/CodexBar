@@ -602,7 +602,15 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 self.preferencesSelection.pane = pane
             }
             NSApp.activate(ignoringOtherApps: true)
-            NotificationCenter.default.post(name: .codexbarOpenSettings, object: nil)
+            let outcome = SettingsWindowOpener.live().open(preferred: .notification)
+            switch outcome {
+            case .preferred:
+                break
+            case .fallback:
+                self.menuLogger.warning("Settings notification relay unavailable; used AppKit fallback")
+            case .failed:
+                self.menuLogger.error("Failed to open Settings; notification relay and AppKit fallback unavailable")
+            }
         }
     }
 
