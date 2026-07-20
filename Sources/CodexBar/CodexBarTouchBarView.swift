@@ -22,22 +22,28 @@ struct CodexBarTouchBarView: View {
     var body: some View {
         HStack(spacing: 0) {
             if let expandedProvider, self.cardProviders.contains(expandedProvider) {
-                TouchBarUsageGraphView(provider: expandedProvider, store: self.store)
-                    .contentShape(Rectangle())
-                    .onTapGesture { self.expandedProvider = nil }
-                    .task(id: expandedProvider) {
-                        try? await Task.sleep(nanoseconds: Self.autoRevertSeconds * 1_000_000_000)
-                        guard !Task.isCancelled else { return }
-                        self.expandedProvider = nil
-                    }
+                Button {
+                    self.expandedProvider = nil
+                } label: {
+                    TouchBarUsageGraphView(provider: expandedProvider, store: self.store)
+                }
+                .buttonStyle(.plain)
+                .task(id: expandedProvider) {
+                    try? await Task.sleep(nanoseconds: Self.autoRevertSeconds * 1_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    self.expandedProvider = nil
+                }
             } else {
                 ForEach(Array(self.cardProviders.enumerated()), id: \.element) { index, provider in
                     if index > 0 {
                         Divider()
                     }
-                    self.card(for: provider)
-                        .contentShape(Rectangle())
-                        .onTapGesture { self.expandedProvider = provider }
+                    Button {
+                        self.expandedProvider = provider
+                    } label: {
+                        self.card(for: provider)
+                    }
+                    .buttonStyle(.plain)
                 }
                 if self.cardProviders.isEmpty {
                     Text("No providers enabled")
