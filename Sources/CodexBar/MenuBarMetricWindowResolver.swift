@@ -141,19 +141,43 @@ enum MenuBarMetricWindowResolver {
                 secondary: snapshot.tertiary,
                 tertiary: nil) ?? snapshot.secondary
         }
+        if provider == .factory || provider == .kimi || provider == .litellm {
+            let windows = [snapshot.primary, snapshot.secondary].compactMap(\.self)
+            if let exhausted = windows.first(where: { $0.usedPercent >= 100 }) {
+                return exhausted
+            }
+            return snapshot.secondary ?? snapshot.primary
+        }
+        if provider == .copilot,
+           let primary = snapshot.primary,
+           let secondary = snapshot.secondary
+        {
+            return primary.usedPercent >= secondary.usedPercent ? primary : secondary
+        }
         if provider == .cursor {
             return self.mostConstrainedCursorWindow(
                 total: snapshot.primary,
                 auto: snapshot.secondary,
                 api: snapshot.tertiary)
         }
+        if provider == .minimax {
+            return self.mostConstrainedWindow(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                tertiary: snapshot.tertiary)
+        }
         if provider == .claude, let spendLimit = claudeSpendLimitWindow(snapshot: snapshot) {
             return spendLimit
         }
-        return self.mostConstrainedWindow(
-            primary: snapshot.primary,
-            secondary: snapshot.secondary,
-            tertiary: snapshot.tertiary)
+
+        // Default path:
+        // 1. Prioritize any exhausted window (usedPercent >= 100)
+        let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
+        if let exhausted = windows.filter({ $0.usedPercent >= 100 }).max(by: { $0.usedPercent < $1.usedPercent }) {
+            return exhausted
+        }
+        // 2. Otherwise, fall back to the default order
+        return snapshot.primary ?? snapshot.secondary
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"

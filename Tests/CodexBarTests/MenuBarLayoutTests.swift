@@ -190,6 +190,73 @@ struct MenuBarLayoutTests {
 
     @Test
     @MainActor
+    func `reproduce pace percentage missing`() {
+        // Mock a pace where the user is 15% ahead of target usage
+        let pace = UsagePace(
+            stage: .ahead,
+            deltaPercent: 15,
+            expectedUsedPercent: 50,
+            actualUsedPercent: 65,
+            etaSeconds: nil,
+            willLastToReset: true)
+
+        // 1. Calculate legacy pace rendering output
+        let legacyPaceString = MenuBarDisplayText.displayText(
+            mode: .pace,
+            percentWindow: nil,
+            pace: pace,
+            showUsed: true) ?? "nil"
+
+        // 2. Calculate new migrated rendering output (which maps legacy `.pace` to `.runsOut` layout token)
+        let resolution = MenuBarLayoutResolution.legacy(
+            iconStyle: .iconAndPercent,
+            displayMode: .pace,
+            metricPreference: .primary,
+            resetTimeDisplayStyle: .countdown)
+        let migratedTokens = Array(resolution.layout.lines.joined())
+        #expect(migratedTokens.contains(.runsOut))
+
+        // Get the text that .runsOut resolves to for the same pace
+        // weeklyDetail's rightLabel for willLastToReset is "Lasts until reset"
+        let runsOutText = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: Date()).rightLabel ?? "nil"
+
+        let renderer = MenuBarLayoutRenderer()
+        let data = MenuBarLayoutRenderData(
+            iconKey: "codex",
+            providerName: "Codex",
+            accountLabel: "user@example.com",
+            session: nil,
+            weekly: nil,
+            automatic: nil,
+            runsOut: runsOutText,
+            costToday: nil,
+            cost30d: nil)
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.runsOut]]),
+            data: data,
+            icon: nil,
+            options: MenuBarLayoutRenderOptions(
+                size: .regular,
+                highContrast: false,
+                showUsed: true,
+                appearanceName: "aqua",
+                isDebugApp: false,
+                now: Date()))
+        let newPaceString = output.attributedTitle.string
+
+        // 3. Print the comparison to verify the reproduction clearly in test output logs
+        print("\n==================================================")
+        print("REPRODUCTION - PACE METRIC DISCREPANCY COMPARISON")
+        print("Legacy rendering output (using .pace displayMode): \(legacyPaceString)")
+        print("New layout rendering output (migrated to .runsOut token): \(newPaceString)")
+        print("==================================================\n")
+
+        #expect(legacyPaceString == "+15%")
+        #expect(newPaceString == "Lasts until reset")
+    }
+
+    @Test
+    @MainActor
     func `global editing seeds the representative provider legacy layout`() throws {
         let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-global-editor-migration")
         settings.setMenuBarMetricPreference(.primary, for: .kimi)

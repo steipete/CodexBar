@@ -879,7 +879,7 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
-    func `automatic metric shows most constrained kimi window when neither is exhausted`() {
+    func `automatic metric defaults to rate limit for kimi when neither is exhausted`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 40, windowMinutes: nil, resetsAt: nil, resetDescription: "Weekly"),
             secondary: RateWindow(usedPercent: 4, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
@@ -891,7 +891,7 @@ struct MenuBarMetricWindowResolverTests {
             snapshot: snapshot,
             supportsAverage: false)
 
-        #expect(window?.resetDescription == "Weekly")
-        #expect(window?.usedPercent == 40)
+        #expect(window?.resetDescription == "5-hour")
+        #expect(window?.usedPercent == 4)
     }
 }
