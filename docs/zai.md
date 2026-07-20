@@ -1,8 +1,9 @@
 ---
-summary: "z.ai provider data sources: API token in config/env and quota API response parsing."
+summary: "z.ai / GLM Coding Plan: API key discovery, regions, and 5-hour quota mapping."
 read_when:
-  - Debugging z.ai token storage or quota parsing
+  - Debugging z.ai / BigModel token storage or quota parsing
   - Updating z.ai API endpoints
+  - Helping users with China Coding Plan (open.bigmodel.cn)
 ---
 
 # z.ai / GLM provider
@@ -15,11 +16,29 @@ z.ai (international) and BigModel (China mainland GLM) share one CodexBar provid
 
 Use a key from the same region you select. Keys are not interchangeable across regions.
 
-z.ai is API-token based. No browser cookies.
+z.ai / BigModel is API-token based. No browser cookies.
+
+## Coding Plan vs MCP
+
+Quota API (`GET …/api/monitor/usage/quota/limit`) may return two limit rows:
+
+| API type | Typical window | Meaning |
+| --- | --- | --- |
+| `TOKENS_LIMIT` (`unit=hours`, `number=5`) | **5-hour** | **Coding Plan** main token budget |
+| `TIME_LIMIT` with MCP `usageDetails` | tool/MCP | Search / web-reader style tool quota |
+
+CodexBar shows the **5-hour token window as the primary bar**. MCP is kept as an extra lane
+(not mislabeled as monthly coding quota). Plan tier may appear as `level` (e.g. `max`).
 
 ## Token sources (fallback order)
-1) Config token (`~/.config/codexbar/config.json` or legacy `~/.codexbar/config.json` → `providers[].apiKey`).
-2) Environment variable `Z_AI_API_KEY`.
+
+1. Config token (`providers[].apiKey` in the resolved config file).
+2. Environment (first match): `Z_AI_API_KEY`, `BIGMODEL_API_KEY`, `ZHIPU_API_KEY`,
+   `ZHIPUAI_API_KEY`, `ZAI_API_KEY`, `GLM_API_KEY`.
+3. Local one-line key files under `$HOME` (first readable match):
+   - `~/.coding-relay/glm-api-key`
+   - `~/.config/bigmodel/api_key`
+   - `~/.config/zhipu/api_key`
 
 ### Config location
 - New installs: `~/.config/codexbar/config.json`
@@ -30,13 +49,15 @@ z.ai is API-token based. No browser cookies.
 
 Set **API region** to **Global (api.z.ai)** or **BigModel CN (open.bigmodel.cn)**.
 
-- UI: Settings → Providers → z.ai. For team usage, add a token account, turn on **Team mode**, then enter the API key,
+- UI: Settings → Providers → z.ai / GLM. For team usage, add a token account, turn on **Team mode**, then enter the API key,
   Organization ID, and Project ID.
 - CLI personal:
 
   ```bash
   printf '%s' "$Z_AI_API_KEY" | codexbar config set-api-key --provider zai --stdin
   ```
+
+- Or drop a one-line key at `~/.coding-relay/glm-api-key` (common for local coding relays) and enable the provider.
 
 - CLI team:
 

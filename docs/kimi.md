@@ -28,8 +28,24 @@ API region to **China mainland**. See [moonshot.md](moonshot.md).
 
 - Displays weekly request quota (from membership tier)
 - Shows current 5-hour rate limit usage
+- **Monthly** subscription pool when a web `kimi-auth` session is available
 - API-key, Kimi Code CLI, automatic cookie, and manual cookie authentication methods
 - Automatic refresh countdown
+
+### Monthly quota enrichment (CLI / API key mode)
+
+`GET https://api.kimi.com/coding/v1/usages` returns weekly + short rate limits only.
+The **Monthly** pool still comes from the web membership API
+(`GetSubscriptionStats`), which needs a `kimi-auth` cookie.
+
+When usage is fetched via Code API key or Kimi Code CLI, CodexBar best-effort enriches
+with membership stats using (in order):
+
+1. `KIMI_AUTH_TOKEN` / manual cookie
+2. **Kimi Desktop** app cookie DB (`~/Library/Application Support/kimi-desktop/Cookies`)
+3. Browser cookie import (existing path)
+
+If no web session is found, Weekly / Rate Limit still work; Monthly is omitted.
 
 ## Setup
 
