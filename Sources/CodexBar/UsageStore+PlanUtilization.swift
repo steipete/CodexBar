@@ -1335,7 +1335,11 @@ extension UsageStore {
         providerBuckets.setHistories(mergedHistory, for: accountKey)
         providerBuckets.setHistories([], for: nil)
         if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {
-            providerBuckets.moveSessionEquivalentWindowPairIdentity(from: nil, to: accountKey)
+            self.materializeLegacySessionEquivalentHistoryIdentityDuringAccountAdoption(
+                provider: provider,
+                from: nil,
+                to: accountKey,
+                providerBuckets: &providerBuckets)
         }
     }
 

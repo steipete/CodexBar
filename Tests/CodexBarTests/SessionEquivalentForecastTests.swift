@@ -1222,6 +1222,91 @@ extension SessionEquivalentForecastTests {
 
     @MainActor
     @Test
+    func `generic account adoption invalidates conflicting legacy source and target identities`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 24 * 3600),
+                resetDescription: nil),
+            updatedAt: now)
+        let sourceIdentity = try #require(store.sessionEquivalentWindows(
+            provider: .zai,
+            snapshot: snapshot)?.historyIdentity)
+        let targetSnapshot = UsageSnapshot(
+            primary: snapshot.primary,
+            secondary: nil,
+            tertiary: RateWindow(
+                usedPercent: 35,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 24 * 3600),
+                resetDescription: nil),
+            updatedAt: now)
+        let targetIdentity = try #require(store.sessionEquivalentWindows(
+            provider: .zai,
+            snapshot: targetSnapshot)?.historyIdentity)
+        #expect(targetIdentity != sourceIdentity)
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Zai test",
+            token: "fixture",
+            addedAt: 0,
+            lastUsed: nil)
+        let accountKey = try #require(UsageStore._planUtilizationTokenAccountKeyForTesting(
+            provider: .zai,
+            account: account))
+        store.planUtilizationHistory[.zai] = PlanUtilizationHistoryBuckets(
+            unscoped: [
+                planSeries(
+                    name: .session,
+                    windowMinutes: 300,
+                    entries: [planEntry(at: now.addingTimeInterval(-3600), usedPercent: 10)]),
+                planSeries(
+                    name: .weekly,
+                    windowMinutes: 10080,
+                    entries: [planEntry(at: now.addingTimeInterval(-3600), usedPercent: 30)]),
+            ],
+            accounts: [
+                accountKey: [
+                    planSeries(
+                        name: .session,
+                        windowMinutes: 300,
+                        entries: [planEntry(at: now.addingTimeInterval(-1800), usedPercent: 15)]),
+                    planSeries(
+                        name: .weekly,
+                        windowMinutes: 10080,
+                        entries: [planEntry(at: now.addingTimeInterval(-1800), usedPercent: 35)]),
+                ],
+            ])
+        store.settings.userDefaults.set(
+            [
+                "zai|\(UsageStore.planUtilizationUnscopedPreferredKey)": sourceIdentity,
+                "zai|\(accountKey)": targetIdentity,
+            ],
+            forKey: UsageStore.legacySessionEquivalentHistoryIdentityDefaultsKey)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .zai,
+            snapshot: snapshot,
+            account: account,
+            now: now)
+
+        let histories = try #require(store.planUtilizationHistory[.zai])
+            .histories(for: accountKey)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.map(\.usedPercent) == [20])
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.map(\.usedPercent) == [40])
+    }
+
+    @MainActor
+    @Test
     func `generic pair identity distinguishes delimiter bearing family names`() throws {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let now = Date(timeIntervalSince1970: 1_900_000_000)
