@@ -48,10 +48,23 @@ public enum ClaudeProviderDescriptor {
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        if context.sourceMode == .api || self.hasAutoAdminAPIKey(context: context) {
-            return [ClaudeAdminAPIFetchStrategy()]
+        // An explicitly selected account is the credential authority for this fetch. The global
+        // source only controls ambient-account routing and must not redirect a selected account.
+        if context.selectedTokenAccountID != nil {
+            if ClaudeAdminAPIFetchStrategy.isSelectedAdminAPIAccount(context: context) {
+                return [ClaudeAdminAPIFetchStrategy()]
+            }
+            if self.isSelectedOAuthTokenAccount(context: context) {
+                return [ClaudeOAuthFetchStrategy()]
+            }
+            if self.isSelectedWebCookieTokenAccount(context: context) {
+                return [ClaudeWebFetchStrategy(browserDetection: context.browserDetection)]
+            }
+            // A selected account is an authority boundary. Missing or malformed selected credentials must never
+            // fall through to an ambient CLI, browser session, or global API key and be labeled as that account.
+            return []
         }
-        if ClaudeAdminAPIFetchStrategy.isSelectedAdminAPIAccount(context: context) {
+        if context.sourceMode == .api || self.hasAutoAdminAPIKey(context: context) {
             return [ClaudeAdminAPIFetchStrategy()]
         }
 
@@ -85,9 +98,29 @@ public enum ClaudeProviderDescriptor {
         context.sourceMode == .auto && ClaudeAdminAPISettingsReader.apiKey(environment: context.env) != nil
     }
 
+    private static func isSelectedOAuthTokenAccount(context: ProviderFetchContext) -> Bool {
+        guard context.selectedTokenAccountID != nil,
+              context.settings?.claude?.usageDataSource == .oauth
+        else {
+            return false
+        }
+        return !(context.env[ClaudeOAuthCredentialsStore.environmentTokenKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty ?? true)
+    }
+
+    private static func isSelectedWebCookieTokenAccount(context: ProviderFetchContext) -> Bool {
+        guard context.selectedTokenAccountID != nil,
+              context.settings?.claude?.usageDataSource == .web,
+              context.settings?.claude?.cookieSource == .manual
+        else {
+            return false
+        }
+        return CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader) != nil
+    }
+
     private static func makePlanningInput(context: ProviderFetchContext) -> ClaudeSourcePlanningInput {
         let webExtrasEnabled = context.settings?.claude?.webExtrasEnabled ?? false
-        let needsOAuthAvailability = context.runtime == .app && context.sourceMode == .auto
         let hasWebSession = Self.hasPlausibleWebSession(context: context)
 
         return ClaudeSourcePlanningInput(
@@ -96,10 +129,9 @@ public enum ClaudeProviderDescriptor {
             webExtrasEnabled: webExtrasEnabled,
             hasWebSession: hasWebSession,
             hasCLI: ClaudeCLIResolver.isAvailable(environment: context.env),
-            hasOAuthCredentials: needsOAuthAvailability && ClaudeOAuthPlanningAvailability.isAvailable(
-                runtime: context.runtime,
-                sourceMode: context.sourceMode,
-                environment: context.env))
+            // App Auto deliberately excludes direct OAuth. Explicit OAuth still performs its own
+            // availability check inside the selected strategy.
+            hasOAuthCredentials: false)
     }
 
     private static func hasPlausibleWebSession(context: ProviderFetchContext) -> Bool {
@@ -642,24 +674,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let hasWebFallback: Bool
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // Claude's "auth status" command is a child process that may invoke /usr/bin/security itself. A no-prompt
-        // policy in CodexBar cannot constrain that child process, so background Auto refresh must not launch it
-        // unless the user explicitly opted into Keychain access for background work.
-        let isBackgroundAutoRefresh = context.runtime == .app
-            && context.sourceMode == .auto
-            && ProviderInteractionContext.current == .background
-        if isBackgroundAutoRefresh {
-            guard !KeychainAccessGate.isDisabled,
-                  ClaudeOAuthKeychainPromptPreference.storedMode() == .always
-            else {
-                return false
-            }
-        }
-
-        // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI runtime and the
-        // explicitly opted-in background Auto path establish authentication through the status command first.
-        let requiresAuthPreflight = context.runtime == .cli || isBackgroundAutoRefresh
-        guard requiresAuthPreflight else { return true }
+        // The noninteractive owner-mediated preflight prevents a logged-out background refresh from starting
+        // Claude's interactive REPL and opening a browser login flow. CodexBar still never reads Claude's item.
         guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
         return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
     }

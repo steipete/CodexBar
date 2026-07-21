@@ -104,7 +104,7 @@ struct ClaudeWebRecoveryMenuTests {
     func `non-web source does not replace account action`() {
         let actions = self.actions(
             error: ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription,
-            source: .oauth)
+            source: .api)
 
         #expect(!actions.contains { $0.0 == "Re-login at claude.ai" })
     }

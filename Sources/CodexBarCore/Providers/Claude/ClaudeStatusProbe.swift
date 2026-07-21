@@ -81,16 +81,26 @@ public struct ClaudeStatusProbe: Sendable {
     public var claudeBinary: String = "claude"
     public var timeout: TimeInterval = 20.0
     public var keepCLISessionsAlive: Bool = false
+    public var environment: [String: String] = ProcessInfo.processInfo.environment
+    // Claude's interactive process binds account state at launch. Cross-refresh reuse is permitted only because the
+    // session actor also requires the hashed config-root + active-account scope to match.
+    static let accountScopedSessionReuseEnabled = true
     private static let log = CodexBarLog.logger(LogCategories.claudeProbe)
     #if DEBUG
     public typealias FetchOverride = @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot
     @TaskLocal static var fetchOverride: FetchOverride?
     #endif
 
-    public init(claudeBinary: String = "claude", timeout: TimeInterval = 20.0, keepCLISessionsAlive: Bool = false) {
+    public init(
+        claudeBinary: String = "claude",
+        timeout: TimeInterval = 20.0,
+        keepCLISessionsAlive: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment)
+    {
         self.claudeBinary = claudeBinary
         self.timeout = timeout
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        self.environment = environment
     }
 
     #if DEBUG
@@ -118,29 +128,45 @@ public struct ClaudeStatusProbe: Sendable {
     #endif
 
     public func fetch() async throws -> ClaudeStatusSnapshot {
-        let resolved = Self.resolvedBinaryPath(binaryName: self.claudeBinary)
+        let resolved = Self.resolvedBinaryPath(binaryName: self.claudeBinary, environment: self.environment)
         guard let resolved, Self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
 
         // Run commands sequentially through a shared Claude session to avoid warm-up churn.
         let timeout = self.timeout
-        let keepAlive = self.keepCLISessionsAlive
+        let keepAlive = Self.shouldKeepCLISessionAlive(requested: self.keepCLISessionsAlive)
+        let accountScope = ClaudeAccountProfile.sessionScope(environment: self.environment)
         #if DEBUG
         if let override = Self.fetchOverride {
             return try await override(resolved, timeout, keepAlive)
         }
         #endif
         do {
-            var usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: timeout)
+            var usage = try await Self.capture(
+                subcommand: "/usage",
+                binary: resolved,
+                accountScope: accountScope,
+                environment: self.environment,
+                timeout: timeout)
             if !Self.usageOutputLooksRelevant(usage) {
                 Self.log.debug("Claude CLI /usage looked like startup output; retrying once")
-                usage = try await Self.capture(subcommand: "/usage", binary: resolved, timeout: max(timeout, 14))
+                usage = try await Self.capture(
+                    subcommand: "/usage",
+                    binary: resolved,
+                    accountScope: accountScope,
+                    environment: self.environment,
+                    timeout: max(timeout, 14))
             }
             // `/status` only enriches a valid usage snapshot with identity. Terminal usage errors and loading stalls
             // cannot be repaired by it, so fail now instead of paying for another interactive CLI round trip.
             try Self.validateUsageBeforeStatusProbe(usage)
-            let status = try? await Self.capture(subcommand: "/status", binary: resolved, timeout: min(timeout, 12))
+            let status = try? await Self.capture(
+                subcommand: "/status",
+                binary: resolved,
+                accountScope: accountScope,
+                environment: self.environment,
+                timeout: min(timeout, 12))
             let snap = try Self.parse(text: usage, statusText: status)
 
             Self.log.info("Claude CLI scrape ok", metadata: [
@@ -149,22 +175,26 @@ public struct ClaudeStatusProbe: Sendable {
                 "opusPercentLeft": "\(snap.opusPercentLeft ?? -1)",
             ])
             if !keepAlive {
-                await Self.resetTransientCLISessionAndCleanupProbeArtifacts()
+                await Self.resetTransientCLISessionAndCleanupProbeArtifacts(environment: self.environment)
             }
             return snap
         } catch {
             if !keepAlive {
-                await Self.resetTransientCLISessionAndCleanupProbeArtifacts()
+                await Self.resetTransientCLISessionAndCleanupProbeArtifacts(environment: self.environment)
             }
             throw error
         }
     }
 
-    private static func resetTransientCLISessionAndCleanupProbeArtifacts() async {
+    private static func resetTransientCLISessionAndCleanupProbeArtifacts(environment: [String: String]) async {
         await ClaudeCLISession.current.reset()
-        let removed = ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts()
+        let removed = ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(environment: environment)
         guard !removed.isEmpty else { return }
         Self.log.debug("Claude probe session artifacts removed", metadata: ["count": "\(removed.count)"])
+    }
+
+    static func shouldKeepCLISessionAlive(requested: Bool) -> Bool {
+        requested && self.accountScopedSessionReuseEnabled
     }
 }
 
@@ -302,7 +332,12 @@ extension ClaudeStatusProbe {
         guard let resolved, self.isBinaryAvailable(resolved) else {
             throw ClaudeStatusProbeError.claudeNotInstalled
         }
-        let statusText = try await Self.capture(subcommand: "/status", binary: resolved, timeout: timeout)
+        let statusText = try await Self.capture(
+            subcommand: "/status",
+            binary: resolved,
+            accountScope: ClaudeAccountProfile.sessionScope(environment: environment),
+            environment: environment,
+            timeout: timeout)
         return Self.parseIdentity(usageText: nil, statusText: statusText)
     }
 
@@ -321,6 +356,8 @@ extension ClaudeStatusProbe {
             _ = try await ClaudeCLISession.shared.capture(
                 subcommand: "/status",
                 binary: resolved,
+                accountScope: ClaudeAccountProfile.sessionScope(environment: environment),
+                environment: environment,
                 timeout: timeout,
                 idleTimeout: nil,
                 stopOnSubstrings: [],
@@ -1347,7 +1384,13 @@ extension ClaudeStatusProbe {
     }
 
     /// Run claude CLI inside a PTY so we can respond to interactive permission prompts.
-    private static func capture(subcommand: String, binary: String, timeout: TimeInterval) async throws -> String {
+    private static func capture(
+        subcommand: String,
+        binary: String,
+        accountScope: String,
+        environment: [String: String],
+        timeout: TimeInterval) async throws -> String
+    {
         let stopOnSubstrings = subcommand == "/usage"
             ? [
                 "Failed to load usage data",
@@ -1368,6 +1411,8 @@ extension ClaudeStatusProbe {
             return try await ClaudeCLISession.current.capture(
                 subcommand: subcommand,
                 binary: binary,
+                accountScope: accountScope,
+                environment: environment,
                 timeout: timeout,
                 idleTimeout: idleTimeout,
                 stopOnSubstrings: stopOnSubstrings,

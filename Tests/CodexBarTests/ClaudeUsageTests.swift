@@ -260,10 +260,8 @@ struct ClaudeUsageTests {
         #expect(await delegatedCounter.current() == 1)
         #expect(snapshot.primary.usedPercent == 7)
 
-        // User-initiated repair: if the delegated refresh couldn't sync silently, we may allow an interactive prompt
-        // on the retry to help recovery.
         #expect(flags.allowKeychainPromptFlags.count == 2)
-        #expect(flags.allowKeychainPromptFlags[1] == true)
+        #expect(flags.allowKeychainPromptFlags == [false, false])
     }
 
     @Test
@@ -1060,7 +1058,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
     }
 
     @Test
-    func `auto prefers OAuth even when web and CLI appear available`() async throws {
+    func `app Auto ignores ambient OAuth and delegates to Claude CLI`() async throws {
         let usageResponse = try Self.makeOAuthUsageResponse()
         let cliLogURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-auto-cli-log-\(UUID().uuidString).txt")
@@ -1085,7 +1083,8 @@ struct ClaudeAutoFetcherCharacterizationTests {
                     return Self.makeJSONResponse(url: url, body: "{}")
                 }, operation: {
                     let fetchOverride: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { _, _ in
-                        usageResponse
+                        Issue.record("App Auto must not invoke direct OAuth")
+                        return usageResponse
                     }
                     let snapshot = try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(
                         fetchOverride,
@@ -1095,7 +1094,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
 
                     #expect(snapshot.primary.usedPercent == 7)
                     #expect(snapshot.secondary?.usedPercent == 21)
-                    #expect(log.contents().isEmpty)
+                    #expect(log.contents() == "usage\nstatus\n")
                     let requests = webRequests.current()
                     #expect(requests.isEmpty)
                 })

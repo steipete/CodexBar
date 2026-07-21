@@ -8,18 +8,21 @@ extension SettingsStore {
             return Self.claudeUsageDataSource(from: source)
         }
         set {
-            let source: ProviderSourceMode? = switch newValue {
+            // App OAuth historically depended on Claude Code's foreign-owned Keychain item.
+            // Keep explicit OAuth available only for token-account snapshots below.
+            let resolvedValue: ClaudeUsageDataSource = newValue == .oauth ? .auto : newValue
+            let source: ProviderSourceMode? = switch resolvedValue {
             case .auto: .auto
             case .api: .api
-            case .oauth: .oauth
+            case .oauth: .auto
             case .web: .web
             case .cli: .cli
             }
             self.updateProviderConfig(provider: .claude) { entry in
                 entry.source = source
             }
-            self.logProviderModeChange(provider: .claude, field: "usageSource", value: newValue.rawValue)
-            if newValue != .cli {
+            self.logProviderModeChange(provider: .claude, field: "usageSource", value: resolvedValue.rawValue)
+            if resolvedValue != .cli {
                 self.claudeWebExtrasEnabled = false
             }
         }
@@ -99,8 +102,18 @@ extension SettingsStore {
     .ClaudeProviderSettings {
         let account = self.selectedClaudeTokenAccount(tokenOverride: tokenOverride)
         let routing = self.claudeCredentialRouting(account: account)
+        let usageDataSource: ClaudeUsageDataSource = if account == nil {
+            self.claudeUsageDataSource
+        } else {
+            switch routing {
+            case .none: self.claudeUsageDataSource
+            case .oauth: .oauth
+            case .webCookie: .web
+            case .adminAPIKey: .api
+            }
+        }
         return ProviderSettingsSnapshot.ClaudeProviderSettings(
-            usageDataSource: self.claudeUsageDataSource,
+            usageDataSource: usageDataSource,
             webExtrasEnabled: self.claudeWebExtrasEnabled,
             cookieSource: self.claudeSnapshotCookieSource(tokenOverride: tokenOverride, routing: routing),
             manualCookieHeader: self.claudeSnapshotCookieHeader(
@@ -119,7 +132,8 @@ extension SettingsStore {
         case .cli:
             return .cli
         case .oauth:
-            return .oauth
+            // Migrate existing app selections without changing the shared config schema used by the CLI.
+            return .auto
         }
     }
 

@@ -44,27 +44,32 @@ extension UsageStore {
             } else {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: browserDetection) { msg in lines.append(msg) }
             }
-            let oauthProbe = await withTaskGroup(of: OAuthDebugProbe.self) { group in
-                // Preserve task-local test overrides while keeping the keychain read off the calling task.
-                group.addTask(priority: .utility) {
-                    let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
-                        environment: configuration.environment,
-                        allowKeychainPrompt: false,
-                        respectKeychainPromptCooldown: true,
-                        allowClaudeKeychainRepairWithoutPrompt: false)
-                    return OAuthDebugProbe(
-                        hasCredentials: oauthRecord?.credentials.scopes.contains("user:profile") == true,
-                        ownerRawValue: oauthRecord?.owner.rawValue ?? "none",
-                        sourceRawValue: oauthRecord?.source.rawValue ?? "none",
-                        isExpired: oauthRecord?.credentials.isExpired ?? false)
+            let emptyOAuthProbe = OAuthDebugProbe(
+                hasCredentials: false,
+                ownerRawValue: "none",
+                sourceRawValue: "none",
+                isExpired: false)
+            let shouldProbeOAuth = configuration.usageDataSource == .oauth
+            let oauthProbe = if shouldProbeOAuth {
+                await withTaskGroup(of: OAuthDebugProbe.self) { group in
+                    group.addTask(priority: .utility) {
+                        let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
+                            environment: configuration.environment,
+                            allowKeychainPrompt: false,
+                            respectKeychainPromptCooldown: true,
+                            allowClaudeKeychainRepairWithoutPrompt: false)
+                        return OAuthDebugProbe(
+                            hasCredentials: oauthRecord?.credentials.scopes.contains("user:profile") == true,
+                            ownerRawValue: oauthRecord?.owner.rawValue ?? "none",
+                            sourceRawValue: oauthRecord?.source.rawValue ?? "none",
+                            isExpired: oauthRecord?.credentials.isExpired ?? false)
+                    }
+                    return await group.next() ?? emptyOAuthProbe
                 }
-                return await group.next() ?? OAuthDebugProbe(
-                    hasCredentials: false,
-                    ownerRawValue: "none",
-                    sourceRawValue: "none",
-                    isExpired: false)
+            } else {
+                emptyOAuthProbe
             }
-            let hasOAuthCredentials = ClaudeOAuthPlanningAvailability.isAvailable(
+            let hasOAuthCredentials = shouldProbeOAuth && ClaudeOAuthPlanningAvailability.isAvailable(
                 runtime: configuration.runtime,
                 sourceMode: configuration.sourceMode,
                 environment: configuration.environment)

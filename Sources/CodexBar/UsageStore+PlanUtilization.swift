@@ -924,16 +924,6 @@ extension UsageStore {
         }
     }
 
-    // MARK: - Active Claude account corroboration (~/.claude.json)
-
-    /// The currently-active Claude account UUID, read prompt-free from `~/.claude.json`. This is the only
-    /// always-fresh, never-gated signal of the active account on a background poll: Claude Code's `/login`
-    /// updates the Keychain item in place and leaves `~/.claude/.credentials.json` stale, but immediately
-    /// rewrites `oauthAccount.accountUuid` in this sibling plain file. Returns nil on absence/corruption.
-    nonisolated static func activeClaudeAccountUuid() -> String? {
-        ClaudeActiveAccountProbe.activeClaudeAccountUuid()
-    }
-
     /// Persisted `historyOwnerIdentifier -> hashed active account identity` bindings.
     nonisolated static func loadClaudeOAuthAccountUuidMap(from userDefaults: UserDefaults) -> [String: String] {
         guard let data = userDefaults.data(forKey: claudeOAuthAccountUuidMapDefaultsKey) else { return [:] }
@@ -1079,30 +1069,6 @@ extension UsageStore {
                 metadata: ["error": String(describing: error)])
         }
     }
-
-    nonisolated static func activeClaudeAccountIdentity() -> String? {
-        self.activeClaudeAccountUuid().map(self.claudeAccountIdentity)
-    }
-
-    private nonisolated static func claudeAccountIdentity(_ uuid: String) -> String {
-        self.sha256Hex(
-            "claude:active-account:v1:\(uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
-    }
-
-    #if DEBUG
-    static func withActiveClaudeAccountUuidForTesting<T>(
-        _ uuid: String?,
-        _ body: () async throws -> T) async rethrows -> T
-    {
-        try await ClaudeActiveAccountProbe.$activeClaudeAccountUuidOverrideForTesting.withValue(
-            .value(uuid),
-            operation: body)
-    }
-
-    nonisolated static func _activeClaudeAccountIdentityForTesting(_ uuid: String) -> String {
-        self.claudeAccountIdentity(uuid)
-    }
-    #endif
 
     private func resolvePlanUtilizationAccountKey(
         provider: UsageProvider,
@@ -1636,48 +1602,5 @@ actor PlanUtilizationHistoryPersistenceCoordinator {
         await Task.detached(priority: .utility) {
             store.save(snapshot)
         }.value
-    }
-}
-
-/// Prompt-free reader for the active Claude account UUID recorded in `~/.claude.json`. The `@TaskLocal` test
-/// seam lives here (not on `UsageStore`) because Swift forbids stored properties in extensions and task-local
-/// storage must be nonisolated, whereas `UsageStore` is `@MainActor`.
-private enum ClaudeActiveAccountProbe {
-    #if DEBUG
-    enum Override: Sendable {
-        case value(String?)
-    }
-
-    @TaskLocal static var activeClaudeAccountUuidOverrideForTesting: Override?
-    #endif
-
-    private struct ClaudeConfigAccount: Decodable {
-        struct OAuthAccount: Decodable {
-            let accountUuid: String?
-        }
-
-        let oauthAccount: OAuthAccount?
-    }
-
-    static func activeClaudeAccountUuid() -> String? {
-        #if DEBUG
-        if case let .value(uuid) = self.activeClaudeAccountUuidOverrideForTesting {
-            return uuid
-        }
-        #endif
-        // `~/.claude.json` is a SIBLING of `.claude/`, not inside it. Home resolution mirrors
-        // `ClaudeOAuthCredentials.defaultCredentialsURL()`. This intentionally does NOT honor
-        // CLAUDE_CONFIG_DIR: the credential store that yields `historyOwnerIdentifier` is purely
-        // home-relative, so the accountUuid corroboration must resolve against the same home or the
-        // two signals would point at different accounts.
-        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
-        guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(ClaudeConfigAccount.self, from: data),
-              let uuid = decoded.oauthAccount?.accountUuid?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !uuid.isEmpty
-        else {
-            return nil
-        }
-        return uuid
     }
 }

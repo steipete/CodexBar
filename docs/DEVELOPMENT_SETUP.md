@@ -10,18 +10,19 @@ read_when:
 
 ## Reducing Keychain Permission Prompts
 
-When developing CodexBar, you may see frequent keychain permission prompts like:
+Current CodexBar builds never directly access the Claude Code-owned `Claude Code-credentials` item. Claude Code
+replaces that item during credential refreshes, which also replaces its access-control list, so **Always Allow** was
+never a durable solution. If a prompt names that exact item and CodexBar is the requesting process, first confirm that
+you launched the freshly built bundle rather than an older installed build.
 
-> **CodexBar wants to access key "Claude Code-credentials" in your keychain.**
-
-This happens because each rebuild creates a new code signature, and macOS treats it as a "different" app.
-That can affect both CodexBar-owned entries (`com.steipete.CodexBar`, `com.steipete.codexbar.cache`) and
-third-party items such as `Claude Code-credentials`, so an ad-hoc-signed rebuild can keep re-triggering
-password/keychain approval dialogs even after you previously chose **Always Allow**.
+Rebuild signatures can still affect CodexBar-owned entries (`com.steipete.CodexBar` and
+`com.steipete.codexbar.cache`) and other Keychain-backed provider features. macOS may treat an ad-hoc-signed rebuild as
+a different app, so stable development signing remains useful.
 
 ### Quick Fix (Temporary)
 
-When the prompt appears, click **"Always Allow"** instead of just "Allow". This grants access to the current build.
+For a CodexBar-owned cache prompt, **Always Allow** grants the current signed build access. It is not a recommended fix
+for a prompt naming `Claude Code-credentials`; update and relaunch CodexBar instead.
 
 ### Permanent Fix (Recommended)
 
@@ -64,7 +65,7 @@ source ~/.zshrc
 ./Scripts/compile_and_run.sh
 ```
 
-Now your builds will use the stable certificate, and keychain prompts will be much less frequent!
+Now your builds will use the stable certificate, reducing prompts for CodexBar-owned Keychain entries.
 
 > Note: `compile_and_run.sh` now auto-detects a valid signing identity (Developer ID or CodexBar Development).
 > Set `APP_IDENTITY` to override the auto-detected choice.
@@ -114,7 +115,7 @@ That means you may still see keychain prompts for existing CodexBar cache entrie
 cached browser/OAuth state available across normal rebuilds.
 If you want a clean reset of CodexBar-owned keychain state for an ad-hoc build, run
 `./Scripts/compile_and_run.sh --clear-adhoc-keychain` before relaunching.
-Third-party keychain items still need stable signing if you want macOS to remember **Always Allow** across rebuilds.
+CodexBar does not use stable signing as permission to read Claude Code's foreign-owned credential item.
 
 ### Quick Build (No Tests)
 

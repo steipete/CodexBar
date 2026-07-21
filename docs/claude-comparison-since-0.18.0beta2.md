@@ -8,6 +8,10 @@ read_when:
 
 # Claude Fetch Comparison (`7b79b2d` vs `HEAD`)
 
+> **Historical and superseded.** This point-in-time analysis describes foreign Claude Code Keychain access that is no
+> longer part of production CodexBar. Use [Claude provider](claude.md) and
+> [Claude current baseline](refactor/claude-current-baseline.md) for the active contract.
+
 This document compares Claude data fetching behavior between:
 - Baseline commit: `7b79b2d080c6b00f6c8f52f89ac115f33a7ca8b0`
 - Current `HEAD`: `37841489f849567a598d2a8ba601eb6f1228644e`

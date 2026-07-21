@@ -292,27 +292,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             do {
                 let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
 
-                #if DEBUG
-                let hasCache = if let hasCachedCredentialsOverride = ClaudeUsageFetcher.hasCachedCredentialsOverride {
-                    hasCachedCredentialsOverride
-                } else if ClaudeUsageFetcher.loadOAuthCredentialsOverride != nil {
-                    false
-                } else {
-                    ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: self.fetcher.environment)
-                }
-                #else
-                let hasCache = ClaudeOAuthCredentialsStore.hasCachedCredentials(environment: self.fetcher.environment)
-                #endif
-
-                let allowKeychainPrompt = promptPolicy.canPromptNow && !hasCache
-                ClaudeUsageFetcher.logOAuthBootstrapPromptDecision(
-                    allowKeychainPrompt: allowKeychainPrompt,
-                    policy: promptPolicy,
-                    hasCache: hasCache)
-
                 let credentialRecord = try await ClaudeUsageFetcher.loadOAuthCredentialRecord(
                     environment: self.fetcher.environment,
-                    allowKeychainPrompt: allowKeychainPrompt,
+                    allowKeychainPrompt: false,
                     respectKeychainPromptCooldown: promptPolicy.shouldRespectKeychainPromptCooldown)
                 let credentials = credentialRecord.credentials
 
@@ -320,8 +302,11 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let usage = try await ClaudeUsageFetcher.fetchOAuthUsage(
                     accessToken: credentials.accessToken,
                     detectClaudeVersion: self.fetcher.allowsOAuthClaudeVersionDetection)
-                let keychainMatch = ClaudeOAuthCredentialsStore
-                    .claudeKeychainCredentialMatchWithoutPrompt(for: credentialRecord)
+                // History is scoped by the credential's one-way owner identifier. Do not compare the winning
+                // credential with Claude Code's foreign Keychain item after a successful request.
+                let keychainMatch: ClaudeKeychainCredentialMatch = credentialRecord.owner == .claudeCLI
+                    ? .unavailable
+                    : .notApplicable
                 return try ClaudeUsageFetcher.mapOAuthUsage(
                     usage,
                     credentials: credentials,
@@ -395,28 +380,20 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
                 try Task.checkCancellation()
 
-                _ = ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
+                _ = ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged(
+                    environment: self.fetcher.environment)
 
                 let didSyncSilently = delegatedOutcome == .attemptedSucceeded
-                    && ClaudeOAuthCredentialsStore.syncFromClaudeKeychainWithoutPrompt(now: Date())
+                    && ClaudeOAuthCredentialsStore.syncFromClaudeKeychainWithoutPrompt(
+                        now: Date(),
+                        environment: self.fetcher.environment)
 
                 let promptPolicy = ClaudeUsageFetcher.currentClaudeOAuthInteractivePromptPolicy()
                 ClaudeUsageFetcher.logDeferredBackgroundDelegatedRecoveryIfNeeded(
                     delegatedOutcome: delegatedOutcome,
                     didSyncSilently: didSyncSilently,
                     policy: promptPolicy)
-                let retryAllowKeychainPrompt = promptPolicy.canPromptNow && !didSyncSilently
-                if retryAllowKeychainPrompt {
-                    ClaudeUsageFetcher.log.info(
-                        "Claude OAuth keychain prompt allowed (post-delegation retry)",
-                        metadata: [
-                            "interaction": promptPolicy.interactionLabel,
-                            "promptMode": promptPolicy.mode.rawValue,
-                            "promptPolicyApplicable": "\(promptPolicy.isApplicable)",
-                            "delegatedOutcome": ClaudeUsageFetcher.delegatedRefreshOutcomeLabel(delegatedOutcome),
-                            "didSyncSilently": "\(didSyncSilently)",
-                        ])
-                }
+                let retryAllowKeychainPrompt = false
                 if ClaudeUsageFetcher.isClaudeOAuthFlowDebugEnabled {
                     ClaudeUsageFetcher.log.debug(
                         "Claude OAuth credential load (post-delegation retry start)",
@@ -456,8 +433,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 let usage = try await ClaudeUsageFetcher.fetchOAuthUsage(
                     accessToken: refreshedCredentials.accessToken,
                     detectClaudeVersion: self.fetcher.allowsOAuthClaudeVersionDetection)
-                let keychainMatch = ClaudeOAuthCredentialsStore
-                    .claudeKeychainCredentialMatchWithoutPrompt(for: refreshedRecord)
+                let keychainMatch: ClaudeKeychainCredentialMatch = refreshedRecord.owner == .claudeCLI
+                    ? .unavailable
+                    : .notApplicable
                 return try ClaudeUsageFetcher.mapOAuthUsage(
                     usage,
                     credentials: refreshedCredentials,
@@ -553,10 +531,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 webExtrasEnabled: self.fetcher.useWebExtras,
                 hasWebSession: hasWebSession,
                 hasCLI: hasCLI,
-                hasOAuthCredentials: ClaudeOAuthPlanningAvailability.isAvailable(
-                    runtime: self.fetcher.runtime,
-                    sourceMode: .auto,
-                    environment: self.fetcher.environment)))
+                // Auto delegates credential access to Claude CLI and never plans direct OAuth.
+                hasOAuthCredentials: false))
         }
 
         private func logAutoPlan(_ plan: ClaudeFetchPlan) {
@@ -813,22 +789,6 @@ extension ClaudeUsageFetcher {
 
 extension ClaudeUsageFetcher {
     // MARK: - OAuth API path
-
-    private static func logOAuthBootstrapPromptDecision(
-        allowKeychainPrompt: Bool,
-        policy: ClaudeOAuthKeychainPromptPolicy,
-        hasCache: Bool)
-    {
-        guard allowKeychainPrompt else { return }
-        self.log.info(
-            "Claude OAuth keychain prompt allowed (bootstrap)",
-            metadata: [
-                "interaction": policy.interactionLabel,
-                "promptMode": policy.mode.rawValue,
-                "promptPolicyApplicable": "\(policy.isApplicable)",
-                "hasCache": "\(hasCache)",
-            ])
-    }
 
     private static func logDeferredBackgroundDelegatedRecoveryIfNeeded(
         delegatedOutcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome,
@@ -1262,7 +1222,8 @@ extension ClaudeUsageFetcher {
         let probe = ClaudeStatusProbe(
             claudeBinary: claudeBinary,
             timeout: timeout,
-            keepCLISessionsAlive: self.keepCLISessionsAlive)
+            keepCLISessionsAlive: self.keepCLISessionsAlive,
+            environment: self.environment)
         let snap = try await probe.fetch()
 
         return try Self.makeSnapshot(from: snap)

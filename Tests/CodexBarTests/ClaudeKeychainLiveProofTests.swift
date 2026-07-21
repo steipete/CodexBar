@@ -9,21 +9,43 @@ struct ClaudeKeychainLiveProofTests {
     }
 
     @Test
-    func `live background Auto skips the opaque Claude Keychain boundary`() async {
+    func `live app Auto enforces Claude credential ownership and builds CLI then web`() async throws {
         guard Self.isEnabled else { return }
+        let binary = try #require(TTYCommandRunner.which("claude"))
         let mode = ClaudeOAuthKeychainPromptPreference.storedMode()
-        guard mode == .onlyOnUserAction || mode == .never else {
-            Issue.record("Live proof requires a restrictive stored Claude Keychain prompt mode; found \(mode.rawValue)")
-            return
-        }
+        #expect(
+            ClaudeOAuthCredentialsStore.directClaudeCodeKeychainAccessAllowedForTesting == false,
+            "Stored mode \(mode.rawValue) must not reopen Claude Code's Keychain item")
 
-        let outcome = await ClaudeOAuthDelegatedRefreshCoordinator.withIsolatedStateForTesting {
-            await ProviderInteractionContext.$current.withValue(.background) {
-                await ClaudeOAuthDelegatedRefreshCoordinator.attempt(timeout: 8)
-            }
+        var environment = ProcessInfo.processInfo.environment
+        for key in ClaudeAdminAPISettingsReader.apiKeyEnvironmentKeys {
+            environment.removeValue(forKey: key)
         }
+        environment["CLAUDE_CLI_PATH"] = binary
+        environment[ClaudeOAuthCredentialsStore.environmentTokenKey] = "synthetic-ambient-oauth-token"
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: false,
+            cookieSource: .manual,
+            manualCookieHeader: "sessionKey=synthetic-session"))
+        let context = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: environment,
+            settings: settings,
+            fetcher: UsageFetcher(environment: environment),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+        let strategies = await ProviderDescriptorRegistry.descriptor(for: .claude)
+            .fetchPlan.pipeline.resolveStrategies(context)
 
-        #expect(outcome == .skippedByPromptPolicy)
+        #expect(strategies.map(\.id) == ["claude.cli", "claude.web"])
+        #expect(await strategies[0].isAvailable(context))
     }
 
     @Test

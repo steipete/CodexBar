@@ -19,6 +19,12 @@ Use the baseline doc for present behavior. This vNext plan defines what the refa
 be staged; it is not the sole source of truth for current implementation details, and RAT-107 does not re-approve the
 rest of the future architecture below.
 
+> **Credential-ownership amendment (2026-07-21):** The OAuth-first app ordering and Claude Keychain prompt-parity
+> contracts below are historical and superseded by the
+> [current baseline](claude-current-baseline.md). App Auto now uses CLI then Web, legacy app OAuth selections migrate
+> to Auto, explicit OAuth token accounts remain supported, and production CodexBar never directly reads or fingerprints
+> `Claude Code-credentials`. The former Claude Keychain prompt controls have been removed.
+
 ## Assessment snapshot
 
 - **Approach score:** `8.4/10`.

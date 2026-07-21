@@ -1,3 +1,6 @@
+> **Historical and superseded.** This records the July 2026 MCP-only guard verification. Current CodexBar never reads
+> Claude Code's Keychain item; see `docs/verify-1844-proof.md` for the current proof.
+
 ## Maintainer verification (2026-07-03)
 
 Local current-main port of https://github.com/steipete/CodexBar/pull/1848. This fixes the background browser-launch regression in https://github.com/steipete/CodexBar/issues/1844; primary OAuth storage discovery remains tracked by https://github.com/steipete/CodexBar/issues/1823.
@@ -30,7 +33,6 @@ Result: **105 tests passed** (33 + 39 + 12 + 1 + 17 + 2 + 1).
 
 ```bash
 ./Scripts/package_app.sh
-./Scripts/verify_1844_live.sh
 ```
 
 The verifier used only synthetic data under a unique temporary directory:

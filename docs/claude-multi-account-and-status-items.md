@@ -32,9 +32,8 @@ Claude-only status item implementation that would need to be redesigned for Code
 
 CodexBar has three account concepts today:
 
-- The ambient Claude OAuth credential is routed from CodexBar's cache, Claude Code's credentials file, or Claude
-  Code's Keychain item. It represents one active credential. Claude Code-owned expired credentials delegate refresh
-  back to the CLI; CodexBar-owned cached credentials can refresh directly.
+- Ambient Claude usage is owner-mediated: app Auto verifies Claude CLI login noninteractively, tries CLI usage, then
+  falls back to Web. CodexBar never reads Claude Code's Keychain item.
 - `ProviderTokenAccount` stores a label and one token plus optional provider metadata. It has no refresh token or
   expiry model. Claude entries therefore work for session cookies, Admin API keys, or short-lived OAuth access tokens,
   but they are not durable multi-subscription OAuth sessions.
@@ -42,10 +41,11 @@ CodexBar has three account concepts today:
   Status items remain provider-scoped: `StatusItemIdentity` has only `merged` and `provider`, and
   `statusItems` is keyed by `UsageProvider`.
 
-The recently merged [#1800](https://github.com/steipete/CodexBar/pull/1800) scopes Claude OAuth history to the routed
-Keychain identity. [#1776](https://github.com/steipete/CodexBar/pull/1776) prevents CLI-runtime usage refreshes from
-delegating credential repair to Claude Code, while app and user-initiated repair remain available. Both changes improve
-single-active-account correctness; neither discovers or displays multiple subscriptions.
+Earlier Keychain-derived history scoping is superseded. Current ambient account invalidation hashes Claude's active
+account UUID from its owner-selected account config (`<config root>/.config.json` when present, otherwise the matching
+`.claude.json` fallback) and never derives identity from a Keychain item. `CLAUDE_CONFIG_DIR` is treated as one literal
+root, matching Claude Code. This still represents only one active ambient subscription; it does not discover multiple
+accounts.
 
 The closed [#1707](https://github.com/steipete/CodexBar/pull/1707) should not be revived. It coupled account discovery,
 credential resolution, provider routing, menu rendering, and animation across a large patch while broadening

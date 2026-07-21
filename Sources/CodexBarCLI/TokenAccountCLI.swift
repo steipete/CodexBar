@@ -110,7 +110,14 @@ struct TokenAccountCLIContext {
                 codexActiveSourceOverride: codexActiveSourceOverride))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
-            let claudeSource: ClaudeUsageDataSource = if routing.adminAPIKey != nil {
+            let claudeSource: ClaudeUsageDataSource = if account != nil {
+                switch routing {
+                case .adminAPIKey: .api
+                case .oauth: .oauth
+                case .webCookie: .web
+                case .none: .auto
+                }
+            } else if routing.adminAPIKey != nil {
                 .api
             } else if routing.isOAuth {
                 .oauth
@@ -438,20 +445,10 @@ struct TokenAccountCLIContext {
         let config = self.providerConfig(for: provider)
         let routing = self.claudeCredentialRouting(account: account, config: config)
 
-        if base == .auto {
-            if routing.adminAPIKey != nil {
-                return .api
-            }
-            return routing.isOAuth ? .oauth : base
-        }
+        guard account != nil else { return base }
 
-        guard base == .cli, account != nil else {
-            return base
-        }
-
-        // Claude CLI usage is ambient to the active local CLI profile, so per-token-account
-        // CLI reads can be mislabeled as separate accounts. Use the selected account's
-        // routable credential instead.
+        // Selected-account credentials are authoritative regardless of the global source. Claude CLI usage is
+        // ambient to the active local profile and must never be labeled as a configured token account.
         switch routing {
         case .adminAPIKey:
             return .api

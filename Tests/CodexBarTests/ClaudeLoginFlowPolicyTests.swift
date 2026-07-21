@@ -10,7 +10,7 @@ struct ClaudeLoginFlowTests {
         let registry = ProviderRegistry.shared
         let claudeMetadata = try #require(registry.metadata[.claude])
 
-        for source in ClaudeUsageDataSource.allCases {
+        for source in ClaudeUsageDataSource.allCases where source != .oauth {
             let settings = testSettingsStore(
                 suiteName: "ClaudeLoginFlowTests-controller-\(source.rawValue)")
             settings.statusChecksEnabled = false

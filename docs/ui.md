@@ -78,8 +78,10 @@ window has elapsed.
   reports sizes and cleanup ideas, it does not delete files.
 - Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 6).
 - If no providers are selected for Overview, the Overview tab is hidden.
-- Providers → Claude: “Avoid Keychain prompts” selects the Security.framework reader's `Never prompt` policy.
-- The lower-level “Keychain prompt policy” picker remains visible as the source of truth for Claude OAuth prompts.
+- Providers → Claude: Usage source offers Auto, API, Web, and CLI. App Auto tries the credential-owning Claude CLI,
+  then Web; ambient OAuth is not part of the route.
+- The former Claude “Avoid Keychain prompts” and “Keychain prompt policy” controls are removed. CodexBar never reads
+  Claude Code's foreign credential item, regardless of the legacy stored policy.
 
 ## Widgets (high level)
 - Widgets render shared usage snapshots for the supported widget families and

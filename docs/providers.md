@@ -37,7 +37,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
 | OpenAI | Admin API key (`api`) for organization spend/usage; legacy API-key balance fallback. |
 | Azure OpenAI | API key + endpoint + deployment probe (`api`) for deployment status validation. |
-| Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
+| Claude | Admin API key (`api`) when configured; otherwise App Auto: CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). Selected OAuth token accounts route directly to OAuth. |
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
@@ -121,8 +121,9 @@ scan fails, while provider/account configuration changes replace obsolete result
 ## Claude
 - Admin API: `sk-ant-admin...` key in Settings/config, token accounts, or `ANTHROPIC_ADMIN_KEY`.
 - Admin API shows organization spend/messages summaries with the same inline dashboard pattern as OpenAI API.
-- App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
+- App Auto: CLI PTY (`claude`) → Web API (`web`); ambient OAuth is excluded.
 - CLI Auto: Web API (`web`) → CLI PTY (`claude`).
+- Selected OAuth token accounts route directly to OAuth; legacy app OAuth source selections migrate to Auto.
 - Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects`,
   `~/.claude/projects` (including current Claude Desktop Code/Cowork CLI sessions), and nested Claude Desktop
   local-agent JSONL files for the configured history window.

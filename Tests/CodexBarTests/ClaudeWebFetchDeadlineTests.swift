@@ -55,18 +55,9 @@ struct ClaudeWebFetchDeadlineTests {
             sourceMode: .auto,
             webTimeout: 60,
             cookieSource: .auto,
-            env: [
-                "CLAUDE_CLI_PATH": cliPath,
-                ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
-            ])
+            env: ["CLAUDE_CLI_PATH": cliPath])
         let availabilityOverride: @Sendable (ProviderFetchContext, BrowserDetection) -> Bool = { _, _ in
             planningProbe.stallAndReportUnavailable()
-        }
-        let oauthLoadOverride: (@Sendable (
-            [String: String],
-            Bool,
-            Bool) async throws -> ClaudeOAuthCredentials)? = { _, _, _ in
-            throw ClaudeUsageError.oauthFailed("stub OAuth failure")
         }
         let cliFetchOverride: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot =
             { _, _, _ in Self.makeClaudeStatus() }
@@ -76,12 +67,10 @@ struct ClaudeWebFetchDeadlineTests {
                 await ClaudeWebFetchStrategy.$availabilityProbeOverrideForTesting.withValue(
                     availabilityOverride)
                 {
-                    await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(oauthLoadOverride) {
-                        await ClaudeStatusProbe.$fetchOverride.withValue(cliFetchOverride) {
-                            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
-                                context: context,
-                                provider: .claude)
-                        }
+                    await ClaudeStatusProbe.$fetchOverride.withValue(cliFetchOverride) {
+                        await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                            context: context,
+                            provider: .claude)
                     }
                 }
             }
@@ -89,7 +78,7 @@ struct ClaudeWebFetchDeadlineTests {
         let result = try outcome.result.get()
 
         #expect(result.strategyID == "claude.cli")
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
         #expect(!planningProbe.wasInvoked)
     }
 
@@ -102,18 +91,9 @@ struct ClaudeWebFetchDeadlineTests {
             sourceMode: .auto,
             webTimeout: 60,
             cookieSource: .auto,
-            env: [
-                "CLAUDE_CLI_PATH": "/usr/bin/true",
-                ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
-            ])
+            env: ["CLAUDE_CLI_PATH": "/usr/bin/true"])
         let availabilityOverride: @Sendable (ProviderFetchContext, BrowserDetection) -> Bool = { _, _ in
             planningProbe.stallAndReportUnavailable()
-        }
-        let oauthLoadOverride: (@Sendable (
-            [String: String],
-            Bool,
-            Bool) async throws -> ClaudeOAuthCredentials)? = { _, _, _ in
-            throw ClaudeUsageError.oauthFailed("stub OAuth failure")
         }
         let cliFetchOverride: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot = { _, _, _ in
             throw ClaudeUsageError.parseFailed("stub CLI failure")
@@ -126,12 +106,10 @@ struct ClaudeWebFetchDeadlineTests {
         let fetchTask = Task {
             await ClaudeWebFetchStrategy.$availabilityProbeOverrideForTesting.withValue(availabilityOverride) {
                 await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(usageLoader) {
-                    await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(oauthLoadOverride) {
-                        await ClaudeStatusProbe.$fetchOverride.withValue(cliFetchOverride) {
-                            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
-                                context: context,
-                                provider: .claude)
-                        }
+                    await ClaudeStatusProbe.$fetchOverride.withValue(cliFetchOverride) {
+                        await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                            context: context,
+                            provider: .claude)
                     }
                 }
             }
@@ -150,7 +128,7 @@ struct ClaudeWebFetchDeadlineTests {
         case let .failure(error):
             #expect(error is CancellationError)
         }
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
         #expect(webFetchProbe.invocationCount == 0)
     }
 

@@ -2,6 +2,12 @@ import Foundation
 
 #if DEBUG
 extension ClaudeOAuthCredentialsStore {
+    /// Mirrors the production ownership decision without installing a synthetic credential fixture.
+    /// Tests use this to prove that enabling global Keychain access cannot reopen Claude Code's item.
+    static var directClaudeCodeKeychainAccessAllowedForTesting: Bool {
+        self.keychainAccessAllowed
+    }
+
     @TaskLocal static var taskBeforeClaudeKeychainPromptLockOverride: (@Sendable () -> Void)?
     @TaskLocal static var taskInteractiveClaudeKeychainReadOverride: (@Sendable () throws -> Data)?
 
@@ -64,6 +70,7 @@ extension ClaudeOAuthCredentialsStore {
     final class MemoryCacheStore: @unchecked Sendable {
         var record: ClaudeOAuthCredentialRecord?
         var timestamp: Date?
+        var profileIdentifier: String?
     }
 
     static func withClaudeKeychainOverridesForTesting<T>(

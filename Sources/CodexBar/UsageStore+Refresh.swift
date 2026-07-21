@@ -2,6 +2,8 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    nonisolated static let claudeActiveAccountIdentityDefaultsKey = "ClaudeActiveAccountIdentityHashV2"
+
     nonisolated static func codexSessionQuotaOwnerKey(
         for refreshGuard: CodexAccountScopedRefreshGuard?) -> CodexSessionQuotaOwnerKey?
     {
@@ -40,6 +42,29 @@ extension UsageStore {
         let limitResetOwnerKey: CodexLimitResetOwnerKey?
         let previousSnapshot: UsageSnapshot?
         let missingWindowBackfillSnapshot: UsageSnapshot?
+    }
+
+    private struct ClaudeRefreshReconciliation {
+        let disposition: ClaudeRefreshDisposition
+        let oauthHistoryPersistentRefHash: String?
+        let oauthActiveAccountObservation: ClaudeOAuthActiveAccountObservation
+    }
+
+    private enum ClaudeRefreshDisposition {
+        case apply
+        case retry
+        case discard
+    }
+
+    private struct ClaudeRefreshReconciliationInput {
+        let provider: UsageProvider
+        let outcome: ProviderFetchOutcome
+        let environment: [String: String]
+        let dataSource: ClaudeUsageDataSource?
+        let priorSourceLabel: String?
+        let beforeFetch: ClaudeRefreshAuthState?
+        let activeAccountIdentitySourceEligible: Bool
+        let generation: UInt64
     }
 
     private static func warningAccountDiscriminator(
@@ -223,10 +248,15 @@ extension UsageStore {
                 self.refreshingProviders.remove(provider)
             }
         }
-        await self.refreshProviderNow(
-            provider,
-            allowDisabled: allowDisabled,
-            generation: generation)
+        while !Task.isCancelled,
+              self.isCurrentProviderRefreshGeneration(provider, generation: generation)
+        {
+            let requiresRetry = await self.refreshProviderPass(
+                provider,
+                allowDisabled: allowDisabled,
+                generation: generation)
+            if !requiresRetry { break }
+        }
     }
 
     private func prepareCodexRefreshPublication() -> CodexRefreshPublicationPreparation {
@@ -287,32 +317,34 @@ extension UsageStore {
             missingWindowBackfillSnapshot: missingWindowBackfillSnapshot)
     }
 
-    private func refreshProviderNow(
+    /// Runs one provider fetch pass. A `true` result keeps the retry inside the current coordinator request, so
+    /// callers (including `runRefresh`) remain suspended until the account-stable replacement pass completes.
+    private func refreshProviderPass(
         _ provider: UsageProvider,
         allowDisabled: Bool,
-        generation: UInt64) async
+        generation: UInt64) async -> Bool
     {
-        guard let spec = await self.providerRefreshSpec(provider) else { return }
-        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+        guard let spec = await self.providerRefreshSpec(provider) else { return false }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return false }
         let codexPreparation = provider == .codex ? self.prepareCodexRefreshPublication() : nil
         let codexExpectedGuard = codexPreparation?.expectedGuard
         let codexLimitResetOwnerKey = codexPreparation?.limitResetOwnerKey
 
         if !spec.isEnabled(), !allowDisabled {
             await self.clearDisabledProviderRefreshState(provider)
-            return
+            return false
         }
 
         if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
             await self.refreshCodexVisibleAccountsForMenu(generation: generation)
-            return
+            return false
         } else if provider == .codex {
             self.codexAccountSnapshots = []
         }
 
         if provider == .kilo, self.shouldFanOutKiloScopes() {
             await self.refreshKiloScopes(generation: generation)
-            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return false }
             // Continue to also fetch the personal snapshot through the regular path
             // so the existing single-card render keeps working when only personal is shown.
             // The presence of multi-element kiloScopeSnapshots triggers stacked rendering.
@@ -330,7 +362,7 @@ extension UsageStore {
                 provider: provider,
                 accounts: tokenAccounts,
                 generation: generation)
-            return
+            return false
         } else {
             _ = await MainActor.run {
                 self.reconcileSelectedTokenAccountSnapshotBeforeRefresh(
@@ -339,13 +371,22 @@ extension UsageStore {
             }
         }
 
-        self.diagnostics[provider] = nil
-        let claudeAuthStateBeforeFetch = provider == .claude
-            ? await Self.captureClaudeRefreshAuthState(invalidateCredentialsFile: true)
-            : nil
         let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
-        let priorTokenAccountSnapshot = self.tokenAccountSnapshot(provider: provider, account: tokenAccount)
         let fetchContext = self.makeFetchContext(provider: provider, override: nil)
+        let claudeHasAdminAPIKey = ClaudeAdminAPISettingsReader.apiKey(environment: fetchContext.env) != nil
+        let claudeActiveAccountIdentitySourceEligible = Self.shouldTrackClaudeActiveAccountIdentity(
+            provider: provider,
+            dataSource: fetchContext.settings?.claude?.usageDataSource,
+            hasSelectedTokenAccount: tokenAccount != nil,
+            hasAdminAPIKey: claudeHasAdminAPIKey)
+        let priorClaudeSourceLabel = provider == .claude ? self.lastSourceLabels[.claude] : nil
+        self.diagnostics[provider] = nil
+        let claudeAuthStateBeforeFetch = claudeActiveAccountIdentitySourceEligible
+            ? await Self.captureClaudeRefreshAuthState(
+                invalidateCredentialsFile: true,
+                environment: fetchContext.env)
+            : nil
+        let priorTokenAccountSnapshot = self.tokenAccountSnapshot(provider: provider, account: tokenAccount)
         let descriptor = spec.descriptor
         let codexResetCreditsFetcher = self.codexResetCreditsFetcher()
         let previousCodexSnapshot = codexPreparation?.previousSnapshot
@@ -381,7 +422,7 @@ extension UsageStore {
                 self.retireCodexStateIfRefreshOwnerChanged(
                     expectedGuard: codexExpectedGuard,
                     generation: generation)
-                return
+                return false
             }
             guard let admittedOutcome = await Self.codexOutcomeAdmittedForPublication(
                 initialOutcome: initialOutcome,
@@ -394,7 +435,7 @@ extension UsageStore {
                         expectedGuard: codexExpectedGuard,
                         generation: generation)
                 }
-                return
+                return false
             }
             if case let .success(result) = admittedOutcome.result,
                let codexExpectedGuard,
@@ -405,55 +446,127 @@ extension UsageStore {
                 self.retireCodexStateIfRefreshOwnerChanged(
                     expectedGuard: codexExpectedGuard,
                     generation: generation)
-                return
+                return false
             }
             outcome = admittedOutcome
         } else {
             outcome = initialOutcome
         }
-        let claudeHistoryAccountState = provider == .claude
-            ? await Self.captureClaudeHistoryAccountState()
-            : nil
-        let claudeAuthFingerprintAfterFetch = claudeHistoryAccountState?.fingerprintToken
-        let claudeAuthChangedDuringFetch = Self.claudeAuthChangedDuringFetch(
+        let claudeReconciliation = await self.reconcileClaudeRefreshAfterFetch(input: .init(
             provider: provider,
+            outcome: outcome,
+            environment: fetchContext.env,
+            dataSource: fetchContext.settings?.claude?.usageDataSource,
+            priorSourceLabel: priorClaudeSourceLabel,
             beforeFetch: claudeAuthStateBeforeFetch,
-            afterFetchFingerprintToken: claudeAuthFingerprintAfterFetch)
-        await Self.invalidateClaudeCredentialsFileCacheIfNeeded(changedDuringFetch: claudeAuthChangedDuringFetch)
-        let claudeCredentialsChanged = Self.claudeCredentialsChanged(
-            beforeFetch: claudeAuthStateBeforeFetch,
-            changedDuringFetch: claudeAuthChangedDuringFetch)
-        let shouldConsumeClaudeKeychainFingerprint = Self.shouldConsumeClaudeKeychainFingerprintChange(
-            beforeFetch: claudeAuthStateBeforeFetch,
-            changedDuringFetch: claudeAuthChangedDuringFetch)
-        let claudeOAuthHistoryPersistentRefHash = Self.stableClaudeKeychainPersistentRefHash(
-            beforeFetch: claudeAuthStateBeforeFetch,
-            afterFetchFingerprintToken: claudeAuthFingerprintAfterFetch,
-            afterFetchPersistentRefHash: claudeHistoryAccountState?.keychainPersistentRefHash,
-            accountStateWasStable: claudeHistoryAccountState?.wasStable == true)
-        let claudeOAuthActiveAccountObservation = Self.claudeOAuthActiveAccountObservation(
-            beforeFetch: claudeAuthStateBeforeFetch,
-            afterFetch: claudeHistoryAccountState)
-        // Credential detection consumes change markers. Clean up before rejecting a superseded generation;
-        // replacement refreshes wait for their predecessor, so they cannot race this state reset.
-        if claudeCredentialsChanged {
-            await self.clearClaudeCredentialDerivedStateForCredentialSwap()
+            activeAccountIdentitySourceEligible: claudeActiveAccountIdentitySourceEligible,
+            generation: generation))
+        let outcomeContext = ProviderRefreshOutcomeContext(
+            generation: generation,
+            codexExpectedGuard: codexExpectedGuard,
+            tokenAccount: tokenAccount,
+            priorTokenAccountSnapshot: priorTokenAccountSnapshot,
+            codexLimitResetOwnerKey: codexLimitResetOwnerKey,
+            claudeOAuthHistoryPersistentRefHash: claudeReconciliation.oauthHistoryPersistentRefHash,
+            claudeOAuthActiveAccountObservation: claudeReconciliation.oauthActiveAccountObservation)
+        return await self.completeProviderRefreshPass(
+            provider: provider,
+            outcome: outcome,
+            reconciliation: claudeReconciliation,
+            context: outcomeContext)
+    }
+
+    private func completeProviderRefreshPass(
+        provider: UsageProvider,
+        outcome: ProviderFetchOutcome,
+        reconciliation: ClaudeRefreshReconciliation,
+        context: ProviderRefreshOutcomeContext) async -> Bool
+    {
+        switch reconciliation.disposition {
+        case .retry:
+            return true
+        case .discard:
+            return false
+        case .apply:
+            break
         }
-        if shouldConsumeClaudeKeychainFingerprint {
-            _ = await Self.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
-        }
-        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return false }
         await self.applyProviderRefreshOutcome(
             provider: provider,
             outcome: outcome,
-            context: ProviderRefreshOutcomeContext(
-                generation: generation,
-                codexExpectedGuard: codexExpectedGuard,
-                tokenAccount: tokenAccount,
-                priorTokenAccountSnapshot: priorTokenAccountSnapshot,
-                codexLimitResetOwnerKey: codexLimitResetOwnerKey,
-                claudeOAuthHistoryPersistentRefHash: claudeOAuthHistoryPersistentRefHash,
-                claudeOAuthActiveAccountObservation: claudeOAuthActiveAccountObservation))
+            context: context)
+        return false
+    }
+
+    private func reconcileClaudeRefreshAfterFetch(
+        input: ClaudeRefreshReconciliationInput) async -> ClaudeRefreshReconciliation
+    {
+        guard input.provider == .claude else {
+            return ClaudeRefreshReconciliation(
+                disposition: .apply,
+                oauthHistoryPersistentRefHash: nil,
+                oauthActiveAccountObservation: .changed)
+        }
+        let historyAccountState = await Self.captureClaudeHistoryAccountState(environment: input.environment)
+        guard self.isCurrentProviderRefreshGeneration(input.provider, generation: input.generation) else {
+            return ClaudeRefreshReconciliation(
+                disposition: .discard,
+                oauthHistoryPersistentRefHash: nil,
+                oauthActiveAccountObservation: .changed)
+        }
+        let fingerprintAfterFetch = historyAccountState.fingerprintToken
+        let authChangedDuringFetch = Self.claudeAuthChangedDuringFetch(
+            provider: input.provider,
+            beforeFetch: input.beforeFetch,
+            afterFetchFingerprintToken: fingerprintAfterFetch)
+        let shouldTrackActiveAccount = Self.shouldReconcileClaudeActiveAccountIdentity(
+            sourceEligible: input.activeAccountIdentitySourceEligible,
+            dataSource: input.dataSource,
+            outcome: input.outcome,
+            priorSourceLabel: input.priorSourceLabel)
+        await Self.invalidateClaudeCredentialsFileCacheIfNeeded(
+            changedDuringFetch: shouldTrackActiveAccount && authChangedDuringFetch,
+            environment: input.environment)
+        guard self.isCurrentProviderRefreshGeneration(input.provider, generation: input.generation) else {
+            return ClaudeRefreshReconciliation(
+                disposition: .discard,
+                oauthHistoryPersistentRefHash: nil,
+                oauthActiveAccountObservation: .changed)
+        }
+        let activeAccountChangedDuringFetch = Self.claudeActiveAccountChangedDuringFetch(
+            beforeFetch: input.beforeFetch?.activeAccountIdentity,
+            afterFetch: historyAccountState.activeAccountIdentity,
+            shouldTrack: shouldTrackActiveAccount,
+            successfulCLIOutcome: Self.isSuccessfulClaudeCLIOutcome(input.outcome))
+        let credentialsChanged = shouldTrackActiveAccount && (
+            Self.claudeCredentialsChanged(
+                beforeFetch: input.beforeFetch,
+                changedDuringFetch: authChangedDuringFetch) || self.reconcileClaudeActiveAccountIdentity(
+                beforeFetch: input.beforeFetch?.activeAccountIdentity,
+                afterFetch: historyAccountState.activeAccountIdentity,
+                shouldTrack: true))
+        let sourceAuthorityChanged = Self.claudeSourceAuthorityChanged(
+            priorSourceLabel: input.priorSourceLabel,
+            dataSource: input.dataSource,
+            outcome: input.outcome)
+        let persistentRefHash = Self.stableClaudeKeychainPersistentRefHash(
+            beforeFetch: input.beforeFetch,
+            afterFetchFingerprintToken: fingerprintAfterFetch,
+            afterFetchPersistentRefHash: historyAccountState.keychainPersistentRefHash,
+            accountStateWasStable: historyAccountState.wasStable)
+        let activeAccountObservation = Self.claudeOAuthActiveAccountObservation(
+            beforeFetch: input.beforeFetch,
+            afterFetch: historyAccountState)
+
+        // Only the ambient CLI authority observes Claude's account/config files. Source-authority changes apply to
+        // every Claude route, but retire only the live projection; configured token-account caches remain isolated.
+        if credentialsChanged || activeAccountChangedDuringFetch || sourceAuthorityChanged {
+            self.clearClaudeCredentialDerivedStateForCredentialSwap()
+        }
+        return ClaudeRefreshReconciliation(
+            disposition: activeAccountChangedDuringFetch ? .retry : .apply,
+            oauthHistoryPersistentRefHash: persistentRefHash,
+            oauthActiveAccountObservation: activeAccountObservation)
     }
 
     private func applyProviderRefreshOutcome(
@@ -797,11 +910,147 @@ extension UsageStore {
             changedDuringFetch
     }
 
-    private nonisolated static func shouldConsumeClaudeKeychainFingerprintChange(
-        beforeFetch: ClaudeRefreshAuthState?,
-        changedDuringFetch: Bool) -> Bool
+    nonisolated static func shouldTrackClaudeActiveAccountIdentity(
+        provider: UsageProvider,
+        dataSource: ClaudeUsageDataSource?,
+        hasSelectedTokenAccount: Bool,
+        hasAdminAPIKey: Bool) -> Bool
     {
-        beforeFetch?.keychainFingerprintChanged == true || changedDuringFetch
+        guard provider == .claude, !hasSelectedTokenAccount else { return false }
+        switch dataSource {
+        case .cli:
+            return true
+        case .auto:
+            return !hasAdminAPIKey
+        case .api, .oauth, .web, nil:
+            return false
+        }
+    }
+
+    private nonisolated static func shouldReconcileClaudeActiveAccountIdentity(
+        sourceEligible: Bool,
+        dataSource: ClaudeUsageDataSource?,
+        outcome: ProviderFetchOutcome,
+        priorSourceLabel: String?) -> Bool
+    {
+        guard sourceEligible else { return false }
+        switch outcome.result {
+        case let .success(result):
+            return result.strategyKind == .cli
+        case .failure:
+            if dataSource == .cli { return true }
+            let normalizedPriorSource = priorSourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalizedPriorSource == "claude" || normalizedPriorSource == "cli"
+        }
+    }
+
+    private nonisolated static func claudeActiveAccountChangedDuringFetch(
+        beforeFetch: String?,
+        afterFetch: String?,
+        shouldTrack: Bool,
+        successfulCLIOutcome: Bool) -> Bool
+    {
+        guard shouldTrack, let beforeFetch, beforeFetch != afterFetch else { return false }
+        return afterFetch != nil || successfulCLIOutcome
+    }
+
+    private nonisolated static func isSuccessfulClaudeCLIOutcome(_ outcome: ProviderFetchOutcome) -> Bool {
+        guard case let .success(result) = outcome.result else { return false }
+        if case .cli = result.strategyKind { return true }
+        return false
+    }
+
+    private enum ClaudeSourceAuthority: Equatable {
+        case cli
+        case web
+        case api
+        case oauth
+
+        init?(sourceLabel: String?) {
+            switch sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "claude", "cli":
+                self = .cli
+            case "web":
+                self = .web
+            case "admin-api", "api":
+                self = .api
+            case "oauth":
+                self = .oauth
+            default:
+                return nil
+            }
+        }
+
+        init?(result: ProviderFetchResult) {
+            switch result.strategyKind {
+            case .cli:
+                self = .cli
+            case .web, .webDashboard:
+                self = .web
+            case .apiToken:
+                self = .api
+            case .oauth:
+                self = .oauth
+            case .localProbe:
+                self.init(sourceLabel: result.sourceLabel)
+            }
+        }
+
+        init?(dataSource: ClaudeUsageDataSource?) {
+            switch dataSource {
+            case .cli:
+                self = .cli
+            case .web:
+                self = .web
+            case .api:
+                self = .api
+            case .oauth:
+                self = .oauth
+            case .auto, nil:
+                return nil
+            }
+        }
+    }
+
+    private nonisolated static func claudeSourceAuthorityChanged(
+        priorSourceLabel: String?,
+        dataSource: ClaudeUsageDataSource?,
+        outcome: ProviderFetchOutcome) -> Bool
+    {
+        guard let priorAuthority = ClaudeSourceAuthority(sourceLabel: priorSourceLabel) else { return false }
+        let currentAuthority: ClaudeSourceAuthority? = switch outcome.result {
+        case let .success(result):
+            ClaudeSourceAuthority(result: result)
+        case .failure:
+            ClaudeSourceAuthority(dataSource: dataSource)
+        }
+        guard let currentAuthority else { return false }
+        return priorAuthority != currentAuthority
+    }
+
+    /// Compares only hashed identities derived from Claude's plain-text account metadata. A missing identity is
+    /// treated as an unavailable observation, not as an account, so transient file absence cannot retire good data.
+    /// The newest nonnil observation becomes the cross-launch baseline after comparison.
+    private func reconcileClaudeActiveAccountIdentity(
+        beforeFetch: String?,
+        afterFetch: String?,
+        shouldTrack: Bool) -> Bool
+    {
+        guard shouldTrack else { return false }
+        let defaults = self.settings.userDefaults
+        let persistedIdentity = defaults.string(forKey: Self.claudeActiveAccountIdentityDefaultsKey)
+        let observedIdentities = [beforeFetch, afterFetch].compactMap(\.self)
+        guard !observedIdentities.isEmpty else { return false }
+
+        let changedFromPersistedIdentity = persistedIdentity.map { persisted in
+            observedIdentities.contains { $0 != persisted }
+        } ?? false
+        let changedDuringFetch = beforeFetch != nil && afterFetch != nil && beforeFetch != afterFetch
+
+        if let newestIdentity = afterFetch ?? beforeFetch {
+            defaults.set(newestIdentity, forKey: Self.claudeActiveAccountIdentityDefaultsKey)
+        }
+        return changedFromPersistedIdentity || changedDuringFetch
     }
 
     private nonisolated static func claudeAuthChangedDuringFetch(
@@ -813,29 +1062,25 @@ extension UsageStore {
     }
 
     private nonisolated static func captureClaudeRefreshAuthState(
-        invalidateCredentialsFile: Bool) async -> ClaudeRefreshAuthState
+        invalidateCredentialsFile: Bool,
+        environment: [String: String]) async -> ClaudeRefreshAuthState
     {
         await withTaskGroup(of: ClaudeRefreshAuthState.self, returning: ClaudeRefreshAuthState.self) { group in
             group.addTask {
                 let credentialsFileChanged = invalidateCredentialsFile
-                    ? ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
+                    ? ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged(environment: environment)
                     : false
-                let keychainFingerprintChanged = ClaudeOAuthCredentialsStore
-                    .claudeKeychainFingerprintChangedWithoutConsuming()
-                let fingerprintBefore = ClaudeOAuthCredentialsStore.authFingerprintToken()
-                let persistentRefBefore = ClaudeOAuthCredentialsStore
-                    .claudeKeychainPersistentRefHashWithoutPrompt()
-                let activeAccountIdentity = Self.activeClaudeAccountIdentity()
-                let persistentRefAfter = ClaudeOAuthCredentialsStore
-                    .claudeKeychainPersistentRefHashWithoutPrompt()
-                let fingerprintAfter = ClaudeOAuthCredentialsStore.authFingerprintToken()
+                let fingerprintBefore = ClaudeOAuthCredentialsStore
+                    .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
+                let activeAccountIdentity = Self.activeClaudeAccountIdentity(environment: environment)
+                let fingerprintAfter = ClaudeOAuthCredentialsStore
+                    .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
                 let accountStateWasStable = fingerprintBefore == fingerprintAfter
-                    && persistentRefBefore == persistentRefAfter
                 return ClaudeRefreshAuthState(
                     fingerprintToken: fingerprintAfter,
                     credentialsFileChanged: credentialsFileChanged,
-                    keychainFingerprintChanged: keychainFingerprintChanged,
-                    keychainPersistentRefHash: persistentRefAfter,
+                    keychainFingerprintChanged: false,
+                    keychainPersistentRefHash: nil,
                     activeAccountIdentity: activeAccountIdentity,
                     accountStateWasStable: accountStateWasStable)
             }
@@ -843,20 +1088,20 @@ extension UsageStore {
         }
     }
 
-    private nonisolated static func captureClaudeHistoryAccountState() async -> ClaudeHistoryAccountState {
+    private nonisolated static func captureClaudeHistoryAccountState(
+        environment: [String: String]) async -> ClaudeHistoryAccountState
+    {
         await withTaskGroup(of: ClaudeHistoryAccountState.self, returning: ClaudeHistoryAccountState.self) { group in
             group.addTask {
-                let fingerprintBefore = ClaudeOAuthCredentialsStore.authFingerprintToken()
-                let persistentRefBefore = ClaudeOAuthCredentialsStore
-                    .claudeKeychainPersistentRefHashWithoutPrompt()
-                let activeAccountIdentity = Self.activeClaudeAccountIdentity()
-                let persistentRefAfter = ClaudeOAuthCredentialsStore
-                    .claudeKeychainPersistentRefHashWithoutPrompt()
-                let fingerprintAfter = ClaudeOAuthCredentialsStore.authFingerprintToken()
-                let wasStable = fingerprintBefore == fingerprintAfter && persistentRefBefore == persistentRefAfter
+                let fingerprintBefore = ClaudeOAuthCredentialsStore
+                    .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
+                let activeAccountIdentity = Self.activeClaudeAccountIdentity(environment: environment)
+                let fingerprintAfter = ClaudeOAuthCredentialsStore
+                    .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
+                let wasStable = fingerprintBefore == fingerprintAfter
                 return ClaudeHistoryAccountState(
                     fingerprintToken: fingerprintAfter,
-                    keychainPersistentRefHash: persistentRefAfter,
+                    keychainPersistentRefHash: nil,
                     activeAccountIdentity: activeAccountIdentity,
                     wasStable: wasStable)
             }
@@ -939,42 +1184,31 @@ extension UsageStore {
     }
     #endif
 
-    private nonisolated static func invalidateClaudeCredentialsFileCacheIfChanged() async -> Bool {
+    private nonisolated static func invalidateClaudeCredentialsFileCacheIfChanged(
+        environment: [String: String]) async -> Bool
+    {
         await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
             group.addTask {
-                ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged()
+                ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged(environment: environment)
             }
             return await group.next()!
         }
     }
 
-    private nonisolated static func invalidateClaudeCredentialsFileCacheIfNeeded(changedDuringFetch: Bool) async {
+    private nonisolated static func invalidateClaudeCredentialsFileCacheIfNeeded(
+        changedDuringFetch: Bool,
+        environment: [String: String]) async
+    {
         guard changedDuringFetch else { return }
-        _ = await self.invalidateClaudeCredentialsFileCacheIfChanged()
+        _ = await self.invalidateClaudeCredentialsFileCacheIfChanged(environment: environment)
     }
 
-    private nonisolated static func consumeClaudeKeychainFingerprintChangeWithoutPrompt() async -> Bool {
-        await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
-            group.addTask {
-                ClaudeOAuthCredentialsStore.consumeClaudeKeychainFingerprintChangeWithoutPrompt()
-            }
-            return await group.next()!
-        }
-    }
-
-    private func clearClaudeCredentialDerivedStateForCredentialSwap() async {
-        await MainActor.run {
-            self.clearClaudeCredentialDerivedStateForCredentialSwapNow()
-        }
-    }
-
-    private func clearClaudeCredentialDerivedStateForCredentialSwapNow() {
+    private func clearClaudeCredentialDerivedStateForCredentialSwap() {
         self.snapshots.removeValue(forKey: .claude)
         self.lastKnownResetSnapshots.removeValue(forKey: .claude)
         self.errors[.claude] = nil
         self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
         self.lastSourceLabels.removeValue(forKey: .claude)
-        self.accountSnapshots.removeValue(forKey: .claude)
         self.clearTokenSnapshot(for: .claude)
         self.tokenErrors[.claude] = nil
         self.failureGates[.claude]?.reset()

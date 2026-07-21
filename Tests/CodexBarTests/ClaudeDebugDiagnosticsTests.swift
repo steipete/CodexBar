@@ -67,25 +67,25 @@ struct ClaudeDebugDiagnosticsTests {
                 settings: settings)
         }
 
-        let text = await KeychainCacheStore.withServiceOverrideForTesting(service) {
-            KeychainCacheStore.setTestStoreForTesting(true)
-            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+        let text = await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+            await KeychainCacheStore.withServiceOverrideForTesting(service) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
-            return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
-                await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
-                    await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(credentialsURL) {
-                        await store.debugLog(for: .claude)
+                return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                        await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(credentialsURL) {
+                            await store.debugLog(for: .claude)
+                        }
                     }
                 }
             }
         }
 
-        #expect(text.contains("planner_order=oauth→cli→web"))
-        #expect(text.contains("planner_selected=oauth"))
+        #expect(text.contains("planner_order=cli→web"))
+        #expect(text.contains("planner_selected=cli"))
         #expect(text.contains("planner_no_source=false"))
-        #expect(text.contains("planner_step.oauth=available reason=app-auto-preferred-oauth"))
-        #expect(text.contains("planner_step.cli="))
-        #expect(text.contains("reason=app-auto-fallback-cli"))
+        #expect(text.contains("planner_step.cli=available reason=app-auto-preferred-cli"))
         #expect(text.contains("planner_step.web=available reason=app-auto-fallback-web"))
         #expect(!text.contains("auto_heuristic="))
     }
@@ -298,7 +298,7 @@ struct ClaudeDebugDiagnosticsTests {
     }
 
     @Test
-    func `debug log uses user initiated interaction for OAuth prompt gate`() async throws {
+    func `debug log Auto excludes OAuth even during user initiated interaction`() async throws {
         let suite = "ClaudeDebugDiagnosticsTests-\(UUID().uuidString)"
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         let tempDir = FileManager.default.temporaryDirectory
@@ -358,8 +358,8 @@ struct ClaudeDebugDiagnosticsTests {
             }
         }
 
-        #expect(text.contains("planner_selected=oauth"))
-        #expect(text.contains("hasOAuthCredentials=true"))
+        #expect(text.contains("planner_selected=none"))
+        #expect(text.contains("hasOAuthCredentials=false"))
     }
 
     @Test
