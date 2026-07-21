@@ -53,6 +53,143 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `provider lookup resolves current Kimi and Moonshot models`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "kimi-for-coding": {
+            "id": "kimi-for-coding",
+            "name": "Kimi For Coding",
+            "models": {
+              "k3": {
+                "id": "k3",
+                "name": "Kimi K3",
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cache_read": 0,
+                  "cache_write": 0
+                },
+                "limit": {
+                  "context": 1048576
+                }
+              },
+              "kimi-for-coding": {
+                "id": "kimi-for-coding",
+                "name": "Kimi K2.7 Code",
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cache_read": 0,
+                  "cache_write": 0
+                },
+                "limit": {
+                  "context": 262144
+                }
+              },
+              "kimi-for-coding-highspeed": {
+                "id": "kimi-for-coding-highspeed",
+                "name": "Kimi For Coding HighSpeed",
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cache_read": 0,
+                  "cache_write": 0
+                },
+                "limit": {
+                  "context": 262144
+                }
+              }
+            }
+          },
+          "moonshotai": {
+            "id": "moonshotai",
+            "name": "Moonshot AI",
+            "models": {
+              "kimi-k2.7-code": {
+                "id": "kimi-k2.7-code",
+                "name": "Kimi K2.7 Code",
+                "cost": {
+                  "input": 0.95,
+                  "output": 4,
+                  "cache_read": 0.19
+                },
+                "limit": {
+                  "context": 262144
+                }
+              },
+              "kimi-k2.7-code-highspeed": {
+                "id": "kimi-k2.7-code-highspeed",
+                "name": "Kimi K2.7 Code HighSpeed",
+                "cost": {
+                  "input": 1.9,
+                  "output": 8,
+                  "cache_read": 0.38
+                },
+                "limit": {
+                  "context": 262144
+                }
+              },
+              "kimi-k3": {
+                "id": "kimi-k3",
+                "name": "Kimi K3",
+                "cost": {
+                  "input": 3,
+                  "output": 15,
+                  "cache_read": 0.3
+                },
+                "limit": {
+                  "context": 1048576
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let kimiK3 = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .kimi,
+            model: "k3",
+            catalog: catalog))
+        let kimiCoding = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .kimi,
+            model: "kimi-for-coding",
+            catalog: catalog))
+        let kimiHighSpeed = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .kimi,
+            model: "kimi-for-coding-highspeed",
+            catalog: catalog))
+        let moonshotK3 = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .moonshot,
+            model: "kimi-k3",
+            catalog: catalog))
+        let moonshotCode = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .moonshot,
+            model: "kimi-k2.7-code",
+            catalog: catalog))
+        let moonshotHighSpeed = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .moonshot,
+            model: "kimi-k2.7-code-highspeed",
+            catalog: catalog))
+
+        #expect(kimiK3.pricing.modelName == "Kimi K3")
+        #expect(kimiK3.pricing.contextWindow == 1_048_576)
+        #expect(kimiCoding.pricing.modelName == "Kimi K2.7 Code")
+        #expect(kimiHighSpeed.pricing.modelName == "Kimi For Coding HighSpeed")
+        #expect(moonshotK3.pricing.inputCostPerToken == 3 / 1_000_000.0)
+        #expect(moonshotK3.pricing.outputCostPerToken == 15 / 1_000_000.0)
+        #expect(moonshotK3.pricing.cacheReadInputCostPerToken == 0.3 / 1_000_000.0)
+        #expect(moonshotK3.pricing.contextWindow == 1_048_576)
+        #expect(moonshotCode.pricing.inputCostPerToken == 0.95 / 1_000_000.0)
+        #expect(moonshotCode.pricing.cacheReadInputCostPerToken == 0.19 / 1_000_000.0)
+        #expect(moonshotHighSpeed.pricing.inputCostPerToken == 1.9 / 1_000_000.0)
+        #expect(moonshotHighSpeed.pricing.outputCostPerToken == 8 / 1_000_000.0)
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .kimi,
+            model: "kimi-k3",
+            catalog: catalog) == nil)
+    }
+
+    @Test
     func `converts models dev per million token prices to per token prices`() throws {
         let pricing = try #require(try Self.fixtureCatalog().pricing(
             providerID: "anthropic",
