@@ -243,7 +243,7 @@ struct ZenMuxProviderTests {
         let now = try #require(Self.date("2026-03-24T07:35:09.000Z"))
         let expiresAt = try #require(Self.date("2026-04-12T08:26:56.000Z"))
         let expiryFormatter = DateFormatter()
-        expiryFormatter.locale = .current
+        expiryFormatter.locale = codexBarLocalizedLocale()
         expiryFormatter.timeZone = .current
         expiryFormatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
         let transport = ProviderHTTPTransportStub { request in
