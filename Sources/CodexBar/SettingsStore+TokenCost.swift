@@ -105,6 +105,19 @@ extension SettingsStore {
             ] + ClaudeDesktopProjectsLocator.roots(homeDirectory: ownerHome, fileManager: fileManager)
         }()
 
-        return claudeRoots.contains(where: hasAnyJsonl(in:))
+        if claudeRoots.contains(where: hasAnyJsonl(in:)) {
+            return true
+        }
+
+        let grokRoot: URL = {
+            let raw = env["GROK_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let raw, !raw.isEmpty {
+                return URL(fileURLWithPath: raw).appendingPathComponent("sessions", isDirectory: true)
+            }
+            return home
+                .appendingPathComponent(".grok", isDirectory: true)
+                .appendingPathComponent("sessions", isDirectory: true)
+        }()
+        return hasAnyJsonl(in: grokRoot)
     }
 }

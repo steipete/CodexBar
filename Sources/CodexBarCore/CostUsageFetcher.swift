@@ -515,6 +515,25 @@ public struct CostUsageFetcher: Sendable {
         // These synchronous scans can run for minutes on large archives. The dedicated queue keeps
         // them off the cooperative pool and bridges task cancellation into scanner-level checks.
         return try await CostUsageScanExecutor.run { checkCancellation in
+            // Grok: single-pass local session scan (daily + projects + sessions).
+            if provider == .grok {
+                var grokOptions = GrokTurnUsageScanner.Options()
+                if let override = options.scanOptions.grokSessionsRoot {
+                    grokOptions.sessionsRoot = override
+                }
+                let bundle = try GrokTurnUsageScanner.loadScanBundle(
+                    since: since,
+                    until: now,
+                    now: now,
+                    options: grokOptions,
+                    checkCancellation: checkCancellation)
+                return LocalTokenScanResult(
+                    daily: bundle.daily,
+                    projects: bundle.projects,
+                    sessions: bundle.sessions,
+                    staleSnapshotUpdatedAt: nil)
+            }
+
             var daily = try CostUsageScanner.loadDailyReportCancellable(
                 provider: provider,
                 since: since,
@@ -933,7 +952,7 @@ public struct CostUsageFetcher: Sendable {
     /// macOS-only because it reuses the macOS Cursor session resolution.
     static func supportsTokenSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .codex, .claude, .vertexai, .bedrock:
+        case .codex, .claude, .vertexai, .bedrock, .grok:
             return true
         case .cursor:
             #if os(macOS)
