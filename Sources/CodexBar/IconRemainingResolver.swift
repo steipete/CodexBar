@@ -3,10 +3,6 @@ import Foundation
 
 enum IconRemainingResolver {
     private static let visibleZeroPercent = 0.0001
-    private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
-    // Antigravity quota summaries expose exact 5-hour session and weekly buckets for the compact icon.
-    private static let sessionWindowMinutes = 5 * 60
-    private static let weeklyWindowMinutes = 7 * 24 * 60
 
     private static func codexProjection(snapshot: UsageSnapshot, now: Date) -> CodexConsumerProjection {
         CodexConsumerProjection.make(
@@ -40,6 +36,11 @@ enum IconRemainingResolver {
             return (
                 primary: windows.first,
                 secondary: windows.dropFirst().first)
+        }
+        if style == .antigravity {
+            return (
+                primary: snapshot.primary?.windowMinutes != nil ? snapshot.primary : nil,
+                secondary: snapshot.secondary?.windowMinutes != nil ? snapshot.secondary : nil)
         }
         if style == .codex {
             let windows = self.codexVisibleWindows(snapshot: snapshot, now: now)

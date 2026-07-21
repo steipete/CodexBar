@@ -47,6 +47,9 @@ extension StatusItemController {
         let layoutCostSignature = showBrandPercent
             ? self.storedMenuBarLayoutCostSignature(for: provider)
             : nil
+        let layoutPaceSignature = showBrandPercent
+            ? self.storedMenuBarLayoutPaceSignature(for: provider, snapshot: snapshot)
+            : nil
 
         return [
             provider.rawValue,
@@ -60,7 +63,33 @@ extension StatusItemController {
             "refreshing=\(self.store.refreshingProviders.contains(provider) ? "1" : "0")",
             "text=\(displayText ?? "nil")",
             "layoutCost=\(layoutCostSignature ?? "nil")",
+            "layoutPace=\(layoutPaceSignature ?? "nil")",
         ].joined(separator: "|")
+    }
+
+    private func storedMenuBarLayoutPaceSignature(for provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering else { return nil }
+
+        let tokens = resolution.layout.lines.joined()
+        let showsRunsOut = tokens.contains(.runsOut)
+        let showsPacePercent = tokens.contains(.pacePercent)
+        guard showsRunsOut || showsPacePercent else { return nil }
+
+        let now = Date()
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        let paceWindow = windows.weekly ?? windows.automatic
+        let pace = paceWindow
+            .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
+        let runsOut = pace
+            .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
+        let pacePercent = pace
+            .flatMap { MenuBarDisplayText.paceText(pace: $0) }
+
+        return [
+            "runsOut=\(showsRunsOut ? runsOut ?? "nil" : "unused")",
+            "pacePercent=\(showsPacePercent ? pacePercent ?? "nil" : "unused")",
+        ].joined(separator: ",")
     }
 
     private func storedMenuBarLayoutCostSignature(for provider: UsageProvider) -> String? {

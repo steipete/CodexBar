@@ -333,8 +333,12 @@ struct AntigravityRemoteUsageFetcherTests {
 
         let usage = try snapshot.toUsageSnapshot()
         #expect(usage.primary?.remainingPercent.rounded() == 20)
-        #expect(usage.secondary?.remainingPercent.rounded() == 50)
+        #expect(usage.secondary == nil)
         #expect(usage.tertiary == nil)
+
+        let extra = try #require(usage.extraRateWindows)
+        let claudeWindow = try #require(extra.first(where: { $0.id == "claude-sonnet-4" }))
+        #expect(claudeWindow.window.remainingPercent.rounded() == 50)
     }
 
     @Test
@@ -441,8 +445,9 @@ struct AntigravityRemoteUsageFetcherTests {
 
         #expect(quotaCalls.get() == 1)
         #expect(usage.primary?.remainingPercent == 60.0)
-        #expect(usage.secondary?.remainingPercent == 100.0)
+        #expect(usage.secondary == nil)
         #expect(usage.tertiary == nil)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test
@@ -659,8 +664,9 @@ struct AntigravityRemoteUsageFetcherTests {
         let usage = try snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.remainingPercent == 100.0)
-        #expect(usage.secondary?.remainingPercent == 100.0)
+        #expect(usage.secondary == nil)
         #expect(usage.tertiary == nil)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test

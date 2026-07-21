@@ -155,14 +155,13 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let primary = primaryQuota.map(Self.rateWindow(for:))
-        let secondary = secondaryQuota.map(Self.rateWindow(for:))
+        let secondary: RateWindow? = nil
         let extraWindows = Self.extraRateWindows(
             from: normalized,
             summaryCandidates: summaryCandidates,
             compactFallbackModelID: fallbackQuota?.modelId,
             representedPools: Set([
                 primaryQuota.map { _ in AntigravityUsagePool.gemini },
-                secondaryQuota.map { _ in AntigravityUsagePool.claudeGPT },
             ].compactMap(\.self)))
 
         let identity = ProviderIdentitySnapshot(
@@ -644,7 +643,9 @@ public struct AntigravityStatusSnapshot: Sendable {
 
         let distinctWindows = models
             .filter {
-                $0.quota.modelId == compactFallbackModelID || Self.shouldShowDistinctExtraWindow($0)
+                $0.quota.modelId == compactFallbackModelID || Self.shouldShowDistinctExtraWindow(
+                    $0,
+                    representedPools: representedPools)
             }
             .sorted(by: Self.modelOrderPrecedes)
             .map { m in
@@ -671,8 +672,13 @@ public struct AntigravityStatusSnapshot: Sendable {
         "antigravity-compact-fallback-\(modelID)"
     }
 
-    private static func shouldShowDistinctExtraWindow(_ model: AntigravityNormalizedModel) -> Bool {
-        guard !self.isSummaryCandidate(model) else { return false }
+    private static func shouldShowDistinctExtraWindow(
+        _ model: AntigravityNormalizedModel,
+        representedPools: Set<AntigravityUsagePool>) -> Bool
+    {
+        if let pool = usagePool(for: model), representedPools.contains(pool) {
+            guard !self.isSummaryCandidate(model) else { return false }
+        }
         if model.quota.remainingFraction == nil {
             return model.quota.resetTime != nil || model.quota.resetDescription != nil
         }

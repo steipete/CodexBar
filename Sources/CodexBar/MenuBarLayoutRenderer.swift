@@ -278,8 +278,11 @@ final class MenuBarLayoutRenderer {
                 unavailableLabel: L("Run-out estimate unavailable"),
                 attributes: style.attributes)
         case .pacePercent:
+            let rateWindow = data.automatic
+            let percent = rateWindow.map { options.showUsed ? $0.usedPercent : $0.remainingPercent }
+            let fallbackValue = percent.map(UsageFormatter.percentString)
             return self.optionalTextToken(
-                data.pacePercent,
+                data.pacePercent ?? fallbackValue,
                 unavailableLabel: L("Pace percent unavailable"),
                 accessibilityPrefix: L("display_mode_pace"),
                 attributes: style.attributes)
