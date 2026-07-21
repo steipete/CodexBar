@@ -84,7 +84,10 @@ struct CostHistoryChartMenuView: View {
     }
 
     var body: some View {
-        let model = Self.makeModel(provider: self.provider, daily: self.daily)
+        let model = Self.makeModel(
+            provider: self.provider,
+            daily: self.daily,
+            historyDays: self.historyDays)
         let selectedDateKey = self.selectedDateKey ?? Self.defaultSelectedDateKey(model: model)
         VStack(alignment: .leading, spacing: Self.outerSpacing) {
             if model.points.isEmpty {
@@ -98,6 +101,7 @@ struct CostHistoryChartMenuView: View {
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
                             y: .value(model.yAxisTitle, point.chartValue))
+                            // Match Codex cost-chart bar width / gap feel.
                             .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
@@ -109,6 +113,10 @@ struct CostHistoryChartMenuView: View {
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
+                // Leave headroom above the tallest bar (Codex charts read less cramped at the top).
+                .chartYScale(domain: 0...(model.maxChartValue > 0
+                    ? model.maxChartValue * Self.yAxisHeadroom
+                    : 1))
                 .chartYAxis {
                     AxisMarks(
                         position: .leading,
@@ -396,7 +404,11 @@ struct CostHistoryChartMenuView: View {
     private static let detailSpacing: CGFloat = 6
     private static let detailHintHeight: CGFloat = 13
     private static let chartHeight: CGFloat = 130
+    /// Extra vertical domain above peak so bars don't sit flush with the chart top.
+    private static let yAxisHeadroom: Double = 1.18
     private static let outerSpacing: CGFloat = 10
+    /// Shared with Credits/Codex cost charts for a consistent bar palette.
+    private static let chartBarColor = Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
     private static let projectRowHeight: CGFloat = 31
     private static let projectRowSpacing: CGFloat = 5
     private static let maxVisibleProjectRows = 10
@@ -519,39 +531,20 @@ struct CostHistoryChartMenuView: View {
         return [0, maxValue / 2, maxValue]
     }
 
-    private static func makeModel(provider: UsageProvider, daily: [DailyEntry]) -> Model {
+    private static func makeModel(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        historyDays: Int = 30) -> Model
+    {
         let metric = self.chartMetric(for: provider, daily: daily)
         let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
-        var points: [Point] = []
-        points.reserveCapacity(sorted.count)
-
-        var pointsByKey: [String: Point] = [:]
-        pointsByKey.reserveCapacity(sorted.count)
 
         var entriesByKey: [String: DailyEntry] = [:]
         entriesByKey.reserveCapacity(sorted.count)
-
-        var dateKeys: [(key: String, date: Date)] = []
-        dateKeys.reserveCapacity(sorted.count)
-
-        var peak: (key: String, value: Double)?
-        var maxChartValue: Double = 0
         var maxDetailRows = 0
         var hasModeDetails = false
         for entry in sorted {
-            guard let (date, chartValue, costUSD) = self.chartPointInput(for: entry, metric: metric)
-            else { continue }
-            let point = Point(
-                date: date,
-                costUSD: costUSD,
-                totalTokens: entry.totalTokens,
-                requestCount: entry.requestCount,
-                chartValue: chartValue)
-            points.append(point)
-            pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
-            dateKeys.append((entry.date, date))
-            // Detail rows: models + optional token breakdown rows for Grok-style entries.
             let modelBreakdowns = entry.modelBreakdowns ?? []
             var detailRowCount = modelBreakdowns.count
             if entry.inputTokens != nil || entry.cacheReadTokens != nil || entry.outputTokens != nil {
@@ -559,14 +552,69 @@ struct CostHistoryChartMenuView: View {
             }
             maxDetailRows = max(maxDetailRows, detailRowCount)
             hasModeDetails = hasModeDetails || modelBreakdowns.contains { Self.hasModeSubtitle($0) }
-            if let cur = peak {
-                if chartValue > cur.value {
-                    peak = (entry.date, chartValue)
+        }
+
+        // Continuous day range (like Codex) so sparse Grok days don't collapse bar gaps.
+        let dayKeys = self.continuousDayKeys(from: sorted, historyDays: historyDays)
+        var points: [Point] = []
+        points.reserveCapacity(dayKeys.count)
+        var pointsByKey: [String: Point] = [:]
+        pointsByKey.reserveCapacity(dayKeys.count)
+        var dateKeys: [(key: String, date: Date)] = []
+        dateKeys.reserveCapacity(dayKeys.count)
+
+        var peak: (key: String, value: Double)?
+        var maxChartValue: Double = 0
+        for dayKey in dayKeys {
+            guard let date = self.dateFromDayKey(dayKey) else { continue }
+            let entry = entriesByKey[dayKey]
+            let chartValue: Double
+            let costUSD: Double?
+            let totalTokens: Int?
+            let requestCount: Int?
+            if let entry {
+                if let parsed = self.chartPointInput(for: entry, metric: metric) {
+                    chartValue = parsed.chartValue
+                    costUSD = parsed.costUSD
+                    totalTokens = entry.totalTokens
+                    requestCount = entry.requestCount
+                } else if metric == .tokens {
+                    chartValue = Double(entry.totalTokens ?? 0)
+                    costUSD = entry.costUSD
+                    totalTokens = entry.totalTokens
+                    requestCount = entry.requestCount
+                } else {
+                    chartValue = entry.costUSD ?? 0
+                    costUSD = entry.costUSD
+                    totalTokens = entry.totalTokens
+                    requestCount = entry.requestCount
                 }
             } else {
-                peak = (entry.date, chartValue)
+                // Empty day placeholder keeps bar spacing even.
+                chartValue = 0
+                costUSD = nil
+                totalTokens = 0
+                requestCount = nil
             }
-            maxChartValue = max(maxChartValue, chartValue)
+            let point = Point(
+                date: date,
+                costUSD: costUSD,
+                totalTokens: totalTokens,
+                requestCount: requestCount,
+                chartValue: chartValue)
+            points.append(point)
+            pointsByKey[dayKey] = point
+            dateKeys.append((dayKey, date))
+            if chartValue > 0 {
+                if let cur = peak {
+                    if chartValue > cur.value {
+                        peak = (dayKey, chartValue)
+                    }
+                } else {
+                    peak = (dayKey, chartValue)
+                }
+                maxChartValue = max(maxChartValue, chartValue)
+            }
         }
 
         let axisDates: [Date] = {
@@ -577,7 +625,8 @@ struct CostHistoryChartMenuView: View {
             return [first, last]
         }()
 
-        let barColor = Self.barColor(for: provider)
+        // Use Codex teal for all cost-history charts so Grok matches the Codex visual language.
+        let barColor = Self.chartBarColor
         let yAxisTitle = metric == .tokens ? L("Tokens") : L("Cost")
         return Model(
             points: points,
@@ -593,6 +642,32 @@ struct CostHistoryChartMenuView: View {
             detailViewportRowCount: min(maxDetailRows, self.maxVisibleDetailLines),
             hasDetailOverflow: maxDetailRows > self.maxVisibleDetailLines,
             detailRowHeight: hasModeDetails ? self.expandedDetailRowHeight : self.compactDetailRowHeight)
+    }
+
+    /// Continuous `YYYY-MM-DD` keys for the last `historyDays` ending at the latest data day
+    /// (falls back to first→last span when history is shorter).
+    private static func continuousDayKeys(from sorted: [DailyEntry], historyDays: Int) -> [String] {
+        guard let last = sorted.last?.date, let end = self.dateFromDayKey(last) else {
+            return sorted.map(\.date)
+        }
+        let calendar = Calendar.current
+        let endDay = calendar.startOfDay(for: end)
+        let span = max(1, historyDays)
+        let startDay = calendar.date(byAdding: .day, value: -(span - 1), to: endDay) ?? endDay
+        // Prefer full history window; if data starts later, still fill from window start (zeros).
+        var keys: [String] = []
+        var cursor = startDay
+        while cursor <= endDay {
+            keys.append(Self.dayKey(from: cursor))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return keys.isEmpty ? sorted.map(\.date) : keys
+    }
+
+    private static func dayKey(from date: Date) -> String {
+        let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
     }
 
     private static func axisLabelPlacement(for dates: [Date]) -> AxisLabelPlacement {
@@ -618,9 +693,8 @@ struct CostHistoryChartMenuView: View {
         }
     }
 
-    private static func barColor(for provider: UsageProvider) -> Color {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-        return Color(red: color.red, green: color.green, blue: color.blue)
+    private static func barColor(for _: UsageProvider) -> Color {
+        self.chartBarColor
     }
 
     private static func dateFromDayKey(_ key: String) -> Date? {
@@ -711,7 +785,11 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func defaultSelectedDateKey(model: Model) -> String? {
-        model.dateKeys.last?.key
+        // Prefer the latest day with activity so empty zero-fill days aren't selected first.
+        if let active = model.dateKeys.last(where: { (model.pointsByDateKey[$0.key]?.chartValue ?? 0) > 0 }) {
+            return active.key
+        }
+        return model.dateKeys.last?.key
     }
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
