@@ -80,6 +80,8 @@
 
 ## 0.44.0 — 2026-07-17
 
+- Linux: add a Fedora KDE Plasma 6 installer for the verified static CLI and panel widget, including Plasma 6.6 QML compatibility fixes.
+
 ### Added
 - ZenMux: add Management API usage with five-hour and weekly quotas, subscription expiry, and USD PAYG balance. Thanks @kays0x!
 - Settings: add a local Usage & Spend view with honest 7/30-day coverage, native-currency grouping, and exact-home Codex account scans (#2116). Thanks @Chipagosfinest!

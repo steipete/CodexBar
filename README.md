@@ -240,6 +240,8 @@ CLI install:
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar)
 
 ## Linux desktop integration?
+- Fedora KDE Plasma 6: run `./Scripts/install-fedora-kde.sh --add-to-panel` from
+  this checkout. See [Fedora KDE integration](docs/linux-kde.md).
 - [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.
 - [Codexbar GNOME](https://extensions.gnome.org/extension/9841/codexbar/) — GNOME Shell extension that brings CodexBar usage into the desktop panel.
 - [codexbar-cinnamon-applet](https://github.com/jacobcalvert/codexbar-cinnamon-applet) — Linux Mint Cinnamon panel applet powered by CodexBar's JSON output.
