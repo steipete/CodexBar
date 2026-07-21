@@ -946,13 +946,11 @@ extension StatusItemController {
         if mode == .percent,
            !self.settings.usageBarsShowUsed,
            codexProjection?.menuBarFallback == .creditsBalance,
-           let creditsRemaining = codexProjection?.credits?.remaining,
-           creditsRemaining > 0
+           let fallbackText = Self.codexCreditsFallbackDisplayText(
+               credits: codexProjection?.credits?.snapshot,
+               isLocalRecoveryBuild: Bundle.main.bundleIdentifier == "com.steipete.codexbar.localrecovery")
         {
-            return
-                UsageFormatter
-                    .creditsString(from: creditsRemaining)
-                    .replacingOccurrences(of: " left", with: "")
+            return fallbackText
         }
         if let combinedLanes, mode == .percent {
             if let combinedText = MenuBarDisplayText.combinedSessionWeeklyPercentText(
@@ -980,6 +978,23 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
             now: now)
+    }
+
+    nonisolated static func codexCreditsFallbackDisplayText(
+        credits: CreditsSnapshot?,
+        isLocalRecoveryBuild: Bool) -> String?
+    {
+        guard let remaining = credits?.remaining, remaining > 0 else { return nil }
+        if isLocalRecoveryBuild,
+           let creditLimit = credits?.codexCreditLimit,
+           creditLimit.limit > 0,
+           creditLimit.remainingPercent > 0
+        {
+            return UsageFormatter.percentString(creditLimit.remainingPercent)
+        }
+        return UsageFormatter
+            .creditsString(from: remaining)
+            .replacingOccurrences(of: " left", with: "")
     }
 
     nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
