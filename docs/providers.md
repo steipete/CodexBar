@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 63 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 64 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -72,6 +72,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing, credit balance, and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
+| Charm Hyper | API key from env or token accounts → Hypercredit balance endpoint (`api`). |
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
@@ -403,6 +404,11 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Shows current DIEM or USD balance; DIEM epoch allocation progress when available.
 - Status: none yet.
 - Details: `docs/venice.md`.
+
+## Charm Hyper
+- API key via `HYPER_API_KEY` env var or Charm Hyper token accounts.
+- Fetches the remaining Hypercredit balance; the API does not expose a limit or reset timestamp.
+- Detail: [`docs/hyper.md`](hyper.md).
 
 ## Codebuff
 - API token from `~/.codexbar/config.json`, `CODEBUFF_API_KEY`, or `~/.config/manicode/credentials.json` created by `codebuff login`.

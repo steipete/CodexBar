@@ -179,6 +179,8 @@ public enum ProviderConfigEnvironment {
             OllamaAPISettingsReader.apiKeyEnvironmentKeys.first
         case .venice:
             VeniceSettingsReader.apiKeyEnvironmentKey
+        case .hyper:
+            HyperSettingsReader.apiKeyEnvironmentKey
         case .deepgram:
             DeepgramSettingsReader.apiKeyEnvironmentKey
         case .groq:

@@ -966,7 +966,7 @@ enum CLIRenderer {
 
     private static func usesDetailBackedWindow(provider: UsageProvider) -> Bool {
         switch provider {
-        case .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof:
+        case .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof, .hyper:
             true
         default:
             false
