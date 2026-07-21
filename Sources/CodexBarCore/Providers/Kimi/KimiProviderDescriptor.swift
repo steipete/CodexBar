@@ -8,14 +8,14 @@ public enum KimiProviderDescriptor {
             id: .kimi,
             metadata: ProviderMetadata(
                 id: .kimi,
-                displayName: "Kimi",
+                displayName: "Kimi Code",
                 sessionLabel: "Weekly",
                 weeklyLabel: "Rate Limit",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,
                 creditsHint: "",
-                toggleTitle: "Show Kimi usage",
+                toggleTitle: "Show Kimi Code subscription usage",
                 cliName: "kimi",
                 defaultEnabled: false,
                 isPrimaryProvider: false,
@@ -34,7 +34,7 @@ public enum KimiProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Kimi cost summary is not supported." }),
+                noDataMessage: { "Kimi Code cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -179,6 +179,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
 
         #if os(macOS)
         if context.settings?.kimi?.cookieSource != .off {
+            if KimiDesktopAuthToken.load() != nil { return true }
             return KimiCookieImporter.hasSession()
         }
         #endif
@@ -192,9 +193,20 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
         }
 
         let snapshot = try await KimiUsageFetcher.fetchUsage(authToken: token)
+        let sourceLabel = self.sourceLabel(for: context, token: token)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "Kimi web cookie")
+            sourceLabel: sourceLabel)
+    }
+
+    private func sourceLabel(for context: ProviderFetchContext, token: String) -> String {
+        if KimiCookieHeader.resolveCookieOverride(context: context) != nil {
+            return "Kimi web cookie"
+        }
+        if KimiDesktopAuthToken.load() == token {
+            return "Kimi Desktop"
+        }
+        return "Kimi web cookie"
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
@@ -213,9 +225,12 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
             return override.token
         }
 
-        // Try browser cookie import when auto mode is enabled
+        // Prefer signed-in Kimi Desktop (plaintext kimi-auth) before browser Keychain import.
         #if os(macOS)
         if context.settings?.kimi?.cookieSource != .off {
+            if let desktop = KimiDesktopAuthToken.load() {
+                return desktop
+            }
             do {
                 let session = try KimiCookieImporter.importSession()
                 if let token = session.authToken {

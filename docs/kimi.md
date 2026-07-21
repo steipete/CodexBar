@@ -6,16 +6,46 @@ read_when:
   - Adjusting Kimi menu labels or settings
 ---
 
-# Kimi Provider
+# Kimi Code Provider
 
-Tracks usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar.
+Tracks **Kimi Code subscription** usage for [Kimi For Coding](https://www.kimi.com/code) in CodexBar
+(`api.kimi.com` weekly quota + rate limits).
+
+## Not the China open platform
+
+Kimi has two official products that are easy to confuse:
+
+| Product | Host | What CodexBar shows | Provider id |
+| --- | --- | --- | --- |
+| **Kimi Code** (this page) | `api.kimi.com` / `www.kimi.com` | Weekly coding quota | `kimi` |
+| **Moonshot / Kimi open platform** | `api.moonshot.cn` (China) or `api.moonshot.ai` (intl) | Cash/voucher **balance** | `moonshot` |
+
+There is **no** separate Kimi Code usage host for China (`api.moonshot.cn/coding/v1/usages` is 404).
+If you need mainland open-platform balance, enable **Moonshot / Kimi Open Platform** and set
+API region to **China mainland**. See [moonshot.md](moonshot.md).
 
 ## Features
 
 - Displays weekly request quota (from membership tier)
 - Shows current 5-hour rate limit usage
+- **Monthly** subscription pool when a web `kimi-auth` session is available
 - API-key, Kimi Code CLI, automatic cookie, and manual cookie authentication methods
 - Automatic refresh countdown
+
+### Monthly quota enrichment (CLI / API key mode)
+
+`GET https://api.kimi.com/coding/v1/usages` returns weekly + short rate limits only.
+The **Monthly** pool still comes from the web membership API
+(`GetSubscriptionStats`), which needs a `kimi-auth` cookie.
+
+When usage is fetched via Code API key or Kimi Code CLI, CodexBar best-effort enriches
+with membership stats using (in order):
+
+1. `KIMI_AUTH_TOKEN` / manual cookie
+2. **Kimi Desktop** app cookie DB (`~/Library/Application Support/kimi-desktop/Cookies`)
+3. Browser cookie import (existing path)
+
+If no web session is found, Weekly / Rate Limit still work; Monthly is omitted.
 
 ## Setup
 

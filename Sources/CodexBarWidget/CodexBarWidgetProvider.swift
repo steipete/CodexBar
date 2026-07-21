@@ -39,7 +39,7 @@ enum ProviderChoice: String, AppEnum {
         .opencode: DisplayRepresentation(title: "OpenCode"),
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
         .mistral: DisplayRepresentation(title: "Mistral"),
-        .kimi: DisplayRepresentation(title: "Kimi"),
+        .kimi: DisplayRepresentation(title: "Kimi Code"),
     ]
 
     var provider: UsageProvider {

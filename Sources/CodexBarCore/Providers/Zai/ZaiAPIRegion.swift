@@ -10,9 +10,9 @@ public enum ZaiAPIRegion: String, CaseIterable, Sendable {
     public var displayName: String {
         switch self {
         case .global:
-            "Global (api.z.ai)"
+            "Global · api.z.ai"
         case .bigmodelCN:
-            "BigModel CN (open.bigmodel.cn)"
+            "China mainland · open.bigmodel.cn (BigModel)"
         }
     }
 

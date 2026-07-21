@@ -94,10 +94,17 @@ public enum KimiCookieImporter {
         return first
     }
 
+    /// Prefer official Kimi Desktop session when browsers are not signed in.
+    public static func desktopAuthToken() -> String? {
+        KimiDesktopAuthToken.load()
+    }
+
     public static func hasSession(
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) -> Bool
     {
+        if self.desktopAuthToken() != nil { return true }
+
         do {
             return try !self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty
         } catch {

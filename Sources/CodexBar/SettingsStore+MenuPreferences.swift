@@ -46,7 +46,8 @@ enum ResetTimesOption: String, CaseIterable {
     var label: String {
         switch self {
         case .countdown: L("reset_times_countdown")
-        case .clock: L("reset_times_clock")
+        // Absolute style is date-only (no hour:minute).
+        case .clock: L("reset_times_date")
         }
     }
 }

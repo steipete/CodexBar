@@ -67,6 +67,8 @@ public enum UsageFormatter {
         case "usage_percent_suffix_left": return "left"
         case "usage_percent_suffix_used": return "used"
         case "reset_tomorrow_format": return "tomorrow, %@"
+        case "Today": return "Today"
+        case "Tomorrow": return "Tomorrow"
         case "byte_unit_byte": return "byte"
         case "byte_unit_bytes": return "bytes"
         case "byte_unit_kilobyte": return "kilobyte"
@@ -128,18 +130,18 @@ public enum UsageFormatter {
     }
 
     public static func resetDescription(from date: Date, now: Date = .init()) -> String {
-        // Human-friendly phrasing: today / tomorrow / date+time.
+        // Date only (no clock time): users asked for calendar day without hour:minute noise.
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) {
-            return date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
+            return self.localized("Today")
         }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(date, inSameDayAs: tomorrow)
         {
-            let timeStr = date.formatted(.dateTime.hour().minute().locale(self.currentLocale()))
-            return self.localized("reset_tomorrow_format", timeStr)
+            return self.localized("Tomorrow")
         }
-        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().locale(self.currentLocale()))
+        // e.g. "Jul 24" / "7月24日" depending on locale — never hour/minute.
+        return date.formatted(.dateTime.month(.abbreviated).day().locale(self.currentLocale()))
     }
 
     public static func resetLine(

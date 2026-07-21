@@ -194,15 +194,42 @@ public struct ZaiUsageSnapshot: Sendable {
 
 extension ZaiUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primaryLimit = self.tokenLimit ?? self.timeLimit
-        let secondaryLimit = (self.tokenLimit != nil && self.timeLimit != nil) ? self.timeLimit : nil
+        // Coding Plan product surface is the rolling token window (almost always 5h TOKENS_LIMIT).
+        // TIME_LIMIT with MCP usageDetails is tool/MCP quota — not the coding 5h budget.
+        let codingTokenLimit = self.sessionTokenLimit ?? self.tokenLimit
+        let longerTokenLimit: ZaiLimitEntry? = {
+            guard let session = self.sessionTokenLimit, let weekly = self.tokenLimit,
+                  session.windowMinutes != weekly.windowMinutes
+            else { return nil }
+            return weekly
+        }()
+
+        let primaryLimit = codingTokenLimit ?? self.timeLimit
         let primary = primaryLimit.map { Self.rateWindow(for: $0) } ?? RateWindow(
             usedPercent: 0,
             windowMinutes: nil,
             resetsAt: nil,
             resetDescription: nil)
+
+        // Prefer a second token window (e.g. weekly) over MCP when both exist.
+        let secondaryLimit = longerTokenLimit ?? {
+            guard codingTokenLimit != nil, let time = self.timeLimit, !time.isMCPMonthlyMarker else {
+                // Still surface non-MCP time windows if that is all we have besides tokens.
+                guard codingTokenLimit != nil, let time = self.timeLimit else { return nil }
+                return time.isMCPMonthlyMarker ? nil : time
+            }
+            return nil
+        }()
         let secondary = secondaryLimit.map { Self.rateWindow(for: $0) }
-        let tertiary = self.sessionTokenLimit.map { Self.rateWindow(for: $0) }
+
+        // MCP tool quota is advisory for Coding Plan — keep it off primary/secondary bars.
+        let mcpExtra: NamedRateWindow? = {
+            guard let time = self.timeLimit, time.isMCPMonthlyMarker else { return nil }
+            return NamedRateWindow(
+                id: "zai-mcp",
+                title: "MCP",
+                window: Self.rateWindow(for: time))
+        }()
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -214,7 +241,8 @@ extension ZaiUsageSnapshot {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: tertiary,
+            tertiary: nil,
+            extraRateWindows: mcpExtra.map { [$0] },
             providerCost: nil,
             zaiUsage: self,
             updatedAt: self.updatedAt,
@@ -224,6 +252,7 @@ extension ZaiUsageSnapshot {
     private static func rateWindow(for limit: ZaiLimitEntry) -> RateWindow {
         RateWindow(
             usedPercent: limit.usedPercent,
+            // Coding Plan token windows (5h) carry duration; MCP markers do not.
             windowMinutes: limit.type == .tokensLimit ? limit.windowMinutes : nil,
             resetsAt: limit.nextResetTime,
             resetDescription: self.resetDescription(for: limit))
@@ -231,13 +260,16 @@ extension ZaiUsageSnapshot {
 
     private static func resetDescription(for limit: ZaiLimitEntry) -> String? {
         if limit.isMCPMonthlyMarker {
-            return "Monthly"
+            return "MCP"
+        }
+        if limit.type == .tokensLimit, let minutes = limit.windowMinutes, minutes == 5 * 60 {
+            return "5-hour"
         }
         if let label = limit.windowLabel {
             return label
         }
         if limit.type == .timeLimit {
-            return "Monthly"
+            return "MCP"
         }
         return nil
     }
@@ -268,11 +300,13 @@ private struct ZaiQuotaLimitData: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.limits = try container.decodeIfPresent([ZaiLimitRaw].self, forKey: .limits) ?? []
+        // BigModel Coding Plan often returns `level` (e.g. "max") instead of planName.
         let rawPlan = try [
             container.decodeIfPresent(String.self, forKey: .planName),
             container.decodeIfPresent(String.self, forKey: .plan),
             container.decodeIfPresent(String.self, forKey: .planType),
             container.decodeIfPresent(String.self, forKey: .packageName),
+            container.decodeIfPresent(String.self, forKey: .level),
         ].compactMap(\.self).first
         let trimmed = rawPlan?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.planName = (trimmed?.isEmpty ?? true) ? nil : trimmed
@@ -284,6 +318,7 @@ private struct ZaiQuotaLimitData: Decodable {
         case plan
         case planType = "plan_type"
         case packageName
+        case level
     }
 }
 
