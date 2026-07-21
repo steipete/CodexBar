@@ -584,7 +584,7 @@
 "show_provider_changelog_links_title" = "Afficher les liens du journal des modifications du fournisseur";
 "show_provider_changelog_links_subtitle" = "Ajoute au menu des liens de notes de version pour les fournisseurs pris en charge par CLI.";
 "show_credits_extra_usage_title" = "Afficher les crédits + utilisation supplémentaire";
-"show_credits_extra_usage_subtitle" = "Afficher les sections d'utilisation des crédits Codex et de Claude Extra dans le menu.";
+"show_credits_extra_usage_subtitle" = "Afficher les crédits et l’utilisation supplémentaire pour les fournisseurs compatibles.";
 "multi_account_layout_title" = "Disposition multi-comptes";
 "multi_account_layout_subtitle" = "Choisissez un changement de compte segmenté ou des cartes de compte empilées.";
 "multi_account_layout_segmented" = "Segmenté";

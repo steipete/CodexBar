@@ -581,7 +581,7 @@
 "show_provider_changelog_links_title" = "Mostrar links de changelog dos provedores";
 "show_provider_changelog_links_subtitle" = "Adiciona links de notas de versão para provedores baseados em CLI compatíveis no menu.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso extra";
-"show_credits_extra_usage_subtitle" = "Mostra as seções de créditos do Codex e uso extra do Claude no menu.";
+"show_credits_extra_usage_subtitle" = "Mostra créditos e uso extra para provedores compatíveis.";
 "multi_account_layout_title" = "Layout de múltiplas contas";
 "multi_account_layout_subtitle" = "Escolha alternância segmentada de contas ou cartões de contas empilhados.";
 "multi_account_layout_segmented" = "Segmentado";

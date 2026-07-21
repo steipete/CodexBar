@@ -584,7 +584,7 @@
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на примітки до випуску для підтримуваних постачальників, що підтримують CLI.";
 "show_credits_extra_usage_title" = "Показати кредити + додаткове використання";
-"show_credits_extra_usage_subtitle" = "Показати в меню розділи використання кредитів Codex і Claude Extra.";
+"show_credits_extra_usage_subtitle" = "Показувати кредити та додаткове використання для підтримуваних постачальників.";
 "multi_account_layout_title" = "Макет кількох облікових записів";
 "multi_account_layout_subtitle" = "Виберіть сегментоване перемикання облікових записів або складені картки облікових записів.";
 "multi_account_layout_segmented" = "Сегментований";

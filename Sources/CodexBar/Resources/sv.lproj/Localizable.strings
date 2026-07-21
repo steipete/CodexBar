@@ -583,7 +583,7 @@
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";
 "show_provider_changelog_links_subtitle" = "Lägger till länkar till utgåvekommentarer för stödda CLI-baserade leverantörer i menyn.";
 "show_credits_extra_usage_title" = "Visa krediter och extra användning";
-"show_credits_extra_usage_subtitle" = "Visa avsnitt för Codex-krediter och Claude Extra-användning i menyn.";
+"show_credits_extra_usage_subtitle" = "Visa krediter och extra användning för leverantörer som stöds.";
 "multi_account_layout_title" = "Layout för flera konton";
 "multi_account_layout_subtitle" = "Välj segmenterad kontoväxling eller staplade kontokort.";
 "multi_account_layout_segmented" = "Segmenterad";

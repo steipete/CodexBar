@@ -590,7 +590,7 @@
 "show_provider_changelog_links_title" = "Show provider changelog links";
 "show_provider_changelog_links_subtitle" = "Adds release-notes links for supported CLI-backed providers to the menu.";
 "show_credits_extra_usage_title" = "Show credits & extra usage";
-"show_credits_extra_usage_subtitle" = "Show Codex Credits and Claude Extra usage sections in the menu.";
+"show_credits_extra_usage_subtitle" = "Show credits and extra usage for supported providers.";
 "multi_account_layout_title" = "Multi-account layout";
 "multi_account_layout_subtitle" = "Choose segmented account switching or stacked account cards.";
 "multi_account_layout_segmented" = "Segmented";

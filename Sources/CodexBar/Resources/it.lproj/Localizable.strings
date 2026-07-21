@@ -592,7 +592,7 @@
 "show_provider_changelog_links_title" = "Mostra link changelog provider";
 "show_provider_changelog_links_subtitle" = "Aggiunge link alle note di rilascio per i provider CLI supportati.";
 "show_credits_extra_usage_title" = "Mostra crediti + uso extra";
-"show_credits_extra_usage_subtitle" = "Mostra nel menu le sezioni Crediti Codex e Uso extra Claude.";
+"show_credits_extra_usage_subtitle" = "Mostra crediti e utilizzo extra per i provider supportati.";
 "multi_account_layout_title" = "Layout multi-account";
 "multi_account_layout_subtitle" = "Scegli tra selezione segmentata o schede account impilate.";
 "multi_account_layout_segmented" = "Segmentato";

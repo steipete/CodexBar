@@ -580,7 +580,7 @@
 "show_provider_changelog_links_title" = "Hiển thị Nhà cung cấp liên kết nhật ký thay đổi";
 "show_provider_changelog_links_subtitle" = "Thêm liên kết ghi chú phát hành cho các nhà cung cấp được hỗ trợ CLI vào menu.";
 "show_credits_extra_usage_title" = "Hiển thị tín dụng + phần Mức sử dụng";
-"show_credits_extra_usage_subtitle" = "Hiển thị tín dụng Codex và Claude Các phần Mức sử dụng bổ sung trong menu.";
+"show_credits_extra_usage_subtitle" = "Hiển thị tín dụng và mức sử dụng bổ sung cho các nhà cung cấp được hỗ trợ.";
 "multi_account_layout_title" = "Bố cục nhiều tài khoản";
 "multi_account_layout_subtitle" = "Chọn thẻ tài khoản chuyển đổi phân đoạn hoặc thẻ tài khoản xếp chồng.";
 "multi_account_layout_segmented" = "Được phân đoạn";

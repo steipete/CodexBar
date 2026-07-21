@@ -7,6 +7,62 @@ import Testing
 @Suite(.serialized)
 struct StatusMenuNativeSectionSpacingTests {
     @Test
+    func `standalone cost section has one separator above it`() throws {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .cursor
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
+        self.enableOnly(.cursor, settings: settings)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 123,
+            last30DaysCostUSD: 1.23,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 123,
+                    costUSD: 1.23,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date()), provider: .cursor)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = controller.makeMenu(for: .cursor)
+        controller.menuWillOpen(menu)
+        let costIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "menuCardCost"
+        })
+
+        #expect(costIndex > 0)
+        #expect(menu.items[costIndex - 1].isSeparatorItem)
+        #expect(!zip(menu.items, menu.items.dropFirst()).contains { first, second in
+            first.isSeparatorItem && second.isSeparatorItem
+        })
+    }
+
+    @Test
     func `buy credits stays available without an error only credits section`() {
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -18,7 +74,7 @@ struct StatusMenuNativeSectionSpacingTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = .codex
         settings.showOptionalCreditsAndExtraUsage = true
-        self.enableOnlyCodex(settings)
+        self.enableOnly(.codex, settings: settings)
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -79,7 +135,7 @@ struct StatusMenuNativeSectionSpacingTests {
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
         settings.providerStorageFootprintsEnabled = true
-        self.enableOnlyCodex(settings)
+        self.enableOnly(.codex, settings: settings)
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -245,10 +301,10 @@ struct StatusMenuNativeSectionSpacingTests {
         return settings
     }
 
-    private func enableOnlyCodex(_ settings: SettingsStore) {
+    private func enableOnly(_ enabledProvider: UsageProvider, settings: SettingsStore) {
         for provider in UsageProvider.allCases {
             guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == enabledProvider)
         }
     }
 

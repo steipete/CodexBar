@@ -560,7 +560,7 @@
 "show_provider_changelog_links_title" = "显示提供商变更日志链接";
 "show_provider_changelog_links_subtitle" = "在菜单中为支持的 CLI 提供商添加发布说明链接。";
 "show_credits_extra_usage_title" = "显示额度 + 额外用量";
-"show_credits_extra_usage_subtitle" = "在菜单中显示 Codex 额度和 Claude 额外用量部分。";
+"show_credits_extra_usage_subtitle" = "显示受支持提供商的额度和额外用量。";
 "multi_account_layout_title" = "多账户布局";
 "multi_account_layout_subtitle" = "选择分段账户切换或堆叠账户卡片。";
 "multi_account_layout_segmented" = "分段";

@@ -590,7 +590,7 @@
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
 "show_provider_changelog_links_subtitle" = "Desteklenen CLI destekli sağlayıcılar için menüye sürüm notları bağlantıları ekler.";
 "show_credits_extra_usage_title" = "Krediler + ekstra kullanımı göster";
-"show_credits_extra_usage_subtitle" = "Menüde Codex Kredileri ve Claude Ekstra kullanım bölümlerini göster.";
+"show_credits_extra_usage_subtitle" = "Desteklenen sağlayıcılar için kredileri ve ek kullanımı göster.";
 "multi_account_layout_title" = "Çoklu hesap düzeni";
 "multi_account_layout_subtitle" = "Bölümlü hesap değiştirme veya yığınlı hesap kartları seçin.";
 "multi_account_layout_segmented" = "Bölümlü";

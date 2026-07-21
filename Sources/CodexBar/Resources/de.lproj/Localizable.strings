@@ -582,7 +582,7 @@
 "show_provider_changelog_links_title" = "Links zum Änderungsprotokoll des Anbieters anzeigen";
 "show_provider_changelog_links_subtitle" = "Fügt dem Menü Versionshinweise-Links für unterstützte CLI-gestützte Anbieter hinzu.";
 "show_credits_extra_usage_title" = "Credits + zusätzliche Nutzung anzeigen";
-"show_credits_extra_usage_subtitle" = "Zeigen Sie die Nutzungsabschnitte \"Codex Credits\" und \"Claude Extra\" im Menü an.";
+"show_credits_extra_usage_subtitle" = "Zeigt Guthaben und zusätzliche Nutzung für unterstützte Anbieter.";
 "multi_account_layout_title" = "Layout für mehrere Konten";
 "multi_account_layout_subtitle" = "Wählen Sie segmentierte Kontoumschaltung oder gestapelte Kontokarten.";
 "multi_account_layout_segmented" = "Segmentiert";

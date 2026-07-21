@@ -568,7 +568,7 @@
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";
-"show_credits_extra_usage_subtitle" = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
+"show_credits_extra_usage_subtitle" = "Mostra els crèdits i l’ús addicional dels proveïdors compatibles.";
 "multi_account_layout_title" = "Disposició multicompte";
 "multi_account_layout_subtitle" = "Trieu el canvi de compte segmentat o targetes de compte apilades.";
 "multi_account_layout_segmented" = "Segmentat";

@@ -592,7 +592,7 @@
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";
 "show_credits_extra_usage_title" = "Tampilkan kredit + penggunaan ekstra";
-"show_credits_extra_usage_subtitle" = "Tampilkan bagian Kredit Codex dan penggunaan Ekstra Claude di menu.";
+"show_credits_extra_usage_subtitle" = "Tampilkan kredit dan penggunaan tambahan untuk penyedia yang didukung.";
 "multi_account_layout_title" = "Tata letak multi-akun";
 "multi_account_layout_subtitle" = "Pilih pengalihan akun tersegmentasi atau kartu akun bertumpuk.";
 "multi_account_layout_segmented" = "Tersegmentasi";
