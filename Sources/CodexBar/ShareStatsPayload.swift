@@ -659,7 +659,68 @@ enum ShareStatsFormatting {
         "\(self.shortDay(start, calendar: calendar)) — \(self.shortDay(end, calendar: calendar))"
     }
 
-    static func text(_ payload: ShareStatsPayload) -> String {
+    static func text(
+        _ payload: ShareStatsPayload,
+        style: ShareStatsCardStyle = .defaultStyle) -> String
+    {
+        switch style {
+        case .summary:
+            self.summaryText(payload)
+        case .modelActivity:
+            self.modelActivityText(payload)
+        }
+    }
+
+    private static func summaryText(_ payload: ShareStatsPayload) -> String {
+        var lines = ["My AI subscriptions · last \(payload.days) days"]
+        if let tokens = payload.totalTokens {
+            let qualifier = payload.tokenCoverageIsComplete ? "" : "at least "
+            lines.append("\(qualifier)\(self.compactCount(tokens)) tracked tokens")
+        }
+        lines.append(contentsOf: payload.currencies.map { currency in
+            let spend = currency.estimatedCost.map { cost in
+                let value = self.currency(cost, code: currency.currencyCode)
+                let isPartial = currency.pricedSourceCount < currency.sourceCount
+                    || currency.coveredDayCount < payload.days
+                return isPartial ? "at least \(value) estimated" : "\(value) estimated"
+            } ?? "Spend unavailable"
+            return "\(currency.currencyCode): \(spend) · "
+                + "coverage \(currency.coveredDayCount)/\(payload.days) days"
+        })
+        lines.append(contentsOf: payload.providers.map { provider in
+            var metrics: [String] = []
+            if let tokens = provider.totalTokens {
+                metrics.append("\(self.compactCount(tokens)) tokens")
+            }
+            if let cost = provider.estimatedCost {
+                metrics.append("~\(self.currency(cost, code: provider.currencyCode)) est")
+            } else {
+                metrics.append("Spend unavailable")
+            }
+            if provider.estimatedCost != nil, provider.coveredDayCount < payload.days {
+                metrics.append("\(provider.coveredDayCount)/\(payload.days) days")
+            }
+            let subscription = provider.subscriptionName.map { " · \($0)" } ?? ""
+            return "\(provider.providerName)\(subscription): \(metrics.joined(separator: " · "))"
+        })
+        if !payload.topModels.isEmpty {
+            lines.append("Top models:")
+            lines.append(contentsOf: payload.topModels.prefix(5).map { model in
+                var metrics: [String] = []
+                if let tokens = model.totalTokens {
+                    metrics.append("\(self.compactCount(tokens)) tokens")
+                }
+                if let cost = model.estimatedCost {
+                    metrics.append("~\(self.currency(cost, code: model.currencyCode)) est")
+                }
+                return "\(model.modelName) (\(model.sourceName)): \(metrics.joined(separator: " · "))"
+            })
+        }
+        lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func modelActivityText(_ payload: ShareStatsPayload) -> String {
         var lines = ["You kept the models busy · last \(payload.days) days"]
         if let tokens = payload.totalTokens {
             let qualifier = payload.tokenCoverageIsComplete ? "" : "at least "

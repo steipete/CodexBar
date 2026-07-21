@@ -51,7 +51,7 @@ struct ShareStatsTests {
         #expect(payload.dailySourceCount == 2)
         #expect(!payload.dailyCoverageIsComplete)
 
-        let text = ShareStatsFormatting.text(payload)
+        let text = ShareStatsFormatting.text(payload, style: .modelActivity)
         #expect(text.contains("You kept the models busy · last 30 days"))
         #expect(text.contains("at least 1 of 30 days active"))
         #expect(text.contains("Estimated token spend: ≥£12.00 · ≥$4.00 · pricing for 2 of 3 sources"))
@@ -89,7 +89,8 @@ struct ShareStatsTests {
         let payload = try #require(ShareStatsBuilder.make(
             model: model,
             subscriptionNames: subscriptionNames))
-        let text = ShareStatsFormatting.text(payload)
+        let text = ShareStatsFormatting.text(payload, style: .modelActivity)
+        let summaryText = ShareStatsFormatting.text(payload, style: .summary)
 
         #expect(payload.topModels.map(\.modelName) == ["Claude Sonnet 4", "GPT-5.4"])
         #expect(payload.topModels.last?.totalTokens == 200)
@@ -105,6 +106,10 @@ struct ShareStatsTests {
         #expect(!text.contains("abcdefabcdef"))
         #expect(!text.contains("intranet"))
         #expect(!text.contains("acme"))
+        #expect(!summaryText.contains("person@example.com"))
+        #expect(!summaryText.contains("/Users/"))
+        #expect(!summaryText.contains("secret project"))
+        #expect(!summaryText.contains("acme"))
     }
 
     @Test
@@ -293,8 +298,8 @@ struct ShareStatsTests {
         #expect(payload.topModels.first?.estimatedCost == nil)
         #expect(payload.topModels.count == 1)
         #expect(payload.currencies.first?.estimatedCost == nil)
-        #expect(!ShareStatsFormatting.text(payload).lowercased().contains("nan"))
-        #expect(!ShareStatsFormatting.text(payload).lowercased().contains("inf"))
+        #expect(!ShareStatsFormatting.text(payload, style: .modelActivity).lowercased().contains("nan"))
+        #expect(!ShareStatsFormatting.text(payload, style: .modelActivity).lowercased().contains("inf"))
     }
 
     @Test
@@ -333,7 +338,8 @@ struct ShareStatsTests {
         #expect(payload.providers.count == 1)
         #expect(payload.topModels.map(\.modelName) == ["GPT-5.4"])
         #expect(!payload.modelRouteCoverageIsComplete)
-        #expect(ShareStatsFormatting.text(payload).contains("Model route history is partial"))
+        #expect(ShareStatsFormatting.text(payload, style: .modelActivity)
+            .contains("Model route history is partial"))
     }
 
     @Test
@@ -464,7 +470,8 @@ struct ShareStatsTests {
         #expect(payload.dailySourceCount == 1)
         #expect(payload.dailyFullSourceCount == 1)
         #expect(!payload.dailyCoverageIsComplete)
-        #expect(ShareStatsFormatting.text(payload).contains("at least 1 of 7 days active"))
+        #expect(ShareStatsFormatting.text(payload, style: .modelActivity)
+            .contains("at least 1 of 7 days active"))
     }
 
     @Test
@@ -503,7 +510,8 @@ struct ShareStatsTests {
         #expect(payload.dailySourceCount == 1)
         #expect(payload.dailyFullSourceCount == 0)
         #expect(!payload.dailyCoverageIsComplete)
-        #expect(ShareStatsFormatting.text(payload).contains("at least 1 of 30 days active"))
+        #expect(ShareStatsFormatting.text(payload, style: .modelActivity)
+            .contains("at least 1 of 30 days active"))
     }
 
     @Test
@@ -555,7 +563,8 @@ struct ShareStatsTests {
         #expect(payload.dailyCoverageIsComplete)
         #expect(payload.dailyTokens == [ShareStatsDailyPayload(day: Self.date, totalTokens: nil)])
         #expect(payload.hasUnavailableDailyTotals)
-        #expect(ShareStatsFormatting.text(payload).contains("at least 0 of 1 days active"))
+        #expect(ShareStatsFormatting.text(payload, style: .modelActivity)
+            .contains("at least 0 of 1 days active"))
     }
 
     @Test(arguments: [1, 4, 8, 20]) @MainActor
@@ -603,6 +612,7 @@ struct ShareStatsTests {
 
         let compactPNG = try #require(ShareStatsRenderer.pngData(
             for: payload,
+            style: .modelActivity,
             pixelSize: CGSize(width: 300, height: 158)))
         let bitmap = try #require(NSBitmapImageRep(data: compactPNG))
         #expect(bitmap.pixelsWide == 300)
@@ -654,7 +664,10 @@ struct ShareStatsTests {
             (CGSize(width: 600, height: 315), "share-stats-600x315.png"),
             (CGSize(width: 300, height: 158), "share-stats-300x158.png"),
         ] {
-            let data = try #require(ShareStatsRenderer.pngData(for: payload, pixelSize: size))
+            let data = try #require(ShareStatsRenderer.pngData(
+                for: payload,
+                style: .modelActivity,
+                pixelSize: size))
             #expect(data.starts(with: [0x89, 0x50, 0x4E, 0x47]))
             let bitmap = try #require(NSBitmapImageRep(data: data))
             #expect(bitmap.pixelsWide == Int(size.width))
@@ -666,12 +679,27 @@ struct ShareStatsTests {
             }
         }
         if let proofDirectory {
-            let accessibleText = ShareStatsFormatting.text(payload) + "\n"
+            let accessibleText = ShareStatsFormatting.text(payload, style: .modelActivity) + "\n"
             try accessibleText.write(
                 to: proofDirectory.appendingPathComponent("share-stats.txt"),
                 atomically: true,
                 encoding: .utf8)
         }
+    }
+
+    @Test @MainActor
+    func `summary card remains the default export while model activity is opt in`() throws {
+        let payload = try #require(ShareStatsBuilder.make(model: Self.proofDashboard))
+
+        #expect(ShareStatsCardStyle.defaultStyle == .summary)
+        #expect(ShareStatsFormatting.text(payload).hasPrefix("My AI subscriptions"))
+        #expect(ShareStatsFormatting.text(payload, style: .modelActivity).hasPrefix("You kept the models busy"))
+
+        let defaultPNG = try #require(ShareStatsRenderer.pngData(for: payload))
+        let summaryPNG = try #require(ShareStatsRenderer.pngData(for: payload, style: .summary))
+        let activityPNG = try #require(ShareStatsRenderer.pngData(for: payload, style: .modelActivity))
+        #expect(defaultPNG == summaryPNG)
+        #expect(defaultPNG != activityPNG)
     }
 
     @Test @MainActor
