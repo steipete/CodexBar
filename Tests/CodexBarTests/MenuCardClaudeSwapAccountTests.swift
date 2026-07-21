@@ -73,6 +73,8 @@ struct MenuCardClaudeSwapAccountTests {
         let scoped = try #require(model.metrics.first(where: { $0.id == "claude-weekly-scoped-fable" }))
         #expect(scoped.title == "Fable only")
         #expect(scoped.percent == 80)
+        #expect(scoped.detailLeftText == "6% in reserve")
+        #expect(scoped.pacePercent != nil)
     }
 
     @Test
