@@ -159,6 +159,8 @@ struct ShareStatsTests {
         #expect(ShareStatsSanitizer.modelName("openai/gpt-5.4-acme-secret") == "GPT-5.4")
         #expect(ShareStatsSanitizer.modelName("anthropic/claude-sonnet-4-client-x") == "Claude Sonnet 4")
         #expect(ShareStatsSanitizer.modelName("z-ai/glm-4.5-orgslug") == "GLM 4.5")
+        #expect(ShareStatsSanitizer.modelName("openai/gpt-5acmeinternal") == nil)
+        #expect(ShareStatsSanitizer.modelName("anthropic/claude-sonnetclient") == nil)
         #expect(ShareStatsSanitizer.modelName("acme/private-model-v2") == nil)
     }
 
@@ -704,10 +706,10 @@ struct ShareStatsTests {
 
     @Test @MainActor
     func `activity levels preserve zero and scale to five steps`() {
-        #expect(ShareStatsCardView.activityLevel(totalTokens: 0, maximum: 100) == 0)
-        #expect(ShareStatsCardView.activityLevel(totalTokens: 1, maximum: 100) == 1)
-        #expect(ShareStatsCardView.activityLevel(totalTokens: 50, maximum: 100) == 3)
-        #expect(ShareStatsCardView.activityLevel(totalTokens: 100, maximum: 100) == 5)
+        #expect(ShareStatsModelActivityCardView.activityLevel(totalTokens: 0, maximum: 100) == 0)
+        #expect(ShareStatsModelActivityCardView.activityLevel(totalTokens: 1, maximum: 100) == 1)
+        #expect(ShareStatsModelActivityCardView.activityLevel(totalTokens: 50, maximum: 100) == 3)
+        #expect(ShareStatsModelActivityCardView.activityLevel(totalTokens: 100, maximum: 100) == 5)
     }
 
     @Test

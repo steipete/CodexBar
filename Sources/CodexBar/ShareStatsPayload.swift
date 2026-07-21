@@ -395,7 +395,7 @@ enum ShareStatsSanitizer {
             .split(separator: "-")
             .map(String.init)
         guard let first = parts.first,
-              allowedStarts.contains(where: first.hasPrefix)
+              allowedStarts.contains(where: { self.isAllowedPublicStart(first, allowedStart: $0) })
         else { return nil }
 
         let publicQualifiers: Set = [
@@ -413,6 +413,15 @@ enum ShareStatsSanitizer {
             canonical.append(part)
         }
         return canonical.joined(separator: "-")
+    }
+
+    private static func isAllowedPublicStart(_ value: String, allowedStart: String) -> Bool {
+        guard value.hasPrefix(allowedStart) else { return false }
+        let suffix = String(value.dropFirst(allowedStart.count))
+        guard !suffix.isEmpty else { return true }
+        return suffix.range(
+            of: #"^(?:\d+(?:\.\d+)*|\.\d+(?:\.\d+)*)(?::\d+)?$"#,
+            options: .regularExpression) != nil
     }
 
     private static func prettySuffix(_ value: String) -> String {

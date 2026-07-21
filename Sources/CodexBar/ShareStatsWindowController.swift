@@ -144,9 +144,9 @@ private struct ShareStatsScaledPreview: View {
             Group {
                 switch self.style {
                 case .summary:
-                    ShareStatsClassicCardView(payload: self.payload)
-                case .modelActivity:
                     ShareStatsCardView(payload: self.payload)
+                case .modelActivity:
+                    ShareStatsModelActivityCardView(payload: self.payload)
                 }
             }
             .scaleEffect(scale, anchor: .topLeading)

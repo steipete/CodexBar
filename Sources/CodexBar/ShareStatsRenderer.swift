@@ -54,9 +54,9 @@ enum ShareStatsRenderer {
     private static func card(payload: ShareStatsPayload, style: ShareStatsCardStyle) -> AnyView {
         switch style {
         case .summary:
-            AnyView(ShareStatsClassicCardView(payload: payload))
-        case .modelActivity:
             AnyView(ShareStatsCardView(payload: payload))
+        case .modelActivity:
+            AnyView(ShareStatsModelActivityCardView(payload: payload))
         }
     }
 }
