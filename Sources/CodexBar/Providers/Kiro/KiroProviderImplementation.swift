@@ -4,6 +4,34 @@ import SwiftUI
 
 struct KiroProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .kiro
+    let supportsLoginFlow: Bool = true
+
+    @MainActor
+    func runLoginFlow(context: ProviderLoginContext) async -> Bool {
+        await context.controller.runKiroLoginFlow()
+        return true
+    }
+
+    @MainActor
+    func settingsActions(context: ProviderSettingsContext) -> [ProviderSettingsActionsDescriptor] {
+        [
+            ProviderSettingsActionsDescriptor(
+                id: "kiro-cli-login",
+                title: L("kiro_reauthenticate_title"),
+                subtitle: L("kiro_reauthenticate_subtitle"),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "kiro-cli-login-reauthenticate",
+                        title: L("Re-authenticate"),
+                        style: .bordered,
+                        isVisible: nil,
+                        perform: {
+                            await context.runLoginFlow()
+                        }),
+                ],
+                isVisible: nil),
+        ]
+    }
 
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         [

@@ -625,6 +625,20 @@ extension SettingsStore {
         }
     }
 
+    /// Lets Claude's OAuth token repair prompt the Keychain outside a user-initiated action
+    /// (menu open/refresh), instead of surfacing "background repair is suppressed" until the
+    /// user manually clicks Refresh.
+    var claudeOAuthBackgroundRepairEnabled: Bool {
+        get { self.claudeOAuthKeychainPromptMode == .always }
+        set {
+            if newValue {
+                self.claudeOAuthKeychainPromptMode = .always
+            } else if self.claudeOAuthKeychainPromptMode == .always {
+                self.claudeOAuthKeychainPromptMode = .onlyOnUserAction
+            }
+        }
+    }
+
     var claudeWebExtrasEnabled: Bool {
         get { self.claudeWebExtrasEnabledRaw }
         set { self.claudeWebExtrasEnabledRaw = newValue }
