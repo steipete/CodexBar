@@ -823,6 +823,18 @@ extension UsageStoreHighestUsageTests {
                 primary: antigravity.primary,
                 secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
             provider: .antigravity)
+        // Partially exhausted: secondary is 100% but primary (10%) still has quota —
+        // Antigravity should remain eligible and surface the exhausted lane as the metric.
+        highest = store.providerWithHighestUsage()
+        #expect(highest?.provider == .antigravity)
+        #expect(highest?.usedPercent == 100)
+
+        // Fully exhausted: both lanes at 100% → Antigravity is excluded.
+        store._setSnapshotForTesting(
+            antigravity.with(
+                primary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 100, windowMinutes: nil, resetsAt: nil, resetDescription: nil)),
+            provider: .antigravity)
         highest = store.providerWithHighestUsage()
         #expect(highest?.provider == .codex)
     }

@@ -108,6 +108,15 @@ extension UsageStore {
             guard !percents.isEmpty else { return true }
             return percents.allSatisfy { $0 >= 100 }
         }
+        if provider == .antigravity {
+            // Antigravity has Gemini 5h (primary) and weekly (secondary). Keep it eligible
+            // when only one lane is exhausted so the user still sees the usable quota,
+            // regardless of whether the metric preference is automatic or explicit.
+            let percents = [snapshot.primary?.usedPercent, snapshot.secondary?.usedPercent]
+                .compactMap(\.self)
+            guard !percents.isEmpty else { return true }
+            return percents.allSatisfy { $0 >= 100 }
+        }
 
         return true
     }
