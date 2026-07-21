@@ -235,6 +235,8 @@ extension CodexBarCLI {
             DeepgramSettingsReader.apiKey(environment: environment) != nil
         case .deepseek:
             DeepSeekSettingsReader.apiKey(environment: environment) != nil
+        case .hyper:
+            HyperSettingsReader.apiKey(environment: environment) != nil
         case .deepinfra:
             DeepInfraSettingsReader.apiKey(environment: environment) != nil
         case .doubao:

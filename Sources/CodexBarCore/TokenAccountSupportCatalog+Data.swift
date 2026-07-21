@@ -31,6 +31,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: DeepSeekSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .hyper: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple Charm Hyper API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: HyperSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .deepinfra: TokenAccountSupport(
             title: "API tokens",
             subtitle: "Store multiple DeepInfra API keys.",

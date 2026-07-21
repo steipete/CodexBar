@@ -161,6 +161,12 @@ public enum ProviderTokenResolver {
         self.veniceResolution(environment: environment)?.token
     }
 
+    public static func hyperToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        self.hyperResolution(environment: environment)?.token
+    }
+
     public static func deepInfraToken(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -223,6 +229,12 @@ public enum ProviderTokenResolver {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
         self.resolveEnv(VeniceSettingsReader.apiKey(environment: environment))
+    }
+
+    public static func hyperResolution(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
+    {
+        self.resolveEnv(HyperSettingsReader.apiKey(environment: environment))
     }
 
     public static func codebuffToken(
