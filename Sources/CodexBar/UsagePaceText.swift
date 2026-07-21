@@ -5,6 +5,7 @@ enum UsagePaceText {
     struct WeeklyDetail {
         let leftLabel: String
         let rightLabel: String?
+        let riskLabel: String?
         let expectedUsedPercent: Double
         let stage: UsagePace.Stage
     }
@@ -23,16 +24,31 @@ enum UsagePaceText {
 
     static func weeklySummary(provider: UsageProvider, pace: UsagePace, now: Date = .init()) -> String {
         let detail = self.weeklyDetail(provider: provider, pace: pace, now: now)
-        if let rightLabel = detail.rightLabel {
-            return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
+        if let combined = self.joinedRightPortion(right: detail.rightLabel, risk: detail.riskLabel) {
+            return L("Pace: %@ · %@", detail.leftLabel, combined)
         }
         return L("Pace: %@", detail.leftLabel)
     }
 
+    private static func joinedRightPortion(right: String?, risk: String?) -> String? {
+        switch (right, risk) {
+        case let (right?, risk?):
+            L("%@ · %@", right, risk)
+        case let (right?, nil):
+            right
+        case let (nil, risk?):
+            risk
+        case (nil, nil):
+            nil
+        }
+    }
+
     static func weeklyDetail(provider: UsageProvider, pace: UsagePace, now: Date = .init()) -> WeeklyDetail {
-        WeeklyDetail(
+        let (right, risk) = self.detailRightAndRisk(for: pace, provider: provider, context: .weekly, now: now)
+        return WeeklyDetail(
             leftLabel: self.detailLeftLabel(for: pace),
-            rightLabel: self.detailRightLabel(for: pace, provider: provider, context: .weekly, now: now),
+            rightLabel: right,
+            riskLabel: risk,
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
@@ -85,11 +101,11 @@ enum UsagePaceText {
         }
     }
 
-    private static func detailRightLabel(
+    private static func detailRightAndRisk(
         for pace: UsagePace,
         provider: UsageProvider,
         context: DetailContext,
-        now: Date) -> String?
+        now: Date) -> (right: String?, risk: String?)
     {
         let etaLabel: String?
         if pace.willLastToReset {
@@ -105,16 +121,13 @@ enum UsagePaceText {
             etaLabel = nil
         }
 
-        guard let runOutProbability = pace.runOutProbability else { return etaLabel }
+        guard let runOutProbability = pace.runOutProbability else { return (etaLabel, nil) }
         let roundedRisk = self.roundedRiskPercent(runOutProbability)
         let riskLabel = L("≈ %d%% run-out risk", roundedRisk)
         if pace.willLastToReset, roundedRisk > 0 {
-            return riskLabel
+            return (nil, riskLabel)
         }
-        if let etaLabel {
-            return L("%@ · %@", etaLabel, riskLabel)
-        }
-        return riskLabel
+        return (etaLabel, riskLabel)
     }
 
     private static func combinedLastsLabel(for pace: UsagePace, provider: UsageProvider) -> String {
@@ -168,17 +181,19 @@ enum UsagePaceText {
 
     static func sessionDetail(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> WeeklyDetail? {
         guard let pace = sessionPace(provider: provider, window: window, now: now) else { return nil }
+        let (right, risk) = Self.detailRightAndRisk(for: pace, provider: provider, context: .session, now: now)
         return WeeklyDetail(
             leftLabel: Self.detailLeftLabel(for: pace),
-            rightLabel: Self.detailRightLabel(for: pace, provider: provider, context: .session, now: now),
+            rightLabel: right,
+            riskLabel: risk,
             expectedUsedPercent: pace.expectedUsedPercent,
             stage: pace.stage)
     }
 
     static func sessionSummary(provider: UsageProvider, window: RateWindow, now: Date = .init()) -> String? {
         guard let detail = sessionDetail(provider: provider, window: window, now: now) else { return nil }
-        if let rightLabel = detail.rightLabel {
-            return L("Pace: %@ · %@", detail.leftLabel, rightLabel)
+        if let combined = self.joinedRightPortion(right: detail.rightLabel, risk: detail.riskLabel) {
+            return L("Pace: %@ · %@", detail.leftLabel, combined)
         }
         return L("Pace: %@", detail.leftLabel)
     }

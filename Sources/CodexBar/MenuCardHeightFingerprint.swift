@@ -86,6 +86,7 @@ extension UsageMenuCardView.Model.Metric {
             MenuCardHeightFingerprint.field("detail", self.detailText),
             MenuCardHeightFingerprint.field("detailLeft", self.detailLeftText),
             MenuCardHeightFingerprint.field("detailRight", self.detailRightText),
+            self.detailRightSecondaryText == nil ? "detailRightSecondary=0" : "detailRightSecondary=1",
             MenuCardHeightFingerprint.field(
                 "sessionEquivalentVerdict",
                 self.sessionEquivalentDetail?.verdictText),
@@ -129,10 +130,7 @@ extension UsageMenuCardView.Model.TokenUsageSection {
 
 extension CodexResetCreditsPresentation {
     fileprivate var heightFingerprint: String {
-        MenuCardHeightFingerprint.join([
-            MenuCardHeightFingerprint.field("text", self.text),
-            MenuCardHeightFingerprint.field("expirySummary", self.expirySummaryText),
-        ])
+        "items=\(self.items.count)"
     }
 }
 

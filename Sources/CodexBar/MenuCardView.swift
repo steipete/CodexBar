@@ -34,6 +34,7 @@ struct UsageMenuCardView: View {
             let detailText: String?
             let detailLeftText: String?
             let detailRightText: String?
+            let detailRightSecondaryText: String?
             let pacePercent: Double?
             let paceOnTop: Bool
             let warningMarkerPercents: [Double]
@@ -51,6 +52,7 @@ struct UsageMenuCardView: View {
                 detailText: String?,
                 detailLeftText: String?,
                 detailRightText: String?,
+                detailRightSecondaryText: String? = nil,
                 pacePercent: Double?,
                 paceOnTop: Bool,
                 warningMarkerPercents: [Double] = [],
@@ -67,6 +69,7 @@ struct UsageMenuCardView: View {
                 self.detailText = detailText
                 self.detailLeftText = detailLeftText
                 self.detailRightText = detailRightText
+                self.detailRightSecondaryText = detailRightSecondaryText
                 self.pacePercent = pacePercent
                 self.paceOnTop = paceOnTop
                 self.warningMarkerPercents = warningMarkerPercents
@@ -534,22 +537,14 @@ private struct MetricRow: View {
                                 .lineLimit(1)
                         }
                     }
-                    if self.metric.detailLeftText != nil || self.metric.detailRightText != nil {
-                        HStack(alignment: .firstTextBaseline) {
-                            if let detailLeft = self.metric.detailLeftText {
-                                Text(detailLeft)
-                                    .font(.footnote)
-                                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            if let detailRight = self.metric.detailRightText {
-                                Text(detailRight)
-                                    .font(.footnote)
-                                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                                    .lineLimit(1)
-                            }
-                        }
+                    if self.metric.detailLeftText != nil ||
+                        self.metric.detailRightText != nil ||
+                        self.metric.detailRightSecondaryText != nil
+                    {
+                        MetricDetailRow(
+                            leftText: self.metric.detailLeftText,
+                            rightText: self.metric.detailRightText,
+                            secondaryRightText: self.metric.detailRightSecondaryText)
                     }
                     if let sessionEquivalentDetail = self.metric.sessionEquivalentDetail {
                         Text(sessionEquivalentDetail.verdictText)
@@ -1260,6 +1255,7 @@ extension UsageMenuCardView.Model {
                 detailText: tertiaryDetailText,
                 detailLeftText: tertiaryPaceDetail?.leftLabel,
                 detailRightText: tertiaryPaceDetail?.rightLabel,
+                detailRightSecondaryText: tertiaryPaceDetail?.riskLabel,
                 pacePercent: tertiaryPaceDetail?.pacePercent,
                 paceOnTop: tertiaryPaceDetail?.paceOnTop ?? true,
                 warningMarkerPercents: Self.warningMarkerPercents(
@@ -1318,6 +1314,7 @@ extension UsageMenuCardView.Model {
         var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
         var primaryDetailLeft: String?
         var primaryDetailRight: String?
+        var primaryDetailRightSecondary: String?
         if input.provider == .crof,
            let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
            !detail.isEmpty
@@ -1382,6 +1379,7 @@ extension UsageMenuCardView.Model {
         {
             primaryDetailLeft = paceDetail.leftLabel
             primaryDetailRight = paceDetail.rightLabel
+            primaryDetailRightSecondary = paceDetail.riskLabel
             primaryPacePercent = paceDetail.pacePercent
             primaryPaceOnTop = paceDetail.paceOnTop
         }
@@ -1404,6 +1402,7 @@ extension UsageMenuCardView.Model {
                 if let paceDetail {
                     primaryDetailLeft = paceDetail.leftLabel
                     primaryDetailRight = paceDetail.rightLabel
+                    primaryDetailRightSecondary = paceDetail.riskLabel
                     primaryPacePercent = paceDetail.pacePercent
                     primaryPaceOnTop = paceDetail.paceOnTop
                 }
@@ -1411,6 +1410,7 @@ extension UsageMenuCardView.Model {
         } else if let paceDetail = Self.resetWindowPaceDetail(window: primary, input: input) {
             primaryDetailLeft = paceDetail.leftLabel
             primaryDetailRight = paceDetail.rightLabel
+            primaryDetailRightSecondary = paceDetail.riskLabel
             primaryPacePercent = paceDetail.pacePercent
             primaryPaceOnTop = paceDetail.paceOnTop
         }
@@ -1431,6 +1431,7 @@ extension UsageMenuCardView.Model {
             primaryResetText = regen.resetText
             primaryDetailLeft = regen.pace.leftLabel
             primaryDetailRight = regen.pace.rightLabel
+            primaryDetailRightSecondary = regen.pace.riskLabel
             primaryPacePercent = regen.pace.pacePercent
             primaryPaceOnTop = regen.pace.paceOnTop
         }
@@ -1450,6 +1451,7 @@ extension UsageMenuCardView.Model {
             detailText: primaryDetailText,
             detailLeftText: primaryDetailLeft,
             detailRightText: primaryDetailRight,
+            detailRightSecondaryText: primaryDetailRightSecondary,
             pacePercent: primaryPacePercent,
             paceOnTop: primaryPaceOnTop,
             warningMarkerPercents: Self.warningMarkerPercents(
@@ -1569,6 +1571,7 @@ extension UsageMenuCardView.Model {
             detailText: weeklyDetailText,
             detailLeftText: paceDetail?.leftLabel,
             detailRightText: paceDetail?.rightLabel,
+            detailRightSecondaryText: paceDetail?.riskLabel,
             pacePercent: paceDetail?.pacePercent,
             paceOnTop: paceDetail?.paceOnTop ?? true,
             warningMarkerPercents: Self.warningMarkerPercents(

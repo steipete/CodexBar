@@ -85,6 +85,101 @@ struct UsageMenuCardLayoutTests {
             UsageMenuCardLayout.sectionBottomPadding)
     }
 
+    @Test
+    func `metric detail uses one row when it fits and at most two when it does not`() {
+        let width: CGFloat = 296
+        func metricModel(detailLeftText: String, detailRightText: String) -> UsageMenuCardView.Model {
+            Self.model(metrics: [
+                UsageMenuCardView.Model.Metric(
+                    id: "session",
+                    title: "Session",
+                    percent: 37,
+                    percentStyle: .left,
+                    resetText: "Resets in 41m",
+                    detailText: nil,
+                    detailLeftText: detailLeftText,
+                    detailRightText: detailRightText,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ])
+        }
+        let shortModel = metricModel(detailLeftText: "5% ahead", detailRightText: "Done in 1d")
+        let longModel = metricModel(
+            detailLeftText: "5% more than current pace",
+            detailRightText: "Done in 1d 36m · about 75% likely to finish")
+        let veryLongModel = metricModel(
+            detailLeftText: "5% more than the current projected pace with additional context",
+            detailRightText: "Done in 1d 36m · about 75% likely to finish before the weekly reset window")
+
+        let shortHeight = NSHostingController(rootView: UsageMenuCardView(model: shortModel, width: width))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let longHeight = NSHostingController(rootView: UsageMenuCardView(model: longModel, width: width))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let veryLongHeight = NSHostingController(rootView: UsageMenuCardView(model: veryLongModel, width: width))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+
+        #expect(longHeight > shortHeight)
+        #expect(abs(veryLongHeight - longHeight) < Self.heightTolerance)
+    }
+
+    @Test
+    func `tracked metric layout distinguishes adaptive detail text shapes`() {
+        func metricModel(detailLeftText: String, detailRightText: String) -> UsageMenuCardView.Model {
+            Self.model(metrics: [
+                UsageMenuCardView.Model.Metric(
+                    id: "session",
+                    title: "Session",
+                    percent: 37,
+                    percentStyle: .left,
+                    resetText: "Resets in 41m",
+                    detailText: nil,
+                    detailLeftText: detailLeftText,
+                    detailRightText: detailRightText,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ])
+        }
+        let shortModel = metricModel(detailLeftText: "5% ahead", detailRightText: "Done in 1d")
+        let sameShapeModel = metricModel(detailLeftText: "6% ahead", detailRightText: "Done in 2d")
+        let longModel = metricModel(
+            detailLeftText: "5% more than current pace",
+            detailRightText: "Done in 1d 36m · about 75% likely to finish")
+
+        #expect(shortModel.hasCompatibleTrackedLayout(with: sameShapeModel))
+        #expect(!shortModel.hasCompatibleTrackedLayout(with: longModel))
+    }
+
+    @Test
+    func `metric detail with risk stays at most two rows regardless of secondary length`() {
+        let width: CGFloat = 296
+        func metricModel(detailRightSecondaryText: String) -> UsageMenuCardView.Model {
+            Self.model(metrics: [
+                UsageMenuCardView.Model.Metric(
+                    id: "session",
+                    title: "Session",
+                    percent: 37,
+                    percentStyle: .left,
+                    resetText: "Resets in 41m",
+                    detailText: nil,
+                    detailLeftText: "5% ahead",
+                    detailRightText: "Runs out in 2d",
+                    detailRightSecondaryText: detailRightSecondaryText,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ])
+        }
+        let shortRiskModel = metricModel(detailRightSecondaryText: "≈ 45% run-out risk")
+        let longRiskModel = metricModel(
+            detailRightSecondaryText: "≈ 45% run-out risk with a lot of additional descriptive context appended")
+
+        let shortRiskHeight = NSHostingController(rootView: UsageMenuCardView(model: shortRiskModel, width: width))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let longRiskHeight = NSHostingController(rootView: UsageMenuCardView(model: longRiskModel, width: width))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+
+        #expect(abs(longRiskHeight - shortRiskHeight) < Self.heightTolerance)
+    }
+
     private static func model(
         metrics: [UsageMenuCardView.Model.Metric] = [],
         usageNotes: [String] = [],

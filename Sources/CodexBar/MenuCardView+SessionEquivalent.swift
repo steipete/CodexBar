@@ -54,6 +54,7 @@ extension UsageMenuCardView.Model {
                 detailText: nil,
                 detailLeftText: paceDetail?.leftLabel,
                 detailRightText: paceDetail?.rightLabel,
+                detailRightSecondaryText: paceDetail?.riskLabel,
                 pacePercent: paceDetail?.pacePercent,
                 paceOnTop: paceDetail?.paceOnTop ?? true,
                 warningMarkerPercents: Self.warningMarkerPercents(

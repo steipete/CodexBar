@@ -817,7 +817,8 @@ struct HistoricalUsagePaceTests {
             #expect(pace.runOutProbability == 1)
 
             let detail = UsagePaceText.weeklyDetail(provider: .codex, pace: pace, now: now)
-            #expect(detail.rightLabel == "Runs out now · ≈ 100% run-out risk")
+            #expect(detail.rightLabel == "Runs out now")
+            #expect(detail.riskLabel == "≈ 100% run-out risk")
         }
     }
 }
