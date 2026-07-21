@@ -241,6 +241,11 @@ struct ZenMuxProviderTests {
     @Test @MainActor
     func `menu card uses compact flow expiry and USD PAYG labels`() async throws {
         let now = try #require(Self.date("2026-03-24T07:35:09.000Z"))
+        let expiresAt = try #require(Self.date("2026-04-12T08:26:56.000Z"))
+        let expiryFormatter = DateFormatter()
+        expiryFormatter.locale = .current
+        expiryFormatter.timeZone = .current
+        expiryFormatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             return Self.response(
@@ -280,7 +285,7 @@ struct ZenMuxProviderTests {
         #expect(primary.resetText == "Resets in 1h")
         #expect(secondary.detailLeftText == "416.11 / 6182 flows")
         #expect(secondary.detailRightText == nil)
-        #expect(model.usageNotes == ["Plan expires: Apr 12, 2026"])
+        #expect(model.usageNotes == ["Plan expires: \(expiryFormatter.string(from: expiresAt))"])
         #expect(model.creditsText == nil)
         #expect(model.providerCost?.title == "Pay-as-you-go")
         #expect(model.providerCost?.spendLine == "Balance: $482.74")

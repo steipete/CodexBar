@@ -75,7 +75,9 @@ public struct ElevenLabsUsageSnapshot: Codable, Sendable, Equatable {
 
     public var usedPercent: Double {
         guard self.characterLimit > 0 else { return 0 }
-        return min(100, max(0, Double(self.characterCount) / Double(self.characterLimit) * 100))
+        return UsagePercent(
+            used: Double(self.characterCount),
+            limit: Double(self.characterLimit)).displayClamped
     }
 
     public var remainingCharacters: Int {
@@ -127,7 +129,7 @@ public struct ElevenLabsUsageSnapshot: Codable, Sendable, Equatable {
                 id: "voice-slots",
                 title: "Voice slots",
                 window: RateWindow(
-                    usedPercent: min(100, max(0, Double(used) / Double(limit) * 100)),
+                    usedPercent: UsagePercent(used: Double(used), limit: Double(limit)).displayClamped,
                     windowMinutes: nil,
                     resetsAt: nil,
                     resetDescription: "\(used) / \(limit)")))
@@ -137,7 +139,7 @@ public struct ElevenLabsUsageSnapshot: Codable, Sendable, Equatable {
                 id: "professional-voices",
                 title: "Professional voices",
                 window: RateWindow(
-                    usedPercent: min(100, max(0, Double(used) / Double(limit) * 100)),
+                    usedPercent: UsagePercent(used: Double(used), limit: Double(limit)).displayClamped,
                     windowMinutes: nil,
                     resetsAt: nil,
                     resetDescription: "\(used) / \(limit)")))

@@ -44,6 +44,7 @@ public enum DoubaoProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Doubao cost summary is not available." }),
+            pace: .calendarMonthResetWindow,
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

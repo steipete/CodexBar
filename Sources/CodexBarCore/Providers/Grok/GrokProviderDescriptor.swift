@@ -37,6 +37,16 @@ public enum GrokProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Grok cost summary is not supported yet." }),
+            pace: ProviderPaceCapability(resetWindowPace: .custom { window, now in
+                guard Self.primaryLabel(window: window, now: now) == "Weekly",
+                      let resetsAt = window.resetsAt
+                else { return false }
+                let windowMinutes = window.windowMinutes ?? 7 * 24 * 60
+                let timeUntilReset = resetsAt.timeIntervalSince(now)
+                return windowMinutes > 0
+                    && timeUntilReset > 0
+                    && timeUntilReset <= TimeInterval(windowMinutes) * 60
+            }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
