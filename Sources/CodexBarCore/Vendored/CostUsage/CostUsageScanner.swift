@@ -27,6 +27,7 @@ enum CostUsageScanner {
     struct Options {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
+        var grokSessionsRoot: URL?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
@@ -37,6 +38,7 @@ enum CostUsageScanner {
         init(
             codexSessionsRoot: URL? = nil,
             claudeProjectsRoots: [URL]? = nil,
+            grokSessionsRoot: URL? = nil,
             cacheRoot: URL? = nil,
             codexTraceDatabaseURL: URL? = nil,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
@@ -44,6 +46,7 @@ enum CostUsageScanner {
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
+            self.grokSessionsRoot = grokSessionsRoot
             self.cacheRoot = cacheRoot
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
             self.claudeLogProviderFilter = claudeLogProviderFilter
@@ -824,15 +827,41 @@ enum CostUsageScanner {
                 now: now,
                 options: filtered,
                 checkCancellation: checkCancellation)
+        case .grok:
+            return try self.loadGrokDaily(
+                since: since,
+                until: until,
+                now: now,
+                options: options,
+                checkCancellation: checkCancellation)
         case .openai, .azureopenai, .clinepass, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
              .alibabatokenplan, .factory,
              .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .moonshot, .augment, .jetbrains, .amp,
              .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .sakana,
              .abacus, .mistral, .deepseek, .deepinfra, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode,
-             .qoder, .stepfun, .bedrock, .grok, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes, .neuralwatt,
+             .qoder, .stepfun, .bedrock, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes, .neuralwatt,
              .clawrouter, .longcat, .sub2api, .wayfinder, .zenmux, .aiand:
             return emptyReport
         }
+    }
+
+    private static func loadGrokDaily(
+        since: Date,
+        until: Date,
+        now: Date,
+        options: Options,
+        checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
+    {
+        var scannerOptions = GrokTurnUsageScanner.Options()
+        if let override = options.grokSessionsRoot {
+            scannerOptions.sessionsRoot = override
+        }
+        return try GrokTurnUsageScanner.loadDailyReport(
+            since: since,
+            until: until,
+            now: now,
+            options: scannerOptions,
+            checkCancellation: checkCancellation)
     }
 
     // MARK: - Day keys

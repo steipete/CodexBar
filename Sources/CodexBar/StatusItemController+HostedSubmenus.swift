@@ -472,8 +472,9 @@ extension StatusItemController {
             currencyCode: tokenSnapshot.currencyCode,
             historyDays: tokenSnapshot.historyDays,
             windowLabel: tokenSnapshot.historyLabel,
-            projects: provider == .codex ? tokenSnapshot.projects : [],
-            sessions: provider == .codex ? tokenSnapshot.sessions : [],
+            // Codex + Grok both expose local project/session breakdowns from log scans.
+            projects: (provider == .codex || provider == .grok) ? tokenSnapshot.projects : [],
+            sessions: (provider == .codex || provider == .grok) ? tokenSnapshot.sessions : [],
             width: width)
         let hosting = MenuHostingView(rootView: chartView)
         hosting.applyMeasuredHeight(

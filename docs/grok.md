@@ -52,7 +52,16 @@ browser session when the CLI surface does not expose billing.
      returned by some successful requests. A current billing period with an
      omitted proto3 `credit_usage_percent` is treated as zero usage. This keeps
      billing visible when `grok agent stdio` returns `Method not found`.
-4) **Local session signals** (informational fallback)
+4) **Local session token cost** (Cost menu / `codexbar cost --provider grok`)
+   - Walks `~/.grok/sessions/**/updates.jsonl` for `sessionUpdate: turn_completed`.
+   - Reads per-turn `usage` (`inputTokens`, `cachedReadTokens`, `outputTokens`,
+     `totalTokens`, `costUsdTicks`, `modelUsage`) and maps into the shared
+     `CostUsageTokenSnapshot` so the Grok menu Cost card matches Codex style
+     (`Today: $X · Y tokens` / `Last N days: …`).
+   - Uncached input = `inputTokens - cachedReadTokens` (ACP full input minus cache).
+   - Cost USD = `costUsdTicks / 1e10` when present; missing ticks are not estimated.
+   - Project breakdown uses `summary.json` → `info.cwd`.
+5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
      and the most recent session timestamp.
@@ -154,4 +163,5 @@ points to `https://status.x.ai`.
 - `Sources/CodexBarCore/Providers/Grok/GrokWebBillingFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokStatusProbe.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokLocalSessionScanner.swift`
+- `Sources/CodexBarCore/Providers/Grok/GrokTurnUsageScanner.swift`
 - `Sources/CodexBar/Providers/Grok/GrokProviderImplementation.swift`

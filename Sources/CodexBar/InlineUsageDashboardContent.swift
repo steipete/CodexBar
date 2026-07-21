@@ -255,7 +255,7 @@ extension UsageMenuCardView.Model {
         {
             return Self.poeInlineDashboard(usage, now: input.now)
         }
-        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego].contains(input.provider),
+        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego, .grok].contains(input.provider),
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
@@ -392,7 +392,22 @@ extension UsageMenuCardView.Model {
         } else {
             L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
         }
+        // Grok (and any sparse-cost history) plots daily tokens on the main-menu mini chart so
+        // subscription days without costUsdTicks still appear. Cost remains in KPIs/details.
+        let plotTokens = Self.shouldPlotTokensOnInlineCostChart(provider: provider, snapshot: snapshot)
         let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
+            if plotTokens {
+                let tokens = entry.totalTokens ?? 0
+                guard tokens > 0 || (entry.costUSD ?? 0) > 0 else { return nil }
+                let costNote = entry.costUSD.map {
+                    " · \(Self.costString($0, currencyCode: snapshot.currencyCode))"
+                } ?? ""
+                return InlineUsageDashboardModel.Point(
+                    id: entry.date,
+                    label: Self.shortDayLabel(entry.date),
+                    value: Double(tokens),
+                    accessibilityValue: "\(entry.date): \(UsageFormatter.tokenCountString(tokens)) tokens\(costNote)")
+            }
             guard let cost = entry.costUSD else { return nil }
             return InlineUsageDashboardModel.Point(
                 id: entry.date,
@@ -415,12 +430,33 @@ extension UsageMenuCardView.Model {
         if provider == .codex {
             details.append(L("codex_api_estimate_hint"))
         }
+        if provider == .grok {
+            let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
+            let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
+            let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
+            if input + cache + output > 0 {
+                details.append(String(
+                    format: L("Uncached %@ · Cache %@ · Output %@"),
+                    UsageFormatter.tokenCountString(input),
+                    UsageFormatter.tokenCountString(cache),
+                    UsageFormatter.tokenCountString(output)))
+            }
+            let daysWithCost = snapshot.daily.filter { ($0.costUSD ?? 0) > 0 }.count
+            details.append(String(
+                format: L("Cost reported on %d/%d days"),
+                daysWithCost,
+                snapshot.daily.count))
+            if let topProject = snapshot.projects.first {
+                let tokens = topProject.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                details.append(String(format: L("Top project: %@ · %@"), topProject.name, tokens))
+            }
+        }
         if provider != .groq {
             if let requestCount = snapshot.last30DaysRequests {
                 details
                     .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
             }
-            if provider != .codex {
+            if provider != .codex && provider != .grok {
                 let hintLines = Self.tokenUsageHintLines(provider: provider)
                 if hintLines.isEmpty == false {
                     details.append(contentsOf: hintLines)
@@ -428,12 +464,15 @@ extension UsageMenuCardView.Model {
                     details.append(L("cost_estimate_hint"))
                 }
             }
+            if provider == .grok {
+                details.append(L("Bars show daily tokens. Cost only when reported."))
+            }
         }
         let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
         let accessibilityLabel = L(
             "%@: %@",
             providerName,
-            accessibilityCostLabel)
+            plotTokens ? (snapshot.historyLabel.map { "\($0) tokens" } ?? L("token usage")) : accessibilityCostLabel)
         var kpis = [
             InlineUsageDashboardModel.KPI(
                 title: usesLatestPrimary ? L("Latest") : L("Today"),
@@ -445,6 +484,13 @@ extension UsageMenuCardView.Model {
                     .map { Self.costString($0, currencyCode: snapshot.currencyCode) } ?? "—",
                 emphasis: false),
         ]
+        // For Grok, lead with today's tokens so the main-page KPIs match the token bars.
+        if provider == .grok {
+            let todayTokens = snapshot.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            kpis.insert(
+                .init(title: L("Today tokens"), value: todayTokens, emphasis: true),
+                at: 0)
+        }
         let tokenHistoryKPI = InlineUsageDashboardModel.KPI(
             title: tokenHistoryTitle,
             value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
@@ -467,12 +513,26 @@ extension UsageMenuCardView.Model {
         }
         var model = InlineUsageDashboardModel(
             accessibilityLabel: accessibilityLabel,
-            valueStyle: Self.costValueStyle(currencyCode: snapshot.currencyCode),
+            valueStyle: plotTokens ? .tokens : Self.costValueStyle(currencyCode: snapshot.currencyCode),
             kpis: kpis,
             points: points,
             detailLines: details)
-        model.currencyCode = snapshot.currencyCode
+        if !plotTokens {
+            model.currencyCode = snapshot.currencyCode
+        }
         return model
+    }
+
+    /// Prefer token bars when cost history is incomplete (Grok subscription) or absent.
+    static func shouldPlotTokensOnInlineCostChart(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot) -> Bool
+    {
+        if provider == .grok { return true }
+        let days = snapshot.daily
+        guard !days.isEmpty else { return false }
+        let withCost = days.filter { ($0.costUSD ?? 0) > 0 }.count
+        return withCost == 0
     }
 
     private static func costHistoryTrailingKPIs(

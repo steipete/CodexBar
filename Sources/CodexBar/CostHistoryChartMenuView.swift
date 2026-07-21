@@ -12,19 +12,28 @@ struct CostHistoryChartMenuView: View {
         case edges
     }
 
+    /// What the bar chart plots on the Y axis.
+    enum ChartMetric: Equatable {
+        case cost
+        case tokens
+    }
+
     private struct Point: Identifiable {
         let id: String
         let date: Date
-        let costUSD: Double
+        let costUSD: Double?
         let totalTokens: Int?
         let requestCount: Int?
+        /// Value used for bar height (cost dollars or token count).
+        let chartValue: Double
 
-        init(date: Date, costUSD: Double, totalTokens: Int?, requestCount: Int?) {
+        init(date: Date, costUSD: Double?, totalTokens: Int?, requestCount: Int?, chartValue: Double) {
             self.date = date
             self.costUSD = costUSD
             self.totalTokens = totalTokens
             self.requestCount = requestCount
-            self.id = "\(Int(date.timeIntervalSince1970))-\(costUSD)"
+            self.chartValue = chartValue
+            self.id = "\(Int(date.timeIntervalSince1970))-\(chartValue)"
         }
     }
 
@@ -88,25 +97,33 @@ struct CostHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(L("Cost"), point.costUSD))
+                            y: .value(model.yAxisTitle, point.chartValue))
                             .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
-                        let capStart = max(peak.costUSD - Self.capHeight(maxValue: model.maxCostUSD), 0)
+                        let capStart = max(peak.chartValue - Self.capHeight(maxValue: model.maxChartValue), 0)
                         BarMark(
                             x: .value(L("Day"), peak.date, unit: .day),
                             yStart: .value(L("Cap start"), capStart),
-                            yEnd: .value(L("Cap end"), peak.costUSD))
+                            yEnd: .value(L("Cap end"), peak.chartValue))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
                 .chartYAxis {
-                    AxisMarks(position: .leading, values: Self.yAxisTickValues(maxCostUSD: model.maxCostUSD)) { value in
+                    AxisMarks(
+                        position: .leading,
+                        values: Self.yAxisTickValues(
+                            maxValue: model.maxChartValue,
+                            metric: model.chartMetric))
+                    { value in
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
                         AxisValueLabel(centered: false) {
                             if let raw = value.as(Double.self) {
-                                Text(Self.yAxisCostString(raw, currencyCode: self.currencyCode))
+                                Text(Self.yAxisLabelString(
+                                    raw,
+                                    metric: model.chartMetric,
+                                    currencyCode: self.currencyCode))
                                     .font(.caption2)
                                     .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                                     .padding(.leading, 4)
@@ -234,8 +251,8 @@ struct CostHistoryChartMenuView: View {
                     alignment: .topLeading)
             }
 
-            if let total = self.totalCostUSD {
-                VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let total = self.totalCostUSD {
                     Text(String(
                         format: L("Est. total (%@): %@"),
                         self.windowLabel ?? Self.windowLabel(days: self.historyDays),
@@ -245,13 +262,31 @@ struct CostHistoryChartMenuView: View {
                         .lineLimit(1)
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    if let disclaimer = Self.estimateDisclaimer(provider: self.provider) {
-                        Text(disclaimer)
-                            .font(.caption2)
-                            .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
+                }
+                if let tokenTotal = Self.windowTokenTotal(daily: self.daily), tokenTotal > 0 {
+                    Text(String(
+                        format: L("Total tokens (%@): %@"),
+                        self.windowLabel ?? Self.windowLabel(days: self.historyDays),
+                        UsageFormatter.tokenCountString(tokenTotal)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
+                }
+                if let breakdown = Self.windowTokenBreakdownLine(daily: self.daily) {
+                    Text(breakdown)
+                        .font(.caption2)
+                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let disclaimer = Self.estimateDisclaimer(provider: self.provider) {
+                    Text(disclaimer)
+                        .font(.caption2)
+                        .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -300,7 +335,39 @@ struct CostHistoryChartMenuView: View {
     }
 
     static func estimateDisclaimer(provider: UsageProvider) -> String? {
-        provider == .codex ? L("codex_api_estimate_hint") : nil
+        switch provider {
+        case .codex:
+            L("codex_api_estimate_hint")
+        case .grok:
+            L("Bars show daily tokens. Cost only when Grok reported ticks.")
+        default:
+            nil
+        }
+    }
+
+    static func chartMetric(for provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {
+        // Grok subscription paths often omit cost on many days; plot tokens so the chart
+        // still reflects activity. Fall back to tokens for any provider when every day lacks cost.
+        if provider == .grok { return .tokens }
+        let hasAnyCost = daily.contains { ($0.costUSD ?? 0) > 0 }
+        return hasAnyCost ? .cost : .tokens
+    }
+
+    static func windowTokenTotal(daily: [DailyEntry]) -> Int? {
+        let sum = daily.compactMap(\.totalTokens).reduce(0, +)
+        return sum > 0 ? sum : nil
+    }
+
+    static func windowTokenBreakdownLine(daily: [DailyEntry]) -> String? {
+        let input = daily.compactMap(\.inputTokens).reduce(0, +)
+        let cache = daily.compactMap(\.cacheReadTokens).reduce(0, +)
+        let output = daily.compactMap(\.outputTokens).reduce(0, +)
+        guard input + cache + output > 0 else { return nil }
+        return String(
+            format: L("Uncached %@ · Cache %@ · Output %@"),
+            UsageFormatter.tokenCountString(input),
+            UsageFormatter.tokenCountString(cache),
+            UsageFormatter.tokenCountString(output))
     }
 
     private struct Model {
@@ -311,7 +378,9 @@ struct CostHistoryChartMenuView: View {
         let axisDates: [Date]
         let barColor: Color
         let peakKey: String?
-        let maxCostUSD: Double
+        let maxChartValue: Double
+        let chartMetric: ChartMetric
+        let yAxisTitle: String
         let detailViewportRowCount: Int
         let hasDetailOverflow: Bool
         let detailRowHeight: CGFloat
@@ -330,7 +399,7 @@ struct CostHistoryChartMenuView: View {
     private static let outerSpacing: CGFloat = 10
     private static let projectRowHeight: CGFloat = 31
     private static let projectRowSpacing: CGFloat = 5
-    private static let maxVisibleProjectRows = 5
+    private static let maxVisibleProjectRows = 10
     private static let projectSourceRowHeight: CGFloat = 29
     private static let projectSourceSpacing: CGFloat = 3
     private static let projectSourceIndent: CGFloat = 10
@@ -440,18 +509,18 @@ struct CostHistoryChartMenuView: View {
         maxValue * 0.05
     }
 
-    /// Y-axis tick values for the cost chart: 0, mid, max when the range is at
-    /// $1 or more; 0 and max for smaller ranges; empty for flat/no data so the
-    /// axis renders no labels.
-    private static func yAxisTickValues(maxCostUSD: Double) -> [Double] {
-        guard maxCostUSD > 0 else { return [] }
-        if maxCostUSD < 1.0 {
-            return [0, maxCostUSD]
+    /// Y-axis tick values: 0, mid, max for large ranges; 0 and max for small; empty for flat data.
+    private static func yAxisTickValues(maxValue: Double, metric: ChartMetric) -> [Double] {
+        guard maxValue > 0 else { return [] }
+        let smallThreshold: Double = metric == .cost ? 1.0 : 1000
+        if maxValue < smallThreshold {
+            return [0, maxValue]
         }
-        return [0, maxCostUSD / 2, maxCostUSD]
+        return [0, maxValue / 2, maxValue]
     }
 
     private static func makeModel(provider: UsageProvider, daily: [DailyEntry]) -> Model {
+        let metric = self.chartMetric(for: provider, daily: daily)
         let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
         var points: [Point] = []
         points.reserveCapacity(sorted.count)
@@ -465,32 +534,39 @@ struct CostHistoryChartMenuView: View {
         var dateKeys: [(key: String, date: Date)] = []
         dateKeys.reserveCapacity(sorted.count)
 
-        var peak: (key: String, costUSD: Double)?
-        var maxCostUSD: Double = 0
+        var peak: (key: String, value: Double)?
+        var maxChartValue: Double = 0
         var maxDetailRows = 0
         var hasModeDetails = false
         for entry in sorted {
-            guard let (costUSD, date) = self.chartPointInput(for: entry) else { continue }
+            guard let (date, chartValue, costUSD) = self.chartPointInput(for: entry, metric: metric)
+            else { continue }
             let point = Point(
                 date: date,
                 costUSD: costUSD,
                 totalTokens: entry.totalTokens,
-                requestCount: entry.requestCount)
+                requestCount: entry.requestCount,
+                chartValue: chartValue)
             points.append(point)
             pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
             dateKeys.append((entry.date, date))
+            // Detail rows: models + optional token breakdown rows for Grok-style entries.
             let modelBreakdowns = entry.modelBreakdowns ?? []
-            maxDetailRows = max(maxDetailRows, modelBreakdowns.count)
+            var detailRowCount = modelBreakdowns.count
+            if entry.inputTokens != nil || entry.cacheReadTokens != nil || entry.outputTokens != nil {
+                detailRowCount += 1
+            }
+            maxDetailRows = max(maxDetailRows, detailRowCount)
             hasModeDetails = hasModeDetails || modelBreakdowns.contains { Self.hasModeSubtitle($0) }
             if let cur = peak {
-                if costUSD > cur.costUSD {
-                    peak = (entry.date, costUSD)
+                if chartValue > cur.value {
+                    peak = (entry.date, chartValue)
                 }
             } else {
-                peak = (entry.date, costUSD)
+                peak = (entry.date, chartValue)
             }
-            maxCostUSD = max(maxCostUSD, costUSD)
+            maxChartValue = max(maxChartValue, chartValue)
         }
 
         let axisDates: [Date] = {
@@ -502,6 +578,7 @@ struct CostHistoryChartMenuView: View {
         }()
 
         let barColor = Self.barColor(for: provider)
+        let yAxisTitle = metric == .tokens ? L("Tokens") : L("Cost")
         return Model(
             points: points,
             pointsByDateKey: pointsByKey,
@@ -509,8 +586,10 @@ struct CostHistoryChartMenuView: View {
             dateKeys: dateKeys,
             axisDates: axisDates,
             barColor: barColor,
-            peakKey: maxCostUSD > 0 ? peak?.key : nil,
-            maxCostUSD: maxCostUSD,
+            peakKey: maxChartValue > 0 ? peak?.key : nil,
+            maxChartValue: maxChartValue,
+            chartMetric: metric,
+            yAxisTitle: yAxisTitle,
             detailViewportRowCount: min(maxDetailRows, self.maxVisibleDetailLines),
             hasDetailOverflow: maxDetailRows > self.maxVisibleDetailLines,
             detailRowHeight: hasModeDetails ? self.expandedDetailRowHeight : self.compactDetailRowHeight)
@@ -561,10 +640,23 @@ struct CostHistoryChartMenuView: View {
         return comps.date
     }
 
-    private static func chartPointInput(for entry: DailyEntry) -> (costUSD: Double, date: Date)? {
-        guard let costUSD = entry.costUSD, costUSD >= 0 else { return nil }
+    /// Builds a chart point for a daily entry.
+    /// - Cost metric: requires a non-nil cost (legacy Codex behavior).
+    /// - Tokens metric: includes any day with token activity, even when cost is missing.
+    private static func chartPointInput(
+        for entry: DailyEntry,
+        metric: ChartMetric) -> (date: Date, chartValue: Double, costUSD: Double?)?
+    {
         guard let date = self.dateFromDayKey(entry.date) else { return nil }
-        return (costUSD, date)
+        switch metric {
+        case .cost:
+            guard let costUSD = entry.costUSD, costUSD >= 0 else { return nil }
+            return (date, costUSD, costUSD)
+        case .tokens:
+            let tokens = entry.totalTokens ?? 0
+            guard tokens > 0 || (entry.costUSD ?? 0) > 0 else { return nil }
+            return (date, Double(tokens), entry.costUSD)
+        }
     }
 
     private static func peakPoint(model: Model) -> Point? {
@@ -769,13 +861,17 @@ struct CostHistoryChartMenuView: View {
         }
 
         let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
-        let cost = self.costString(point.costUSD)
-        var parts = [cost]
+        var parts: [String] = []
+        if let cost = point.costUSD {
+            parts.append(self.costString(cost))
+        } else {
+            parts.append("—")
+        }
         if let tokens = point.totalTokens {
             parts.append("\(UsageFormatter.tokenCountString(tokens)) tokens")
         }
         if let requests = point.requestCount {
-            parts.append("\(UsageFormatter.tokenCountString(requests)) requests")
+            parts.append("\(UsageFormatter.tokenCountString(requests)) calls")
         }
         let primary = "\(dayLabel): \(parts.joined(separator: " · "))"
         return DetailContent(primary: primary, rows: self.breakdownRows(key: key, model: model))
@@ -783,9 +879,24 @@ struct CostHistoryChartMenuView: View {
 
     private func breakdownRows(key: String, model: Model) -> [DetailRow] {
         guard let entry = model.entriesByDateKey[key] else { return [] }
-        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return [] }
+        var rows: [DetailRow] = []
 
-        return Self.orderedBreakdownItems(breakdown)
+        // Token composition row (uncached / cache / output) when available.
+        if entry.inputTokens != nil || entry.cacheReadTokens != nil || entry.outputTokens != nil {
+            let uncached = entry.inputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            let cache = entry.cacheReadTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            let output = entry.outputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            rows.append(DetailRow(
+                id: "token-breakdown-\(key)",
+                title: L("Token breakdown"),
+                subtitle: String(format: L("Uncached %@ · Cache %@ · Output %@"), uncached, cache, output),
+                modeSubtitle: nil,
+                accentColor: model.barColor.opacity(0.9)))
+        }
+
+        guard let breakdown = entry.modelBreakdowns, !breakdown.isEmpty else { return rows }
+
+        rows.append(contentsOf: Self.orderedBreakdownItems(breakdown)
             .enumerated()
             .map { index, item in
                 DetailRow(
@@ -794,7 +905,8 @@ struct CostHistoryChartMenuView: View {
                     subtitle: self.modelBreakdownTotalSubtitle(item),
                     modeSubtitle: self.modelBreakdownModeSubtitle(item),
                     accentColor: model.barColor.opacity(Self.breakdownAccentOpacity(for: index)))
-            }
+            })
+        return rows
     }
 
     static func orderedBreakdownItems(
@@ -863,6 +975,25 @@ struct CostHistoryChartMenuView: View {
 
     private static func costString(_ value: Double, currencyCode: String) -> String {
         UsageFormatter.currencyString(value, currencyCode: currencyCode)
+    }
+
+    private static func yAxisLabelString(
+        _ value: Double,
+        metric: ChartMetric,
+        currencyCode: String) -> String
+    {
+        switch metric {
+        case .cost:
+            return self.yAxisCostString(value, currencyCode: currencyCode)
+        case .tokens:
+            if value >= 1_000_000 {
+                return String(format: "%.1fM", value / 1_000_000)
+            }
+            if value >= 1_000 {
+                return String(format: "%.0fK", value / 1_000)
+            }
+            return String(format: "%.0f", value)
+        }
     }
 
     private static func yAxisCostString(_ value: Double, currencyCode: String) -> String {
@@ -936,8 +1067,9 @@ extension CostHistoryChartMenuView {
         from snapshot: CostUsageTokenSnapshot,
         provider: UsageProvider) -> RenderFingerprint
     {
-        let projects = provider == .codex ? snapshot.projects : []
-        let sessions = provider == .codex ? snapshot.sessions : []
+        let projects = (provider == .codex || provider == .grok) ? snapshot.projects : []
+        let sessions = (provider == .codex || provider == .grok) ? snapshot.sessions : []
+        let metric = self.chartMetric(for: provider, daily: snapshot.daily)
         return RenderFingerprint(
             currencyCode: snapshot.currencyCode,
             historyDays: snapshot.historyDays,
@@ -945,7 +1077,7 @@ extension CostHistoryChartMenuView {
             totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),
             hasDailyEntries: !snapshot.daily.isEmpty,
             daily: snapshot.daily
-                .filter { self.chartPointInput(for: $0) != nil }
+                .filter { self.chartPointInput(for: $0, metric: metric) != nil }
                 .sorted { $0.date < $1.date }
                 .map(self.visibleDailyFingerprint),
             projects: Array(projects.prefix(self.maxVisibleProjectRows)).map { project in
@@ -1020,7 +1152,7 @@ extension CostHistoryChartMenuView {
     }
 
     static func _yAxisTickValuesForTesting(maxCostUSD: Double) -> [Double] {
-        self.yAxisTickValues(maxCostUSD: maxCostUSD)
+        self.yAxisTickValues(maxValue: maxCostUSD, metric: .cost)
     }
 
     static func _yAxisCostStringForTesting(_ value: Double, currencyCode: String = "USD") -> String {

@@ -5,11 +5,11 @@ import Foundation
 extension CodexBarCLI {
     private static let costSupportedProviders: Set<UsageProvider> = {
         #if os(macOS)
-        [.claude, .codex, .cursor]
+        [.claude, .codex, .cursor, .grok]
         #else
         // Cursor cost relies on the macOS-only dashboard fetch path; `supportsTokenSnapshot(.cursor)`
         // is false elsewhere, so don't advertise Cursor cost where it can only fail.
-        [.claude, .codex]
+        [.claude, .codex, .grok]
         #endif
     }()
 
@@ -54,13 +54,13 @@ extension CodexBarCLI {
         }
         let groupBy = Self.decodeCostGroupBy(from: values)
         if groupBy == .project {
-            let unsupportedProjectProviders = providers.filter { $0 != .codex }
+            let unsupportedProjectProviders = providers.filter { $0 != .codex && $0 != .grok }
             if !unsupportedProjectProviders.isEmpty, !output.jsonOnly {
                 let names = unsupportedProjectProviders
                     .map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
                     .sorted()
                     .joined(separator: ", ")
-                Self.writeStderr("Skipping project grouping for providers without Codex project data: \(names)\n")
+                Self.writeStderr("Skipping project grouping for providers without project data: \(names)\n")
             }
         }
 
@@ -69,7 +69,7 @@ extension CodexBarCLI {
         var payload: [CostPayload] = []
         var exitCode: ExitCode = .success
 
-        for provider in providers where groupBy != .project || provider == .codex || format == .json {
+        for provider in providers where groupBy != .project || provider == .codex || provider == .grok || format == .json {
             if let error = Self.cursorCostAvailabilityError(
                 provider,
                 settings: cursorCookieSettings,
@@ -84,7 +84,7 @@ extension CodexBarCLI {
                 continue
             }
             do {
-                // Claude/Codex cost comes from local logs; Cursor cost is fetched from its
+                // Claude/Codex/Grok cost comes from local logs; Cursor cost is fetched from its
                 // cookie-authenticated dashboard API via the shared session resolution.
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
@@ -138,11 +138,16 @@ extension CodexBarCLI {
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        let title = provider == .codex
-            ? "\(name) API-equivalent estimate (not billed)"
-            : "\(name) Cost (API-rate estimate)"
+        let title: String = switch provider {
+        case .codex:
+            "\(name) API-equivalent estimate (not billed)"
+        case .grok:
+            "\(name) Cost (local session logs)"
+        default:
+            "\(name) Cost (API-rate estimate)"
+        }
         let header = Self.costHeaderLine(title, useColor: useColor)
-        if groupBy == .project, provider == .codex {
+        if groupBy == .project, provider == .codex || provider == .grok {
             return Self.renderProjectCostText(header: header, snapshot: snapshot)
         }
 
@@ -167,8 +172,61 @@ extension CodexBarCLI {
             return "Cursor-metered: \(amount) (\(historyLabel.lowercased()))"
         }
 
+        var extraLines: [String] = []
+        if provider == .grok {
+            let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
+            let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
+            let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
+            if input + cache + output > 0 {
+                extraLines.append(
+                    "Uncached \(UsageFormatter.tokenCountString(input)) · Cache \(UsageFormatter.tokenCountString(cache)) · Output \(UsageFormatter.tokenCountString(output))")
+            }
+            var modelTotals: [String: Int] = [:]
+            for entry in snapshot.daily {
+                for breakdown in entry.modelBreakdowns ?? [] {
+                    modelTotals[breakdown.modelName, default: 0] += breakdown.totalTokens ?? 0
+                }
+            }
+            if !modelTotals.isEmpty {
+                let top = modelTotals.sorted { $0.value > $1.value }.prefix(4)
+                extraLines.append("Models: " + top.map {
+                    "\($0.key) \(UsageFormatter.tokenCountString($0.value))"
+                }.joined(separator: " · "))
+            }
+            if !snapshot.projects.isEmpty {
+                extraLines.append("Projects (\(snapshot.projects.count)):")
+                for project in snapshot.projects.prefix(8) {
+                    let tokens = project.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                    let cost = project.totalCostUSD.map {
+                        UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+                    } ?? "—"
+                    extraLines.append("  \(project.name): \(cost) · \(tokens) tokens")
+                }
+                if snapshot.projects.count > 8 {
+                    extraLines.append("  +\(snapshot.projects.count - 8) more")
+                }
+            }
+            if !snapshot.sessions.isEmpty {
+                extraLines.append("Sessions: \(snapshot.sessions.count)")
+            }
+            let daysWithCost = snapshot.daily.filter { ($0.costUSD ?? 0) > 0 }.count
+            extraLines.append("Cost reported on \(daysWithCost)/\(snapshot.daily.count) days")
+            extraLines.append("Daily:")
+            for entry in snapshot.daily.sorted(by: { $0.date < $1.date }) {
+                let tokens = entry.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                let cost = entry.costUSD.map {
+                    UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode)
+                } ?? "—"
+                let uncached = entry.inputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                let cache = entry.cacheReadTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                let output = entry.outputTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                extraLines.append(
+                    "  \(entry.date): \(cost) · \(tokens) tok (uncached \(uncached) · cache \(cache) · out \(output))")
+            }
+        }
+
         let hintLine = Self.costEstimateHint(provider: provider)
-        return [header, todayLine, monthLine, meteredLine, hintLine]
+        return ([header, todayLine, monthLine, meteredLine] + extraLines.map { Optional.some($0) } + [hintLine])
             .compactMap(\.self)
             .joined(separator: "\n")
     }
@@ -207,9 +265,14 @@ extension CodexBarCLI {
     }
 
     private static func costEstimateHint(provider: UsageProvider) -> String {
-        provider == .codex
-            ? "Not a subscription bill or plan value · local usage × public API prices"
-            : UsageFormatter.costEstimateHint(provider: provider)
+        switch provider {
+        case .codex:
+            "Not a subscription bill or plan value · local usage × public API prices"
+        case .grok:
+            "Local Grok session logs (turn_completed). Cost only when reported."
+        default:
+            UsageFormatter.costEstimateHint(provider: provider)
+        }
     }
 
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {
@@ -227,7 +290,7 @@ extension CodexBarCLI {
         error: Error?) -> CostPayload
     {
         let daily = snapshot?.daily.map(Self.costDailyPayload(from:)) ?? []
-        let projects = provider == .codex
+        let projects = (provider == .codex || provider == .grok)
             ? snapshot?.projects.map { project in
                 CostProjectPayload(
                     name: project.name,
