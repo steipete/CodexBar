@@ -793,6 +793,40 @@ enum CostUsagePricing {
         ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
     }
 
+    static func modelsDevPricing(
+        provider: UsageProvider,
+        model: String,
+        catalog: ModelsDevCatalog? = nil,
+        cacheRoot: URL? = nil) -> ModelsDevPricingLookup?
+    {
+        for providerID in self.modelsDevProviderIDs(for: provider) {
+            if let lookup = self.modelsDevLookup(
+                providerID: providerID,
+                model: model,
+                catalog: catalog,
+                cacheRoot: cacheRoot)
+            {
+                return lookup
+            }
+        }
+        return nil
+    }
+
+    private static func modelsDevProviderIDs(for provider: UsageProvider) -> [String] {
+        switch provider {
+        case .codex, .openai, .azureopenai:
+            [self.codexModelsDevProviderID]
+        case .claude:
+            [self.claudeModelsDevProviderID]
+        case .kimi:
+            ["kimi-for-coding"]
+        case .moonshot:
+            ["moonshotai", "moonshotai-cn"]
+        default:
+            []
+        }
+    }
+
     private static func modelsDevLookup(
         providerID: String,
         model: String,
