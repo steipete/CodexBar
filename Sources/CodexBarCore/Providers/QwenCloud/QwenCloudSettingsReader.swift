@@ -15,10 +15,11 @@ public struct QwenCloudSettingsReader: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
         guard let raw = self.cleaned(environment[self.hostKey]) else { return nil }
-        if let scheme = URL(string: raw)?.scheme {
-            return scheme.lowercased() == "https" ? raw : nil
-        }
-        return raw
+        // Accept full https:// URLs and normalize bare hosts (e.g. "qwen-cloud.test"
+        // or "qwen-cloud.test:8443") to HTTPS, so dashboardURL / defaultQuotaURL
+        // always build valid URLs. Mirrors the shared endpoint-override rules used
+        // by the Alibaba token-plan host override.
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)?.absoluteString
     }
 
     public static func quotaURL(

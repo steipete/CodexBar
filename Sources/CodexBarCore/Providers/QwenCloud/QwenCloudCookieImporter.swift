@@ -19,14 +19,15 @@ public enum QwenCloudCookieImport {
         "console.aliyun.com",
     ]
 
-    static let recognizedSessionCookies: Set<String> = [
+    /// Cookie names that prove an authenticated Qwen Cloud session. Locale
+    /// preferences, account-id markers, and CSRF tokens are intentionally
+    /// excluded: a browser profile that merely visited qwencloud.com already
+    /// carries them while logged out, and treating such a profile as
+    /// authenticated would make the fetcher send a ticketless request, receive
+    /// `loginRequired`, and keep re-importing the same profile forever.
+    static let authTicketCookies: Set<String> = [
         "login_aliyunid_ticket",
-        "login_aliyunid",
-        "login_aliyunid_pk",
-        "login_current_pk",
-        "sec_token",
         "qwen_sso_ticket",
-        "intl_locale",
     ]
 
     public static func importSession(
@@ -43,19 +44,12 @@ public enum QwenCloudCookieImport {
     }
 
     static func isAuthenticatedSession(cookies: [HTTPCookie]) -> Bool {
+        // Qwen Cloud international uses the alibabacloud passport; a valid console
+        // session always carries the login ticket. Accept SSO tickets too so
+        // SAML/SSO logins work. Never accept locale/account-id cookies on their
+        // own — logged-out profiles carry them as well.
         let names = Set(cookies.map(\.name))
-        // Qwen Cloud international uses the alibabacloud passport; a valid console session
-        // always carries the login ticket. Accept SSO tickets too so SAML/SSO logins work.
-        if names.contains("login_aliyunid_ticket") || names.contains("qwen_sso_ticket") {
-            return true
-        }
-        // Otherwise accept when at least one recognized session cookie scoped to a
-        // Qwen Cloud host is present.
-        return cookies.contains { cookie in
-            guard Self.recognizedSessionCookies.contains(cookie.name) else { return false }
-            let domain = cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            return domain.hasSuffix("qwencloud.com")
-        }
+        return !names.isDisjoint(with: self.authTicketCookies)
     }
 }
 #endif

@@ -231,7 +231,7 @@ scan fails, while provider/account configuration changes replace obsolete result
   params and a resolved `sec_token`; reads the individual token-plan (`sfm_tokenplansolo_public_intl`) credits.
 - Cookie sources: browser import (`auto`), manual Cookie header, or `QWEN_CLOUD_COOKIE`.
 - Default quota URL: `https://home.qwencloud.com/data/api.json?action=GetSubscriptionSummary&product=BssOpenAPI-V3`.
-- Host overrides: `QWEN_CLOUD_HOST` or `QWEN_CLOUD_QUOTA_URL`.
+- Host overrides: `QWEN_CLOUD_HOST` or `QWEN_CLOUD_QUOTA_URL` (HTTPS URLs or bare hosts normalized to HTTPS).
 - Status: `https://status.alibabacloud.com` (link only, no auto-polling).
 - Details: `docs/qwen-cloud.md`.
 

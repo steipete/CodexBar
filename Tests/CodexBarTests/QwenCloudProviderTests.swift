@@ -44,6 +44,34 @@ struct QwenCloudSettingsReaderTests {
     }
 
     @Test
+    func `host override normalizes bare hosts to HTTPS`() {
+        let bareHost = QwenCloudSettingsReader.hostOverride(environment: [
+            QwenCloudSettingsReader.hostKey: "home.qwen-cloud.test",
+        ])
+        let bareHostWithPort = QwenCloudSettingsReader.hostOverride(environment: [
+            QwenCloudSettingsReader.hostKey: "home.qwen-cloud.test:8443",
+        ])
+
+        #expect(bareHost == "https://home.qwen-cloud.test")
+        #expect(bareHostWithPort == "https://home.qwen-cloud.test:8443")
+    }
+
+    @Test
+    func `bare host overrides build valid dashboard and quota URLs`() {
+        let environment = [QwenCloudSettingsReader.hostKey: "qwen-cloud.test"]
+
+        let dashboard = QwenCloudUsageFetcher.dashboardURL(environment: environment)
+        #expect(dashboard.scheme == "https")
+        #expect(dashboard.host == "qwen-cloud.test")
+        #expect(dashboard.absoluteString.contains("/billing/subscription/token-plan-individual"))
+
+        let quota = QwenCloudUsageFetcher.defaultQuotaURL(environment: environment)
+        #expect(quota.scheme == "https")
+        #expect(quota.host == "qwen-cloud.test")
+        #expect(quota.absoluteString.contains("GetSubscriptionSummary"))
+    }
+
+    @Test
     func `default quota URL targets subscription summary API`() {
         let url = QwenCloudUsageFetcher.defaultQuotaURL
         #expect(url.host == "home.qwencloud.com")
@@ -360,9 +388,23 @@ struct QwenCloudCookieImportValidationTests {
     @Test
     func `accepts qwen scoped sso sessions`() {
         let cookies = [
-            self.cookie(name: "intl_locale", value: "en-US", domain: ".qwencloud.com"),
+            self.cookie(name: "qwen_sso_ticket", value: "sso-ticket", domain: ".qwencloud.com"),
         ]
         #expect(QwenCloudCookieImport.isAuthenticatedSession(cookies: cookies))
+    }
+
+    @Test
+    func `rejects locale and account cookies without a login ticket`() {
+        // A browser profile that merely visited qwencloud.com carries locale
+        // preferences, account-id markers, and CSRF cookies while logged out;
+        // none of them prove an authenticated session.
+        let cookies = [
+            self.cookie(name: "locale_pref", value: "en-US", domain: ".qwencloud.com"),
+            self.cookie(name: "login_aliyunid_pk", value: "1234567890", domain: ".qwencloud.com"),
+            self.cookie(name: "login_current_pk", value: "1234567890", domain: ".home.qwencloud.com"),
+            self.cookie(name: "sec_token", value: "csrf-token", domain: ".home.qwencloud.com"),
+        ]
+        #expect(!QwenCloudCookieImport.isAuthenticatedSession(cookies: cookies))
     }
 
     @Test
@@ -448,7 +490,7 @@ struct QwenCloudLiveSmokeTests {
             apiCookieHeader: cookie,
             environment: environment)
 
-        func describe<T>(_ value: T?) -> String {
+        func describe(_ value: (some Any)?) -> String {
             value.map { "\($0)" } ?? "<nil>"
         }
 

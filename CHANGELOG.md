@@ -2,6 +2,10 @@
 
 ## 0.45.3 — Unreleased
 
+### Added
+- Qwen Cloud: new provider tracking the individual token-plan subscription (hosted Claude access) on
+  `home.qwencloud.com`, wired through the menu bar, CLI, widget, and docs (#2361).
+
 ### Fixed
 
 ## 0.45.2 — 2026-07-19

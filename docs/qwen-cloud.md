@@ -43,6 +43,8 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
   `EquityList` (falling back to `TotalValue`/`TotalSurplusValue` when present)
 - Supports `QWEN_CLOUD_HOST` and `QWEN_CLOUD_QUOTA_URL` for testing endpoint overrides, and
   `QWEN_CLOUD_COOKIE` for an environment-supplied cookie header
+- Endpoint overrides accept full `https://` URLs or bare hosts (for example,
+  `QWEN_CLOUD_HOST=home.qwen-cloud.test`), which are normalized to HTTPS; non-HTTPS schemes are rejected
 
 ## Limitations
 
