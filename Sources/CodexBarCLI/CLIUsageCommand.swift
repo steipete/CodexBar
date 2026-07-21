@@ -694,6 +694,13 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .alibabatokenplan,
+           settings?.alibabaTokenPlan?.cookieSource == .manual
+        {
+            // The Alibaba/Qwen Token Plan fetch is plain URLSession + cookies; only browser
+            // cookie auto-import needs macOS, so a manual cookie header works off macOS too.
+            return false
+        }
         #if os(Linux)
         if provider == .cursor,
            settings?.cursor?.cookieSource != .off
