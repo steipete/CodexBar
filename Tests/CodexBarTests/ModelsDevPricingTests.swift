@@ -53,6 +53,148 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `provider lookup resolves current Google and xAI models`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "google": {
+            "id": "google",
+            "name": "Google",
+            "models": {
+              "gemini-3.5-flash": {
+                "id": "gemini-3.5-flash",
+                "name": "Gemini 3.5 Flash",
+                "cost": {
+                  "input": 1.5,
+                  "output": 9,
+                  "cache_read": 0.15
+                },
+                "limit": {
+                  "context": 1048576
+                }
+              },
+              "gemini-3.1-pro-preview": {
+                "id": "gemini-3.1-pro-preview",
+                "name": "Gemini 3.1 Pro Preview",
+                "cost": {
+                  "input": 2,
+                  "output": 12,
+                  "cache_read": 0.2
+                },
+                "limit": {
+                  "context": 1048576
+                }
+              },
+              "gemini-3.1-flash-lite": {
+                "id": "gemini-3.1-flash-lite",
+                "name": "Gemini 3.1 Flash Lite",
+                "cost": {
+                  "input": 0.25,
+                  "output": 1.5,
+                  "cache_read": 0.025
+                },
+                "limit": {
+                  "context": 1048576
+                }
+              }
+            }
+          },
+          "google-vertex": {
+            "id": "google-vertex",
+            "name": "Vertex AI",
+            "models": {
+              "gemini-3.1-pro-preview": {
+                "id": "gemini-3.1-pro-preview",
+                "name": "Gemini 3.1 Pro Preview",
+                "cost": {
+                  "input": 2.1,
+                  "output": 12.1,
+                  "cache_read": 0.21
+                },
+                "limit": {
+                  "context": 1048576
+                }
+              }
+            }
+          },
+          "xai": {
+            "id": "xai",
+            "name": "xAI",
+            "models": {
+              "grok-4.5": {
+                "id": "grok-4.5",
+                "name": "Grok 4.5",
+                "cost": {
+                  "input": 2,
+                  "output": 6,
+                  "cache_read": 0.3
+                },
+                "limit": {
+                  "context": 500000
+                }
+              },
+              "grok-4.3": {
+                "id": "grok-4.3",
+                "name": "Grok 4.3",
+                "cost": {
+                  "input": 1.25,
+                  "output": 2.5,
+                  "cache_read": 0.2
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              },
+              "grok-4.20-0309-reasoning": {
+                "id": "grok-4.20-0309-reasoning",
+                "name": "Grok 4.20 (Reasoning)",
+                "cost": {
+                  "input": 1.25,
+                  "output": 2.5,
+                  "cache_read": 0.2
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let geminiFlash = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .gemini,
+            model: "gemini-3.5-flash",
+            catalog: catalog))
+        let vertexGemini = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .vertexai,
+            model: "gemini-3.1-pro-preview",
+            catalog: catalog))
+        let grok45 = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .grok,
+            model: "grok-4.5",
+            catalog: catalog))
+        let grokReasoning = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .grok,
+            model: "grok-4.20-0309-reasoning",
+            catalog: catalog))
+
+        #expect(geminiFlash.pricing.inputCostPerToken == 1.5 / 1_000_000.0)
+        #expect(geminiFlash.pricing.outputCostPerToken == 9 / 1_000_000.0)
+        #expect(geminiFlash.pricing.cacheReadInputCostPerToken == 0.15 / 1_000_000.0)
+        #expect(geminiFlash.pricing.contextWindow == 1_048_576)
+        #expect(vertexGemini.pricing.providerID == "google-vertex")
+        #expect(vertexGemini.pricing.inputCostPerToken == 2.1 / 1_000_000.0)
+        #expect(grok45.pricing.outputCostPerToken == 6 / 1_000_000.0)
+        #expect(grok45.pricing.contextWindow == 500_000)
+        #expect(grokReasoning.pricing.modelName == "Grok 4.20 (Reasoning)")
+        #expect(grokReasoning.pricing.cacheReadInputCostPerToken == 0.2 / 1_000_000.0)
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .grok,
+            model: "gemini-3.5-flash",
+            catalog: catalog) == nil)
+    }
+
+    @Test
     func `converts models dev per million token prices to per token prices`() throws {
         let pricing = try #require(try Self.fixtureCatalog().pricing(
             providerID: "anthropic",
