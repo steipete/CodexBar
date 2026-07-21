@@ -93,6 +93,7 @@ enum ProviderChoice: String, AppEnum {
         case .moonshot: return nil // Moonshot not yet supported in widgets
         case .amp: return nil // Amp not yet supported in widgets
         case .t3chat: return nil // T3 Chat not yet supported in widgets
+        case .zoommate: return nil // ZoomMate not yet supported in widgets
         case .ollama: return nil // Ollama not yet supported in widgets
         case .synthetic: return nil // Synthetic not yet supported in widgets
         case .openrouter: return nil // OpenRouter not yet supported in widgets

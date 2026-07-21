@@ -251,6 +251,102 @@ struct StatusItemControllerMenuTests {
         #expect(ceil(submenuMenu.size.width) < 310)
     }
 
+    // MARK: - Status component allowlist
+
+    @Test
+    @MainActor
+    func `status component allowlist passes through unfiltered for providers without one`() {
+        let components = [
+            ProviderStatusComponent(id: "1", name: "API", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "2", name: "Web App", indicator: .none, status: "operational"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .claude)
+
+        #expect(filtered.map(\.name) == ["API", "Web App"])
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist keeps only named components and groups for zoommate`() {
+        let components = [
+            ProviderStatusComponent(
+                id: "g1",
+                name: "Zoom Meetings",
+                indicator: .none,
+                status: "operational",
+                children: [
+                    ProviderStatusComponent(
+                        id: "c1",
+                        name: "Zoom Whiteboard",
+                        indicator: .none,
+                        status: "operational"),
+                ]),
+            ProviderStatusComponent(id: "2", name: "ZoomMate", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "3", name: "My Notes", indicator: .none, status: "operational"),
+            ProviderStatusComponent(
+                id: "g2",
+                name: "Zoom Workflows",
+                indicator: .none,
+                status: "operational",
+                children: [
+                    ProviderStatusComponent(
+                        id: "c2",
+                        name: "Zoom AIC",
+                        indicator: .none,
+                        status: "operational"),
+                ]),
+            ProviderStatusComponent(id: "4", name: "Zoom Phone - US", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "5", name: "Zoom Rooms", indicator: .none, status: "operational"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .zoommate)
+
+        #expect(filtered.map(\.name) == ["Zoom Meetings", "ZoomMate", "My Notes", "Zoom Workflows"])
+        // Allowlisted groups keep their existing full child list; the allowlist filters at the
+        // top level only, it does not additionally prune group children.
+        #expect(filtered.first { $0.name == "Zoom Meetings" }?.children.map(\.name) == ["Zoom Whiteboard"])
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist tolerates any subset of named components being absent`() {
+        // Only two of the four allowlisted names are present; the other two are silently omitted
+        // without error, and unrelated components remain excluded as usual.
+        let components = [
+            ProviderStatusComponent(id: "2", name: "ZoomMate", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "4", name: "Zoom Phone - US", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "3", name: "My Notes", indicator: .minor, status: "degraded_performance"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .zoommate)
+
+        #expect(filtered.map(\.name) == ["ZoomMate", "My Notes"])
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist returns empty list when all named components are absent`() {
+        // Zoom's status page has been fully restructured and none of the four allowlisted names
+        // remain; the filter must degrade to an empty list rather than crash, so the existing
+        // "no components" gate (which shows only the website link) takes over.
+        let components = [
+            ProviderStatusComponent(id: "4", name: "Zoom Phone - US", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "5", name: "Zoom Rooms", indicator: .none, status: "operational"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .zoommate)
+
+        #expect(filtered.isEmpty)
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist on an empty component list stays empty`() {
+        let filtered = StatusItemController.filterStatusComponents([], for: .zoommate)
+        #expect(filtered.isEmpty)
+    }
+
     @Test
     @MainActor
     func `update menu action installs prepared update instead of checking again`() throws {

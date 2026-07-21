@@ -255,6 +255,12 @@ extension UsageMenuCardView.Model {
         {
             return Self.poeInlineDashboard(usage, now: input.now)
         }
+        if input.provider == .zoommate,
+           let history = input.snapshot?.zoommateCreditsHistory,
+           !history.dailyBreakdown().isEmpty || history.pacingVerdict() != nil
+        {
+            return Self.zoommateInlineDashboard(history)
+        }
         if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego].contains(input.provider),
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
@@ -266,6 +272,57 @@ extension UsageMenuCardView.Model {
                 comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled)
         }
         return nil
+    }
+
+    private static func zoommateInlineDashboard(
+        _ history: ZoomMateCreditsHistorySnapshot)
+        -> InlineUsageDashboardModel
+    {
+        let breakdown = history.dailyBreakdown()
+        let today = history.todayCreditsUsed()
+        let total = breakdown.reduce(0) { $0 + $1.totalCreditsUsed }
+        let points = breakdown.suffix(30).map {
+            InlineUsageDashboardModel.Point(
+                id: $0.day,
+                label: Self.shortDayLabel($0.day),
+                value: $0.totalCreditsUsed,
+                accessibilityValue: "\($0.day): \(Self.creditsSummary($0.totalCreditsUsed))")
+        }
+        var details: [String] = []
+        if let pace = history.pacingVerdict() {
+            details.append(Self.zoommatePaceLabel(for: pace))
+        }
+        var model = InlineUsageDashboardModel(
+            accessibilityLabel: L("ZoomMate 30 day credits usage trend"),
+            valueStyle: .tokens,
+            kpis: [
+                .init(title: L("Today"), value: Self.creditsSummary(today ?? 0), emphasis: true),
+                .init(title: L("30d credits"), value: Self.creditsSummary(total), emphasis: false),
+            ],
+            points: points,
+            detailLines: details)
+        model.barColor = Self.inlineDashboardBarColor(for: .zoommate)
+        return model
+    }
+
+    private static func creditsSummary(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    private static func zoommatePaceLabel(for pace: UsagePace) -> String {
+        let deltaValue = Int(abs(pace.deltaPercent).rounded())
+        switch pace.stage {
+        case .onTrack:
+            return L("Pace: on track")
+        case .slightlyAhead, .ahead, .farAhead:
+            return deltaValue == 0
+                ? L("Pace: ahead of budget")
+                : L("Pace: %d%% ahead of budget", deltaValue)
+        case .slightlyBehind, .behind, .farBehind:
+            return deltaValue == 0
+                ? L("Pace: behind budget")
+                : L("Pace: %d%% behind budget", deltaValue)
+        }
     }
 
     static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
@@ -777,7 +834,7 @@ extension UsageMenuCardView.Model {
         return .currency(symbol: symbol)
     }
 
-    private static func shortDayLabel(_ day: String) -> String {
+    static func shortDayLabel(_ day: String) -> String {
         let pieces = day.split(separator: "-")
         guard pieces.count == 3, let rawDay = Int(pieces[2]) else { return day }
         return "\(rawDay)"

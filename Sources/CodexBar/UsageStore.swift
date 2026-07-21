@@ -989,6 +989,7 @@ extension UsageStore {
                 .grok: "Grok debug log not yet implemented",
                 .groq: "Groq debug log not yet implemented",
                 .t3chat: "T3 Chat debug log not yet implemented",
+                .zoommate: "ZoomMate debug log not yet implemented",
                 .llmproxy: "LLM Proxy debug log not yet implemented",
                 .litellm: "LiteLLM debug log not yet implemented",
                 .deepgram: "Deepgram debug log not yet implemented",
@@ -1077,7 +1078,7 @@ extension UsageStore {
                      .mimo, .doubao, .sakana, .abacus, .mistral, .deepinfra, .codebuff, .crof, .windsurf,
                      .venice, .manus, .commandcode, .qoder, .stepfun, .bedrock, .grok, .groq, .t3chat, .llmproxy,
                      .litellm, .zed, .deepgram, .poe, .chutes, .neuralwatt, .clawrouter, .longcat, .wayfinder,
-                     .sub2api, .zenmux, .aiand:
+                     .sub2api, .zenmux, .aiand, .zoommate:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

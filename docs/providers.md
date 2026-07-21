@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 63 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 64 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -59,6 +59,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Local `amp usage` CLI, access-token API, then browser-cookie legacy fallback (`cli`, `api`, `web`). |
 | T3 Chat | Web tRPC customer-data endpoint via browser cookies (`web`). |
+| ZoomMate | Chrome cookie auto-import + cookie-to-token minting, or manual cURL capture, for the credits/status API (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | ElevenLabs | API key from config/env → subscription usage API (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
@@ -306,6 +307,22 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Shows the 4-hour Base bucket and monthly Overage bucket documented in the T3 Chat FAQ.
 - Status: none yet.
 - Details: `docs/t3chat.md`.
+
+## ZoomMate
+- Credits API endpoint (`https://ai.zoom.us/ai-computer/api/v1/credits/status`) authenticated via a
+  bearer token.
+- Auto-imports ZoomMate/Zoom session cookies from Chrome, validates and stores the narrowed cookie
+  header in CodexBar's Keychain cache, and exchanges it for a short-lived bearer token through
+  ZoomMate's own cookie-to-token bootstrap endpoint. The bearer remains in memory only and is reused
+  until it nears expiry. Manual cURL capture is available as an explicit alternative.
+- Shows a single "Credits" window: used/remaining credits against a budget cap, resetting at the
+  billing cycle end, plus an inline Today/30-day credits history chart and pacing verdict (on
+  track/behind/ahead of budget).
+- Status: `https://www.zoomstatus.com/` (Statuspage.io); the component drill-down is filtered to a
+  named allowlist ("Zoom Meetings", "ZoomMate", "My Notes", "Zoom Workflows", "Zoom Developer
+  Platform", "Zoom Support", "Zoom Website") rather than showing Zoom's full ~300-component status
+  page.
+- Details: `docs/zoommate.md`.
 
 ## Ollama
 - Web settings page (`https://ollama.com/settings`) via browser cookies.

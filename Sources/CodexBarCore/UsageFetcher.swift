@@ -1,5 +1,7 @@
 import Foundation
 
+// swiftlint:disable file_length
+
 public struct RateWindow: Codable, Equatable, Sendable {
     /// Provider usage value, intentionally not normalized globally. Pace and provider-specific diagnostics may
     /// preserve raw over-quota values; display-only projections should use `UsagePercent.displayClamped`.
@@ -190,6 +192,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let kiroUsage: KiroUsageDetails?
     public let ampUsage: AmpUsageDetails?
     public let zaiUsage: ZaiUsageSnapshot?
+    public let zoommateCreditsHistory: ZoomMateCreditsHistorySnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
     public let deepseekUsage: DeepSeekUsageSummary?
     public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
@@ -261,6 +264,7 @@ public struct UsageSnapshot: Codable, Sendable {
         ampUsage: AmpUsageDetails? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
+        zoommateCreditsHistory: ZoomMateCreditsHistorySnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
         deepseekUsage: DeepSeekUsageSummary? = nil,
         deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
@@ -297,6 +301,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.ampUsage = ampUsage
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
+        self.zoommateCreditsHistory = zoommateCreditsHistory
         self.minimaxUsage = minimaxUsage
         self.deepseekUsage = deepseekUsage
         self.deepseekDetailedUsageState = deepseekDetailedUsageState
@@ -350,6 +355,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.kiroUsage = try container.decodeIfPresent(KiroUsageDetails.self, forKey: .kiroUsage)
         self.ampUsage = try container.decodeIfPresent(AmpUsageDetails.self, forKey: .ampUsage)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
+        self.zoommateCreditsHistory = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
         self.deepseekUsage = nil // Not persisted, fetched fresh each time
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
@@ -635,6 +641,7 @@ public struct UsageSnapshot: Codable, Sendable {
             ampUsage: self.ampUsage,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
+            zoommateCreditsHistory: self.zoommateCreditsHistory,
             minimaxUsage: self.minimaxUsage,
             deepseekUsage: deepseekUsage.resolving(self.deepseekUsage),
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),

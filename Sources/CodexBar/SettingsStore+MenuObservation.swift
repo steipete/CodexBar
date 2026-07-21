@@ -80,6 +80,7 @@ extension SettingsStore {
         _ = self.augmentCookieSource
         _ = self.ampCookieSource
         _ = self.t3ChatCookieSource
+        _ = self.zoomMateCookieSource
         _ = self.ollamaCookieSource
         _ = self.mergeIcons
         _ = self.switcherShowsIcons
@@ -101,6 +102,7 @@ extension SettingsStore {
         _ = self.augmentCookieHeader
         _ = self.ampCookieHeader
         _ = self.t3ChatCookieHeader
+        _ = self.zoomMateCookieHeader
         _ = self.ollamaCookieHeader
         _ = self.copilotAPIToken
         _ = self.warpAPIToken

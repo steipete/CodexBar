@@ -122,6 +122,16 @@ extension UsageMenuCardView.Model {
             self.placeholder != nil
     }
 
+    var creditsOnlyInlineUsageDashboard: Bool {
+        self.creditsText != nil &&
+            self.inlineUsageDashboard != nil &&
+            self.metrics.isEmpty &&
+            self.usageNotes.isEmpty &&
+            self.openAIAPIUsage == nil &&
+            self.codexResetCredits == nil &&
+            self.placeholder == nil
+    }
+
     var usesStackedDetailLayout: Bool {
         !self.metrics.isEmpty ||
             self.creditsText != nil ||
