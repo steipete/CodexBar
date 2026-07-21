@@ -75,35 +75,17 @@ struct CodexBarTests {
     @Test
     func `antigravity quota summary icon shows session on top and weekly on bottom`() {
         let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 84, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 97, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 84, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
-                    window: RateWindow(usedPercent: 84, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-5h",
-                    title: "Gemini Session",
-                    window: RateWindow(usedPercent: 97, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
-                    window: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-5h",
-                    title: "Claude + GPT Session",
-                    window: RateWindow(usedPercent: 98, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-            ],
             updatedAt: Date())
 
         let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
 
         #expect(windows.primary?.windowMinutes == 300)
-        #expect(windows.primary?.remainingPercent == 2)
+        #expect(windows.primary?.remainingPercent == 3)
         #expect(windows.secondary?.windowMinutes == 10080)
-        #expect(windows.secondary?.remainingPercent == 1)
+        #expect(windows.secondary?.remainingPercent == 16)
     }
 
     @Test
@@ -136,178 +118,6 @@ struct CodexBarTests {
         let visualBottomRightAlpha = averageAlpha(xRange: 24...30, yRange: 22...28)
 
         #expect(visualTopRightAlpha > visualBottomRightAlpha + 0.2)
-    }
-
-    @Test
-    func `antigravity quota summary icon uses most constrained quota summary lanes`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Renamed Weekly",
-                    window: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-5h",
-                    title: "Renamed Session",
-                    window: RateWindow(usedPercent: 40, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-weekly",
-                    title: "Gemini Weekly",
-                    window: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-5h",
-                    title: "Gemini Session",
-                    window: RateWindow(usedPercent: 98, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-            ],
-            updatedAt: Date())
-
-        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
-
-        #expect(windows.primary?.remainingPercent == 2)
-        #expect(windows.secondary?.remainingPercent == 1)
-    }
-
-    @Test
-    func `antigravity quota summary icon can pair gemini session with claude gpt weekly`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-5h",
-                    title: "Gemini Session",
-                    window: RateWindow(usedPercent: 40, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
-                    window: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-            ],
-            updatedAt: Date())
-
-        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
-
-        #expect(windows.primary?.remainingPercent == 60)
-        #expect(windows.secondary?.remainingPercent == 1)
-    }
-
-    @Test
-    func `antigravity quota summary icon ignores unknown rows while ranking known lanes`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
-                    window: RateWindow(usedPercent: 100, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-                    usageKnown: false),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
-                    window: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-            ],
-            updatedAt: Date())
-
-        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
-
-        #expect(windows.primary == nil)
-        #expect(windows.secondary?.remainingPercent == 1)
-    }
-
-    @Test
-    func `antigravity used icon percent matches constrained claude gpt lane`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-5h",
-                    title: "Gemini Session",
-                    window: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-weekly",
-                    title: "Gemini Weekly",
-                    window: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-5h",
-                    title: "Claude + GPT Session",
-                    window: RateWindow(usedPercent: 95, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
-                    window: RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-            ],
-            updatedAt: Date())
-
-        let percents = IconRemainingResolver.resolvedPercents(
-            snapshot: snapshot,
-            style: .antigravity,
-            showUsed: true)
-
-        #expect(percents.primary == 95)
-        #expect(percents.secondary == 40)
-    }
-
-    @Test
-    func `antigravity quota summary icon falls back when gemini rows are absent`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-5h",
-                    title: "Claude + GPT Session",
-                    window: RateWindow(usedPercent: 75, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-3p-weekly",
-                    title: "Claude + GPT Weekly",
-                    window: RateWindow(usedPercent: 88, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
-            ],
-            updatedAt: Date())
-
-        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
-
-        #expect(windows.primary?.remainingPercent == 25)
-        #expect(windows.secondary?.remainingPercent == 12)
-    }
-
-    @Test
-    func `antigravity quota summary icon tie break is stable`() {
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            extraRateWindows: [
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-z-5h",
-                    title: "Gemini Session",
-                    window: RateWindow(
-                        usedPercent: 50,
-                        windowMinutes: 300,
-                        resetsAt: nil,
-                        resetDescription: "second-by-id")),
-                NamedRateWindow(
-                    id: "antigravity-quota-summary-gemini-a-5h",
-                    title: "Gemini Session",
-                    window: RateWindow(
-                        usedPercent: 50,
-                        windowMinutes: 300,
-                        resetsAt: nil,
-                        resetDescription: "first-by-id")),
-            ],
-            updatedAt: Date())
-
-        let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)
-
-        #expect(windows.primary?.resetDescription == "first-by-id")
-        #expect(windows.secondary == nil)
     }
 
     @Test

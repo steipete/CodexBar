@@ -162,7 +162,7 @@ struct UsageStoreWidgetSnapshotTests {
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .antigravity })
         #expect(widgetSnapshots.last?.usageBarsShowUsed == true)
         #expect(entry.usageRows?.map(\.id) == ["primary", "secondary"])
-        #expect(entry.usageRows?.map(\.title) == ["Gemini Models", "Claude and GPT"])
+        #expect(entry.usageRows?.map(\.title) == ["Gemini 5-hour", "Gemini weekly"])
         #expect(entry.usageRows?.compactMap(\.percentLeft) == [90, 80])
     }
 

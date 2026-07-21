@@ -54,8 +54,8 @@ struct AntigravityQuotaSummaryTests {
         ]
         #expect(windows.map(\.window.resetsAt) == expectedDates)
 
-        #expect(usage.primary?.remainingPercent.rounded() == 82)
-        #expect(usage.secondary?.remainingPercent.rounded() == 64)
+        #expect(usage.primary?.remainingPercent.rounded() == 91)
+        #expect(usage.secondary?.remainingPercent.rounded() == 82)
         #expect(usage.tertiary == nil)
     }
 

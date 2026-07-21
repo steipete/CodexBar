@@ -39,8 +39,9 @@ enum UsagePaceText {
 
     static func sessionEquivalentDetail(forecast: SessionEquivalentForecast) -> SessionEquivalentDetail {
         let displayedEstimate = Self.boundedFullWindowCount(forecast.estimatedWindowsToExhaustWeekly)
-        let numberText = String.localizedStringWithFormat(
-            L("≈%d full 5h windows of weekly left · %d windows until reset"),
+        let numberText = String(
+            format: L("≈%d full 5h windows of weekly left · %d windows until reset"),
+            locale: codexBarLocalizedLocale(),
             displayedEstimate,
             forecast.windowsUntilReset)
         let verdictText: String
@@ -49,8 +50,9 @@ enum UsagePaceText {
         } else {
             let windowsEarly = Self.boundedWindowCount(
                 forecast.availableWindowsUntilReset - forecast.estimatedWindowsToExhaustWeekly)
-            verdictText = String.localizedStringWithFormat(
-                L("Weekly can run out ≈%d windows early"),
+            verdictText = String(
+                format: L("Weekly can run out ≈%d windows early"),
+                locale: codexBarLocalizedLocale(),
                 max(1, windowsEarly))
         }
         return SessionEquivalentDetail(

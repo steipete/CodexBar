@@ -98,8 +98,8 @@ struct StatusItemAnimationSignatureTests {
 
         store._setSnapshotForTesting(
             UsageSnapshot(
-                primary: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-                secondary: RateWindow(usedPercent: 16, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                primary: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
                 tertiary: nil,
                 extraRateWindows: [
                     NamedRateWindow(
@@ -138,7 +138,7 @@ struct StatusItemAnimationSignatureTests {
 
         #expect(signature.contains("provider=antigravity"))
         #expect(signature.contains("style=combined"))
-        #expect(signature.contains("primary=98.000"))
+        #expect(signature.contains("primary=99.000"))
         #expect(signature.contains("weekly=1.000"))
     }
 

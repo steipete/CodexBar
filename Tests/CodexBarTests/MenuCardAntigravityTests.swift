@@ -86,7 +86,7 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.count == 1)
-        #expect(model.metrics.map(\.title) == ["Gemini Models"])
+        #expect(model.metrics.map(\.title) == ["Gemini 5-hour"])
         #expect(model.metrics[0].percent == 95)
         #expect(model.metrics[0].percentLabel == "95% left")
     }
@@ -188,7 +188,7 @@ struct MenuCardAntigravityTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title) == ["Gemini Models", "Claude and GPT"])
+        #expect(model.metrics.map(\.title) == ["Gemini 5-hour", "Claude Thinking"])
         #expect(!model.metrics.contains { $0.title == "Gemini 3.1 Pro (Low)" })
     }
 
@@ -250,11 +250,13 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.map(\.title) == [
-            "Gemini Models",
-            "Claude and GPT",
+            "Gemini 5-hour",
+            "Claude Opus 4.6 (Thinking)",
+            "GPT-OSS 120B (Medium)",
         ])
         #expect(model.metrics.map(\.percentLabel) == [
             "50% left",
+            "75% left",
             "25% left",
         ])
     }
@@ -307,7 +309,7 @@ struct MenuCardAntigravityTests {
 
         // Distinct extra windows remain visible even with optional extras disabled.
         #expect(model.metrics.contains { $0.title == "Experimental Tool" })
-        #expect(model.metrics.contains { $0.title == "Gemini Models" })
+        #expect(model.metrics.contains { $0.title == "Gemini 5-hour" })
     }
 
     @Test
@@ -517,7 +519,7 @@ struct MenuCardAntigravityTests {
             now: now))
 
         #expect(model.metrics.count == 1)
-        #expect(model.metrics[0].title == "Gemini Models")
+        #expect(model.metrics[0].title == "Gemini 5-hour")
         #expect(model.metrics[0].percent == 5)
         #expect(model.metrics[0].percentLabel == "5% used")
     }

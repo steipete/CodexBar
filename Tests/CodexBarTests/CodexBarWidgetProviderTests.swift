@@ -628,7 +628,7 @@ struct CodexBarWidgetProviderTests {
         let rows = WidgetUsageRow.rows(for: entry)
 
         #expect(rows.map(\.id) == ["primary", "secondary"])
-        #expect(rows.map(\.title) == ["Gemini Models", "Claude and GPT"])
+        #expect(rows.map(\.title) == ["Gemini 5-hour", "Gemini weekly"])
         #expect(rows.compactMap(\.percentLeft) == [90, 80])
     }
 
