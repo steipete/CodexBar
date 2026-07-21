@@ -1328,6 +1328,7 @@ extension UsageStore {
         guard !providerBuckets.unscoped.isEmpty else { return }
 
         let existingHistory = providerBuckets.accounts[accountKey] ?? []
+        let targetHasHistory = !existingHistory.isEmpty
         let mergedHistory = Self.mergedPlanUtilizationHistories(provider: provider, histories: [
             existingHistory,
             providerBuckets.unscoped,
@@ -1335,7 +1336,12 @@ extension UsageStore {
         providerBuckets.setHistories(mergedHistory, for: accountKey)
         providerBuckets.setHistories([], for: nil)
         if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {
-            providerBuckets.moveSessionEquivalentWindowPairIdentity(from: nil, to: accountKey)
+            self.materializeLegacySessionEquivalentHistoryIdentityDuringAccountAdoption(
+                provider: provider,
+                from: nil,
+                to: accountKey,
+                targetHasHistory: targetHasHistory,
+                providerBuckets: &providerBuckets)
         }
     }
 
