@@ -277,6 +277,10 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let modelName: String
         public let costUSD: Double?
         public let totalTokens: Int?
+        public let inputTokens: Int?
+        public let cacheReadTokens: Int?
+        public let cacheCreationTokens: Int?
+        public let outputTokens: Int?
         public let requestCount: Int?
         public let standardCostUSD: Double?
         public let priorityCostUSD: Double?
@@ -288,6 +292,12 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case costUSD
             case cost
             case totalTokens
+            case inputTokens
+            case cacheReadTokens
+            case cacheCreationTokens
+            case cacheReadInputTokens
+            case cacheCreationInputTokens
+            case outputTokens
             case requestCount
             case requests
             case standardCostUSD
@@ -303,6 +313,14 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .cost)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+            self.inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
+            self.cacheReadTokens =
+                try container.decodeIfPresent(Int.self, forKey: .cacheReadTokens)
+                ?? container.decodeIfPresent(Int.self, forKey: .cacheReadInputTokens)
+            self.cacheCreationTokens =
+                try container.decodeIfPresent(Int.self, forKey: .cacheCreationTokens)
+                ?? container.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens)
+            self.outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
             self.requestCount =
                 try container.decodeIfPresent(Int.self, forKey: .requestCount)
                 ?? container.decodeIfPresent(Int.self, forKey: .requests)
@@ -316,6 +334,10 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             modelName: String,
             costUSD: Double?,
             totalTokens: Int? = nil,
+            inputTokens: Int? = nil,
+            cacheReadTokens: Int? = nil,
+            cacheCreationTokens: Int? = nil,
+            outputTokens: Int? = nil,
             requestCount: Int? = nil,
             standardCostUSD: Double? = nil,
             priorityCostUSD: Double? = nil,
@@ -325,6 +347,10 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.modelName = modelName
             self.costUSD = costUSD
             self.totalTokens = totalTokens
+            self.inputTokens = inputTokens
+            self.cacheReadTokens = cacheReadTokens
+            self.cacheCreationTokens = cacheCreationTokens
+            self.outputTokens = outputTokens
             self.requestCount = requestCount
             self.standardCostUSD = standardCostUSD
             self.priorityCostUSD = priorityCostUSD
@@ -530,6 +556,18 @@ extension CostUsageDailyReport {
     private struct BreakdownAccumulator {
         var totalTokens: Int = 0
         var sawTotalTokens = false
+        var inputTokens: Int = 0
+        var sawInputTokens = false
+        var missingInputTokens = false
+        var cacheReadTokens: Int = 0
+        var sawCacheReadTokens = false
+        var missingCacheReadTokens = false
+        var cacheCreationTokens: Int = 0
+        var sawCacheCreationTokens = false
+        var missingCacheCreationTokens = false
+        var outputTokens: Int = 0
+        var sawOutputTokens = false
+        var missingOutputTokens = false
         var costUSD: Double = 0
         var sawCost = false
         var standardCostUSD: Double = 0
@@ -545,6 +583,30 @@ extension CostUsageDailyReport {
             if let totalTokens = breakdown.totalTokens {
                 self.totalTokens += totalTokens
                 self.sawTotalTokens = true
+            }
+            if let inputTokens = breakdown.inputTokens {
+                self.inputTokens += inputTokens
+                self.sawInputTokens = true
+            } else {
+                self.missingInputTokens = true
+            }
+            if let cacheReadTokens = breakdown.cacheReadTokens {
+                self.cacheReadTokens += cacheReadTokens
+                self.sawCacheReadTokens = true
+            } else {
+                self.missingCacheReadTokens = true
+            }
+            if let cacheCreationTokens = breakdown.cacheCreationTokens {
+                self.cacheCreationTokens += cacheCreationTokens
+                self.sawCacheCreationTokens = true
+            } else {
+                self.missingCacheCreationTokens = true
+            }
+            if let outputTokens = breakdown.outputTokens {
+                self.outputTokens += outputTokens
+                self.sawOutputTokens = true
+            } else {
+                self.missingOutputTokens = true
             }
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
@@ -573,6 +635,12 @@ extension CostUsageDailyReport {
                 modelName: modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
+                inputTokens: self.sawInputTokens && !self.missingInputTokens ? self.inputTokens : nil,
+                cacheReadTokens: self.sawCacheReadTokens && !self.missingCacheReadTokens ? self.cacheReadTokens : nil,
+                cacheCreationTokens: self.sawCacheCreationTokens && !self.missingCacheCreationTokens
+                    ? self.cacheCreationTokens
+                    : nil,
+                outputTokens: self.sawOutputTokens && !self.missingOutputTokens ? self.outputTokens : nil,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,

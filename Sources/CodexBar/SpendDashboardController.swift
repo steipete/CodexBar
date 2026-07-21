@@ -62,6 +62,7 @@ struct SpendDashboardLoadRequest: Sendable {
     let unavailableSourceIDs: Set<String>
     let confirmedEmptySourceIDs: Set<String>
     let codexRequests: [CodexSpendScanRequest]
+    let kimiCodeHomePath: String?
     let now: Date
     let force: Bool
 
@@ -71,6 +72,7 @@ struct SpendDashboardLoadRequest: Sendable {
         unavailableSourceIDs: Set<String>,
         confirmedEmptySourceIDs: Set<String> = [],
         codexRequests: [CodexSpendScanRequest],
+        kimiCodeHomePath: String? = nil,
         now: Date,
         force: Bool)
     {
@@ -79,6 +81,7 @@ struct SpendDashboardLoadRequest: Sendable {
         self.unavailableSourceIDs = unavailableSourceIDs
         self.confirmedEmptySourceIDs = confirmedEmptySourceIDs
         self.codexRequests = codexRequests
+        self.kimiCodeHomePath = kimiCodeHomePath
         self.now = now
         self.force = force
     }
@@ -114,11 +117,19 @@ struct CodexSpendSnapshotLoadContext: Sendable {
     let includePiSessions: Bool
 }
 
+struct KimiCodeSpendSnapshotLoadContext: Sendable {
+    let homePath: String
+    let now: Date
+    let historyDays: Int
+}
+
 enum SpendDashboardSource {
     typealias CodexSnapshotLoader = @Sendable (CodexSpendSnapshotLoadContext) async throws
         -> CostUsageTokenSnapshot
+    typealias KimiCodeSnapshotLoader = @Sendable (KimiCodeSpendSnapshotLoadContext) async throws
+        -> CostUsageTokenSnapshot?
 
-    static let scanDays = 30
+    static let scanDays = 365
 
     @MainActor
     static func configuration(settings: SettingsStore, store: UsageStore) -> SpendDashboardConfiguration {
@@ -142,7 +153,8 @@ enum SpendDashboardSource {
     {
         SpendDashboardConfiguration(
             costUsageEnabled: settings.costUsageEnabled,
-            providerIDs: providers.map(\.rawValue),
+            providerIDs: Array(Set(
+                (providers + self.localModelHistoryProviders(store: store)).map(\.rawValue))).sorted(),
             codexAccountIdentities: codexRequests.map { "\($0.id)|\($0.cacheIdentity)" },
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexRequests),
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
@@ -241,19 +253,30 @@ enum SpendDashboardSource {
             unavailableSourceIDs: unavailableSourceIDs,
             confirmedEmptySourceIDs: confirmedEmptySourceIDs,
             codexRequests: codexRequests,
+            kimiCodeHomePath: self.localModelHistoryProviders(store: store).contains(.kimi)
+                ? KimiSettingsReader.kimiCodeHomeURL().path
+                : nil,
             now: captureNow,
             force: mode.forcesLoader)
     }
 
     static func load(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
-        await self.load(request, codexSnapshotLoader: { context in
-            try await self.loadCodexSnapshot(context)
-        })
+        await self.load(
+            request,
+            codexSnapshotLoader: { context in
+                try await self.loadCodexSnapshot(context)
+            },
+            kimiCodeSnapshotLoader: { context in
+                try await self.loadKimiCodeSnapshot(context)
+            })
     }
 
     static func load(
         _ request: SpendDashboardLoadRequest,
-        codexSnapshotLoader: CodexSnapshotLoader) async -> SpendDashboardLoadResult
+        codexSnapshotLoader: CodexSnapshotLoader,
+        kimiCodeSnapshotLoader: KimiCodeSnapshotLoader = { context in
+            try await Self.loadKimiCodeSnapshot(context)
+        }) async -> SpendDashboardLoadResult
     {
         var inputs = request.capturedInputs
         var failedSourceIDs = request.unavailableSourceIDs
@@ -299,6 +322,30 @@ enum SpendDashboardSource {
                 failedSourceIDs.insert(sourceID)
             }
         }
+        if let homePath = request.kimiCodeHomePath {
+            do {
+                if let snapshot = try await kimiCodeSnapshotLoader(KimiCodeSpendSnapshotLoadContext(
+                    homePath: homePath,
+                    now: request.now,
+                    historyDays: Self.scanDays))
+                {
+                    inputs.append(SpendDashboardModel.ProviderInput(
+                        id: "kimi:local",
+                        provider: .kimi,
+                        displayName: "Kimi Code CLI",
+                        modelProviderName: ProviderDescriptorRegistry.descriptor(for: .kimi).metadata.displayName,
+                        snapshot: snapshot))
+                }
+            } catch is CancellationError {
+                failedSourceIDs.insert("kimi:local")
+                return SpendDashboardLoadResult(
+                    inputs: [],
+                    failedSourceIDs: failedSourceIDs,
+                    invalidatedSourceIDs: invalidatedSourceIDs)
+            } catch {
+                failedSourceIDs.insert("kimi:local")
+            }
+        }
         let lateInvalidatedSourceIDs = Set(request.codexRequests.compactMap { account in
             self.currentAuthFingerprint(for: account) == account.authFingerprint
                 ? nil
@@ -327,11 +374,30 @@ enum SpendDashboardSource {
             includePiSessions: context.includePiSessions)
     }
 
+    private static func loadKimiCodeSnapshot(
+        _ context: KimiCodeSpendSnapshotLoadContext) async throws -> CostUsageTokenSnapshot?
+    {
+        try await Task.detached(priority: .utility) {
+            try Task.checkCancellation()
+            let snapshot = KimiCodeSessionScanner.scan(
+                environment: [KimiSettingsReader.codeHomeEnvironmentKey: context.homePath],
+                historyDays: context.historyDays,
+                now: context.now)
+            try Task.checkCancellation()
+            return snapshot
+        }.value
+    }
+
     @MainActor
     static func costCapableProviders(store: UsageStore) -> [UsageProvider] {
         store.enabledProvidersForDisplay().filter {
             ProviderDescriptorRegistry.descriptor(for: $0).tokenCost.supportsTokenCost
         }
+    }
+
+    @MainActor
+    static func localModelHistoryProviders(store: UsageStore) -> [UsageProvider] {
+        store.enabledProvidersForDisplay().filter { $0 == .kimi }
     }
 
     @MainActor
@@ -1044,6 +1110,6 @@ final class SpendDashboardController {
     }
 
     private static func normalizedDays(_ value: Int) -> Int {
-        value == 7 ? 7 : 30
+        [7, 30, 365].contains(value) ? value : 30
     }
 }

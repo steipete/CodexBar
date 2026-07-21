@@ -120,7 +120,9 @@ public enum KimiSettingsReader {
         return deviceID
     }
 
-    private static func kimiCodeHomeURL(environment: [String: String]) -> URL {
+    public static func kimiCodeHomeURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
+    {
         if let override = self.cleaned(environment[self.codeHomeEnvironmentKey]) {
             return URL(fileURLWithPath: override, isDirectory: true)
         }

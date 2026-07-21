@@ -116,17 +116,21 @@ struct UserFacingLocalizationCoverageTests {
     }
 
     @Test
-    func `spend dashboard model breakdown state stays precise and localized`() throws {
+    func `spend dashboard embedded model card is fully localized`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/CodexBar/PreferencesSpendDashboardPane.swift"),
+            contentsOf: root.appendingPathComponent("Sources/CodexBar/PreferencesSpendModelsView.swift"),
             encoding: .utf8)
 
-        #expect(source.contains(#"Text(L("Model breakdown unavailable"))"#))
+        #expect(source.contains(#"Text(L("Models"))"#))
         #expect(source.contains(#"Text(L("No model-level history"))"#))
+        #expect(source.contains(#"Text(L("Partial model history: incomplete source-days are excluded."))"#))
+        #expect(!source.contains(#"Text("Models")"#))
+        #expect(!source.contains(#"Text("No model-level history")"#))
+        #expect(!source.contains(#"Text("Partial model history: incomplete source-days are excluded.")"#))
     }
 
     @Test

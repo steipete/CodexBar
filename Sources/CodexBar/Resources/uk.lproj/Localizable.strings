@@ -1267,6 +1267,15 @@
 "Subscriptions" = "Підписки";
 "By subscription" = "За підписками";
 "No model-level history" = "Немає історії за моделями";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "Орієнтовні щоденні витрати";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d повних 5-годинних вікон тижневого ліміту · %d вікон до скидання";
 "Weekly cannot run out before reset at this pace" = "За такого темпу тижневий ліміт не може вичерпатися до скидання";

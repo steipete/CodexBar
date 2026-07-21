@@ -705,7 +705,11 @@ extension CostUsageFetcherTests {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "claude-sonnet-4-6",
                 costUSD: nativeCost + piCost,
-                totalTokens: 205),
+                totalTokens: 205,
+                inputTokens: 150,
+                cacheReadTokens: 9,
+                cacheCreationTokens: 16,
+                outputTokens: 30),
         ])
     }
 

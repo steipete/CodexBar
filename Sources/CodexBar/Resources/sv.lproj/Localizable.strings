@@ -1266,6 +1266,15 @@
 "Subscriptions" = "Abonnemang";
 "By subscription" = "Per abonnemang";
 "No model-level history" = "Ingen historik på modellnivå";
+"Tokens" = "Tokens";
+"Tracked model tokens" = "Tracked model tokens";
+"Priced model spend" = "Priced model spend";
+"Partial model history: incomplete source-days are excluded." = "Partial model history: incomplete source-days are excluded.";
+"No priced model history" = "No priced model history";
+"Other" = "Other";
+"Show all %d models" = "Show all %d models";
+"Show top 20" = "Show top 20";
+"Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers." = "Model names are grouped after trimming and case-insensitive exact matching. Sources are not deduplicated across providers.";
 "Daily estimated spend" = "Uppskattade dagliga utgifter";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d fulla 5-timmarsfönster av veckokvoten kvar · %d fönster till återställning";
 "Weekly cannot run out before reset at this pace" = "Veckokvoten kan inte ta slut före återställningen i den här takten";
