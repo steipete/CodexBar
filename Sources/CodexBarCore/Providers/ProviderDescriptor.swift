@@ -10,11 +10,79 @@ public struct ProviderTokenCostConfig: Sendable {
     }
 }
 
+public enum ProviderPaceWindowRule: Sendable {
+    case unsupported
+    case resetDatePresent
+    case windowDurationPresent
+    case windowDuration(minutes: Int)
+    case custom(@Sendable (_ window: RateWindow, _ now: Date) -> Bool)
+
+    public func matches(window: RateWindow, now: Date) -> Bool {
+        switch self {
+        case .unsupported:
+            false
+        case .resetDatePresent:
+            window.resetsAt != nil
+        case .windowDurationPresent:
+            window.windowMinutes != nil
+        case let .windowDuration(minutes):
+            window.windowMinutes == minutes
+        case let .custom(predicate):
+            predicate(window, now)
+        }
+    }
+}
+
+public enum ProviderPaceDurationRule: Sendable {
+    case unsupported
+    case windowDurationMissing
+    case windowDuration(minutes: Int)
+
+    public func matches(window: RateWindow) -> Bool {
+        switch self {
+        case .unsupported:
+            false
+        case .windowDurationMissing:
+            window.windowMinutes == nil
+        case let .windowDuration(minutes):
+            window.windowMinutes == minutes
+        }
+    }
+}
+
+public struct ProviderPaceCapability: Sendable {
+    public static let monthlyWindowSentinelMinutes = 30 * 24 * 60
+    public static let unsupported = ProviderPaceCapability()
+    public static let calendarMonthResetWindow = ProviderPaceCapability(
+        resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+        inferredMonthlyDuration: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes))
+
+    public let resetWindowPace: ProviderPaceWindowRule
+    public let inferredMonthlyDuration: ProviderPaceDurationRule
+
+    public init(
+        resetWindowPace: ProviderPaceWindowRule = .unsupported,
+        inferredMonthlyDuration: ProviderPaceDurationRule = .unsupported)
+    {
+        self.resetWindowPace = resetWindowPace
+        self.inferredMonthlyDuration = inferredMonthlyDuration
+    }
+
+    public func supportsResetWindowPace(window: RateWindow, now: Date) -> Bool {
+        self.resetWindowPace.matches(window: window, now: now)
+    }
+
+    public func usesInferredMonthlyDuration(window: RateWindow) -> Bool {
+        self.inferredMonthlyDuration.matches(window: window)
+    }
+}
+
 public struct ProviderDescriptor: Sendable {
     public let id: UsageProvider
     public let metadata: ProviderMetadata
     public let branding: ProviderBranding
     public let tokenCost: ProviderTokenCostConfig
+    public let pace: ProviderPaceCapability
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
 
@@ -23,6 +91,7 @@ public struct ProviderDescriptor: Sendable {
         metadata: ProviderMetadata,
         branding: ProviderBranding,
         tokenCost: ProviderTokenCostConfig,
+        pace: ProviderPaceCapability = .unsupported,
         fetchPlan: ProviderFetchPlan,
         cli: ProviderCLIConfig)
     {
@@ -30,6 +99,7 @@ public struct ProviderDescriptor: Sendable {
         self.metadata = metadata
         self.branding = branding
         self.tokenCost = tokenCost
+        self.pace = pace
         self.fetchPlan = fetchPlan
         self.cli = cli
     }

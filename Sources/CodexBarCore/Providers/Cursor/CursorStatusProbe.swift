@@ -1578,17 +1578,7 @@ public struct CursorStatusProbe: Sendable {
         let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
         func normPct(_ value: Double?) -> Double? {
             guard let v = value else { return nil }
-            if v < 0 {
-                return 0
-            }
-            if v > 100 {
-                return 100
-            }
-            return v
-        }
-
-        func normalizeTotalPercent(_ v: Double) -> Double {
-            max(0, min(100, v))
+            return UsagePercent(raw: v).displayClamped
         }
 
         // Cursor's usage-summary percent fields are already in percentage units, even when they are fractional
@@ -1614,19 +1604,19 @@ public struct CursorStatusProbe: Sendable {
         //   5. NEW: `individualUsage.overall` ratio (Enterprise/Team personal cap)
         //   6. NEW: `teamUsage.pooled` ratio (last resort when no individual data is reported)
         let planPercentUsed: Double = if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
-            normalizeTotalPercent(totalPercentUsed)
+            UsagePercent(raw: totalPercentUsed).displayClamped
         } else if let autoUsed = autoPercent, let apiUsed = apiPercent {
-            max(0, min(100, (autoUsed + apiUsed) / 2))
+            UsagePercent(raw: (autoUsed + apiUsed) / 2).displayClamped
         } else if let apiUsed = apiPercent {
-            max(0, min(100, apiUsed))
+            UsagePercent(raw: apiUsed).displayClamped
         } else if let autoUsed = autoPercent {
-            max(0, min(100, autoUsed))
+            UsagePercent(raw: autoUsed).displayClamped
         } else if planLimitRaw > 0 {
-            normalizeTotalPercent((planUsedRaw / planLimitRaw) * 100)
+            UsagePercent(used: planUsedRaw, limit: planLimitRaw).displayClamped
         } else if let used = overallUsedRaw, let limit = overallLimitRaw, limit > 0 {
-            normalizeTotalPercent((used / limit) * 100)
+            UsagePercent(used: used, limit: limit).displayClamped
         } else if let used = pooledUsedRaw, let limit = pooledLimitRaw, limit > 0 {
-            normalizeTotalPercent((used / limit) * 100)
+            UsagePercent(used: used, limit: limit).displayClamped
         } else {
             0
         }

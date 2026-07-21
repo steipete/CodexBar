@@ -87,7 +87,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
             return nil
         }
         let used = self.monthlyCreditsUsed ?? 0
-        let percent = min(100, max(0, (used / total) * 100))
+        let percent = UsagePercent(used: used, limit: total).displayClamped
         return RateWindow(
             usedPercent: percent,
             windowMinutes: nil,

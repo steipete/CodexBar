@@ -518,7 +518,8 @@ extension UsageMenuCardView.Model {
         input: Input,
         pace: UsagePace? = nil) -> PaceDetail?
     {
-        guard self.supportsResetWindowPace(provider: input.provider, window: window, now: input.now),
+        let capability = ProviderDescriptorRegistry.descriptor(for: input.provider).pace
+        guard capability.supportsResetWindowPace(window: window, now: input.now),
               window.remainingPercent > 0
         else { return nil }
         let paceWindow = Self.resetWindowForPace(provider: input.provider, window: window)
@@ -536,34 +537,10 @@ extension UsageMenuCardView.Model {
             showUsed: input.usageBarsShowUsed)
     }
 
-    private static let weeklyWindowMinutes = 7 * 24 * 60
-    private static let monthlyWindowSentinelMinutes = 30 * 24 * 60
-
-    private static func supportsResetWindowPace(provider: UsageProvider, window: RateWindow, now: Date) -> Bool {
-        switch provider {
-        case .copilot:
-            return window.resetsAt != nil
-        case .cursor:
-            return window.windowMinutes != nil
-        case .grok:
-            guard GrokProviderDescriptor.primaryLabel(window: window, now: now) == "Weekly",
-                  let resetsAt = window.resetsAt
-            else { return false }
-            let windowMinutes = window.windowMinutes ?? self.weeklyWindowMinutes
-            let timeUntilReset = resetsAt.timeIntervalSince(now)
-            return windowMinutes > 0
-                && timeUntilReset > 0
-                && timeUntilReset <= TimeInterval(windowMinutes) * 60
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
-            return window.windowMinutes == self.monthlyWindowSentinelMinutes
-        default:
-            return false
-        }
-    }
-
     private static func resetWindowForPace(provider: UsageProvider, window: RateWindow) -> RateWindow {
         // Provider snapshots use 30 days as a monthly sentinel; use the reset date for the real calendar-cycle length.
-        guard self.usesInferredMonthlyDuration(provider: provider, window: window),
+        let pace = ProviderDescriptorRegistry.descriptor(for: provider).pace
+        guard pace.usesInferredMonthlyDuration(window: window),
               let resetsAt = window.resetsAt,
               let minutes = self.inferredMonthlyWindowMinutes(endingAt: resetsAt)
         else { return window }
@@ -574,17 +551,6 @@ extension UsageMenuCardView.Model {
             resetDescription: window.resetDescription,
             nextRegenPercent: window.nextRegenPercent,
             isSyntheticPlaceholder: window.isSyntheticPlaceholder)
-    }
-
-    private static func usesInferredMonthlyDuration(provider: UsageProvider, window: RateWindow) -> Bool {
-        switch provider {
-        case .copilot:
-            window.windowMinutes == nil
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
-            window.windowMinutes == self.monthlyWindowSentinelMinutes
-        default:
-            false
-        }
     }
 
     private static func inferredMonthlyWindowMinutes(endingAt resetsAt: Date) -> Int? {
