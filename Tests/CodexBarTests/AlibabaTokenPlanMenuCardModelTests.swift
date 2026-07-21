@@ -9,10 +9,11 @@ struct AlibabaTokenPlanMenuCardModelTests {
         let now = Date(timeIntervalSince1970: 10_368_000) // 1970-05-01T00:00:00Z
         let snapshot = AlibabaTokenPlanUsageSnapshot(
             planName: "TOKEN PLAN",
-            usedQuota: 900,
-            totalQuota: 1000,
-            remainingQuota: nil,
-            resetsAt: now.addingTimeInterval(6 * 24 * 3600),
+            quota: .creditPool(
+                used: 900,
+                total: 1000,
+                remaining: nil,
+                resetsAt: now.addingTimeInterval(6 * 24 * 3600)),
             updatedAt: now)
             .toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.alibabatokenplan])

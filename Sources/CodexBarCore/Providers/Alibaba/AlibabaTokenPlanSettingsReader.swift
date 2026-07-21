@@ -9,6 +9,8 @@ public struct AlibabaTokenPlanSettingsReader: Sendable {
         allowedHosts: [
             "modelstudio.console.alibabacloud.com",
             "bailian.console.aliyun.com",
+            "home.qwencloud.com",
+            "cs-data.qwencloud.com",
         ])
 
     public static func cookieHeader(
