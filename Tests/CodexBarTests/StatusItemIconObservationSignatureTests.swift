@@ -87,6 +87,52 @@ struct StatusItemIconObservationSignatureTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let baseline = controller.storeIconObservationSignature()
+        #expect(!baseline.contains("icon@example.com"))
+
+        store._setSnapshotForTesting(
+            Self.makeSnapshot(
+                provider: .codex,
+                email: "rotated-account@example.com",
+                updatedAt: Date(timeIntervalSince1970: 200)),
+            provider: .codex)
+
+        let signature = controller.storeIconObservationSignature()
+
+        #expect(signature == baseline)
+        #expect(!signature.contains("rotated-account@example.com"))
+    }
+
+    @Test
+    func `custom account label changes the store icon observation signature`() {
+        let (_, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-custom-account-label",
+            menuBarLayout: MenuBarLayout(lines: [[.accountLabel]]))
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let baseline = controller.storeIconObservationSignature()
+        #expect(!baseline.contains("icon@example.com"))
+
+        store._setSnapshotForTesting(
+            Self.makeSnapshot(
+                provider: .codex,
+                email: "rotated-account@example.com",
+                updatedAt: Date(timeIntervalSince1970: 200)),
+            provider: .codex)
+
+        let signature = controller.storeIconObservationSignature()
+
+        #expect(signature != baseline)
+        #expect(!signature.contains("rotated-account@example.com"))
+    }
+
+    @Test
+    func `hidden custom account label ignores account changes`() {
+        let (settings, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-hidden-custom-account-label",
+            menuBarLayout: MenuBarLayout(lines: [[.accountLabel]]))
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.hidePersonalInfo = true
+        let baseline = controller.storeIconObservationSignature()
 
         store._setSnapshotForTesting(
             Self.makeSnapshot(
