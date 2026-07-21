@@ -212,6 +212,32 @@ struct CodexConsumerProjectionCharacterizationTests {
 
     @Test
     func `menu bar combined codex percent falls back to credits when no percent lanes are available`() {
+        let creditLimit = CodexCreditLimitSnapshot(
+            used: 7_324.4,
+            limit: 50_000,
+            remainingPercent: 85.3512,
+            resetsAt: nil,
+            updatedAt: Date())
+        let creditsWithLimit = CreditsSnapshot(
+            remaining: 42_675.6,
+            events: [],
+            updatedAt: Date(),
+            codexCreditLimit: creditLimit)
+        let creditsWithoutLimit = CreditsSnapshot(remaining: 42.5, events: [], updatedAt: Date())
+
+        #expect(
+            StatusItemController.codexCreditsFallbackDisplayText(
+                credits: creditsWithLimit,
+                isLocalRecoveryBuild: true) == "85%")
+        #expect(
+            StatusItemController.codexCreditsFallbackDisplayText(
+                credits: creditsWithLimit,
+                isLocalRecoveryBuild: false) == "42675.6")
+        #expect(
+            StatusItemController.codexCreditsFallbackDisplayText(
+                credits: creditsWithoutLimit,
+                isLocalRecoveryBuild: true) == "42.5")
+
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
