@@ -238,6 +238,23 @@ struct CodexConsumerProjectionCharacterizationTests {
                 credits: creditsWithoutLimit,
                 isLocalRecoveryBuild: true) == "42.5")
 
+        let unusableCreditLimit = CodexCreditLimitSnapshot(
+            used: 0,
+            limit: 0,
+            remainingPercent: 0,
+            resetsAt: nil,
+            updatedAt: Date())
+        let creditsWithUnusableLimit = CreditsSnapshot(
+            remaining: 42.5,
+            events: [],
+            updatedAt: Date(),
+            codexCreditLimit: unusableCreditLimit)
+
+        #expect(
+            StatusItemController.codexCreditsFallbackDisplayText(
+                credits: creditsWithUnusableLimit,
+                isLocalRecoveryBuild: true) == "42.5")
+
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual

@@ -986,9 +986,11 @@ extension StatusItemController {
     {
         guard let remaining = credits?.remaining, remaining > 0 else { return nil }
         if isLocalRecoveryBuild,
-           let remainingPercent = credits?.codexCreditLimit?.remainingPercent
+           let creditLimit = credits?.codexCreditLimit,
+           creditLimit.limit > 0,
+           creditLimit.remainingPercent > 0
         {
-            return UsageFormatter.percentString(remainingPercent)
+            return UsageFormatter.percentString(creditLimit.remainingPercent)
         }
         return UsageFormatter
             .creditsString(from: remaining)
