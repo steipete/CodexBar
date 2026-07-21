@@ -186,15 +186,31 @@ public enum WidgetSnapshotStore {
 
     public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
         let url = self.snapshotURL(bundleID: bundleID)
-        let data: Data
+        var data: Data
         do {
             data = try Data(contentsOf: url)
         } catch {
-            self.log.warning("Failed to read widget snapshot: \(error.localizedDescription)")
-            return nil
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadNoPermissionError
+                || (nsError.domain == NSPOSIXErrorDomain && nsError.code == EPERM)
+            {
+                self.stripFileExtendedAttributes(at: url)
+                if let retryData = try? Data(contentsOf: url) {
+                    data = retryData
+                } else {
+                    self.log.warning("Failed to read widget snapshot: \(error.localizedDescription)")
+                    return nil
+                }
+            } else {
+                self.log.warning("Failed to read widget snapshot: \(error.localizedDescription)")
+                return nil
+            }
         }
         do {
-            return try self.decoder.decode(WidgetSnapshot.self, from: data)
+            let snapshot = try self.decoder.decode(WidgetSnapshot.self, from: data)
+            self.log.info(
+                "Loaded widget snapshot: enabledProviders=\(snapshot.enabledProviders.map(\.rawValue).joined(separator: ",")) entries=\(snapshot.entries.map(\.provider.rawValue).joined(separator: ","))")
+            return snapshot
         } catch {
             self.log.warning("Failed to decode widget snapshot: \(error.localizedDescription)")
             return nil
@@ -206,9 +222,16 @@ public enum WidgetSnapshotStore {
         do {
             let data = try self.encoder.encode(snapshot)
             try data.write(to: url, options: [.atomic])
+            self.stripFileExtendedAttributes(at: url)
         } catch {
             return
         }
+    }
+
+    private static func stripFileExtendedAttributes(at url: URL) {
+        let path = url.path
+        removexattr(path, "com.apple.provenance", 0)
+        removexattr(path, "com.apple.quarantine", 0)
     }
 
     private static func snapshotURL(bundleID: String?) -> URL {

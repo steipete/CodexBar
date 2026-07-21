@@ -5,6 +5,9 @@ xcuserdata/
 *.env
 *.local
 
+# Local Kouen worktree pointers (machine-local, not shared repo state)
+.kouen-worktrees/
+
 # Build products
 .build/
 DerivedData

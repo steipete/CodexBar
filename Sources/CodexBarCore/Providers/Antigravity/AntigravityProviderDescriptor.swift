@@ -27,7 +27,9 @@ public enum AntigravityProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .antigravity,
                 iconResourceName: "ProviderIcon-antigravity",
-                color: ProviderColor(red: 96 / 255, green: 186 / 255, blue: 126 / 255),
+                // Matches this user's other tools (Kouen-Terminal's
+                // AgentKind.antigravity.dotHex) for cross-tool consistency.
+                color: ProviderColor(hex: 0x3186FF),
                 confettiPalette: [
                     ProviderColor(hex: 0x4285F4),
                     ProviderColor(hex: 0x34A853),

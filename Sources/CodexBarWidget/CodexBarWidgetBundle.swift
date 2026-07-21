@@ -1,8 +1,20 @@
+import CodexBarCore
 import SwiftUI
 import WidgetKit
 
 @main
 struct CodexBarWidgetBundle: WidgetBundle {
+    init() {
+        // Without this, every CodexBarCore `self.log.*` call inside the widget extension
+        // process (e.g. WidgetSnapshotStore.load()'s read/decode failure logs) silently
+        // no-ops — swift-log falls back to a no-op handler until something bootstraps
+        // LoggingSystem, and only the main app target was doing that.
+        CodexBarLog.bootstrapIfNeeded(.init(
+            destination: .oslog(subsystem: "com.steipete.codexbar"),
+            level: .verbose,
+            json: false))
+    }
+
     var body: some Widget {
         CodexBarSwitcherWidget()
         CodexBarUsageWidget()

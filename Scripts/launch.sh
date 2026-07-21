@@ -7,6 +7,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_PATH="$PROJECT_ROOT/CodexBar.app"
+if [[ -d "/Applications/CodexBar.app" ]]; then
+    APP_PATH="/Applications/CodexBar.app"
+fi
 
 echo "==> Killing existing CodexBar instances"
 pkill -x CodexBar || pkill -f CodexBar.app || true
