@@ -29,7 +29,6 @@ struct MenuBarLayoutRenderData: Hashable {
     let weekly: MenuBarLayoutRenderWindow?
     let automatic: MenuBarLayoutRenderWindow?
     let runsOut: String?
-    let pacePercent: String?
     let costToday: String?
     let cost30d: String?
 }
@@ -276,15 +275,6 @@ final class MenuBarLayoutRenderer {
             return self.optionalTextToken(
                 data.runsOut,
                 unavailableLabel: L("Run-out estimate unavailable"),
-                attributes: style.attributes)
-        case .pacePercent:
-            let rateWindow = data.automatic
-            let percent = rateWindow.map { options.showUsed ? $0.usedPercent : $0.remainingPercent }
-            let fallbackValue = percent.map(UsageFormatter.percentString)
-            return self.optionalTextToken(
-                data.pacePercent ?? fallbackValue,
-                unavailableLabel: L("Pace percent unavailable"),
-                accessibilityPrefix: L("display_mode_pace"),
                 attributes: style.attributes)
         case .costToday:
             return self.optionalTextToken(

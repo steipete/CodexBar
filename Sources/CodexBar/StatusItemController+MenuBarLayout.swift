@@ -57,12 +57,9 @@ extension StatusItemController {
     {
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
         let paceWindow = windows.weekly ?? windows.automatic
-        let pace = paceWindow
+        let runsOut = paceWindow
             .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
-        let runsOut = pace
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
-        let pacePercent = pace
-            .flatMap { MenuBarDisplayText.paceText(pace: $0) }
         let costStrings = self.menuBarLayoutCostStrings(provider: provider, now: now)
         let providerName = L(self.store.metadata(for: provider).displayName)
         let rawAccountLabel = snapshot?.accountEmail(for: provider)?
@@ -79,7 +76,6 @@ extension StatusItemController {
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
             automatic: MenuBarLayoutRenderWindow(windows.automatic),
             runsOut: runsOut,
-            pacePercent: pacePercent,
             costToday: costStrings.today,
             cost30d: costStrings.last30Days)
     }

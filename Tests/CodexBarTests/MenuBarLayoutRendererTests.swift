@@ -89,7 +89,6 @@ struct MenuBarLayoutRendererTests {
             weekly: nil,
             automatic: nil,
             runsOut: nil,
-            pacePercent: nil,
             costToday: nil,
             cost30d: nil)
         let layout = MenuBarLayout(lines: [[
@@ -206,7 +205,6 @@ struct MenuBarLayoutRendererTests {
             weekly: nil,
             automatic: textOnlyWindow,
             runsOut: nil,
-            pacePercent: nil,
             costToday: nil,
             cost30d: nil)
 
@@ -264,29 +262,8 @@ struct MenuBarLayoutRendererTests {
                 resetsAt: self.now.addingTimeInterval(2 * 60 * 60),
                 resetDescription: nil)),
             runsOut: "Runs out tomorrow",
-            pacePercent: "+15%",
             costToday: "$1.25",
             cost30d: "$20.00")
-    }
-
-    @Test
-    func `renders pace percent`() {
-        let renderer = MenuBarLayoutRenderer()
-        let data = MenuBarLayoutRenderData(
-            iconKey: "codex",
-            providerName: "Codex",
-            accountLabel: nil,
-            session: nil,
-            weekly: nil,
-            automatic: nil,
-            runsOut: nil,
-            pacePercent: "+15%",
-            costToday: nil,
-            cost30d: nil)
-        let layout = MenuBarLayout(lines: [[.pacePercent]])
-        let output = renderer.render(layout: layout, data: data, icon: nil, options: self.options())
-        #expect(output.attributedTitle.string == "+15%")
-        #expect(output.accessibilityLabel.contains("Pace"))
     }
 
     private func options() -> MenuBarLayoutRenderOptions {
