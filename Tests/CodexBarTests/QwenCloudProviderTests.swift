@@ -202,6 +202,52 @@ struct QwenCloudUsageParsingTests {
             try QwenCloudUsageFetcher.parseUsageSnapshot(from: Data("not-json".utf8))
         }
     }
+
+    /// Real-world response shape returned for an authenticated Qwen Cloud account
+    /// with no active individual token-plan subscription. Captured live against
+    /// `home.qwencloud.com` (requestId/Uid redacted) — the API returns HTTP 200
+    /// with `TotalCount: 0` and zeroed quota fields rather than an error, so the
+    /// parser must not report a false subscription. Used as a regression fixture
+    /// for https://github.com/steipete/CodexBar/pull/2361.
+    @Test
+    func `authenticated account with no active subscription reports no quota`() throws {
+        let json = """
+        {
+          "requestId": "019F853A-19F8-375A-9E07-1DA4C0294D39",
+          "code": "200",
+          "message": null,
+          "action": null,
+          "apiName": null,
+          "data": {
+            "RequestId": "019F853A-19F8-375A-9E07-1DA4C0294D39",
+            "Message": "Successful!",
+            "Data": {
+              "Uid": 5243284495423183,
+              "TotalSurplusValue": "0",
+              "TotalCount": 0,
+              "TotalValue": "0",
+              "ProductCode": "sfm_tokenplansolo_public_intl"
+            },
+            "Code": "Success",
+            "Success": true
+          },
+          "httpStatusCode": "200",
+          "accessDeniedDetail": null,
+          "extendedCode": null,
+          "successResponse": true
+        }
+        """
+
+        let snapshot = try QwenCloudUsageFetcher.parseUsageSnapshot(from: Data(json.utf8))
+
+        // No subscription instance and zero total → no quota window to display.
+        #expect(snapshot.totalQuota == 0 || snapshot.totalQuota == nil)
+        #expect(snapshot.usedQuota == nil || snapshot.usedQuota == 0)
+        #expect(snapshot.remainingQuota == nil || snapshot.remainingQuota == 0)
+        // The primary rate window must not render a false "100% remaining" bar
+        // for a non-subscribed account.
+        #expect(snapshot.toUsageSnapshot().primary == nil)
+    }
 }
 
 struct QwenCloudCookieHeaderTests {
