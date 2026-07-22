@@ -236,7 +236,8 @@ struct MenuDescriptor {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
                     provider == .deepseek || provider == .deepinfra || provider == .neuralwatt ||
-                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api
+                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api ||
+                    provider == .crof
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -260,13 +261,6 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if provider == .crof,
-                   primary.resetsAt != nil,
-                   let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !detail.isEmpty
-                {
-                    entries.append(.text(detail, .secondary))
-                }
                 if provider == .abacus,
                    let pace = store.weeklyPace(provider: provider, window: primary)
                 {
@@ -279,7 +273,7 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof ||
+                    guard provider == .warp || provider == .kilo || provider == .perplexity ||
                         provider == .sub2api
                     else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)

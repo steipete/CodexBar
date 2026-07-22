@@ -75,7 +75,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
-| Crof | API key from config/env → credit balance + requests quota API (`api`). |
+| Crof | API key from config/env → PAYG credit balance API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
 | ClinePass | API key from config/env → 5-hour, weekly, and monthly subscription usage limits (`api`). |
@@ -414,9 +414,8 @@ scan fails, while provider/account configuration changes replace obsolete result
 
 ## Crof
 - API key from `~/.codexbar/config.json`, `CROF_API_KEY`, or `CROFAI_API_KEY`.
-- Reads `credits`, `requests_plan`, and `usable_requests` from `GET https://crof.ai/usage_api/`.
-- Shows request quota as the primary usage window and dollar credits as the secondary row.
-- Infers the daily request reset from midnight America/Chicago until the usage API exposes reset metadata.
+- Reads `credits` from `GET https://crof.ai/usage_api/` (PAYG-only; ignores null request-quota fields and per-model usage totals).
+- Shows dollar credits as the primary usage window.
 - Status: none yet.
 - Details: `docs/crof.md`.
 

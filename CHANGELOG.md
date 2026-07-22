@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Crof: track PAYG credit balance only after subscription/request-quota fields were removed from the usage API.
 ## 0.45.2 — 2026-07-19
 
 ### Fixed
