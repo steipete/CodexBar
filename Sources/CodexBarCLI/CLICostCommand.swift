@@ -73,6 +73,7 @@ extension CodexBarCLI {
             if let error = Self.cursorCostAvailabilityError(
                 provider,
                 settings: cursorCookieSettings,
+                source: config.providerConfig(for: .cursor)?.source,
                 resolutionError: cursorCookieSettingsError)
             {
                 exitCode = Self.mapError(error)
@@ -90,7 +91,10 @@ extension CodexBarCLI {
                     provider: provider,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,
-                    cursorCookieHeaderOverride: Self.cursorCostHeaderOverride(provider, settings: cursorCookieSettings),
+                    cursorCookieHeaderOverride: Self.cursorCostHeaderOverride(
+                        provider,
+                        settings: cursorCookieSettings,
+                        source: config.providerConfig(for: .cursor)?.source),
                     refreshPricingInBackground: false)
                 switch format {
                 case .text:
@@ -386,15 +390,24 @@ extension CodexBarCLI {
         return context.settingsSnapshot(for: .cursor, account: account)?.cursor
     }
 
-    /// Return the actionable error for a Cursor cost fetch disabled by cookie-source policy.
+    /// Return the actionable error for a Cursor cost fetch disabled by source policy.
     static func cursorCostAvailabilityError(
         _ provider: UsageProvider,
         settings: ProviderSettingsSnapshot.CursorProviderSettings?,
-        resolutionError: Error? = nil) -> Error?
+        source: ProviderSourceMode? = nil,
+        resolutionError: Error? = nil,
+        appAuthCookieHeader: () -> String? = { CursorStatusProbe.appAuthCookieHeader() }) -> Error?
     {
         guard provider == .cursor else { return nil }
         if let resolutionError {
             return resolutionError
+        }
+        // App-token usage pins cost to the app-token account; missing tokens
+        // fail closed instead of falling back to another account's cookies.
+        if source == .oauth {
+            return appAuthCookieHeader() == nil
+                ? CursorCostAvailabilityError.appTokenUnavailable
+                : nil
         }
         guard let settings else { return nil }
         switch settings.cookieSource {
@@ -407,12 +420,19 @@ extension CodexBarCLI {
         }
     }
 
-    /// Manual cookie header to forward for a Cursor cost fetch, or nil for auto/non-cursor sources.
+    /// Cookie header to forward for a Cursor cost fetch, or nil for auto/non-cursor sources.
+    /// App-token usage forwards the app-token-derived session so cost and usage share an account.
     static func cursorCostHeaderOverride(
         _ provider: UsageProvider,
-        settings: ProviderSettingsSnapshot.CursorProviderSettings?) -> String?
+        settings: ProviderSettingsSnapshot.CursorProviderSettings?,
+        source: ProviderSourceMode? = nil,
+        appAuthCookieHeader: () -> String? = { CursorStatusProbe.appAuthCookieHeader() }) -> String?
     {
-        guard provider == .cursor, settings?.cookieSource == .manual else { return nil }
+        guard provider == .cursor else { return nil }
+        if source == .oauth {
+            return appAuthCookieHeader()
+        }
+        guard settings?.cookieSource == .manual else { return nil }
         return CookieHeaderNormalizer.normalize(settings?.manualCookieHeader)
     }
 }
@@ -420,6 +440,7 @@ extension CodexBarCLI {
 enum CursorCostAvailabilityError: LocalizedError {
     case cookieSourceOff
     case manualCookieMissing
+    case appTokenUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -427,6 +448,8 @@ enum CursorCostAvailabilityError: LocalizedError {
             "Cursor cost is unavailable because the Cursor cookie source is set to Off."
         case .manualCookieMissing:
             "Cursor cost requires a non-empty Manual cookie header."
+        case .appTokenUnavailable:
+            "Cursor cost requires the Cursor app to be signed in when the usage source is App Token."
         }
     }
 }

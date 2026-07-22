@@ -25,18 +25,40 @@ extension UsageStore {
     }
 
     func prepareCursorCostCookie(for provider: UsageProvider) -> CursorCostCookiePreparation {
-        guard provider == .cursor, self.settings.cursorCookieSource == .manual else {
+        guard provider == .cursor else {
+            return .proceed(nil)
+        }
+        // App-token mode: cost must use the same app-token session as usage —
+        // never manual, cached, or browser cookies for a possibly different account.
+        if self.settings.cursorUsageDataSource == .app {
+            guard let header = CursorStatusProbe.appAuthCookieHeader() else {
+                return self.rejectCursorCost(
+                    provider,
+                    message: "Cursor cost requires the Cursor app to be signed in.")
+            }
+            return .proceed(header)
+        }
+        guard self.settings.cursorCookieSource == .manual else {
             return .proceed(nil)
         }
         guard let header = CookieHeaderNormalizer.normalize(self.settings.cursorCookieHeader) else {
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenFetchScope.removeValue(forKey: provider)
-            self.clearTokenSnapshot(for: provider)
-            self.tokenErrors[provider] = "Cursor cost requires a non-empty Manual cookie header."
-            self.tokenFailureGates[provider]?.reset()
-            return .reject
+            return self.rejectCursorCost(
+                provider,
+                message: "Cursor cost requires a non-empty Manual cookie header.")
         }
         return .proceed(header)
+    }
+
+    private func rejectCursorCost(
+        _ provider: UsageProvider,
+        message: String) -> CursorCostCookiePreparation
+    {
+        self.lastTokenFetchAt.removeValue(forKey: provider)
+        self.lastTokenFetchScope.removeValue(forKey: provider)
+        self.clearTokenSnapshot(for: provider)
+        self.tokenErrors[provider] = message
+        self.tokenFailureGates[provider]?.reset()
+        return .reject
     }
 
     func loadTokenUsageSnapshot(
@@ -305,6 +327,12 @@ extension UsageStore {
             return base
         }
 
+        if self.settings.cursorUsageDataSource == .app {
+            let headerFingerprint = CursorStatusProbe.appAuthCookieHeader()
+                .map(CookieHeaderCache.credentialFingerprint) ?? "missing"
+            return "\(base)|cursorCookie=app:\(headerFingerprint)"
+        }
+
         let source = self.settings.cursorCookieSource
         if source == .manual {
             let headerFingerprint = CookieHeaderNormalizer.normalize(self.settings.cursorCookieHeader)
@@ -384,6 +412,7 @@ extension UsageStore {
         snapshot: CostUsageTokenSnapshot) -> String
     {
         guard provider == .cursor,
+              self.settings.cursorUsageDataSource != .app,
               self.settings.cursorCookieSource == .auto,
               let fingerprint = snapshot.credentialScopeFingerprint
         else { return initialSignature }

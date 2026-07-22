@@ -104,9 +104,10 @@ The storage detail lists measured paths and their sizes. CodexBar does not delet
 The cost summary's Cursor section is opt-in: it only fetches when **Show cost summary** is enabled and the Cursor provider is on.
 Unlike Claude and Codex cost (scanned from local session logs on this machine), Cursor cost is remote, account-wide data from the cursor.com dashboard, so it covers usage from every machine on the account.
 
-Auth reuses the exact status-probe session resolution and cookie-source policy (regardless of the Usage source
-picker, since the dashboard endpoint needs a first-party web session — in Cursor App Token mode the ladder ends
-at the app-token-derived cookie):
+Auth follows the Usage source picker so cost and usage always come from the same account. In **Cursor App Token**
+mode the cost fetch uses only the app-token-derived session (forwarded like a manual header, so it never falls
+back to manual/cached/browser cookies); a missing app token fails the fetch closed. Otherwise auth reuses the
+exact status-probe session resolution and cookie-source policy:
 - **Auto**: cached cookie header → browser cookie import → stored WebKit session → Cursor.app local auth.
 - **Manual**: a non-empty pasted cookie header is required and forwarded as-is, so cost and status share the same session; an empty header fails closed instead of falling back to another account.
 - **Off**: the fetch is skipped in the app; `codexbar cost --provider cursor` fails explicitly and `/cost` returns a provider error row.

@@ -253,6 +253,61 @@ struct CursorLinuxTests {
     }
 
     @Test
+    func `Cursor app auth cookie header derives from a usable session`() throws {
+        let token = try makeCursorLinuxAppTokenJWT()
+        let header = CursorStatusProbe.appAuthCookieHeader(
+            store: CursorLinuxAppAuthStoreStub(session: CursorAppAuthSession(accessToken: token)))
+        #expect(header == "WorkosCursorSessionToken=user_test%3A%3A\(token)")
+
+        #expect(CursorStatusProbe.appAuthCookieHeader(
+            store: CursorLinuxAppAuthStoreStub(session: nil)) == nil)
+        #expect(CursorStatusProbe.appAuthCookieHeader(
+            store: CursorLinuxAppAuthStoreStub(session: CursorAppAuthSession(accessToken: "not-a-jwt"))) == nil)
+    }
+
+    @Test
+    func `Cursor cost helpers pin oauth source to the app token session`() throws {
+        let token = try makeCursorLinuxAppTokenJWT()
+        let appHeader = "WorkosCursorSessionToken=user_test%3A%3A\(token)"
+        let manualSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "WorkosCursorSessionToken=manual")
+
+        // App token present: no availability error, and the override is the
+        // app session even when a manual cookie is configured.
+        #expect(CodexBarCLI.cursorCostAvailabilityError(
+            .cursor,
+            settings: manualSettings,
+            source: .oauth,
+            appAuthCookieHeader: { appHeader }) == nil)
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: manualSettings,
+            source: .oauth,
+            appAuthCookieHeader: { appHeader }) == appHeader)
+
+        // App token missing: fail closed instead of using other cookies.
+        let error = CodexBarCLI.cursorCostAvailabilityError(
+            .cursor,
+            settings: manualSettings,
+            source: .oauth,
+            appAuthCookieHeader: { nil })
+        #expect(error is CursorCostAvailabilityError)
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: manualSettings,
+            source: .oauth,
+            appAuthCookieHeader: { nil }) == nil)
+
+        // Non-oauth sources keep the existing manual-header behavior.
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: manualSettings,
+            source: .auto,
+            appAuthCookieHeader: { appHeader }) == "WorkosCursorSessionToken=manual")
+    }
+
+    @Test
     func `Cursor manual cookie source keeps winning auto mode over app token`() async throws {
         let token = try makeCursorLinuxAppTokenJWT()
         let strategy = CursorAppTokenFetchStrategy(

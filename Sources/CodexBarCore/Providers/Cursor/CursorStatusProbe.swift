@@ -1016,6 +1016,18 @@ public struct CursorStatusProbe: Sendable {
             requestUsageUserIDFallback: session.userID())
     }
 
+    /// First-party web-session Cookie header derived from Cursor.app's local
+    /// access token, or nil when the app has no usable token. Lets callers pin
+    /// a fetch to the app-token account without the cookie fallback ladder.
+    public static func appAuthCookieHeader() -> String? {
+        self.appAuthCookieHeader(store: CursorAppAuthStore())
+    }
+
+    static func appAuthCookieHeader(store: any CursorAppAuthSessionProviding) -> String? {
+        guard let session = try? store.loadSession(), session.isUsable else { return nil }
+        return try? session.cookieHeader()
+    }
+
     /// Fetch Cursor usage with manual cookie header (for debugging).
     public func fetchWithManualCookies(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
         try await self.fetchWithCookieHeader(cookieHeader)
@@ -1753,6 +1765,10 @@ public struct CursorStatusProbe: Sendable {
         timeout _: TimeInterval = 120) async throws -> [BrowserLoginResult]
     {
         throw CursorStatusProbeError.notSupported
+    }
+
+    public static func appAuthCookieHeader() -> String? {
+        nil
     }
 }
 
