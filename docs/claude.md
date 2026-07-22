@@ -21,7 +21,7 @@ same inline dashboard pattern used by the OpenAI API provider.
 
 ### Default selection (debug menu disabled)
 - If an Admin API key is configured, the Admin API strategy is used for Claude API spend/usage.
-- App runtime main pipeline: CLI PTY → Web API.
+- App runtime main pipeline: safe direct OAuth API → CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.
 - Explicit Admin API, Web, and CLI picker modes bypass automatic fallback.
 - Existing app settings that selected OAuth remain explicit OAuth. That route first uses environment,
@@ -64,8 +64,8 @@ setting should reopen access to the foreign item. Preferences → Advanced → D
 CodexBar-owned caches and other Keychain-backed features; it is not needed to enforce this Claude boundary.
 
 ### Debug selection (debug menu enabled)
-- Claude debug logging follows the resolved app source. Auto remains CLI → Web and does not probe ambient OAuth;
-  OAuth diagnostics run only for an explicitly selected OAuth source or OAuth token account.
+- Claude debug logging follows the resolved app source. Auto records OAuth → CLI → Web without probing credentials;
+  the real fetch performs the single safe OAuth attempt.
 - Web extras are internal-only (not exposed in the Providers pane).
 
 ## OAuth API (explicit credentials)
@@ -93,9 +93,9 @@ CodexBar-owned caches and other Keychain-backed features; it is not needed to en
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
-- Claude sign-in authenticates Claude CLI. With the default Auto source, the app then asks that credential owner for
-  usage and falls back to Web when the CLI path is unavailable. Explicit OAuth token accounts remain isolated and
-  route directly to OAuth.
+- With the default Auto source, safe environment, profile-file, or CodexBar-owned OAuth credentials remain preferred.
+  When that attempt is unavailable or fails, the app asks the credential-owning Claude CLI for usage and then falls
+  back to Web. Explicit OAuth token accounts remain isolated and route directly to OAuth.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
   Max/Pro/Team/Enterprise. When a Max `rate_limit_tier` carries a usage multiplier
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
@@ -177,10 +177,10 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 | --- | --- |
 | ![claude-swap card before scoped windows](screenshots/claude-swap-scoped-before.png) | ![claude-swap card with a Fable scoped weekly window](screenshots/claude-swap-scoped-after.png) |
 
-## CLI PTY (preferred in app Auto)
+## CLI PTY (first fallback in app Auto)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
-- App Auto first runs the noninteractive, owner-mediated `claude auth status --json` preflight so a logged-out
-  background probe cannot open an interactive browser sign-in.
+- Before App Auto reaches the CLI usage probe, it runs the noninteractive, owner-mediated
+  `claude auth status --json` preflight so a logged-out background probe cannot open an interactive browser sign-in.
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.

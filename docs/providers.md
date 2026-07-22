@@ -37,7 +37,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
 | OpenAI | Admin API key (`api`) for organization spend/usage; legacy API-key balance fallback. |
 | Azure OpenAI | API key + endpoint + deployment probe (`api`) for deployment status validation. |
-| Claude | Admin API key (`api`) when configured; otherwise App Auto: CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). Explicit app OAuth uses direct safe credentials first, then the owner CLI only when none exists; selected OAuth token accounts remain direct and terminal. |
+| Claude | Admin API key (`api`) when configured; otherwise App Auto: safe OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). Explicit app OAuth uses direct safe credentials first, then the owner CLI only when none exists; selected OAuth token accounts remain direct and terminal. |
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
@@ -121,11 +121,13 @@ scan fails, while provider/account configuration changes replace obsolete result
 ## Claude
 - Admin API: `sk-ant-admin...` key in Settings/config, token accounts, or `ANTHROPIC_ADMIN_KEY`.
 - Admin API shows organization spend/messages summaries with the same inline dashboard pattern as OpenAI API.
-- App Auto: CLI PTY (`claude`) → Web API (`web`); ambient OAuth is excluded.
+- App Auto: safe direct OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
 - CLI Auto: Web API (`web`) → CLI PTY (`claude`).
 - Explicit app OAuth first routes directly through environment, secure-storage-file, or CodexBar-owned credentials.
   If none exists, it uses the logged-in credential-owning Claude CLI. Selected OAuth token accounts remain direct and
   terminal; neither path reads Claude Code's foreign Keychain item.
+- Auto performs one real, noninteractive OAuth attempt without a credential-availability preflight. Any
+  non-cancellation OAuth failure may continue through its normal CLI/Web fallbacks.
 - Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects`,
   `~/.claude/projects` (including current Claude Desktop Code/Cowork CLI sessions), and nested Claude Desktop
   local-agent JSONL files for the configured history window.

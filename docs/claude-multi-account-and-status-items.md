@@ -32,8 +32,9 @@ Claude-only status item implementation that would need to be redesigned for Code
 
 CodexBar has three account concepts today:
 
-- Ambient Claude usage is owner-mediated: app Auto verifies Claude CLI login noninteractively, tries CLI usage, then
-  falls back to Web. CodexBar never reads Claude Code's Keychain item.
+- Ambient Claude usage first tries direct OAuth sources CodexBar can safely own or read (environment, profile file,
+  memory, or CodexBar cache). App Auto then verifies Claude CLI login noninteractively, tries owner-mediated CLI
+  usage, and finally falls back to Web. CodexBar never reads Claude Code's Keychain item.
 - `ProviderTokenAccount` stores a label and one token plus optional provider metadata. It has no refresh token or
   expiry model. Claude entries therefore work for session cookies, Admin API keys, or short-lived OAuth access tokens,
   but they are not durable multi-subscription OAuth sessions.

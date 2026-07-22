@@ -78,7 +78,7 @@ struct ClaudeWebFetchDeadlineTests {
         let result = try outcome.result.get()
 
         #expect(result.strategyID == "claude.cli")
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
         #expect(!planningProbe.wasInvoked)
     }
 
@@ -128,7 +128,7 @@ struct ClaudeWebFetchDeadlineTests {
         case let .failure(error):
             #expect(error is CancellationError)
         }
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
         #expect(webFetchProbe.invocationCount == 0)
     }
 

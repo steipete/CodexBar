@@ -16,8 +16,9 @@ CodexBar does not need your browser password. macOS owns the prompt, and the pro
 that is requesting access. For support reports, include that requesting app/path when possible and do not paste
 passwords, cookie headers, OAuth tokens, API keys, or Keychain item values.
 
-Current CodexBar builds never directly read Claude Code's `Claude Code-credentials` item. App Auto uses an
-owner-mediated `claude auth status --json` check before the Claude CLI usage probe, then falls back to Web when needed.
+Current CodexBar builds never directly read Claude Code's `Claude Code-credentials` item. App Auto first attempts
+OAuth only through environment, profile-file, or CodexBar-owned credentials. Its CLI fallback uses an owner-mediated
+`claude auth status --json` check before the usage probe, then falls back to Web when needed.
 If a prompt names that item and CodexBar as the requester, quit older running copies and update CodexBar. Do not add
 CodexBar to that item's “Always Allow” list: Claude Code can replace the item and its ACL during refresh, so such a
 grant cannot be durable. A prompt requested by the Claude executable is owned by Claude Code itself.

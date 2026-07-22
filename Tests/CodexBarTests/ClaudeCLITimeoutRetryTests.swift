@@ -80,6 +80,8 @@ struct ClaudeCLITimeoutRetryTests {
     @Test
     func `auto cli usage does not retry unrecoverable parse failure`() async throws {
         let attempts = AttemptRecorder()
+        let cliPath = try Self.makeLoggedInClaudeCLI()
+        defer { try? FileManager.default.removeItem(at: cliPath) }
         let fetcher = ClaudeUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),
             environment: [:],
@@ -93,7 +95,7 @@ struct ClaudeCLITimeoutRetryTests {
 
         await #expect(throws: ClaudeStatusProbeError.self) {
             try await self.withNoOAuthCredentials {
-                try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+                try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(cliPath.path) {
                     try await ClaudeStatusProbe.withFetchOverrideForTesting(fetchOverride) {
                         try await fetcher.loadLatestUsage(model: "sonnet")
                     }
@@ -110,6 +112,8 @@ struct ClaudeCLITimeoutRetryTests {
     func `auto cli usage retries loading panel before stale web fallback`() async throws {
         let attempts = AttemptRecorder()
         let webRequests = WebRequestRecorder()
+        let cliPath = try Self.makeLoggedInClaudeCLI()
+        defer { try? FileManager.default.removeItem(at: cliPath) }
         let fetcher = ClaudeUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),
             environment: [:],
@@ -139,7 +143,7 @@ struct ClaudeCLITimeoutRetryTests {
                 webRequests.record(request.url?.path ?? "<missing>")
                 throw URLError(.userAuthenticationRequired)
             }, operation: {
-                try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+                try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(cliPath.path) {
                     try await ClaudeStatusProbe.withFetchOverrideForTesting(fetchOverride) {
                         try await fetcher.loadLatestUsage(model: "sonnet")
                     }
@@ -159,6 +163,8 @@ struct ClaudeCLITimeoutRetryTests {
     @Test
     func `auto cli usage retries timeout when cli is final source`() async throws {
         let attempts = AttemptRecorder()
+        let cliPath = try Self.makeLoggedInClaudeCLI()
+        defer { try? FileManager.default.removeItem(at: cliPath) }
         let fetcher = ClaudeUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),
             environment: [:],
@@ -184,7 +190,7 @@ struct ClaudeCLITimeoutRetryTests {
         }
 
         let snapshot = try await self.withNoOAuthCredentials {
-            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(cliPath.path) {
                 try await ClaudeStatusProbe.withFetchOverrideForTesting(fetchOverride) {
                     try await fetcher.loadLatestUsage(model: "sonnet")
                 }
@@ -363,5 +369,20 @@ struct ClaudeCLITimeoutRetryTests {
             ClaudeAutoFetcherStubURLProtocol.handler = nil
         }
         return try await operation()
+    }
+
+    private static func makeLoggedInClaudeCLI() throws -> URL {
+        let executable = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-auth-status-\(UUID().uuidString)")
+        try Data("""
+        #!/bin/sh
+        if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+          printf '%s\\n' '{"loggedIn":true,"authMethod":"claude.ai"}'
+          exit 0
+        fi
+        exit 88
+        """.utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        return executable
     }
 }

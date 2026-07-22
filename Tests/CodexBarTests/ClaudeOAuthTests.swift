@@ -738,14 +738,14 @@ struct ClaudeOAuthTests {
     // MARK: - Scope-based strategy resolution
 
     @Test
-    func `app auto prefers CLI over available O auth`() {
+    func `app auto prefers available O auth over CLI`() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: true,
             hasCLI: true,
             hasOAuthCredentials: true)
-        #expect(strategy.dataSource == .cli)
+        #expect(strategy.dataSource == .oauth)
     }
 
     @Test
@@ -760,14 +760,14 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func `app auto uses web when CLI is missing even with O auth available`() {
+    func `app auto uses available O auth when CLI is missing`() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: true,
             hasCLI: false,
             hasOAuthCredentials: true)
-        #expect(strategy.dataSource == .web)
+        #expect(strategy.dataSource == .oauth)
     }
 
     @Test

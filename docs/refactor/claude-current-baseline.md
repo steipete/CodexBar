@@ -52,7 +52,7 @@ The generic provider pipeline currently resolves Claude strategies in this order
 
 | Runtime | Selected mode | Ordered strategies | Fallback behavior |
 | --- | --- | --- | --- |
-| app | auto | `cli -> web` | CLI is preferred when installed; Web is the only fallback. Auto never plans direct OAuth. |
+| app | auto | `oauth -> cli -> web` | One safe direct OAuth attempt is preferred; any non-cancellation failure can continue to owner CLI and Web. |
 | app | selected OAuth token account | `oauth` | Account-scoped and terminal; it never falls through to another account. |
 | app | oauth | `oauth -> cli` | Direct OAuth uses noninteractive environment, file, or CodexBar-owned credentials and is terminal once one is found. If none exists, the credential-owning CLI supplies usage without a foreign-Keychain read. |
 | app | api | `api` | No fallback. |
@@ -73,11 +73,11 @@ Both active entry points resolve through `ClaudeSourcePlanner`:
 
 | Owner | Current behavior |
 | --- | --- |
-| `ClaudeProviderDescriptor.resolveUsageStrategy(...)` | App Auto plans `cli`, then `web`. |
-| `ClaudeUsageFetcher.loadLatestUsage(.auto)` | Uses the same planner and does not probe OAuth availability. |
+| `ClaudeProviderDescriptor.resolveUsageStrategy(...)` | App Auto plans `oauth`, then `cli`, then `web`. |
+| `ClaudeUsageFetcher.loadLatestUsage(.auto)` | Uses the same planner and performs one real OAuth attempt without an availability probe. |
 
-The app descriptor also skips OAuth availability work while building an Auto plan. This matters because availability
-checks must not become an indirect route back to Claude Code's Keychain item.
+The app descriptor skips OAuth availability work while building an Auto plan. This matters because availability
+checks must not mutate credential state or become an indirect route back to Claude Code's Keychain item.
 
 ## Credential-ownership baseline
 
@@ -90,7 +90,7 @@ Current production invariants:
 - CodexBar never launches `/usr/bin/security` to read that item.
 - Claude refresh/history bookkeeping fingerprints only the credentials file; it does not read a Keychain fingerprint or
   persistent reference before or after a refresh.
-- App Auto runs the noninteractive, owner-mediated `claude auth status --json` preflight before starting the CLI PTY.
+- App Auto runs the noninteractive, owner-mediated `claude auth status --json` preflight before its CLI fallback.
   This prevents a logged-out background probe from opening an interactive browser sign-in.
 - The global Keychain-access switch and legacy Claude prompt-mode/read-strategy preferences cannot reopen this boundary.
 - Synthetic task-local Keychain records remain available in DEBUG tests, but do not enable production access.
@@ -158,6 +158,6 @@ Stable automated coverage for this baseline lives in:
 - `Tests/CodexBarTests/TokenAccountEnvironmentPrecedenceTests.swift`
 - `Tests/CodexBarTests/SettingsStoreCoverageTests.swift`
 
-The characterization suite covers app Auto's CLI-to-Web order, the absence of OAuth planning in Auto, persisted
-explicit app OAuth, OAuth-token-account routing, and the default-deny production Keychain boundary. OAuth repository
-tests use only synthetic task-local records.
+The characterization suite covers app Auto's safe OAuth-to-CLI-to-Web order, persisted explicit app OAuth,
+OAuth-token-account routing, and the default-deny production Keychain boundary. OAuth repository tests use only
+synthetic task-local records.

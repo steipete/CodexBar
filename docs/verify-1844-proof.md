@@ -8,7 +8,7 @@ durable by a prompt setting.
 
 - Production CodexBar never queries the foreign item through Security.framework or `/usr/bin/security`.
 - Prompt preferences cannot reopen that path, including for explicit user actions.
-- App Auto obtains subscription usage through owner-mediated Claude CLI first, then Web.
+- App Auto preserves safe direct OAuth first, then owner-mediated Claude CLI and Web fallbacks.
 - Explicit token accounts stay authoritative; malformed selected accounts fail closed instead of using ambient data.
 - Claude CLI sessions are reusable only while the account-config path, secure-credentials path, active account UUID,
   executable, and complete scrubbed launch environment are unchanged.
@@ -28,10 +28,11 @@ packages that source, records every first-party executable hash, and exercises t
    config paths; account-switch invalidation; and CLI-session relaunch when account or launch environment changes.
 2. A Release artifact audit verifies that the known foreign service name and direct security CLI markers are absent
    from every first-party executable in the freshly packaged app bundle.
-3. A real logged-in Claude CLI-source fetch, isolated from the user's CodexBar account configuration, must return a
-   Claude/CLI usage payload within a fixed deadline. The verifier records the helper's process tree and rejects any
-   `/usr/bin/security` descendant outside the installed Claude owner's subtree. Process names are normalized for macOS's
-   parenthesized zombie rendering before classification. Claude-owned MCP tools remain recorded
+3. A real app-Auto harness, isolated from the user's CodexBar account configuration and safe direct credentials, must
+   record OAuth absence and then return a Claude/CLI usage payload through the logged-in owner CLI within a fixed
+   deadline. The verifier records the helper's process tree and rejects any `/usr/bin/security` descendant outside the
+   installed Claude owner's subtree. Process names are normalized for macOS's parenthesized zombie rendering before
+   classification. Claude-owned MCP tools remain recorded
    but are not misattributed to CodexBar. A public OSLog canary first proves visibility of the bounded log window; the audit
    then requires zero Keychain prompt or authorization events attributable to CodexBarCLI across securityd, coreauthd,
    authd, SecurityAgent, authorizationhost, CoreServicesUIAgent, and UserNotificationCenter. This is positive route-

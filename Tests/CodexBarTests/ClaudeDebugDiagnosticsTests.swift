@@ -86,16 +86,17 @@ struct ClaudeDebugDiagnosticsTests {
             }
         }
 
-        #expect(text.contains("planner_order=cli→web"))
-        #expect(text.contains("planner_selected=cli"))
+        #expect(text.contains("planner_order=oauth→cli→web"))
+        #expect(text.contains("planner_selected=oauth"))
         #expect(text.contains("planner_no_source=false"))
-        #expect(text.contains("planner_step.cli=available reason=app-auto-preferred-cli"))
+        #expect(text.contains("planner_step.oauth=available reason=app-auto-preferred-oauth"))
+        #expect(text.contains("planner_step.cli=available reason=app-auto-fallback-cli"))
         #expect(text.contains("planner_step.web=available reason=app-auto-fallback-web"))
         #expect(!text.contains("auto_heuristic="))
     }
 
     @Test
-    func `debug log reports no planner selected source when auto has no available sources`() async throws {
+    func `debug log plans one OAuth attempt without a credential preflight`() async throws {
         let suite = "ClaudeDebugDiagnosticsTests-\(UUID().uuidString)"
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         let tempDir = FileManager.default.temporaryDirectory
@@ -143,9 +144,9 @@ struct ClaudeDebugDiagnosticsTests {
             }
         }
 
-        #expect(text.contains("planner_selected=none"))
-        #expect(text.contains("planner_no_source=true"))
-        #expect(text.contains("No planner-selected Claude source."))
+        #expect(text.contains("planner_selected=oauth"))
+        #expect(text.contains("planner_no_source=false"))
+        #expect(text.contains("oauthCredentialError=not-probed"))
         #expect(!text.contains("web_extras=enabled"))
     }
 
@@ -424,7 +425,7 @@ struct ClaudeDebugDiagnosticsTests {
     }
 
     @Test
-    func `debug log Auto excludes OAuth even during user initiated interaction`() async throws {
+    func `debug log Auto never probes the foreign Keychain even during user interaction`() async throws {
         let suite = "ClaudeDebugDiagnosticsTests-\(UUID().uuidString)"
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         let tempDir = FileManager.default.temporaryDirectory
@@ -484,8 +485,10 @@ struct ClaudeDebugDiagnosticsTests {
             }
         }
 
-        #expect(text.contains("planner_selected=none"))
-        #expect(text.contains("hasOAuthCredentials=false"))
+        #expect(text.contains("planner_selected=oauth"))
+        #expect(text.contains("hasOAuthCredentials=true"))
+        #expect(text.contains("oauthCredentialSource=none"))
+        #expect(text.contains("oauthCredentialError=not-probed"))
     }
 
     @Test
@@ -582,6 +585,6 @@ struct ClaudeDebugDiagnosticsTests {
         }
 
         #expect(first.contains("planner_selected=cli"))
-        #expect(second.contains("planner_selected=none"))
+        #expect(second.contains("planner_selected=oauth"))
     }
 }

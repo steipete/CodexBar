@@ -87,8 +87,14 @@ CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1 swift test --no-parallel \
   --filter ClaudeCredentialOwnershipBoundaryTests \
   --filter ClaudeOAuthNoninteractiveCredentialLoadTests \
   --filter ClaudeOAuthCredentialsStoreTemporaryKeychainCacheTests \
+  --filter ClaudeOAuthTests \
+  --filter ClaudeOAuthDelegatedRefreshRecoveryTests \
   --filter ClaudeOAuthUpgradeCompatibilityTests \
   --filter ClaudeBaselineCharacterizationTests \
+  --filter ClaudeCLITimeoutRetryTests \
+  --filter ClaudeUsageTests \
+  --filter ClaudeAutoFetcherCharacterizationTests \
+  --filter ClaudeWebFetchDeadlineTests \
   --filter ClaudeDebugDiagnosticsTests \
   --filter ClaudeSourcePlannerTests \
   --filter ClaudeTokenAccountRoutingTests \

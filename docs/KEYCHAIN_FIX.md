@@ -28,7 +28,8 @@ cross-owner read, not tune prompt timing.
 
 ## Claude routing
 
-- App Auto: noninteractive owner check (`claude auth status --json`) → Claude CLI usage → bounded Web fallback.
+- App Auto: one safe direct OAuth attempt → noninteractive owner check (`claude auth status --json`) → Claude CLI
+  usage → bounded Web fallback.
 - CLI runtime Auto: Web → Claude CLI.
 - Explicit token accounts are authoritative: Admin API keys route to Admin API, session cookies route to Web, and
   user-supplied OAuth access tokens route to OAuth.

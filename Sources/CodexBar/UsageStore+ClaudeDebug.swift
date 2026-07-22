@@ -126,7 +126,10 @@ extension UsageStore {
             let oauthProbe = await probeClaudeOAuthForDebug(
                 shouldProbe: shouldProbeOAuth,
                 environment: configuration.environment)
-            let hasOAuthCredentials = shouldProbeOAuth && oauthProbe.isAvailable
+            // App Auto always performs one real OAuth attempt. Diagnostics must not preflight that
+            // credential path and accidentally mutate the state the fetch will observe.
+            let hasOAuthCredentials = (configuration.runtime == .app && configuration.usageDataSource == .auto)
+                || (shouldProbeOAuth && oauthProbe.isAvailable)
             let hasClaudeBinary = ClaudeCLIResolver.isAvailable(environment: configuration.environment)
             let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
             let planningInput = ClaudeSourcePlanningInput(

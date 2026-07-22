@@ -976,6 +976,10 @@ struct ClaudeAutoFetcherCharacterizationTests {
         let script = """
         #!/bin/sh
         LOG_FILE='\(logURL.path)'
+        if [ "$1" = "auth" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then
+          printf '%s\n' '{"loggedIn":true}'
+          exit 0
+        fi
         while IFS= read -r line; do
           case "$line" in
             *"/usage"*)
@@ -1058,7 +1062,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
     }
 
     @Test
-    func `app Auto ignores ambient OAuth and delegates to Claude CLI`() async throws {
+    func `app Auto prefers safe OAuth before CLI and web`() async throws {
         let usageResponse = try Self.makeOAuthUsageResponse()
         let cliLogURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-auto-cli-log-\(UUID().uuidString).txt")
@@ -1083,8 +1087,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
                     return Self.makeJSONResponse(url: url, body: "{}")
                 }, operation: {
                     let fetchOverride: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { _, _ in
-                        Issue.record("App Auto must not invoke direct OAuth")
-                        return usageResponse
+                        usageResponse
                     }
                     let snapshot = try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(
                         fetchOverride,
@@ -1094,9 +1097,55 @@ struct ClaudeAutoFetcherCharacterizationTests {
 
                     #expect(snapshot.primary.usedPercent == 7)
                     #expect(snapshot.secondary?.usedPercent == 21)
-                    #expect(log.contents() == "usage\nstatus\n")
+                    #expect(log.contents().isEmpty)
                     let requests = webRequests.current()
                     #expect(requests.isEmpty)
+                })
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `app Auto cancellation never advances beyond OAuth`(wrappedTransportCancellation: Bool) async throws {
+        let cliLogURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-auto-cancel-log-\(UUID().uuidString).txt")
+        let log = InvocationLog(url: cliLogURL)
+        let fakeCLI = try Self.makeFakeClaudeCLI(logURL: cliLogURL)
+        let webRequests = RequestLog()
+        let fetcher = ClaudeUsageFetcher(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            environment: [
+                ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
+                ClaudeOAuthCredentialsStore.environmentScopesKey: "user:profile",
+            ],
+            runtime: .app,
+            dataSource: .auto,
+            manualCookieHeader: "sessionKey=sk-ant-session-token")
+
+        try await ClaudeCLISession.withIsolatedSessionForTesting {
+            try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(fakeCLI.path) {
+                try await self.withClaudeWebStub(handler: { request in
+                    webRequests.append(request.url?.path ?? "<missing>")
+                    let url = try #require(request.url)
+                    return Self.makeJSONResponse(url: url, body: "{}")
+                }, operation: {
+                    let cancelledOAuth: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { _, _ in
+                        if wrappedTransportCancellation {
+                            throw ClaudeOAuthFetchError.networkError(URLError(.cancelled))
+                        }
+                        throw CancellationError()
+                    }
+                    do {
+                        _ = try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(cancelledOAuth) {
+                            try await fetcher.loadLatestUsage(model: "sonnet")
+                        }
+                        Issue.record("Cancelled Auto OAuth unexpectedly succeeded")
+                    } catch {
+                        #expect(ClaudeOAuthFetchError.isCancellation(error))
+                    }
+
+                    #expect(log.contents().isEmpty)
+                    #expect(webRequests.current().isEmpty)
                 })
             }
         }
@@ -1249,7 +1298,7 @@ struct ClaudeAutoFetcherCharacterizationTests {
     }
 
     @Test
-    func `app runtime auto fails deterministically when planner has no executable steps`() async {
+    func `app runtime auto surfaces OAuth absence when no fallback source is available`() async {
         let fetcher = ClaudeUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),
             environment: ["CLAUDE_CLI_PATH": "/definitely/missing/claude"],
@@ -1262,8 +1311,11 @@ struct ClaudeAutoFetcherCharacterizationTests {
                 do {
                     _ = try await fetcher.loadLatestUsage(model: "sonnet")
                     Issue.record("Expected app auto no-source fetch to fail.")
-                } catch let error as ClaudeUsageError {
-                    #expect(error.localizedDescription.contains("Claude planner produced no executable steps."))
+                } catch let error as ClaudeOAuthCredentialsError {
+                    guard case .notFound = error else {
+                        Issue.record("Unexpected OAuth failure: \(error)")
+                        return
+                    }
                 } catch {
                     Issue.record("Unexpected error: \(error)")
                 }
@@ -1445,7 +1497,7 @@ extension ClaudeUsageTests {
         }
 
         await #expect(throws: ClaudeUsageError.self) {
-            try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+            _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
                 .securityCLIExperimental,
                 operation: {
                     try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
@@ -1473,7 +1525,7 @@ extension ClaudeUsageTests {
     }
 
     @Test
-    func `oauth load experimental background fallback blocked propagates O auth failure`() async throws {
+    func `oauth load experimental background preserves typed credential absence`() async throws {
         final class FlagBox: @unchecked Sendable {
             var respectPromptCooldownFlags: [Bool] = []
         }
@@ -1493,8 +1545,8 @@ extension ClaudeUsageTests {
             throw ClaudeOAuthCredentialsError.notFound
         }
 
-        await #expect(throws: ClaudeUsageError.self) {
-            try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+        do {
+            _ = try await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
                 .securityCLIExperimental,
                 operation: {
                     try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
@@ -1505,6 +1557,14 @@ extension ClaudeUsageTests {
                         }
                     }
                 })
+            Issue.record("Expected typed OAuth credential absence.")
+        } catch let error as ClaudeOAuthCredentialsError {
+            guard case .notFound = error else {
+                Issue.record("Unexpected OAuth failure: \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
         #expect(flags.respectPromptCooldownFlags == [true])
     }

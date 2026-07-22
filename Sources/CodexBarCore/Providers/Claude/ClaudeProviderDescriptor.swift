@@ -122,6 +122,8 @@ public enum ClaudeProviderDescriptor {
     private static func makePlanningInput(context: ProviderFetchContext) -> ClaudeSourcePlanningInput {
         let webExtrasEnabled = context.settings?.claude?.webExtrasEnabled ?? false
         let hasWebSession = Self.hasPlausibleWebSession(context: context)
+        let shouldAttemptOAuth = context.runtime == .app &&
+            (context.sourceMode == .auto || context.sourceMode == .oauth)
 
         return ClaudeSourcePlanningInput(
             runtime: context.runtime,
@@ -129,9 +131,9 @@ public enum ClaudeProviderDescriptor {
             webExtrasEnabled: webExtrasEnabled,
             hasWebSession: hasWebSession,
             hasCLI: ClaudeCLIResolver.isAvailable(environment: context.env),
-            // App Auto deliberately excludes direct OAuth. Explicit OAuth still performs its own
-            // availability check inside the selected strategy.
-            hasOAuthCredentials: false)
+            // App Auto and explicit OAuth perform one real, noninteractive OAuth attempt. Do not preflight here:
+            // a preflight can mutate cache state and make the real fetch misclassify a typed error.
+            hasOAuthCredentials: shouldAttemptOAuth)
     }
 
     private static func hasPlausibleWebSession(context: ProviderFetchContext) -> Bool {
@@ -237,6 +239,12 @@ private struct ClaudePlannedFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        if context.runtime == .app,
+           context.sourceMode == .oauth,
+           self.plannedStep.dataSource == .oauth
+        {
+            return true
+        }
         guard context.sourceMode == .auto else {
             return await self.base.isAvailable(context)
         }
@@ -444,6 +452,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             runtime: context.runtime,
             dataSource: .oauth,
             oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
+            oauthSafeCredentialSourcesOnly: context.sourceMode == .auto,
             allowBackgroundDelegatedRefresh: false,
             useWebExtras: false)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
@@ -462,6 +471,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard !Task.isCancelled, !ClaudeOAuthFetchError.isCancellation(error) else {
+            return false
+        }
         if context.runtime == .app,
            context.sourceMode == .oauth,
            let credentialsError = error as? ClaudeOAuthCredentialsError,
@@ -469,8 +481,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         {
             return true
         }
-        // In Auto mode, fall back to the next strategy (cli/web) if OAuth fails (e.g. user cancels keychain prompt
-        // or auth breaks).
+        // In Auto mode, fall back to the next strategy (cli/web) when safe credentials are absent or OAuth fails.
+        // Cancellation itself is always terminal.
         return context.runtime == .app && context.sourceMode == .auto
     }
 

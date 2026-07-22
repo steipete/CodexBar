@@ -296,7 +296,7 @@ Note: Using CLI fallback
 - OpenAI API charts require an Admin API key for organization costs/usage. Normal API keys can only use the legacy balance fallback.
 - Claude Admin API charts require an Anthropic Admin API key (`sk-ant-admin...` or `ANTHROPIC_ADMIN_KEY`).
 - Codex CLI `auto` tries the OpenAI web dashboard, then Codex CLI RPC/PTy; the app’s Codex `auto` path prefers OAuth when credentials are present, then CLI.
-- Claude CLI `auto` tries Web, then CLI PTY; the app’s Claude `auto` path tries CLI, then Web, and excludes OAuth.
+- Claude CLI `auto` tries Web, then CLI PTY; the app’s Claude `auto` path tries safe direct OAuth, then CLI, then Web.
 - Kilo text output splits identity into `Plan:` and `Activity:` lines; in `--source auto`, resolved CLI fetches add
   `Note: Using CLI fallback`.
 - Kilo auto-mode failures include a fallback-attempt summary line in text mode (API attempt then CLI attempt).

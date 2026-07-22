@@ -1454,7 +1454,9 @@ public enum ClaudeOAuthCredentialsStore {
     public static func loadRecordWithAutoRefresh(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         allowKeychainPrompt: Bool = true,
-        respectKeychainPromptCooldown: Bool = false) async throws -> ClaudeOAuthCredentialRecord
+        respectKeychainPromptCooldown: Bool = false,
+        allowClaudeKeychainRepairWithoutPrompt: Bool = true,
+        clearInvalidCache: Bool = true) async throws -> ClaudeOAuthCredentialRecord
     {
         let context = self.currentCollaboratorContext()
         let repository = Repository(context: context)
@@ -1463,7 +1465,8 @@ public enum ClaudeOAuthCredentialsStore {
             environment: environment,
             allowKeychainPrompt: allowKeychainPrompt,
             respectKeychainPromptCooldown: respectKeychainPromptCooldown,
-            allowClaudeKeychainRepairWithoutPrompt: true)
+            allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt,
+            clearInvalidCache: clearInvalidCache)
         let credentials = record.credentials
         let now = Date()
         var expiryMetadata = credentials.diagnosticsMetadata(now: now)
