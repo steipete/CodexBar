@@ -7,14 +7,10 @@ import WidgetKit
 struct CodexBarOverviewEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot
+    let selectedProviders: [UsageProvider]
 }
 
-struct CodexBarOverviewTimelineProvider: TimelineProvider {
-    // ponytail: fixed per-family cap, not wired to the menu bar's configurable
-    // mergedOverviewProviderLimit (that setting lives in UserDefaults.standard,
-    // not the shared app-group suite, so the widget extension can't read it).
-    // Upgrade path: move that setting to AppGroupSupport.sharedDefaults() if the
-    // widget should track it exactly.
+struct CodexBarOverviewTimelineProvider: AppIntentTimelineProvider {
     private static let mediumProviderLimit = 2
     private static let largeProviderLimit = 4
 
@@ -23,21 +19,30 @@ struct CodexBarOverviewTimelineProvider: TimelineProvider {
     }
 
     func placeholder(in context: Context) -> CodexBarOverviewEntry {
-        CodexBarOverviewEntry(date: Date(), snapshot: WidgetPreviewData.snapshot())
+        CodexBarOverviewEntry(date: Date(), snapshot: WidgetPreviewData.snapshot(), selectedProviders: [])
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (CodexBarOverviewEntry) -> Void) {
-        completion(self.makeEntry())
+    func snapshot(
+        for configuration: OverviewProviderSelectionIntent,
+        in context: Context) async -> CodexBarOverviewEntry
+    {
+        self.makeEntry(configuration: configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<CodexBarOverviewEntry>) -> Void) {
-        let entry = self.makeEntry()
+    func timeline(
+        for configuration: OverviewProviderSelectionIntent,
+        in context: Context) async -> Timeline<CodexBarOverviewEntry>
+    {
+        let entry = self.makeEntry(configuration: configuration)
         let refresh = Self.nextRefresh(snapshot: entry.snapshot, now: entry.date)
-        completion(Timeline(entries: [entry], policy: .after(refresh)))
+        return Timeline(entries: [entry], policy: .after(refresh))
     }
 
-    private func makeEntry() -> CodexBarOverviewEntry {
-        CodexBarOverviewEntry(date: Date(), snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot())
+    private func makeEntry(configuration: OverviewProviderSelectionIntent) -> CodexBarOverviewEntry {
+        CodexBarOverviewEntry(
+            date: Date(),
+            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot(),
+            selectedProviders: configuration.selectedProviders)
     }
 
     private static let maximumInterval: TimeInterval = 30 * 60
@@ -59,8 +64,10 @@ struct CodexBarOverviewWidgetView: View {
     let entry: CodexBarOverviewEntry
 
     var body: some View {
-        let providers = Array(self.entry.snapshot.enabledProviders
-            .prefix(CodexBarOverviewTimelineProvider.providerLimit(for: self.family)))
+        let limit = CodexBarOverviewTimelineProvider.providerLimit(for: self.family)
+        let providers = self.entry.selectedProviders.isEmpty
+            ? Array(self.entry.snapshot.enabledProviders.prefix(limit))
+            : Array(self.entry.selectedProviders.prefix(limit))
         let rows = providers.compactMap { provider in
             self.entry.snapshot.entries.first { $0.provider == provider }
         }

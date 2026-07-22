@@ -910,6 +910,78 @@ extension SettingsStore {
         return updatedSelection
     }
 
+    private var touchBarSelectedProvidersRaw: [String] {
+        get { self.defaultsState.touchBarSelectedProvidersRaw }
+        set {
+            self.defaultsState.touchBarSelectedProvidersRaw = newValue
+            self.userDefaults.set(newValue, forKey: "touchBarSelectedProviders")
+        }
+    }
+
+    var touchBarSelectedProviders: [UsageProvider] {
+        get { Self.decodeProviders(self.touchBarSelectedProvidersRaw) }
+        set { self.touchBarSelectedProvidersRaw = Self.normalizeProviders(newValue).map(\.rawValue) }
+    }
+
+    private var hasTouchBarSelectionPreference: Bool {
+        self.userDefaults.object(forKey: "touchBarSelectedProviders") != nil
+    }
+
+    /// Resolved provider list for the Touch Bar overlay's fixed card slots. Simpler than
+    /// `resolvedMergedOverviewProviders` — no active-provider-set-change reconciliation — because
+    /// the Touch Bar's card count is a fixed constant, not a user-adjustable limit like the merged
+    /// Overview's. ponytail: if the Touch Bar cap ever becomes configurable too, port the
+    /// `mergedOverviewSelectionEditedActiveProviders` reconciliation logic over.
+    func resolvedTouchBarProviders(
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else { return [] }
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard self.hasTouchBarSelectionPreference else {
+            return Array(normalizedActive.prefix(maxVisibleProviders))
+        }
+        let selectedSet = Set(self.touchBarSelectedProviders)
+        return Array(normalizedActive.filter { selectedSet.contains($0) }.prefix(maxVisibleProviders))
+    }
+
+    @discardableResult
+    func setTouchBarProviderSelection(
+        provider: UsageProvider,
+        isSelected: Bool,
+        activeProviders: [UsageProvider],
+        maxVisibleProviders: Int) -> [UsageProvider]
+    {
+        guard maxVisibleProviders > 0 else { return [] }
+        let normalizedActive = Self.normalizeProviders(activeProviders)
+        guard normalizedActive.contains(provider) else {
+            return self.resolvedTouchBarProviders(
+                activeProviders: normalizedActive,
+                maxVisibleProviders: maxVisibleProviders)
+        }
+
+        let currentSelection = self.resolvedTouchBarProviders(
+            activeProviders: normalizedActive,
+            maxVisibleProviders: maxVisibleProviders)
+        var updatedSet = Set(currentSelection)
+
+        if isSelected {
+            guard updatedSet.contains(provider) || currentSelection.count < maxVisibleProviders else {
+                return currentSelection
+            }
+            updatedSet.insert(provider)
+        } else {
+            updatedSet.remove(provider)
+        }
+
+        let updatedSelection = Array(
+            normalizedActive
+                .filter { updatedSet.contains($0) }
+                .prefix(maxVisibleProviders))
+        self.touchBarSelectedProviders = updatedSelection
+        return updatedSelection
+    }
+
     var providerDetectionCompleted: Bool {
         get { self.defaultsState.providerDetectionCompleted }
         set {

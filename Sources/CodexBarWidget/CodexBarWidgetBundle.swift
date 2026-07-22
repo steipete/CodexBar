@@ -1,3 +1,4 @@
+import AppIntents
 import CodexBarCore
 import SwiftUI
 import WidgetKit
@@ -131,8 +132,9 @@ struct CodexBarOverviewWidget: Widget {
     private let kind = "CodexBarOverviewWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(
+        AppIntentConfiguration(
             kind: self.kind,
+            intent: OverviewProviderSelectionIntent.self,
             provider: CodexBarOverviewTimelineProvider())
         { entry in
             CodexBarOverviewWidgetView(entry: entry)

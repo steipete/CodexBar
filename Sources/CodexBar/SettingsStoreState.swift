@@ -65,6 +65,7 @@ struct SettingsDefaultsState {
     var switcherShowsIcons: Bool
     var mergedMenuLastSelectedWasOverview: Bool
     var mergedOverviewSelectedProvidersRaw: [String]
+    var touchBarSelectedProvidersRaw: [String]
     var selectedMenuProviderRaw: String?
     var providerDetectionCompleted: Bool
     var providersSortedAlphabetically: Bool
