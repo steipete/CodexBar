@@ -351,8 +351,6 @@ struct CLISnapshotTests {
         let meta = ProviderDescriptorRegistry.descriptor(for: .crof).metadata
         let snap = CrofUsageSnapshot(
             credits: 9.9999,
-            requestsPlan: 1000,
-            usableRequests: 998,
             updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
 
         let output = CLIRenderer.renderText(
@@ -365,10 +363,10 @@ struct CLISnapshotTests {
                 useColor: false,
                 resetStyle: .countdown))
 
-        #expect(output.contains("\(meta.sessionLabel): 99% left"))
-        #expect(output.contains("\(meta.weeklyLabel): 100% left"))
+        #expect(output.contains("\(meta.sessionLabel): 100% left"))
         #expect(output.contains("$9.99"))
         #expect(!output.contains("Resets $9.99"))
+        #expect(!output.contains("requests left"))
     }
 
     @Test

@@ -10,7 +10,18 @@ struct CrofUsageFetcherTests {
     }
 
     @Test
-    func `usage response parses credits and request quota`() throws {
+    func `usage response parses credits and ignores null request quota fields`() throws {
+        let json = """
+        {"credits":9.0441,"requests_plan":null,"usable_requests":null,"usage":{"deepseek-v4-flash":{"cached_tokens":0,"input_tokens":23,"output_tokens":132,"total_tokens":155}}}
+        """
+
+        let snapshot = try CrofUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+
+        #expect(snapshot.credits == 9.0441)
+    }
+
+    @Test
+    func `usage response still parses credits when legacy request fields are present`() throws {
         let json = """
         {"credits":10.0,"requests_plan":1000,"usable_requests":998}
         """
@@ -18,81 +29,38 @@ struct CrofUsageFetcherTests {
         let snapshot = try CrofUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
 
         #expect(snapshot.credits == 10)
-        #expect(snapshot.requestsPlan == 1000)
-        #expect(snapshot.usableRequests == 998)
     }
 
     @Test
-    func `usage snapshot maps usable requests to remaining quota`() {
+    func `usage snapshot maps credit balance as primary window`() {
         let snapshot = CrofUsageSnapshot(
             credits: 10,
-            requestsPlan: 1000,
-            usableRequests: 998,
             updatedAt: Date(timeIntervalSince1970: 1_777_800_000))
 
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.primary?.usedPercent == 1)
-        #expect(usage.primary?.windowMinutes == 1440)
-        #expect(usage.primary?.resetDescription == "998 requests left")
-        #expect(usage.secondary?.usedPercent == 0)
-        #expect(usage.secondary?.resetDescription == "$10.00")
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == "$10.00")
+        #expect(usage.secondary == nil)
         #expect(usage.identity?.providerID == .crof)
         #expect(usage.identity?.loginMethod == "API key")
     }
 
     @Test
     func `usage snapshot floors credit balance to cents`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 9.9999,
-            requestsPlan: 1000,
-            usableRequests: 998)
+        let snapshot = CrofUsageSnapshot(credits: 9.9999)
 
-        #expect(snapshot.toUsageSnapshot().secondary?.resetDescription == "$9.99")
+        #expect(snapshot.toUsageSnapshot().primary?.resetDescription == "$9.99")
     }
 
     @Test
-    func `usage snapshot resets requests at next America Chicago midnight`() throws {
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-        let updatedAt = try #require(utc.date(from: DateComponents(
-            year: 2026,
-            month: 5,
-            day: 8,
-            hour: 18,
-            minute: 30)))
-        let expectedReset = try #require(utc.date(from: DateComponents(
-            year: 2026,
-            month: 5,
-            day: 9,
-            hour: 5)))
-        let snapshot = CrofUsageSnapshot(
-            credits: 10,
-            requestsPlan: 1000,
-            usableRequests: 998,
-            updatedAt: updatedAt)
-
-        #expect(snapshot.toUsageSnapshot().primary?.resetsAt == expectedReset)
-    }
-
-    @Test
-    func `usage snapshot clamps overreported usable requests`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 0,
-            requestsPlan: 1000,
-            usableRequests: 1200)
-
-        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 0)
-    }
-
-    @Test
-    func `usage snapshot treats zero plan as exhausted`() {
-        let snapshot = CrofUsageSnapshot(
-            credits: 0,
-            requestsPlan: 0,
-            usableRequests: 0)
+    func `usage snapshot treats zero credits as exhausted`() {
+        let snapshot = CrofUsageSnapshot(credits: 0)
 
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 100)
+        #expect(snapshot.toUsageSnapshot().primary?.resetDescription == "$0.00")
     }
 
     @Test
@@ -108,12 +76,12 @@ struct CrofUsageFetcherTests {
             #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
             return try Self.makeResponse(
                 url: url,
-                body: #"{"credits":10.0,"requests_plan":1000,"usable_requests":998}"#)
+                body: #"{"credits":9.0441,"requests_plan":null,"usable_requests":null,"usage":{}}"#)
         }
 
         let snapshot = try await CrofUsageFetcher.fetchUsage(apiKey: "crof-test", session: Self.makeSession())
 
-        #expect(snapshot.usableRequests == 998)
+        #expect(snapshot.credits == 9.0441)
         #expect(CrofStubURLProtocol.requests.map(\.url?.absoluteString) == ["https://crof.ai/usage_api/"])
     }
 
@@ -122,6 +90,7 @@ struct CrofUsageFetcherTests {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .crof)
         #expect(descriptor.metadata.displayName == "Crof")
         #expect(descriptor.metadata.dashboardURL == "https://crof.ai/dashboard")
+        #expect(descriptor.metadata.sessionLabel == "Credits")
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-crof")
     }
