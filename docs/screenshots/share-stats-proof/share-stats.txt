@@ -1,0 +1,11 @@
+You kept the models busy · last 30 days
+21.7M tracked tokens
+30 of 30 days active
+Estimated token spend: $274.00 · pricing for 4 of 4 sources
+Top model routes:
+GPT-5.4 via Codex
+Claude Sonnet 4 via OpenRouter
+Kimi K2.5 via Kimi
++1 more safe route summaries
+4 sources tracked
+Aggregated locally by CodexBar · No prompts shared · Data through Aug 4, 2026
