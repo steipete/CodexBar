@@ -42,7 +42,7 @@ jobs:
             }
 
             for (const section of ["Summary", "Validation", "Provider and privacy impact"]) {
-              const match = body.match(new RegExp(`^## ${section}\\n([\\s\\S]*?)(?=^## |$)`, "m"))
+              const match = body.match(new RegExp(`(?:^|\\n)## ${section}\\r?\\n([\\s\\S]*?)(?=\\r?\\n## |$)`))
               if (!match || !match[1].trim()) {
                 issues.push(`Fill in the ${section} section with concrete information.`)
               }
