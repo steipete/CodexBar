@@ -6,6 +6,7 @@ struct MenuBarPane: View {
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
 
     @State private var isOverviewProviderPopoverPresented = false
+    @State private var isTouchBarProviderPopoverPresented = false
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
 
@@ -77,6 +78,14 @@ struct MenuBarPane: View {
                     .disabled(!self.settings.mergeIcons)
             } header: {
                 Text(L("section_combined_icon"))
+            }
+
+            Section {
+                self.touchBarProviderRow
+            } header: {
+                Text("Touch Bar")
+            } footer: {
+                SettingsSectionFooter("Which providers show as cards on the physical Touch Bar (max \(PersistentUsageTouchBarController.maxCards)).")
             }
 
             Section {
@@ -202,5 +211,68 @@ struct MenuBarPane: View {
         _ = self.settings.reconcileMergedOverviewSelectedProviders(
             activeProviders: self.activeProvidersInOrder,
             maxVisibleProviders: Self.maxOverviewProviders)
+    }
+
+    private var touchBarProviderRow: some View {
+        LabeledContent {
+            if !self.activeProvidersInOrder.isEmpty {
+                Button(L("configure")) {
+                    self.isTouchBarProviderPopoverPresented = true
+                }
+                .popover(isPresented: self.$isTouchBarProviderPopoverPresented, arrowEdge: .bottom) {
+                    self.touchBarProviderPopover
+                }
+            }
+        } label: {
+            SettingsRowLabel("Touch Bar providers", subtitle: self.touchBarProviderSubtitle)
+        }
+    }
+
+    private var touchBarProviderSubtitle: String {
+        if self.activeProvidersInOrder.isEmpty {
+            L("overview_no_providers_hint")
+        } else {
+            self.touchBarSelectedProviders.map(self.providerDisplayName).joined(separator: ", ")
+        }
+    }
+
+    private var touchBarSelectedProviders: [UsageProvider] {
+        self.settings.resolvedTouchBarProviders(
+            activeProviders: self.activeProvidersInOrder,
+            maxVisibleProviders: PersistentUsageTouchBarController.maxCards)
+    }
+
+    private var touchBarProviderPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Choose up to \(PersistentUsageTouchBarController.maxCards) providers")
+                .font(.headline)
+
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(self.activeProvidersInOrder, id: \.self) { provider in
+                        Toggle(
+                            isOn: Binding(
+                                get: { self.touchBarSelectedProviders.contains(provider) },
+                                set: { shouldSelect in
+                                    self.settings.setTouchBarProviderSelection(
+                                        provider: provider,
+                                        isSelected: shouldSelect,
+                                        activeProviders: self.activeProvidersInOrder,
+                                        maxVisibleProviders: PersistentUsageTouchBarController.maxCards)
+                                })) {
+                            Text(self.providerDisplayName(provider))
+                                .font(.body)
+                        }
+                        .toggleStyle(.checkbox)
+                        .disabled(
+                            !self.touchBarSelectedProviders.contains(provider) &&
+                                self.touchBarSelectedProviders.count >= PersistentUsageTouchBarController.maxCards)
+                    }
+                }
+            }
+            .frame(maxHeight: 220)
+        }
+        .padding(12)
+        .frame(width: 280)
     }
 }

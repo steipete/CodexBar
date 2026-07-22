@@ -298,26 +298,30 @@ PACKAGE_ENV=(
   ARCHES="${ARCHES_VALUE}"
 )
 if [[ "${DEBUG_LLDB}" == "1" ]]; then
-  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 "${PACKAGE_ENV[@]}" "${ROOT_DIR}/Scripts/package_app.sh" debug
+  run_step "package app" env CODEXBAR_ALLOW_LLDB=1 CODEXBAR_INSTALL=1 "${PACKAGE_ENV[@]}" "${ROOT_DIR}/Scripts/package_app.sh" debug --install
 else
   if [[ -n "${SIGNING_MODE}" ]]; then
-    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" "${PACKAGE_ENV[@]}" "${ROOT_DIR}/Scripts/package_app.sh"
+    run_step "package app" env CODEXBAR_SIGNING="${SIGNING_MODE}" CODEXBAR_INSTALL=1 "${PACKAGE_ENV[@]}" "${ROOT_DIR}/Scripts/package_app.sh" --install
   else
-    run_step "package app" env "${PACKAGE_ENV[@]}" "${ROOT_DIR}/Scripts/package_app.sh"
+    run_step "package app" env CODEXBAR_INSTALL=1 "${PACKAGE_ENV[@]}" "${ROOT_DIR}/Scripts/package_app.sh" --install
   fi
 fi
 
 # 4) Launch the packaged app.
 log "==> launch app"
-if ! open "${APP_BUNDLE}"; then
+TARGET_APP="${APP_BUNDLE}"
+if [[ -d "/Applications/CodexBar.app" ]]; then
+  TARGET_APP="/Applications/CodexBar.app"
+fi
+if ! open "${TARGET_APP}"; then
   log "WARN: launch app returned non-zero; falling back to direct binary launch."
-  "${APP_BUNDLE}/Contents/MacOS/CodexBar" >/dev/null 2>&1 &
+  "${TARGET_APP}/Contents/MacOS/CodexBar" >/dev/null 2>&1 &
   disown
 fi
 
 # 5) Verify the app stays up for at least a moment (launch can be >1s on some systems).
 for _ in {1..10}; do
-  if pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1; then
+  if pgrep -f "${APP_PROCESS_PATTERN}" >/dev/null 2>&1 || pgrep -f "/Applications/CodexBar.app/Contents/MacOS/CodexBar" >/dev/null 2>&1; then
     log "OK: CodexBar is running."
     exit 0
   fi

@@ -20,6 +20,7 @@ enum ProviderChoice: String, AppEnum {
     case opencodego
     case mistral
     case kimi
+    case kiro
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -40,6 +41,7 @@ enum ProviderChoice: String, AppEnum {
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
         .mistral: DisplayRepresentation(title: "Mistral"),
         .kimi: DisplayRepresentation(title: "Kimi"),
+        .kiro: DisplayRepresentation(title: "Kiro"),
     ]
 
     var provider: UsageProvider {
@@ -60,6 +62,7 @@ enum ProviderChoice: String, AppEnum {
         case .opencodego: .opencodego
         case .mistral: .mistral
         case .kimi: .kimi
+        case .kiro: .kiro
         }
     }
 
@@ -86,7 +89,7 @@ enum ProviderChoice: String, AppEnum {
         case .manus: return nil // Manus not yet supported in widgets
         case .vertexai: return nil // Vertex AI not yet supported in widgets
         case .kilo: self = .kilo
-        case .kiro: return nil // Kiro not yet supported in widgets
+        case .kiro: self = .kiro
         case .augment: return nil // Augment not yet supported in widgets
         case .jetbrains: return nil // JetBrains not yet supported in widgets
         case .kimi: self = .kimi
@@ -156,6 +159,29 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
 
     init() {
         self.provider = .codex
+    }
+}
+
+struct OverviewProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "Providers"
+    static let description = IntentDescription("Choose which providers to show, and in what order.")
+
+    @Parameter(title: "Provider 1")
+    var provider1: ProviderChoice?
+    @Parameter(title: "Provider 2")
+    var provider2: ProviderChoice?
+    @Parameter(title: "Provider 3")
+    var provider3: ProviderChoice?
+    @Parameter(title: "Provider 4")
+    var provider4: ProviderChoice?
+
+    init() {}
+
+    // Multi-value `[ProviderChoice]` App Intent parameters render unreliably in the
+    // WidgetKit "Edit Widget" UI across OS versions — four optional single-select slots use the
+    // same primitive as `ProviderSelectionIntent` above, which is proven to work there.
+    var selectedProviders: [UsageProvider] {
+        [self.provider1, self.provider2, self.provider3, self.provider4].compactMap { $0?.provider }
     }
 }
 

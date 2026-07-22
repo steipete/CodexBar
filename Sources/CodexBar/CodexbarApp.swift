@@ -365,11 +365,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusController: StatusItemControlling?
     private var store: UsageStore?
     private var settings: SettingsStore?
+    private var persistentTouchBarController: PersistentUsageTouchBarController?
     private var account: AccountInfo?
     private var preferencesSelection: PreferencesSelection?
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
     private var hasInstalledLimitResetObservers = false
+    private var systemWakeObserver: NSObjectProtocol?
     #if DEBUG
     private var debugMemoryPressureObserver: NSObjectProtocol?
     #endif
@@ -396,6 +398,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        if let store, let settings {
+            let controller = PersistentUsageTouchBarController(settings: settings, store: store)
+            controller.present()
+            self.persistentTouchBarController = controller
+        }
         Task { @MainActor [weak self] in
             await Task.yield()
             guard let settings = self?.settings else { return }
@@ -421,14 +428,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 object: nil)
             self.hasInstalledLimitResetObservers = true
         }
+        // Nothing observed system wake before this — after sleeping overnight, the periodic
+        // refresh timer's next tick could be minutes away, leaving menu bar/widget data stale
+        // right when the user first looks. Force an immediate refresh on wake instead.
+        self.systemWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main)
+        { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.store?.refresh(enrichmentMode: .automatic)
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let systemWakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(systemWakeObserver)
+            self.systemWakeObserver = nil
+        }
         self.memoryPressureMonitor.stop()
         #if DEBUG
         self.removeDebugMemoryPressureObserver()
         #endif
         self.statusController?.prepareForAppShutdown()
+        self.persistentTouchBarController?.dismiss()
         self.confettiOverlayController.dismiss()
         self.dismissAppKitWindowsForShutdown()
         self.terminateActiveProcessesForAppShutdown()
