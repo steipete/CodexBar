@@ -22,7 +22,7 @@ final class ShareStatsWindowController: NSWindowController, NSWindowDelegate {
     init(payload: ShareStatsPayload) {
         self.payload = payload
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 820, height: 565),
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 610),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false)
@@ -53,32 +53,41 @@ final class ShareStatsWindowController: NSWindowController, NSWindowDelegate {
     private func installContent() {
         self.window?.contentViewController = NSHostingController(rootView: ShareStatsPreviewView(
             payload: self.payload,
-            copyImage: { [weak self] in
+            copyImage: { [weak self] style in
                 guard let self else { return false }
-                return ShareStatsExporter.copyImage(self.payload)
+                return ShareStatsExporter.copyImage(self.payload, style: style)
             },
-            copyText: { [weak self] in
+            copyText: { [weak self] style in
                 guard let self else { return }
-                ShareStatsExporter.copyText(self.payload)
+                ShareStatsExporter.copyText(self.payload, style: style)
             },
-            saveImage: { [weak self] in
+            saveImage: { [weak self] style in
                 guard let self else { return false }
-                return ShareStatsExporter.saveImage(self.payload)
+                return ShareStatsExporter.saveImage(self.payload, style: style)
             }))
     }
 }
 
 private struct ShareStatsPreviewView: View {
     let payload: ShareStatsPayload
-    let copyImage: @MainActor () -> Bool
-    let copyText: @MainActor () -> Void
-    let saveImage: @MainActor () -> Bool
+    let copyImage: @MainActor (ShareStatsCardStyle) -> Bool
+    let copyText: @MainActor (ShareStatsCardStyle) -> Void
+    let saveImage: @MainActor (ShareStatsCardStyle) -> Bool
 
+    @State private var style: ShareStatsCardStyle = .defaultStyle
     @State private var statusMessage: String?
 
     var body: some View {
-        VStack(spacing: 20) {
-            ShareStatsScaledPreview(payload: self.payload)
+        VStack(spacing: 16) {
+            Picker(L("Share card style"), selection: self.$style) {
+                Text(L("Summary")).tag(ShareStatsCardStyle.summary)
+                Text(L("Model activity")).tag(ShareStatsCardStyle.modelActivity)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 280)
+            .accessibilityLabel(L("Share card style"))
+
+            ShareStatsScaledPreview(payload: self.payload, style: self.style)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12)
@@ -88,21 +97,21 @@ private struct ShareStatsPreviewView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    self.statusMessage = self.copyImage() ? L("Image copied") : L("Could not copy image")
+                    self.statusMessage = self.copyImage(self.style) ? L("Image copied") : L("Could not copy image")
                 } label: {
                     Label(L("Copy Image"), systemImage: "photo.on.rectangle")
                 }
                 .keyboardShortcut(.defaultAction)
 
                 Button {
-                    self.copyText()
+                    self.copyText(self.style)
                     self.statusMessage = L("Stats copied")
                 } label: {
                     Label(L("Copy Stats"), systemImage: "doc.on.doc")
                 }
 
                 Button {
-                    if self.saveImage() {
+                    if self.saveImage(self.style) {
                         self.statusMessage = L("Image saved")
                     }
                 } label: {
@@ -119,20 +128,28 @@ private struct ShareStatsPreviewView: View {
             }
         }
         .padding(24)
-        .frame(minWidth: 780, minHeight: 525)
+        .frame(minWidth: 780, minHeight: 570)
     }
 }
 
 private struct ShareStatsScaledPreview: View {
     let payload: ShareStatsPayload
+    let style: ShareStatsCardStyle
 
     var body: some View {
         GeometryReader { proxy in
             let scale = min(
                 proxy.size.width / ShareStatsCardView.size.width,
                 proxy.size.height / ShareStatsCardView.size.height)
-            ShareStatsCardView(payload: self.payload)
-                .scaleEffect(scale, anchor: .topLeading)
+            Group {
+                switch self.style {
+                case .summary:
+                    ShareStatsCardView(payload: self.payload)
+                case .modelActivity:
+                    ShareStatsModelActivityCardView(payload: self.payload)
+                }
+            }
+            .scaleEffect(scale, anchor: .topLeading)
         }
         .aspectRatio(ShareStatsCardView.size.width / ShareStatsCardView.size.height, contentMode: .fit)
     }
