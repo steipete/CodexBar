@@ -85,4 +85,38 @@ struct CursorTokenAccountSourceTests {
             return
         }
     }
+
+    @Test
+    func `skipped cost clears stale state while a refresh is in flight`() async {
+        let settings = testSettingsStore(suiteName: "CursorTokenAccountSourceTests")
+        settings.costUsageEnabled = true
+        if let metadata = ProviderRegistry.shared.metadata[.cursor] {
+            settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        settings.cursorUsageDataSource = .web
+        settings.cursorCookieSource = .off
+        store.publishTokenSnapshot(
+            CostUsageTokenSnapshot(
+                sessionTokens: 10,
+                sessionCostUSD: 1,
+                last30DaysTokens: 10,
+                last30DaysCostUSD: 1,
+                daily: [],
+                updatedAt: Date(timeIntervalSince1970: 1_784_203_200)),
+            for: .cursor)
+        // An older fetch is still running: the skip must clear the stale cost
+        // snapshot anyway instead of waiting behind the in-flight guard.
+        store.tokenRefreshInFlight.insert(.cursor)
+        defer { store.tokenRefreshInFlight.remove(.cursor) }
+
+        await store.refreshTokenUsage(.cursor, force: true)
+
+        #expect(store.tokenSnapshot(for: .cursor) == nil)
+    }
 }

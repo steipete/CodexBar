@@ -1380,17 +1380,20 @@ extension UsageStore {
             return
         }
 
-        guard !self.tokenRefreshInFlight.contains(provider) else { return }
-
-        let now = Date()
-        let historyDays = self.settings.costUsageHistoryDays
         // Cursor cost reuses the status cookie policy: a Manual source forwards the manual header so
-        // cost and status share the same session; other sources fall back to auto resolution.
+        // cost and status share the same session; other sources fall back to auto resolution. Decided
+        // before the in-flight guard so switching to a skipped or rejected configuration clears stale
+        // cost state even while an older fetch is still running.
         guard case let .proceed(cursorCookieHeaderOverride) =
             self.prepareCursorCostCookieForRefresh(provider)
         else {
             return
         }
+
+        guard !self.tokenRefreshInFlight.contains(provider) else { return }
+
+        let now = Date()
+        let historyDays = self.settings.costUsageHistoryDays
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
         let publicationRevision = self.providerPublicationRevision(for: provider)

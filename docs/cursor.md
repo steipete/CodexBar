@@ -115,7 +115,7 @@ keeps ownership). Otherwise auth reuses the
 exact status-probe session resolution and cookie-source policy:
 - **Auto**: cached cookie header → browser cookie import → stored WebKit session → Cursor.app local auth.
 - **Manual**: a non-empty pasted cookie header is required and forwarded as-is, so cost and status share the same session; an empty header fails closed instead of falling back to another account.
-- **Off**: disables only the cookie ladder. An app-token-carried fetch (App Token mode, or Auto with a winning app token) still runs; otherwise the fetch is skipped in the app, `codexbar cost --provider cursor` fails explicitly, and `/cost` returns a provider error row.
+- **Off**: disables only the cookie ladder. An app-token-carried fetch (App Token mode, or Auto with a winning app token) still runs; otherwise the fetch is skipped in the app (clearing any stale cost immediately, even while an older fetch is still running), `codexbar cost --provider cursor` fails explicitly, and `/cost` returns a provider error row.
 
 Fetch behavior:
 - `POST https://cursor.com/api/dashboard/get-filtered-usage-events` (cookie-authenticated; requires a matching `Origin` for CSRF).
