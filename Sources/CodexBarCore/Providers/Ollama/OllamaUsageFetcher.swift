@@ -7,9 +7,11 @@ import FoundationNetworking
 import SweetCookieKit
 #endif
 
+let ollamaDefaultSessionCookieName = "__Secure-session"
+
 private let ollamaSessionCookieNames: Set<String> = [
     "session",
-    "__Secure-session",
+    ollamaDefaultSessionCookieName,
     "ollama_session",
     "__Host-ollama_session",
     "wos-session",
@@ -30,6 +32,29 @@ private func hasRecognizedOllamaSessionCookie(in header: String) -> Bool {
     CookieHeaderNormalizer.pairs(from: header).contains { pair in
         isRecognizedOllamaSessionCookieName(pair.name)
     }
+}
+
+func normalizedOllamaTokenAccountHeader(_ token: String, defaultCookieName: String) -> String {
+    let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    let headerValue = CookieHeaderNormalizer.normalize(trimmed) ?? trimmed
+    guard !headerValue.contains("\r"), !headerValue.contains("\n") else { return "" }
+    let pairs = CookieHeaderNormalizer.pairs(fromNormalizedHeader: headerValue)
+    if pairs.contains(where: { $0.name.caseInsensitiveCompare(defaultCookieName) == .orderedSame }) {
+        return pairs.map { pair in
+            let name = pair.name.caseInsensitiveCompare(defaultCookieName) == .orderedSame
+                ? defaultCookieName
+                : pair.name
+            return "\(name)=\(pair.value)"
+        }.joined(separator: "; ")
+    }
+    if pairs.contains(where: { isRecognizedOllamaSessionCookieName($0.name) }) {
+        return headerValue
+    }
+    if headerValue.contains(";") {
+        return headerValue
+    }
+    return "\(defaultCookieName)=\(headerValue)"
 }
 
 public enum OllamaUsageError: LocalizedError, Sendable {

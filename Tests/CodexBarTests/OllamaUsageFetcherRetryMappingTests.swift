@@ -470,6 +470,41 @@ struct OllamaUsageFetcherRetryMappingTests {
     }
 
     @Test
+    func `token account session value reaches outgoing cookie header`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: "account-token",
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "__Secure-session=account-token")
+            let url = try #require(request.url)
+            let body = """
+            <div>
+              <span>Session usage</span>
+              <span>1.2% used</span>
+              <span>Weekly usage</span>
+              <span>3.4% used</span>
+            </div>
+            """
+            return Self.makeResponse(url: url, body: body, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: settings.manualCookieHeader,
+            manualCookieMode: true)
+    }
+
+    @Test
     func `temporary session is finished after a transport failure`() async {
         defer { OllamaRetryMappingStubURLProtocol.handler = nil }
 
