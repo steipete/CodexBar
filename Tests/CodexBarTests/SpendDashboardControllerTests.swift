@@ -4,6 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct SpendDashboardControllerTests {
     @Test
     func `empty codex history loads as successful inactive source`() async {
