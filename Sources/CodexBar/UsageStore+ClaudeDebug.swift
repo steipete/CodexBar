@@ -2,6 +2,91 @@ import CodexBarCore
 import Foundation
 import SweetCookieKit
 
+private struct ClaudeOAuthDebugProbe: Sendable {
+    let isAvailable: Bool
+    let hasCredentials: Bool
+    let ownerRawValue: String
+    let sourceRawValue: String
+    let isExpired: Bool
+    let errorRawValue: String
+}
+
+private func probeClaudeOAuthForDebug(
+    shouldProbe: Bool,
+    environment: [String: String]) async -> ClaudeOAuthDebugProbe
+{
+    guard shouldProbe else {
+        return ClaudeOAuthDebugProbe(
+            isAvailable: false,
+            hasCredentials: false,
+            ownerRawValue: "none",
+            sourceRawValue: "none",
+            isExpired: false,
+            errorRawValue: "not-probed")
+    }
+
+    return await withTaskGroup(of: ClaudeOAuthDebugProbe.self) { group in
+        group.addTask(priority: .utility) {
+            do {
+                let record = try ClaudeOAuthCredentialsStore.loadRecord(
+                    environment: environment,
+                    allowKeychainPrompt: false,
+                    respectKeychainPromptCooldown: true,
+                    allowClaudeKeychainRepairWithoutPrompt: false,
+                    clearInvalidCache: false)
+                return ClaudeOAuthDebugProbe(
+                    isAvailable: true,
+                    hasCredentials: record.credentials.scopes.contains("user:profile"),
+                    ownerRawValue: record.owner.rawValue,
+                    sourceRawValue: record.source.rawValue,
+                    isExpired: record.credentials.isExpired,
+                    errorRawValue: "none")
+            } catch let error as ClaudeOAuthCredentialsError {
+                let classification = claudeOAuthDebugErrorClassification(error)
+                return ClaudeOAuthDebugProbe(
+                    isAvailable: classification.isAvailable,
+                    hasCredentials: false,
+                    ownerRawValue: "none",
+                    sourceRawValue: "none",
+                    isExpired: false,
+                    errorRawValue: classification.label)
+            } catch {
+                return ClaudeOAuthDebugProbe(
+                    isAvailable: true,
+                    hasCredentials: false,
+                    ownerRawValue: "none",
+                    sourceRawValue: "none",
+                    isExpired: false,
+                    errorRawValue: "other")
+            }
+        }
+        return await group.next() ?? ClaudeOAuthDebugProbe(
+            isAvailable: true,
+            hasCredentials: false,
+            ownerRawValue: "none",
+            sourceRawValue: "none",
+            isExpired: false,
+            errorRawValue: "probe-unavailable")
+    }
+}
+
+private func claudeOAuthDebugErrorClassification(
+    _ error: ClaudeOAuthCredentialsError) -> (isAvailable: Bool, label: String)
+{
+    switch error {
+    case .decodeFailed: (true, "decodeFailed")
+    case .missingOAuth: (true, "missingOAuth")
+    case .mcpOAuthOnlyKeychain: (true, "mcpOAuthOnlyKeychain")
+    case .missingAccessToken: (true, "missingAccessToken")
+    case .notFound: (false, "notFound")
+    case .keychainError: (true, "keychainError")
+    case .readFailed: (true, "readFailed")
+    case .refreshFailed: (true, "refreshFailed")
+    case .noRefreshToken: (true, "noRefreshToken")
+    case .refreshDelegatedToClaudeCLI: (true, "refreshDelegatedToClaudeCLI")
+    }
+}
+
 @MainActor
 extension UsageStore {
     func debugClaudeDump() async -> String {
@@ -25,14 +110,7 @@ extension UsageStore {
         browserDetection: BrowserDetection,
         configuration: ClaudeDebugLogConfiguration) async -> String
     {
-        struct OAuthDebugProbe: Sendable {
-            let hasCredentials: Bool
-            let ownerRawValue: String
-            let sourceRawValue: String
-            let isExpired: Bool
-        }
-
-        return await runWithTimeout(seconds: 15) {
+        await runWithTimeout(seconds: 15) {
             var lines: [String] = []
             let manualHeader = configuration.cookieSource == .manual
                 ? CookieHeaderNormalizer.normalize(configuration.cookieHeader)
@@ -44,35 +122,11 @@ extension UsageStore {
             } else {
                 ClaudeWebAPIFetcher.hasSessionKey(browserDetection: browserDetection) { msg in lines.append(msg) }
             }
-            let emptyOAuthProbe = OAuthDebugProbe(
-                hasCredentials: false,
-                ownerRawValue: "none",
-                sourceRawValue: "none",
-                isExpired: false)
             let shouldProbeOAuth = configuration.usageDataSource == .oauth
-            let oauthProbe = if shouldProbeOAuth {
-                await withTaskGroup(of: OAuthDebugProbe.self) { group in
-                    group.addTask(priority: .utility) {
-                        let oauthRecord = try? ClaudeOAuthCredentialsStore.loadRecord(
-                            environment: configuration.environment,
-                            allowKeychainPrompt: false,
-                            respectKeychainPromptCooldown: true,
-                            allowClaudeKeychainRepairWithoutPrompt: false)
-                        return OAuthDebugProbe(
-                            hasCredentials: oauthRecord?.credentials.scopes.contains("user:profile") == true,
-                            ownerRawValue: oauthRecord?.owner.rawValue ?? "none",
-                            sourceRawValue: oauthRecord?.source.rawValue ?? "none",
-                            isExpired: oauthRecord?.credentials.isExpired ?? false)
-                    }
-                    return await group.next() ?? emptyOAuthProbe
-                }
-            } else {
-                emptyOAuthProbe
-            }
-            let hasOAuthCredentials = shouldProbeOAuth && ClaudeOAuthPlanningAvailability.isAvailable(
-                runtime: configuration.runtime,
-                sourceMode: configuration.sourceMode,
+            let oauthProbe = await probeClaudeOAuthForDebug(
+                shouldProbe: shouldProbeOAuth,
                 environment: configuration.environment)
+            let hasOAuthCredentials = shouldProbeOAuth && oauthProbe.isAvailable
             let hasClaudeBinary = ClaudeCLIResolver.isAvailable(environment: configuration.environment)
             let delegatedCooldownSeconds = ClaudeOAuthDelegatedRefreshCoordinator.cooldownRemainingSeconds()
             let planningInput = ClaudeSourcePlanningInput(
@@ -91,6 +145,7 @@ extension UsageStore {
             lines.append("oauthCredentialOwner=\(oauthProbe.ownerRawValue)")
             lines.append("oauthCredentialSource=\(oauthProbe.sourceRawValue)")
             lines.append("oauthCredentialExpired=\(oauthProbe.isExpired)")
+            lines.append("oauthCredentialError=\(oauthProbe.errorRawValue)")
             lines.append("delegatedRefreshCLIAvailable=\(hasClaudeBinary)")
             lines.append("delegatedRefreshCooldownActive=\(delegatedCooldownSeconds != nil)")
             if let delegatedCooldownSeconds {
@@ -165,7 +220,7 @@ extension UsageStore {
                     browserDetection: browserDetection,
                     environment: configuration.environment,
                     runtime: configuration.runtime,
-                    dataSource: configuration.usageDataSource,
+                    dataSource: strategy.dataSource,
                     keepCLISessionsAlive: configuration.keepCLISessionsAlive)
                 let cli = await fetcher.debugRawProbe(model: "sonnet")
                 lines.append(cli)

@@ -211,10 +211,10 @@ struct ClaudeOAuthCredentialsStoreTemporaryKeychainCacheTests {
 
                             do {
                                 _ = try ClaudeOAuthCredentialsStore.load(environment: [:], allowKeychainPrompt: false)
-                                Issue.record("Expected ClaudeOAuthCredentialsError.notFound")
+                                Issue.record("Expected ClaudeOAuthCredentialsError.decodeFailed")
                             } catch let error as ClaudeOAuthCredentialsError {
-                                guard case .notFound = error else {
-                                    Issue.record("Expected .notFound, got \(error)")
+                                guard case .decodeFailed = error else {
+                                    Issue.record("Expected .decodeFailed, got \(error)")
                                     return
                                 }
                             }

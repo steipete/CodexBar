@@ -3,9 +3,17 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
+#if os(macOS)
+import Security
+#endif
+
 @MainActor
 @Suite(.serialized)
 struct ClaudeOAuthUpgradeCompatibilityTests {
+    private struct WrongCacheEntry: Codable {
+        let value: String
+    }
+
     private final class CallLog: @unchecked Sendable {
         private let lock = NSLock()
         private var oauthTokens: [String] = []
@@ -96,7 +104,67 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
     }
 
     @Test
-    func `persisted OAuth with only foreign Keychain fails closed`() async throws {
+    func `persisted OAuth uses CodexBar owned cache credentials only`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let expectedToken = "codexbar-cache-oauth-token"
+        let environment = ["CLAUDE_CLI_PATH": cli.executable.path]
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-cache",
+            environment: environment)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        #expect(strategies.map(\.id) == ["claude.oauth", "claude.cli"])
+
+        let calls = CallLog()
+        let response = try Self.makeOAuthUsageResponse()
+        let fetchOAuthUsage: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { token, _ in
+            calls.recordOAuthToken(token)
+            return response
+        }
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+            try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+                    environment: environment)
+                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                KeychainCacheStore.store(
+                    key: cacheKey,
+                    entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                        data: Self.makeCredentialsData(accessToken: expectedToken),
+                        storedAt: Date(),
+                        owner: .codexbar,
+                        profileIdentifier: profileIdentifier))
+                defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                return try await Self.withForeignKeychainTripwires(calls: calls) {
+                    await Self.withWebTripwires(calls: calls) {
+                        await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(fetchOAuthUsage) {
+                            await descriptor.fetchOutcome(context: context)
+                        }
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        switch outcome.result {
+        case let .success(result):
+            #expect(result.strategyID == "claude.oauth")
+            #expect(result.sourceLabel == "oauth")
+        case let .failure(error):
+            Issue.record("Expected CodexBar cache OAuth fetch to succeed, got \(error)")
+        }
+        #expect(calls.recordedOAuthTokens == [expectedToken])
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    @Test
+    func `persisted OAuth with only foreign Keychain uses owner mediated CLI`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let cli = try Self.makeFakeClaudeCLI(in: root)
@@ -109,8 +177,301 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
 
         #expect(context.sourceMode == .oauth)
         #expect(context.settings?.claude?.usageDataSource == .oauth)
+        #expect(strategies.map(\.id) == ["claude.oauth", "claude.cli"])
+        guard strategies.map(\.id) == ["claude.oauth", "claude.cli"] else { return }
+
+        let calls = CallLog()
+        let cliUsage: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot = { binary, _, _ in
+            #expect(binary == cli.executable.path)
+            return Self.makeCLIUsageSnapshot()
+        }
+        let outcome = try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
+            try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+                try await Self.withForeignKeychainTripwires(calls: calls) {
+                    await Self.withWebTripwires(calls: calls) {
+                        await descriptor.fetchOutcome(context: context)
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        #expect(outcome.attempts.first?.errorDescription?.contains("credentials not found") == true)
+        switch outcome.result {
+        case let .success(result):
+            #expect(result.strategyID == "claude.cli")
+            #expect(result.sourceLabel == "claude")
+            #expect(result.usage.primary?.usedPercent == 12)
+            #expect(result.usage.secondary?.usedPercent == 40)
+        case let .failure(error):
+            Issue.record("Expected owner-mediated Claude CLI fetch to succeed, got \(error)")
+        }
+        #expect(calls.recordedOAuthTokens.isEmpty)
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+    }
+
+    @Test
+    func `missing app OAuth keeps actionable error when owner CLI is unavailable`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root, loggedIn: false)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-no-owner-cli",
+            environment: ["CLAUDE_CLI_PATH": cli.executable.path])
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let calls = CallLog()
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+            try await Self.withForeignKeychainTripwires(calls: calls) {
+                await Self.withWebTripwires(calls: calls) {
+                    await descriptor.fetchOutcome(context: context)
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false])
+        switch outcome.result {
+        case let .failure(error as ClaudeOAuthCredentialsError):
+            guard case .notFound = error else {
+                Issue.record("Expected missing OAuth credentials, got \(error)")
+                return
+            }
+            #expect(error.localizedDescription.contains("credentials not found"))
+        case let .failure(error):
+            Issue.record("Expected actionable OAuth error, got \(error)")
+        case let .success(result):
+            Issue.record("Missing OAuth and CLI unexpectedly produced \(result.strategyID)")
+        }
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+    }
+
+    @Test
+    func `malformed profile OAuth remains terminal and does not switch authorities`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        try Data("{ malformed".utf8).write(to: root.appendingPathComponent(".credentials.json"))
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-malformed-file",
+            environment: [
+                ClaudeConfigPaths.configDirectoryEnvironmentKey: root.path,
+                "CLAUDE_CLI_PATH": cli.executable.path,
+            ])
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let calls = CallLog()
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: nil) {
+            try await Self.withForeignKeychainTripwires(calls: calls) {
+                await Self.withWebTripwires(calls: calls) {
+                    await descriptor.fetchOutcome(context: context)
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        if case let .success(result) = outcome.result {
+            Issue.record("Malformed explicit OAuth unexpectedly produced \(result.strategyID)")
+        }
+        #expect(calls.recordedOAuthTokens.isEmpty)
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    @Test
+    func `invalid CodexBar OAuth cache remains terminal and does not switch authorities`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-invalid-cache",
+            environment: ["CLAUDE_CLI_PATH": cli.executable.path])
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let calls = CallLog()
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+            KeychainCacheStore.store(
+                key: .oauth(provider: .claude),
+                entry: WrongCacheEntry(value: "invalid-cache-shape"))
+            return try await Self.withForeignKeychainTripwires(calls: calls) {
+                await Self.withWebTripwires(calls: calls) {
+                    await descriptor.fetchOutcome(context: context)
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        switch outcome.result {
+        case let .failure(error):
+            #expect(error.localizedDescription.contains("credentials are invalid"))
+        case let .success(result):
+            Issue.record("Invalid direct OAuth cache unexpectedly produced \(result.strategyID)")
+        }
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    #if os(macOS)
+    @Test
+    func `unavailable CodexBar OAuth cache remains terminal and does not switch authorities`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-unavailable-cache",
+            environment: ["CLAUDE_CLI_PATH": cli.executable.path])
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let calls = CallLog()
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+            try await KeychainCacheStore.withLoadFailureStatusOverrideForTesting(errSecInteractionNotAllowed) {
+                try await Self.withForeignKeychainTripwires(calls: calls) {
+                    await Self.withWebTripwires(calls: calls) {
+                        await descriptor.fetchOutcome(context: context)
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        switch outcome.result {
+        case let .failure(error):
+            #expect(error.localizedDescription.contains("temporarily unavailable"))
+        case let .success(result):
+            Issue.record("Unavailable direct OAuth cache unexpectedly produced \(result.strategyID)")
+        }
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+    #endif
+
+    @Test
+    func `direct OAuth service errors remain terminal and do not switch authorities`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let environment = [
+            ClaudeOAuthCredentialsStore.environmentTokenKey: "rate-limited-oauth-token",
+            ClaudeOAuthCredentialsStore.environmentScopesKey: "user:profile",
+            "CLAUDE_CLI_PATH": cli.executable.path,
+        ]
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-service-error",
+            environment: environment)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let calls = CallLog()
+        let failingOAuth: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { _, _ in
+            throw ClaudeOAuthFetchError.rateLimited(retryAfter: nil)
+        }
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+            try await Self.withForeignKeychainTripwires(calls: calls) {
+                await Self.withWebTripwires(calls: calls) {
+                    await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(failingOAuth) {
+                        await descriptor.fetchOutcome(context: context)
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        if case let .success(result) = outcome.result {
+            Issue.record("Rate-limited explicit OAuth unexpectedly produced \(result.strategyID)")
+        }
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    @Test
+    func `selected OAuth account failure never reaches ambient authorities`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let baseContext = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-selected-account",
+            environment: [
+                ClaudeOAuthCredentialsStore.environmentTokenKey: "selected-oauth-token",
+                ClaudeOAuthCredentialsStore.environmentScopesKey: "user:profile",
+                "CLAUDE_CLI_PATH": cli.executable.path,
+            ])
+        let context = ProviderFetchContext(
+            runtime: baseContext.runtime,
+            sourceMode: baseContext.sourceMode,
+            includeCredits: baseContext.includeCredits,
+            webTimeout: baseContext.webTimeout,
+            webDebugDumpHTML: baseContext.webDebugDumpHTML,
+            verbose: baseContext.verbose,
+            env: baseContext.env,
+            settings: baseContext.settings,
+            fetcher: baseContext.fetcher,
+            claudeFetcher: baseContext.claudeFetcher,
+            browserDetection: baseContext.browserDetection,
+            selectedTokenAccountID: UUID())
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
         #expect(strategies.map(\.id) == ["claude.oauth"])
-        guard strategies.map(\.id) == ["claude.oauth"] else { return }
+
+        let calls = CallLog()
+        let failingOAuth: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { _, _ in
+            throw ClaudeOAuthFetchError.unauthorized
+        }
+        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+            try await Self.withForeignKeychainTripwires(calls: calls) {
+                await Self.withWebTripwires(calls: calls) {
+                    await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(failingOAuth) {
+                        await descriptor.fetchOutcome(context: context)
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        if case let .success(result) = outcome.result {
+            Issue.record("Failed selected OAuth account unexpectedly produced \(result.strategyID)")
+        }
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    @Test
+    func `CLI runtime missing OAuth remains direct and actionable`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let appContext = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-cli-runtime",
+            environment: ["CLAUDE_CLI_PATH": cli.executable.path])
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .oauth,
+            includeCredits: appContext.includeCredits,
+            webTimeout: appContext.webTimeout,
+            webDebugDumpHTML: appContext.webDebugDumpHTML,
+            verbose: appContext.verbose,
+            env: appContext.env,
+            settings: appContext.settings,
+            fetcher: appContext.fetcher,
+            claudeFetcher: appContext.claudeFetcher,
+            browserDetection: appContext.browserDetection)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        #expect(strategies.map(\.id) == ["claude.oauth"])
 
         let calls = CallLog()
         let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
@@ -122,10 +483,13 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         }
 
         #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth"])
-        if case let .success(result) = outcome.result {
-            Issue.record("Foreign Claude Keychain fixture unexpectedly produced \(result.strategyID)")
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        switch outcome.result {
+        case let .failure(error):
+            #expect(error.localizedDescription.contains("credentials not found"))
+        case let .success(result):
+            Issue.record("Missing CLI-runtime OAuth unexpectedly produced \(result.strategyID)")
         }
-        #expect(calls.recordedOAuthTokens.isEmpty)
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
         #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
@@ -146,8 +510,8 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
 
         #expect(context.sourceMode == .oauth)
         #expect(context.settings?.claude?.usageDataSource == .oauth)
-        #expect(strategies.map(\.id) == ["claude.oauth"])
-        guard strategies.map(\.id) == ["claude.oauth"] else { return }
+        #expect(strategies.map(\.id) == ["claude.oauth", "claude.cli"])
+        guard strategies.map(\.id) == ["claude.oauth", "claude.cli"] else { return }
 
         let calls = CallLog()
         let response = try Self.makeOAuthUsageResponse()
@@ -304,6 +668,20 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         """.utf8))
     }
 
+    private nonisolated static func makeCLIUsageSnapshot() -> ClaudeStatusSnapshot {
+        ClaudeStatusSnapshot(
+            sessionPercentLeft: 88,
+            weeklyPercentLeft: 60,
+            opusPercentLeft: 95,
+            accountEmail: "synthetic@example.invalid",
+            accountOrganization: "Synthetic Org",
+            loginMethod: "claude.ai",
+            primaryResetDescription: "Resets 11am",
+            secondaryResetDescription: "Resets Friday",
+            opusResetDescription: "Resets Friday",
+            rawText: "synthetic")
+    }
+
     private static func makeTemporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-oauth-upgrade-\(UUID().uuidString)", isDirectory: true)
@@ -311,12 +689,20 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         return url
     }
 
-    private static func makeFakeClaudeCLI(in directory: URL) throws -> (executable: URL, invocationLog: URL) {
+    private static func makeFakeClaudeCLI(
+        in directory: URL,
+        loggedIn: Bool = true) throws -> (executable: URL, invocationLog: URL)
+    {
         let executable = directory.appendingPathComponent("claude")
         let invocationLog = directory.appendingPathComponent("claude-invocations.log")
+        let loggedInJSON = loggedIn ? "true" : "false"
         try Data("""
         #!/bin/sh
         printf '%s\\n' "$*" >> "\(invocationLog.path)"
+        if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+          printf '%s\\n' '{"loggedIn":\(loggedInJSON),"authMethod":"claude.ai"}'
+          exit 0
+        fi
         exit 88
         """.utf8).write(to: executable)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)

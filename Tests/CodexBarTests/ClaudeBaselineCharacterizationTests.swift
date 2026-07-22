@@ -113,7 +113,10 @@ struct ClaudeBaselineCharacterizationTests {
             webExtrasEnabled: false,
             cookieSource: .off,
             manualCookieHeader: nil))
-        let env = [ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token"]
+        let env = [
+            ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
+            "CLAUDE_CLI_PATH": "/usr/bin/true",
+        ]
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let baseContext = self.makeContext(runtime: .app, sourceMode: sourceMode, env: env, settings: settings)
         let context = ProviderFetchContext(
@@ -379,7 +382,6 @@ struct ClaudeBaselineCharacterizationTests {
     }
 
     @Test(arguments: [
-        (ProviderSourceMode.oauth, "claude.oauth"),
         (ProviderSourceMode.cli, "claude.cli"),
         (ProviderSourceMode.web, "claude.web"),
     ])
@@ -391,6 +393,16 @@ struct ClaudeBaselineCharacterizationTests {
         #expect(strategyIDs == [expectedStrategyID])
     }
 
+    @Test
+    func `app explicit OAuth plans direct credentials before owner mediated CLI`() async {
+        let strategyIDs = await self.strategyIDs(
+            runtime: .app,
+            sourceMode: .oauth,
+            env: ["CLAUDE_CLI_PATH": "/usr/bin/true"])
+
+        #expect(strategyIDs == ["claude.oauth", "claude.cli"])
+    }
+
     @Test(arguments: [
         (ProviderSourceMode.oauth, "claude.oauth"),
         (ProviderSourceMode.cli, "claude.cli"),
@@ -400,7 +412,10 @@ struct ClaudeBaselineCharacterizationTests {
         sourceMode: ProviderSourceMode,
         expectedStrategyID: String) async
     {
-        let strategyIDs = await self.strategyIDs(runtime: .cli, sourceMode: sourceMode)
+        let strategyIDs = await self.strategyIDs(
+            runtime: .cli,
+            sourceMode: sourceMode,
+            env: ["CLAUDE_CLI_PATH": "/usr/bin/true"])
         #expect(strategyIDs == [expectedStrategyID])
     }
 

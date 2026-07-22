@@ -79,8 +79,8 @@ window has elapsed.
 - Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 6).
 - If no providers are selected for Overview, the Overview tab is hidden.
 - Providers → Claude: Usage source offers Auto, API, OAuth, Web, and CLI. App Auto tries the credential-owning Claude
-  CLI, then Web. Explicit OAuth uses environment, secure-storage-file, or CodexBar-owned credentials without reading
-  Claude Code's foreign Keychain item.
+  CLI, then Web. Explicit app OAuth uses environment, secure-storage-file, or CodexBar-owned credentials without
+  reading Claude Code's foreign Keychain item; if none exists, it asks the logged-in Claude CLI for usage.
 - The former Claude “Avoid Keychain prompts” and “Keychain prompt policy” controls are removed. CodexBar never reads
   Claude Code's foreign credential item, regardless of the legacy stored policy.
 

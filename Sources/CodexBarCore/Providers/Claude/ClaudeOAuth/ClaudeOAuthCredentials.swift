@@ -246,7 +246,8 @@ public enum ClaudeOAuthCredentialsStore {
             environment: [String: String],
             allowKeychainPrompt: Bool,
             respectKeychainPromptCooldown: Bool,
-            allowClaudeKeychainRepairWithoutPrompt: Bool) throws -> ClaudeOAuthCredentialRecord
+            allowClaudeKeychainRepairWithoutPrompt: Bool,
+            clearInvalidCache: Bool = true) throws -> ClaudeOAuthCredentialRecord
         {
             try self.context.run {
                 let shouldRespectKeychainPromptCooldownForSilentProbes =
@@ -294,7 +295,8 @@ public enum ClaudeOAuthCredentialsStore {
                     profileIdentifier: profileIdentifier)
                 {
                 case let .found(entry):
-                    if let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) {
+                    do {
+                        let creds = try ClaudeOAuthCredentials.parse(data: entry.data)
                         let owner = self.resolvedCacheOwner(
                             entry.owner ?? .claudeCLI,
                             environment: environment)
@@ -324,13 +326,17 @@ public enum ClaudeOAuthCredentialsStore {
                                 profileIdentifier: profileIdentifier)
                             return record
                         }
-                    } else {
-                        ClaudeOAuthCredentialsStore.clearCacheKeychain()
+                    } catch {
+                        lastError = error
+                        self.clearInvalidCache(ifAllowed: clearInvalidCache)
                     }
                 case .invalid:
-                    ClaudeOAuthCredentialsStore.clearCacheKeychain()
+                    lastError = ClaudeOAuthCredentialsError.decodeFailed
+                    self.clearInvalidCache(ifAllowed: clearInvalidCache)
                 case .temporarilyUnavailable:
                     cacheTemporarilyUnavailable = true
+                    lastError = ClaudeOAuthCredentialsError.readFailed(
+                        "CodexBar-owned credential cache is temporarily unavailable.")
                 case .missing:
                     break
                 }
@@ -398,6 +404,11 @@ public enum ClaudeOAuthCredentialsStore {
                 }
                 throw ClaudeOAuthCredentialsError.notFound
             }
+        }
+
+        private func clearInvalidCache(ifAllowed: Bool) {
+            guard ifAllowed else { return }
+            ClaudeOAuthCredentialsStore.clearCacheKeychain()
         }
 
         private func immediateCredentialRecord(environment: [String: String]) throws -> ClaudeOAuthCredentialRecord? {
@@ -1413,14 +1424,16 @@ public enum ClaudeOAuthCredentialsStore {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         allowKeychainPrompt: Bool = true,
         respectKeychainPromptCooldown: Bool = false,
-        allowClaudeKeychainRepairWithoutPrompt: Bool = true) throws -> ClaudeOAuthCredentialRecord
+        allowClaudeKeychainRepairWithoutPrompt: Bool = true,
+        clearInvalidCache: Bool = true) throws -> ClaudeOAuthCredentialRecord
     {
         let context = self.currentCollaboratorContext()
         return try Repository(context: context).loadRecord(
             environment: environment,
             allowKeychainPrompt: allowKeychainPrompt,
             respectKeychainPromptCooldown: respectKeychainPromptCooldown,
-            allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt)
+            allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt,
+            clearInvalidCache: clearInvalidCache)
     }
 
     /// Async version of load that handles expired tokens based on credential ownership.

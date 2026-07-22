@@ -5,6 +5,10 @@ import Testing
 
 @Suite(.serialized)
 struct ClaudeDebugDiagnosticsTests {
+    private struct WrongCacheEntry: Codable {
+        let value: String
+    }
+
     private func makeCredentialsData(
         accessToken: String,
         expiresAt: Date,
@@ -146,6 +150,66 @@ struct ClaudeDebugDiagnosticsTests {
     }
 
     @Test
+    func `debug log follows owner CLI for app OAuth without direct credentials`() async throws {
+        let suite = "ClaudeDebugDiagnosticsTests-\(UUID().uuidString)"
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let missingCredentialsURL = tempDir.appendingPathComponent("missing-credentials.json")
+        let store = try await MainActor.run { () -> UsageStore in
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defaults.removePersistentDomain(forName: suite)
+            let settings = SettingsStore(
+                userDefaults: defaults,
+                configStore: testConfigStore(suiteName: suite),
+                zaiTokenStore: NoopZaiTokenStore())
+            settings.claudeUsageDataSource = .oauth
+            settings.claudeCookieSource = .off
+            return UsageStore(
+                fetcher: UsageFetcher(),
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings)
+        }
+        let fetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in
+            ClaudeStatusSnapshot(
+                sessionPercentLeft: 88,
+                weeklyPercentLeft: 60,
+                opusPercentLeft: nil,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "claude.ai",
+                primaryResetDescription: nil,
+                secondaryResetDescription: nil,
+                opusResetDescription: nil,
+                rawText: "owner cli probe")
+        }
+
+        let text = await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+            await KeychainCacheStore.withServiceOverrideForTesting(service) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+                return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                        await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
+                            await ClaudeStatusProbe.withFetchOverrideForTesting(fetchOverride) {
+                                await store.debugLog(for: .claude)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #expect(text.contains("planner_order=oauth→cli"))
+        #expect(text.contains("planner_selected=cli"))
+        #expect(text.contains("planner_step.oauth=unavailable reason=explicit-source-selection"))
+        #expect(text.contains("planner_step.cli=available reason=explicit-oauth-owner-cli-fallback"))
+        #expect(text.contains("owner cli probe"))
+        #expect(!text.contains("OAuth source selected."))
+    }
+
+    @Test
     func `debug Claude dump returns recorded parse dumps`() async {
         await ClaudeStatusProbe._replaceDumpsForTesting([
             "dump one",
@@ -226,6 +290,68 @@ struct ClaudeDebugDiagnosticsTests {
         #expect(text.contains("oauthCredentialOwner=environment"))
         #expect(text.contains("oauthCredentialSource=environment"))
         #expect(!text.contains("planner_selected=none"))
+    }
+
+    @Test
+    func `debug log preserves invalid OAuth cache error without selecting owner CLI`() async throws {
+        let suite = "ClaudeDebugDiagnosticsTests-\(UUID().uuidString)"
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let missingCredentialsURL = tempDir.appendingPathComponent("missing-credentials.json")
+
+        let store = try await MainActor.run { () -> UsageStore in
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defaults.removePersistentDomain(forName: suite)
+            let configStore = testConfigStore(suiteName: suite)
+            let settings = SettingsStore(
+                userDefaults: defaults,
+                configStore: configStore,
+                zaiTokenStore: NoopZaiTokenStore())
+            settings.claudeUsageDataSource = .oauth
+            settings.claudeCookieSource = .off
+
+            return UsageStore(
+                fetcher: UsageFetcher(),
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings)
+        }
+
+        let result = await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+            await KeychainCacheStore.withServiceOverrideForTesting(service) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+                let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                KeychainCacheStore.store(
+                    key: cacheKey,
+                    entry: WrongCacheEntry(value: "invalid-cache-shape"))
+
+                return await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                        await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
+                            let text = await store.debugLog(for: .claude)
+                            let cacheWasPreserved = switch KeychainCacheStore.load(
+                                key: cacheKey,
+                                as: WrongCacheEntry.self)
+                            {
+                            case .found: true
+                            case .missing, .temporarilyUnavailable, .invalid: false
+                            }
+                            return (text, cacheWasPreserved)
+                        }
+                    }
+                }
+            }
+        }
+
+        #expect(result.0.contains("planner_order=oauth→cli"))
+        #expect(result.0.contains("planner_selected=oauth"))
+        #expect(result.0.contains("hasOAuthCredentials=true"))
+        #expect(result.0.contains("oauthCredentialError=decodeFailed"))
+        #expect(result.0.contains("OAuth source selected."))
+        #expect(result.1 == true)
     }
 
     @Test

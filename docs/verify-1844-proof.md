@@ -22,10 +22,10 @@ item itself.
 packages that source, records every first-party executable hash, and exercises three complementary layers:
 
 1. Unit and source-safety tests prove the ownership boundary under every stored prompt mode and both background and
-   user-initiated credential loads. The focused set also covers persisted explicit OAuth with environment- and
-   profile-file-backed credentials, fail-closed foreign-Keychain-only state, source routing, selected-account
-   authority, owner-compatible config paths, account-switch invalidation, and CLI-session relaunch when account or
-   launch environment changes.
+   user-initiated credential loads. The focused set also covers persisted explicit OAuth with environment-,
+   profile-file-, and CodexBar-cache-backed credentials; owner-mediated CLI usage for foreign-Keychain-only state;
+   terminal corrupt/unavailable direct-cache handling; source routing; selected-account authority; owner-compatible
+   config paths; account-switch invalidation; and CLI-session relaunch when account or launch environment changes.
 2. A Release artifact audit verifies that the known foreign service name and direct security CLI markers are absent
    from every first-party executable in the freshly packaged app bundle.
 3. A real logged-in Claude CLI-source fetch, isolated from the user's CodexBar account configuration, must return a

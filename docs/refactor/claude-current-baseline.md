@@ -54,7 +54,7 @@ The generic provider pipeline currently resolves Claude strategies in this order
 | --- | --- | --- | --- |
 | app | auto | `cli -> web` | CLI is preferred when installed; Web is the only fallback. Auto never plans direct OAuth. |
 | app | selected OAuth token account | `oauth` | Account-scoped and terminal; it never falls through to another account. |
-| app | oauth | `oauth` | Persisted and newly selected explicit OAuth remains terminal and uses only noninteractive environment, file, or CodexBar-owned credentials. |
+| app | oauth | `oauth -> cli` | Direct OAuth uses noninteractive environment, file, or CodexBar-owned credentials and is terminal once one is found. If none exists, the credential-owning CLI supplies usage without a foreign-Keychain read. |
 | app | api | `api` | No fallback. |
 | app | cli | `cli` | No fallback. |
 | app | web | `web` | No fallback. |
@@ -100,7 +100,9 @@ settings could only choose when an unstable foreign-item access was attempted; t
 
 Explicit app OAuth and OAuth token accounts can load credentials supplied through an environment token, CodexBar's own
 cache, or Claude's secure-storage `.credentials.json` (normally `~/.claude/.credentials.json`). Credential loads are
-noninteractive and never bootstrap or repair from Claude Code's Keychain item.
+noninteractive and never bootstrap or repair from Claude Code's Keychain item. Only app-level OAuth with no safe direct
+credential continues through the owner-mediated Claude CLI; selected token accounts and CLI-runtime OAuth remain
+single-authority routes.
 
 ## Token-account routing baseline
 
@@ -116,8 +118,8 @@ Current routing rules:
 - OAuth-token-shaped inputs are not treated as cookies.
 - Cookie/header-shaped inputs are any value that already contains `Cookie:` or `=`.
 - App-side Claude snapshot behavior:
-  - A persisted or newly selected `.oauth` source remains `.oauth` and is offered in the app picker; it never falls
-    through to Auto's CLI/Web route.
+  - A persisted or newly selected `.oauth` source remains `.oauth` and is offered in the app picker. It uses direct
+    safe credentials when present; only their exact absence invokes the credential-owning CLI, never Auto's Web path.
   - A selected OAuth token account forces its snapshot to `.oauth`, disables cookie mode (`.off`), clears the manual
     cookie header, and relies on environment-token injection.
   - A selected session-key or cookie-header account forces its snapshot to `.web`, uses manual cookie mode, and

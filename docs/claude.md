@@ -23,9 +23,10 @@ same inline dashboard pattern used by the OpenAI API provider.
 - If an Admin API key is configured, the Admin API strategy is used for Claude API spend/usage.
 - App runtime main pipeline: CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.
-- Explicit picker modes (Admin API/OAuth/Web/CLI) bypass automatic fallback.
-- Existing app settings that selected OAuth remain explicit OAuth. That route can use environment, secure-storage-file,
-  or CodexBar-owned credentials without reading Claude Code's foreign Keychain item.
+- Explicit Admin API, Web, and CLI picker modes bypass automatic fallback.
+- Existing app settings that selected OAuth remain explicit OAuth. That route first uses environment,
+  secure-storage-file, or CodexBar-owned credentials without reading Claude Code's foreign Keychain item. When none
+  exists, the app asks the logged-in credential-owning Claude CLI for usage instead.
 - A selected OAuth token account still routes directly to the OAuth API and does not fall through to another account.
 - The terminal's explicit `--source oauth` mode remains available for supplied/file-backed credentials.
 
@@ -74,6 +75,10 @@ CodexBar-owned caches and other Keychain-backed features; it is not needed to en
   - File fallback: Claude's secure-storage root plus `.credentials.json` (normally
     `~/.claude/.credentials.json`; `CLAUDE_SECURESTORAGE_CONFIG_DIR` overrides the root).
 - CodexBar never bootstraps or repairs OAuth credentials from `Claude Code-credentials`.
+- When no safe direct credential exists, app-level OAuth skips the direct request and uses the owner-mediated Claude
+  CLI. Once a direct credential is found, OAuth errors remain terminal and do not silently change authorities.
+- A corrupt or temporarily unavailable CodexBar-owned credential cache is also terminal; only exact absence permits
+  the owner-CLI fallback.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Endpoint:
   - `GET https://api.anthropic.com/api/oauth/usage`

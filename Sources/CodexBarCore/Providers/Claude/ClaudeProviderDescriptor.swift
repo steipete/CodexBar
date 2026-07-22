@@ -214,7 +214,10 @@ public enum ClaudeOAuthPlanningAvailability {
         sourceMode: ProviderSourceMode,
         environment: [String: String]) -> Bool
     {
-        ClaudeOAuthFetchStrategy.isPlausiblyAvailable(
+        if runtime == .app, sourceMode == .oauth {
+            return !ClaudeOAuthFetchStrategy().directCredentialIsMissing(environment: environment)
+        }
+        return ClaudeOAuthFetchStrategy.isPlausiblyAvailable(
             runtime: runtime,
             sourceMode: sourceMode,
             environment: environment)
@@ -321,6 +324,30 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             allowClaudeKeychainRepairWithoutPrompt: false)
     }
 
+    func directCredentialIsMissing(environment: [String: String]) -> Bool {
+        #if DEBUG
+        if Self.nonInteractiveCredentialRecordOverride != nil {
+            return false
+        }
+        #endif
+
+        do {
+            _ = try ClaudeOAuthCredentialsStore.loadRecord(
+                environment: environment,
+                allowKeychainPrompt: false,
+                respectKeychainPromptCooldown: true,
+                allowClaudeKeychainRepairWithoutPrompt: false,
+                clearInvalidCache: false)
+            return false
+        } catch ClaudeOAuthCredentialsError.notFound {
+            return true
+        } catch {
+            // A malformed, unreadable, or otherwise unusable direct credential remains an explicit
+            // OAuth error. Do not hide it by silently switching credential authorities.
+            return false
+        }
+    }
+
     private func isClaudeCLIAvailable(environment: [String: String]) -> Bool {
         #if DEBUG
         if let override = Self.claudeCLIAvailableOverride {
@@ -341,6 +368,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         if hasEnvironmentOAuthToken {
             return true
         }
+
+        // Explicit OAuth is authoritative and must execute exactly once so its concrete credential
+        // result is preserved. In particular, do not destructively probe a malformed cache here and
+        // then misclassify the now-cleared cache as absent during fetch.
+        guard sourceMode == .auto else { return true }
 
         let strategy = ClaudeOAuthFetchStrategy()
         let nonInteractiveRecord = strategy.loadNonInteractiveCredentialRecord(environment: environment)
@@ -378,8 +410,6 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 return sourceMode != .auto
             }
         }
-
-        guard sourceMode == .auto else { return true }
 
         let promptPolicyApplicable = ClaudeOAuthKeychainPromptPreference.isApplicable()
         if ProviderInteractionContext.current == .userInitiated {
@@ -431,10 +461,17 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             claudeOAuthKeychainCredentialUnavailable: usage.oauthKeychainCredentialUnavailable)
     }
 
-    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        if context.runtime == .app,
+           context.sourceMode == .oauth,
+           let credentialsError = error as? ClaudeOAuthCredentialsError,
+           case .notFound = credentialsError
+        {
+            return true
+        }
         // In Auto mode, fall back to the next strategy (cli/web) if OAuth fails (e.g. user cancels keychain prompt
         // or auth breaks).
-        context.runtime == .app && context.sourceMode == .auto
+        return context.runtime == .app && context.sourceMode == .auto
     }
 
     fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {

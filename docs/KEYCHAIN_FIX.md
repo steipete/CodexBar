@@ -33,7 +33,9 @@ cross-owner read, not tune prompt timing.
 - Explicit token accounts are authoritative: Admin API keys route to Admin API, session cookies route to Web, and
   user-supplied OAuth access tokens route to OAuth.
 - A persisted or newly selected app-level OAuth source remains explicit. It can use an environment token, Claude's
-  secure-storage credentials file, or CodexBar-owned credentials, but never Claude Code's foreign Keychain item.
+  secure-storage credentials file, or CodexBar-owned credentials, but never Claude Code's foreign Keychain item. If
+  none exists, usage is fetched through the logged-in credential-owning Claude CLI. Corrupt or temporarily unavailable
+  CodexBar-owned storage remains an OAuth error and is never treated as credential absence.
 - Account-switch invalidation uses only a hash of the account UUID in Claude's owner-selected config file. It honors
   `.config.json` precedence plus literal `CLAUDE_CONFIG_DIR` and stores neither the UUID nor the config path.
 - Credential-file routing also honors `CLAUDE_SECURESTORAGE_CONFIG_DIR`; profile caches and reusable CLI processes
