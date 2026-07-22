@@ -117,6 +117,9 @@ struct CodexSpendSnapshotLoadContext: Sendable {
 enum SpendDashboardSource {
     typealias CodexSnapshotLoader = @Sendable (CodexSpendSnapshotLoadContext) async throws
         -> CostUsageTokenSnapshot
+    typealias CachedCodexSnapshotLoader = @Sendable (CodexSpendSnapshotLoadContext) async
+        -> CostUsageTokenSnapshot?
+    typealias CodexCacheRootResolver = @Sendable (CodexSpendScanRequest) -> URL
 
     static let scanDays = 30
 
@@ -251,6 +254,70 @@ enum SpendDashboardSource {
         })
     }
 
+    static func loadCached(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
+        await self.loadCached(request, cacheRootResolver: { self.codexCacheRoot(for: $0) })
+    }
+
+    static func loadCached(
+        _ request: SpendDashboardLoadRequest,
+        cacheRootResolver: @escaping CodexCacheRootResolver) async -> SpendDashboardLoadResult
+    {
+        await self.loadCached(
+            request,
+            cacheRootResolver: cacheRootResolver,
+            cachedCodexSnapshotLoader: { context in
+                await CostUsageFetcher(cacheRoot: context.cacheRoot).loadCachedCodexTokenSnapshotForScopedHome(
+                    now: context.now,
+                    codexHomePath: context.account.homePath,
+                    historyDays: context.historyDays,
+                    includePiSessions: false,
+                    includeProjectAndSessionBreakdowns: false)
+            })
+    }
+
+    static func loadCached(
+        _ request: SpendDashboardLoadRequest,
+        cachedCodexSnapshotLoader: CachedCodexSnapshotLoader) async -> SpendDashboardLoadResult
+    {
+        await self.loadCached(
+            request,
+            cacheRootResolver: { self.codexCacheRoot(for: $0) },
+            cachedCodexSnapshotLoader: cachedCodexSnapshotLoader)
+    }
+
+    private static func loadCached(
+        _ request: SpendDashboardLoadRequest,
+        cacheRootResolver: CodexCacheRootResolver,
+        cachedCodexSnapshotLoader: CachedCodexSnapshotLoader) async -> SpendDashboardLoadResult
+    {
+        var inputs = request.capturedInputs
+        for account in request.codexRequests {
+            guard !Task.isCancelled,
+                  self.currentAuthFingerprint(for: account) == account.authFingerprint
+            else { continue }
+            let snapshot = await cachedCodexSnapshotLoader(CodexSpendSnapshotLoadContext(
+                account: account,
+                cacheRoot: cacheRootResolver(account),
+                now: request.now,
+                force: false,
+                historyDays: Self.scanDays,
+                refreshPricingInBackground: false,
+                includePiSessions: false))
+            guard !Task.isCancelled,
+                  let snapshot,
+                  self.currentAuthFingerprint(for: account) == account.authFingerprint
+            else { continue }
+            inputs.append(SpendDashboardModel.ProviderInput(
+                id: "codex:\(account.id)",
+                provider: .codex,
+                displayName: account.displayName,
+                modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,
+                snapshot: snapshot))
+        }
+        // A cache miss is still pending fresh validation, not a provider failure.
+        return SpendDashboardLoadResult(inputs: inputs, failedSourceIDs: [])
+    }
+
     static func load(
         _ request: SpendDashboardLoadRequest,
         codexSnapshotLoader: CodexSnapshotLoader) async -> SpendDashboardLoadResult
@@ -266,9 +333,7 @@ enum SpendDashboardSource {
                     invalidatedSourceIDs.insert(sourceID)
                     continue
                 }
-                let cacheRoot = UsageStore.costUsageCacheDirectory()
-                    .appendingPathComponent("accounts", isDirectory: true)
-                    .appendingPathComponent(account.cacheIdentity, isDirectory: true)
+                let cacheRoot = self.codexCacheRoot(for: account)
                 let snapshot = try await codexSnapshotLoader(CodexSpendSnapshotLoadContext(
                     account: account,
                     cacheRoot: cacheRoot,
@@ -311,6 +376,18 @@ enum SpendDashboardSource {
             inputs: inputs,
             failedSourceIDs: failedSourceIDs,
             invalidatedSourceIDs: invalidatedSourceIDs)
+    }
+
+    private static func codexCacheRoot(for account: CodexSpendScanRequest) -> URL {
+        let costUsageDirectory = UsageStore.costUsageCacheDirectory()
+        if account.source == .liveSystem {
+            // The live account reads the same local-home telemetry as UsageStore's ambient scanner.
+            // Reuse that cache instead of indexing the identical session corpus a second time.
+            return costUsageDirectory.deletingLastPathComponent()
+        }
+        return costUsageDirectory
+            .appendingPathComponent("accounts", isDirectory: true)
+            .appendingPathComponent(account.cacheIdentity, isDirectory: true)
     }
 
     private static func loadCodexSnapshot(
@@ -560,6 +637,7 @@ final class SpendDashboardController {
     typealias RequestBuilder = @MainActor @Sendable (SpendDashboardRequestBuildMode) async
         -> SpendDashboardLoadRequest
     typealias Loader = @Sendable (SpendDashboardLoadRequest) async -> SpendDashboardLoadResult
+    typealias CachedLoader = @Sendable (SpendDashboardLoadRequest) async -> SpendDashboardLoadResult
 
     private enum ReconciliationObservation: Sendable {
         case confirmedEmpty
@@ -627,12 +705,14 @@ final class SpendDashboardController {
     }
 
     private enum LoadPhase: Sendable {
+        case priming
         case ordinary
         case forcing
         case reconciling(ForcedOutcome)
 
         var buildMode: SpendDashboardRequestBuildMode {
             switch self {
+            case .priming: .captureOnly
             case .ordinary: .refreshMissing
             case .forcing: .forceRefresh
             case .reconciling: .captureOnly
@@ -641,7 +721,7 @@ final class SpendDashboardController {
 
         var manualRefreshOutstanding: Bool {
             switch self {
-            case .ordinary: false
+            case .priming, .ordinary: false
             case .forcing, .reconciling: true
             }
         }
@@ -657,6 +737,7 @@ final class SpendDashboardController {
     private static let daysDefaultsKey = "settingsSpendDashboardDays"
     private let userDefaults: UserDefaults
     private let requestBuilder: RequestBuilder
+    private let cachedLoader: CachedLoader?
     private let loader: Loader
     private let nowProvider: @Sendable () -> Date
     private var loadTask: Task<Void, Never>?
@@ -668,11 +749,13 @@ final class SpendDashboardController {
     init(
         userDefaults: UserDefaults = .standard,
         requestBuilder: @escaping RequestBuilder,
+        cachedLoader: CachedLoader? = nil,
         loader: @escaping Loader = SpendDashboardSource.load,
         nowProvider: @escaping @Sendable () -> Date = { Date() })
     {
         self.userDefaults = userDefaults
         self.requestBuilder = requestBuilder
+        self.cachedLoader = cachedLoader
         self.loader = loader
         self.nowProvider = nowProvider
         self.selectedDays = Self.normalizedDays(userDefaults.integer(forKey: Self.daysDefaultsKey))
@@ -694,7 +777,18 @@ final class SpendDashboardController {
         {
             return
         }
-        let nextPhase: LoadPhase = self.phase.manualRefreshOutstanding ? .forcing : .ordinary
+        let ownershipChanged = previousConfiguration.map {
+            !Self.sameSourceOwnership($0, configuration)
+        } ?? false
+        let shouldPrime = self.cachedLoader != nil &&
+            (self.lastSuccessfulConfiguration == nil || ownershipChanged)
+        let nextPhase: LoadPhase = if self.phase.manualRefreshOutstanding {
+            .forcing
+        } else if shouldPrime {
+            .priming
+        } else {
+            .ordinary
+        }
         self.startLoad(configuration: configuration, phase: nextPhase)
     }
 
@@ -707,7 +801,7 @@ final class SpendDashboardController {
         self.loadTask?.cancel()
         let invalidatedSourceIDs = switch phase {
         case let .reconciling(outcome): outcome.invalidatedSourceIDs
-        case .ordinary, .forcing:
+        case .priming, .ordinary, .forcing:
             Self.invalidatedSourceIDs(
                 previous: self.lastSuccessfulConfiguration,
                 current: configuration)
@@ -799,6 +893,27 @@ final class SpendDashboardController {
         }
 
         switch phase {
+        case .priming:
+            guard let cachedLoader = self.cachedLoader else {
+                self.startLoad(configuration: request.configuration, phase: .ordinary)
+                return
+            }
+            let result = await cachedLoader(request)
+            guard !Task.isCancelled,
+                  generation == self.generation,
+                  let latestConfiguration = self.configuration
+            else { return }
+            guard request.configuration == latestConfiguration else {
+                self.startLoad(configuration: latestConfiguration, phase: .ordinary)
+                return
+            }
+            self.apply(
+                request: request,
+                result: result,
+                invalidatedSourceIDs: invalidatedSourceIDs,
+                confirmedEmptySourceIDs: [])
+            self.startLoad(configuration: request.configuration, phase: .ordinary)
+
         case .ordinary:
             let result = await self.loader(request)
             guard !Task.isCancelled,
@@ -850,6 +965,7 @@ final class SpendDashboardController {
     {
         self.configuration = configuration
         let nextPhase: LoadPhase = switch phase {
+        case .priming: .priming
         case .ordinary: .ordinary
         case .forcing: .forcing
         case let .reconciling(outcome):
@@ -948,7 +1064,11 @@ final class SpendDashboardController {
         self.loadedAt = now ?? self.nowProvider()
         self.rebuildModel()
         guard let configuration else { return }
-        let nextPhase: LoadPhase = self.phase.manualRefreshOutstanding ? .forcing : .ordinary
+        let nextPhase: LoadPhase = switch self.phase {
+        case .priming: .priming
+        case .ordinary: .ordinary
+        case .forcing, .reconciling: .forcing
+        }
         self.startLoad(configuration: configuration, phase: nextPhase)
     }
 
