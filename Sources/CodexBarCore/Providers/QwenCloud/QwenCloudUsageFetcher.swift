@@ -28,6 +28,7 @@ public enum QwenCloudUsageError: LocalizedError, Equatable {
 
 public struct QwenCloudUsageFetcher: Sendable {
     public static let gatewayBaseURLString = "https://home.qwencloud.com"
+    static let dataGatewayBaseURLString = "https://cs-data.qwencloud.com"
     /// Qwen Cloud international "token plan (individual)" product code.
     static let productCode = "sfm_tokenplansolo_public_intl"
     static let consoleProduct = "sfm_bailian"
@@ -83,7 +84,7 @@ public struct QwenCloudUsageFetcher: Sendable {
     }
 
     private static func defaultAPIURL(api: String, environment: [String: String]) -> URL {
-        let base = self.gatewayHostBase(environment: environment)
+        let base = self.dataGatewayHostBase(environment: environment)
         var components = URLComponents(string: "\(base)/data/api.json")!
         components.queryItems = [
             URLQueryItem(name: "action", value: self.consoleAction),
@@ -99,6 +100,13 @@ public struct QwenCloudUsageFetcher: Sendable {
             return override.hasSuffix("/") ? String(override.dropLast()) : override
         }
         return self.gatewayBaseURLString
+    }
+
+    private static func dataGatewayHostBase(environment: [String: String]) -> String {
+        if let override = QwenCloudSettingsReader.hostOverride(environment: environment) {
+            return override.hasSuffix("/") ? String(override.dropLast()) : override
+        }
+        return self.dataGatewayBaseURLString
     }
 
     public static func fetchUsage(

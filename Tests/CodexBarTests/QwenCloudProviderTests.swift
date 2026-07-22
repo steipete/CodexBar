@@ -72,9 +72,9 @@ struct QwenCloudSettingsReaderTests {
     }
 
     @Test
-    func `default quota URL targets current token plan usage API`() {
+    func `default quota URL targets qwen data gateway usage API`() {
         let url = QwenCloudUsageFetcher.defaultQuotaURL
-        #expect(url.host == "home.qwencloud.com")
+        #expect(url.host == "cs-data.qwencloud.com")
         #expect(url.absoluteString.removingPercentEncoding?.contains("personal/api/v2/usage") == true)
         #expect(url.absoluteString.contains("sfm_bailian"))
     }
@@ -506,6 +506,14 @@ struct QwenCloudCookieImportValidationTests {
     func `accepts qwen scoped sso sessions`() {
         let cookies = [
             self.cookie(name: "qwen_sso_ticket", value: "sso-ticket", domain: ".qwencloud.com"),
+        ]
+        #expect(QwenCloudCookieImport.isAuthenticatedSession(cookies: cookies))
+    }
+
+    @Test
+    func `accepts current qwen cloud login tickets`() {
+        let cookies = [
+            self.cookie(name: "login_qwencloud_ticket", value: "ticket", domain: ".qwencloud.com"),
         ]
         #expect(QwenCloudCookieImport.isAuthenticatedSession(cookies: cookies))
     }

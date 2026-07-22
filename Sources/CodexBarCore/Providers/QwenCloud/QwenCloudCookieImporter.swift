@@ -27,6 +27,7 @@ public enum QwenCloudCookieImport {
     /// `loginRequired`, and keep re-importing the same profile forever.
     static let authTicketCookies: Set<String> = [
         "login_aliyunid_ticket",
+        "login_qwencloud_ticket",
         "qwen_sso_ticket",
     ]
 
@@ -44,10 +45,10 @@ public enum QwenCloudCookieImport {
     }
 
     static func isAuthenticatedSession(cookies: [HTTPCookie]) -> Bool {
-        // Qwen Cloud international uses the alibabacloud passport; a valid console
-        // session always carries the login ticket. Accept SSO tickets too so
-        // SAML/SSO logins work. Never accept locale/account-id cookies on their
-        // own — logged-out profiles carry them as well.
+        // Qwen Cloud uses its own login ticket for direct accounts and the
+        // alibabacloud passport ticket for legacy/federated accounts. Accept SSO
+        // tickets too so SAML/SSO logins work. Never accept locale/account-id
+        // cookies on their own — logged-out profiles carry them as well.
         let names = Set(cookies.map(\.name))
         return !names.isDisjoint(with: self.authTicketCookies)
     }
