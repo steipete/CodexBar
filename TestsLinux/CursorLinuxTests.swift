@@ -308,6 +308,109 @@ struct CursorLinuxTests {
     }
 
     @Test
+    func `Cursor auto mode app header defers to explicit selections`() throws {
+        let token = try makeCursorLinuxAppTokenJWT()
+        let appHeader = "WorkosCursorSessionToken=user_test%3A%3A\(token)"
+        let autoSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .auto,
+            manualCookieHeader: nil)
+        let manualSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "WorkosCursorSessionToken=manual")
+        let selectedLogin = CookieHeaderCache.Entry(
+            cookieHeader: "WorkosCursorSessionToken=selected",
+            storedAt: Date(),
+            sourceLabel: "Chrome",
+            authenticationFailurePolicy: .stopFallback)
+
+        // App token wins plain automatic mode.
+        #expect(CursorStatusProbe.autoModeAppAuthCookieHeader(
+            cursorSettings: autoSettings,
+            cachedEntry: nil,
+            appAuthCookieHeader: { appHeader }) == appHeader)
+
+        // Explicit selections defer: manual header or committed browser login.
+        #expect(CursorStatusProbe.autoModeAppAuthCookieHeader(
+            cursorSettings: manualSettings,
+            cachedEntry: nil,
+            appAuthCookieHeader: { appHeader }) == nil)
+        #expect(CursorStatusProbe.autoModeAppAuthCookieHeader(
+            cursorSettings: autoSettings,
+            cachedEntry: selectedLogin,
+            appAuthCookieHeader: { appHeader }) == nil)
+
+        // A manual source without a usable header cannot pin an account.
+        let emptyManualSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "   ")
+        #expect(CursorStatusProbe.autoModeAppAuthCookieHeader(
+            cursorSettings: emptyManualSettings,
+            cachedEntry: nil,
+            appAuthCookieHeader: { appHeader }) == appHeader)
+
+        // No usable app token: the cookie ladder keeps ownership.
+        #expect(CursorStatusProbe.autoModeAppAuthCookieHeader(
+            cursorSettings: autoSettings,
+            cachedEntry: nil,
+            appAuthCookieHeader: { nil }) == nil)
+    }
+
+    @Test
+    func `Cursor cost helpers pin auto source to a winning app token`() throws {
+        let token = try makeCursorLinuxAppTokenJWT()
+        let appHeader = "WorkosCursorSessionToken=user_test%3A%3A\(token)"
+        let autoSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .auto,
+            manualCookieHeader: nil)
+
+        // Auto (explicit or defaulted source) rides the winning app token.
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: autoSettings,
+            source: .auto,
+            appAuthCookieHeader: { appHeader }) == appHeader)
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: autoSettings,
+            source: nil,
+            appAuthCookieHeader: { appHeader }) == appHeader)
+
+        // An empty manual header is not an error while the app token wins.
+        let emptyManualSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: nil)
+        #expect(CodexBarCLI.cursorCostAvailabilityError(
+            .cursor,
+            settings: emptyManualSettings,
+            source: .auto,
+            appAuthCookieHeader: { appHeader }) == nil)
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: emptyManualSettings,
+            source: .auto,
+            appAuthCookieHeader: { appHeader }) == appHeader)
+
+        // Without a winning app token the cookie policy still applies.
+        #expect(CodexBarCLI.cursorCostAvailabilityError(
+            .cursor,
+            settings: emptyManualSettings,
+            source: .auto,
+            appAuthCookieHeader: { nil }) is CursorCostAvailabilityError)
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: autoSettings,
+            source: .auto,
+            appAuthCookieHeader: { nil }) == nil)
+
+        // Explicit web source keeps cookie-ladder behavior even with a token.
+        #expect(CodexBarCLI.cursorCostHeaderOverride(
+            .cursor,
+            settings: autoSettings,
+            source: .web,
+            appAuthCookieHeader: { appHeader }) == nil)
+    }
+
+    @Test
     func `Cursor manual cookie source keeps winning auto mode over app token`() async throws {
         let token = try makeCursorLinuxAppTokenJWT()
         let strategy = CursorAppTokenFetchStrategy(

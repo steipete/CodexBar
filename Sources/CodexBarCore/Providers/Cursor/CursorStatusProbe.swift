@@ -1028,6 +1028,46 @@ public struct CursorStatusProbe: Sendable {
         return try? session.cookieHeader()
     }
 
+    /// True when automatic mode must keep an explicitly selected account —
+    /// a manual cookie header (or selected token account) or a committed
+    /// browser login — ahead of the Cursor app token.
+    static func autoModeDefersToExplicitSelection(
+        cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?,
+        cachedEntry: CookieHeaderCache.Entry?) -> Bool
+    {
+        if cursorSettings?.cookieSource == .manual,
+           CookieHeaderNormalizer.normalize(cursorSettings?.manualCookieHeader) != nil
+        {
+            return true
+        }
+        return cachedEntry?.authenticationFailurePolicy == .stopFallback
+    }
+
+    /// Cookie header the automatic usage pipeline fetches with when the app
+    /// token wins auto mode, or nil when an explicit selection or an unusable
+    /// token defers to the cookie ladder. Cost fetches use this to stay on the
+    /// same account as the usage card.
+    public static func autoModeAppAuthCookieHeader(
+        cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?) -> String?
+    {
+        self.autoModeAppAuthCookieHeader(
+            cursorSettings: cursorSettings,
+            cachedEntry: CookieHeaderCache.load(provider: .cursor),
+            appAuthCookieHeader: { self.appAuthCookieHeader() })
+    }
+
+    public static func autoModeAppAuthCookieHeader(
+        cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?,
+        cachedEntry: CookieHeaderCache.Entry?,
+        appAuthCookieHeader: () -> String?) -> String?
+    {
+        guard !self.autoModeDefersToExplicitSelection(
+            cursorSettings: cursorSettings,
+            cachedEntry: cachedEntry)
+        else { return nil }
+        return appAuthCookieHeader()
+    }
+
     /// Fetch Cursor usage with manual cookie header (for debugging).
     public func fetchWithManualCookies(_ cookieHeader: String) async throws -> CursorStatusSnapshot {
         try await self.fetchWithCookieHeader(cookieHeader)
@@ -1768,6 +1808,12 @@ public struct CursorStatusProbe: Sendable {
     }
 
     public static func appAuthCookieHeader() -> String? {
+        nil
+    }
+
+    public static func autoModeAppAuthCookieHeader(
+        cursorSettings _: ProviderSettingsSnapshot.CursorProviderSettings?) -> String?
+    {
         nil
     }
 }

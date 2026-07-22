@@ -106,7 +106,9 @@ Unlike Claude and Codex cost (scanned from local session logs on this machine), 
 
 Auth follows the Usage source picker so cost and usage always come from the same account. In **Cursor App Token**
 mode the cost fetch uses only the app-token-derived session (forwarded like a manual header, so it never falls
-back to manual/cached/browser cookies); a missing app token fails the fetch closed. Otherwise auth reuses the
+back to manual/cached/browser cookies); a missing app token fails the fetch closed. In **Auto** usage mode, cost
+is pinned to that same app-token session exactly when the usage pipeline would win with the app token (same
+deference rules: a usable manual header or committed browser login keeps ownership). Otherwise auth reuses the
 exact status-probe session resolution and cookie-source policy:
 - **Auto**: cached cookie header → browser cookie import → stored WebKit session → Cursor.app local auth.
 - **Manual**: a non-empty pasted cookie header is required and forwarded as-is, so cost and status share the same session; an empty header fails closed instead of falling back to another account.

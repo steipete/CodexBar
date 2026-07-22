@@ -130,15 +130,12 @@ struct CursorAppTokenFetchStrategy: ProviderFetchStrategy {
         // Explicit account choices must keep winning automatic mode: a manual
         // cookie header (or selected token account) and an explicitly selected
         // browser login both outrank the app token.
-        if context.sourceMode == .auto {
-            if context.settings?.cursor?.cookieSource == .manual,
-               CookieHeaderNormalizer.normalize(context.settings?.cursor?.manualCookieHeader) != nil
-            {
-                return false
-            }
-            if self.loadCachedEntry()?.authenticationFailurePolicy == .stopFallback {
-                return false
-            }
+        if context.sourceMode == .auto,
+           CursorStatusProbe.autoModeDefersToExplicitSelection(
+               cursorSettings: context.settings?.cursor,
+               cachedEntry: self.loadCachedEntry())
+        {
+            return false
         }
         guard let session = try? self.appAuthStore.loadSession() else { return false }
         return session.isUsable

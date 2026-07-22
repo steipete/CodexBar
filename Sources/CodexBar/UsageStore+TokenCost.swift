@@ -38,6 +38,15 @@ extension UsageStore {
             }
             return .proceed(header)
         }
+        // Auto mode: when the usage pipeline would win with the app token, pin
+        // cost to that same session instead of resolving cached/browser cookies
+        // that may belong to a different account.
+        if self.settings.cursorUsageDataSource == .auto,
+           let header = CursorStatusProbe.autoModeAppAuthCookieHeader(
+               cursorSettings: self.cursorCostCookieSettings())
+        {
+            return .proceed(header)
+        }
         guard self.settings.cursorCookieSource == .manual else {
             return .proceed(nil)
         }
@@ -59,6 +68,12 @@ extension UsageStore {
         self.tokenErrors[provider] = message
         self.tokenFailureGates[provider]?.reset()
         return .reject
+    }
+
+    private func cursorCostCookieSettings() -> ProviderSettingsSnapshot.CursorProviderSettings {
+        ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: self.settings.cursorCookieSource,
+            manualCookieHeader: self.settings.cursorCookieHeader)
     }
 
     func loadTokenUsageSnapshot(
@@ -331,6 +346,18 @@ extension UsageStore {
             let headerFingerprint = CursorStatusProbe.appAuthCookieHeader()
                 .map(CookieHeaderCache.credentialFingerprint) ?? "missing"
             return "\(base)|cursorCookie=app:\(headerFingerprint)"
+        }
+
+        // Mirror prepareCursorCostCookie: auto-mode cost pinned to the app
+        // token must be cached under that credential, not the cookie ladder's.
+        if self.settings.cursorUsageDataSource == .auto,
+           let appHeader = CursorStatusProbe.autoModeAppAuthCookieHeader(
+               cursorSettings: self.cursorCostCookieSettings())
+        {
+            return self.cursorCostScopeSignature(
+                historyDays: historyDays,
+                source: .auto,
+                credentialFingerprint: CookieHeaderCache.credentialFingerprint(appHeader))
         }
 
         let source = self.settings.cursorCookieSource

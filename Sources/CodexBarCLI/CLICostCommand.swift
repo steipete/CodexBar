@@ -409,6 +409,15 @@ extension CodexBarCLI {
                 ? CursorCostAvailabilityError.appTokenUnavailable
                 : nil
         }
+        // Auto with a winning app token fetches with that session, so cookie
+        // policy errors (like an empty manual header) do not apply.
+        if Self.cursorCostAutoModeAppHeader(
+            source: source,
+            settings: settings,
+            appAuthCookieHeader: appAuthCookieHeader) != nil
+        {
+            return nil
+        }
         guard let settings else { return nil }
         switch settings.cookieSource {
         case .off:
@@ -421,7 +430,8 @@ extension CodexBarCLI {
     }
 
     /// Cookie header to forward for a Cursor cost fetch, or nil for auto/non-cursor sources.
-    /// App-token usage forwards the app-token-derived session so cost and usage share an account.
+    /// App-token usage forwards the app-token-derived session so cost and usage share an account,
+    /// and auto mode does the same whenever the usage pipeline would win with the app token.
     static func cursorCostHeaderOverride(
         _ provider: UsageProvider,
         settings: ProviderSettingsSnapshot.CursorProviderSettings?,
@@ -432,8 +442,30 @@ extension CodexBarCLI {
         if source == .oauth {
             return appAuthCookieHeader()
         }
+        if let appHeader = cursorCostAutoModeAppHeader(
+            source: source,
+            settings: settings,
+            appAuthCookieHeader: appAuthCookieHeader)
+        {
+            return appHeader
+        }
         guard settings?.cookieSource == .manual else { return nil }
         return CookieHeaderNormalizer.normalize(settings?.manualCookieHeader)
+    }
+
+    /// App-token session for an auto-mode cost fetch, or nil when explicit
+    /// selections (manual header, committed browser login) or an unusable
+    /// token defer to the cookie ladder.
+    private static func cursorCostAutoModeAppHeader(
+        source: ProviderSourceMode?,
+        settings: ProviderSettingsSnapshot.CursorProviderSettings?,
+        appAuthCookieHeader: () -> String?) -> String?
+    {
+        guard source == nil || source == .auto else { return nil }
+        return CursorStatusProbe.autoModeAppAuthCookieHeader(
+            cursorSettings: settings,
+            cachedEntry: CookieHeaderCache.load(provider: .cursor),
+            appAuthCookieHeader: appAuthCookieHeader)
     }
 }
 
