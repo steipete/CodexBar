@@ -694,6 +694,10 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .cursor, sourceMode == .oauth {
+            // Cursor app-token auth reads the local state database; no browser stack needed.
+            return false
+        }
         #if os(Linux)
         if provider == .cursor,
            settings?.cursor?.cookieSource != .off

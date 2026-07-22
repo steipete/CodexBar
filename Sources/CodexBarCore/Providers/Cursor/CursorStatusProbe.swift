@@ -533,18 +533,34 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
     }
 
     private static func decodeSQLiteValue(stmt: OpaquePointer?, index: Int32) -> String? {
+        let raw: String?
         switch sqlite3_column_type(stmt, index) {
         case SQLITE_TEXT:
             guard let c = sqlite3_column_text(stmt, index) else { return nil }
-            return String(cString: c)
+            raw = String(cString: c)
         case SQLITE_BLOB:
             guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
-            let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
-            return String(data: data, encoding: .utf8)
-                ?? String(data: data, encoding: .utf16LittleEndian)
+            raw = Self.decodeBlobString(Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index))))
         default:
             return nil
         }
+        guard let raw else { return nil }
+
+        // VS Code-style state values are occasionally JSON-quoted; tolerate that form.
+        let trimmed = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\0 \t\r\n"))
+        if trimmed.count >= 2, trimmed.hasPrefix("\""), trimmed.hasSuffix("\"") {
+            return String(trimmed.dropFirst().dropLast())
+        }
+        return trimmed
+    }
+
+    /// UTF-16-LE blobs of ASCII text decode as "valid" UTF-8 full of interior
+    /// NULs; only accept a NUL-free UTF-8 decode before trying UTF-16.
+    private static func decodeBlobString(_ data: Data) -> String? {
+        if let text = String(data: data, encoding: .utf8), !text.contains("\0") {
+            return text
+        }
+        return String(data: data, encoding: .utf16LittleEndian)
     }
 }
 
