@@ -6,6 +6,12 @@ public struct QwenCloudUsageSnapshot: Sendable {
     public let totalQuota: Double?
     public let remainingQuota: Double?
     public let resetsAt: Date?
+    public let fiveHourUsedPercent: Double?
+    public let fiveHourTotalQuota: Double?
+    public let fiveHourResetsAt: Date?
+    public let weeklyUsedPercent: Double?
+    public let weeklyTotalQuota: Double?
+    public let weeklyResetsAt: Date?
     public let updatedAt: Date
 
     public init(
@@ -14,6 +20,12 @@ public struct QwenCloudUsageSnapshot: Sendable {
         totalQuota: Double?,
         remainingQuota: Double?,
         resetsAt: Date?,
+        fiveHourUsedPercent: Double? = nil,
+        fiveHourTotalQuota: Double? = nil,
+        fiveHourResetsAt: Date? = nil,
+        weeklyUsedPercent: Double? = nil,
+        weeklyTotalQuota: Double? = nil,
+        weeklyResetsAt: Date? = nil,
         updatedAt: Date)
     {
         self.planName = planName
@@ -21,6 +33,12 @@ public struct QwenCloudUsageSnapshot: Sendable {
         self.totalQuota = totalQuota
         self.remainingQuota = remainingQuota
         self.resetsAt = resetsAt
+        self.fiveHourUsedPercent = fiveHourUsedPercent
+        self.fiveHourTotalQuota = fiveHourTotalQuota
+        self.fiveHourResetsAt = fiveHourResetsAt
+        self.weeklyUsedPercent = weeklyUsedPercent
+        self.weeklyTotalQuota = weeklyTotalQuota
+        self.weeklyResetsAt = weeklyResetsAt
         self.updatedAt = updatedAt
     }
 }
@@ -37,7 +55,14 @@ extension QwenCloudUsageSnapshot {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primary: RateWindow? = Self.usedPercent(
+        let currentPrimary = self.fiveHourUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 5 * 60,
+                resetsAt: self.fiveHourResetsAt,
+                resetDescription: Self.quotaDetail(usedPercent: $0, total: self.fiveHourTotalQuota))
+        }
+        let legacyPrimary = Self.usedPercent(
             used: self.usedQuota,
             total: self.totalQuota,
             remaining: self.remainingQuota).map {
@@ -50,6 +75,14 @@ extension QwenCloudUsageSnapshot {
                     total: self.totalQuota,
                     remaining: self.remainingQuota))
         }
+        let primary = currentPrimary ?? legacyPrimary
+        let secondary = self.weeklyUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: self.weeklyResetsAt,
+                resetDescription: Self.quotaDetail(usedPercent: $0, total: self.weeklyTotalQuota))
+        }
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -61,7 +94,7 @@ extension QwenCloudUsageSnapshot {
 
         return UsageSnapshot(
             primary: primary,
-            secondary: nil,
+            secondary: secondary,
             tertiary: nil,
             providerCost: nil,
             updatedAt: self.updatedAt,
@@ -93,6 +126,12 @@ extension QwenCloudUsageSnapshot {
             return "\(Self.format(remaining)) credits left"
         }
         return nil
+    }
+
+    private static func quotaDetail(usedPercent: Double, total: Double?) -> String? {
+        guard let total, total > 0 else { return nil }
+        let used = total * usedPercent / 100
+        return "\(Self.format(used)) / \(Self.format(total)) credits used"
     }
 
     private static func format(_ value: Double) -> String {

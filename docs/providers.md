@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 63 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 64 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -45,7 +45,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | OpenCode Go | Unscoped Auto: local SQLite usage (`local`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local. Explicit Web: web only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
-| Qwen Cloud | Qwen Cloud token-plan subscription summary API via browser or manual cookies (`web`). |
+| Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
@@ -227,10 +227,11 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Details: `docs/alibaba-token-plan.md`.
 
 ## Qwen Cloud
-- Web mode posts to the Qwen Cloud `GetSubscriptionSummary` endpoint (`home.qwencloud.com`) with form-encoded
-  params and a resolved `sec_token`; reads the individual token-plan (`sfm_tokenplansolo_public_intl`) credits.
+- Web mode posts to Qwen Cloud's current individual Token Plan usage, subscription, and quota-configuration
+  APIs (`home.qwencloud.com`) with form-encoded params and a resolved `sec_token`.
+- Displays 5-hour and weekly consumed percentages, reset times, active tier, and tier-specific credit limits.
 - Cookie sources: browser import (`auto`), manual Cookie header, or `QWEN_CLOUD_COOKIE`.
-- Default quota URL: `https://home.qwencloud.com/data/api.json?action=GetSubscriptionSummary&product=BssOpenAPI-V3`.
+- Default gateway: `https://home.qwencloud.com/data/api.json?action=IntlBroadScopeAspnGateway&product=sfm_bailian`.
 - Host overrides: `QWEN_CLOUD_HOST` or `QWEN_CLOUD_QUOTA_URL` (HTTPS URLs or bare hosts normalized to HTTPS).
 - Status: `https://status.alibabacloud.com` (link only, no auto-polling).
 - Details: `docs/qwen-cloud.md`.

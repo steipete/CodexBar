@@ -68,15 +68,15 @@ struct QwenCloudSettingsReaderTests {
         let quota = QwenCloudUsageFetcher.defaultQuotaURL(environment: environment)
         #expect(quota.scheme == "https")
         #expect(quota.host == "qwen-cloud.test")
-        #expect(quota.absoluteString.contains("GetSubscriptionSummary"))
+        #expect(quota.absoluteString.removingPercentEncoding?.contains("personal/api/v2/usage") == true)
     }
 
     @Test
-    func `default quota URL targets subscription summary API`() {
+    func `default quota URL targets current token plan usage API`() {
         let url = QwenCloudUsageFetcher.defaultQuotaURL
         #expect(url.host == "home.qwencloud.com")
-        #expect(url.absoluteString.contains("GetSubscriptionSummary"))
-        #expect(url.absoluteString.contains("BssOpenAPI-V3"))
+        #expect(url.absoluteString.removingPercentEncoding?.contains("personal/api/v2/usage") == true)
+        #expect(url.absoluteString.contains("sfm_bailian"))
     }
 
     @Test
@@ -88,6 +88,14 @@ struct QwenCloudSettingsReaderTests {
 }
 
 struct QwenCloudUsageSnapshotTests {
+    @Test
+    func `provider labels current quota windows`() {
+        let metadata = QwenCloudProviderDescriptor.descriptor.metadata
+
+        #expect(metadata.sessionLabel == "5-hour")
+        #expect(metadata.weeklyLabel == "Weekly")
+    }
+
     @Test
     func `maps used and total quota to primary window`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -111,6 +119,40 @@ struct QwenCloudUsageSnapshotTests {
 
 @Suite(.serialized)
 struct QwenCloudUsageParsingTests {
+    @Test
+    func `parses current token plan 5 hour and weekly usage`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let innerJSON = """
+        {
+          "code": 0,
+          "data": {
+            "per5HourPercentage": 0.03,
+            "per5HourResetTime": 1700003600000,
+            "per1WeekPercentage": 0.01,
+            "per1WeekResetTime": 1700086400000
+          },
+          "success": true
+        }
+        """
+        let payload: [String: Any] = [
+            "data": [
+                "DataV2": [
+                    "data": innerJSON,
+                ],
+            ],
+            "httpStatusCode": 200,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        let snapshot = try QwenCloudUsageFetcher.parseUsageSnapshot(from: data, now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 3)
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_700_003_600))
+        #expect(usage.secondary?.usedPercent == 1)
+        #expect(usage.secondary?.resetsAt == Date(timeIntervalSince1970: 1_700_086_400))
+    }
+
     @Test
     func `parses nested equity list token plan payload`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -301,6 +343,10 @@ struct QwenCloudCookieHeaderTests {
 struct QwenCloudFetchTests {
     @Test
     func `fetches usage with dashboard sec token preflight`() async throws {
+        let usageAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
+        let subscriptionAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription"
+        let quotaConfigAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config"
+        var requestedAPIs: [String] = []
         QwenCloudStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
 
@@ -316,27 +362,47 @@ struct QwenCloudFetchTests {
 
             if url.host == "qwen-cloud.test", request.httpMethod == "POST" {
                 let body = Self.requestBodyString(from: request)
-                #expect(body.contains("sec_token=qwen-html-token"))
-                #expect(body.contains("GetSubscriptionSummary"))
-                #expect(body.contains("BssOpenAPI-V3"))
-                #expect(body.contains("sfm_tokenplansolo_public_intl"))
-                let json = """
-                {
-                  "Success": true,
-                  "Data": {
-                    "TotalCount": 1,
-                    "Data": [
-                      {
-                        "Status": "NORMAL",
-                        "EndTime": 1701000000000,
-                        "EquityList": [
-                          { "CycleTotalValue": "1000", "CycleSurplusValue": "900" }
-                        ]
+                let form = try #require(URLComponents(string: "?\(body)"))
+                let formValues = Dictionary(uniqueKeysWithValues: form.queryItems?.compactMap { item in
+                    item.value.map { (item.name, $0) }
+                } ?? [])
+                #expect(formValues["sec_token"] == "qwen-html-token")
+                #expect(formValues["product"] == "sfm_bailian")
+                let paramsData = try #require(formValues["params"]?.data(using: .utf8))
+                let params = try #require(JSONSerialization.jsonObject(with: paramsData) as? [String: Any])
+                let api = try #require(params["Api"] as? String)
+                requestedAPIs.append(api)
+
+                let json: String
+                switch api {
+                case usageAPI:
+                    json = """
+                    {
+                      "data": {
+                        "per5HourPercentage": 0.03,
+                        "per5HourResetTime": 1700003600000,
+                        "per1WeekPercentage": 0.01,
+                        "per1WeekResetTime": 1700086400000
                       }
-                    ]
-                  }
+                    }
+                    """
+                case subscriptionAPI:
+                    let data = try #require(params["Data"] as? [String: Any])
+                    #expect(data["commodityCode"] as? String == "sfm_tokenplansolo_public_intl")
+                    json = #"{"data":{"specCode":"standard","status":"VALID"}}"#
+                case quotaConfigAPI:
+                    json = """
+                    {
+                      "data": {
+                        "lite": { "five_hour": 1000, "weekly": 10000 },
+                        "standard": { "five_hour": 5000, "weekly": 50000 },
+                        "pro": { "five_hour": 10000, "weekly": 100000 }
+                      }
+                    }
+                    """
+                default:
+                    throw URLError(.unsupportedURL)
                 }
-                """
                 return Self.makeResponse(url: url, body: json, statusCode: 200)
             }
 
@@ -355,9 +421,12 @@ struct QwenCloudFetchTests {
             environment: [QwenCloudSettingsReader.hostKey: "https://qwen-cloud.test"],
             session: session)
 
-        #expect(snapshot.totalQuota == 1000)
-        #expect(snapshot.remainingQuota == 900)
-        #expect(snapshot.usedQuota == 100)
+        #expect(requestedAPIs == [usageAPI, subscriptionAPI, quotaConfigAPI])
+        #expect(snapshot.planName == "Standard")
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 3)
+        #expect(snapshot.toUsageSnapshot().primary?.resetDescription == "150 / 5,000 credits used")
+        #expect(snapshot.toUsageSnapshot().secondary?.usedPercent == 1)
+        #expect(snapshot.toUsageSnapshot().secondary?.resetDescription == "500 / 50,000 credits used")
     }
 
     @Test

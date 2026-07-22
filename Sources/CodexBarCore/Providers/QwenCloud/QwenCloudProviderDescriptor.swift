@@ -27,8 +27,8 @@ public enum QwenCloudProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .qwencloud,
                 displayName: "Qwen Cloud",
-                sessionLabel: "Credits",
-                weeklyLabel: "Usage",
+                sessionLabel: "5-hour",
+                weeklyLabel: "Weekly",
                 opusLabel: nil,
                 supportsOpus: false,
                 supportsCredits: false,

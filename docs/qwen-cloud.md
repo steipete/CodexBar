@@ -1,8 +1,8 @@
 ---
-summary: "Qwen Cloud provider notes: cookie auth, token-plan subscription summary endpoint, and setup."
+summary: "Qwen Cloud provider notes: cookie auth, 5-hour and weekly token-plan usage, and setup."
 read_when:
   - Adding or modifying the Qwen Cloud provider
-  - Debugging Qwen Cloud cookie import or subscription summary fetching
+  - Debugging Qwen Cloud cookie import or token-plan usage fetching
   - Explaining Qwen Cloud setup and limitations to users
 ---
 
@@ -13,11 +13,11 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
 
 ## Features
 
-- **Token-plan usage display**: Shows used, total, and remaining token-plan credits from the Qwen Cloud
-  subscription summary.
+- **Current quota windows**: Shows 5-hour and weekly usage percentages, reset times, and plan-specific
+  credit limits from the same APIs used by the Qwen Cloud dashboard.
 - **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
-- **Expiry awareness**: Shows the nearest token-plan expiration date as the reset time when the subscription
-  summary includes it.
+- **Adjustable menu-bar display**: In **Settings → Menu Bar**, add the session/weekly percentage or usage-bar
+  items and arrange them like any other provider.
 
 ## Setup
 
@@ -33,14 +33,14 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
 
 ## How it works
 
-- Fetches `POST https://home.qwencloud.com/data/api.json?action=GetSubscriptionSummary&product=BssOpenAPI-V3`
-- Sends form-encoded fields for `product=BssOpenAPI-V3`, `action=GetSubscriptionSummary`,
-  `region=ap-southeast-1`, `language=en-US`, a resolved `sec_token`, and
-  `params={"productCode":"sfm_tokenplansolo_public_intl"}`
+- Calls Qwen Cloud's current individual Token Plan APIs through the `sfm_bailian` console gateway:
+  `personal/api/v2/usage`, `personal/api/v2/subscription`, and `personal/api/v2/quota-config`.
+- The usage response supplies the 5-hour and weekly consumed ratios and reset times. The subscription response
+  identifies the active tier, and quota configuration supplies that tier's numeric credit limits.
+- Sends form-encoded fields for `product=sfm_bailian`, `action=IntlBroadScopeAspnGateway`,
+  `region=ap-southeast-1`, `language=en-US`, a resolved `sec_token`, and the provider-native API payload.
 - Uses Qwen Cloud / alibabacloud login cookies, with `sec_token` resolved from the dashboard HTML,
   a `sec_token` cookie, or the `/tool/user/info.json` endpoint
-- Parses `CycleTotalValue`, `CycleSurplusValue`, and `EndTime` from the subscription summary's
-  `EquityList` (falling back to `TotalValue`/`TotalSurplusValue` when present)
 - Supports `QWEN_CLOUD_HOST` and `QWEN_CLOUD_QUOTA_URL` for testing endpoint overrides, and
   `QWEN_CLOUD_COOKIE` for an environment-supplied cookie header
 - Endpoint overrides accept full `https://` URLs or bare hosts (for example,
@@ -50,7 +50,7 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
 
 - Qwen Cloud currently supports the web-cookie path only
 - API-key auth, token cost summaries, and automatic status polling are not supported
-- The default endpoint is the international Qwen Cloud individual token-plan subscription summary
+- The default endpoint targets the international Qwen Cloud individual Token Plan APIs
 
 ## Troubleshooting
 
