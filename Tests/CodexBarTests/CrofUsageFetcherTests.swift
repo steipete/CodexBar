@@ -12,7 +12,19 @@ struct CrofUsageFetcherTests {
     @Test
     func `usage response parses credits and ignores null request quota fields`() throws {
         let json = """
-        {"credits":9.0441,"requests_plan":null,"usable_requests":null,"usage":{"deepseek-v4-flash":{"cached_tokens":0,"input_tokens":23,"output_tokens":132,"total_tokens":155}}}
+        {
+          "credits":9.0441,
+          "requests_plan":null,
+          "usable_requests":null,
+          "usage":{
+            "deepseek-v4-flash":{
+              "cached_tokens":0,
+              "input_tokens":23,
+              "output_tokens":132,
+              "total_tokens":155
+            }
+          }
+        }
         """
 
         let snapshot = try CrofUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
