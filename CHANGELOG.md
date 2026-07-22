@@ -3,6 +3,7 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- Ollama: normalize bare `__Secure-session` values into Cookie headers for token accounts (#2359). Thanks @guocity!
 
 ## 0.45.2 — 2026-07-19
 

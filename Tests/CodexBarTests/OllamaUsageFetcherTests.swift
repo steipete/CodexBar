@@ -108,6 +108,211 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
+    func `raw ollama token account becomes a secure session cookie`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: "account-token",
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+
+        #expect(settings.cookieSource == .manual)
+        #expect(settings.manualCookieHeader == "__Secure-session=account-token")
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: settings.manualCookieHeader,
+            manualCookieMode: true)
+        #expect(resolved == "__Secure-session=account-token")
+    }
+
+    @Test
+    func `padded ollama token account becomes a secure session cookie`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: " \n opaque-session== \t",
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+
+        #expect(settings.manualCookieHeader == "__Secure-session=opaque-session==")
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: settings.manualCookieHeader,
+            manualCookieMode: true)
+        #expect(resolved == "__Secure-session=opaque-session==")
+    }
+
+    @Test
+    func `empty ollama token account does not synthesize a session cookie`() {
+        let header = normalizedOllamaTokenAccountHeader(
+            " \n\t ",
+            defaultCookieName: "__Secure-session")
+
+        #expect(header.isEmpty)
+    }
+
+    @Test
+    func `ollama token account preserves unrecognized multi cookie header`() {
+        let header = "theme=dark; locale=en"
+        let normalized = normalizedOllamaTokenAccountHeader(
+            header,
+            defaultCookieName: "__Secure-session")
+
+        #expect(normalized == header)
+    }
+
+    @Test
+    func `ollama token account normalizes explicit cookie header`() throws {
+        let header = "Cookie: __Secure-session=opaque-session=="
+        let normalized = normalizedOllamaTokenAccountHeader(
+            header,
+            defaultCookieName: "__Secure-session")
+
+        #expect(normalized == "__Secure-session=opaque-session==")
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: normalized,
+            manualCookieMode: true)
+        #expect(resolved == "__Secure-session=opaque-session==")
+    }
+
+    @Test(arguments: ["opaque-cookie:value", "prefixCOOKIE:value"])
+    func `cookie marker inside ollama session value is not treated as a header`(token: String) {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: token)
+
+        #expect(normalized == "__Secure-session=\(token)")
+    }
+
+    @Test
+    func `lowercase secure session cookie name is canonicalized`() {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: "__secure-session=abc")
+
+        #expect(normalized == "__Secure-session=abc")
+    }
+
+    @Test
+    func `unknown single cookie shape is treated as an opaque session value`() {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: "foo=bar")
+
+        #expect(normalized == "__Secure-session=foo=bar")
+    }
+
+    @Test
+    func `embedded cookie marker in session value is preserved as value data`() {
+        let token = "my-cookie:session=abc"
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: token)
+
+        let expected = "__Secure-session=\(token)"
+        #expect(normalized == expected)
+        #expect(try? OllamaUsageFetcher.resolveManualCookieHeader(
+            override: normalized,
+            manualCookieMode: true) == expected)
+    }
+
+    @Test(arguments: ["abc123", "opaque-session=="])
+    func `cookie prefixed bare value becomes a secure session cookie`(value: String) throws {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: "Cookie: \(value)")
+        let expected = "__Secure-session=\(value)"
+
+        #expect(normalized == expected)
+        #expect(try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: normalized,
+            manualCookieMode: true) == expected)
+    }
+
+    @Test(arguments: [
+        "curl https://ollama.com -H 'Cookie: __Secure-session=abc'",
+        "curl https://ollama.com -H Cookie:__Secure-session=abc",
+        "curl https://ollama.com --cookie '__Secure-session=abc'",
+        "curl https://ollama.com -b'__Secure-session=abc'",
+    ])
+    func `ollama token account retains supported curl cookie forms`(token: String) throws {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: token)
+
+        #expect(normalized == "__Secure-session=abc")
+        #expect(try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: normalized,
+            manualCookieMode: true) == "__Secure-session=abc")
+    }
+
+    @Test
+    func `mixed ollama header canonicalizes default cookie regardless of order`() {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: "wos-session=old; __secure-session=current")
+
+        #expect(normalized == "wos-session=old; __Secure-session=current")
+    }
+
+    @Test
+    func `ollama token account rejects multiline opaque values`() {
+        let normalized = TokenAccountSupportCatalog.normalizedCookieHeader(
+            for: .ollama,
+            token: "abc\r\nX-Test: injected")
+
+        #expect(normalized.isEmpty)
+    }
+
+    @Test
+    func `ollama token account preserves secure session cookie header`() {
+        let header = "__Secure-session=opaque-session=="
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: header,
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+
+        #expect(settings.manualCookieHeader == header)
+    }
+
+    @Test
+    func `ollama token account preserves another recognized cookie header`() throws {
+        let header = "wos-session=account-token"
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: header,
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+
+        #expect(settings.manualCookieHeader == header)
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: settings.manualCookieHeader,
+            manualCookieMode: true)
+        #expect(resolved == header)
+    }
+
+    @Test
     func `manual mode accepts workos session cookie header`() throws {
         let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
             override: "wos-session=abc; theme=dark",
