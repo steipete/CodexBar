@@ -274,15 +274,20 @@ struct ProviderSettingsDescriptorTests {
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
         let usagePicker = try #require(pickers.first(where: { $0.id == "claude-usage-source" }))
         #expect(usagePicker.placement == .connection)
+        #expect(Set(usagePicker.options.map(\.id)) == Set([
+            ClaudeUsageDataSource.auto.rawValue,
+            ClaudeUsageDataSource.api.rawValue,
+            ClaudeUsageDataSource.oauth.rawValue,
+            ClaudeUsageDataSource.web.rawValue,
+            ClaudeUsageDataSource.cli.rawValue,
+        ]))
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
+        #expect(!pickers.contains(where: { $0.id == "claude-keychain-prompt-policy" }))
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
         #expect(!toggles.contains(where: { $0.id == "claude-peak-hours" }))
-        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
-        let optionIDs = Set(keychainPicker.options.map(\.id))
-        #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.never.rawValue))
-        #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue))
-        #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.always.rawValue))
-        #expect(keychainPicker.isEnabled?() ?? true)
+        #expect(toggles.contains(where: { $0.id == "claude-swap-accounts" }))
+        #expect(toggles.contains(where: { $0.id == "claude-swap-show-single-account" }))
+        #expect(!toggles.contains(where: { $0.id == "claude-oauth-prompt-free-credentials" }))
     }
 
     @Test
@@ -306,53 +311,6 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude prompt policy picker remains visible for prompt free toggle`() throws {
-        let fixture = try self.makeSettingsFixture(
-            suite: "ProviderSettingsDescriptorTests-claude-prompt-visible-prompt-free")
-        fixture.settings.debugDisableKeychainAccess = false
-        fixture.settings.claudeOAuthPromptFreeCredentialsEnabled = true
-        let context = fixture.settingsContext(provider: .claude)
-
-        let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
-        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
-        #expect(keychainPicker.isVisible?() ?? true)
-        #expect(keychainPicker.binding.wrappedValue == ClaudeOAuthKeychainPromptMode.never.rawValue)
-    }
-
-    @Test
-    func `claude avoid keychain prompts toggle is disabled when global keychain disabled`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-prompt-free-disabled")
-        fixture.settings.debugDisableKeychainAccess = true
-        fixture.settings.claudeOAuthPromptFreeCredentialsEnabled = true
-        let context = fixture.settingsContext(provider: .claude)
-
-        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let promptFreeToggle = try #require(toggles.first(where: { $0.id == "claude-oauth-prompt-free-credentials" }))
-        #expect(promptFreeToggle.isEnabled?() == false)
-        #expect(promptFreeToggle.binding.wrappedValue == true)
-
-        promptFreeToggle.binding.wrappedValue = false
-        #expect(fixture.settings.claudeOAuthPromptFreeCredentialsEnabled == true)
-
-        fixture.settings.debugDisableKeychainAccess = false
-        #expect(promptFreeToggle.isEnabled?() == true)
-        #expect(promptFreeToggle.binding.wrappedValue == true)
-    }
-
-    @Test
-    func `claude keychain prompt policy picker disabled when global keychain disabled`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-keychain-disabled")
-        fixture.settings.debugDisableKeychainAccess = true
-        let context = fixture.settingsContext(provider: .claude)
-
-        let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
-        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
-        #expect(keychainPicker.isEnabled?() == false)
-        let subtitle = keychainPicker.dynamicSubtitle?() ?? ""
-        #expect(subtitle.localizedCaseInsensitiveContains("inactive"))
-    }
-
-    @Test
     func `claude web extras auto disables when leaving CLI`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-invariant")
         let settings = fixture.settings
@@ -360,7 +318,7 @@ struct ProviderSettingsDescriptorTests {
         settings.claudeUsageDataSource = .cli
         settings.claudeWebExtrasEnabled = true
 
-        settings.claudeUsageDataSource = .oauth
+        settings.claudeUsageDataSource = .web
         #expect(settings.claudeWebExtrasEnabled == false)
     }
 

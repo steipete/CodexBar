@@ -609,7 +609,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     }
 
     @Test
-    func `never mode bypasses oauth cache while preserving experimental security CLI reader`() throws {
+    func `never mode bypasses oauth cache and blocks experimental security CLI reader`() throws {
         try self.withTestState { state in
             try self.withCredentialsFile(data: nil) { _ in
                 self.seedCache(state, accessToken: "cached-token")
@@ -618,47 +618,31 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                     expiresAt: Date(timeIntervalSinceNow: 3600),
                     refreshToken: "security-cli-refresh-token")
 
-                let credentials = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental)
-                {
-                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                        try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(securityData)) {
-                            try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                data: securityData,
-                                fingerprint: nil)
-                            {
-                                try ProviderInteractionContext.$current.withValue(.background) {
-                                    try ClaudeOAuthCredentialsStore.load(
-                                        environment: [:],
-                                        allowKeychainPrompt: false)
-                                }
-                            }
-                        }
+                final class ReadCounter: @unchecked Sendable {
+                    var count = 0
+                    var isEmpty: Bool {
+                        self.count == .zero
                     }
                 }
-
-                #expect(credentials.accessToken == "security-cli-token")
-                #expect(state.recorder.operations.isEmpty)
-                #expect(state.pendingStore.isPending)
-                let cachedToken = try self.cachedToken(state)
-                #expect(cachedToken == "cached-token")
+                let securityReadCalls = ReadCounter()
 
                 do {
-                    _ = try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
-                        try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                            .securityCLIExperimental)
-                        {
-                            try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
-                                try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(nil)) {
-                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                        data: Data(),
-                                        fingerprint: nil)
-                                    {
-                                        try ProviderInteractionContext.$current.withValue(.background) {
-                                            try ClaudeOAuthCredentialsStore.load(
-                                                environment: [:],
-                                                allowKeychainPrompt: false)
-                                        }
+                    _ = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                        .securityCLIExperimental)
+                    {
+                        try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                            try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.dynamic { _ in
+                                securityReadCalls.count += 1
+                                return securityData
+                            }) {
+                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                    data: securityData,
+                                    fingerprint: nil)
+                                {
+                                    try ProviderInteractionContext.$current.withValue(.background) {
+                                        try ClaudeOAuthCredentialsStore.load(
+                                            environment: [:],
+                                            allowKeychainPrompt: false)
                                     }
                                 }
                             }
@@ -672,10 +656,11 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                     }
                 }
 
+                #expect(securityReadCalls.isEmpty)
+                #expect(state.recorder.operations.isEmpty)
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load])
-                let clearedToken = try self.cachedToken(state)
-                #expect(clearedToken == nil)
+                let cachedToken = try self.cachedToken(state)
+                #expect(cachedToken == "cached-token")
 
                 let mcpOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"synthetic"}}}"#.utf8)
                 let isMcpOnly = ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {

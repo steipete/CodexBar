@@ -19,6 +19,12 @@ Use the baseline doc for present behavior. This vNext plan defines what the refa
 be staged; it is not the sole source of truth for current implementation details, and RAT-107 does not re-approve the
 rest of the future architecture below.
 
+> **Credential-ownership amendment (2026-07-21):** OAuth-first App Auto remains the compatibility contract, but its
+> OAuth step is now one noninteractive attempt limited to environment, secure-storage-file, and CodexBar-owned
+> credentials. It never probes, reads, or fingerprints `Claude Code-credentials`; failures continue to the
+> credential-owning CLI and Web as Auto has historically done. Persisted explicit OAuth uses the same safe direct
+> sources, but only exact absence may continue to the owner CLI. The former Claude Keychain prompt controls are gone.
+
 ## Assessment snapshot
 
 - **Approach score:** `8.4/10`.
@@ -37,7 +43,7 @@ These behaviors are **non-negotiable** during refactor unless this doc is explic
 | Runtime | Selected mode | Ordered attempts | Fallback rules |
 | --- | --- | --- | --- |
 | app | auto | oauth -> cli -> web | oauth fallback allowed; cli fallback to web only when web available; web terminal |
-| app | oauth | oauth | no fallback |
+| app | oauth | oauth -> cli | cli only after typed direct-credential absence; otherwise oauth terminal |
 | app | cli | cli | no fallback |
 | app | web | web | no fallback |
 | cli | auto | web -> cli | web fallback allowed to cli; cli terminal |
@@ -51,33 +57,26 @@ Notes:
 - Planner output must feed the existing generic provider fetch pipeline; do not introduce a second Claude-only
   execution stack alongside `ProviderFetchPlan` / `ProviderFetchPipeline`.
 
-### 1a) `.auto` inconsistency characterization contract (must-do before reconciliation)
+### 1a) `.auto` consistency regression contract
 
-Current code has three `.auto` decision sites with inconsistent app ordering:
+The former `.auto` decision sites now share the same planner contract:
 
 - Strategy pipeline resolve order (app): `oauth -> cli -> web`.
-- `resolveUsageStrategy` helper order: `oauth -> cli -> web -> cli fallback`.
-- `ClaudeUsageFetcher.loadLatestUsage(.auto)` order: `oauth -> web -> cli -> oauth fallback`.
+- `resolveUsageStrategy` selects the first available step from that plan.
+- `ClaudeUsageFetcher.loadLatestUsage(.auto)` executes the same app order.
 
-Phase 0 must characterize these paths with tests where they are reachable through stable seams, and otherwise defer to
-the baseline doc before deleting any path.
-Phase 2 must reconcile this into planner-only source selection.
+Characterization coverage must remain in place while compatibility helpers are removed. Any future reconciliation must
+defer to the current-baseline doc and preserve this ordering.
 
-### 2) Prompt/cooldown contract
+### 2) Credential-ownership and interaction contract
 
-The planner must use one explicit `ClaudePromptDecision` equivalent, but outcome parity with current behavior is required:
+The production ownership boundary replaces the former prompt/cooldown contract:
 
-- User-initiated actions can clear prior keychain cooldown denial.
-- Startup bootstrap prompt is only allowed when all are true:
-  - runtime is app
-  - interaction is background
-  - refresh phase is startup
-  - prompt mode is `onlyOnUserAction`
-  - no cached credentials
-- Background delegated refresh is blocked when:
-  - prompt policy is `onlyOnUserAction`
-  - caller does not explicitly allow background delegated refresh
-- Prompt mode `never` blocks delegated refresh attempts.
+- No interaction mode or stored preference may reopen direct access to Claude Code's Keychain item.
+- App Auto performs one noninteractive attempt using only environment, profile-file, memory, or CodexBar-cache OAuth.
+- Exact credential absence may continue to the credential-owning CLI; explicit OAuth remains terminal for other errors.
+- Claude CLI may access storage it owns, but CodexBar must not query or repair that foreign item itself.
+- Caller and transport cancellation are terminal and never change credential authorities.
 
 ### 3) Credential typing + routing contract
 
@@ -152,10 +151,10 @@ compatibility must be preserved:
 - **Decision:** keep current CLI ordering in `auto`: `web -> cli`.
 - Planner must encode this explicitly and not rely on incidental strategy ordering.
 
-### Startup bootstrap prompt in `onlyOnUserAction`
+### Foreign-Keychain bootstrap
 
-- **Decision:** keep support exactly under the startup bootstrap constraints listed above.
-- Any expansion/restriction requires explicit doc update and tests.
+- **Decision:** remove direct bootstrap prompts; neither startup nor user action may reopen Claude Code's item.
+- Owner-mediated CLI fallback is the only supported route when safe direct credentials are absent.
 
 ### Runtime policy unification timing
 
@@ -181,15 +180,14 @@ compatibility must be preserved:
 
 Deliverables:
 - Add `docs/refactor/claude-current-baseline.md` as the current-state behavior reference.
-- Add/refresh characterization tests for runtime/source matrix and prompt-decision parity.
+- Add/refresh characterization tests for runtime/source matrix, credential ownership, and cancellation parity.
 - Add explicit characterization tests for existing `.auto` decision paths where they are reachable through stable seams,
   and defer remaining current-state details to the baseline doc until later reconciliation.
 - Update `docs/claude.md` after tests land so documented ordering matches characterized behavior.
 
 Exit gate:
 - Behavior matrix tests pass for app and cli runtimes.
-- `.auto` characterization coverage plus the baseline doc record current divergence explicitly without forcing new
-  production seams in Phase 0.
+- `.auto` characterization coverage plus the baseline doc record the shared runtime-specific order explicitly.
 - `docs/claude.md` no longer contradicts characterized runtime/source behavior.
 
 ### Phase 1: Canonical plan resolver
@@ -233,7 +231,7 @@ Exit gate:
 Deliverables:
 - Split `ClaudeUsageFetcher` into smaller executor-focused components.
 - Extract delegated OAuth retry/recovery flow into dedicated units.
-- Remove embedded prompt-policy/source-selection ownership from fetcher; keep it execution-only.
+- Remove embedded credential-source mutation and source-selection ownership from fetcher; keep it execution-only.
 
 Exit gate:
 - Fetcher no longer owns source-selection policy.
@@ -254,7 +252,7 @@ Deliverables (sub-phases):
 
 - **Phase 4a (repository extraction):**
   - Extract IO + caching + owner/source loading into repository surface.
-  - Keep prompt-gate semantics unchanged.
+  - Keep the default-deny foreign-credential ownership gate unchanged.
 - **Phase 4b (refresher extraction):**
   - Extract network refresh + failure gating to refresher component.
   - Keep owner-based refresh behavior unchanged.
@@ -263,7 +261,7 @@ Deliverables (sub-phases):
   - Keep delegated retry outcomes unchanged.
 
 Exit gate:
-- Existing OAuth delegated refresh / prompt policy / cooldown suites pass without behavior deltas at each sub-phase.
+- Existing OAuth ownership, delegated-refresh, cache, and cooldown suites pass without behavior deltas at each sub-phase.
 - Owner semantics parity remains intact across all sub-phases (`claudeCLI`, `codexbar`, `environment`).
 
 ### Phase 5: Test injection migration (TaskLocal -> DI)
@@ -291,12 +289,12 @@ Use this sequence to keep each PR reviewable without turning the rollout into un
 
 | PR | Title | Scope | Primary risks | Must-pass gate before merge |
 | --- | --- | --- | --- | --- |
-| PR-01 | Baseline characterization + doc correction | Lock current matrix behavior, characterize `.auto` paths through stable seams, defer remaining lower-level current-state details to the baseline doc, characterize prompt bootstrap/cooldown and token-account routing, then update docs to match reality. | R1, R2, R5, R6, R10 | No production behavior changes; characterization suites green; docs no longer contradict tests or the baseline. |
+| PR-01 | Baseline characterization + doc correction | Lock current matrix behavior, characterize `.auto` paths through stable seams, defer remaining lower-level current-state details to the baseline doc, characterize credential ownership/cancellation and token-account routing, then update docs to match reality. | R1, R2, R5, R6, R10 | No production behavior changes; characterization suites green; docs no longer contradict tests or the baseline. |
 | PR-02 | Canonical plan resolver | Introduce `ClaudePlan` and central resolver; map OAuth/Web/CLI/UI compatibility through one model while preserving current `loginMethod` projections. | R8 | Plan compatibility tests green (`Max/Pro/Team/Enterprise` + current subscription compatibility). |
 | PR-03 | Typed credentials at the edge | Parse manual credentials once (`sessionKey`, `cookieHeader`, `oauthAccessToken`) in app + CLI snapshot shaping. | R6 | Token-account routing parity tests green in app + CLI contexts. |
 | PR-04 | Source planner introduction + cutover | Add `ClaudeSourcePlanner`, prove parity against old path, then remove duplicate `.auto` selection branches once parity is proven. | R1, R5, R10 | One `.auto` authority remains; attempt/source-label diagnostics remain parity-compatible. |
 | PR-05 | `ClaudeUsageFetcher` decomposition | Split fetcher into execution/retry-focused units; remove embedded source-selection ownership. | R2, R10 | Delegated OAuth retry/recovery tests green with no behavior deltas. |
-| PR-06 | OAuth decomposition | Extract repository, refresher, and delegated-controller seams from `ClaudeOAuthCredentialsStore` while preserving owner semantics. | R3, R4, R7, R9 | Cache/fingerprint/prompt/owner suites green (`claudeCLI`, `codexbar`, `environment`). |
+| PR-06 | OAuth decomposition | Extract repository, refresher, and delegated-controller seams from `ClaudeOAuthCredentialsStore` while preserving owner semantics. | R3, R4, R7, R9 | Cache/fingerprint/ownership suites green (`claudeCLI`, `codexbar`, `environment`). |
 | PR-07 (optional) | TaskLocal -> DI migration | Move remaining tests and seams to `ClaudeFetchDependencies`, keep temporary compat adapters, then remove. | R9 | Core planner/executor tests run without TaskLocal globals. |
 | PR-08 (optional) | Web decomposition | Split cookie acquisition from web usage client and keep tooling isolated. | R8, R10 | Web parsing/account mapping suites remain green. |
 
@@ -336,13 +334,13 @@ Use these risk IDs in refactor PR checklists/reviews.
 
 | Risk ID | Severity | Risk | Detail |
 | --- | --- | --- | --- |
-| R1 | Critical | Auto-ordering reconciliation | Three `.auto` paths are inconsistent today. Characterize strategy pipeline vs `resolveUsageStrategy` helper vs fetcher-direct `.auto` before deleting any path. |
-| R2 | High | Prompt policy consolidation | Prompt policy exists across strategy availability, fetcher flow, and credentials store gates. Preserve startup bootstrap constraints exactly to avoid prompt storms or silent OAuth suppression. |
-| R3 | High | `ClaudeOAuthCredentialsStore` decomposition | Large lock-protected state + layered caches + fingerprint invalidation + security calls. Splits can break cache coherence, invalidation timing, or prompt gating order. |
+| R1 | Critical | Auto-ordering regression | Provider, compatibility-helper, and fetcher-direct `.auto` must stay aligned to app `oauth -> cli -> web` and CLI `web -> cli`. |
+| R2 | High | Credential-ownership regression | Preserve safe direct sources, the default-deny foreign-Keychain gate, exact-absence owner-CLI fallback, and terminal cancellation. |
+| R3 | High | `ClaudeOAuthCredentialsStore` decomposition | Large lock-protected state + layered caches + fingerprint invalidation + security calls. Splits can break cache coherence, invalidation timing, or ownership-gate order. |
 | R4 | High | Owner semantics drift | Preserve exact owner-to-refresh mapping: `.claudeCLI` delegated, `.codexbar` direct refresh, `.environment` no refresh. |
 | R5 | Medium | CLI runtime parity | Preserve runtime-specific policy: CLI `auto` remains `web -> cli`; OAuth is available only when explicitly selected as `sourceMode=.oauth`. Do not accidentally default CLI runtime to app ordering. |
 | R6 | Medium | Token-account OAuth-vs-cookie misrouting | Keep routing parity for OAuth token vs session key vs full cookie header, including `Bearer sk-ant-oat...` normalization. |
-| R7 | Medium | Cache invalidation regressions | Preserve credentials file/keychain fingerprint semantics and stale-cache guards during repository extraction. |
+| R7 | Medium | Cache invalidation regressions | Preserve credentials-file and CodexBar-cache fingerprint semantics and stale-cache guards during repository extraction. |
 | R8 | Low-Medium | Plan inference heuristic drift | Preserve web-specific plan inference fallback (`billing_type` + `rate_limit_tier`) when unifying plan resolution. |
 | R9 | Medium | Strict concurrency / `@Sendable` regressions | Maintain thread-safe behavior from current NSLock-based state while moving to DI/decomposed components under Swift 6 strict concurrency. |
 | R10 | Low | Debug/diagnostic drift | Keep source labels, attempt sequences, and debug output aligned with real planner decisions after consolidation. |

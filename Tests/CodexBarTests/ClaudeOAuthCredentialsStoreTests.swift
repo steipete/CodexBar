@@ -945,37 +945,39 @@ extension ClaudeOAuthCredentialsStoreTests {
     }
 
     @Test
-    func `never mode repairs a missing credentials file from a valid no-UI Keychain read`() throws {
+    func `never mode blocks no-UI Keychain repair even with a valid item present`() throws {
         try self.withIsolatedOAuthCache {
             try self.withMissingCredentialsFile {
                 let keychainData = self.makeCredentialsData(
                     accessToken: "test-token-placeholder",
                     expiresAt: Date(timeIntervalSinceNow: 3600))
 
-                let record = try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                    try ProviderInteractionContext.$current.withValue(.background) {
-                        try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                            data: keychainData,
-                            fingerprint: nil)
-                        {
-                            try ClaudeOAuthCredentialsStore.loadRecord(
-                                environment: [:],
-                                allowKeychainPrompt: false,
-                                respectKeychainPromptCooldown: false,
-                                allowClaudeKeychainRepairWithoutPrompt: true)
+                let error = #expect(throws: ClaudeOAuthCredentialsError.self) {
+                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                        try ProviderInteractionContext.$current.withValue(.background) {
+                            try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: keychainData,
+                                fingerprint: nil)
+                            {
+                                try ClaudeOAuthCredentialsStore.loadRecord(
+                                    environment: [:],
+                                    allowKeychainPrompt: false,
+                                    respectKeychainPromptCooldown: false,
+                                    allowClaudeKeychainRepairWithoutPrompt: true)
+                            }
                         }
                     }
                 }
-
-                #expect(record.credentials.accessToken == "test-token-placeholder")
-                #expect(record.source == .claudeKeychain)
-                #expect(record.owner == .claudeCLI)
+                guard case .notFound = error else {
+                    Issue.record("Expected .notFound, got \(String(describing: error))")
+                    return
+                }
             }
         }
     }
 
     @Test
-    func `never mode skips the experimental security CLI before no-UI Keychain repair`() throws {
+    func `never mode blocks both experimental security CLI and no-UI Keychain repair`() throws {
         try self.withIsolatedOAuthCache {
             try self.withMissingCredentialsFile {
                 let noUIData = self.makeCredentialsData(
@@ -986,37 +988,43 @@ extension ClaudeOAuthCredentialsStoreTests {
                     expiresAt: Date(timeIntervalSinceNow: 3600))
                 final class ReadCounter: @unchecked Sendable {
                     var count = 0
+                    var isEmpty: Bool {
+                        self.count == .zero
+                    }
                 }
                 let securityCLIReads = ReadCounter()
 
-                let record = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental)
-                {
-                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                        try ProviderInteractionContext.$current.withValue(.background) {
-                            try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
-                                .dynamic { _ in
-                                    securityCLIReads.count += 1
-                                    return securityCLIData
-                                }) {
-                                    try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                        data: noUIData,
-                                        fingerprint: nil)
-                                    {
-                                        try ClaudeOAuthCredentialsStore.loadRecord(
-                                            environment: [:],
-                                            allowKeychainPrompt: false,
-                                            respectKeychainPromptCooldown: false,
-                                            allowClaudeKeychainRepairWithoutPrompt: true)
+                let error = #expect(throws: ClaudeOAuthCredentialsError.self) {
+                    try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                        .securityCLIExperimental)
+                    {
+                        try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                            try ProviderInteractionContext.$current.withValue(.background) {
+                                try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
+                                    .dynamic { _ in
+                                        securityCLIReads.count += 1
+                                        return securityCLIData
+                                    }) {
+                                        try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                            data: noUIData,
+                                            fingerprint: nil)
+                                        {
+                                            try ClaudeOAuthCredentialsStore.loadRecord(
+                                                environment: [:],
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: false,
+                                                allowClaudeKeychainRepairWithoutPrompt: true)
+                                        }
                                     }
-                                }
+                            }
                         }
                     }
                 }
-
-                #expect(record.credentials.accessToken == "test-token-placeholder")
-                #expect(record.source == .claudeKeychain)
-                #expect(securityCLIReads.count < 1)
+                guard case .notFound = error else {
+                    Issue.record("Expected .notFound, got \(String(describing: error))")
+                    return
+                }
+                #expect(securityCLIReads.isEmpty)
             }
         }
     }

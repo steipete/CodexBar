@@ -1,3 +1,6 @@
+> **Historical and superseded.** This describes the July 2026 MCP-only guard. Current CodexBar never reads Claude
+> Code's Keychain item at all; see `docs/verify-1844-proof.md` for the current invariant and verifier.
+
 ## Summary
 
 Fixes the background browser-launch regression in https://github.com/steipete/CodexBar/issues/1844: when Claude Code stores only MCP OAuth state in `Claude Code-credentials` (no `claudeAiOauth`), CodexBar no longer runs background delegated `claude /status` refresh—which can launch the default browser via `/usr/bin/open`.
@@ -18,7 +21,9 @@ Contributing issues on `main`:
 1. **Honor stored keychain prompt mode for delegated refresh** across all keychain read strategies (including `securityCLIExperimental`). Background refresh with `onlyOnUserAction` fails closed with existing user-action guidance instead of calling `claude /status`.
 2. **Detect MCP-only keychain payloads through both keychain readers** via `ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain`, skip delegated CLI touch, and fail fast during expired Claude CLI credential load.
 3. **Split security CLI read paths**: `readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled` vs parsed credential load.
-4. **Isolated verification helper**: the production `/usr/bin/security` reader can target a disposable keychain only while all general keychain access is disabled. `Scripts/verify_1844_live.sh` combines that keychain with disposable `HOME`, `CFFIXED_USER_HOME`, credentials, config, and a synthetic `claude` fixture that distinguishes benign CLI discovery from `/status` touch.
+4. **Historical isolated verification helper**: this PR used a disposable keychain and synthetic `claude` fixture. That
+   helper has since been replaced by the production ownership-boundary verifier documented in
+   `docs/verify-1844-proof.md`.
 
 ## Tests
 
@@ -45,7 +50,6 @@ swift test --filter ClaudeUsageTests
 swift test --filter ClaudeOAuthDelegatedRefreshCoordinatorTests
 swift test --filter 'expired claude CLI owner blocks background'
 swift test --filter ClaudeOAuthCredentialsStoreMCPOnlyGuardTests
-./Scripts/verify_1844_live.sh
 ```
 
 Fixes https://github.com/steipete/CodexBar/issues/1844. Primary OAuth storage discovery remains tracked by https://github.com/steipete/CodexBar/issues/1823.

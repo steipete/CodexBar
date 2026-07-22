@@ -9,9 +9,9 @@ read_when:
 
 # Claude provider
 
-Claude supports three usage data paths plus local cost usage. The main provider pipeline uses runtime-specific
-automatic selection, but the codebase still has multiple active Claude `.auto` decision sites while the refactor is
-pending. For the exact current-state parity contract, see
+Claude supports CLI, Web, Admin API, and explicit OAuth-token usage paths plus local cost usage. Automatic source
+selection is runtime-specific and follows a strict credential-ownership boundary. For the exact current-state
+contract, see
 [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
 When an Anthropic Admin API key is configured, Claude can also show organization-level spend/messages/tokens in the
@@ -21,14 +21,17 @@ same inline dashboard pattern used by the OpenAI API provider.
 
 ### Default selection (debug menu disabled)
 - If an Admin API key is configured, the Admin API strategy is used for Claude API spend/usage.
-- App runtime main pipeline: OAuth API → CLI PTY → Web API.
+- App runtime main pipeline: safe direct OAuth API → CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.
-- Explicit picker modes (OAuth/Web/CLI) bypass automatic fallback.
-- A lower-level direct Claude fetcher still contains a separate `.auto` order. That inconsistency is tracked in
-  [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
+- Explicit Admin API, Web, and CLI picker modes bypass automatic fallback.
+- Existing app settings that selected OAuth remain explicit OAuth. That route first uses environment,
+  secure-storage-file, or CodexBar-owned credentials without reading Claude Code's foreign Keychain item. When none
+  exists, the app asks the logged-in credential-owning Claude CLI for usage instead.
+- A selected OAuth token account still routes directly to the OAuth API and does not fall through to another account.
+- The terminal's explicit `--source oauth` mode remains available for supplied/file-backed credentials.
 
 Usage source picker:
-- Preferences → Providers → Claude → Usage source (Auto/OAuth/Web/CLI).
+- Preferences → Providers → Claude → Usage source (Auto/API/OAuth/Web/CLI).
 
 Admin API key setup:
 - Preferences → Providers → Claude → Admin API key, stored in `~/.codexbar/config.json`.
@@ -46,26 +49,39 @@ Admin API key setup:
   - Inline 30-day dashboard chart when daily buckets are present.
   - Identity login method: `Admin API`.
 
-## Keychain prompt policy (Claude OAuth)
-- Preferences → Providers → Claude → Keychain prompt policy.
-- Options:
-  - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.
-  - `Only on user action` (default): interactive prompts are reserved for user-initiated repair flows.
-  - `Always allow prompts`: allows interactive prompts in both user and background flows.
-- This setting only affects Claude OAuth Keychain prompting behavior; it does not switch your Claude usage source.
-- If Preferences → Advanced → Disable Keychain access is enabled, this policy remains visible but inactive until
-  Keychain access is re-enabled.
+## Claude credential ownership
+
+`Claude Code-credentials` is owned and periodically replaced by Claude Code. Replacing the item also replaces its
+access-control list, so granting CodexBar **Always Allow** cannot be a durable fix for recurring macOS password dialogs.
+
+Production CodexBar therefore never reads that foreign Keychain item, through either Security.framework or
+`/usr/bin/security`. It also does not fingerprint the item or inspect its persistent reference around refreshes. App
+Auto uses the noninteractive `claude auth status --json` owner operation before starting the CLI usage probe;
+CodexBar's Web path uses its separate cookie flow.
+
+The former Claude “Avoid Keychain prompts” toggle and Keychain prompt-policy picker have been removed because no
+setting should reopen access to the foreign item. Preferences → Advanced → Disable Keychain access still governs
+CodexBar-owned caches and other Keychain-backed features; it is not needed to enforce this Claude boundary.
 
 ### Debug selection (debug menu enabled)
-- The Debug pane can force OAuth / Web / CLI.
+- Claude debug logging follows the resolved app source. Auto records OAuth → CLI → Web without probing credentials;
+  the real fetch performs the single safe OAuth attempt.
 - Web extras are internal-only (not exposed in the Providers pane).
 
-## OAuth API (preferred)
+## OAuth API (explicit credentials)
 - Credentials:
-  - CodexBar OAuth cache when available.
-  - File fallback: `~/.claude/.credentials.json`.
-  - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
-- On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
+  - A selected OAuth token account or `CODEXBAR_CLAUDE_OAUTH_TOKEN`.
+  - CodexBar's own OAuth cache when available.
+  - File fallback: Claude's secure-storage root plus `.credentials.json` (normally
+    `~/.claude/.credentials.json`; `CLAUDE_SECURESTORAGE_CONFIG_DIR` overrides the root).
+- CodexBar never bootstraps or repairs OAuth credentials from `Claude Code-credentials`.
+- When no safe direct credential exists, app-level OAuth skips the direct request and uses the owner-mediated Claude
+  CLI. Once a direct credential is found, OAuth errors remain terminal and do not silently change authorities.
+- If neither a safe direct credential nor an authenticated Claude CLI is available, the Claude menu provides
+  **Open Terminal**, which starts `claude` so the credential owner can sign in; refresh afterward. This upgrade path
+  never reopens Claude Code's foreign Keychain item and never silently switches explicit OAuth to Web.
+- A corrupt or temporarily unavailable CodexBar-owned credential cache is also terminal; only exact absence permits
+  the owner-CLI fallback.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Endpoint:
   - `GET https://api.anthropic.com/api/oauth/usage`
@@ -80,8 +96,9 @@ Admin API key setup:
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
-- Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
-  remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
+- With the default Auto source, safe environment, profile-file, or CodexBar-owned OAuth credentials remain preferred.
+  When that attempt is unavailable or fails, the app asks the credential-owning Claude CLI for usage and then falls
+  back to Web. Explicit OAuth token accounts remain isolated and route directly to OAuth.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
   Max/Pro/Team/Enterprise. When a Max `rate_limit_tier` carries a usage multiplier
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
@@ -163,8 +180,10 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 | --- | --- |
 | ![claude-swap card before scoped windows](screenshots/claude-swap-scoped-before.png) | ![claude-swap card with a Fable scoped weekly window](screenshots/claude-swap-scoped-after.png) |
 
-## CLI PTY (fallback)
+## CLI PTY (first fallback in app Auto)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
+- Before App Auto reaches the CLI usage probe, it runs the noninteractive, owner-mediated
+  `claude auth status --json` preflight so a logged-out background probe cannot open an interactive browser sign-in.
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.
@@ -187,7 +206,8 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 ## Cost usage (local log scan)
 - Source roots:
   - Native Claude logs:
-    - `$CLAUDE_CONFIG_DIR` (comma-separated), each root uses `<root>/projects`.
+    - A nonempty `$CLAUDE_CONFIG_DIR` is one untrimmed literal root and uses `<root>/projects`, matching Claude Code.
+      Relative roots resolve from CodexBar's dedicated Claude probe working directory.
     - Fallback roots:
       - `~/.config/claude/projects`
       - `~/.claude/projects` (Claude Code and current Claude Desktop Code/Cowork CLI sessions)

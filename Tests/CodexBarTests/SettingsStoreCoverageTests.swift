@@ -328,9 +328,33 @@ struct SettingsStoreCoverageTests {
 
         let snapshot = settings.claudeSettingsSnapshot(tokenOverride: nil)
 
-        #expect(snapshot.usageDataSource == .auto)
+        #expect(snapshot.usageDataSource == .oauth)
         #expect(snapshot.cookieSource == .off)
         #expect(snapshot.manualCookieHeader?.isEmpty == true)
+    }
+
+    @Test
+    func `claude direct OAuth source survives an upgrade and reload`() throws {
+        let suite = "SettingsStoreCoverageTests-claude-oauth-source-upgrade"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, source: .oauth),
+        ]))
+
+        let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(settings.claudeUsageDataSource == .oauth)
+        #expect(settings.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource == .oauth)
+        #expect(settings.configSnapshot.providerConfig(for: .claude)?.source == .oauth)
+
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.claudeUsageDataSource == .oauth)
+        #expect(reloaded.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource == .oauth)
+
+        reloaded.claudeUsageDataSource = .oauth
+        #expect(reloaded.claudeUsageDataSource == .oauth)
+        #expect(reloaded.configSnapshot.providerConfig(for: .claude)?.source == .oauth)
     }
 
     @Test
@@ -340,7 +364,7 @@ struct SettingsStoreCoverageTests {
 
         let snapshot = settings.claudeSettingsSnapshot(tokenOverride: nil)
 
-        #expect(snapshot.usageDataSource == .auto)
+        #expect(snapshot.usageDataSource == .web)
         #expect(snapshot.cookieSource == .manual)
         #expect(snapshot.manualCookieHeader == "sessionKey=sk-ant-session-token")
     }
@@ -475,6 +499,47 @@ struct SettingsStoreCoverageTests {
             env: [:],
             fileManager: fileManager,
             homeDirectory: desktopCodeHome))
+    }
+
+    @Test
+    func `token cost detection follows Claude literal relative profile roots`() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "token-cost-claude-paths-\(UUID().uuidString)",
+            isDirectory: true)
+        let workingDirectory = root.appendingPathComponent("probe", isDirectory: true)
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        let splitDecoy = workingDirectory.appendingPathComponent("first/projects", isDirectory: true)
+        try fileManager.createDirectory(at: splitDecoy, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: splitDecoy.appendingPathComponent("usage.jsonl"))
+        let literalEnvironment = [ClaudeConfigPaths.configDirectoryEnvironmentKey: "first, second"]
+
+        #expect(!SettingsStore.hasAnyTokenCostUsageSources(
+            env: literalEnvironment,
+            fileManager: fileManager,
+            homeDirectory: home,
+            workingDirectory: workingDirectory))
+
+        let literalProjects = workingDirectory.appendingPathComponent("first, second/projects", isDirectory: true)
+        try fileManager.createDirectory(at: literalProjects, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: literalProjects.appendingPathComponent("usage.jsonl"))
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: literalEnvironment,
+            fileManager: fileManager,
+            homeDirectory: home,
+            workingDirectory: workingDirectory))
+
+        let relativeHomeProjects = workingDirectory
+            .appendingPathComponent("relative-home/.claude/projects", isDirectory: true)
+        try fileManager.createDirectory(at: relativeHomeProjects, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: relativeHomeProjects.appendingPathComponent("usage.jsonl"))
+        #expect(SettingsStore.hasAnyTokenCostUsageSources(
+            env: ["HOME": "relative-home", ClaudeConfigPaths.configDirectoryEnvironmentKey: ""],
+            fileManager: fileManager,
+            homeDirectory: home,
+            workingDirectory: workingDirectory))
     }
 
     @Test

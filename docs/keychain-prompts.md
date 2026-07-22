@@ -8,21 +8,20 @@ read_when:
 
 # Keychain prompts
 
-CodexBar can trigger macOS Keychain prompts when an enabled provider imports browser cookies, reads a provider-owned
-OAuth item, or uses a CodexBar-owned cache entry. Chromium browser cookie import commonly asks for the browser's
-Safe Storage item, such as "Chrome Safe Storage", "Brave Safe Storage", or "Microsoft Edge Safe Storage".
+CodexBar can trigger macOS Keychain prompts when an enabled provider imports browser cookies or uses a CodexBar-owned
+cache entry. Chromium browser cookie import commonly asks for the browser's Safe Storage item, such as "Chrome Safe
+Storage", "Brave Safe Storage", or "Microsoft Edge Safe Storage".
 
 CodexBar does not need your browser password. macOS owns the prompt, and the prompt should identify the app or binary
 that is requesting access. For support reports, include that requesting app/path when possible and do not paste
 passwords, cookie headers, OAuth tokens, API keys, or Keychain item values.
 
-Before a Keychain read that may require interaction, CodexBar shows an explanation of the item and its purpose.
-**Learn More** opens this page without dismissing that explanation or starting the macOS prompt. Choose **OK** only
-when you are ready to continue, or use the opt-out below.
-
-After you acknowledge the Claude OAuth explanation, CodexBar does not repeat that explanation for six hours. This
-cooldown only applies to CodexBar's explanatory alert: macOS can still show its own Keychain authorization prompt,
-and the Claude **Never prompt** and global **Disable Keychain access** settings remain in effect.
+Current CodexBar builds never directly read Claude Code's `Claude Code-credentials` item. App Auto first attempts
+OAuth only through environment, profile-file, or CodexBar-owned credentials. Its CLI fallback uses an owner-mediated
+`claude auth status --json` check before the usage probe, then falls back to Web when needed.
+If a prompt names that item and CodexBar as the requester, quit older running copies and update CodexBar. Do not add
+CodexBar to that item's “Always Allow” list: Claude Code can replace the item and its ACL during refresh, so such a
+grant cannot be durable. A prompt requested by the Claude executable is owned by Claude Code itself.
 
 ## If the prompt appears after uninstalling CodexBar
 

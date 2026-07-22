@@ -98,6 +98,52 @@ struct TTYIntegrationTests {
         #expect(!commands.contains("/status"))
     }
 
+    @Test
+    func `claude pty keepalive relaunches when account or launch environment changes`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CodexBarTTYAccountScope-\(UUID().uuidString)", isDirectory: true)
+        let configRoot = root.appendingPathComponent("profile", isDirectory: true)
+        let launchLog = root.appendingPathComponent("launches.log")
+        try FileManager.default.createDirectory(at: configRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let configURL = configRoot.appendingPathComponent(".config.json")
+        try Self.writeClaudeAccount("account-a", to: configURL)
+        let cli = try Self.makeAccountScopedClaudeCLI(in: root, launchLog: launchLog)
+        let environment = [
+            "CLAUDE_CONFIG_DIR": configRoot.path,
+            "HOME": configRoot.path,
+            "AWS_PROFILE": "profile-a",
+        ]
+        let probe = ClaudeStatusProbe(
+            claudeBinary: cli.path,
+            timeout: 5,
+            keepCLISessionsAlive: true,
+            environment: environment)
+
+        try await ClaudeCLISession.withIsolatedSessionForTesting {
+            _ = try await probe.fetch()
+            _ = try await probe.fetch()
+            try Self.writeClaudeAccount("account-b", to: configURL)
+            _ = try await probe.fetch()
+            var changedEnvironment = environment
+            changedEnvironment["AWS_PROFILE"] = "profile-b"
+            let changedEnvironmentProbe = ClaudeStatusProbe(
+                claudeBinary: cli.path,
+                timeout: 5,
+                keepCLISessionsAlive: true,
+                environment: changedEnvironment)
+            _ = try await changedEnvironmentProbe.fetch()
+        }
+
+        let launches = try String(contentsOf: launchLog, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+        #expect(launches.count == 3)
+        #expect(launches.first?.hasSuffix(":account-a:profile-a") == true)
+        #expect(launches.dropFirst().first?.hasSuffix(":account-b:profile-a") == true)
+        #expect(launches.last?.hasSuffix(":account-b:profile-b") == true)
+    }
+
     private static func makeSlowUsageClaudeCLI() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("CodexBarTTYTests-\(UUID().uuidString)", isDirectory: true)
@@ -141,6 +187,36 @@ struct TTYIntegrationTests {
               ;;
             *"/status"*)
               printf '%s\\n' 'Account: subscription@example.com'
+              ;;
+          esac
+        done
+        """
+        try script.write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+
+    private static func writeClaudeAccount(_ account: String, to url: URL) throws {
+        try Data("{\"oauthAccount\":{\"accountUuid\":\"\(account)\"}}".utf8).write(to: url, options: .atomic)
+    }
+
+    private static func makeAccountScopedClaudeCLI(in directory: URL, launchLog: URL) throws -> URL {
+        let url = directory.appendingPathComponent("claude")
+        let script = """
+        #!/bin/sh
+        ACCOUNT=$(sed -n 's/.*"accountUuid":"\\([^"]*\\)".*/\\1/p' "$CLAUDE_CONFIG_DIR/.config.json")
+        printf 'launch:%s:%s:%s\\n' "$$" "$ACCOUNT" "$AWS_PROFILE" >> '\(launchLog.path)'
+        while IFS= read -r line; do
+          case "$line" in
+            *"/usage"*)
+              printf '%s\\n' 'Settings  Status  Config  Usage'
+              printf '%s\\n' 'Current session'
+              printf '%s\\n' '93% left'
+              printf '%s\\n' 'Current week (all models)'
+              printf '%s\\n' '79% left'
+              ;;
+            *"/status"*)
+              printf 'Account: %s@example.com\\n' "$ACCOUNT"
               ;;
           esac
         done

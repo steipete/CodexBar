@@ -351,6 +351,15 @@ public enum KeychainCacheStore {
         }
     }
 
+    public static func withLoadFailureStatusOverrideForTesting<T>(
+        _ status: OSStatus?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$loadFailureStatusOverride.withValue(status) {
+            try await operation()
+        }
+    }
+
     public static func withStoreFailureStatusOverrideForTesting<T>(
         _ status: OSStatus?,
         operation: () throws -> T) rethrows -> T

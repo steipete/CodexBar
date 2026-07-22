@@ -93,6 +93,9 @@ extension ClaudeOAuthCredentialsStore {
         -> Data?
     {
         guard self.shouldPreferSecurityCLIKeychainRead(readStrategy: readStrategy) else { return nil }
+        // `/usr/bin/security` is not constrained by Security.framework's no-UI flags. Keep the ownership gate at
+        // the process-launch boundary so no caller can bypass it by selecting the experimental reader.
+        guard self.keychainAccessAllowed else { return nil }
         guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return nil }
         let interactionMetadata = interaction == .userInitiated ? "user" : "background"
 

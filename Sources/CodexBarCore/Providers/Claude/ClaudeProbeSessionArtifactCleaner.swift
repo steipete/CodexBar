@@ -74,32 +74,8 @@ enum ClaudeProbeSessionArtifactCleaner {
 
     private static func claudeConfigRoots(
         environment: [String: String],
-        fileManager fm: FileManager) -> [URL]
+        fileManager _: FileManager) -> [URL]
     {
-        var roots: [URL] = []
-        var seen = Set<String>()
-
-        func append(_ url: URL) {
-            let standardized = url.standardizedFileURL
-            guard seen.insert(standardized.path).inserted else { return }
-            roots.append(standardized)
-        }
-
-        if let raw = environment["CLAUDE_CONFIG_DIR"] {
-            for part in raw.split(separator: ",") {
-                let path = part.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !path.isEmpty else { continue }
-                append(URL(fileURLWithPath: path))
-            }
-        }
-
-        let home = environment["HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? NSHomeDirectory()
-        append(URL(fileURLWithPath: home).appendingPathComponent(".claude", isDirectory: true))
-        append(URL(fileURLWithPath: home).appendingPathComponent(".config/claude", isDirectory: true))
-
-        if roots.isEmpty {
-            append(fm.homeDirectoryForCurrentUser.appendingPathComponent(".claude", isDirectory: true))
-        }
-        return roots
+        [ClaudeConfigPaths.configRoot(environment: environment)]
     }
 }
