@@ -42,30 +42,6 @@ public struct CostUsageFetcher: Sendable {
         self.scannerOptions = scannerOptions
     }
 
-    public func loadCachedCodexTokenSnapshot(
-        now: Date = Date(),
-        codexHomePath: String? = nil,
-        historyDays: Int = 30) async -> CostUsageTokenSnapshot?
-    {
-        await Self.loadCachedCodexTokenSnapshot(
-            now: now,
-            codexHomePath: codexHomePath,
-            historyDays: historyDays,
-            scannerOptions: self.scannerOptionsOverride())
-    }
-
-    package func loadCachedCodexTokenSnapshotResult(
-        now: Date = Date(),
-        codexHomePath: String? = nil,
-        historyDays: Int = 30) async -> CachedCodexTokenSnapshotResult?
-    {
-        await Self.loadCachedCodexTokenSnapshotResult(
-            now: now,
-            codexHomePath: codexHomePath,
-            historyDays: historyDays,
-            scannerOptions: self.scannerOptionsOverride())
-    }
-
     public func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -444,12 +420,18 @@ public struct CostUsageFetcher: Sendable {
         now: Date = Date(),
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        allowScopedCodexHome: Bool = false,
+        includePiSessions: Bool = true,
+        includeProjectAndSessionBreakdowns: Bool = true,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async -> CostUsageTokenSnapshot?
     {
         await self.loadCachedCodexTokenSnapshotResult(
             now: now,
             codexHomePath: codexHomePath,
             historyDays: historyDays,
+            allowScopedCodexHome: allowScopedCodexHome,
+            includePiSessions: includePiSessions,
+            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
             scannerOptions: overrideScannerOptions)?.snapshot
     }
 
@@ -457,12 +439,14 @@ public struct CostUsageFetcher: Sendable {
         now: Date = Date(),
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        allowScopedCodexHome: Bool = false,
+        includePiSessions: Bool = true,
+        includeProjectAndSessionBreakdowns: Bool = true,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async
         -> CachedCodexTokenSnapshotResult?
     {
-        if let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !codexHomePath.isEmpty
-        {
+        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if scopedCodexHomePath?.isEmpty == false, !allowScopedCodexHome {
             return nil
         }
 
@@ -473,7 +457,11 @@ public struct CostUsageFetcher: Sendable {
             let until = now
             let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
             let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
-            let options = overrideScannerOptions ?? CostUsageScanner.Options()
+            let options = Self.resolvedScannerOptions(
+                overrideScannerOptions,
+                provider: .codex,
+                codexHomePath: codexHomePath)
+            let shouldMergePiUsage = scopedCodexHomePath?.isEmpty != false
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let cache = CostUsageScanner.codexCache(
                 CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot),
@@ -502,26 +490,30 @@ public struct CostUsageFetcher: Sendable {
                         nativeScanAt = scanAt
                         scanTimes.append(scanAt)
                     }
-                    sessions = CostUsageScanner.buildCodexSessionBreakdownsFromCache(
-                        cache: cache,
-                        range: range,
-                        modelsDevCacheRoot: options.cacheRoot,
-                        sessionRoots: roots)
-                    if cache.codexProjectMetadataVersion == CostUsageScanner.codexProjectMetadataVersion {
-                        projects.append(contentsOf: CostUsageScanner.buildCodexProjectBreakdownsFromCache(
+                    if includeProjectAndSessionBreakdowns {
+                        sessions = CostUsageScanner.buildCodexSessionBreakdownsFromCache(
                             cache: cache,
                             range: range,
-                            modelsDevCacheRoot: options.cacheRoot))
+                            modelsDevCacheRoot: options.cacheRoot,
+                            sessionRoots: roots)
+                        if cache.codexProjectMetadataVersion == CostUsageScanner.codexProjectMetadataVersion {
+                            projects.append(contentsOf: CostUsageScanner.buildCodexProjectBreakdownsFromCache(
+                                cache: cache,
+                                range: range,
+                                modelsDevCacheRoot: options.cacheRoot))
+                        }
                     }
                 }
             }
 
-            if let piResult = PiSessionCostScanner.loadCachedDailyReportResult(
-                provider: .codex,
-                since: since,
-                until: until,
-                now: now,
-                cacheRoot: options.cacheRoot)
+            if includePiSessions,
+               shouldMergePiUsage,
+               let piResult = PiSessionCostScanner.loadCachedDailyReportResult(
+                   provider: .codex,
+                   since: since,
+                   until: until,
+                   now: now,
+                   cacheRoot: options.cacheRoot)
             {
                 reports.append(piResult.report)
                 piMerged = true
@@ -890,6 +882,57 @@ public struct CostUsageFetcher: Sendable {
 }
 
 extension CostUsageFetcher {
+    public func loadCachedCodexTokenSnapshot(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30,
+        includePiSessions: Bool = true,
+        includeProjectAndSessionBreakdowns: Bool = true) async -> CostUsageTokenSnapshot?
+    {
+        await Self.loadCachedCodexTokenSnapshot(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            allowScopedCodexHome: false,
+            includePiSessions: includePiSessions,
+            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
+    package func loadCachedCodexTokenSnapshotForScopedHome(
+        now: Date = Date(),
+        codexHomePath: String,
+        historyDays: Int = 30,
+        includePiSessions: Bool = false,
+        includeProjectAndSessionBreakdowns: Bool = true) async -> CostUsageTokenSnapshot?
+    {
+        await Self.loadCachedCodexTokenSnapshot(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            allowScopedCodexHome: true,
+            includePiSessions: includePiSessions,
+            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
+    package func loadCachedCodexTokenSnapshotResult(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30,
+        includePiSessions: Bool = true,
+        includeProjectAndSessionBreakdowns: Bool = true) async -> CachedCodexTokenSnapshotResult?
+    {
+        await Self.loadCachedCodexTokenSnapshotResult(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            allowScopedCodexHome: false,
+            includePiSessions: includePiSessions,
+            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
     fileprivate static func loadRemoteTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String],

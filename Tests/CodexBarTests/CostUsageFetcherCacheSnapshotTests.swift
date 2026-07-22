@@ -114,11 +114,27 @@ struct CostUsageFetcherCacheSnapshotTests {
             now: hydratedAt,
             historyDays: 1,
             scannerOptions: options)
+        let nativeOnly = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: hydratedAt,
+            historyDays: 1,
+            includePiSessions: false,
+            includeProjectAndSessionBreakdowns: false,
+            scannerOptions: options)
+        let scoped = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: hydratedAt,
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            allowScopedCodexHome: true,
+            scannerOptions: options)
 
         #expect(cached?.snapshot.sessionTokens == 207)
         #expect(cached?.snapshot.updatedAt == oldestScanTime)
         #expect(cached?.snapshot.updatedAt != hydratedAt)
         #expect(cached?.lastRefreshAt == nil)
+        #expect(nativeOnly?.snapshot.sessionTokens == 42)
+        #expect(nativeOnly?.snapshot.projects.isEmpty == true)
+        #expect(nativeOnly?.snapshot.sessions.isEmpty == true)
+        #expect(scoped?.snapshot.sessionTokens == 42)
     }
 
     @Test
@@ -208,7 +224,7 @@ struct CostUsageFetcherCacheSnapshotTests {
     }
 
     @Test
-    func `cached codex token snapshot refuses expanded or managed scopes`() async throws {
+    func `cached codex token snapshot keeps scoped homes opt in and validates their roots`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -238,9 +254,27 @@ struct CostUsageFetcherCacheSnapshotTests {
             codexHomePath: env.codexHomeRoot.path,
             historyDays: 1,
             scannerOptions: options)
+        let optedIn = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            codexHomePath: env.codexHomeRoot.path,
+            historyDays: 1,
+            allowScopedCodexHome: true,
+            scannerOptions: options)
+        let mismatchedHome = env.root.appendingPathComponent("other-codex-home", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: mismatchedHome.appendingPathComponent("sessions", isDirectory: true),
+            withIntermediateDirectories: true)
+        let mismatched = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            codexHomePath: mismatchedHome.path,
+            historyDays: 1,
+            allowScopedCodexHome: true,
+            scannerOptions: options)
 
         #expect(expanded == nil)
         #expect(managed == nil)
+        #expect(optedIn?.sessionTokens == 42)
+        #expect(mismatched == nil)
     }
 
     @Test
