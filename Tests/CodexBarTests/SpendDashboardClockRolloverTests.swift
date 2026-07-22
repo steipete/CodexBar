@@ -7,6 +7,10 @@ import Testing
 struct SpendDashboardClockRolloverTests {
     @Test
     func `reporting window advances and rescans source inputs`() async throws {
+        let defaultsSuite = "SpendDashboardClockRolloverTests-window-advance"
+        let defaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        defaults.removePersistentDomain(forName: defaultsSuite)
+        defer { defaults.removePersistentDomain(forName: defaultsSuite) }
         let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
         let afterRollover = try #require(ISO8601DateFormatter().date(from: "2026-07-22T12:00:00Z"))
         let loadCount = LockIsolated(0)
@@ -15,6 +19,7 @@ struct SpendDashboardClockRolloverTests {
         let initialInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
         let rolloverInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
