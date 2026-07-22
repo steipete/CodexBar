@@ -308,6 +308,45 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
+    func `menu open cost refresh schedules a forced token rescan without waiting`() async {
+        let store = Self.makeStore()
+        let recorder = TokenRefreshRecorder()
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+        }
+
+        store.scheduleForcedTokenRefresh()
+
+        let didRecord = await recorder.waitForCallCount(1)
+        #expect(didRecord)
+        await store.tokenRefreshSequenceTask?.value
+        #expect(await recorder.calls.map(\.provider) == [.codex])
+        #expect(await recorder.calls.map(\.force) == [true])
+    }
+
+    @Test
+    func `menu open cost refresh does not preempt a running token sequence`() async {
+        let store = Self.makeStore()
+        let gate = TokenRefreshGate()
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await gate.start(provider: provider, force: force)
+            await gate.waitForRelease()
+            await gate.finish()
+        }
+
+        store.scheduleTokenRefreshForTesting()
+        await gate.waitForStart()
+
+        store.scheduleForcedTokenRefresh()
+        await gate.release()
+        await store.tokenRefreshSequenceTask?.value
+        await gate.waitForFinish()
+
+        #expect(await gate.calls.count == 1)
+        #expect(await gate.calls.map(\.force) == [false])
+    }
+
+    @Test
     func `forced background refresh bypasses a fresh token cache`() async {
         let store = Self.makeStore()
         let recorder = TokenRefreshRecorder()
