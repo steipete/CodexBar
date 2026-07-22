@@ -127,11 +127,18 @@ struct CursorAppTokenFetchStrategy: ProviderFetchStrategy {
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // An explicitly selected browser login must keep winning automatic mode.
-        if context.sourceMode == .auto,
-           self.loadCachedEntry()?.authenticationFailurePolicy == .stopFallback
-        {
-            return false
+        // Explicit account choices must keep winning automatic mode: a manual
+        // cookie header (or selected token account) and an explicitly selected
+        // browser login both outrank the app token.
+        if context.sourceMode == .auto {
+            if context.settings?.cursor?.cookieSource == .manual,
+               CookieHeaderNormalizer.normalize(context.settings?.cursor?.manualCookieHeader) != nil
+            {
+                return false
+            }
+            if self.loadCachedEntry()?.authenticationFailurePolicy == .stopFallback {
+                return false
+            }
         }
         guard let session = try? self.appAuthStore.loadSession() else { return false }
         return session.isUsable

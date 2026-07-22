@@ -21,7 +21,10 @@ private struct CursorLinuxClaudeFetcherStub: ClaudeUsageFetching {
     }
 }
 
-private func makeCursorFetchContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
+private func makeCursorFetchContext(
+    sourceMode: ProviderSourceMode,
+    settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
+{
     ProviderFetchContext(
         runtime: .cli,
         sourceMode: sourceMode,
@@ -30,7 +33,7 @@ private func makeCursorFetchContext(sourceMode: ProviderSourceMode) -> ProviderF
         webDebugDumpHTML: false,
         verbose: false,
         env: [:],
-        settings: nil,
+        settings: settings,
         fetcher: UsageFetcher(environment: [:]),
         claudeFetcher: CursorLinuxClaudeFetcherStub(),
         browserDetection: BrowserDetection(cacheTTL: 0))
@@ -54,6 +57,28 @@ private func writeCursorStateDB(at path: String, entries: [(key: String, value: 
         sqlite3_bind_text(stmt, 2, entry.value, -1, transient)
         try #require(sqlite3_step(stmt) == SQLITE_DONE)
     }
+}
+
+private struct CursorLinuxAppAuthStoreStub: CursorAppAuthSessionProviding {
+    let session: CursorAppAuthSession?
+
+    func loadSession() throws -> CursorAppAuthSession? {
+        self.session
+    }
+}
+
+private func makeCursorLinuxAppTokenJWT() throws -> String {
+    let payload = try JSONSerialization.data(
+        withJSONObject: [
+            "exp": Int(Date(timeIntervalSinceNow: 3600).timeIntervalSince1970),
+            "sub": "auth0|user_test",
+        ],
+        options: [.sortedKeys])
+    let encodedPayload = payload.base64EncodedString()
+        .replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "=", with: "")
+    return "header.\(encodedPayload).signature"
 }
 
 private func makeCursorTempDirectory() throws -> URL {
@@ -225,6 +250,27 @@ struct CursorLinuxTests {
             appAuthStore: CursorAppAuthStore(dbPath: "/nonexistent/cursor-linux-tests/state.vscdb"),
             loadCachedEntry: { nil })
         #expect(await strategy.isAvailable(makeCursorFetchContext(sourceMode: .oauth)) == false)
+    }
+
+    @Test
+    func `Cursor manual cookie source keeps winning auto mode over app token`() async throws {
+        let token = try makeCursorLinuxAppTokenJWT()
+        let strategy = CursorAppTokenFetchStrategy(
+            appAuthStore: CursorLinuxAppAuthStoreStub(session: CursorAppAuthSession(accessToken: token)),
+            loadCachedEntry: { nil })
+        let manualSettings = ProviderSettingsSnapshot.make(
+            cursor: .init(cookieSource: .manual, manualCookieHeader: "WorkosCursorSessionToken=manual"))
+
+        #expect(await strategy.isAvailable(
+            makeCursorFetchContext(sourceMode: .auto, settings: manualSettings)) == false)
+        // An explicit oauth selection still uses the app token.
+        #expect(await strategy.isAvailable(
+            makeCursorFetchContext(sourceMode: .oauth, settings: manualSettings)))
+        // Automatic cookie source keeps the token-first ordering.
+        #expect(await strategy.isAvailable(makeCursorFetchContext(
+            sourceMode: .auto,
+            settings: ProviderSettingsSnapshot.make(
+                cursor: .init(cookieSource: .auto, manualCookieHeader: nil)))))
     }
 }
 #endif

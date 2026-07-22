@@ -119,6 +119,25 @@ struct CursorAppTokenStrategyTests {
     }
 
     @Test
+    func `manual cookie source keeps winning auto mode`() async throws {
+        let token = try makeCursorAppTokenJWT()
+        let strategy = CursorAppTokenFetchStrategy(
+            appAuthStore: CursorAppTokenStoreStub(session: CursorAppAuthSession(accessToken: token)),
+            loadCachedEntry: { nil })
+        let manualSettings = ProviderSettingsSnapshot.make(
+            cursor: .init(cookieSource: .manual, manualCookieHeader: "WorkosCursorSessionToken=manual"))
+
+        #expect(await strategy.isAvailable(Self.makeContext(sourceMode: .auto, settings: manualSettings)) == false)
+        // An explicit oauth selection still uses the app token.
+        #expect(await strategy.isAvailable(Self.makeContext(sourceMode: .oauth, settings: manualSettings)))
+
+        // A manual source without a usable header cannot pin an account.
+        let emptyManualSettings = ProviderSettingsSnapshot.make(
+            cursor: .init(cookieSource: .manual, manualCookieHeader: "   "))
+        #expect(await strategy.isAvailable(Self.makeContext(sourceMode: .auto, settings: emptyManualSettings)))
+    }
+
+    @Test
     func `unselected cached session does not block auto mode`() async throws {
         let token = try makeCursorAppTokenJWT()
         let importedEntry = CookieHeaderCache.Entry(
@@ -146,7 +165,10 @@ struct CursorAppTokenStrategyTests {
             .resolveStrategies(self.makeContext(sourceMode: sourceMode))
     }
 
-    private static func makeContext(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
+    private static func makeContext(
+        sourceMode: ProviderSourceMode,
+        settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
+    {
         ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
@@ -155,7 +177,7 @@ struct CursorAppTokenStrategyTests {
             webDebugDumpHTML: false,
             verbose: false,
             env: [:],
-            settings: nil,
+            settings: settings,
             fetcher: UsageFetcher(environment: [:]),
             claudeFetcher: CursorAppTokenStrategyStubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0))

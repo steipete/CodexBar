@@ -15,7 +15,7 @@ Cursor supports two credential sources: the Cursor desktop app's locally stored 
 - Preferences → Providers → Cursor → **Usage source**: Auto (default), Cursor App Token, or Browser Cookies. CLI: `--source auto|oauth|web`.
 - **Cursor App Token** (`oauth`): only the app-token strategy runs (`cursor.oauth`, source label `app`). No browser or cookie stack is involved; the Cookie source picker is hidden in this mode.
 - **Browser Cookies** (`web`): only the cookie ladder below runs (`cursor.web`).
-- **Auto**: app token first, then the cookie ladder. An explicitly selected browser login (committed by Add/Switch Account with stop-fallback policy) keeps winning Auto — the app token defers to it so account selection stays stable.
+- **Auto**: app token first, then the cookie ladder. Explicit account choices keep winning Auto — the app token defers to a Manual cookie source with a usable header (including a selected token account) and to an explicitly selected browser login (committed by Add/Switch Account with stop-fallback policy), so account selection stays stable.
 
 ## Cursor app token (`cursor.oauth`)
 
