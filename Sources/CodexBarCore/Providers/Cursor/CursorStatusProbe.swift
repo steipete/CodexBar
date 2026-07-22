@@ -533,18 +533,34 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
     }
 
     private static func decodeSQLiteValue(stmt: OpaquePointer?, index: Int32) -> String? {
+        let raw: String?
         switch sqlite3_column_type(stmt, index) {
         case SQLITE_TEXT:
             guard let c = sqlite3_column_text(stmt, index) else { return nil }
-            return String(cString: c)
+            raw = String(cString: c)
         case SQLITE_BLOB:
             guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
-            let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
-            return String(data: data, encoding: .utf8)
-                ?? String(data: data, encoding: .utf16LittleEndian)
+            raw = Self.decodeBlobString(Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index))))
         default:
             return nil
         }
+        guard let raw else { return nil }
+
+        // VS Code-style state values are occasionally JSON-quoted; tolerate that form.
+        let trimmed = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\0 \t\r\n"))
+        if trimmed.count >= 2, trimmed.hasPrefix("\""), trimmed.hasSuffix("\"") {
+            return String(trimmed.dropFirst().dropLast())
+        }
+        return trimmed
+    }
+
+    /// UTF-16-LE blobs of ASCII text decode as "valid" UTF-8 full of interior
+    /// NULs; only accept a NUL-free UTF-8 decode before trying UTF-16.
+    private static func decodeBlobString(_ data: Data) -> String? {
+        if let text = String(data: data, encoding: .utf8), !text.contains("\0") {
+            return text
+        }
+        return String(data: data, encoding: .utf16LittleEndian)
     }
 }
 
@@ -998,6 +1014,58 @@ public struct CursorStatusProbe: Sendable {
         try await self.fetchWithCookieHeader(
             session.cookieHeader(),
             requestUsageUserIDFallback: session.userID())
+    }
+
+    /// First-party web-session Cookie header derived from Cursor.app's local
+    /// access token, or nil when the app has no usable token. Lets callers pin
+    /// a fetch to the app-token account without the cookie fallback ladder.
+    public static func appAuthCookieHeader() -> String? {
+        self.appAuthCookieHeader(store: CursorAppAuthStore())
+    }
+
+    static func appAuthCookieHeader(store: any CursorAppAuthSessionProviding) -> String? {
+        guard let session = try? store.loadSession(), session.isUsable else { return nil }
+        return try? session.cookieHeader()
+    }
+
+    /// True when automatic mode must keep an explicitly selected account —
+    /// a manual cookie header (or selected token account) or a committed
+    /// browser login — ahead of the Cursor app token.
+    static func autoModeDefersToExplicitSelection(
+        cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?,
+        cachedEntry: @autoclosure () -> CookieHeaderCache.Entry?) -> Bool
+    {
+        if cursorSettings?.cookieSource == .manual,
+           CookieHeaderNormalizer.normalize(cursorSettings?.manualCookieHeader) != nil
+        {
+            return true
+        }
+        return cachedEntry()?.authenticationFailurePolicy == .stopFallback
+    }
+
+    /// Cookie header the automatic usage pipeline fetches with when the app
+    /// token wins auto mode, or nil when an explicit selection or an unusable
+    /// token defers to the cookie ladder. Cost fetches use this to stay on the
+    /// same account as the usage card.
+    public static func autoModeAppAuthCookieHeader(
+        cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?) -> String?
+    {
+        self.autoModeAppAuthCookieHeader(
+            cursorSettings: cursorSettings,
+            cachedEntry: CookieHeaderCache.load(provider: .cursor),
+            appAuthCookieHeader: { self.appAuthCookieHeader() })
+    }
+
+    public static func autoModeAppAuthCookieHeader(
+        cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?,
+        cachedEntry: @autoclosure () -> CookieHeaderCache.Entry?,
+        appAuthCookieHeader: () -> String?) -> String?
+    {
+        guard !self.autoModeDefersToExplicitSelection(
+            cursorSettings: cursorSettings,
+            cachedEntry: cachedEntry())
+        else { return nil }
+        return appAuthCookieHeader()
     }
 
     /// Fetch Cursor usage with manual cookie header (for debugging).
@@ -1737,6 +1805,16 @@ public struct CursorStatusProbe: Sendable {
         timeout _: TimeInterval = 120) async throws -> [BrowserLoginResult]
     {
         throw CursorStatusProbeError.notSupported
+    }
+
+    public static func appAuthCookieHeader() -> String? {
+        nil
+    }
+
+    public static func autoModeAppAuthCookieHeader(
+        cursorSettings _: ProviderSettingsSnapshot.CursorProviderSettings?) -> String?
+    {
+        nil
     }
 }
 

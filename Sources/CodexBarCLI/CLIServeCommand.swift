@@ -1330,6 +1330,7 @@ extension CodexBarCLI {
             if let error = Self.cursorCostAvailabilityError(
                 provider,
                 settings: cursorCookieSettings,
+                source: context.config.providerConfig(for: .cursor)?.source,
                 resolutionError: cursorCookieSettingsError)
             {
                 return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
@@ -1340,7 +1341,8 @@ extension CodexBarCLI {
                     forceRefresh: false,
                     cursorCookieHeaderOverride: Self.cursorCostHeaderOverride(
                         provider,
-                        settings: cursorCookieSettings),
+                        settings: cursorCookieSettings,
+                        source: context.config.providerConfig(for: .cursor)?.source),
                     refreshPricingInBackground: Self.serveCostRefreshesPricingInBackground)
                 return Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
             } catch {

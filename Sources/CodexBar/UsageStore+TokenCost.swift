@@ -21,22 +21,79 @@ struct TokenSnapshotPublication: Sendable, Equatable {
 extension UsageStore {
     enum CursorCostCookiePreparation {
         case proceed(String?)
+        case skip
         case reject
     }
 
+    /// `prepareCursorCostCookie` plus the refresh-loop side effect: a skipped
+    /// fetch (cookie ladder Off, no app-token session) clears any stale state.
+    func prepareCursorCostCookieForRefresh(_ provider: UsageProvider) -> CursorCostCookiePreparation {
+        let preparation = self.prepareCursorCostCookie(for: provider)
+        if case .skip = preparation {
+            self.resetTokenUsageState(for: provider)
+        }
+        return preparation
+    }
+
     func prepareCursorCostCookie(for provider: UsageProvider) -> CursorCostCookiePreparation {
-        guard provider == .cursor, self.settings.cursorCookieSource == .manual else {
+        guard provider == .cursor else {
             return .proceed(nil)
         }
-        guard let header = CookieHeaderNormalizer.normalize(self.settings.cursorCookieHeader) else {
-            self.lastTokenFetchAt.removeValue(forKey: provider)
-            self.lastTokenFetchScope.removeValue(forKey: provider)
-            self.clearTokenSnapshot(for: provider)
-            self.tokenErrors[provider] = "Cursor cost requires a non-empty Manual cookie header."
-            self.tokenFailureGates[provider]?.reset()
-            return .reject
+        // App-token mode: cost must use the same app-token session as usage —
+        // never manual, cached, or browser cookies for a possibly different account.
+        if self.settings.cursorUsageDataSource == .app {
+            guard let header = CursorStatusProbe.appAuthCookieHeader() else {
+                return self.rejectCursorCost(
+                    provider,
+                    message: "Cursor cost requires the Cursor app to be signed in.")
+            }
+            return .proceed(header)
+        }
+        // Resolve the same account-aware settings the usage fetch context uses,
+        // so a selected token account defers the app token here exactly like it
+        // does for the usage refresh.
+        let resolved = self.cursorCostCookieSettings()
+        // Auto mode: when the usage pipeline would win with the app token, pin
+        // cost to that same session instead of resolving cached/browser cookies
+        // that may belong to a different account.
+        if self.settings.cursorUsageDataSource == .auto,
+           let header = CursorStatusProbe.autoModeAppAuthCookieHeader(cursorSettings: resolved)
+        {
+            return .proceed(header)
+        }
+        // Off disables only the cookie ladder (the app-token branches above
+        // bypass it, matching the CLI); without an app-token session there is
+        // no account left to fetch cost with, so stay off silently.
+        guard resolved.cookieSource != .off else {
+            return .skip
+        }
+        guard resolved.cookieSource == .manual else {
+            return .proceed(nil)
+        }
+        guard let header = CookieHeaderNormalizer.normalize(resolved.manualCookieHeader) else {
+            return self.rejectCursorCost(
+                provider,
+                message: "Cursor cost requires a non-empty Manual cookie header.")
         }
         return .proceed(header)
+    }
+
+    private func rejectCursorCost(
+        _ provider: UsageProvider,
+        message: String) -> CursorCostCookiePreparation
+    {
+        self.lastTokenFetchAt.removeValue(forKey: provider)
+        self.lastTokenFetchScope.removeValue(forKey: provider)
+        self.clearTokenSnapshot(for: provider)
+        self.tokenErrors[provider] = message
+        self.tokenFailureGates[provider]?.reset()
+        return .reject
+    }
+
+    /// Account-aware Cursor cookie settings, resolved exactly like the usage
+    /// fetch context (a selected token account becomes the manual header).
+    private func cursorCostCookieSettings() -> ProviderSettingsSnapshot.CursorProviderSettings {
+        self.settings.cursorSettingsSnapshot(tokenOverride: nil)
     }
 
     func loadTokenUsageSnapshot(
@@ -305,9 +362,28 @@ extension UsageStore {
             return base
         }
 
-        let source = self.settings.cursorCookieSource
+        if self.settings.cursorUsageDataSource == .app {
+            let headerFingerprint = CursorStatusProbe.appAuthCookieHeader()
+                .map(CookieHeaderCache.credentialFingerprint) ?? "missing"
+            return "\(base)|cursorCookie=app:\(headerFingerprint)"
+        }
+
+        // Mirror prepareCursorCostCookie: resolve the same account-aware
+        // settings, and cache auto-mode cost pinned to the app token under
+        // that credential, not the cookie ladder's.
+        let resolved = self.cursorCostCookieSettings()
+        if self.settings.cursorUsageDataSource == .auto,
+           let appHeader = CursorStatusProbe.autoModeAppAuthCookieHeader(cursorSettings: resolved)
+        {
+            return self.cursorCostScopeSignature(
+                historyDays: historyDays,
+                source: .auto,
+                credentialFingerprint: CookieHeaderCache.credentialFingerprint(appHeader))
+        }
+
+        let source = resolved.cookieSource
         if source == .manual {
-            let headerFingerprint = CookieHeaderNormalizer.normalize(self.settings.cursorCookieHeader)
+            let headerFingerprint = CookieHeaderNormalizer.normalize(resolved.manualCookieHeader)
                 .map(CookieHeaderCache.credentialFingerprint) ?? "missing"
             return "\(base)|cursorCookie=manual:\(headerFingerprint)"
         }
@@ -384,6 +460,7 @@ extension UsageStore {
         snapshot: CostUsageTokenSnapshot) -> String
     {
         guard provider == .cursor,
+              self.settings.cursorUsageDataSource != .app,
               self.settings.cursorCookieSource == .auto,
               let fingerprint = snapshot.credentialScopeFingerprint
         else { return initialSignature }
