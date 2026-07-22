@@ -112,7 +112,8 @@ public enum ClaudeOAuthCredentialsStore {
         let owner: ClaudeOAuthCredentialOwner?
         let historyOwnerIdentifier: String?
         /// One-way ownership evidence for the Claude profile whose credentials path produced this cache.
-        /// A missing value is a legacy entry and must never be used for a file-backed credential load.
+        /// A missing value is a legacy entry. It can be migrated only to the fixed default profile used by
+        /// CodexBar versions that predate profile-scoped cache records.
         let profileIdentifier: String?
 
         init(
@@ -134,6 +135,7 @@ public enum ClaudeOAuthCredentialsStore {
 
     #if DEBUG
     @TaskLocal private static var taskCredentialsURLOverride: URL?
+    @TaskLocal private static var taskCredentialsProfileIdentifierOverride: String?
     #endif
     // In-memory cache (nonisolated for synchronous access)
     private static let memoryCacheLock = NSLock()
@@ -2502,6 +2504,15 @@ public enum ClaudeOAuthCredentialsStore {
     public static var currentCredentialsURLOverrideForTesting: URL? {
         self.taskCredentialsURLOverride
     }
+
+    static func withCredentialsProfileIdentifierOverrideForTesting<T>(
+        _ profileIdentifier: String?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskCredentialsProfileIdentifierOverride.withValue(profileIdentifier) {
+            try operation()
+        }
+    }
     #endif
 
     private static func saveToCacheKeychain(
@@ -2563,15 +2574,37 @@ public enum ClaudeOAuthCredentialsStore {
                 }
             }
             let loaded = KeychainCacheStore.load(key: self.cacheKey, as: CacheEntry.self)
-            guard case let .found(entry) = loaded,
-                  entry.profileIdentifier != profileIdentifier
-            else {
+            guard case let .found(entry) = loaded else {
                 result = loaded
                 return
             }
 
+            if entry.profileIdentifier == profileIdentifier {
+                result = loaded
+                return
+            }
+
+            if entry.profileIdentifier == nil,
+               profileIdentifier == self.historicalDefaultCredentialsProfileIdentifier
+            {
+                let migrated = CacheEntry(
+                    data: entry.data,
+                    storedAt: entry.storedAt,
+                    owner: entry.owner,
+                    historyOwnerIdentifier: entry.historyOwnerIdentifier,
+                    profileIdentifier: profileIdentifier)
+                guard KeychainCacheStore.storeResult(key: self.cacheKey, entry: migrated) else {
+                    self.log.warning("Claude OAuth legacy cache profile migration could not be persisted")
+                    result = .temporarilyUnavailable
+                    return
+                }
+                result = .found(migrated)
+                return
+            }
+
             // A single CodexBar cache key is shared across Claude profiles. Never return a cache entry unless its
-            // one-way credentials-path identity matches this fetch, even when the cache is newer than the file.
+            // one-way credentials-path identity matches this fetch. Legacy records are attributable only to the
+            // historical fixed default path; custom and cross-profile reads remain fail-closed.
             self.log.info("Claude OAuth cache belongs to another or legacy profile; clearing it")
             switch KeychainCacheStore.clearResult(key: self.cacheKey) {
             case .removed, .missing:
@@ -2583,6 +2616,13 @@ public enum ClaudeOAuthCredentialsStore {
             }
         }
         return result
+    }
+
+    private static var historicalDefaultCredentialsProfileIdentifier: String {
+        let historicalURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent(".credentials.json")
+        return self.credentialsProfileIdentifier(for: historicalURL)
     }
 
     private static var shouldUseCodexBarOAuthKeychainCache: Bool {
@@ -2731,7 +2771,16 @@ public enum ClaudeOAuthCredentialsStore {
     }
 
     static func credentialsProfileIdentifier(environment: [String: String]) -> String {
-        let path = self.credentialsFileURL(environment: environment).standardizedFileURL.path
+        #if DEBUG
+        if let override = self.taskCredentialsProfileIdentifierOverride {
+            return override
+        }
+        #endif
+        return self.credentialsProfileIdentifier(for: self.credentialsFileURL(environment: environment))
+    }
+
+    private static func credentialsProfileIdentifier(for credentialsURL: URL) -> String {
+        let path = credentialsURL.standardizedFileURL.path
         let material = Data("codexbar:claude-oauth-cache-profile:v1\0\(path)".utf8)
         return self.sha256Hex(material)
     }
