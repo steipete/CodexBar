@@ -3,6 +3,17 @@ import CodexBarCore
 import SwiftUI
 
 @MainActor
+enum ProviderSettingsRefreshInteraction {
+    static func perform(operation: () async -> Void) async {
+        await BrowserCookieAccessGate.withExplicitRetry {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await operation()
+            }
+        }
+    }
+}
+
+@MainActor
 struct ProvidersPane: View {
     let provider: UsageProvider
     @Bindable var settings: SettingsStore
@@ -139,7 +150,7 @@ struct ProvidersPane: View {
 
     private func triggerRefresh(for provider: UsageProvider) {
         Task { @MainActor in
-            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            await ProviderSettingsRefreshInteraction.perform {
                 if provider == .codex {
                     await self.store.refreshCodexAccountScopedState(allowDisabled: true)
                 } else {

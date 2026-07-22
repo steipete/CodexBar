@@ -2,7 +2,13 @@
 
 ## 0.45.3 — Unreleased
 
+### Added
+- Qwen Cloud: new provider tracking individual token-plan 5-hour and weekly usage windows, resets,
+  and plan limits on `home.qwencloud.com`, wired through the menu bar, CLI, widget, and docs (#2361).
+
 ### Fixed
+- Qwen Cloud: recognize current `login_qwencloud_ticket` browser sessions and send token-plan requests through
+  Qwen's data gateway, so authenticated Brave/Chrome profiles can load live usage instead of failing auth (#2361).
 
 ## 0.45.2 — 2026-07-19
 

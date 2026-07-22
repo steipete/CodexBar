@@ -554,6 +554,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "package_name",
         "commodityName",
         "commodity_name",
+        "specType",
+        "SpecType",
         "instanceName",
         "instance_name",
         "displayName",
@@ -592,6 +594,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "amount",
         "totalValue",
         "TotalValue",
+        "cycleTotalValue",
+        "CycleTotalValue",
     ]
     private static let remainingQuotaKeys = [
         "remainingQuota",
@@ -607,6 +611,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "TotalSurplusValue",
         "surplusValue",
         "SurplusValue",
+        "cycleSurplusValue",
+        "CycleSurplusValue",
     ]
     private static let subscriptionCountKeys = [
         "totalCount",
@@ -625,21 +631,34 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "endTime",
         "validEndTime",
         "instanceEndTime",
+        "EndTime",
+        "cycleEndTime",
+        "CycleEndTime",
         "nearestExpireDate",
         "NearestExpireDate",
     ]
 
     private static func findSubscriptionSummary(in payload: [String: Any]) -> [String: Any]? {
+        let quotaKeys = Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys
         if let data = self.findFirstDictionary(
             forKeys: ["Data", "data", "successResponse", "success_response"],
             in: payload),
             self.containsSubscriptionSummaryFields(data)
         {
+            // Some consoles (e.g. Qwen Cloud) wrap the quota values inside a nested
+            // `EquityList` entry while the outer dictionary only carries `TotalCount`.
+            // Prefer a nested dictionary that actually contains quota numbers so the
+            // used/total/remaining fields are read from the right level.
+            if quotaKeys.contains(where: { data[$0] != nil }) {
+                return data
+            }
+            if let nested = self.findFirstDictionary(matchingAnyKey: quotaKeys, in: data) {
+                return nested
+            }
             return data
         }
         return self.findFirstDictionary(
-            matchingAnyKey: Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys +
-                Self.subscriptionCountKeys,
+            matchingAnyKey: quotaKeys + Self.subscriptionCountKeys,
             in: payload)
     }
 

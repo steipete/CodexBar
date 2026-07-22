@@ -13,6 +13,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case opencodego
     case alibaba
     case alibabatokenplan
+    case qwencloud
     case factory
     case gemini
     case antigravity
@@ -84,6 +85,7 @@ public enum IconStyle: String, Sendable, CaseIterable {
     case opencode
     case opencodego
     case alibaba
+    case qwencloud
     case factory
     case copilot
     case devin
