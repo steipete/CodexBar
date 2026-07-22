@@ -8,6 +8,14 @@ import Darwin
 #endif
 
 extension CostUsageScanner {
+    /// #2285 persisted this key for every compact parent candidate, including known-model rows.
+    /// Only the sentinel proves the file never depended on parent context.
+    static func isLegacyForkAttributionCandidate(_ usage: CostUsageFileUsage) -> Bool {
+        usage.forkedFromId != nil
+            && usage.codexForkAttributionVersion != codexForkAttributionVersion
+            && usage.forkBaselineDependencyKey != codexForkDependencyNotRequiredKey
+    }
+
     private final class CodexModelsDevCatalogResolver {
         private var catalog: ModelsDevCatalog?
         private let cacheRoot: URL?
@@ -899,6 +907,11 @@ extension CostUsageScanner {
         else { return false }
 
         guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
+        if context.needsForkAttributionMigration,
+           Self.isLegacyForkAttributionCandidate(cached)
+        {
+            return false
+        }
 
         let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
         let cachedRows = cached.codexRows ?? []
@@ -1131,7 +1144,13 @@ extension CostUsageScanner {
         if let cached = input.cached {
             self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
-        let migratedCached = input.cached.map { Self.codexFileUsageWithCostCache($0, context: context) }
+        // A legacy parent-dependent fork file cannot carry unreparsed days across this migration: the
+        // current request may not cover its suspect day. Drop its retained projection and stamp
+        // the file current only from fresh source rows.
+        let hasLegacyForkCandidate = input.cached.map { Self.isLegacyForkAttributionCandidate($0) } ?? false
+        let migratedCached = hasLegacyForkCandidate
+            ? nil
+            : input.cached.map { Self.codexFileUsageWithCostCache($0, context: context) }
         var usageDays = context.dropDeferredCodexRows
             ? [:]
             : Self.fileDaysOutsideScanWindow(migratedCached?.days ?? [:], range: context.range)
@@ -1140,6 +1159,7 @@ extension CostUsageScanner {
             fileURL: input.fileURL,
             range: context.range,
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
+            inheritedRawTotalsResolver: context.resources.inheritedResolver.rawTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
         let forkBaselineDependencyKey = Self.codexForkBaselineDependencyKey(
             parentSessionId: parsed.forkedFromId,
@@ -1237,6 +1257,7 @@ extension CostUsageScanner {
             codexRows: context.dropDeferredCodexRows
                 ? nil
                 : Self.mergeCodexRows(migratedCached?.codexRows, rows: uniqueRows, sessionId: sessionId))
+        cache.files[input.metadata.path]?.codexForkAttributionVersion = Self.codexForkAttributionVersion
         Self.applyFileDays(cache: &cache, fileDays: cache.files[input.metadata.path]?.days ?? [:], sign: 1)
         Self.rememberScannedCodexFile(
             input: input,
@@ -1367,7 +1388,13 @@ extension CostUsageScanner {
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
         var reportCache = cache
-        for (path, usage) in cache.files where self.needsCodexCostCache(usage, range: range) {
+        // A compatible p48 cache may hydrate before migration completes. Do not present a
+        // parent-dependent candidate; current files and sentinel-owned forks remain visible.
+        for (path, usage) in cache.files where Self.isLegacyForkAttributionCandidate(usage) {
+            Self.applyFileDays(cache: &reportCache, fileDays: usage.days, sign: -1)
+            reportCache.files.removeValue(forKey: path)
+        }
+        for (path, usage) in reportCache.files where self.needsCodexCostCache(usage, range: range) {
             reportCache.files[path] = self.codexFileUsageWithCostCache(
                 usage,
                 range: range,

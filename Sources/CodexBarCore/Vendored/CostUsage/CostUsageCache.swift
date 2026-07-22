@@ -4,7 +4,9 @@ enum CostUsageCacheIO {
     /// Producer keys from older parser hashes whose caches are still valid under the current
     /// delta semantics. Cleared for #2037: interleave containment changed how cumulative
     /// totals are counted, so every earlier cache must be rebuilt.
-    private static let compatibleCodexProducerKeys: Set<String> = []
+    /// The previous producer is structurally compatible. The scanner selectively reparses only
+    /// parent-dependent forked files via `codexForkAttributionVersion`.
+    private static let compatibleCodexProducerKeys: Set<String> = ["codex:cu:p48ac20dad61e9a7f"]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
     /// Increment this artifact version only when the stored schema or cache layout becomes incompatible.
@@ -114,6 +116,8 @@ struct CostUsageCache: Codable {
     var codexPricingKey: String?
     var codexPriorityMetadataKey: String?
     var codexProjectMetadataVersion: Int?
+    /// Optional migration marker; absent caches must inspect parent-dependent fork candidates.
+    var codexForkAttributionVersion: Int?
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
 
@@ -144,6 +148,8 @@ struct CostUsageFileUsage: Codable {
     var sessionId: String?
     var forkedFromId: String?
     var forkBaselineDependencyKey: String?
+    /// Set after this file has passed the fork-attribution parser; nil requires the dependency-key check.
+    var codexForkAttributionVersion: Int?
     var projectPath: String?
     var canonicalProjectPath: String?
     var codexCostCacheComplete: Bool?
