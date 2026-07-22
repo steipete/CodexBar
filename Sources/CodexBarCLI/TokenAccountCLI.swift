@@ -432,6 +432,16 @@ struct TokenAccountCLIContext {
         provider: UsageProvider,
         account: ProviderTokenAccount?) -> ProviderSourceMode
     {
+        if provider == .cursor {
+            // An explicitly selected token account is a cookie credential:
+            // fetch it through the web strategy instead of letting App Token
+            // mode label the Cursor app's own data with the account (mirrors
+            // the app leaving App Token mode on explicit account selection).
+            if base == .oauth, account != nil {
+                return .web
+            }
+            return base
+        }
         guard provider == .claude else {
             return base
         }

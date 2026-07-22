@@ -1380,20 +1380,15 @@ extension UsageStore {
             return
         }
 
-        // Cursor cost honors the same cookie policy as status: when the user set the cookie source
-        // to Off, skip the network fetch entirely (mirrors CursorProviderDescriptor.checkStatus).
-        if provider == .cursor, self.settings.cursorCookieSource == .off {
-            self.resetTokenUsageState(for: provider)
-            return
-        }
-
         guard !self.tokenRefreshInFlight.contains(provider) else { return }
 
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
         // Cursor cost reuses the status cookie policy: a Manual source forwards the manual header so
         // cost and status share the same session; other sources fall back to auto resolution.
-        guard case let .proceed(cursorCookieHeaderOverride) = self.prepareCursorCostCookie(for: provider) else {
+        guard case let .proceed(cursorCookieHeaderOverride) =
+            self.prepareCursorCostCookieForRefresh(provider)
+        else {
             return
         }
         let costScope = self.tokenCostScope(for: provider)

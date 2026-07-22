@@ -16,6 +16,8 @@ Cursor supports two credential sources: the Cursor desktop app's locally stored 
 - **Cursor App Token** (`oauth`): only the app-token strategy runs (`cursor.oauth`, source label `app`). No browser or cookie stack is involved; the Cookie source picker is hidden in this mode.
 - **Browser Cookies** (`web`): only the cookie ladder below runs (`cursor.web`).
 - **Auto**: app token first, then the cookie ladder. Explicit account choices keep winning Auto — the app token defers to a Manual cookie source with a usable header (including a selected token account) and to an explicitly selected browser login (committed by Add/Switch Account with stop-fallback policy), so account selection stays stable.
+- Cookie source **Off** disables only the cookie ladder: app-token fetches (App Token mode, or Auto with a winning app token) still run for usage and cost, and without a usable app token Cursor stays off.
+- Saved token accounts never own app-token fetches. In App Token mode the app and CLI ignore the implicitly active saved account, and an explicit CLI `--account` selection fetches that account's cookie credential through the web strategy instead of relabeling app-token data.
 
 ## Cursor app token (`cursor.oauth`)
 
@@ -108,11 +110,12 @@ Auth follows the Usage source picker so cost and usage always come from the same
 mode the cost fetch uses only the app-token-derived session (forwarded like a manual header, so it never falls
 back to manual/cached/browser cookies); a missing app token fails the fetch closed. In **Auto** usage mode, cost
 is pinned to that same app-token session exactly when the usage pipeline would win with the app token (same
-deference rules: a usable manual header or committed browser login keeps ownership). Otherwise auth reuses the
+deference rules: a usable manual header — including a selected token account — or a committed browser login
+keeps ownership). Otherwise auth reuses the
 exact status-probe session resolution and cookie-source policy:
 - **Auto**: cached cookie header → browser cookie import → stored WebKit session → Cursor.app local auth.
 - **Manual**: a non-empty pasted cookie header is required and forwarded as-is, so cost and status share the same session; an empty header fails closed instead of falling back to another account.
-- **Off**: the fetch is skipped in the app; `codexbar cost --provider cursor` fails explicitly and `/cost` returns a provider error row.
+- **Off**: disables only the cookie ladder. An app-token-carried fetch (App Token mode, or Auto with a winning app token) still runs; otherwise the fetch is skipped in the app, `codexbar cost --provider cursor` fails explicitly, and `/cost` returns a provider error row.
 
 Fetch behavior:
 - `POST https://cursor.com/api/dashboard/get-filtered-usage-events` (cookie-authenticated; requires a matching `Origin` for CSRF).

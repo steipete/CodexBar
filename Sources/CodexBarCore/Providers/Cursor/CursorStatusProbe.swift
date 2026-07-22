@@ -1033,14 +1033,14 @@ public struct CursorStatusProbe: Sendable {
     /// browser login — ahead of the Cursor app token.
     static func autoModeDefersToExplicitSelection(
         cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?,
-        cachedEntry: CookieHeaderCache.Entry?) -> Bool
+        cachedEntry: @autoclosure () -> CookieHeaderCache.Entry?) -> Bool
     {
         if cursorSettings?.cookieSource == .manual,
            CookieHeaderNormalizer.normalize(cursorSettings?.manualCookieHeader) != nil
         {
             return true
         }
-        return cachedEntry?.authenticationFailurePolicy == .stopFallback
+        return cachedEntry()?.authenticationFailurePolicy == .stopFallback
     }
 
     /// Cookie header the automatic usage pipeline fetches with when the app
@@ -1058,12 +1058,12 @@ public struct CursorStatusProbe: Sendable {
 
     public static func autoModeAppAuthCookieHeader(
         cursorSettings: ProviderSettingsSnapshot.CursorProviderSettings?,
-        cachedEntry: CookieHeaderCache.Entry?,
+        cachedEntry: @autoclosure () -> CookieHeaderCache.Entry?,
         appAuthCookieHeader: () -> String?) -> String?
     {
         guard !self.autoModeDefersToExplicitSelection(
             cursorSettings: cursorSettings,
-            cachedEntry: cachedEntry)
+            cachedEntry: cachedEntry())
         else { return nil }
         return appAuthCookieHeader()
     }

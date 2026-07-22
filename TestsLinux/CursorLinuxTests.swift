@@ -430,5 +430,71 @@ struct CursorLinuxTests {
             settings: ProviderSettingsSnapshot.make(
                 cursor: .init(cookieSource: .auto, manualCookieHeader: nil)))))
     }
+
+    @Test
+    func `Cursor app token usage never carries an implicit saved account`() {
+        let saved = ProviderTokenAccount(
+            id: UUID(),
+            label: "Saved",
+            token: "WorkosCursorSessionToken=saved",
+            addedAt: 0,
+            lastUsed: nil)
+
+        // App Token mode fetches the Cursor app's own account: the implicitly
+        // active saved account must not own or label the result.
+        #expect(CodexBarCLI.effectiveUsageAccount(
+            provider: .cursor,
+            baseSource: .oauth,
+            selectionUsesOverride: false,
+            account: saved) == nil)
+        // Explicit selections stay, and are routed through the web strategy.
+        #expect(CodexBarCLI.effectiveUsageAccount(
+            provider: .cursor,
+            baseSource: .oauth,
+            selectionUsesOverride: true,
+            account: saved)?.label == "Saved")
+        // Other source modes keep the account-aware cookie behavior.
+        #expect(CodexBarCLI.effectiveUsageAccount(
+            provider: .cursor,
+            baseSource: .auto,
+            selectionUsesOverride: false,
+            account: saved)?.label == "Saved")
+    }
+
+    @Test
+    func `Cursor explicit accounts route app token mode to the web strategy`() throws {
+        let saved = ProviderTokenAccount(
+            id: UUID(),
+            label: "Saved",
+            token: "WorkosCursorSessionToken=saved",
+            addedAt: 0,
+            lastUsed: nil)
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: "Saved", index: nil, allAccounts: false),
+            config: CodexBarConfig(providers: []),
+            verbose: false)
+
+        #expect(context.effectiveSourceMode(base: .oauth, provider: .cursor, account: saved) == .web)
+        #expect(context.effectiveSourceMode(base: .oauth, provider: .cursor, account: nil) == .oauth)
+        #expect(context.effectiveSourceMode(base: .auto, provider: .cursor, account: saved) == .auto)
+    }
+
+    @Test
+    func `Cursor manual deference skips loading the cached browser login`() {
+        let manualSettings = ProviderSettingsSnapshot.CursorProviderSettings(
+            cookieSource: .manual,
+            manualCookieHeader: "WorkosCursorSessionToken=manual")
+        var loadedCache = false
+        func loadCachedEntry() -> CookieHeaderCache.Entry? {
+            loadedCache = true
+            return nil
+        }
+
+        let defers = CursorStatusProbe.autoModeDefersToExplicitSelection(
+            cursorSettings: manualSettings,
+            cachedEntry: loadCachedEntry())
+        #expect(defers)
+        #expect(!loadedCache)
+    }
 }
 #endif
