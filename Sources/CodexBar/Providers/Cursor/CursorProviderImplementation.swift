@@ -50,6 +50,11 @@ struct CursorProviderImplementation: ProviderImplementation {
         if settings.cursorCookieSource != .manual {
             settings.cursorCookieSource = .manual
         }
+        // Selecting a saved account is an explicit choice; leave app-token
+        // mode so the reactivated manual cookie actually runs.
+        if settings.cursorUsageDataSource == .app {
+            settings.cursorUsageDataSource = .auto
+        }
     }
 
     @MainActor

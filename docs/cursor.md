@@ -64,7 +64,9 @@ Manual option:
 - CodexBar checks all available profiles in the selected browser. Add accepts a sole unambiguous account automatically, while Switch always asks for confirmation before replacing the current account, even when only one eligible alternative is found. Multiple eligible accounts always require an explicit choice, and CodexBar caches only the chosen session.
 - A successful add or switch selects the Automatic cookie source. Saved manual headers and token accounts remain
   stored but passive: they do not override browser fetching, cached usage, quota warnings, or utilization/reset
-  ownership. Explicitly selecting a saved token account switches Cursor back to Manual and reactivates it.
+  ownership. Explicitly selecting a saved token account switches Cursor back to Manual and reactivates it (leaving
+  Cursor App Token mode if it was selected). In Cursor App Token mode, saved token accounts are never treated as
+  active, so app-token snapshots are not attributed to a saved account.
 
 ## API endpoints
 - `GET https://cursor.com/api/usage-summary`
