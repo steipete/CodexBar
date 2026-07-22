@@ -32,7 +32,19 @@ verify_packaged_app_integrity() {
   codesign --verify --deep --strict --verbose=2 "$bundle" || return 1
 }
 
-CONF=${1:-release}
+CONF="release"
+INSTALL_TO_APPS="${CODEXBAR_INSTALL:-0}"
+for arg in "$@"; do
+  case "$arg" in
+    --install)
+      INSTALL_TO_APPS=1
+      ;;
+    debug|release|DEBUG|RELEASE)
+      CONF="$arg"
+      ;;
+  esac
+done
+
 ALLOW_LLDB=${CODEXBAR_ALLOW_LLDB:-0}
 SIGNING_MODE=
 resolve_package_signing_mode
@@ -572,3 +584,56 @@ mv "$APP" "$APP_FINAL"
 APP="$APP_FINAL"
 verify_packaged_app_integrity "$APP"
 echo "Created $APP"
+
+install_to_applications() {
+  local source_app="$1"
+  local dest_app="/Applications/CodexBar.app"
+  local widget_appex="$dest_app/Contents/PlugIns/CodexBarWidget.appex"
+  local widget_id="${WIDGET_BUNDLE_ID:-com.steipete.codexbar.widget}"
+
+  echo "==> Installing $source_app to $dest_app"
+  pkill -x CodexBar 2>/dev/null || pkill -f CodexBar.app 2>/dev/null || true
+  pkill -f CodexBarWidget 2>/dev/null || true
+  sleep 0.5
+
+  rm -rf "$dest_app"
+  cp -R "$source_app" "$dest_app"
+
+  # Strip extended attributes to resolve com.apple.provenance / quarantine EPERM issues
+  xattr -cr "$dest_app"
+  if [[ -d "$widget_appex" ]]; then
+    xattr -cr "$widget_appex"
+  fi
+  find "$dest_app" -name '._*' -delete
+
+  echo "==> Verifying code signatures of installed app and widget"
+  codesign --verify --deep --strict --verbose=2 "$dest_app"
+  if [[ -d "$widget_appex" ]]; then
+    codesign --verify --deep --strict --verbose=2 "$widget_appex"
+  fi
+
+  if [[ -d "$widget_appex" ]]; then
+    echo "==> Re-registering widget extension with pluginkit"
+    pluginkit -r "$widget_appex" 2>/dev/null || true
+    pluginkit -a "$widget_appex"
+
+    echo "==> Polling pluginkit for confirmed widget registration ($widget_id)..."
+    local registered=0
+    for i in {1..20}; do
+      if pluginkit -m -A -D -i "$widget_id" 2>/dev/null | grep -q "$widget_id"; then
+        registered=1
+        echo "OK: Widget extension registered successfully (attempt $i)."
+        break
+      fi
+      sleep 0.5
+    done
+    if [[ "$registered" -eq 0 ]]; then
+      echo "WARN: pluginkit did not confirm registration for $widget_id within timeout." >&2
+    fi
+  fi
+}
+
+if [[ "${INSTALL_TO_APPS:-0}" == "1" ]]; then
+  install_to_applications "$APP"
+fi
+

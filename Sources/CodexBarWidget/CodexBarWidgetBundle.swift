@@ -1,8 +1,20 @@
+import CodexBarCore
 import SwiftUI
 import WidgetKit
 
 @main
 struct CodexBarWidgetBundle: WidgetBundle {
+    init() {
+        // Without this, every CodexBarCore `self.log.*` call inside the widget extension
+        // process (e.g. WidgetSnapshotStore.load()'s read/decode failure logs) silently
+        // no-ops — swift-log falls back to a no-op handler until something bootstraps
+        // LoggingSystem, and only the main app target was doing that.
+        CodexBarLog.bootstrapIfNeeded(.init(
+            destination: .oslog(subsystem: "com.steipete.codexbar"),
+            level: .verbose,
+            json: false))
+    }
+
     var body: some Widget {
         CodexBarSwitcherWidget()
         CodexBarUsageWidget()
@@ -10,6 +22,7 @@ struct CodexBarWidgetBundle: WidgetBundle {
         CodexBarCompactWidget()
         CodexBarBurnDownWidget()
         CodexBarCombinedBurnDownWidget()
+        CodexBarOverviewWidget()
     }
 }
 
@@ -111,5 +124,21 @@ struct CodexBarCombinedBurnDownWidget: Widget {
         .configurationDisplayName("CodexBar Burn Down (Combined)")
         .description("Session and weekly burn-down charts in one tile.")
         .supportedFamilies([.systemMedium])
+    }
+}
+
+struct CodexBarOverviewWidget: Widget {
+    private let kind = "CodexBarOverviewWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: self.kind,
+            provider: CodexBarOverviewTimelineProvider())
+        { entry in
+            CodexBarOverviewWidgetView(entry: entry)
+        }
+        .configurationDisplayName("CodexBar Overview")
+        .description("Session and weekly usage for all enabled providers in one tile.")
+        .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

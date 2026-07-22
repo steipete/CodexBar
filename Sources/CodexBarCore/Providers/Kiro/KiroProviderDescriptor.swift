@@ -26,7 +26,11 @@ public enum KiroProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .kiro,
                 iconResourceName: "ProviderIcon-kiro",
-                color: ProviderColor(red: 255 / 255, green: 153 / 255, blue: 0 / 255),
+                // Kiro's brand orange (#FF9900) reads visually identical to Claude's
+                // terracotta (#CC7C5E) at Touch Bar scale — use the same purple this
+                // user's other tools (Kouen-Terminal's AgentKind.kiro.dotHex) already
+                // use to identify Kiro, for cross-tool consistency.
+                color: ProviderColor(hex: 0x8B5CF6),
                 confettiPalette: [
                     ProviderColor(hex: 0x8F4AFF),
                     ProviderColor(hex: 0xCAA9FF),

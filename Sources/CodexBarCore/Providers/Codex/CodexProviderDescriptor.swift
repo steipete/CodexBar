@@ -28,7 +28,9 @@ public enum CodexProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .codex,
                 iconResourceName: "ProviderIcon-codex",
-                color: ProviderColor(red: 73 / 255, green: 163 / 255, blue: 176 / 255),
+                // Matches this user's other tools (Kouen-Terminal's
+                // AgentKind.codex.dotHex) for cross-tool consistency.
+                color: ProviderColor(hex: 0x10A37F),
                 confettiPalette: [
                     ProviderColor(hex: 0x736BD4),
                     ProviderColor(hex: 0x97A9F7),

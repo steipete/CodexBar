@@ -205,7 +205,8 @@ extension UsageStore {
                 return WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: window.id,
                     title: window.title,
-                    percentLeft: window.window.remainingPercent)
+                    percentLeft: window.window.remainingPercent,
+                    window: window.window)
             })
         }
         return rows.filter { $0.percentLeft != nil }
@@ -226,7 +227,8 @@ extension UsageStore {
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: namedWindow.id,
                 title: namedWindow.title,
-                percentLeft: namedWindow.usageKnown ? namedWindow.window.remainingPercent : nil)
+                percentLeft: namedWindow.usageKnown ? namedWindow.window.remainingPercent : nil,
+                window: namedWindow.window)
         }
     }
 
@@ -240,7 +242,8 @@ extension UsageStore {
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: namedWindow.id,
                 title: namedWindow.title,
-                percentLeft: namedWindow.window.remainingPercent)
+                percentLeft: namedWindow.window.remainingPercent,
+                window: namedWindow.window)
         }
     }
 }
