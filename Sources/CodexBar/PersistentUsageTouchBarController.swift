@@ -13,7 +13,7 @@ import Observation
 final class PersistentUsageTouchBarController: NSObject, NSTouchBarDelegate {
     private static let barIdentifier = NSTouchBar.CustomizationIdentifier("com.steipete.codexbar.persistentBar")
     private static let itemIdentifier = NSTouchBarItem.Identifier("com.steipete.codexbar.persistentItem")
-    private static let maxCards = 3
+    static let maxCards = 3
     /// Tapping a card leaves the graph up long enough to read, then reverts to the overview
     /// on its own — the Touch Bar has no natural "back" affordance besides tapping again.
     private static let autoRevertSeconds: TimeInterval = 8
@@ -163,7 +163,9 @@ final class PersistentUsageTouchBarController: NSObject, NSTouchBarDelegate {
     // MARK: - Content
 
     private var cardProviders: [UsageProvider] {
-        Array(self.store.enabledProviders().prefix(Self.maxCards))
+        self.settings.resolvedTouchBarProviders(
+            activeProviders: self.store.enabledProviders(),
+            maxVisibleProviders: Self.maxCards)
     }
 
     private func rebuildContent() {

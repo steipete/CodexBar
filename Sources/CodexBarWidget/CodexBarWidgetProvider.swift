@@ -162,6 +162,29 @@ struct ProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     }
 }
 
+struct OverviewProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "Providers"
+    static let description = IntentDescription("Choose which providers to show, and in what order.")
+
+    @Parameter(title: "Provider 1")
+    var provider1: ProviderChoice?
+    @Parameter(title: "Provider 2")
+    var provider2: ProviderChoice?
+    @Parameter(title: "Provider 3")
+    var provider3: ProviderChoice?
+    @Parameter(title: "Provider 4")
+    var provider4: ProviderChoice?
+
+    init() {}
+
+    // Multi-value `[ProviderChoice]` App Intent parameters render unreliably in the
+    // WidgetKit "Edit Widget" UI across OS versions — four optional single-select slots use the
+    // same primitive as `ProviderSelectionIntent` above, which is proven to work there.
+    var selectedProviders: [UsageProvider] {
+        [self.provider1, self.provider2, self.provider3, self.provider4].compactMap { $0?.provider }
+    }
+}
+
 struct SwitchWidgetProviderIntent: AppIntent {
     static let title: LocalizedStringResource = "Switch Provider"
     static let description = IntentDescription("Switch the provider shown in the widget.")

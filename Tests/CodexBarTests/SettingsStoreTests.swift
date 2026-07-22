@@ -694,6 +694,87 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `touch bar selected providers persists and normalizes across instances`() throws {
+        let suite = "SettingsStoreTests-touch-bar-selection"
+        let defaultsA = try #require(UserDefaults(suiteName: suite))
+        defaultsA.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let storeA = SettingsStore(
+            userDefaults: defaultsA,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        storeA.touchBarSelectedProviders = [.opencode, .codex, .opencode, .claude]
+        #expect(storeA.touchBarSelectedProviders == [.opencode, .codex, .claude])
+
+        let defaultsB = try #require(UserDefaults(suiteName: suite))
+        let storeB = SettingsStore(
+            userDefaults: defaultsB,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(storeB.touchBarSelectedProviders == [.opencode, .codex, .claude])
+    }
+
+    @Test
+    func `resolved touch bar providers defaults to first N when selection empty`() throws {
+        let suite = "SettingsStoreTests-touch-bar-default"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode]
+        let resolved = store.resolvedTouchBarProviders(activeProviders: activeProviders, maxVisibleProviders: 3)
+
+        #expect(resolved == [.codex, .claude, .cursor])
+    }
+
+    @Test
+    func `touch bar provider selection add and remove respects cap`() throws {
+        let suite = "SettingsStoreTests-touch-bar-toggle"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode]
+
+        _ = store.setTouchBarProviderSelection(
+            provider: .claude,
+            isSelected: false,
+            activeProviders: activeProviders,
+            maxVisibleProviders: 3)
+        #expect(store.resolvedTouchBarProviders(activeProviders: activeProviders, maxVisibleProviders: 3)
+            == [.codex, .cursor])
+
+        let stillCapped = store.setTouchBarProviderSelection(
+            provider: .opencode,
+            isSelected: true,
+            activeProviders: activeProviders,
+            maxVisibleProviders: 3)
+        #expect(stillCapped == [.codex, .cursor, .opencode])
+
+        // Re-adding claude would push the selection to 4, past the cap — rejected, unchanged.
+        let rejected = store.setTouchBarProviderSelection(
+            provider: .claude,
+            isSelected: true,
+            activeProviders: activeProviders,
+            maxVisibleProviders: 3)
+        #expect(rejected == [.codex, .cursor, .opencode])
+    }
+
+    @Test
     func `persists open code workspace ID across instances`() throws {
         let suite = "SettingsStoreTests-opencode-workspace"
         let defaultsA = try #require(UserDefaults(suiteName: suite))
