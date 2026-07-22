@@ -5,13 +5,11 @@ import Testing
 
 struct CrofMenuCardTests {
     @Test
-    func `model shows request count and avoids duplicate credits section`() throws {
+    func `model shows credit balance without request quota`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.crof])
         let snapshot = CrofUsageSnapshot(
             credits: 10,
-            requestsPlan: 1000,
-            usableRequests: 998,
             updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -35,10 +33,10 @@ struct CrofMenuCardTests {
             now: now))
 
         #expect(model.creditsText == nil)
-        #expect(model.metrics.map(\.title) == ["Requests", "Credits"])
-        #expect(model.metrics.first?.percent == 99)
-        #expect(model.metrics.first?.resetText?.hasPrefix("Resets") == true)
-        #expect(model.metrics.first?.detailRightText == "998 requests left")
-        #expect(model.metrics.last?.resetText == "$10.00")
+        #expect(model.metrics.map(\.title) == ["Credits"])
+        #expect(model.metrics.first?.percent == 100)
+        #expect(model.metrics.first?.resetText == nil)
+        #expect(model.metrics.first?.statusText == "$10.00")
+        #expect(model.metrics.first?.detailRightText == nil)
     }
 }
