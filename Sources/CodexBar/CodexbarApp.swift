@@ -371,6 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var managedCodexAccountCoordinator: ManagedCodexAccountCoordinator?
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
     private var hasInstalledLimitResetObservers = false
+    private var systemWakeObserver: NSObjectProtocol?
     #if DEBUG
     private var debugMemoryPressureObserver: NSObjectProtocol?
     #endif
@@ -427,9 +428,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 object: nil)
             self.hasInstalledLimitResetObservers = true
         }
+        // Nothing observed system wake before this — after sleeping overnight, the periodic
+        // refresh timer's next tick could be minutes away, leaving menu bar/widget data stale
+        // right when the user first looks. Force an immediate refresh on wake instead.
+        self.systemWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main)
+        { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.store?.refresh(enrichmentMode: .automatic)
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let systemWakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(systemWakeObserver)
+            self.systemWakeObserver = nil
+        }
         self.memoryPressureMonitor.stop()
         #if DEBUG
         self.removeDebugMemoryPressureObserver()

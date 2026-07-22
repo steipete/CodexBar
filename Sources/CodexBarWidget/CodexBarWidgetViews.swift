@@ -632,6 +632,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
     let id: String
     let title: String
     let percentLeft: Double?
+    var resetsAt: Date?
 
     private enum AntigravityQuotaFamily {
         case gemini
@@ -659,7 +660,9 @@ struct WidgetUsageRow: Identifiable, Equatable {
         else {
             return nil
         }
-        return limit
+        // Antigravity's Gemini and Claude/GPT pools each carry their own 5h + weekly
+        // window — show all 4 instead of picking one cadence per pool.
+        return max(limit, 4)
     }
 
     static func rows(
@@ -672,6 +675,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
             let resolvedSnapshots = usageRows.map { row in
                 guard row.window == nil,
                       let window = self.legacyCodexRateWindow(for: row.id, entry: entry)
+                          ?? self.genericRateWindow(for: row.id, entry: entry)
                 else {
                     return row
                 }
@@ -685,7 +689,8 @@ struct WidgetUsageRow: Identifiable, Equatable {
                 WidgetUsageRow(
                     id: row.id,
                     title: row.title,
-                    percentLeft: row.window?.remainingPercent ?? row.percentLeft)
+                    percentLeft: row.window?.remainingPercent ?? row.percentLeft,
+                    resetsAt: row.window?.resetsAt)
             }
             rows = self.applyingCodexWeeklyCap(
                 sourceRows,
@@ -698,17 +703,20 @@ struct WidgetUsageRow: Identifiable, Equatable {
                 WidgetUsageRow(
                     id: "primary",
                     title: metadata?.sessionLabel ?? "Session",
-                    percentLeft: entry.primary?.remainingPercent),
+                    percentLeft: entry.primary?.remainingPercent,
+                    resetsAt: entry.primary?.resetsAt),
                 WidgetUsageRow(
                     id: "secondary",
                     title: metadata?.weeklyLabel ?? "Weekly",
-                    percentLeft: entry.secondary?.remainingPercent),
+                    percentLeft: entry.secondary?.remainingPercent,
+                    resetsAt: entry.secondary?.resetsAt),
             ]
             if metadata?.supportsOpus == true {
                 defaultRows.append(WidgetUsageRow(
                     id: "tertiary",
                     title: metadata?.opusLabel ?? "Opus",
-                    percentLeft: entry.tertiary?.remainingPercent))
+                    percentLeft: entry.tertiary?.remainingPercent,
+                    resetsAt: entry.tertiary?.resetsAt))
             }
             rows = defaultRows.filter { $0.percentLeft != nil }
         }
@@ -717,10 +725,15 @@ struct WidgetUsageRow: Identifiable, Equatable {
            limit >= 2,
            rows.contains(where: { $0.id.hasPrefix("antigravity-quota-summary-") })
         {
-            var selected = [AntigravityQuotaFamily.gemini, .claudeGPT].compactMap { family in
-                rows
+            // Keep both cadences (5h + weekly) per pool, not just the more-constrained one —
+            // id sort naturally orders "...5h" before "...weekly" within the same pool.
+            var selected: [WidgetUsageRow] = [AntigravityQuotaFamily.gemini, .claudeGPT].reduce(into: []) { result, family in
+                result.append(contentsOf: rows
                     .filter { self.antigravityQuotaFamily(for: $0) == family }
-                    .min(by: self.isMoreConstrained)
+                    .sorted { $0.id < $1.id })
+            }
+            if selected.count > limit {
+                selected = Array(selected.prefix(limit))
             }
             let selectedIDs = Set(selected.map(\.id))
             let fallbackRows = rows.enumerated()
@@ -759,7 +772,23 @@ struct WidgetUsageRow: Identifiable, Equatable {
         }
         return rows.map { row in
             guard row.id == "session" else { return row }
-            return WidgetUsageRow(id: row.id, title: row.title, percentLeft: 0)
+            return WidgetUsageRow(id: row.id, title: row.title, percentLeft: 0, resetsAt: row.resetsAt)
+        }
+    }
+
+    /// Most providers' `usageRows` carry no per-row `window` (just id/title/percentLeft), so
+    /// their reset time only lives on `entry.primary`/`secondary`/`tertiary`. Match by the
+    /// generic row-id convention those rows actually use, so "Reset at" can resolve for any
+    /// provider, not just Codex's legacy "session"/"weekly" naming (see `legacyCodexRateWindow`).
+    private static func genericRateWindow(
+        for rowID: String,
+        entry: WidgetSnapshot.ProviderEntry) -> RateWindow?
+    {
+        switch rowID {
+        case "primary": entry.primary
+        case "secondary": entry.secondary
+        case "tertiary": entry.tertiary
+        default: nil
         }
     }
 
@@ -814,18 +843,6 @@ struct WidgetUsageRow: Identifiable, Equatable {
         return nil
     }
 
-    private static func isMoreConstrained(_ lhs: WidgetUsageRow, than rhs: WidgetUsageRow) -> Bool {
-        switch (lhs.percentLeft, rhs.percentLeft) {
-        case let (.some(left), .some(right)):
-            left < right
-        case (.some, .none):
-            true
-        case (.none, .some):
-            false
-        case (.none, .none):
-            false
-        }
-    }
 }
 
 enum WidgetUsageDisplay {
@@ -895,12 +912,20 @@ struct UsageBarRow: View {
     let title: String
     let percentLeft: Double?
     let color: Color
+    let resetsAt: Date?
+
+    init(title: String, percentLeft: Double?, color: Color, resetsAt: Date? = nil) {
+        self.title = title
+        self.percentLeft = percentLeft
+        self.color = color
+        self.resetsAt = resetsAt
+    }
 
     var body: some View {
         let percent = WidgetUsageDisplay.percent(fromRemaining: self.percentLeft, showUsed: self.showUsed)
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(self.title)
+                Text(self.titleWithReset)
                     .font(.caption)
                 Spacer()
                 Text(WidgetFormat.percent(percent))
@@ -916,6 +941,14 @@ struct UsageBarRow: View {
             }
             .frame(height: 6)
         }
+    }
+
+    // Keeps each row to two lines (title/percent + bar) instead of three — same info, less
+    // vertical space, which matters once a provider like Antigravity needs 4 rows to show
+    // 5h + weekly for both its Gemini and Claude/GPT pools.
+    private var titleWithReset: String {
+        guard let resetsAt else { return self.title }
+        return "\(self.title) · Reset at \(UsageFormatter.resetDescription(from: resetsAt))"
     }
 }
 

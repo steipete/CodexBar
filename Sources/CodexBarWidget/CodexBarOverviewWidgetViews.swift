@@ -107,11 +107,14 @@ private struct OverviewProviderRow: View {
                     ?? self.entry.provider.rawValue.capitalized)
                     .font(.caption.weight(.semibold))
             }
-            ForEach(WidgetUsageRow.rows(for: self.entry, limit: 2)) { row in
+            // Antigravity's Gemini and Claude/GPT pools each carry their own 5h + weekly
+            // window — give it room for all 4 instead of the usual 2-row cap.
+            ForEach(WidgetUsageRow.rows(for: self.entry, limit: self.entry.provider == .antigravity ? 4 : 2)) { row in
                 UsageBarRow(
                     title: row.title,
                     percentLeft: row.percentLeft,
-                    color: WidgetColors.color(for: self.entry.provider))
+                    color: WidgetColors.color(for: self.entry.provider),
+                    resetsAt: row.resetsAt)
             }
         }
     }
