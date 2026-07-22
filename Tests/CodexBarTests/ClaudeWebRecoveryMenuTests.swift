@@ -101,6 +101,30 @@ struct ClaudeWebRecoveryMenuTests {
     }
 
     @Test
+    func `explicit OAuth without owner credentials opens the Claude Code recovery flow`() {
+        let actions = self.actions(
+            error: ClaudeOAuthCredentialsError.notFound.localizedDescription,
+            source: .oauth,
+            attempts: [
+                ProviderFetchAttempt(
+                    strategyID: "claude.oauth",
+                    kind: .oauth,
+                    wasAvailable: true,
+                    errorDescription: ClaudeOAuthCredentialsError.notFound.localizedDescription),
+                ProviderFetchAttempt(
+                    strategyID: "claude.cli",
+                    kind: .cli,
+                    wasAvailable: false,
+                    errorDescription: "Claude CLI is not logged in."),
+            ])
+
+        #expect(actions.contains {
+            $0.0 == "Open Terminal" && $0.1 == .openTerminal(command: "claude")
+        })
+        #expect(!actions.contains { $0.0 == "Re-login at claude.ai" })
+    }
+
+    @Test
     func `non-web source does not replace account action`() {
         let actions = self.actions(
             error: ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription,

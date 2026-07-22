@@ -77,6 +77,9 @@ CodexBar-owned caches and other Keychain-backed features; it is not needed to en
 - CodexBar never bootstraps or repairs OAuth credentials from `Claude Code-credentials`.
 - When no safe direct credential exists, app-level OAuth skips the direct request and uses the owner-mediated Claude
   CLI. Once a direct credential is found, OAuth errors remain terminal and do not silently change authorities.
+- If neither a safe direct credential nor an authenticated Claude CLI is available, the Claude menu provides
+  **Open Terminal**, which starts `claude` so the credential owner can sign in; refresh afterward. This upgrade path
+  never reopens Claude Code's foreign Keychain item and never silently switches explicit OAuth to Web.
 - A corrupt or temporarily unavailable CodexBar-owned credential cache is also terminal; only exact absence permits
   the owner-CLI fallback.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
