@@ -861,6 +861,8 @@ public actor CursorSessionStore {
     private func loadFromDiskIfNeeded() {
         guard !self.hasLoadedFromDisk else { return }
         self.hasLoadedFromDisk = true
+        // Remediate a session file created 0644 by an earlier build before reading it.
+        CredentialFileWriter.repairPermissions(at: self.fileURL)
         self.loadFromDisk()
     }
 
@@ -894,7 +896,10 @@ public actor CursorSessionStore {
         else {
             return
         }
-        try? data.write(to: self.fileURL)
+        // These are Cursor auth session cookies. Write them owner-only (0600) with the permission
+        // established before any bytes land, matching the codex/kimi/antigravity credential stores;
+        // a plain Data.write leaves them world-readable (0644).
+        try? CredentialFileWriter.writePrivate(data, to: self.fileURL)
     }
 
     private func loadFromDisk() {
