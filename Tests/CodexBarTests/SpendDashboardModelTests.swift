@@ -371,8 +371,12 @@ struct SpendDashboardModelTests {
         #expect(group.dailyPoints.map(\.cost) == [5, 4])
         #expect(group.dailyPoints.map(\.stackStart) == [0, 5])
         #expect(group.dailyPoints.map(\.stackEnd) == [5, 9])
+        #expect(group.dailyTokenPoints.map(\.sourceID) == ["a", "b"])
+        #expect(group.dailyTokenPoints.map(\.tokens) == [20, 10])
     }
+}
 
+extension SpendDashboardModelTests {
     @Test
     func `invalid costs and arithmetic overflow never become spend`() throws {
         let invalid = SpendDashboardModel.ProviderInput(

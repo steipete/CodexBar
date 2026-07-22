@@ -2,6 +2,7 @@ import CodexBarCore
 import Foundation
 
 struct ShareStatsProviderPayload: Sendable, Equatable {
+    let sourceID: String
     let provider: UsageProvider
     let providerName: String
     let subscriptionName: String?
@@ -12,8 +13,10 @@ struct ShareStatsProviderPayload: Sendable, Equatable {
 }
 
 struct ShareStatsModelPayload: Sendable, Equatable {
+    let sourceID: String
     let provider: UsageProvider
     let providerName: String
+    let sourceName: String
     let modelName: String
     let currencyCode: String
     let totalTokens: Int?
@@ -21,8 +24,10 @@ struct ShareStatsModelPayload: Sendable, Equatable {
 }
 
 private struct ShareStatsModelFamilyKey: Hashable {
+    let sourceID: String
     let provider: UsageProvider
     let providerName: String
+    let sourceName: String
     let modelName: String
     let currencyCode: String
 }
@@ -72,8 +77,10 @@ private struct ShareStatsModelFamilyAccumulator {
         let estimatedCost = self.costIncomplete ? nil : self.estimatedCost
         guard totalTokens != nil || estimatedCost != nil else { return nil }
         return ShareStatsModelPayload(
+            sourceID: self.key.sourceID,
             provider: self.key.provider,
             providerName: self.key.providerName,
+            sourceName: self.key.sourceName,
             modelName: self.key.modelName,
             currencyCode: self.key.currencyCode,
             totalTokens: totalTokens,
@@ -85,9 +92,20 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
     let currencyCode: String
     let estimatedCost: Double?
     let coveredDayCount: Int
+    let pricedSourceCount: Int
+    let sourceCount: Int
 
     var id: String {
         self.currencyCode
+    }
+}
+
+struct ShareStatsDailyPayload: Sendable, Equatable, Identifiable {
+    let day: Date
+    let totalTokens: Int?
+
+    var id: Date {
+        self.day
     }
 }
 
@@ -97,12 +115,30 @@ struct ShareStatsPayload: Sendable, Equatable {
     let providers: [ShareStatsProviderPayload]
     let topModels: [ShareStatsModelPayload]
     let currencies: [ShareStatsCurrencyPayload]
+    let dailyTokens: [ShareStatsDailyPayload]
+    let dailySourceCount: Int
+    let dailyFullSourceCount: Int
+    let modelRouteCount: Int
+    let shareableModelRouteCount: Int
+    let hiddenModelRouteCount: Int
+    let modelRouteCoverageIsComplete: Bool
     let totalTokens: Int?
+    let tokenSourceCount: Int
+
+    var dailyCoverageIsComplete: Bool {
+        !self.providers.isEmpty && self.dailyFullSourceCount == self.providers.count
+    }
+
+    var tokenCoverageIsComplete: Bool {
+        self.totalTokens != nil && self.tokenSourceCount == self.providers.count
+    }
+
+    var hasUnavailableDailyTotals: Bool {
+        self.dailyTokens.contains { $0.totalTokens == nil }
+    }
 
     var hasShareableData: Bool {
-        !self.providers.isEmpty && self.providers.contains { provider in
-            provider.totalTokens != nil || provider.estimatedCost != nil
-        }
+        !self.providers.isEmpty && self.providers.contains { $0.totalTokens != nil }
     }
 }
 
@@ -234,6 +270,11 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
 
 enum ShareStatsSanitizer {
     static func modelName(_ rawValue: String) -> String? {
+        if rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare("Fable") == .orderedSame
+        {
+            return "Fable"
+        }
         guard let value = self.safeLabel(
             rawValue,
             maximumLength: 72,
@@ -241,44 +282,157 @@ enum ShareStatsSanitizer {
             requireModelShape: true)
         else { return nil }
 
-        let normalized = value.lowercased()
+        var normalized = value.lowercased()
+        let pathParts = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        if pathParts.count == 2 {
+            let publicPublishers: Set = [
+                "alibaba", "amazon", "anthropic", "cohere", "deepseek", "fable", "google",
+                "meta-llama", "microsoft", "minimax", "mistralai", "moonshotai", "openai",
+                "perplexity", "qwen", "x-ai", "z-ai",
+            ]
+            guard publicPublishers.contains(String(pathParts[0])), !pathParts[1].isEmpty else { return nil }
+            normalized = String(pathParts[1])
+        } else if pathParts.count > 1 {
+            return nil
+        }
         let regionalPrefixes = ["us.", "eu.", "apac.", "global."]
         let familyName = regionalPrefixes.first { normalized.hasPrefix($0) }.map {
             String(normalized.dropFirst($0.count))
         } ?? normalized
-        let publicModelFamilies: [(prefixes: [String], label: String)] = [
-            (["amazon.nova-", "nova-"], "Amazon Nova"),
-            (["anthropic.claude-", "claude-", "claude "], "Claude"),
-            (["chatgpt-", "gpt-"], "GPT"),
-            (["codex-"], "Codex"),
-            (["command-"], "Command"),
-            (["dall-e-"], "DALL-E"),
-            (["deepseek-"], "DeepSeek"),
-            (["codestral-", "devstral-", "magistral-", "mistral-", "mistral ", "mistral.", "mixtral-"], "Mistral"),
-            (["gemma-"], "Gemma"),
-            (["google.gemini-", "gemini-", "gemini "], "Gemini"),
-            (["glm-"], "GLM"),
-            (["grok-"], "Grok"),
-            (["kimi-", "moonshot-"], "Kimi"),
-            (["meta.llama", "llama-", "llama "], "Llama"),
-            (["minimax-"], "MiniMax"),
-            (["o1"], "o1"),
-            (["o3"], "o3"),
-            (["o4"], "o4"),
-            (["phi-"], "Phi"),
-            (["qwen"], "Qwen"),
-            (["sonar-"], "Sonar"),
-            (["text-embedding-"], "OpenAI Embeddings"),
-            (["tts-"], "OpenAI TTS"),
-            (["whisper-"], "Whisper"),
+        guard !familyName.contains("://"), !familyName.contains("\\"), !familyName.contains("/") else { return nil }
+
+        if let suffix = self.suffix(in: familyName, after: ["chatgpt-", "gpt-"]),
+           let canonical = self.canonicalSuffix(
+               suffix,
+               allowedStarts: ["1", "2", "3", "4", "5", "6", "7", "8", "9"])
+        {
+            return "GPT-\(self.prettySuffix(canonical))"
+        }
+        if let suffix = self.suffix(in: familyName, after: ["anthropic.claude-", "claude-", "claude "]),
+           let canonical = self.canonicalSuffix(
+               suffix,
+               allowedStarts: ["opus", "sonnet", "haiku", "instant", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
+        {
+            return "Claude \(self.prettySuffix(canonical))"
+        }
+
+        let families: [(prefixes: [String], label: String, allowedStarts: [String])] = [
+            (
+                ["amazon.nova-", "nova-"],
+                "Amazon Nova",
+                ["lite", "micro", "pro", "premier", "canvas", "reel", "sonic", "1", "2", "3", "4", "5"]),
+            (["codex-"], "Codex", ["mini", "max", "1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["command-"], "Command", ["a", "r", "light", "nightly"]),
+            (["dall-e-"], "DALL-E", ["2", "3"]),
+            (["deepseek-"], "DeepSeek", ["r", "v", "chat", "coder"]),
+            (["fable-"], "Fable", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["gemma-"], "Gemma", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["google.gemini-", "gemini-", "gemini "], "Gemini", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["glm-"], "GLM", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["grok-"], "Grok", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["kimi-", "moonshot-"], "Kimi", ["k", "1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["meta.llama", "llama-", "llama "], "Llama", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["minimax-"], "MiniMax", ["m", "text", "speech", "video", "image", "1", "2", "3"]),
+            (["phi-"], "Phi", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["qwen"], "Qwen", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]),
+            (["sonar-"], "Sonar", ["small", "medium", "large", "pro", "reasoning", "deep"]),
         ]
-        guard !normalized.contains("://"),
-              !normalized.contains("/"),
-              !normalized.contains("\\")
+        for family in families {
+            guard let suffix = self.suffix(in: familyName, after: family.prefixes),
+                  let canonical = self.canonicalSuffix(suffix, allowedStarts: family.allowedStarts)
+            else { continue }
+            return "\(family.label) \(self.prettySuffix(canonical))"
+        }
+
+        for base in ["o1", "o3", "o4"] where familyName.hasPrefix(base) {
+            let tail = String(familyName.dropFirst(base.count))
+            guard tail.isEmpty else {
+                guard tail.hasPrefix("-"),
+                      let canonical = self.canonicalSuffix(
+                          String(tail.dropFirst()),
+                          allowedStarts: ["mini", "pro", "preview"])
+                else { return base.uppercased() }
+                return "\(base.uppercased()) \(self.prettySuffix(canonical))"
+            }
+            return base.uppercased()
+        }
+        if let suffix = self.suffix(in: familyName, after: [
+            "codestral-", "devstral-", "magistral-", "mistral-", "mistral ", "mistral.", "mixtral-",
+        ]), let canonical = self.canonicalSuffix(
+            suffix,
+            allowedStarts: ["small", "medium", "large", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
+        {
+            return "Mistral \(self.prettySuffix(canonical))"
+        }
+        if let suffix = self.suffix(in: familyName, after: ["text-embedding-"]),
+           let canonical = self.canonicalSuffix(
+               suffix,
+               allowedStarts: ["1", "2", "3", "4", "5", "6", "7", "8", "9"])
+        {
+            return "OpenAI Embeddings \(self.prettySuffix(canonical))"
+        }
+        if let suffix = self.suffix(in: familyName, after: ["tts-", "whisper-"]),
+           let canonical = self.canonicalSuffix(
+               suffix,
+               allowedStarts: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "large", "turbo"])
+        {
+            return familyName.hasPrefix("tts-")
+                ? "OpenAI TTS \(self.prettySuffix(canonical))"
+                : "Whisper \(self.prettySuffix(canonical))"
+        }
+        return nil
+    }
+
+    private static func suffix(in value: String, after prefixes: [String]) -> String? {
+        guard let prefix = prefixes.first(where: value.hasPrefix) else { return nil }
+        let suffix = String(value.dropFirst(prefix.count))
+        return suffix.isEmpty ? nil : suffix
+    }
+
+    private static func canonicalSuffix(_ value: String, allowedStarts: [String]) -> String? {
+        let parts = value
+            .replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-")
+            .map(String.init)
+        guard let first = parts.first,
+              allowedStarts.contains(where: { self.isAllowedPublicStart(first, allowedStart: $0) })
         else { return nil }
-        return publicModelFamilies.first { family in
-            family.prefixes.contains(where: familyName.hasPrefix)
-        }?.label
+
+        let publicQualifiers: Set = [
+            "a", "air", "canvas", "chat", "coder", "deep", "flash", "image", "instruct",
+            "large", "lite", "max", "medium", "micro", "mini", "nano", "nightly", "plus",
+            "premier", "preview", "pro", "r", "reasoning", "reel", "small", "sonic", "speech",
+            "text", "thinking", "turbo", "video",
+        ]
+        var canonical = [first]
+        for part in parts.dropFirst().prefix(4) {
+            let isVersion = part.range(
+                of: #"^(?:[vkr]?\d+(?:\.\d+)*(?::\d+)?|\d{8})$"#,
+                options: .regularExpression) != nil
+            guard isVersion || publicQualifiers.contains(part) else { break }
+            canonical.append(part)
+        }
+        return canonical.joined(separator: "-")
+    }
+
+    private static func isAllowedPublicStart(_ value: String, allowedStart: String) -> Bool {
+        guard value.hasPrefix(allowedStart) else { return false }
+        let suffix = String(value.dropFirst(allowedStart.count))
+        guard !suffix.isEmpty else { return true }
+        return suffix.range(
+            of: #"^(?:\d+(?:\.\d+)*|\.\d+(?:\.\d+)*)(?::\d+)?$"#,
+            options: .regularExpression) != nil
+    }
+
+    private static func prettySuffix(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-")
+            .map { part in
+                let value = String(part)
+                return value.count <= 3 ? value.uppercased() : value.capitalized
+            }
+            .joined(separator: " ")
     }
 
     private static func safeLabel(
@@ -317,11 +471,14 @@ enum ShareStatsBuilder {
         model: SpendDashboardModel,
         subscriptionNames: [String: ShareStatsSubscriptionName] = [:]) -> ShareStatsPayload?
     {
+        let sourceLabels = self.publicSourceLabels(model: model)
         let providers = model.groups.flatMap { group in
             group.providers.map { row in
                 ShareStatsProviderPayload(
+                    sourceID: row.id,
                     provider: row.provider,
-                    providerName: row.displayName,
+                    providerName: sourceLabels[row.id]
+                        ?? ProviderDescriptorRegistry.descriptor(for: row.provider).metadata.displayName,
                     subscriptionName: subscriptionNames[row.id]?.displayName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -329,28 +486,32 @@ enum ShareStatsBuilder {
                     coveredDayCount: row.coveredDayCount)
             }
         }
-        let sanitizedModels = model.groups.filter {
-            $0.modelHistoryCompleteness == .complete
-        }.flatMap { group in
-            group.models.compactMap { row -> ShareStatsModelPayload? in
-                let estimatedCost = self.finiteCost(row.totalCost)
-                guard let modelName = ShareStatsSanitizer.modelName(row.modelName),
-                      row.totalTokens != nil
-                else { return nil }
-                return ShareStatsModelPayload(
-                    provider: row.provider,
-                    providerName: row.providerName,
-                    modelName: modelName,
-                    currencyCode: group.currencyCode,
-                    totalTokens: row.totalTokens,
-                    estimatedCost: estimatedCost)
-            }
+        let observedModels = model.groups.flatMap { group in
+            group.tokenModels.map { (currencyCode: group.currencyCode, row: $0) }
+        }
+        let sanitizedModels = observedModels.compactMap { entry -> ShareStatsModelPayload? in
+            let row = entry.row
+            let estimatedCost = self.finiteCost(row.totalCost)
+            guard let modelName = ShareStatsSanitizer.modelName(row.modelName),
+                  row.totalTokens != nil
+            else { return nil }
+            return ShareStatsModelPayload(
+                sourceID: row.sourceID,
+                provider: row.provider,
+                providerName: row.providerName,
+                sourceName: sourceLabels[row.sourceID] ?? row.providerName,
+                modelName: modelName,
+                currencyCode: entry.currencyCode,
+                totalTokens: row.totalTokens,
+                estimatedCost: estimatedCost)
         }
         var modelFamilies: [ShareStatsModelFamilyKey: ShareStatsModelFamilyAccumulator] = [:]
         for row in sanitizedModels {
             let key = ShareStatsModelFamilyKey(
+                sourceID: row.sourceID,
                 provider: row.provider,
                 providerName: row.providerName,
+                sourceName: row.sourceName,
                 modelName: row.modelName,
                 currencyCode: row.currencyCode)
             if var existing = modelFamilies[key] {
@@ -366,33 +527,91 @@ enum ShareStatsBuilder {
             case (_?, nil): return true
             case (nil, _?): return false
             default:
-                if lhs.providerName != rhs.providerName {
-                    return lhs.providerName < rhs.providerName
+                if lhs.sourceName != rhs.sourceName {
+                    return lhs.sourceName < rhs.sourceName
                 }
                 return lhs.modelName < rhs.modelName
             }
         }
-        let currencies = model.groups.map {
-            ShareStatsCurrencyPayload(
-                currencyCode: $0.currencyCode,
-                estimatedCost: self.finiteCost($0.totalCost),
-                coveredDayCount: $0.coveredDayCount)
+        let currencies = model.groups.map { group in
+            let knownCosts = group.providers.compactMap { self.finiteCost($0.totalCost) }
+            return ShareStatsCurrencyPayload(
+                currencyCode: group.currencyCode,
+                estimatedCost: knownCosts.isEmpty ? nil : self.combinedKnownCost(knownCosts),
+                coveredDayCount: group.coveredDayCount,
+                pricedSourceCount: knownCosts.count,
+                sourceCount: group.providers.count)
         }
-        let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
-        let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
+        let dailyPoints = model.groups.flatMap(\.dailyTokenPoints)
+        let dailyPointsByDay = Dictionary(grouping: dailyPoints, by: \.day)
+        let dailyTokens = dailyPointsByDay
+            .keys
+            .sorted()
+            .map { day -> ShareStatsDailyPayload in
+                let points = dailyPointsByDay[day] ?? []
+                let total = self.combinedTotalTokens(points.map { Optional($0.tokens) })
+                return ShareStatsDailyPayload(day: day, totalTokens: total)
+            }
+        let dailySourceCount = providers.count { $0.totalTokens != nil }
+        let dailyFullSourceCount = providers.count {
+            $0.totalTokens != nil && $0.coveredDayCount >= model.requestedDays
+        }
+        let knownTokenTotals = providers.compactMap(\.totalTokens)
+        let totalTokens = knownTokenTotals.isEmpty ? nil : self.combinedTotalTokens(knownTokenTotals.map(Optional.some))
+        let periodEnd = model.groups.map { group in
+            let bounds = group.chartDomain
+            return bounds.lowerBound < bounds.upperBound
+                ? Calendar.current.date(byAdding: .day, value: -1, to: bounds.upperBound)
+                ?? bounds.upperBound
+                : bounds.upperBound
+        }.max()
+            ?? Date()
         let payload = ShareStatsPayload(
             days: model.requestedDays,
             periodEnd: periodEnd,
             providers: providers,
             topModels: topModels,
             currencies: currencies,
-            totalTokens: totalTokens)
+            dailyTokens: dailyTokens,
+            dailySourceCount: dailySourceCount,
+            dailyFullSourceCount: dailyFullSourceCount,
+            modelRouteCount: observedModels.count,
+            shareableModelRouteCount: sanitizedModels.count,
+            hiddenModelRouteCount: observedModels.count - sanitizedModels.count,
+            modelRouteCoverageIsComplete: model.groups.allSatisfy {
+                $0.modelTokenHistoryCompleteness == .complete
+            },
+            totalTokens: totalTokens,
+            tokenSourceCount: knownTokenTotals.count)
         return payload.hasShareableData ? payload : nil
+    }
+
+    private static func publicSourceLabels(model: SpendDashboardModel) -> [String: String] {
+        let rows = model.groups.flatMap(\.providers)
+        let rowsByProvider = Dictionary(grouping: rows, by: \.provider)
+        var labels: [String: String] = [:]
+        for (provider, providerRows) in rowsByProvider {
+            let baseName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+            let sortedRows = providerRows.sorted { $0.id < $1.id }
+            for (index, row) in sortedRows.enumerated() {
+                labels[row.id] = sortedRows.count == 1 ? baseName : "\(baseName) #\(index + 1)"
+            }
+        }
+        return labels
     }
 
     private static func finiteCost(_ value: Double?) -> Double? {
         guard let value, value.isFinite, value >= 0 else { return nil }
         return value
+    }
+
+    private static func combinedKnownCost(_ values: [Double]) -> Double? {
+        var total = 0.0
+        for value in values {
+            total += value
+            guard total.isFinite else { return nil }
+        }
+        return total
     }
 
     static func combinedTotalTokens(_ values: [Int?]) -> Int? {
@@ -436,14 +655,44 @@ enum ShareStatsFormatting {
         return formatter.string(from: date)
     }
 
-    static func text(_ payload: ShareStatsPayload) -> String {
+    static func shortDay(_ date: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+        return formatter.string(from: date)
+    }
+
+    static func shortRange(from start: Date, through end: Date, calendar: Calendar = .current) -> String {
+        "\(self.shortDay(start, calendar: calendar)) — \(self.shortDay(end, calendar: calendar))"
+    }
+
+    static func text(
+        _ payload: ShareStatsPayload,
+        style: ShareStatsCardStyle = .defaultStyle) -> String
+    {
+        switch style {
+        case .summary:
+            self.summaryText(payload)
+        case .modelActivity:
+            self.modelActivityText(payload)
+        }
+    }
+
+    private static func summaryText(_ payload: ShareStatsPayload) -> String {
         var lines = ["My AI subscriptions · last \(payload.days) days"]
         if let tokens = payload.totalTokens {
-            lines.append("\(self.compactCount(tokens)) tracked tokens")
+            let qualifier = payload.tokenCoverageIsComplete ? "" : "at least "
+            lines.append("\(qualifier)\(self.compactCount(tokens)) tracked tokens")
         }
         lines.append(contentsOf: payload.currencies.map { currency in
-            let spend = currency.estimatedCost.map { "\(self.currency($0, code: currency.currencyCode)) estimated" }
-                ?? "Spend unavailable"
+            let spend = currency.estimatedCost.map { cost in
+                let value = self.currency(cost, code: currency.currencyCode)
+                let isPartial = currency.pricedSourceCount < currency.sourceCount
+                    || currency.coveredDayCount < payload.days
+                return isPartial ? "at least \(value) estimated" : "\(value) estimated"
+            } ?? "Spend unavailable"
             return "\(currency.currencyCode): \(spend) · "
                 + "coverage \(currency.coveredDayCount)/\(payload.days) days"
         })
@@ -473,10 +722,58 @@ enum ShareStatsFormatting {
                 if let cost = model.estimatedCost {
                     metrics.append("~\(self.currency(cost, code: model.currencyCode)) est")
                 }
-                return "\(model.modelName) (\(model.providerName)): \(metrics.joined(separator: " · "))"
+                return "\(model.modelName) (\(model.sourceName)): \(metrics.joined(separator: " · "))"
             })
         }
         lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func modelActivityText(_ payload: ShareStatsPayload) -> String {
+        var lines = ["You kept the models busy · last \(payload.days) days"]
+        if let tokens = payload.totalTokens {
+            let qualifier = payload.tokenCoverageIsComplete ? "" : "at least "
+            lines.append("\(qualifier)\(self.compactCount(tokens)) tracked tokens")
+        }
+        if !payload.dailyTokens.isEmpty {
+            let activeDays = payload.dailyTokens.count { ($0.totalTokens ?? 0) > 0 }
+            let qualifier = payload.dailyCoverageIsComplete && !payload.hasUnavailableDailyTotals ? "" : "at least "
+            lines.append("\(qualifier)\(activeDays) of \(payload.days) days active")
+        }
+        let pricedCurrencies = payload.currencies.compactMap { currency in
+            currency.estimatedCost.map { cost in
+                let value = self.currency(cost, code: currency.currencyCode)
+                let isPartial = currency.pricedSourceCount < currency.sourceCount
+                    || currency.coveredDayCount < payload.days
+                return isPartial ? "≥\(value)" : value
+            }
+        }
+        let pricedSourceCount = payload.providers.count { $0.estimatedCost != nil }
+        if !pricedCurrencies.isEmpty {
+            lines.append(
+                "Estimated token spend: \(pricedCurrencies.joined(separator: " · "))"
+                    + " · pricing for \(pricedSourceCount) of \(payload.providers.count) sources")
+        }
+        if !payload.topModels.isEmpty {
+            lines.append("Top model routes:")
+            lines.append(contentsOf: payload.topModels.prefix(3).map { model in
+                "\(model.modelName) via \(model.sourceName)"
+            })
+            let overflowCount = payload.topModels.count - min(3, payload.topModels.count)
+            if overflowCount > 0 {
+                lines.append("+\(overflowCount) more safe route summaries")
+            }
+            if payload.hiddenModelRouteCount > 0 {
+                lines.append("\(payload.hiddenModelRouteCount) private route names omitted")
+            }
+            if !payload.modelRouteCoverageIsComplete {
+                lines.append("Model route history is partial")
+            }
+        }
+        lines.append("\(payload.providers.count) sources tracked")
+        lines.append(
+            "Aggregated locally by CodexBar · No prompts shared · "
+                + "Data through \(self.dataThrough(payload.periodEnd))")
         return lines.joined(separator: "\n")
     }
 }

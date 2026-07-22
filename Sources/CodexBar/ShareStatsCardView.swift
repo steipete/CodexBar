@@ -68,11 +68,11 @@ struct ShareStatsCardView: View {
     private var hero: some View {
         HStack(alignment: .bottom, spacing: 52) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.payload.days) DAYS")
+                Text(self.tokenLabel)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
-                Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
+                Text(self.tokenHeadline)
                     .font(.system(size: 104, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -91,9 +91,7 @@ struct ShareStatsCardView: View {
                             .font(.system(size: 17, weight: .semibold, design: .rounded))
                             .foregroundStyle(self.secondary)
                         Spacer()
-                        Text(currency.estimatedCost.map {
-                            ShareStatsFormatting.currency($0, code: currency.currencyCode)
-                        } ?? "Unavailable")
+                        Text(self.spendHeadline(currency))
                             .font(.system(size: 32, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                             .lineLimit(1)
@@ -107,6 +105,25 @@ struct ShareStatsCardView: View {
             .frame(width: 390, alignment: .leading)
         }
         .frame(height: 132, alignment: .bottom)
+    }
+
+    private var tokenLabel: String {
+        let prefix = self.payload.tokenCoverageIsComplete ? "TRACKED TOKENS" : "KNOWN TOKENS"
+        return "\(prefix) · \(self.payload.days) DAYS"
+    }
+
+    private var tokenHeadline: String {
+        guard let totalTokens = self.payload.totalTokens else { return "—" }
+        let value = ShareStatsFormatting.compactCount(totalTokens)
+        return self.payload.tokenCoverageIsComplete ? value : "≥\(value)"
+    }
+
+    private func spendHeadline(_ currency: ShareStatsCurrencyPayload) -> String {
+        guard let estimatedCost = currency.estimatedCost else { return "Unavailable" }
+        let value = ShareStatsFormatting.currency(estimatedCost, code: currency.currencyCode)
+        let isPartial = currency.pricedSourceCount < currency.sourceCount
+            || currency.coveredDayCount < self.payload.days
+        return isPartial ? "≥\(value)" : value
     }
 
     private var currencySummary: String {
@@ -224,7 +241,7 @@ private struct ShareStatsModelRow: View {
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
-                Text(self.model.providerName)
+                Text(self.model.sourceName)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))
                     .lineLimit(1)
