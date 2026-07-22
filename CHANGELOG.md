@@ -3,9 +3,6 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
-- Claude: eliminate recurring macOS password prompts by never reading or fingerprinting Claude Code's foreign-owned
-  Keychain credential, use owner-mediated CLI then Web in app Auto, migrate legacy app OAuth selections to Auto,
-  preserve explicit OAuth/Admin/Web token-account routing, and invalidate stale CLI data safely on account switches.
 
 ## 0.45.2 — 2026-07-19
 

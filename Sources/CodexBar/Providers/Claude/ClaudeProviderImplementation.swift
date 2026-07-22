@@ -138,7 +138,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 context.settings.claudeCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto
             })
 
-        let usageOptions = ClaudeUsageDataSource.allCases.filter { $0 != .oauth }.map {
+        let usageOptions = ClaudeUsageDataSource.allCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
         let cookieOptions = ProviderCookieSourceUI.options(

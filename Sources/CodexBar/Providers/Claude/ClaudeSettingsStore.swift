@@ -8,21 +8,18 @@ extension SettingsStore {
             return Self.claudeUsageDataSource(from: source)
         }
         set {
-            // App OAuth historically depended on Claude Code's foreign-owned Keychain item.
-            // Keep explicit OAuth available only for token-account snapshots below.
-            let resolvedValue: ClaudeUsageDataSource = newValue == .oauth ? .auto : newValue
-            let source: ProviderSourceMode? = switch resolvedValue {
+            let source: ProviderSourceMode? = switch newValue {
             case .auto: .auto
             case .api: .api
-            case .oauth: .auto
+            case .oauth: .oauth
             case .web: .web
             case .cli: .cli
             }
             self.updateProviderConfig(provider: .claude) { entry in
                 entry.source = source
             }
-            self.logProviderModeChange(provider: .claude, field: "usageSource", value: resolvedValue.rawValue)
-            if resolvedValue != .cli {
+            self.logProviderModeChange(provider: .claude, field: "usageSource", value: newValue.rawValue)
+            if newValue != .cli {
                 self.claudeWebExtrasEnabled = false
             }
         }
@@ -132,8 +129,7 @@ extension SettingsStore {
         case .cli:
             return .cli
         case .oauth:
-            // Migrate existing app selections without changing the shared config schema used by the CLI.
-            return .auto
+            return .oauth
         }
     }
 

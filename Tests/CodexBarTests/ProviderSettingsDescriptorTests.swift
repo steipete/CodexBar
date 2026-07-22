@@ -277,6 +277,7 @@ struct ProviderSettingsDescriptorTests {
         #expect(Set(usagePicker.options.map(\.id)) == Set([
             ClaudeUsageDataSource.auto.rawValue,
             ClaudeUsageDataSource.api.rawValue,
+            ClaudeUsageDataSource.oauth.rawValue,
             ClaudeUsageDataSource.web.rawValue,
             ClaudeUsageDataSource.cli.rawValue,
         ]))

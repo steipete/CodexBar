@@ -21,9 +21,10 @@ rest of the future architecture below.
 
 > **Credential-ownership amendment (2026-07-21):** The OAuth-first app ordering and Claude Keychain prompt-parity
 > contracts below are historical and superseded by the
-> [current baseline](claude-current-baseline.md). App Auto now uses CLI then Web, legacy app OAuth selections migrate
-> to Auto, explicit OAuth token accounts remain supported, and production CodexBar never directly reads or fingerprints
-> `Claude Code-credentials`. The former Claude Keychain prompt controls have been removed.
+> [current baseline](claude-current-baseline.md). App Auto now uses CLI then Web, while persisted and newly selected
+> explicit OAuth remains available for environment, secure-storage-file, and CodexBar-owned credentials. Production
+> CodexBar never directly reads or fingerprints `Claude Code-credentials`, and the former Claude Keychain prompt
+> controls have been removed.
 
 ## Assessment snapshot
 

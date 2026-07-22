@@ -32,8 +32,8 @@ cross-owner read, not tune prompt timing.
 - CLI runtime Auto: Web → Claude CLI.
 - Explicit token accounts are authoritative: Admin API keys route to Admin API, session cookies route to Web, and
   user-supplied OAuth access tokens route to OAuth.
-- A persisted app-level OAuth source from an older build migrates to Auto. Ambient OAuth bootstrap from Claude Code's
-  Keychain item is not available.
+- A persisted or newly selected app-level OAuth source remains explicit. It can use an environment token, Claude's
+  secure-storage credentials file, or CodexBar-owned credentials, but never Claude Code's foreign Keychain item.
 - Account-switch invalidation uses only a hash of the account UUID in Claude's owner-selected config file. It honors
   `.config.json` precedence plus literal `CLAUDE_CONFIG_DIR` and stores neither the UUID nor the config path.
 - Credential-file routing also honors `CLAUDE_SECURESTORAGE_CONFIG_DIR`; profile caches and reusable CLI processes

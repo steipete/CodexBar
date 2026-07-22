@@ -334,8 +334,8 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `claude direct OAuth source migrates to Auto`() throws {
-        let suite = "SettingsStoreCoverageTests-claude-oauth-source-migration"
+    func `claude direct OAuth source survives an upgrade and reload`() throws {
+        let suite = "SettingsStoreCoverageTests-claude-oauth-source-upgrade"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
@@ -344,12 +344,17 @@ struct SettingsStoreCoverageTests {
         ]))
 
         let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        #expect(settings.claudeUsageDataSource == .auto)
-        #expect(settings.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource == .auto)
+        #expect(settings.claudeUsageDataSource == .oauth)
+        #expect(settings.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource == .oauth)
+        #expect(settings.configSnapshot.providerConfig(for: .claude)?.source == .oauth)
 
-        settings.claudeUsageDataSource = .oauth
-        #expect(settings.claudeUsageDataSource == .auto)
-        #expect(settings.configSnapshot.providerConfig(for: .claude)?.source == .auto)
+        let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloaded.claudeUsageDataSource == .oauth)
+        #expect(reloaded.claudeSettingsSnapshot(tokenOverride: nil).usageDataSource == .oauth)
+
+        reloaded.claudeUsageDataSource = .oauth
+        #expect(reloaded.claudeUsageDataSource == .oauth)
+        #expect(reloaded.configSnapshot.providerConfig(for: .claude)?.source == .oauth)
     }
 
     @Test

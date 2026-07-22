@@ -22,7 +22,7 @@ changes it intentionally:
 
 - runtime/source-mode selection,
 - the production boundary around Claude Code-owned credentials,
-- legacy app OAuth-source migration,
+- explicit app OAuth compatibility,
 - token-account routing at the app and CLI edges,
 - provider siloing and web-enrichment rules,
 - the current relationship between the public Claude doc and the vNext refactor plan.
@@ -38,7 +38,7 @@ Current Claude behavior is defined by several active owners, not one central pla
 - `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
   enforces the production prohibition on direct access to Claude Code's Keychain item.
 - `Sources/CodexBar/Providers/Claude/ClaudeSettingsStore.swift`
-  owns app-side legacy-source migration and token-account routing into cookie or OAuth behavior.
+  owns app-side explicit-source persistence and token-account routing into cookie or OAuth behavior.
 - `Sources/CodexBarCLI/TokenAccountCLI.swift`
   owns CLI-side token-account routing and effective source-mode overrides.
 - `Sources/CodexBarCore/TokenAccountSupport.swift`
@@ -54,7 +54,7 @@ The generic provider pipeline currently resolves Claude strategies in this order
 | --- | --- | --- | --- |
 | app | auto | `cli -> web` | CLI is preferred when installed; Web is the only fallback. Auto never plans direct OAuth. |
 | app | selected OAuth token account | `oauth` | Account-scoped and terminal; it never falls through to another account. |
-| app | legacy persisted oauth | effective `auto` | Settings read/write migrates the old selection to Auto. |
+| app | oauth | `oauth` | Persisted and newly selected explicit OAuth remains terminal and uses only noninteractive environment, file, or CodexBar-owned credentials. |
 | app | api | `api` | No fallback. |
 | app | cli | `cli` | No fallback. |
 | app | web | `web` | No fallback. |
@@ -98,8 +98,8 @@ Current production invariants:
 The Claude-specific “Avoid Keychain prompts” toggle and Keychain prompt-policy picker are no longer exposed. Their
 settings could only choose when an unstable foreign-item access was attempted; they could not make the grant durable.
 
-Explicit OAuth can still load credentials supplied through an OAuth token account/environment, CodexBar's own cache,
-or Claude's secure-storage `.credentials.json` (normally `~/.claude/.credentials.json`). Credential loads are
+Explicit app OAuth and OAuth token accounts can load credentials supplied through an environment token, CodexBar's own
+cache, or Claude's secure-storage `.credentials.json` (normally `~/.claude/.credentials.json`). Credential loads are
 noninteractive and never bootstrap or repair from Claude Code's Keychain item.
 
 ## Token-account routing baseline
@@ -116,7 +116,8 @@ Current routing rules:
 - OAuth-token-shaped inputs are not treated as cookies.
 - Cookie/header-shaped inputs are any value that already contains `Cookie:` or `=`.
 - App-side Claude snapshot behavior:
-  - An ambient persisted `.oauth` source is read and written as `.auto` and is no longer offered in the app picker.
+  - A persisted or newly selected `.oauth` source remains `.oauth` and is offered in the app picker; it never falls
+    through to Auto's CLI/Web route.
   - A selected OAuth token account forces its snapshot to `.oauth`, disables cookie mode (`.off`), clears the manual
     cookie header, and relies on environment-token injection.
   - A selected session-key or cookie-header account forces its snapshot to `.web`, uses manual cookie mode, and
@@ -155,6 +156,6 @@ Stable automated coverage for this baseline lives in:
 - `Tests/CodexBarTests/TokenAccountEnvironmentPrecedenceTests.swift`
 - `Tests/CodexBarTests/SettingsStoreCoverageTests.swift`
 
-The characterization suite covers app Auto's CLI-to-Web order, the absence of OAuth planning in Auto, legacy app OAuth
-migration, explicit OAuth-token-account routing, and the default-deny production Keychain boundary. OAuth repository
+The characterization suite covers app Auto's CLI-to-Web order, the absence of OAuth planning in Auto, persisted
+explicit app OAuth, OAuth-token-account routing, and the default-deny production Keychain boundary. OAuth repository
 tests use only synthetic task-local records.

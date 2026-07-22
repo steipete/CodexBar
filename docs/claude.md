@@ -23,13 +23,14 @@ same inline dashboard pattern used by the OpenAI API provider.
 - If an Admin API key is configured, the Admin API strategy is used for Claude API spend/usage.
 - App runtime main pipeline: CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.
-- Explicit picker modes (Admin API/Web/CLI) bypass automatic fallback.
-- Existing app settings that selected OAuth are treated as Auto. OAuth is no longer offered as an ambient app source.
+- Explicit picker modes (Admin API/OAuth/Web/CLI) bypass automatic fallback.
+- Existing app settings that selected OAuth remain explicit OAuth. That route can use environment, secure-storage-file,
+  or CodexBar-owned credentials without reading Claude Code's foreign Keychain item.
 - A selected OAuth token account still routes directly to the OAuth API and does not fall through to another account.
 - The terminal's explicit `--source oauth` mode remains available for supplied/file-backed credentials.
 
 Usage source picker:
-- Preferences → Providers → Claude → Usage source (Auto/API/Web/CLI).
+- Preferences → Providers → Claude → Usage source (Auto/API/OAuth/Web/CLI).
 
 Admin API key setup:
 - Preferences → Providers → Claude → Admin API key, stored in `~/.codexbar/config.json`.
@@ -63,7 +64,7 @@ CodexBar-owned caches and other Keychain-backed features; it is not needed to en
 
 ### Debug selection (debug menu enabled)
 - Claude debug logging follows the resolved app source. Auto remains CLI → Web and does not probe ambient OAuth;
-  OAuth diagnostics run only for an explicitly selected OAuth token account.
+  OAuth diagnostics run only for an explicitly selected OAuth source or OAuth token account.
 - Web extras are internal-only (not exposed in the Providers pane).
 
 ## OAuth API (explicit credentials)

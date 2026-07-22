@@ -86,6 +86,7 @@ log "Phase 1: ownership, routing, account, config, session, and prompt-safety te
 CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1 swift test --no-parallel \
   --filter ClaudeCredentialOwnershipBoundaryTests \
   --filter ClaudeOAuthNoninteractiveCredentialLoadTests \
+  --filter ClaudeOAuthUpgradeCompatibilityTests \
   --filter ClaudeSourcePlannerTests \
   --filter ClaudeTokenAccountRoutingTests \
   --filter ClaudeActiveAccountIdentityInvalidationTests \
