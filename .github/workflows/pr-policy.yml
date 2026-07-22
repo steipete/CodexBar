@@ -1,0 +1,53 @@
+name: PR policy
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check title and contribution template
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const pull = context.payload.pull_request
+            const issues = []
+            const titlePattern = /^(feat|fix|docs|test|refactor|chore)(\([a-z0-9-]+\))?:\s+.+$/
+
+            if (!titlePattern.test(pull.title)) {
+              issues.push("Use a concise PR title such as `fix(provider): correct reset time`.")
+            }
+
+            const body = pull.body || ""
+            const requiredSections = [
+              "Summary",
+              "Why",
+              "Linked issue or maintainer sign-off",
+              "Validation",
+              "UI proof",
+              "Provider and privacy impact",
+              "Checklist",
+            ]
+
+            for (const section of requiredSections) {
+              if (!new RegExp(`^## ${section}$`, "m").test(body)) {
+                issues.push(`Missing PR template section: ${section}.`)
+              }
+            }
+
+            for (const section of ["Summary", "Validation", "Provider and privacy impact"]) {
+              const match = body.match(new RegExp(`^## ${section}\\n([\\s\\S]*?)(?=^## |$)`, "m"))
+              if (!match || !match[1].trim()) {
+                issues.push(`Fill in the ${section} section with concrete information.`)
+              }
+            }
+
+            if (issues.length > 0) {
+              core.setFailed(`PR policy needs attention:\n- ${issues.join("\n- ")}`)
+            }

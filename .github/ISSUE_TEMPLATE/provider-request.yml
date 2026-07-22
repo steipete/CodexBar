@@ -1,0 +1,45 @@
+name: Provider request
+description: Propose a provider or source-mode integration with enough evidence for review.
+labels: [enhancement, "area:providers", needs-design]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include live credentials, cookies, browser exports, or private account data. New providers require
+        maintainer sign-off before implementation.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and official URL
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Usage or quota data to show
+      description: Describe windows, credits, spend, reset times, or status data users need.
+    validations:
+      required: true
+  - type: textarea
+    id: auth
+    attributes:
+      label: Supported authentication and data source
+      description: CLI, documented API, OAuth, browser cookie, local file, or another source. Link official docs.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Public evidence and redacted sample
+      description: Include official documentation and only redacted response examples.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Integration boundary
+      options:
+        - label: This may require a new host API, broad file access, Keychain access, browser import, or bespoke UI.
+          required: false
+        - label: I understand that unclear operator, authorization, or privacy boundaries can block integration.
+          required: true

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/steipete/CodexBar/security/advisories/new
+    about: Report vulnerabilities privately. Do not include secrets in a public issue.
+  - name: Contribution guide
+    url: https://github.com/steipete/CodexBar/blob/main/CONTRIBUTING.md
+    about: Read contribution, validation, and privacy expectations before opening a pull request.

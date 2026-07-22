@@ -1,0 +1,84 @@
+name: Bug report
+description: Report incorrect CodexBar behavior with safe, reproducible evidence.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, cookies, Authorization headers, browser databases, Keychain exports, account files, or
+        unredacted logs. Security issues belong in a private vulnerability report.
+  - type: input
+    id: version
+    attributes:
+      label: CodexBar version
+      placeholder: e.g. 0.45.3
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and architecture
+      placeholder: e.g. macOS 15.5 (arm64) or Ubuntu 24.04 (x86_64)
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation method
+      options:
+        - GitHub release
+        - Homebrew
+        - Built from source
+        - CLI tarball
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      description: Use `None` if this is not provider-specific.
+  - type: dropdown
+    id: source_mode
+    attributes:
+      label: Source mode
+      options:
+        - Not applicable
+        - Automatic
+        - CLI
+        - OAuth or device flow
+        - Browser cookies or local storage
+        - API key
+        - Local file or database
+        - Manual cookie header
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+      description: Screenshots, exact error text, or safe diagnostics. Remove credentials and personal data first.
+  - type: input
+    id: last_working
+    attributes:
+      label: Last working version or date

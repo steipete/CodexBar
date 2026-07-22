@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a product or UX improvement before implementation.
+labels: [enhancement, needs-design]
+body:
+  - type: checkboxes
+    id: searched
+    attributes:
+      label: Existing work
+      options:
+        - label: I searched open issues and documentation for an existing request or supported workflow.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the user problem, not only a preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Potential impact
+      options:
+        - label: This may affect provider authentication, privacy, stored data, refresh cadence, or permissions.
+          required: false
+        - label: This changes visible UI or menu behavior.
+          required: false

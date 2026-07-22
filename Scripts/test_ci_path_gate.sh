@@ -196,10 +196,10 @@ if [[ -s "$unterminated_output" ]]; then
 fi
 
 verify="${ROOT_DIR}/Scripts/ci_verify_test_jobs.sh"
-"$verify" success success true success false true success >/dev/null
-"$verify" success success true success false false skipped >/dev/null
-"$verify" success success false skipped false true success >/dev/null
-"$verify" success success false skipped false false skipped >/dev/null
+"$verify" success success true success false true success success >/dev/null
+"$verify" success success true success false false skipped success >/dev/null
+"$verify" success success false skipped false true success success >/dev/null
+"$verify" success success false skipped false false skipped success >/dev/null
 
 assert_verify_fails() {
   if "$verify" "$@" >/dev/null 2>&1; then
@@ -208,16 +208,17 @@ assert_verify_fails() {
   fi
 }
 
-assert_verify_fails success success true skipped false true success
-assert_verify_fails success success true skipped true true success
-assert_verify_fails success success false skipped true true success
-assert_verify_fails success success true success true true success
-assert_verify_fails success success false success false true success
-assert_verify_fails success success "" skipped false true success
-assert_verify_fails failure success true success false true success
-assert_verify_fails success failure true success false true success
-assert_verify_fails success success true success false true skipped
-assert_verify_fails success success true success false false success
-assert_verify_fails success success true success false "" skipped
+assert_verify_fails success success true skipped false true success success
+assert_verify_fails success success true skipped true true success success
+assert_verify_fails success success false skipped true true success success
+assert_verify_fails success success true success true true success success
+assert_verify_fails success success false success false true success success
+assert_verify_fails success success "" skipped false true success success
+assert_verify_fails failure success true success false true success success
+assert_verify_fails success failure true success false true success success
+assert_verify_fails success success true success false true skipped success
+assert_verify_fails success success true success false false success success
+assert_verify_fails success success true success false "" skipped success
+assert_verify_fails success success true success false true success skipped
 
 printf 'CI path gate tests passed.\n'

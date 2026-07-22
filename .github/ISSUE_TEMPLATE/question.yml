@@ -1,0 +1,26 @@
+name: Question or support request
+description: Ask for setup or usage help after checking documentation.
+labels: [question, needs-triage]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: CodexBar version
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and architecture
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and source mode, if relevant
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Include what you tried and the relevant documentation page.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: Do not include API keys, cookies, Authorization headers, account files, or personal data.
