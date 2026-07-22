@@ -371,6 +371,9 @@ struct QwenCloudFetchTests {
                 let paramsData = try #require(formValues["params"]?.data(using: .utf8))
                 let params = try #require(JSONSerialization.jsonObject(with: paramsData) as? [String: Any])
                 let api = try #require(params["Api"] as? String)
+                let data = try #require(params["Data"] as? [String: Any])
+                let cornerstone = try #require(data["cornerstoneParam"] as? [String: Any])
+                #expect(cornerstone["consoleSite"] as? String == "QWENCLOUD")
                 requestedAPIs.append(api)
 
                 let json: String
@@ -387,7 +390,6 @@ struct QwenCloudFetchTests {
                     }
                     """
                 case subscriptionAPI:
-                    let data = try #require(params["Data"] as? [String: Any])
                     #expect(data["commodityCode"] as? String == "sfm_tokenplansolo_public_intl")
                     json = #"{"data":{"specCode":"standard","status":"VALID"}}"#
                 case quotaConfigAPI:

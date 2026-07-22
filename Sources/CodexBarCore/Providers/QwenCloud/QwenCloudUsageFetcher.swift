@@ -419,7 +419,7 @@ public struct QwenCloudUsageFetcher: Sendable {
             "console": "ONE_CONSOLE",
             "productCode": "p_efm",
             "domain": dashboardURL.host ?? "home.qwencloud.com",
-            "consoleSite": "MODELSTUDIO_ALBABACLOUD",
+            "consoleSite": "QWENCLOUD",
             "userNickName": "",
             "userPrincipalName": "",
             "xsp_lang": self.language,
