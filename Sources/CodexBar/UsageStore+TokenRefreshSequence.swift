@@ -31,6 +31,14 @@ extension UsageStore {
         self.startTokenRefreshSequence(force: false, scope: .all)
     }
 
+    /// Menu-open parity with the manual Refresh action: cost must rescan past the fetch TTL, but
+    /// without awaiting (AppKit menu tracking is modal) and without preempting an in-flight
+    /// sequence or forced-refresh enrichment tail — both already end in fresh cost data.
+    func scheduleForcedTokenRefresh() {
+        guard self.tokenRefreshSequenceTask == nil, !self.hasForcedRefreshEnrichmentInFlight else { return }
+        self.startTokenRefreshSequence(force: true, scope: .all)
+    }
+
     func refreshTokenUsageSequenceNow(force: Bool) async {
         guard let task = await self.serializedTokenRefreshTask(force: force, scope: .all) else { return }
         await self.awaitTokenRefreshSequence(task)
