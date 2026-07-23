@@ -111,6 +111,13 @@ public struct CodexBarConfig: Codable, Sendable {
             hooks: self.hooks)
     }
 
+    public func sanitizedForDump(showSecrets: Bool = false) -> CodexBarConfig {
+        guard !showSecrets else { return self }
+        var copy = self
+        copy.providers = copy.providers.map { $0.sanitizedForDump() }
+        return copy
+    }
+
     public func orderedProviders() -> [UsageProvider] {
         self.providers.map(\.id)
     }
@@ -271,6 +278,23 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
 
     public var sanitizedDeepSeekProfileScope: String? {
         Self.clean(self.deepseekProfileScope)
+    }
+
+    public func sanitizedForDump() -> ProviderConfig {
+        var copy = self
+        if copy.apiKey != nil {
+            copy.apiKey = "[REDACTED]"
+        }
+        if copy.secretKey != nil {
+            copy.secretKey = "[REDACTED]"
+        }
+        if copy.cookieHeader != nil {
+            copy.cookieHeader = "[REDACTED]"
+        }
+        if let tokenAccounts = copy.tokenAccounts {
+            copy.tokenAccounts = tokenAccounts.sanitizedForDump()
+        }
+        return copy
     }
 
     private static func clean(_ raw: String?) -> String? {

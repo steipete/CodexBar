@@ -41,7 +41,8 @@ struct ClaudeLoginFlowTests {
                 #expect(controller.loginPhase == .idle)
             }
 
-            #expect(settings.claudeUsageDataSource == source)
+            let expectedSource: ClaudeUsageDataSource = (source == .web) ? .auto : source
+            #expect(settings.claudeUsageDataSource == expectedSource)
             #expect(settings.isProviderEnabledCached(provider: .claude, metadataByProvider: registry.metadata))
         }
     }

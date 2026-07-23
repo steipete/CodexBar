@@ -1,5 +1,6 @@
 import Foundation
 
+// swiftlint:disable:next type_body_length
 enum CostUsagePricing {
     private static let codexPriorityInputTokenLimit = 272_000
     static let codexUnattributedModel = "unknown"
@@ -525,7 +526,8 @@ enum CostUsagePricing {
         outputTokens: Int,
         cacheWriteInputTokens: Int = 0,
         modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> Double?
+        modelsDevCacheRoot: URL? = nil,
+        allowFallback: Bool = true) -> Double?
     {
         let key = self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
@@ -576,13 +578,45 @@ enum CostUsagePricing {
                 outputTokens: outputTokens)
         }
 
-        guard let pricing = self.codex[key] else { return nil }
-        return self.codexCostUSD(
-            pricing: pricing,
-            inputTokens: inputTokens,
-            cachedInputTokens: cachedInputTokens,
-            cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
+        if let pricing = self.codex[key] {
+            return self.codexCostUSD(
+                pricing: pricing,
+                inputTokens: inputTokens,
+                cachedInputTokens: cachedInputTokens,
+                cacheWriteInputTokens: cacheWriteInputTokens,
+                outputTokens: outputTokens)
+        }
+
+        guard allowFallback else { return nil }
+
+        let uncachedInput = max(0, inputTokens - cachedInputTokens - cacheWriteInputTokens)
+        if let claudeCost = self.claudeCostUSD(
+            model: model,
+            inputTokens: uncachedInput,
+            cacheReadInputTokens: cachedInputTokens,
+            cacheCreationInputTokens: cacheWriteInputTokens,
+            outputTokens: outputTokens,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot,
+            allowFallback: false)
+        {
+            return claudeCost
+        }
+
+        if let lookup = self.modelsDevLookupAnyProvider(
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        {
+            return self.codexCostUSD(
+                pricing: lookup.pricing,
+                inputTokens: inputTokens,
+                cachedInputTokens: cachedInputTokens,
+                cacheWriteInputTokens: cacheWriteInputTokens,
+                outputTokens: outputTokens)
+        }
+
+        return nil
     }
 
     static func codexPriorityCostUSD(
@@ -703,7 +737,8 @@ enum CostUsagePricing {
         outputTokens: Int,
         pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> Double?
+        modelsDevCacheRoot: URL? = nil,
+        allowFallback: Bool = true) -> Double?
     {
         let tokens = ClaudeCostTokens(
             input: inputTokens,
@@ -733,10 +768,39 @@ enum CostUsagePricing {
                 tokens: tokens)
         }
 
-        guard let pricing = self.claude[key] else { return nil }
-        return self.claudeCostUSD(
-            pricing: pricing,
-            tokens: tokens)
+        if let pricing = self.claude[key] {
+            return self.claudeCostUSD(
+                pricing: pricing,
+                tokens: tokens)
+        }
+
+        guard allowFallback else { return nil }
+
+        let totalPromptTokens = inputTokens + cacheReadInputTokens + cacheCreationInputTokens
+        if let codexCost = self.codexCostUSD(
+            model: model,
+            inputTokens: totalPromptTokens,
+            cachedInputTokens: cacheReadInputTokens,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: 0,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot,
+            allowFallback: false)
+        {
+            return codexCost
+        }
+
+        if let lookup = self.modelsDevLookupAnyProvider(
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        {
+            return self.claudeCostUSD(
+                pricing: lookup.pricing,
+                tokens: tokens)
+        }
+
+        return nil
     }
 
     private static func claudeCostUSD(
@@ -807,5 +871,26 @@ enum CostUsagePricing {
             providerID: providerID,
             modelID: model,
             cacheRoot: cacheRoot)
+    }
+
+    private static func modelsDevLookupAnyProvider(
+        model: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> ModelsDevPricingLookup?
+    {
+        if let catalog {
+            return catalog.pricing(modelID: model)
+        }
+
+        for providerID in ["openai", "anthropic", "google", "deepseek"] {
+            if let lookup = ModelsDevPricingPipeline.lookup(
+                providerID: providerID,
+                modelID: model,
+                cacheRoot: cacheRoot)
+            {
+                return lookup
+            }
+        }
+        return nil
     }
 }

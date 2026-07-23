@@ -1,5 +1,6 @@
 import CodexBarCore
 import Commander
+import Foundation
 import Testing
 @testable import CodexBarCLI
 
@@ -180,5 +181,71 @@ struct CLIConfigCommandTests {
         #expect(help.contains("--stdin"))
         #expect(help.contains("--usage-scope team"))
         #expect(help.contains("enables that provider by default"))
+        #expect(help.contains("--show-secrets"))
+    }
+
+    @Test
+    func `config dump parses show-secrets flag`() throws {
+        let parser = CommandParser(signature: CodexBarCLI._configDumpSignatureForTesting())
+        let parsed = try parser.parse(arguments: ["--show-secrets", "--pretty"])
+
+        #expect(parsed.flags.contains("showSecrets"))
+        #expect(parsed.flags.contains("pretty"))
+    }
+
+    @Test
+    func `config dump redacts credentials by default`() {
+        let rawAccount = ProviderTokenAccount(
+            id: UUID(),
+            label: "Team",
+            token: "cb_test_token_123",
+            addedAt: 1000,
+            lastUsed: nil,
+            usageScope: "team",
+            organizationID: "org-1",
+            workspaceID: "proj-1")
+        let provider = ProviderConfig(
+            id: .zai,
+            apiKey: "cb_test_api_key_456",
+            secretKey: "cb_test_secret_key_789",
+            cookieHeader: "cb_test_cookie_abc",
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [rawAccount], activeIndex: 0))
+        let config = CodexBarConfig(providers: [provider])
+
+        let redacted = config.sanitizedForDump(showSecrets: false)
+        let redactedProvider = redacted.providerConfig(for: .zai)
+
+        #expect(redactedProvider?.apiKey == "[REDACTED]")
+        #expect(redactedProvider?.secretKey == "[REDACTED]")
+        #expect(redactedProvider?.cookieHeader == "[REDACTED]")
+        #expect(redactedProvider?.tokenAccounts?.accounts.first?.token == "[REDACTED]")
+    }
+
+    @Test
+    func `config dump reveals credentials when show-secrets is true`() {
+        let rawAccount = ProviderTokenAccount(
+            id: UUID(),
+            label: "Team",
+            token: "cb_test_token_123",
+            addedAt: 1000,
+            lastUsed: nil,
+            usageScope: "team",
+            organizationID: "org-1",
+            workspaceID: "proj-1")
+        let provider = ProviderConfig(
+            id: .zai,
+            apiKey: "cb_test_api_key_456",
+            secretKey: "cb_test_secret_key_789",
+            cookieHeader: "cb_test_cookie_abc",
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [rawAccount], activeIndex: 0))
+        let config = CodexBarConfig(providers: [provider])
+
+        let unredacted = config.sanitizedForDump(showSecrets: true)
+        let unredactedProvider = unredacted.providerConfig(for: .zai)
+
+        #expect(unredactedProvider?.apiKey == "cb_test_api_key_456")
+        #expect(unredactedProvider?.secretKey == "cb_test_secret_key_789")
+        #expect(unredactedProvider?.cookieHeader == "cb_test_cookie_abc")
+        #expect(unredactedProvider?.tokenAccounts?.accounts.first?.token == "cb_test_token_123")
     }
 }
