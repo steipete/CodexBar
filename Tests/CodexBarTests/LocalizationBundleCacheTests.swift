@@ -55,6 +55,19 @@ struct LocalizationBundleCacheTests {
     }
 
     @Test
+    func `format locale follows the resolved resource bundle`() {
+        let english = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            codexBarLocalizedResourceLocale()
+        }
+        #expect(english.language.languageCode?.identifier == "en")
+
+        let fallback = CodexBarLocalizationOverride.$appLanguage.withValue("zz-unknown") {
+            codexBarLocalizedResourceLocale()
+        }
+        #expect(fallback.language.languageCode?.identifier == "en")
+    }
+
+    @Test
     func `resolution survives an explicit cache reset`() {
         let first = CodexBarLocalizationOverride.$appLanguage.withValue("uk") {
             codexBarLocalizedBundleForTesting()
