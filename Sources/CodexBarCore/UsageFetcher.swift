@@ -471,7 +471,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public func switcherWeeklyWindow(for provider: UsageProvider, showUsed: Bool) -> RateWindow? {
         // This surface is labelled "Weekly progress", so prefer a real 7-day lane when one is
         // available. Some providers publish model-specific weekly lanes in extraRateWindows.
-        if let weekly = self.mostConstrainedSwitcherWeeklyWindow() {
+        if let weekly = self.mostConstrainedSwitcherWeeklyWindow(for: provider) {
             return weekly
         }
 
@@ -505,11 +505,23 @@ public struct UsageSnapshot: Codable, Sendable {
         }
     }
 
-    private func mostConstrainedSwitcherWeeklyWindow() -> RateWindow? {
-        let standardWindows = [self.primary, self.secondary, self.tertiary].compactMap(\.self)
-        let namedWindows = self.extraRateWindows?
+    private func mostConstrainedSwitcherWeeklyWindow(for provider: UsageProvider) -> RateWindow? {
+        // Claude's Sonnet/Opus tertiary and model-scoped extras (Fable, Daily Routines) are
+        // detail-card carve-outs. Including them empties the overview switcher whenever one
+        // model lane is exhausted while account Weekly still has quota left.
+        let standardWindows: [RateWindow] = switch provider {
+        case .claude:
+            [self.primary, self.secondary].compactMap(\.self)
+        default:
+            [self.primary, self.secondary, self.tertiary].compactMap(\.self)
+        }
+        let namedWindows = (self.extraRateWindows ?? [])
             .filter(\.usageKnown)
-            .map(\.window) ?? []
+            .filter { named in
+                guard provider == .claude else { return true }
+                return !named.id.hasPrefix("claude-weekly-scoped-") && named.id != "claude-routines"
+            }
+            .map(\.window)
         return (standardWindows + namedWindows)
             .filter { $0.windowMinutes == 7 * 24 * 60 }
             .max { $0.usedPercent < $1.usedPercent }
