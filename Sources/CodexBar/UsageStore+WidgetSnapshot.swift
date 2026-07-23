@@ -147,6 +147,19 @@ extension UsageStore {
                     window: window)
             }
         }
+        if provider == .claude,
+           let spendLimit = MenuBarMetricWindowResolver.claudeSpendLimitWindow(snapshot: snapshot)
+        {
+            let period = snapshot.providerCost?.period?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = period.flatMap { $0.isEmpty ? nil : $0 } ?? "Extra usage"
+            return [
+                WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: "extraUsage",
+                    title: title,
+                    percentLeft: spendLimit.remainingPercent,
+                    window: spendLimit),
+            ]
+        }
         if provider == .antigravity,
            let rows = Self.antigravityQuotaSummaryWidgetRows(snapshot: snapshot),
            !rows.isEmpty

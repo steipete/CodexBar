@@ -369,6 +369,63 @@ struct UsageStoreWidgetSnapshotTests {
         #expect(entry.tokenUsage?.last30DaysTokens == 42000)
     }
 
+    @Test
+    func `widget snapshot uses Claude enterprise spend limit instead of placeholder quota`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-claude-enterprise-spend-limit"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 300,
+                    resetsAt: nil,
+                    resetDescription: nil,
+                    isSyntheticPlaceholder: true),
+                secondary: nil,
+                providerCost: ProviderCostSnapshot(
+                    used: 25545.63,
+                    limit: 30000,
+                    currencyCode: "USD",
+                    period: "Monthly cap",
+                    updatedAt: updatedAt),
+                updatedAt: updatedAt,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .claude,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: nil)),
+            provider: .claude)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "claude-enterprise-spend-limit-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        let row = try #require(entry.usageRows?.first)
+        #expect(entry.usageRows?.count == 1)
+        #expect(row.id == "extraUsage")
+        #expect(row.title == "Monthly cap")
+        #expect(abs((row.percentLeft ?? 0) - 14.8479) < 0.0001)
+        #expect(row.window?.isSyntheticPlaceholder == false)
+    }
+
     @Test(arguments: [true, false])
     func `widget snapshot respects extra usage visibility for Devin`(_ showsExtraUsage: Bool) async throws {
         let suite = "UsageStoreWidgetSnapshotTests-devin-extra-usage-\(showsExtraUsage)"
