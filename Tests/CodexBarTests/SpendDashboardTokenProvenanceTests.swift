@@ -124,11 +124,13 @@ struct SpendDashboardTokenProvenanceTests {
         store.activateCachedTokenAccountSnapshot(provider: .mistral, accountID: account.id)
         #expect(store.tokenSnapshotPublicationRevision(for: .mistral) == baselineRevision)
         store._test_providerRefreshOverride = { _ in }
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            userDefaults: settings.userDefaults,
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
+            })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
-        await Self.waitUntil { !controller.isRefreshing }
+        await Self.waitUntil { !controller.isRefreshing && !controller.model.groups.isEmpty }
         #expect(controller.model.groups.first?.totalCost == 3)
 
         controller.refresh()
@@ -148,11 +150,13 @@ struct SpendDashboardTokenProvenanceTests {
             return loadCount == 1 ? Self.tokenSnapshot(cost: 4) : Self.emptyTokenSnapshot()
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            userDefaults: settings.userDefaults,
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
+            })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
-        await Self.waitUntil { !controller.isRefreshing }
+        await Self.waitUntil { !controller.isRefreshing && !controller.model.groups.isEmpty }
         #expect(controller.model.groups.first?.totalCost == 4)
 
         controller.refresh()
