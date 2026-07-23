@@ -5,6 +5,7 @@ import Testing
 import SweetCookieKit
 #endif
 
+@Suite(.serialized)
 struct OllamaUsageFetcherTests {
     @Test
     func `session authentication errors point to current recovery page`() {
@@ -158,6 +159,129 @@ struct OllamaUsageFetcherTests {
             browser: .brave,
             details: "SQLite failed"))
         #expect(ambiguous == nil)
+    }
+
+    @Test
+    func `multi browser import skips safari access error after chrome was read`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+        var attemptedBrowsers: [Browser] = []
+
+        do {
+            _ = try OllamaCookieImporter.importSessions(
+                preferredSources: [.chrome],
+                allowFallbackBrowsers: true,
+                loadFallbackSources: { _ in [.safari] },
+                loadSessions: { browser, _ in
+                    attemptedBrowsers.append(browser)
+                    if browser == .safari {
+                        throw BrowserCookieError.accessDenied(
+                            browser: .safari,
+                            details: "Full Disk Access denied")
+                    }
+                    return []
+                })
+            Issue.record("Expected OllamaUsageError.noSessionCookie")
+        } catch OllamaUsageError.noSessionCookie {
+            #expect(attemptedBrowsers == [.chrome, .safari])
+        } catch {
+            Issue.record("Expected OllamaUsageError.noSessionCookie, got \(error)")
+        }
+    }
+
+    @Test
+    func `automatic fallback skips safari access error when preferred browser is unavailable`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+        var attemptedBrowsers: [Browser] = []
+
+        do {
+            _ = try OllamaCookieImporter.importSessions(
+                preferredSources: [],
+                allowFallbackBrowsers: true,
+                loadFallbackSources: { _ in [.safari] },
+                loadSessions: { browser, _ in
+                    attemptedBrowsers.append(browser)
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Full Disk Access denied")
+                })
+            Issue.record("Expected OllamaUsageError.noSessionCookie")
+        } catch OllamaUsageError.noSessionCookie {
+            #expect(attemptedBrowsers == [.safari])
+        } catch {
+            Issue.record("Expected OllamaUsageError.noSessionCookie, got \(error)")
+        }
+    }
+
+    @Test
+    func `automatic fallback keeps non safari access error after safari denial`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        do {
+            _ = try OllamaCookieImporter.importSessions(
+                preferredSources: [.chrome],
+                allowFallbackBrowsers: true,
+                loadFallbackSources: { _ in [.safari, .brave] },
+                loadSessions: { browser, _ in
+                    if browser == .chrome {
+                        return []
+                    }
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Access denied")
+                })
+            Issue.record("Expected Brave Keychain denial")
+        } catch let OllamaUsageError.browserCookieDecryptionDenied(browserName) {
+            #expect(browserName == "Brave")
+        } catch {
+            Issue.record("Expected Brave Keychain denial, got \(error)")
+        }
+    }
+
+    @Test
+    func `fallback browser gates stay lazy when chrome has a session`() throws {
+        var loadedFallbackSources = false
+        let sessions = try OllamaCookieImporter.importSessions(
+            preferredSources: [.chrome],
+            allowFallbackBrowsers: true,
+            loadFallbackSources: { _ in
+                loadedFallbackSources = true
+                return [.safari]
+            },
+            loadSessions: { browser, _ in
+                #expect(browser == .chrome)
+                return [OllamaCookieImporter.SessionInfo(
+                    cookies: [Self.makeCookie(name: "session", value: "auth")],
+                    sourceLabel: "Chrome Profile")]
+            })
+
+        #expect(sessions.map(\.sourceLabel) == ["Chrome Profile"])
+        #expect(!loadedFallbackSources)
+    }
+
+    @Test
+    func `explicit safari import surfaces safari access error`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        do {
+            _ = try OllamaCookieImporter.importSessions(
+                preferredSources: [.safari],
+                allowFallbackBrowsers: false,
+                loadFallbackSources: { _ in [] },
+                loadSessions: { browser, _ in
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Full Disk Access denied")
+                })
+            Issue.record("Expected Safari Full Disk Access error")
+        } catch OllamaUsageError.safariCookieAccessDenied {
+            // expected
+        } catch {
+            Issue.record("Expected Safari Full Disk Access error, got \(error)")
+        }
     }
 
     @Test
