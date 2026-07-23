@@ -1091,6 +1091,58 @@ extension CostUsagePricingTests {
         #expect(cost == expected)
     }
 
+    @Test
+    func `claude cost falls back to openai pricing for gpt models`() {
+        let claudeCost = CostUsagePricing.claudeCostUSD(
+            model: "gpt-5.4",
+            inputTokens: 1000,
+            cacheReadInputTokens: 100,
+            cacheCreationInputTokens: 0,
+            outputTokens: 50)
+        let codexCost = CostUsagePricing.codexCostUSD(
+            model: "gpt-5.4",
+            inputTokens: 1100,
+            cachedInputTokens: 100,
+            outputTokens: 50)
+
+        #expect(claudeCost != nil)
+        #expect(claudeCost == codexCost)
+    }
+
+    @Test
+    func `claude cost falls back to models dev cross provider lookup`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "deepseek": {
+            "id": "deepseek",
+            "models": {
+              "deepseek-r1": {
+                "id": "deepseek-r1",
+                "cost": {
+                  "input": 0.55,
+                  "output": 2.19,
+                  "cache_read": 0.14
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.claudeCostUSD(
+            model: "deepseek-r1",
+            inputTokens: 1000,
+            cacheReadInputTokens: 200,
+            cacheCreationInputTokens: 0,
+            outputTokens: 100,
+            modelsDevCacheRoot: root)
+
+        let expected = (1000.0 * 0.55e-6)
+            + (200.0 * 0.14e-6)
+            + (100.0 * 2.19e-6)
+        #expect(cost == expected)
+    }
+
     private static func seedModelsDevCache(_ json: String) throws -> URL {
         let root = try Self.cacheRoot()
         let catalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(json.utf8))
