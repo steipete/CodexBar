@@ -1429,6 +1429,147 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex exact raw parent prefix with known model is suppressed instead of repriced`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 5, day: 17)
+        let childDay = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let parentID = "parent-exact-raw-prefix"
+        let childID = "child-exact-raw-prefix"
+        let copied: Usage = (input: 407_555_823, cached: 399_890_176, output: 1_094_182)
+        let parentURL = try env.writeCodexSessionFile(
+            day: parentDay,
+            filename: "parent-exact-raw-prefix.jsonl",
+            contents: env.jsonl([
+                ["type": "session_meta", "timestamp": env.isoString(for: parentDay), "payload": ["id": parentID]],
+                self.codexTurnContext(timestamp: env.isoString(for: parentDay), model: "gpt-5.6-sol"),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: parentDay.addingTimeInterval(1)),
+                    model: "gpt-5.6-sol",
+                    total: copied,
+                    last: (input: 127_520, cached: 125_696, output: 57)),
+                // A later last-only status event must not erase the preceding raw cumulative
+                // snapshot that the compact child copied at its fork boundary.
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: parentDay.addingTimeInterval(2)),
+                    model: "gpt-5.6-sol",
+                    last: (input: 127_520, cached: 125_696, output: 57)),
+            ]))
+        _ = try env.writeCodexSessionFile(
+            day: childDay,
+            filename: "child-exact-raw-prefix.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": env.isoString(for: childDay),
+                    "payload": ["id": childID, "forked_from_id": parentID, "source": "subagent"],
+                ],
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: childDay.addingTimeInterval(1)),
+                    model: "gpt-5.6-sol",
+                    total: copied),
+                self.codexTurnContext(
+                    timestamp: env.isoString(for: childDay.addingTimeInterval(2)),
+                    model: "gpt-5.6-sol"),
+                [
+                    "type": "inter_agent_communication_metadata",
+                    "timestamp": env.isoString(for: childDay.addingTimeInterval(3)),
+                    "payload": ["trigger_turn": true],
+                ],
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: childDay.addingTimeInterval(4)),
+                    model: "gpt-5.6-sol",
+                    total: copied),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        let resolver = CostUsageScanner.CodexInheritedTotalsResolver(
+            fileIndex: CostUsageScanner.CodexSessionFileIndex(files: [parentURL], roots: []),
+            checkCancellation: nil)
+        let cutoff = env.isoString(for: childDay)
+        let owned = try resolver.inheritedTotals(for: parentID, atOrBefore: cutoff)
+        let raw = try resolver.rawTotals(for: parentID, atOrBefore: cutoff)
+        if case let .resolved(ownedTotals) = owned, case let .resolved(rawTotals) = raw {
+            #expect(ownedTotals != rawTotals)
+        } else {
+            Issue.record("Expected parent owned and raw totals")
+        }
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .codex, since: childDay, until: childDay, now: childDay, options: options)
+
+        #expect(report.data.isEmpty)
+
+        // Recreate the p48 artifact: the child recorded the copied prefix under a known model,
+        // even though its raw cumulative total exactly equals the parent's fork boundary.
+        var legacy = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let childPath = try #require(legacy.files.first { $0.value.sessionId == childID }?.key)
+        let childDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: childDay)
+        let copiedRow = [copied.input, copied.cached, copied.output]
+        legacy.files[childPath]?.days[childDayKey] = ["gpt-5.6-sol": copiedRow]
+        legacy.files[childPath]?.forkedFromId = parentID
+        legacy.files[childPath]?.forkBaselineDependencyKey = "file|parent-exact-raw-prefix"
+        legacy.files[childPath]?.codexForkAttributionVersion = nil
+        legacy.days[childDayKey] = ["gpt-5.6-sol": copiedRow]
+        legacy.codexForkAttributionVersion = nil
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: legacy,
+            cacheRoot: env.cacheRoot,
+            producerKey: "codex:cu:p48ac20dad61e9a7f")
+
+        let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: childDay, historyDays: 1, scannerOptions: options)
+        #expect(cached == nil)
+
+        let migrated = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: childDay,
+            until: childDay,
+            now: childDay.addingTimeInterval(1),
+            options: options)
+        #expect(migrated.data.isEmpty)
+        let refreshed = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        #expect(refreshed.files.values.allSatisfy {
+            $0.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion
+        })
+    }
+
+    @Test
+    func `codex raw parent proof requires cumulative total usage`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let parentID = "last-only-parent"
+        let parentURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "last-only-parent.jsonl",
+            contents: env.jsonl([
+                ["type": "session_meta", "timestamp": env.isoString(for: day), "payload": ["id": parentID]],
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: "gpt-5.6-sol",
+                    last: (input: 127_520, cached: 125_696, output: 57)),
+            ]))
+        let resolver = CostUsageScanner.CodexInheritedTotalsResolver(
+            fileIndex: CostUsageScanner.CodexSessionFileIndex(files: [parentURL], roots: []),
+            checkCancellation: nil)
+
+        let raw = try resolver.rawTotals(
+            for: parentID,
+            atOrBefore: env.isoString(for: day.addingTimeInterval(2)))
+        if case .resolved = raw {
+            Issue.record("last_token_usage must not prove a raw cumulative fork boundary")
+        }
+    }
+
+    @Test
     func `codex turn context remains authoritative over conflicting token model`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
