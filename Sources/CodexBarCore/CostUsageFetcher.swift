@@ -193,10 +193,7 @@ public struct CostUsageFetcher: Sendable {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
-        let until = now
         let clampedHistoryDays = max(1, min(365, historyDays))
-        // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
-        let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
 
         if let remoteSnapshot = try await self.loadRemoteTokenSnapshot(
             provider: provider,
@@ -212,6 +209,8 @@ public struct CostUsageFetcher: Sendable {
             overrideScannerOptions,
             provider: provider,
             codexHomePath: codexHomePath)
+        // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
+        let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
         await Self.refreshPricingIfAllowed(
@@ -236,6 +235,7 @@ public struct CostUsageFetcher: Sendable {
         if resolvedPiOptions.cacheRoot == nil {
             resolvedPiOptions.cacheRoot = options.cacheRoot
         }
+        resolvedPiOptions.calendar = options.calendar
         if forceRefresh || bypassScannerDebounce {
             resolvedPiOptions.refreshMinIntervalSeconds = 0
         }
@@ -251,7 +251,7 @@ public struct CostUsageFetcher: Sendable {
             var daily = try CostUsageScanner.loadDailyReportCancellable(
                 provider: provider,
                 since: since,
-                until: until,
+                until: now,
                 now: now,
                 options: scanOptions,
                 checkCancellation: checkCancellation)
@@ -267,7 +267,7 @@ public struct CostUsageFetcher: Sendable {
                 daily = try CostUsageScanner.loadDailyReportCancellable(
                     provider: provider,
                     since: since,
-                    until: until,
+                    until: now,
                     now: now,
                     options: fallback,
                     checkCancellation: checkCancellation)
@@ -282,7 +282,8 @@ public struct CostUsageFetcher: Sendable {
                 let cache = CostUsageScanner.codexCache(
                     CostUsageCacheIO.load(provider: .codex, cacheRoot: scanOptions.cacheRoot),
                     scopedTo: roots)
-                let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+                let range = CostUsageScanner.CostUsageDayRange(
+                    since: since, until: now, calendar: scanOptions.calendar)
                 projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
                     cache: cache,
                     range: range,
@@ -297,7 +298,7 @@ public struct CostUsageFetcher: Sendable {
                 let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
                     provider: provider,
                     since: since,
-                    until: until,
+                    until: now,
                     now: now,
                     options: piOptions,
                     checkCancellation: checkCancellation)
@@ -349,6 +350,7 @@ public struct CostUsageFetcher: Sendable {
             from: scanResult.daily,
             now: now,
             historyDays: clampedHistoryDays,
+            calendar: scanOptions.calendar,
             projects: scanResult.projects,
             sessions: scanResult.sessions)
     }
@@ -470,10 +472,16 @@ public struct CostUsageFetcher: Sendable {
         // cooperative pool alongside the scans themselves.
         let cachedSnapshot: CachedCodexTokenSnapshotResult?? = try? await CostUsageScanExecutor.run { _ in
             let clampedHistoryDays = max(1, min(365, historyDays))
-            let until = now
-            let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
-            let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
             let options = overrideScannerOptions ?? CostUsageScanner.Options()
+            let until = now
+            let since = options.calendar.date(
+                byAdding: .day,
+                value: -(clampedHistoryDays - 1),
+                to: now) ?? now
+            let range = CostUsageScanner.CostUsageDayRange(
+                since: since,
+                until: until,
+                calendar: options.calendar)
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let cache = CostUsageScanner.codexCache(
                 CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot),
@@ -487,7 +495,8 @@ public struct CostUsageFetcher: Sendable {
             var scanTimes: [Date] = []
             var piMerged = false
 
-            if !cache.days.isEmpty,
+            if cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
+               !cache.days.isEmpty,
                cache.roots == CostUsageScanner.codexRootsFingerprint(options: options),
                !CostUsageScanner.requestedWindowExpandsCache(range: range, cache: cache)
             {
@@ -521,7 +530,8 @@ public struct CostUsageFetcher: Sendable {
                 since: since,
                 until: until,
                 now: now,
-                cacheRoot: options.cacheRoot)
+                cacheRoot: options.cacheRoot,
+                calendar: options.calendar)
             {
                 reports.append(piResult.report)
                 piMerged = true
@@ -546,6 +556,7 @@ public struct CostUsageFetcher: Sendable {
                     from: CostUsageDailyReport.merged(reports),
                     now: now,
                     historyDays: clampedHistoryDays,
+                    calendar: options.calendar,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     updatedAt: scanTimes.min()),
@@ -627,6 +638,7 @@ public struct CostUsageFetcher: Sendable {
         now: Date,
         historyDays: Int = 30,
         useCurrentLocalDayForSession: Bool = true,
+        calendar: Calendar = .current,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         historyLabel: String? = nil,
@@ -635,7 +647,7 @@ public struct CostUsageFetcher: Sendable {
         updatedAt: Date? = nil) -> CostUsageTokenSnapshot
     {
         let sessionEntry = useCurrentLocalDayForSession
-            ? CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now)
+            ? CostUsageTokenSnapshot.entry(in: daily.data, forLocalDayContaining: now, calendar: calendar)
             : CostUsageTokenSnapshot.latestEntry(in: daily.data)
         let hasHistoricalRows = !daily.data.isEmpty
         let sessionTokens: Int? = if let sessionEntry {

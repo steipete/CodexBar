@@ -20,6 +20,7 @@ enum PiSessionCostScanner {
         var piSessionsRoot: URL?
         var ompSessionsRoot: URL?
         var cacheRoot: URL?
+        var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var forceRescan: Bool = false
 
@@ -27,12 +28,14 @@ enum PiSessionCostScanner {
             piSessionsRoot: URL? = nil,
             ompSessionsRoot: URL? = nil,
             cacheRoot: URL? = nil,
+            calendar: Calendar = .current,
             refreshMinIntervalSeconds: TimeInterval = 60,
             forceRescan: Bool = false)
         {
             self.piSessionsRoot = piSessionsRoot
             self.ompSessionsRoot = ompSessionsRoot
             self.cacheRoot = cacheRoot
+            self.calendar = calendar
             self.refreshMinIntervalSeconds = refreshMinIntervalSeconds
             self.forceRescan = forceRescan
         }
@@ -108,8 +111,14 @@ enum PiSessionCostScanner {
             return CostUsageDailyReport(data: [], summary: nil)
         }
 
-        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+        let range = CostUsageScanner.CostUsageDayRange(
+            since: since,
+            until: until,
+            calendar: options.calendar)
         var cache = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot)
+        if cache.timeZoneIdentifier != range.calendar.timeZone.identifier {
+            cache = PiSessionCostCache()
+        }
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let pricingContext = self.pricingContext(now: now, cacheRoot: options.cacheRoot)
@@ -125,10 +134,14 @@ enum PiSessionCostScanner {
         if shouldRefresh {
             try checkCancellation?()
             let roots = self.defaultSessionRoots(options: options)
-            let startCutoff = self.dateFromDayKey(range.scanSinceKey) ?? since
+            let startCutoff = self.dateFromDayKey(range.scanSinceKey, calendar: range.calendar) ?? since
             var files: [SessionFileCandidate] = []
             for (rootIndex, root) in roots.enumerated() {
-                for url in self.listPiSessionFiles(root: root, startCutoffLocal: startCutoff) {
+                for url in self.listPiSessionFiles(
+                    root: root,
+                    startCutoffLocal: startCutoff,
+                    calendar: range.calendar)
+                {
                     files.append(SessionFileCandidate(url: url, rootIndex: rootIndex))
                 }
             }
@@ -168,7 +181,10 @@ enum PiSessionCostScanner {
             cache.pricingKey = pricingContext.pricingKey
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot)
+            PiSessionCostCacheIO.save(
+                cache: cache,
+                cacheRoot: options.cacheRoot,
+                calendar: range.calendar)
         }
 
         return self.buildReport(
@@ -188,14 +204,16 @@ enum PiSessionCostScanner {
         since: Date,
         until: Date,
         now: Date = Date(),
-        cacheRoot: URL? = nil) -> CostUsageDailyReport?
+        cacheRoot: URL? = nil,
+        calendar: Calendar = .current) -> CostUsageDailyReport?
     {
         self.loadCachedDailyReportResult(
             provider: provider,
             since: since,
             until: until,
             now: now,
-            cacheRoot: cacheRoot)?.report
+            cacheRoot: cacheRoot,
+            calendar: calendar)?.report
     }
 
     static func loadCachedDailyReportResult(
@@ -203,12 +221,14 @@ enum PiSessionCostScanner {
         since: Date,
         until: Date,
         now: Date = Date(),
-        cacheRoot: URL? = nil) -> CachedDailyReportResult?
+        cacheRoot: URL? = nil,
+        calendar: Calendar = .current) -> CachedDailyReportResult?
     {
         guard provider == .codex || provider == .claude else { return nil }
 
-        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until, calendar: calendar)
         let cache = PiSessionCostCacheIO.load(cacheRoot: cacheRoot)
+        guard cache.timeZoneIdentifier == range.calendar.timeZone.identifier else { return nil }
         guard !cache.daysByProvider.isEmpty else { return nil }
         guard !self.requestedWindowExpandsCache(range: range, cache: cache) else { return nil }
 
@@ -271,7 +291,11 @@ enum PiSessionCostScanner {
         }
     }
 
-    private static func listPiSessionFiles(root: URL, startCutoffLocal: Date) -> [URL] {
+    private static func listPiSessionFiles(
+        root: URL,
+        startCutoffLocal: Date,
+        calendar: Calendar) -> [URL]
+    {
         guard FileManager.default.fileExists(atPath: root.path) else { return [] }
 
         let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
@@ -292,7 +316,11 @@ enum PiSessionCostScanner {
             let startedAt = self.parseSessionStartFromFilename(item.lastPathComponent)
             let modifiedAt = values?.contentModificationDate
             if self
-                .shouldIncludeFile(startedAt: startedAt, modifiedAt: modifiedAt, startCutoffLocal: startCutoffLocal)
+                .shouldIncludeFile(
+                    startedAt: startedAt,
+                    modifiedAt: modifiedAt,
+                    startCutoffLocal: startCutoffLocal,
+                    calendar: calendar)
             {
                 output.append(item)
             }
@@ -304,12 +332,13 @@ enum PiSessionCostScanner {
     private static func shouldIncludeFile(
         startedAt: Date?,
         modifiedAt: Date?,
-        startCutoffLocal: Date) -> Bool
+        startCutoffLocal: Date,
+        calendar: Calendar) -> Bool
     {
-        if let modifiedAt, self.localMidnight(modifiedAt) >= startCutoffLocal {
+        if let modifiedAt, self.localMidnight(modifiedAt, calendar: calendar) >= startCutoffLocal {
             return true
         }
-        if let startedAt, self.localMidnight(startedAt) >= startCutoffLocal {
+        if let startedAt, self.localMidnight(startedAt, calendar: calendar) >= startCutoffLocal {
             return true
         }
         return false
@@ -508,7 +537,9 @@ enum PiSessionCostScanner {
                             fallback: currentModelContext)
                         guard let identity else { return }
                         guard let date = self.timestampDate(entry: object, message: message) else { return }
-                        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
+                        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(
+                            from: date,
+                            calendar: range.calendar)
                         let usage = self.extractUsage(
                             provider: identity.provider,
                             modelName: identity.modelName,
@@ -1039,20 +1070,20 @@ extension PiSessionCostScanner {
             ?? self.isoFormatterBox.plain.date(from: text)
     }
 
-    private static func localMidnight(_ date: Date) -> Date {
-        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+    private static func localMidnight(_ date: Date, calendar: Calendar) -> Date {
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return calendar.date(from: components) ?? date
     }
 
-    private static func dateFromDayKey(_ key: String) -> Date? {
+    private static func dateFromDayKey(_ key: String, calendar: Calendar) -> Date? {
         let parts = key.split(separator: "-")
         guard parts.count == 3,
               let year = Int(parts[0]),
               let month = Int(parts[1]),
               let day = Int(parts[2]) else { return nil }
 
-        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var components = DateComponents()
         components.calendar = calendar
         components.timeZone = calendar.timeZone
