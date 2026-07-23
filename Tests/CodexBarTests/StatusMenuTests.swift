@@ -1572,8 +1572,8 @@ extension StatusMenuTests {
         controller.menuWillOpen(menu)
         let ids = self.representedIDs(in: menu)
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
-        #expect(overviewRows.count == enabledProviders.count && ids.contains("menuCard") == false)
-        #expect(enabledProviders.allSatisfy { overviewRows.contains("overviewRow-\($0.rawValue)") })
+        #expect(Set(overviewRows) == Set(enabledProviders.map { "overviewRow-\($0.rawValue)" }))
+        #expect(menu.items.count(where: \.isSeparatorItem) == overviewRows.count + 1)
     }
 
     @Test
