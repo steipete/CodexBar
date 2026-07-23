@@ -386,7 +386,7 @@ struct SpendDashboardTokenProvenanceTests {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for provenance state")
     }
