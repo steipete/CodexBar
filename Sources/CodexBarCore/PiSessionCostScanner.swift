@@ -1040,8 +1040,9 @@ extension PiSessionCostScanner {
     }
 
     private static func localMidnight(_ date: Date) -> Date {
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return Calendar.current.date(from: components) ?? date
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return calendar.date(from: components) ?? date
     }
 
     private static func dateFromDayKey(_ key: String) -> Date? {
@@ -1051,9 +1052,10 @@ extension PiSessionCostScanner {
               let month = Int(parts[1]),
               let day = Int(parts[2]) else { return nil }
 
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
         var components = DateComponents()
-        components.calendar = Calendar.current
-        components.timeZone = TimeZone.current
+        components.calendar = calendar
+        components.timeZone = calendar.timeZone
         components.year = year
         components.month = month
         components.day = day

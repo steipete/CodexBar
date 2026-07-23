@@ -843,16 +843,25 @@ enum CostUsageScanner {
         let scanSinceKey: String
         let scanUntilKey: String
 
-        init(since: Date, until: Date) {
-            self.sinceKey = Self.dayKey(from: since)
-            self.untilKey = Self.dayKey(from: until)
-            self.scanSinceKey = Self.dayKey(from: Calendar.current.date(byAdding: .day, value: -1, to: since) ?? since)
-            self.scanUntilKey = Self.dayKey(from: Calendar.current.date(byAdding: .day, value: 1, to: until) ?? until)
+        init(since: Date, until: Date, calendar: Calendar = .current) {
+            let calendar = Self.localGregorianCalendar(matching: calendar)
+            self.sinceKey = Self.dayKey(from: since, calendar: calendar)
+            self.untilKey = Self.dayKey(from: until, calendar: calendar)
+            let scanSince = calendar.date(byAdding: .day, value: -1, to: since) ?? since
+            let scanUntil = calendar.date(byAdding: .day, value: 1, to: until) ?? until
+            self.scanSinceKey = Self.dayKey(from: scanSince, calendar: calendar)
+            self.scanUntilKey = Self.dayKey(from: scanUntil, calendar: calendar)
         }
 
-        static func dayKey(from date: Date) -> String {
-            let cal = Calendar.current
-            let comps = cal.dateComponents([.year, .month, .day], from: date)
+        static func localGregorianCalendar(matching calendar: Calendar = .current) -> Calendar {
+            var gregorian = Calendar(identifier: .gregorian)
+            gregorian.timeZone = calendar.timeZone
+            return gregorian
+        }
+
+        static func dayKey(from date: Date, calendar: Calendar = .current) -> String {
+            let calendar = Self.localGregorianCalendar(matching: calendar)
+            let comps = calendar.dateComponents([.year, .month, .day], from: date)
             let y = comps.year ?? 1970
             let m = comps.month ?? 1
             let d = comps.day ?? 1
@@ -1142,7 +1151,8 @@ enum CostUsageScanner {
 
     private static func dayKey(_ dayKey: String, addingDays days: Int) -> String? {
         guard let date = self.parseDayKey(dayKey) else { return nil }
-        guard let shifted = Calendar.current.date(byAdding: .day, value: days, to: date) else { return nil }
+        let calendar = CostUsageDayRange.localGregorianCalendar()
+        guard let shifted = calendar.date(byAdding: .day, value: days, to: date) else { return nil }
         return CostUsageDayRange.dayKey(from: shifted)
     }
 
@@ -1153,7 +1163,7 @@ enum CostUsageScanner {
 
         var out: [String] = []
         var cursor = since
-        let calendar = Calendar.current
+        let calendar = CostUsageDayRange.localGregorianCalendar()
         while CostUsageDayRange.dayKey(from: cursor) <= untilKey {
             out.append(CostUsageDayRange.dayKey(from: cursor))
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
@@ -1206,7 +1216,8 @@ enum CostUsageScanner {
         let untilDate = Self.parseDayKey(scanUntilKey) ?? date
 
         while date <= untilDate {
-            let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+            let calendar = CostUsageDayRange.localGregorianCalendar()
+            let comps = calendar.dateComponents([.year, .month, .day], from: date)
             let y = String(format: "%04d", comps.year ?? 1970)
             let m = String(format: "%02d", comps.month ?? 1)
             let d = String(format: "%02d", comps.day ?? 1)
@@ -1225,7 +1236,7 @@ enum CostUsageScanner {
                 }
             }
 
-            date = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
+            date = calendar.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
         }
 
         return out
@@ -2853,7 +2864,7 @@ enum CostUsageScanner {
             let cachedUntilKey = cache.scanUntilKey
             let shouldRunColdCacheLookback = cache.files.isEmpty || plan.rootsChanged
             let coldCacheLookbackStart = Self.parseDayKey(range.scanSinceKey)
-                .map { Calendar.current.startOfDay(for: $0) }
+                .map { CostUsageDayRange.localGregorianCalendar().startOfDay(for: $0) }
             var seenPaths: Set<String> = []
             var files: [URL] = []
             for root in plan.roots {

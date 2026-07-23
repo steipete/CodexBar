@@ -1512,7 +1512,7 @@ extension CostUsageScanner {
         }
     }
 
-    static func parseDayKey(_ key: String) -> Date? {
+    static func parseDayKey(_ key: String, calendar: Calendar = .current) -> Date? {
         let parts = key.split(separator: "-")
         guard parts.count == 3 else { return nil }
         guard
@@ -1521,9 +1521,10 @@ extension CostUsageScanner {
             let day = Int(parts[2])
         else { return nil }
 
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var comps = DateComponents()
-        comps.calendar = Calendar.current
-        comps.timeZone = TimeZone.current
+        comps.calendar = calendar
+        comps.timeZone = calendar.timeZone
         comps.year = year
         comps.month = month
         comps.day = day
