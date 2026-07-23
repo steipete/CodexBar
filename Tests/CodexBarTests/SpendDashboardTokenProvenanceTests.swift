@@ -351,8 +351,8 @@ struct SpendDashboardTokenProvenanceTests {
                 cachedTokens: 0,
                 outputTokens: 6,
                 models: [])],
-            startDate: nil,
-            endDate: nil,
+            startDate: Date(timeIntervalSince1970: 1_781_587_200),
+            endDate: Date(timeIntervalSince1970: 1_784_246_400),
             updatedAt: Date(timeIntervalSince1970: 1_784_246_400))
             .toUsageSnapshot()
     }
