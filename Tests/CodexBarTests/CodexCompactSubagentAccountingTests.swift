@@ -173,6 +173,102 @@ struct CodexCompactSubagentAccountingTests {
     }
 
     @Test
+    func `appended first turn marker reclassifies a cached compact child prefix`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 21)
+        let parentModel = "openai/gpt-5.4"
+        let leafModel = "openai/gpt-5.6-sol"
+        let prefix: Usage = (input: 407_555, cached: 399_890, output: 1094)
+        let parentOwned: Usage = (input: 127, cached: 125, output: 1)
+        let suffix: Usage = (input: 1725, cached: 1568, output: 6)
+        let fixture = Fixture.Child(
+            sessionID: "growing-compact-child",
+            parentID: "growing-compact-parent",
+            leafModel: leafModel,
+            prefix: prefix,
+            suffix: suffix,
+            preBoundaryLast: parentOwned)
+
+        _ = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-0-growing-parent.jsonl",
+            contents: Fixture.parentContents(
+                env: env,
+                day: day,
+                sessionID: fixture.parentID,
+                model: parentModel,
+                totals: prefix,
+                lastTotals: parentOwned))
+        let prefixContents = try Fixture.childPrefixContents(env: env, day: day, fixture: fixture)
+        let childURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-1-growing-child.jsonl",
+            contents: prefixContents)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        let provisional = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        #expect(provisional.data.first?.modelBreakdowns?.contains {
+            $0.modelName == CostUsagePricing.codexUnattributedModel
+        } == true)
+
+        let completeContents = try prefixContents
+            + Fixture.childSuffixContents(env: env, day: day, fixture: fixture)
+        try completeContents.write(to: childURL, atomically: true, encoding: .utf8)
+
+        // A failed full-file read can retain prefix rows while observing the complete file's
+        // metadata. `parsedBytes` must keep that cache from becoming permanently fresh.
+        var partialCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let partialEntry = try #require(partialCache.files.first { $0.value.sessionId == fixture.sessionID })
+        var partialChild = partialEntry.value
+        let completeMetadata = CostUsageScanner.codexFileMetadata(fileURL: childURL)
+        let parsedPrefixBytes = try #require(partialChild.parsedBytes)
+        #expect(parsedPrefixBytes < completeMetadata.size)
+        #expect(partialChild.forkBaselineDependencyKey == CostUsageScanner.codexForkDependencyNotRequiredKey)
+        partialChild.mtimeUnixMs = completeMetadata.mtimeUnixMs
+        partialChild.size = completeMetadata.size
+        partialChild.parsedBytes = 0
+        partialCache.files[partialEntry.key] = partialChild
+        CostUsageCacheIO.save(provider: .codex, cache: partialCache, cacheRoot: env.cacheRoot)
+
+        let completed = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let daily = try #require(completed.data.first)
+        #expect(daily.totalTokens == 1859)
+        #expect(!(daily.modelBreakdowns ?? []).contains {
+            $0.modelName == CostUsagePricing.codexUnattributedModel
+        })
+        #expect(daily.modelBreakdowns?.first {
+            $0.modelName == CostUsagePricing.normalizeCodexModel(parentModel)
+        }?.totalTokens == 128)
+        #expect(daily.modelBreakdowns?.first {
+            $0.modelName == CostUsagePricing.normalizeCodexModel(leafModel)
+        }?.totalTokens == 1731)
+        let refreshedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let refreshedChild = try #require(refreshedCache.files.values.first {
+            $0.sessionId == fixture.sessionID
+        })
+        #expect(refreshedChild.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion)
+        #expect(refreshedChild.days.values.allSatisfy {
+            $0[CostUsagePricing.codexUnattributedModel] == nil
+        })
+    }
+
+    @Test
     func `unconfirmed compact prefix stays independent and parent-dependent`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

@@ -17,7 +17,8 @@ enum CodexCompactSubagentFixture {
         day: Date,
         sessionID: String,
         model: String,
-        totals: Usage) throws -> String
+        totals: Usage,
+        lastTotals: Usage? = nil) throws -> String
     {
         try env.jsonl([
             [
@@ -32,11 +33,20 @@ enum CodexCompactSubagentFixture {
                 timestamp: env.isoString(for: day.addingTimeInterval(-1)),
                 model: model,
                 total: totals,
-                last: totals),
+                last: lastTotals ?? totals),
         ])
     }
 
     static func childContents(
+        env: CostUsageTestEnvironment,
+        day: Date,
+        fixture: Child) throws -> String
+    {
+        try self.childPrefixContents(env: env, day: day, fixture: fixture)
+            + self.childSuffixContents(env: env, day: day, fixture: fixture)
+    }
+
+    static func childPrefixContents(
         env: CostUsageTestEnvironment,
         day: Date,
         fixture: Child) throws -> String
@@ -67,7 +77,15 @@ enum CodexCompactSubagentFixture {
                 timestamp: env.isoString(for: day.addingTimeInterval(0.2)),
                 last: preBoundaryLast))
         }
-        lines.append(contentsOf: [
+        return try env.jsonl(lines)
+    }
+
+    static func childSuffixContents(
+        env: CostUsageTestEnvironment,
+        day: Date,
+        fixture: Child) throws -> String
+    {
+        try env.jsonl([
             self.turnContext(
                 timestamp: env.isoString(for: day.addingTimeInterval(1)),
                 model: fixture.leafModel),
@@ -84,7 +102,6 @@ enum CodexCompactSubagentFixture {
                     output: fixture.prefix.output + fixture.suffix.output),
                 last: fixture.suffix),
         ])
-        return try env.jsonl(lines)
     }
 
     static func tokenCount(
