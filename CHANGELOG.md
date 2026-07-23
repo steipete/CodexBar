@@ -5,6 +5,7 @@
 ### Fixed
 - Cursor: keep cookie/session caches in process when “Disable Keychain access” is on, so refreshes no longer fail with “Cursor session changed during refresh”.
 - Cursor/Keychain: clear the in-process cookie cache whenever Keychain access is toggled so disabled-mode sessions cannot resurface later.
+- Claude: allow Auto background CLI on boot when “Disable Keychain access” is on, so usage loads without a manual Refresh (OAuth/web cookies are empty on cold start).
 
 ## 0.45.2 — 2026-07-19
 

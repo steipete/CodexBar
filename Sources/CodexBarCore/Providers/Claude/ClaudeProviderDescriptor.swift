@@ -645,20 +645,26 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         // Claude's "auth status" command is a child process that may invoke /usr/bin/security itself. A no-prompt
         // policy in CodexBar cannot constrain that child process, so background Auto refresh must not launch it
         // unless the user explicitly opted into Keychain access for background work.
+        //
+        // Exception: Advanced → Disable Keychain access already opts out of CodexBar Keychain use. OAuth/web
+        // cold-boot paths are empty without Keychain, so CLI (reading ~/.claude config files) must remain
+        // available on startup — matching Manual Refresh and the README promise.
         let isBackgroundAutoRefresh = context.runtime == .app
             && context.sourceMode == .auto
             && ProviderInteractionContext.current == .background
-        if isBackgroundAutoRefresh {
-            guard !KeychainAccessGate.isDisabled,
-                  ClaudeOAuthKeychainPromptPreference.storedMode() == .always
-            else {
+        let keychainDisabled = KeychainAccessGate.isDisabled
+        if isBackgroundAutoRefresh, !keychainDisabled {
+            guard ClaudeOAuthKeychainPromptPreference.storedMode() == .always else {
                 return false
             }
         }
 
         // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI runtime and the
         // explicitly opted-in background Auto path establish authentication through the status command first.
-        let requiresAuthPreflight = context.runtime == .cli || isBackgroundAutoRefresh
+        // Skip that opaque probe when Keychain is disabled so boot does not launch `claude auth status`
+        // just to touch Keychain — same availability shape as user-initiated refresh.
+        let requiresAuthPreflight = context.runtime == .cli
+            || (isBackgroundAutoRefresh && !keychainDisabled)
         guard requiresAuthPreflight else { return true }
         guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
         return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)

@@ -99,7 +99,7 @@ Effects:
 - Disables Chromium cookie auto-import paths that require Safe Storage keychain decryption (Safari/Firefox remain eligible).
 - Keeps an in-process memory fallback for `KeychainCacheStore` / cookie session caches so Cursor (and other cookie providers) can still reconcile sessions without Keychain persistence.
 - Clears that in-process fallback whenever Keychain access is toggled, so disabled-mode cookies cannot resurface after re-enabling Keychain.
-- Continues to block Claude Auto **background** CLI launches, because the Claude CLI child process can still invoke `/usr/bin/security` and prompt outside CodexBar’s gate. Manual Refresh may still launch CLI (user-initiated).
+- Allows Claude Auto **background** CLI when Keychain access is disabled (cold boot would otherwise have no OAuth/web cookies). Auth-status preflight is skipped on that path so boot does not launch `claude auth status` just to probe Keychain; credentials are expected from `~/.claude` config files. When Keychain remains enabled, background Auto CLI still requires prompt mode **Always**.
 
 ## Verification
 
