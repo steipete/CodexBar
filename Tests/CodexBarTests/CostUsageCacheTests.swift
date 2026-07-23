@@ -12,8 +12,8 @@ struct CostUsageCacheTests {
         let vertexURL = CostUsageCacheIO.cacheFileURL(provider: .vertexai, cacheRoot: root)
 
         #expect(codexURL.lastPathComponent == "codex-v10.json")
-        #expect(claudeURL.lastPathComponent == "claude-v5.json")
-        #expect(vertexURL.lastPathComponent == "vertexai-v5.json")
+        #expect(claudeURL.lastPathComponent == "claude-v6.json")
+        #expect(vertexURL.lastPathComponent == "vertexai-v6.json")
     }
 
     @Test
@@ -59,11 +59,11 @@ struct CostUsageCacheTests {
 
         let legacyURL = root
             .appendingPathComponent("cost-usage", isDirectory: true)
-            .appendingPathComponent("pi-sessions-v6.json", isDirectory: false)
+            .appendingPathComponent("pi-sessions-v7.json", isDirectory: false)
         try FileManager.default.createDirectory(
             at: legacyURL.deletingLastPathComponent(),
             withIntermediateDirectories: true)
-        var legacy = PiSessionCostCache(version: 6)
+        var legacy = PiSessionCostCache(version: 7)
         legacy.lastScanUnixMs = 999
         legacy.files = [
             "/tmp/session.jsonl": PiSessionFileUsage(
@@ -77,7 +77,7 @@ struct CostUsageCacheTests {
 
         let loaded = PiSessionCostCacheIO.load(cacheRoot: root)
 
-        #expect(loaded.version == 7)
+        #expect(loaded.version == 8)
         #expect(loaded.lastScanUnixMs == 0)
         #expect(loaded.files.isEmpty)
     }

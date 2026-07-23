@@ -13,7 +13,7 @@ enum CostUsageCacheIO {
         case .codex:
             10
         case .claude, .vertexai:
-            5
+            6
         default:
             1
         }
@@ -35,7 +35,8 @@ enum CostUsageCacheIO {
     static func load(
         provider: UsageProvider,
         cacheRoot: URL? = nil,
-        producerKey: String? = nil) -> CostUsageCache
+        producerKey: String? = nil,
+        calendar: Calendar? = nil) -> CostUsageCache
     {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
         let expectedProducerKey = producerKey ?? self.currentProducerKey(provider: provider)
@@ -47,6 +48,9 @@ enum CostUsageCacheIO {
             expectedProducerKey: expectedProducerKey,
             compatibleProducerKeys: compatibleProducerKeys)
         {
+            if let calendar, decoded.timeZoneIdentifier != calendar.timeZone.identifier {
+                return CostUsageCache()
+            }
             return decoded
         }
         return CostUsageCache()
@@ -73,7 +77,8 @@ enum CostUsageCacheIO {
         provider: UsageProvider,
         cache: CostUsageCache,
         cacheRoot: URL? = nil,
-        producerKey: String? = nil)
+        producerKey: String? = nil,
+        calendar: Calendar = .current)
     {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
@@ -81,6 +86,7 @@ enum CostUsageCacheIO {
 
         var cache = cache
         cache.producerKey = producerKey ?? self.currentProducerKey(provider: provider)
+        cache.timeZoneIdentifier = calendar.timeZone.identifier
 
         let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
@@ -111,6 +117,7 @@ struct CostUsageCache: Codable {
     var lastScanUnixMs: Int64 = 0
     var scanSinceKey: String?
     var scanUntilKey: String?
+    var timeZoneIdentifier: String?
     var codexPricingKey: String?
     var codexPriorityMetadataKey: String?
     var codexProjectMetadataVersion: Int?

@@ -42,6 +42,48 @@ struct CostUsageWindowSummaryTests {
         #expect(summary.totalRequests == nil)
     }
 
+    @Test
+    func `comparison summaries keep Gregorian entries under a Buddhist calendar`() throws {
+        let bangkok = try #require(TimeZone(identifier: "Asia/Bangkok"))
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = bangkok
+        let now = try #require(gregorian.date(from: DateComponents(
+            timeZone: bangkok,
+            year: 2026,
+            month: 7,
+            day: 23,
+            hour: 12)))
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = bangkok
+        #expect(buddhist.component(.year, from: now) == 2569)
+
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: 9,
+            historyDays: 90,
+            daily: [
+                Self.entry(day: "2026-06-23", cost: 1, tokens: 100, requests: 1),
+                Self.entry(day: "2026-06-24", cost: 4, tokens: 400, requests: 4),
+                Self.entry(day: "2026-07-16", cost: 1, tokens: 100, requests: 1),
+                Self.entry(day: "2026-07-17", cost: 2, tokens: 200, requests: 2),
+                Self.entry(day: "2026-07-23", cost: 3, tokens: 300, requests: 3),
+            ],
+            updatedAt: now)
+
+        let summaries = snapshot.comparisonSummaries(periods: [7, 30], calendar: buddhist)
+        let sevenDays = try #require(summaries.first { $0.days == 7 })
+        let thirtyDays = try #require(summaries.first { $0.days == 30 })
+
+        #expect(sevenDays.entryCount == 2)
+        #expect(sevenDays.totalCostUSD == 5)
+        #expect(sevenDays.totalTokens == 500)
+        #expect(thirtyDays.entryCount == 4)
+        #expect(thirtyDays.totalCostUSD == 10)
+        #expect(thirtyDays.totalTokens == 1000)
+    }
+
     private static func snapshot(historyDays: Int) -> CostUsageTokenSnapshot {
         CostUsageTokenSnapshot(
             sessionTokens: 500,
