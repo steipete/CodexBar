@@ -93,6 +93,28 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `ollama automatic cookie source exposes validated refresh action`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-ollama-refresh")
+        let context = fixture.settingsContext(provider: .ollama)
+        let pickers = OllamaProviderImplementation().settingsPickers(context: context)
+        let picker = try #require(pickers.first { $0.id == "ollama-cookie-source" })
+        let action = try #require(picker.trailingActions.first)
+
+        #expect(action.id == "ollama-reimport-cookie")
+        #expect(action.title == "Refresh")
+        #expect(action.isVisible?() == true)
+
+        fixture.settings.ollamaCookieSource = .manual
+        #expect(action.isVisible?() == false)
+        #expect(picker.trailingText?() == nil)
+
+        fixture.settings.ollamaCookieSource = .auto
+        fixture.settings.ollamaUsageDataSource = .api
+        #expect(action.isVisible?() == false)
+        #expect(picker.trailingText?() == nil)
+    }
+
+    @Test
     func `open code go cookie refresh rejects local fallback cookie`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencodego-validation")
         let context = fixture.settingsContext(provider: .opencodego)

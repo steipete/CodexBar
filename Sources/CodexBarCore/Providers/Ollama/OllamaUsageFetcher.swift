@@ -373,6 +373,12 @@ public struct OllamaUsageFetcher: Sendable {
         let sourceLabel: String
     }
 
+    struct ResolvedCookieFetch: Sendable {
+        let snapshot: OllamaUsageSnapshot
+        let cookieHeader: String
+        let sourceLabel: String
+    }
+
     enum RetryableParseFailure: Error {
         case missingUsageData
     }
@@ -405,8 +411,23 @@ public struct OllamaUsageFetcher: Sendable {
         logger: ((String) -> Void)? = nil,
         now: Date = Date()) async throws -> OllamaUsageSnapshot
     {
+        try await self.fetchResolvedCookie(
+            cookieHeaderOverride: cookieHeaderOverride,
+            manualCookieMode: manualCookieMode,
+            logger: logger,
+            now: now).snapshot
+    }
+
+    func fetchResolvedCookie(
+        cookieHeaderOverride: String? = nil,
+        cookieHeaderOverrideSourceLabel: String? = nil,
+        manualCookieMode: Bool = false,
+        logger: ((String) -> Void)? = nil,
+        now: Date = Date()) async throws -> ResolvedCookieFetch
+    {
         let cookieCandidates = try await self.resolveCookieCandidates(
             override: cookieHeaderOverride,
+            overrideSourceLabel: cookieHeaderOverrideSourceLabel,
             manualCookieMode: manualCookieMode,
             logger: logger)
         return try await self.fetchUsingCookieCandidates(
@@ -429,7 +450,7 @@ public struct OllamaUsageFetcher: Sendable {
     private func fetchUsingCookieCandidates(
         _ candidates: [CookieCandidate],
         logger: ((String) -> Void)?,
-        now: Date) async throws -> OllamaUsageSnapshot
+        now: Date) async throws -> ResolvedCookieFetch
     {
         do {
             return try await ProviderCandidateRetryRunner.run(
@@ -456,7 +477,10 @@ public struct OllamaUsageFetcher: Sendable {
                             self.logDiagnostics(responseInfo: responseInfo, diagnostics: diagnostics, logger: logger)
                         }
                         do {
-                            return try Self.parseSnapshotForRetry(html: html, now: now)
+                            return try ResolvedCookieFetch(
+                                snapshot: Self.parseSnapshotForRetry(html: html, now: now),
+                                cookieHeader: candidate.cookieHeader,
+                                sourceLabel: candidate.sourceLabel)
                         } catch {
                             let surfacedError = Self.surfacedError(from: error)
                             if let logger {
@@ -501,6 +525,7 @@ public struct OllamaUsageFetcher: Sendable {
 
     private func resolveCookieCandidates(
         override: String?,
+        overrideSourceLabel: String? = nil,
         manualCookieMode: Bool,
         logger: ((String) -> Void)?) async throws -> [CookieCandidate]
     {
@@ -509,7 +534,9 @@ public struct OllamaUsageFetcher: Sendable {
             manualCookieMode: manualCookieMode,
             logger: logger)
         {
-            return [CookieCandidate(cookieHeader: manualHeader, sourceLabel: "manual cookie header")]
+            return [CookieCandidate(
+                cookieHeader: manualHeader,
+                sourceLabel: overrideSourceLabel ?? "manual cookie header")]
         }
         #if os(macOS)
         let sessions = try OllamaCookieImporter.importSessions(

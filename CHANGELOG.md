@@ -3,8 +3,8 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
-- Ollama: skip inaccessible Safari cookies during automatic browser fallback while preserving explicit Safari
-  permission guidance.
+- Ollama: reuse validated browser sessions across refreshes, and skip inaccessible Safari cookies during automatic
+  fallback while preserving explicit Safari permission guidance.
 
 ## 0.45.2 — 2026-07-19
 
