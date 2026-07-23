@@ -68,6 +68,15 @@ struct ModelsDevCatalog: Codable, Equatable {
         return self.providers[providerID]?.pricing(modelID: rawModelID)
     }
 
+    func pricing(modelID rawModelID: String) -> ModelsDevPricingLookup? {
+        for providerID in self.providers.keys.sorted() {
+            if let lookup = self.pricing(providerID: providerID, modelID: rawModelID) {
+                return lookup
+            }
+        }
+        return nil
+    }
+
     func isPlausibleRefresh() -> Bool {
         // These are the direct pricing sources CodexBar relies on. Requiring both
         // rejects empty/partial responses without comparing against a fallback-

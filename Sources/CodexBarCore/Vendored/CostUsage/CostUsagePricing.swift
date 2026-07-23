@@ -456,10 +456,29 @@ enum CostUsagePricing {
     private static let codexModelsDevProviderID = "openai"
     private static let claudeModelsDevProviderID = "anthropic"
 
+    private static let proxyPrefixes = [
+        "cli-proxy-", "cli-proxy/", "proxy-", "proxy/",
+        "openai/", "anthropic/", "anthropic.", "google/", "deepseek/",
+    ]
+
+    private static func normalizeModelAlias(_ input: String) -> String {
+        switch input {
+        case "gpt4o": "gpt-4o"
+        case "gpt4o-mini": "gpt-4o-mini"
+        case "gpt4": "gpt-4"
+        case "gpt4-turbo": "gpt-4-turbo"
+        case "gpt3.5-turbo", "gpt35-turbo": "gpt-3.5-turbo"
+        default: input
+        }
+    }
+
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("openai/") {
-            trimmed = String(trimmed.dropFirst("openai/".count))
+        for prefix in self.proxyPrefixes {
+            if trimmed.hasPrefix(prefix) {
+                trimmed = String(trimmed.dropFirst(prefix.count))
+                break
+            }
         }
 
         // OpenAI routes the unsuffixed gpt-5.6 alias to Sol.
@@ -467,17 +486,19 @@ enum CostUsagePricing {
             return "gpt-5.6-sol"
         }
 
-        if self.codex[trimmed] != nil {
-            return trimmed
+        let normalized = self.normalizeModelAlias(trimmed)
+        if self.codex[normalized] != nil {
+            return normalized
         }
 
         if let datedSuffix = trimmed.range(of: #"-\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) {
             let base = String(trimmed[..<datedSuffix.lowerBound])
-            if self.codex[base] != nil {
-                return base
+            let normalizedBase = self.normalizeModelAlias(base)
+            if self.codex[normalizedBase] != nil {
+                return normalizedBase
             }
         }
-        return trimmed
+        return normalized
     }
 
     static func isCodexUnattributedModel(_ raw: String) -> Bool {
@@ -491,8 +512,11 @@ enum CostUsagePricing {
 
     static func normalizeClaudeModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("anthropic.") {
-            trimmed = String(trimmed.dropFirst("anthropic.".count))
+        for prefix in self.proxyPrefixes {
+            if trimmed.hasPrefix(prefix) {
+                trimmed = String(trimmed.dropFirst(prefix.count))
+                break
+            }
         }
 
         if let lastDot = trimmed.lastIndex(of: "."),
@@ -515,7 +539,7 @@ enum CostUsagePricing {
             }
         }
 
-        return trimmed
+        return self.normalizeModelAlias(trimmed)
     }
 
     static func codexCostUSD(
@@ -733,10 +757,37 @@ enum CostUsagePricing {
                 tokens: tokens)
         }
 
-        guard let pricing = self.claude[key] else { return nil }
-        return self.claudeCostUSD(
-            pricing: pricing,
-            tokens: tokens)
+        if let pricing = self.claude[key] {
+            return self.claudeCostUSD(
+                pricing: pricing,
+                tokens: tokens)
+        }
+
+        // Cross-provider fallback for non-Claude models logged in Claude Code (e.g. via CLIProxyApi)
+        let totalPromptTokens = inputTokens + cacheReadInputTokens + cacheCreationInputTokens
+        if let codexCost = self.codexCostUSD(
+            model: key,
+            inputTokens: totalPromptTokens,
+            cachedInputTokens: cacheReadInputTokens,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: 0,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
+        {
+            return codexCost
+        }
+
+        if let lookup = self.modelsDevLookupAnyProvider(
+            model: key,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        {
+            return self.claudeCostUSD(
+                pricing: lookup.pricing,
+                tokens: tokens)
+        }
+
+        return nil
     }
 
     private static func claudeCostUSD(
@@ -807,5 +858,26 @@ enum CostUsagePricing {
             providerID: providerID,
             modelID: model,
             cacheRoot: cacheRoot)
+    }
+
+    private static func modelsDevLookupAnyProvider(
+        model: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> ModelsDevPricingLookup?
+    {
+        if let catalog {
+            return catalog.pricing(modelID: model)
+        }
+
+        for providerID in ["openai", "anthropic", "google", "deepseek"] {
+            if let lookup = ModelsDevPricingPipeline.lookup(
+                providerID: providerID,
+                modelID: model,
+                cacheRoot: cacheRoot)
+            {
+                return lookup
+            }
+        }
+        return nil
     }
 }

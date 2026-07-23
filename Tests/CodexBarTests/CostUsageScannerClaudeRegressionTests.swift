@@ -775,4 +775,119 @@ struct CostUsageScannerClaudeRegressionTests {
         #expect(datedCost != nil)
         #expect(baseCost == datedCost)
     }
+
+    @Test
+    func `prices cli proxy api gpt model in claude code log issue 2393`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 22)
+        let iso0 = env.isoString(for: day)
+        let proxyModel = "cli-proxy-gpt-5.4"
+
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "project-cli-proxy/session-proxy.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "assistant",
+                    "timestamp": iso0,
+                    "sessionId": "cli-proxy-session",
+                    "requestId": "req_proxy_1",
+                    "isSidechain": false,
+                    "message": [
+                        "id": "msg_proxy_1",
+                        "model": proxyModel,
+                        "usage": [
+                            "input_tokens": 1500,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 500,
+                            "output_tokens": 300,
+                        ],
+                    ],
+                ],
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: nil,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(10),
+            options: options)
+
+        #expect(report.data.count == 1)
+        let dayData = report.data[0]
+        #expect(dayData.totalTokens == 2300)
+
+        // Verify Issue 2393 resolution:
+        // Token counts are attributed to the CLIProxy model, and costUSD is successfully calculated via prefix & alias
+        // normalization.
+        let breakdowns = try #require(dayData.modelBreakdowns)
+        #expect(breakdowns.count == 1)
+        let breakdown = breakdowns[0]
+        #expect(breakdown.modelName == "gpt-5.4")
+        #expect(breakdown.totalTokens == 2300)
+        #expect(breakdown.costUSD != nil)
+    }
+
+    @Test
+    func `prices gpt model in claude code log issue 2393`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 22)
+        let iso0 = env.isoString(for: day)
+        let proxyModel = "gpt-5.4"
+
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "project-cli-proxy/session-gpt.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "assistant",
+                    "timestamp": iso0,
+                    "sessionId": "cli-proxy-session",
+                    "requestId": "req_proxy_1",
+                    "isSidechain": false,
+                    "message": [
+                        "id": "msg_proxy_1",
+                        "model": proxyModel,
+                        "usage": [
+                            "input_tokens": 1500,
+                            "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 500,
+                            "output_tokens": 300,
+                        ],
+                    ],
+                ],
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: nil,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let report = CostUsageScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(10),
+            options: options)
+
+        #expect(report.data.count == 1)
+        let dayData = report.data[0]
+        #expect(dayData.totalTokens == 2300)
+
+        let breakdowns = try #require(dayData.modelBreakdowns)
+        #expect(breakdowns.count == 1)
+        let breakdown = breakdowns[0]
+        #expect(breakdown.modelName == proxyModel)
+        #expect(breakdown.totalTokens == 2300)
+        #expect(breakdown.costUSD != nil)
+    }
 }
