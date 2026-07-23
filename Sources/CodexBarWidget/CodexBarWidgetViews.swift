@@ -2,8 +2,15 @@ import CodexBarCore
 import SwiftUI
 import WidgetKit
 
+private struct WidgetUsageShowsUsedKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
 extension EnvironmentValues {
-    @Entry fileprivate var widgetUsageShowsUsed: Bool = false
+    fileprivate var widgetUsageShowsUsed: Bool {
+        get { self[WidgetUsageShowsUsedKey.self] }
+        set { self[WidgetUsageShowsUsedKey.self] = newValue }
+    }
 }
 
 struct CodexBarUsageWidgetView: View {

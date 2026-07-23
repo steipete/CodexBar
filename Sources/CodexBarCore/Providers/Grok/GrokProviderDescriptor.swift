@@ -35,8 +35,8 @@ public enum GrokProviderDescriptor {
                     ProviderColor(hex: 0xFDFDFD),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Grok cost summary is not supported yet." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No local Grok session usage found yet." }),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, now in
                 guard Self.primaryLabel(window: window, now: now) == "Weekly",
                       let resetsAt = window.resetsAt

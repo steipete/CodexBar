@@ -396,6 +396,17 @@ ensure_widget_extension_project() {
 }
 
 build_widget_extension() {
+  if [[ "${CODEXBAR_SKIP_WIDGET:-0}" == "1" ]]; then
+    echo "Skipping CodexBarWidget extension (CODEXBAR_SKIP_WIDGET=1)." >&2
+    return 0
+  fi
+
+  if ! command -v xcodebuild >/dev/null 2>&1 || ! xcodebuild -version >/dev/null 2>&1; then
+    echo "WARN: xcodebuild unavailable; skipping CodexBarWidget extension." >&2
+    echo "      Install full Xcode or set CODEXBAR_SKIP_WIDGET=1." >&2
+    return 0
+  fi
+
   local xcode_conf="Release"
   if [[ "$LOWER_CONF" == "debug" ]]; then
     xcode_conf="Debug"
@@ -463,6 +474,11 @@ build_widget_extension() {
 install_widget_extension() {
   local src_appex
   src_appex="$(build_widget_extension)"
+  # Empty when widget packaging is skipped (no full Xcode / CODEXBAR_SKIP_WIDGET=1).
+  if [[ -z "${src_appex:-}" ]]; then
+    rm -rf "$APP/Contents/PlugIns/CodexBarWidget.appex"
+    return 0
+  fi
   local widget_app="$APP/Contents/PlugIns/CodexBarWidget.appex"
   rm -rf "$widget_app"
   mkdir -p "$APP/Contents/PlugIns"
@@ -479,7 +495,9 @@ strip_release_binary "$APP/Contents/Helpers/CodexBarCLI"
 install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
 strip_release_binary "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
 install_widget_extension
-strip_release_binary "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget"
+if [[ -f "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget" ]]; then
+  strip_release_binary "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget"
+fi
 
 swiftpm_bin_path "${ARCH_LIST[0]}" PREFERRED_BUILD_DIR
 
