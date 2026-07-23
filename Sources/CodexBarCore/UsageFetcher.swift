@@ -506,25 +506,28 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     private func mostConstrainedSwitcherWeeklyWindow(for provider: UsageProvider) -> RateWindow? {
-        // Claude's Sonnet/Opus tertiary and model-scoped extras (Fable, Daily Routines) are
-        // detail-card carve-outs. Including them empties the overview switcher whenever one
-        // model lane is exhausted while account Weekly still has quota left.
-        let standardWindows: [RateWindow] = switch provider {
-        case .claude:
-            [self.primary, self.secondary].compactMap(\.self)
-        default:
-            [self.primary, self.secondary, self.tertiary].compactMap(\.self)
-        }
-        let namedWindows = (self.extraRateWindows ?? [])
+        let standardWindows = [self.primary, self.secondary, self.tertiary].compactMap(\.self)
+        let namedWindows = self.extraRateWindows?
             .filter(\.usageKnown)
-            .filter { named in
-                guard provider == .claude else { return true }
-                return !named.id.hasPrefix("claude-weekly-scoped-") && named.id != "claude-routines"
-            }
-            .map(\.window)
-        return (standardWindows + namedWindows)
+            .map(\.window) ?? []
+        let weeklies = (standardWindows + namedWindows)
             .filter { $0.windowMinutes == 7 * 24 * 60 }
-            .max { $0.usedPercent < $1.usedPercent }
+
+        // Claude model carve-outs (Fable, Sonnet, Routines) should still drive the overview bar
+        // while they have remaining quota. Once a carve-out is exhausted, fall back to the
+        // tightest weekly lane that still has remaining (usually account Weekly) so the bar
+        // does not go empty while other Claude quota is left.
+        if provider == .claude {
+            let usable = weeklies.filter { $0.remainingPercent > 0 }
+            if let mostConstrainedUsable = usable.max(by: { $0.usedPercent < $1.usedPercent }) {
+                return mostConstrainedUsable
+            }
+            if let accountWeekly = self.secondary, accountWeekly.windowMinutes == 7 * 24 * 60 {
+                return accountWeekly
+            }
+        }
+
+        return weeklies.max { $0.usedPercent < $1.usedPercent }
     }
 
     public func accountEmail(for provider: UsageProvider) -> String? {
