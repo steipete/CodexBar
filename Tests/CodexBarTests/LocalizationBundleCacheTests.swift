@@ -68,6 +68,18 @@ struct LocalizationBundleCacheTests {
     }
 
     @Test
+    func `resource locale expands English stringsdict singular forms`() {
+        let rendered = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            String(
+                format: L("≈%d full 5h windows of weekly left · %d windows until reset"),
+                locale: codexBarLocalizedResourceLocale(),
+                arguments: [1, 1])
+        }
+
+        #expect(rendered == "≈1 full 5h window of weekly left · 1 window until reset")
+    }
+
+    @Test
     func `resolution survives an explicit cache reset`() {
         let first = CodexBarLocalizationOverride.$appLanguage.withValue("uk") {
             codexBarLocalizedBundleForTesting()
