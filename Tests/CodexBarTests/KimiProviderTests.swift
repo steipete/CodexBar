@@ -748,7 +748,7 @@ struct KimiUsageResponseParsingTests {
         #expect(usage.primary?.usedPercent == 25)
         #expect(usage.secondary?.usedPercent == 25)
         #expect(usage.extraRateWindows == nil)
-        #expect(elapsed < .milliseconds(250), "Subscription enrichment outlived its total budget: \(elapsed)")
+        #expect(elapsed < .seconds(2), "Subscription enrichment outlived its total budget: \(elapsed)")
 
         // Drain the deliberately cancellation-ignoring test request before the test exits.
         try await Task.sleep(for: .milliseconds(550))

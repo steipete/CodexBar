@@ -73,6 +73,19 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed?.isEmpty ?? true) ? nil : trimmed
     }
+
+    public func sanitizedForDump() -> ProviderTokenAccount {
+        ProviderTokenAccount(
+            id: self.id,
+            label: self.label,
+            token: "[REDACTED]",
+            addedAt: self.addedAt,
+            lastUsed: self.lastUsed,
+            externalIdentifier: self.externalIdentifier,
+            usageScope: self.usageScope,
+            organizationID: self.organizationID,
+            workspaceID: self.workspaceID)
+    }
 }
 
 public struct ProviderTokenAccountData: Codable, Sendable {
@@ -89,6 +102,13 @@ public struct ProviderTokenAccountData: Codable, Sendable {
     public func clampedActiveIndex() -> Int {
         guard !self.accounts.isEmpty else { return 0 }
         return min(max(self.activeIndex, 0), self.accounts.count - 1)
+    }
+
+    public func sanitizedForDump() -> ProviderTokenAccountData {
+        ProviderTokenAccountData(
+            version: self.version,
+            accounts: self.accounts.map { $0.sanitizedForDump() },
+            activeIndex: self.activeIndex)
     }
 }
 
