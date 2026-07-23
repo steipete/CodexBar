@@ -109,6 +109,7 @@ enum CodexBarCLI {
         let sessionsFocusSignature = CommandSignature.describe(SessionsFocusOptions())
         let serveSignature = CommandSignature.describe(ServeOptions())
         let configSignature = CommandSignature.describe(ConfigOptions())
+        let configDumpSignature = CommandSignature.describe(ConfigDumpOptions())
         let configProviderToggleSignature = CommandSignature.describe(ConfigProviderToggleOptions())
         let configSetAPIKeySignature = CommandSignature.describe(ConfigSetAPIKeyOptions())
         let cacheSignature = CommandSignature.describe(CacheOptions())
@@ -176,7 +177,7 @@ enum CodexBarCLI {
                         name: "dump",
                         abstract: "Print normalized config JSON",
                         discussion: nil,
-                        signature: configSignature),
+                        signature: configDumpSignature),
                     CommandDescriptor(
                         name: "providers",
                         abstract: "List provider enablement",
