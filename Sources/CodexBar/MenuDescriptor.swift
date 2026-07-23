@@ -236,7 +236,8 @@ struct MenuDescriptor {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
                     provider == .deepseek || provider == .deepinfra || provider == .neuralwatt ||
-                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api
+                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api ||
+                    provider == .chutes
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -280,11 +281,11 @@ struct MenuDescriptor {
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
                     guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof ||
-                        provider == .sub2api
+                        provider == .sub2api || provider == .chutes
                     else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
-                    if provider == .kilo, weekly.resetsAt != nil {
+                    if [.kilo, .chutes].contains(provider), weekly.resetsAt != nil {
                         return nil
                     }
                     return detail
@@ -296,7 +297,7 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: weeklyResetOverride)
-                if provider == .kilo,
+                if [.kilo, .chutes].contains(provider),
                    weekly.resetsAt != nil,
                    let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
