@@ -17,12 +17,19 @@ struct CodexForkAttributionMigrationTests {
         _ env: CostUsageTestEnvironment,
         day: Date,
         events: [(Date, Int)],
-        model: String? = nil) throws
+        model: String? = nil,
+        sessionID: String = "migration-session",
+        filename: String = "migration.jsonl",
+        cwd: String? = nil) throws
     {
+        var metadata: [String: Any] = ["id": sessionID]
+        if let cwd {
+            metadata["cwd"] = cwd
+        }
         let lines: [[String: Any]] = [[
             "type": "session_meta",
             "timestamp": env.isoString(for: day),
-            "payload": ["id": "migration-session"],
+            "payload": metadata,
         ]] + events.map { timestamp, input in
             var info: [String: Any] = [
                 "last_token_usage": ["input_tokens": input, "cached_input_tokens": 0, "output_tokens": 0],
@@ -39,12 +46,18 @@ struct CodexForkAttributionMigrationTests {
                 ],
             ]
         }
-        _ = try env.writeCodexSessionFile(day: day, filename: "migration.jsonl", contents: env.jsonl(lines))
+        _ = try env.writeCodexSessionFile(day: day, filename: filename, contents: env.jsonl(lines))
     }
 
-    private func markLegacyForkCandidate(_ env: CostUsageTestEnvironment) {
+    private func markLegacyForkCandidate(
+        _ env: CostUsageTestEnvironment,
+        sessionID: String? = nil)
+    {
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
-        for path in cache.files.keys {
+        let candidatePaths = cache.files.compactMap { path, usage in
+            sessionID == nil || usage.sessionId == sessionID ? path : nil
+        }
+        for path in candidatePaths {
             cache.files[path]?.forkedFromId = "missing-parent"
             cache.files[path]?.forkBaselineDependencyKey = "missing-parent|legacy-raw-boundary"
             cache.files[path]?.codexForkAttributionVersion = nil
@@ -86,6 +99,61 @@ struct CodexForkAttributionMigrationTests {
         #expect(refreshed.files.values.allSatisfy {
             $0.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion
         })
+    }
+
+    @Test
+    func `cached snapshot quarantines legacy fork from daily projects and sessions`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let currentProject = env.root.appendingPathComponent("current-project", isDirectory: true)
+        let legacyProject = env.root.appendingPathComponent("legacy-project", isDirectory: true)
+        try FileManager.default.createDirectory(at: currentProject, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: legacyProject, withIntermediateDirectories: true)
+        try self.writeSession(
+            env,
+            day: day,
+            events: [(day, 42)],
+            model: "gpt-5.4",
+            sessionID: "current-session",
+            filename: "current.jsonl",
+            cwd: currentProject.path)
+        try self.writeSession(
+            env,
+            day: day,
+            events: [(day, 900)],
+            model: "gpt-5.6-sol",
+            sessionID: "legacy-session",
+            filename: "legacy.jsonl",
+            cwd: legacyProject.path)
+        let options = self.options(env)
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        self.markLegacyForkCandidate(env, sessionID: "legacy-session")
+
+        let legacy = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let legacyUsage = try #require(legacy.files.values.first { $0.sessionId == "legacy-session" })
+        let currentUsage = try #require(legacy.files.values.first { $0.sessionId == "current-session" })
+        #expect(CostUsageScanner.isLegacyForkAttributionCandidate(legacyUsage))
+        #expect(currentUsage.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion)
+
+        let cached = try #require(await CostUsageFetcher.loadCachedCodexTokenSnapshot(
+            now: day,
+            historyDays: 1,
+            scannerOptions: options))
+        #expect(cached.sessionTokens == 42)
+        #expect(cached.last30DaysTokens == 42)
+        #expect(cached.daily.count == 1)
+        #expect(cached.daily.first?.totalTokens == 42)
+        #expect(cached.sessions.map(\.sessionID) == ["current-session"])
+        #expect(cached.sessions.first?.totalTokens == 42)
+        #expect(cached.projects.map(\.path) == [currentProject.path])
+        #expect(cached.projects.first?.totalTokens == 42)
+        #expect(cached.projects.flatMap(\.sources).allSatisfy { $0.path != legacyProject.path })
     }
 
     @Test

@@ -2806,7 +2806,8 @@ enum CostUsageScanner {
         let windowExpanded = Self.requestedWindowExpandsCache(range: range, cache: cache)
         let needsCostCacheMigration = cache.files.values.contains { Self.needsCodexCostCache($0, range: range) }
         let needsProjectMetadataMigration = cache.codexProjectMetadataVersion != Self.codexProjectMetadataVersion
-        let needsForkAttributionMigration = cache.files.values.contains { Self.isLegacyForkAttributionCandidate($0) }
+        let needsForkAttributionMigration = cache.codexForkAttributionVersion != Self.codexForkAttributionVersion
+            && cache.files.values.contains { Self.isLegacyForkAttributionCandidate($0) }
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot)
         let modelsDevCatalog = modelsDevLoad.artifact?.catalog
         let codexPricingKey = Self.codexPricingKey(modelsDevArtifact: modelsDevLoad.artifact)

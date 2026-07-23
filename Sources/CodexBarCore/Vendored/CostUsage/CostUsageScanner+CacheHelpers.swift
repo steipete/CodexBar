@@ -16,6 +16,17 @@ extension CostUsageScanner {
             && usage.forkBaselineDependencyKey != codexForkDependencyNotRequiredKey
     }
 
+    /// Keep every cache-backed presentation surface on the same migration boundary. This is
+    /// intentionally provenance-based: a stale copied prefix may already carry a known model.
+    static func codexCacheForPresentation(_ cache: CostUsageCache) -> CostUsageCache {
+        var projected = cache
+        for (path, usage) in cache.files where Self.isLegacyForkAttributionCandidate(usage) {
+            Self.applyFileDays(cache: &projected, fileDays: usage.days, sign: -1)
+            projected.files.removeValue(forKey: path)
+        }
+        return projected
+    }
+
     private final class CodexModelsDevCatalogResolver {
         private var catalog: ModelsDevCatalog?
         private let cacheRoot: URL?
@@ -902,6 +913,7 @@ extension CostUsageScanner {
         let needsSessionId = cached.sessionId == nil
         guard cached.mtimeUnixMs == input.metadata.mtimeUnixMs,
               cached.size == input.metadata.size,
+              cached.parsedBytes.map({ $0 == cached.size }) == true,
               !needsSessionId,
               !context.forceFullScan
         else { return false }
@@ -1387,13 +1399,9 @@ extension CostUsageScanner {
         let catalogResolver = CodexModelsDevCatalogResolver(
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
-        var reportCache = cache
         // A compatible p48 cache may hydrate before migration completes. Do not present a
         // parent-dependent candidate; current files and sentinel-owned forks remain visible.
-        for (path, usage) in cache.files where Self.isLegacyForkAttributionCandidate(usage) {
-            Self.applyFileDays(cache: &reportCache, fileDays: usage.days, sign: -1)
-            reportCache.files.removeValue(forKey: path)
-        }
+        var reportCache = Self.codexCacheForPresentation(cache)
         for (path, usage) in reportCache.files where self.needsCodexCostCache(usage, range: range) {
             reportCache.files[path] = self.codexFileUsageWithCostCache(
                 usage,

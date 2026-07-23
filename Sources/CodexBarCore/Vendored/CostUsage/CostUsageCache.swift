@@ -1,11 +1,10 @@
 import Foundation
 
 enum CostUsageCacheIO {
-    /// Producer keys from older parser hashes whose caches are still valid under the current
-    /// delta semantics. Cleared for #2037: interleave containment changed how cumulative
-    /// totals are counted, so every earlier cache must be rebuilt.
-    /// The previous producer is structurally compatible. The scanner selectively reparses only
-    /// parent-dependent forked files via `codexForkAttributionVersion`.
+    /// Producer keys from older parser hashes whose caches remain structurally compatible.
+    /// #2037 invalidated every earlier producer because interleave containment changed cumulative
+    /// accounting. This immediate predecessor is safe to admit because the scanner selectively
+    /// reparses its parent-dependent forked files via `codexForkAttributionVersion`.
     private static let compatibleCodexProducerKeys: Set<String> = ["codex:cu:p48ac20dad61e9a7f"]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
