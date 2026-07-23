@@ -322,7 +322,7 @@ struct SpendDashboardTokenProvenanceTests {
                 costUSD: cost,
                 modelsUsed: nil,
                 modelBreakdowns: nil)],
-            updatedAt: Date(timeIntervalSince1970: 1_784_246_400))
+            updatedAt: Date(timeIntervalSince1970: 1_784_203_200))
     }
 
     private static func emptyTokenSnapshot() -> CostUsageTokenSnapshot {
@@ -332,7 +332,7 @@ struct SpendDashboardTokenProvenanceTests {
             last30DaysTokens: 0,
             last30DaysCostUSD: 0,
             daily: [],
-            updatedAt: Date(timeIntervalSince1970: 1_784_246_400))
+            updatedAt: Date(timeIntervalSince1970: 1_784_179_200))
     }
 
     private static func mistralUsage(cost: Double) -> UsageSnapshot {
@@ -353,7 +353,7 @@ struct SpendDashboardTokenProvenanceTests {
                 models: [])],
             startDate: nil,
             endDate: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_784_246_400))
+            updatedAt: Date(timeIntervalSince1970: 1_784_179_200))
             .toUsageSnapshot()
     }
 
