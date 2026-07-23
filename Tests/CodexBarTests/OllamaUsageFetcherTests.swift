@@ -190,6 +190,57 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
+    func `automatic fallback skips safari access error when preferred browser is unavailable`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+        var attemptedBrowsers: [Browser] = []
+
+        do {
+            _ = try OllamaCookieImporter.importSessions(
+                preferredSources: [],
+                allowFallbackBrowsers: true,
+                loadFallbackSources: { _ in [.safari] },
+                loadSessions: { browser, _ in
+                    attemptedBrowsers.append(browser)
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Full Disk Access denied")
+                })
+            Issue.record("Expected OllamaUsageError.noSessionCookie")
+        } catch OllamaUsageError.noSessionCookie {
+            #expect(attemptedBrowsers == [.safari])
+        } catch {
+            Issue.record("Expected OllamaUsageError.noSessionCookie, got \(error)")
+        }
+    }
+
+    @Test
+    func `automatic fallback keeps non safari access error after safari denial`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        do {
+            _ = try OllamaCookieImporter.importSessions(
+                preferredSources: [.chrome],
+                allowFallbackBrowsers: true,
+                loadFallbackSources: { _ in [.safari, .brave] },
+                loadSessions: { browser, _ in
+                    if browser == .chrome {
+                        return []
+                    }
+                    throw BrowserCookieError.accessDenied(
+                        browser: browser,
+                        details: "Access denied")
+                })
+            Issue.record("Expected Brave Keychain denial")
+        } catch let OllamaUsageError.browserCookieDecryptionDenied(browserName) {
+            #expect(browserName == "Brave")
+        } catch {
+            Issue.record("Expected Brave Keychain denial, got \(error)")
+        }
+    }
+
+    @Test
     func `fallback browser gates stay lazy when chrome has a session`() throws {
         var loadedFallbackSources = false
         let sessions = try OllamaCookieImporter.importSessions(
@@ -211,7 +262,7 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func `safari only import surfaces safari access error`() {
+    func `explicit safari import surfaces safari access error`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 

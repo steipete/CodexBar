@@ -150,16 +150,20 @@ public enum OllamaCookieImporter {
             }
         }
 
-        let fallbackSources = loadFallbackSources(&accessError)
+        var fallbackAccessError: OllamaUsageError?
+        let fallbackSources = loadFallbackSources(&fallbackAccessError)
+        fallbackAccessError = self.surfacedFallbackAccessError(fallbackAccessError)
         if !fallbackSources.isEmpty {
             log("No recognized Ollama session in preferred browsers; trying fallback import order")
         }
         let fallbackImport = self.collectSessionInfo(
             from: fallbackSources,
             logger: log,
-            accessError: &accessError,
+            accessError: &fallbackAccessError,
+            suppressSafariAccessErrors: true,
             loadSessions: loadSessions)
         successfullyReadBrowsers.append(contentsOf: fallbackImport.successfullyReadBrowsers)
+        accessError = accessError ?? self.surfacedFallbackAccessError(fallbackAccessError)
         do {
             return try self.selectSessionInfos(from: fallbackImport.candidates, logger: log)
         } catch OllamaUsageError.noSessionCookie {
@@ -269,6 +273,11 @@ public enum OllamaCookieImporter {
         return nil
     }
 
+    static func surfacedFallbackAccessError(_ error: OllamaUsageError?) -> OllamaUsageError? {
+        guard case .safariCookieAccessDenied = error else { return error }
+        return nil
+    }
+
     static func suppressedAccessError(for browser: Browser, now: Date = Date()) -> OllamaUsageError? {
         guard browser.usesKeychainForCookieDecryption else { return nil }
         if KeychainAccessGate.isDisabled {
@@ -307,6 +316,7 @@ public enum OllamaCookieImporter {
         from browserSources: [Browser],
         logger: @escaping (String) -> Void,
         accessError: inout OllamaUsageError?,
+        suppressSafariAccessErrors: Bool = false,
         loadSessions: (Browser, @escaping (String) -> Void) throws -> [SessionInfo])
         -> (candidates: [SessionInfo], successfullyReadBrowsers: [Browser])
     {
@@ -319,7 +329,10 @@ public enum OllamaCookieImporter {
                 candidates.append(contentsOf: sessions)
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
-                accessError = accessError ?? self.accessError(from: error)
+                let importedAccessError = self.accessError(from: error)
+                accessError = accessError ?? (suppressSafariAccessErrors
+                    ? self.surfacedFallbackAccessError(importedAccessError)
+                    : importedAccessError)
                 logger("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
         }
