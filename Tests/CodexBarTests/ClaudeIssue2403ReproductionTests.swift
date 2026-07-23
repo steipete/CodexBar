@@ -113,21 +113,15 @@ struct ClaudeIssue2403ReproductionTests {
         // 2. Token account override causes fetch to fail on refresh
         store.errors[.claude] = "Claude session key invalid"
 
-        let model = UsageMenuCardView.Model.make(
-            input: UsageMenuCardView.Model.Input(
-                provider: .claude,
-                snapshot: store.snapshot(for: .claude),
-                error: store.error(for: .claude),
-                isRefreshing: false,
-                sourceLabel: store.sourceLabel(for: .claude),
-                settings: settings))
-
-        #expect(model.subtitleStyle == .error)
-        #expect(model.subtitleText == "Claude session key invalid")
+        withStatusItemControllerForTesting(store: store, settings: settings, fetcher: fetcher) { controller in
+            let model = controller.menuCardModel(for: .claude)
+            #expect(model?.subtitleStyle == .error)
+            #expect(model?.subtitleText == "Claude session key invalid")
+        }
     }
 
     @Test
-    func `oauth unauthorized error after login forces terminal re-auth prompt`() async throws {
+    func `oauth unauthorized error after login forces terminal re-auth prompt`() {
         let settings = self.makeSettings(suiteSuffix: "oauth-unauthorized")
         settings.claudeUsageDataSource = .oauth
 
