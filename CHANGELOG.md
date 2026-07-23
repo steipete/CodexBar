@@ -3,6 +3,8 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- Menu bar: preserve materialized status items during transient AppKit window detachment so active usage
+  refreshes do not leave duplicate provider icons in Control Center.
 
 ## 0.45.2 — 2026-07-19
 

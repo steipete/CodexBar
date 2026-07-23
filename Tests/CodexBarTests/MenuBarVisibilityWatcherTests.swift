@@ -445,6 +445,35 @@ struct MenuBarVisibilityWatcherTests {
     }
 
     @Test
+    func `startup recovery preserves blocked proxy while matching window is materialized`() {
+        let launchedAt = Date(timeIntervalSince1970: 1000)
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 68)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-codex",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: blocked)
+        let materializedWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-codex",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 1819, y: 0, width: 68, height: 30),
+            isOnscreen: true,
+            displayBounds: CGRect(x: 0, y: 0, width: 2560, height: 1440))
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptStartupRecovery(
+            appLaunchedAt: launchedAt,
+            now: launchedAt.addingTimeInterval(2),
+            snapshots: [blocked],
+            evidence: [evidence],
+            windowSnapshots: [materializedWindow]))
+    }
+
+    @Test
     func `startup recovery ignores stale checks`() {
         let launchedAt = Date(timeIntervalSince1970: 1000)
         let blocked = StatusItemVisibilitySnapshot(
@@ -516,6 +545,84 @@ struct MenuBarVisibilityWatcherTests {
             buttonWidth: 18)
 
         #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(snapshots: [blocked]))
+    }
+
+    @Test
+    func `screen change recovery preserves blocked proxy while matching window is materialized`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 68)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-codex",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: blocked)
+        let materializedWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-codex",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 1819, y: 0, width: 68, height: 30),
+            isOnscreen: true,
+            displayBounds: CGRect(x: 0, y: 0, width: 2560, height: 1440))
+
+        #expect(!MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            snapshots: [blocked],
+            evidence: [evidence],
+            windowSnapshots: [materializedWindow]))
+    }
+
+    @Test
+    func `screen change recovery does not let another provider window mask a blocked item`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 68)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-codex",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: blocked)
+        let otherProviderWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-deepseek",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 1742, y: 0, width: 77, height: 30),
+            isOnscreen: true,
+            displayBounds: CGRect(x: 0, y: 0, width: 2560, height: 1440))
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            snapshots: [blocked],
+            evidence: [evidence],
+            windowSnapshots: [otherProviderWindow]))
+    }
+
+    @Test
+    func `screen change recovery ignores stale matching window record`() {
+        let blocked = StatusItemVisibilitySnapshot(
+            isVisible: true,
+            hasButton: true,
+            hasWindow: false,
+            hasScreen: false,
+            buttonWidth: 68)
+        let evidence = StatusItemStartupVisibilityEvidence(
+            autosaveName: "codexbar-codex",
+            expectsVisibility: true,
+            visibilityDefault: true,
+            snapshot: blocked)
+        let staleWindow = MenuBarStatusItemWindowSnapshot(
+            name: "codexbar-codex",
+            ownerName: "Control Center",
+            bounds: CGRect(x: 1819, y: 0, width: 68, height: 30),
+            isOnscreen: false,
+            displayBounds: CGRect(x: 0, y: 0, width: 2560, height: 1440))
+
+        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(
+            snapshots: [blocked],
+            evidence: [evidence],
+            windowSnapshots: [staleWindow]))
     }
 
     @Test
