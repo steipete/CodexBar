@@ -102,6 +102,88 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
+    func `claude switcher ignores exhausted scoped weekly carve outs`() {
+        let session = RateWindow(
+            usedPercent: 77,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let weekly = RateWindow(
+            usedPercent: 61,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let sonnet = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(
+            primary: session,
+            secondary: weekly,
+            tertiary: sonnet,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-weekly-scoped-fable",
+                    title: "Fable only",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "claude-routines",
+                    title: "Daily Routines",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ])
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 39)
+    }
+
+    @Test
+    func `claude switcher keeps account weekly even when scoped carve out remains`() {
+        let session = RateWindow(
+            usedPercent: 20,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let weekly = RateWindow(
+            usedPercent: 40,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(
+            primary: session,
+            secondary: weekly,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-weekly-scoped-fable",
+                    title: "Fable only",
+                    window: RateWindow(
+                        usedPercent: 85,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ])
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 60)
+    }
+
+    @Test
     func `switcher preserves provider quota when no weekly allowance exists`() {
         let monthly = RateWindow(
             usedPercent: 28,
