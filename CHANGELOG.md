@@ -3,6 +3,7 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- Ollama: skip inaccessible Safari cookies when another browser cookie store can be read.
 
 ## 0.45.2 — 2026-07-19
 

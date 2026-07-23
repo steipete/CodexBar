@@ -102,41 +102,70 @@ public enum OllamaCookieImporter {
         allowFallbackBrowsers: Bool = false,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        let log: (String) -> Void = { msg in logger?("[ollama-cookie] \(msg)") }
         var accessError: OllamaUsageError?
         let preferredOrder = preferredBrowsers.isEmpty ? ollamaCookieImportOrder : preferredBrowsers
         let preferredSources = self.cookieSources(
             from: preferredOrder,
             browserDetection: browserDetection,
             accessError: &accessError)
-        let preferredCandidates = self.collectSessionInfo(
+        let canUseFallback = allowFallbackBrowsers && !preferredBrowsers.isEmpty
+        return try self.importSessions(
+            preferredSources: preferredSources,
+            allowFallbackBrowsers: canUseFallback,
+            initialAccessError: accessError,
+            logger: logger,
+            loadFallbackSources: { accessError in
+                let fallbackOrder = ollamaCookieImportOrder.filter { !preferredBrowsers.contains($0) }
+                return self.cookieSources(
+                    from: fallbackOrder,
+                    browserDetection: browserDetection,
+                    accessError: &accessError)
+            },
+            loadSessions: self.loadSessions)
+    }
+
+    static func importSessions(
+        preferredSources: [Browser],
+        allowFallbackBrowsers: Bool,
+        initialAccessError: OllamaUsageError? = nil,
+        logger: ((String) -> Void)? = nil,
+        loadFallbackSources: (inout OllamaUsageError?) -> [Browser],
+        loadSessions: (Browser, @escaping (String) -> Void) throws -> [SessionInfo]) throws -> [SessionInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[ollama-cookie] \(msg)") }
+        var accessError = initialAccessError
+        let preferredImport = self.collectSessionInfo(
             from: preferredSources,
             logger: log,
-            accessError: &accessError)
+            accessError: &accessError,
+            loadSessions: loadSessions)
+        var successfullyReadBrowsers = preferredImport.successfullyReadBrowsers
         do {
-            return try self.selectSessionInfos(from: preferredCandidates, logger: log)
+            return try self.selectSessionInfos(from: preferredImport.candidates, logger: log)
         } catch OllamaUsageError.noSessionCookie {
-            guard allowFallbackBrowsers, !preferredBrowsers.isEmpty else {
-                throw accessError ?? OllamaUsageError.noSessionCookie
+            guard allowFallbackBrowsers else {
+                throw self.surfacedAccessError(
+                    accessError,
+                    successfullyReadBrowsers: successfullyReadBrowsers) ?? OllamaUsageError.noSessionCookie
             }
         }
 
-        let fallbackOrder = ollamaCookieImportOrder.filter { !preferredBrowsers.contains($0) }
-        let fallbackSources = self.cookieSources(
-            from: fallbackOrder,
-            browserDetection: browserDetection,
-            accessError: &accessError)
+        let fallbackSources = loadFallbackSources(&accessError)
         if !fallbackSources.isEmpty {
             log("No recognized Ollama session in preferred browsers; trying fallback import order")
         }
-        let fallbackCandidates = self.collectSessionInfo(
+        let fallbackImport = self.collectSessionInfo(
             from: fallbackSources,
             logger: log,
-            accessError: &accessError)
+            accessError: &accessError,
+            loadSessions: loadSessions)
+        successfullyReadBrowsers.append(contentsOf: fallbackImport.successfullyReadBrowsers)
         do {
-            return try self.selectSessionInfos(from: fallbackCandidates, logger: log)
+            return try self.selectSessionInfos(from: fallbackImport.candidates, logger: log)
         } catch OllamaUsageError.noSessionCookie {
-            throw accessError ?? OllamaUsageError.noSessionCookie
+            throw self.surfacedAccessError(
+                accessError,
+                successfullyReadBrowsers: successfullyReadBrowsers) ?? OllamaUsageError.noSessionCookie
         }
     }
 
@@ -231,6 +260,15 @@ public enum OllamaCookieImporter {
         return .browserCookieDecryptionDenied(browser.displayName)
     }
 
+    static func surfacedAccessError(
+        _ error: OllamaUsageError?,
+        successfullyReadBrowsers: [Browser]) -> OllamaUsageError?
+    {
+        guard case .safariCookieAccessDenied = error else { return error }
+        guard successfullyReadBrowsers.contains(where: { $0 != .safari }) else { return error }
+        return nil
+    }
+
     static func suppressedAccessError(for browser: Browser, now: Date = Date()) -> OllamaUsageError? {
         guard browser.usesKeychainForCookieDecryption else { return nil }
         if KeychainAccessGate.isDisabled {
@@ -268,28 +306,41 @@ public enum OllamaCookieImporter {
     private static func collectSessionInfo(
         from browserSources: [Browser],
         logger: @escaping (String) -> Void,
-        accessError: inout OllamaUsageError?) -> [SessionInfo]
+        accessError: inout OllamaUsageError?,
+        loadSessions: (Browser, @escaping (String) -> Void) throws -> [SessionInfo])
+        -> (candidates: [SessionInfo], successfullyReadBrowsers: [Browser])
     {
         var candidates: [SessionInfo] = []
+        var successfullyReadBrowsers: [Browser] = []
         for browserSource in browserSources {
             do {
-                let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try Self.cookieClient.codexBarRecords(
-                    matching: query,
-                    in: browserSource,
-                    logger: logger)
-                for source in sources where !source.records.isEmpty {
-                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    guard !cookies.isEmpty else { continue }
-                    candidates.append(SessionInfo(cookies: cookies, sourceLabel: source.label))
-                }
+                let sessions = try loadSessions(browserSource, logger)
+                successfullyReadBrowsers.append(browserSource)
+                candidates.append(contentsOf: sessions)
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
                 accessError = accessError ?? self.accessError(from: error)
                 logger("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
             }
         }
-        return candidates
+        return (candidates, successfullyReadBrowsers)
+    }
+
+    private static func loadSessions(
+        from browserSource: Browser,
+        logger: @escaping (String) -> Void) throws -> [SessionInfo]
+    {
+        let query = BrowserCookieQuery(domains: self.cookieDomains)
+        let sources = try Self.cookieClient.codexBarRecords(
+            matching: query,
+            in: browserSource,
+            logger: logger)
+        return sources.compactMap { source in
+            guard !source.records.isEmpty else { return nil }
+            let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+            guard !cookies.isEmpty else { return nil }
+            return SessionInfo(cookies: cookies, sourceLabel: source.label)
+        }
     }
 
     private static func containsRecognizedSessionCookie(in cookies: [HTTPCookie]) -> Bool {
