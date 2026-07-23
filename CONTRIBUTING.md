@@ -18,7 +18,7 @@ Start an issue and wait for maintainer sign-off before implementing:
 - Changes to authentication, browser cookies, Keychain access, privacy, local storage, refresh policy, or releases.
 - New dependencies, toolchain changes, broad refactors, or architectural changes.
 
-For a small documentation, test, or clearly bounded bug fix, a direct PR is fine. Link the relevant issue whenever there is one.
+For a small documentation, test, or clearly bounded bug fix, a direct PR is fine. Link the relevant issue whenever there is one. If a PR completely resolves an issue, put `Fixes #123`, `Closes #123`, or `Resolves #123` in its description. That creates GitHub's development link and closes the issue on merge. `Refs #123` is only for related context and does not mark the issue as resolved.
 
 ## Set up and develop
 
@@ -45,12 +45,12 @@ New provider work must include the relevant descriptor and registry wiring, focu
 ## Pull request expectations
 
 - Keep the PR to one problem and avoid unrelated formatting or refactors.
-- Use a concise PR title: `fix(scope): summary`, `feat(scope): summary`, `docs: summary`, `test: summary`, `refactor(scope): summary`, or `chore: summary`.
+- Prefer a concise conventional title: `fix(scope): summary`, `feat(scope): summary`, `docs: summary`, `test: summary`, `refactor(scope): summary`, or `chore: summary`. Established concise imperative titles are also accepted while the repository transitions.
 - Explain the problem, the change, and the validation in your own words. AI-assisted work is welcome when the author understands and takes responsibility for it; do not submit a generated wall of text in place of evidence.
 - Include before/after proof for UI changes and redacted, reproducible proof for behavior changes.
 - Never include API keys, cookies, Authorization headers, account files, personal identifiers, or unredacted logs.
 
-The PR template turns these requirements into a review checklist.
+The PR template turns these requirements into a review checklist. Fill in every requested section; for UI proof or provider impact, write `Not applicable` or `None` when that is the concrete answer.
 
 ## Security and support
 

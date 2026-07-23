@@ -1,20 +1,34 @@
 ## Summary
 
+<!-- Briefly state the user-visible or maintainer-visible change. -->
+
 ## Why
+
+<!-- Explain the problem and why this is the right scope. -->
 
 ## Linked issue or maintainer sign-off
 
+<!--
+Use `Fixes #123`, `Closes #123`, or `Resolves #123` when this PR completely
+addresses an issue. This creates GitHub's closing link and closes the issue on
+merge to the default branch.
+
+Use `Refs #123` only for related context that does not fully resolve the issue.
+If no issue applies, write `No linked issue: <reason>` or describe the requested
+maintainer sign-off.
+-->
+
 ## Validation
 
-Commands, focused tests, and redacted reproduction evidence.
+<!-- List commands, focused tests, and redacted reproduction evidence. -->
 
 ## UI proof
 
-Required for visible UI changes: before/after screenshot or recording from the freshly built bundle.
+<!-- For visible UI changes, include before/after proof from a freshly built bundle. Otherwise say `Not applicable`. -->
 
 ## Provider and privacy impact
 
-State `None` or describe affected providers, source modes, Keychain/cookie/local-data access, and redaction handling.
+<!-- State `None` or describe providers, source modes, Keychain/cookie/local-data access, and redaction handling. -->
 
 ## Checklist
 

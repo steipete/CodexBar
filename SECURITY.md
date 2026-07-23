@@ -4,7 +4,7 @@
 
 Please report suspected vulnerabilities through GitHub's private [Report a Vulnerability](https://github.com/steipete/CodexBar/security/advisories/new) flow. Do not open a public issue until a maintainer has confirmed that disclosure is safe.
 
-Include a minimal reproduction, affected CodexBar version, macOS/Linux version, impact, and the exact capability required to reproduce. We aim to acknowledge valid reports within five business days and will coordinate disclosure before publishing a fix.
+Include a minimal reproduction, affected CodexBar version, macOS/Linux version, impact, and the exact capability required to reproduce. A maintainer will coordinate disclosure before publishing a fix.
 
 Never attach API keys, cookies, Keychain exports, `auth.json` files, browser databases, complete account identities, or unredacted request/response logs. Redact secrets before sharing diagnostics.
 

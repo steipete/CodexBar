@@ -18,33 +18,57 @@ jobs:
           script: |
             const pull = context.payload.pull_request
             const issues = []
-            const titlePattern = /^(feat|fix|docs|test|refactor|chore)(\([a-z0-9-]+\))?:\s+.+$/
+            if (pull.user.login === "dependabot[bot]") {
+              core.info("Skipping the human contribution policy for Dependabot.")
+            } else {
+              const conventionalTitle = /^(build|ci|chore|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9-]*\))?:\s+\S.*$/
+              const imperativeTitle = /^[A-Z][^.!?\n]{2,118}$/
 
-            if (!titlePattern.test(pull.title)) {
-              issues.push("Use a concise PR title such as `fix(provider): correct reset time`.")
-            }
-
-            const body = pull.body || ""
-            const requiredSections = [
-              "Summary",
-              "Why",
-              "Linked issue or maintainer sign-off",
-              "Validation",
-              "UI proof",
-              "Provider and privacy impact",
-              "Checklist",
-            ]
-
-            for (const section of requiredSections) {
-              if (!new RegExp(`^## ${section}$`, "m").test(body)) {
-                issues.push(`Missing PR template section: ${section}.`)
+              if (!conventionalTitle.test(pull.title) && !imperativeTitle.test(pull.title)) {
+                issues.push("Use a concise conventional or imperative PR title, such as `fix(provider): correct reset time`.")
               }
-            }
 
-            for (const section of ["Summary", "Validation", "Provider and privacy impact"]) {
-              const match = body.match(new RegExp(`(?:^|\\n)## ${section}\\r?\\n([\\s\\S]*?)(?=\\r?\\n## |$)`))
-              if (!match || !match[1].trim()) {
-                issues.push(`Fill in the ${section} section with concrete information.`)
+              const body = pull.body || ""
+              const requiredSections = [
+                "Summary",
+                "Why",
+                "Linked issue or maintainer sign-off",
+                "Validation",
+                "UI proof",
+                "Provider and privacy impact",
+                "Checklist",
+              ]
+
+              const sectionContent = section => {
+                const match = body.match(new RegExp(`(?:^|\\n)## ${section}\\r?\\n([\\s\\S]*?)(?=\\r?\\n## |$)`))
+                return match ? match[1].replace(/<!--[\s\S]*?-->/g, "").trim() : ""
+              }
+
+              for (const section of requiredSections) {
+                if (!new RegExp(`^## ${section}$`, "m").test(body)) {
+                  issues.push(`Missing PR template section: ${section}.`)
+                }
+              }
+
+              for (const section of [
+                "Summary",
+                "Why",
+                "Linked issue or maintainer sign-off",
+                "Validation",
+                "UI proof",
+                "Provider and privacy impact",
+              ]) {
+                if (!sectionContent(section)) {
+                  issues.push(`Fill in the ${section} section with concrete information.`)
+                }
+              }
+
+              const linkedIssue = sectionContent("Linked issue or maintainer sign-off")
+              const issueReference = /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?)\s*:?\s+(?:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#\d+/i
+              const noIssueExplanation = /(?:no|without)\s+(?:linked\s+)?issue\b/i
+              const maintainerSignOff = /\bmaintainer\s+sign[- ]off\b/i
+              if (linkedIssue && !issueReference.test(linkedIssue) && !noIssueExplanation.test(linkedIssue) && !maintainerSignOff.test(linkedIssue)) {
+                issues.push("Use `Fixes #123`, `Refs #123`, or explain why no linked issue or maintainer sign-off applies.")
               }
             }
 
