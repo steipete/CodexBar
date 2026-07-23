@@ -18,7 +18,7 @@ struct ClaudeIssue2403ReproductionTests {
     }
 
     @Test
-    func `login flow succeeds but subsequent web source refresh fails with unauthorized leading to immediate disconnect`() async throws {
+    func `web refresh failure disconnects after login`() async throws {
         let registry = ProviderRegistry.shared
         let claudeMetadata = try #require(registry.metadata[.claude])
 
