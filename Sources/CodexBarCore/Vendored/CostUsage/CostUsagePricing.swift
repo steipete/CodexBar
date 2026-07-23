@@ -474,11 +474,9 @@ enum CostUsagePricing {
 
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        for prefix in self.proxyPrefixes {
-            if trimmed.hasPrefix(prefix) {
-                trimmed = String(trimmed.dropFirst(prefix.count))
-                break
-            }
+        for prefix in self.proxyPrefixes where trimmed.hasPrefix(prefix) {
+            trimmed = String(trimmed.dropFirst(prefix.count))
+            break
         }
 
         // OpenAI routes the unsuffixed gpt-5.6 alias to Sol.
@@ -512,11 +510,9 @@ enum CostUsagePricing {
 
     static func normalizeClaudeModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        for prefix in self.proxyPrefixes {
-            if trimmed.hasPrefix(prefix) {
-                trimmed = String(trimmed.dropFirst(prefix.count))
-                break
-            }
+        for prefix in self.proxyPrefixes where trimmed.hasPrefix(prefix) {
+            trimmed = String(trimmed.dropFirst(prefix.count))
+            break
         }
 
         if let lastDot = trimmed.lastIndex(of: "."),
@@ -789,7 +785,11 @@ enum CostUsagePricing {
 
         return nil
     }
+}
 
+// MARK: - Claude Cost Usage Calculation
+
+extension CostUsagePricing {
     private static func claudeCostUSD(
         pricing: ClaudePricing,
         tokens: ClaudeCostTokens) -> Double
