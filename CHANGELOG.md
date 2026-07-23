@@ -3,6 +3,8 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- Cursor: keep cookie/session caches in process when “Disable Keychain access” is on, so refreshes no longer fail with “Cursor session changed during refresh”.
+- Cursor/Keychain: clear the in-process cookie cache whenever Keychain access is toggled so disabled-mode sessions cannot resurface later.
 
 ## 0.45.2 — 2026-07-19
 
