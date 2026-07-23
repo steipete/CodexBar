@@ -435,11 +435,11 @@ jobs:
             printf '%s\n' "${assets[@]:-<none>}" >&2
             exit 1
           fi
-          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
 
   update-homebrew-tap:
     runs-on: ubuntu-24.04
-    needs: build-cli
+    needs: publish-release-assets
     if: github.event_name == 'release'
     permissions: {}
     steps:

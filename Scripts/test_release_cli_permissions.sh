@@ -40,12 +40,14 @@ for required in (
     "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
     "pattern: codexbar-cli-*",
     "merge-multiple: true",
-    'gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber',
+    'gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"',
 ):
     if required not in publisher:
         raise SystemExit(f"release publisher is missing: {required}")
 
 tap = job("update-homebrew-tap")
+if "needs: publish-release-assets" not in tap:
+    raise SystemExit("tap updater must wait for release assets to upload")
 if "permissions: {}" not in tap:
     raise SystemExit("tap updater must not receive the repository token")
 
