@@ -14,7 +14,12 @@ struct SpendDashboardClockRolloverTests {
         let configuration = Self.configuration
         let initialInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
         let rolloverInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
+        // Keep selectDays persistence out of UserDefaults.standard so later suites that
+        // construct SpendDashboardController with the default store still get the 30-day window.
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-window")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-window") }
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
@@ -58,7 +63,10 @@ struct SpendDashboardClockRolloverTests {
         let staleInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
         let freshInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
         let gate = SpendDashboardRolloverGate()
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-inflight")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-inflight") }
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
@@ -72,7 +80,6 @@ struct SpendDashboardClockRolloverTests {
                 await gate.load(request)
             },
             nowProvider: { clock.value })
-
         controller.update(configuration: configuration)
         await Self.waitForPendingCount(1, gate: gate)
 
@@ -93,6 +100,12 @@ struct SpendDashboardClockRolloverTests {
         costUsageEnabled: true,
         providerIDs: [UsageProvider.codex.rawValue],
         codexAccountIdentities: ["rollover"])
+
+    private static func isolatedDefaults(suiteName: String) throws -> UserDefaults {
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
 
     private static func input(day: String, cost: Double, updatedAt: Date) -> SpendDashboardModel.ProviderInput {
         let entry = CostUsageDailyReport.Entry(
