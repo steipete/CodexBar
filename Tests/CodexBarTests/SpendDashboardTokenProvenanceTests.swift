@@ -124,9 +124,15 @@ struct SpendDashboardTokenProvenanceTests {
         store.activateCachedTokenAccountSnapshot(provider: .mistral, accountID: account.id)
         #expect(store.tokenSnapshotPublicationRevision(for: .mistral) == baselineRevision)
         store._test_providerRefreshOverride = { _ in }
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: Date(timeIntervalSince1970: 1_784_203_200))
+            },
+            nowProvider: { Date(timeIntervalSince1970: 1_784_203_200) })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 3)
@@ -148,9 +154,15 @@ struct SpendDashboardTokenProvenanceTests {
             return loadCount == 1 ? Self.tokenSnapshot(cost: 4) : Self.emptyTokenSnapshot()
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: Date(timeIntervalSince1970: 1_784_203_200))
+            },
+            nowProvider: { Date(timeIntervalSince1970: 1_784_203_200) })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 4)
@@ -177,9 +189,15 @@ struct SpendDashboardTokenProvenanceTests {
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
         let publicationRevision = store.tokenSnapshotPublicationRevision(for: .bedrock)
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: Date(timeIntervalSince1970: 1_784_203_200))
+            },
+            nowProvider: { Date(timeIntervalSince1970: 1_784_203_200) })
 
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
@@ -314,6 +332,7 @@ struct SpendDashboardTokenProvenanceTests {
             sessionCostUSD: cost,
             last30DaysTokens: 10,
             last30DaysCostUSD: cost,
+            historyDays: 30,
             daily: [CostUsageDailyReport.Entry(
                 date: "2026-07-16",
                 inputTokens: 4,
@@ -331,8 +350,9 @@ struct SpendDashboardTokenProvenanceTests {
             sessionCostUSD: nil,
             last30DaysTokens: 0,
             last30DaysCostUSD: 0,
+            historyDays: 30,
             daily: [],
-            updatedAt: Date(timeIntervalSince1970: 1_784_179_200))
+            updatedAt: Date(timeIntervalSince1970: 1_784_203_200))
     }
 
     private static func mistralUsage(cost: Double) -> UsageSnapshot {
@@ -351,9 +371,9 @@ struct SpendDashboardTokenProvenanceTests {
                 cachedTokens: 0,
                 outputTokens: 6,
                 models: [])],
-            startDate: nil,
-            endDate: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_784_179_200))
+            startDate: Date(timeIntervalSince1970: 1_781_587_200),
+            endDate: Date(timeIntervalSince1970: 1_784_203_200),
+            updatedAt: Date(timeIntervalSince1970: 1_784_203_200))
             .toUsageSnapshot()
     }
 
@@ -386,7 +406,7 @@ struct SpendDashboardTokenProvenanceTests {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for provenance state")
     }
