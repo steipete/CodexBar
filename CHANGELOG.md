@@ -3,6 +3,7 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- OpenCode Go: fix unscoped Auto monthly usage showing 0% left by overlaying server-reported usage windows and reset dates onto the local snapshot whenever a cached or manual opencode.ai cookie is available; the local monthly estimate could anchor on the earliest local row instead of the real billing cycle.
 
 ## 0.45.2 — 2026-07-19
 
