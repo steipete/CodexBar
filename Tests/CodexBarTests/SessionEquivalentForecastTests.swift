@@ -164,7 +164,7 @@ struct SessionEquivalentForecastTests {
         let now = Date(timeIntervalSince1970: 1_900_000_000)
         let session = RateWindow(
             usedPercent: 20,
-            windowMinutes: 300,
+            windowMinutes: KimiProviderDescriptor.sessionWindowMinutes,
             resetsAt: now.addingTimeInterval(3600),
             resetDescription: nil)
         let burn = SessionEquivalentBurnEstimate(medianWeeklyPercentPerWindow: 10, sampleCount: 3)
@@ -703,6 +703,56 @@ extension SessionEquivalentForecastTests {
 
         let windows = try #require(store.sessionEquivalentWindows(provider: .zai, snapshot: snapshot))
         #expect(windows.weeklyWindowID == "zai-named-weekly")
+    }
+
+    @MainActor
+    @Test
+    func `Kimi resolves its inverted primary and secondary windows by duration`() throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let weekly = RateWindow(
+            usedPercent: 40,
+            windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
+            resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+            resetDescription: nil)
+        let session = RateWindow(
+            usedPercent: 20,
+            windowMinutes: KimiProviderDescriptor.sessionWindowMinutes,
+            resetsAt: now.addingTimeInterval(4 * 60 * 60),
+            resetDescription: nil)
+        let snapshot = UsageSnapshot(
+            primary: weekly,
+            secondary: session,
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "kimi-code-7d",
+                    title: "Code 7-day",
+                    window: RateWindow(
+                        usedPercent: 15,
+                        windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
+                        resetsAt: now.addingTimeInterval(2 * 24 * 60 * 60),
+                        resetDescription: nil)),
+            ],
+            updatedAt: now)
+
+        let windows = try #require(store.sessionEquivalentWindows(provider: .kimi, snapshot: snapshot))
+        #expect(windows.session.windowMinutes == KimiProviderDescriptor.sessionWindowMinutes)
+        #expect(windows.weekly.windowMinutes == KimiProviderDescriptor.weeklyWindowMinutes)
+        #expect(windows.weekly.usedPercent == 40)
+
+        let forecast = try #require(SessionEquivalentForecast.make(
+            sessionWindow: windows.session,
+            weeklyWindow: windows.weekly,
+            burnEstimate: SessionEquivalentBurnEstimate(
+                medianWeeklyPercentPerWindow: 10,
+                sampleCount: 3),
+            now: now,
+            workDays: nil))
+        #expect(forecast.estimatedWindowsToExhaustWeekly == 6)
+        #expect(forecast.windowsUntilReset == 14)
+        let detail = UsagePaceText.sessionEquivalentDetail(forecast: forecast)
+        #expect(detail.verdictText == "Weekly can run out ≈8 windows early")
     }
 
     @MainActor

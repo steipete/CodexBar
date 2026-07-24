@@ -102,18 +102,18 @@ struct OverviewMenuCardVisibilityTests {
 
 struct ProviderInlineDashboardModelTests {
     @Test
-    func `kimi model orders rate limit before weekly quota`() throws {
+    func `kimi model orders rate limit before weekly quota and shows pace`() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let metadata = try #require(ProviderDefaults.metadata[.kimi])
         let snapshot = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 18.3,
-                windowMinutes: nil,
+                windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
                 resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
                 resetDescription: "375/2048 requests"),
             secondary: RateWindow(
                 usedPercent: 9.5,
-                windowMinutes: 300,
+                windowMinutes: KimiProviderDescriptor.sessionWindowMinutes,
                 resetsAt: now.addingTimeInterval(4 * 60 * 60),
                 resetDescription: "Rate: 19/200 per 5 hours"),
             updatedAt: now)
@@ -140,6 +140,9 @@ struct ProviderInlineDashboardModelTests {
 
         #expect(model.metrics.map(\.id) == ["secondary", "primary"])
         #expect(model.metrics.map(\.title) == ["Rate Limit", "Weekly"])
+        #expect(model.metrics.map(\.detailLeftText) == ["11% in reserve", "25% in reserve"])
+        #expect(model.metrics.map(\.detailRightText) == ["Lasts until reset", "Lasts until reset"])
+        #expect(model.metrics.allSatisfy { $0.pacePercent != nil })
     }
 
     @Test
