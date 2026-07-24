@@ -49,6 +49,23 @@ struct ProviderPaceCapabilityTests {
         }
     }
 
+    @Test
+    func `amp monthly pace is limited to subscription windows`() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let capability = AmpProviderDescriptor.descriptor.pace
+        let freeTier = Self.window(
+            minutes: 24 * 60,
+            resetsAt: now.addingTimeInterval(12 * 60 * 60))
+        let subscription = Self.window(
+            minutes: Self.monthlyWindowSentinelMinutes,
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60))
+
+        #expect(!capability.supportsResetWindowPace(window: freeTier, now: now))
+        #expect(!capability.usesInferredMonthlyDuration(window: freeTier))
+        #expect(capability.supportsResetWindowPace(window: subscription, now: now))
+        #expect(capability.usesInferredMonthlyDuration(window: subscription))
+    }
+
     private static func window(minutes: Int?, resetsAt: Date?) -> RateWindow {
         RateWindow(
             usedPercent: 50,
@@ -77,7 +94,7 @@ struct ProviderPaceCapabilityTests {
             return windowMinutes > 0
                 && timeUntilReset > 0
                 && timeUntilReset <= TimeInterval(windowMinutes) * 60
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+        case .alibaba, .alibabatokenplan, .amp, .doubao, .opencodego:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -91,7 +108,7 @@ struct ProviderPaceCapabilityTests {
         switch provider {
         case .copilot:
             window.windowMinutes == nil
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+        case .alibaba, .alibabatokenplan, .amp, .doubao, .opencodego:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

@@ -97,6 +97,40 @@ struct CLIOutputTests {
     }
 
     @Test
+    func `text renderer labels amp subscription pools`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = AmpUsageSnapshot(
+            freeQuota: nil,
+            freeUsed: nil,
+            hourlyReplenishment: nil,
+            windowHours: nil,
+            updatedAt: now,
+            subscription: AmpSubscriptionUsage(
+                plan: "Megawatt",
+                otherUsedPercent: 3,
+                orbUsedPercent: 0,
+                resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                resetDescription: "renews in 29 days"))
+            .toUsageSnapshot(now: now)
+
+        let text = CLIRenderer.renderText(
+            provider: .amp,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Amp (cli)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(text.contains("Other usage:"))
+        #expect(text.contains("Orb usage:"))
+        #expect(!text.contains("Amp Free:"))
+        #expect(!text.contains("Balance:"))
+    }
+
+    @Test
     func `text renderer shows mimo balance without quota or reset text`() {
         let snapshot = MiMoUsageSnapshot(
             balance: 25.51,

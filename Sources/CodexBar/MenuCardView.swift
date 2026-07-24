@@ -1035,6 +1035,12 @@ extension UsageMenuCardView.Model {
             }
             return self.planDisplay(pass, for: provider)
         }
+        if provider == .amp,
+           let plan = snapshot?.ampUsage?.subscriptionPlan,
+           !plan.isEmpty
+        {
+            return self.planDisplay(plan, for: provider)
+        }
         if let plan = snapshot?.loginMethod(for: provider), !plan.isEmpty {
             return self.planDisplay(plan, for: provider)
         }

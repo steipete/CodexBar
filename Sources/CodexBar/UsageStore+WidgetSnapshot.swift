@@ -177,8 +177,18 @@ extension UsageStore {
             {
                 return dyn
             }
+            if provider == .amp,
+               let dyn = AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage)
+            {
+                return dyn
+            }
             return metadata?.sessionLabel ?? "Session"
         }()
+        let secondaryTitle = if provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? metadata?.weeklyLabel ?? "Weekly"
+        } else {
+            metadata?.weeklyLabel ?? "Weekly"
+        }
 
         var rows: [WidgetSnapshot.WidgetUsageRowSnapshot] = [
             WidgetSnapshot.WidgetUsageRowSnapshot(
@@ -187,7 +197,7 @@ extension UsageStore {
                 percentLeft: snapshot.primary?.remainingPercent),
             WidgetSnapshot.WidgetUsageRowSnapshot(
                 id: "secondary",
-                title: metadata?.weeklyLabel ?? "Weekly",
+                title: secondaryTitle,
                 percentLeft: snapshot.secondary?.remainingPercent),
         ]
         if metadata?.supportsOpus == true {
