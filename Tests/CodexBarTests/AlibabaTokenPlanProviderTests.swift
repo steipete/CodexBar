@@ -209,6 +209,45 @@ struct AlibabaTokenPlanUsageSnapshotTests {
 @Suite(.serialized)
 struct AlibabaTokenPlanUsageParsingTests {
     @Test
+    func `parses token plan rate windows with millisecond resets`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let json = """
+        {
+          "code": "200",
+          "data": {
+            "DataV2": {
+              "data": {
+                "success": true,
+                "data": {
+                  "per5HourPercentage": 0.0769,
+                  "per5HourResetTime": 1700100000000,
+                  "per1WeekPercentage": 0.0261,
+                  "per1WeekResetTime": 1700200000000
+                }
+              },
+              "success": true,
+              "httpStatus": 200
+            }
+          },
+          "successResponse": true
+        }
+        """
+
+        let snapshot = try AlibabaTokenPlanUsageFetcher.parseRateLimitUsageSnapshot(
+            from: Data(json.utf8),
+            now: now)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(abs((usage.primary?.usedPercent ?? -.infinity) - 7.69) < 0.000_001)
+        #expect(usage.primary?.windowMinutes == 5 * 60)
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_700_100_000))
+        #expect(abs((usage.secondary?.usedPercent ?? -.infinity) - 2.61) < 0.000_001)
+        #expect(usage.secondary?.windowMinutes == 7 * 24 * 60)
+        #expect(usage.secondary?.resetsAt == Date(timeIntervalSince1970: 1_700_200_000))
+        #expect(usage.loginMethod(for: .alibabatokenplan) == "TOKEN PLAN")
+    }
+
+    @Test
     func `parses subscription summary payload`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let json = """
@@ -451,6 +490,78 @@ struct AlibabaTokenPlanUsageParsingTests {
             session: session)
 
         #expect(snapshot.planName == "TOKEN PLAN")
+    }
+
+    @Test
+    func `fetches authenticated token plan rate windows before credit fallback`() async throws {
+        defer {
+            AlibabaTokenPlanStubURLProtocol.handler = nil
+        }
+
+        AlibabaTokenPlanStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+
+            if url.host == "rate-limit.test", request.httpMethod == "GET" {
+                return Self.makeResponse(
+                    url: url,
+                    body: "<html><script>sec_token = \"session-token\";</script></html>",
+                    statusCode: 200)
+            }
+
+            if url.host == "bailian-singapore-cs.alibabacloud.com",
+               request.httpMethod == "POST",
+               URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                   .queryItems?
+                   .first(where: { $0.name == "api" })?
+                   .value == "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
+            {
+                #expect(request.value(forHTTPHeaderField: "Origin") ==
+                    "https://modelstudio.console.alibabacloud.com")
+                let body = Self.requestBodyString(from: request)
+                #expect(body.contains("sec_token=session-token"))
+                #expect(body.contains("params="))
+                #expect(body.contains("region=ap-southeast-1"))
+                let json = """
+                {
+                  "code": "200",
+                  "data": {
+                    "DataV2": {
+                      "data": {
+                        "success": true,
+                        "data": {
+                          "per5HourPercentage": 0.0769,
+                          "per5HourResetTime": 1700100000000,
+                          "per1WeekPercentage": 0.0261,
+                          "per1WeekResetTime": 1700200000000
+                        }
+                      },
+                      "success": true,
+                      "httpStatus": 200
+                    }
+                  },
+                  "successResponse": true
+                }
+                """
+                return Self.makeResponse(url: url, body: json, statusCode: 200)
+            }
+
+            throw URLError(.unsupportedURL)
+        }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+            apiCookieHeader: "login_aliyunid_ticket=ticket",
+            dashboardCookieHeader: "login_aliyunid_ticket=ticket",
+            environment: [AlibabaTokenPlanSettingsReader.hostKey: "https://rate-limit.test"],
+            session: session)
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(abs((usage.primary?.usedPercent ?? -.infinity) - 7.69) < 0.000_001)
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(abs((usage.secondary?.usedPercent ?? -.infinity) - 2.61) < 0.000_001)
+        #expect(usage.secondary?.windowMinutes == 10080)
     }
 
     @Test
@@ -921,7 +1032,9 @@ final class AlibabaTokenPlanStubURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool {
         guard let host = request.url?.host else { return false }
         return host == "bailian.console.aliyun.com" ||
+            host == "bailian-singapore-cs.alibabacloud.com" ||
             host == "alibaba-token-plan.test" ||
+            host == "rate-limit.test" ||
             host == "session-token.test"
     }
 

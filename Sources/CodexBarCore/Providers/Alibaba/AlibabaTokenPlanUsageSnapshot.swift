@@ -6,6 +6,10 @@ public struct AlibabaTokenPlanUsageSnapshot: Sendable {
     public let totalQuota: Double?
     public let remainingQuota: Double?
     public let resetsAt: Date?
+    public let fiveHourUsedPercent: Double?
+    public let fiveHourResetsAt: Date?
+    public let sevenDayUsedPercent: Double?
+    public let sevenDayResetsAt: Date?
     public let updatedAt: Date
 
     public init(
@@ -14,6 +18,10 @@ public struct AlibabaTokenPlanUsageSnapshot: Sendable {
         totalQuota: Double?,
         remainingQuota: Double?,
         resetsAt: Date?,
+        fiveHourUsedPercent: Double? = nil,
+        fiveHourResetsAt: Date? = nil,
+        sevenDayUsedPercent: Double? = nil,
+        sevenDayResetsAt: Date? = nil,
         updatedAt: Date)
     {
         self.planName = planName
@@ -21,13 +29,17 @@ public struct AlibabaTokenPlanUsageSnapshot: Sendable {
         self.totalQuota = totalQuota
         self.remainingQuota = remainingQuota
         self.resetsAt = resetsAt
+        self.fiveHourUsedPercent = fiveHourUsedPercent
+        self.fiveHourResetsAt = fiveHourResetsAt
+        self.sevenDayUsedPercent = sevenDayUsedPercent
+        self.sevenDayResetsAt = sevenDayResetsAt
         self.updatedAt = updatedAt
     }
 }
 
 extension AlibabaTokenPlanUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primary: RateWindow? = Self.usedPercent(
+        let monthlyCredits: RateWindow? = Self.usedPercent(
             used: self.usedQuota,
             total: self.totalQuota,
             remaining: self.remainingQuota).map {
@@ -40,6 +52,23 @@ extension AlibabaTokenPlanUsageSnapshot {
                     total: self.totalQuota,
                     remaining: self.remainingQuota))
         }
+        let fiveHour = self.fiveHourUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 5 * 60,
+                resetsAt: self.fiveHourResetsAt,
+                resetDescription: nil)
+        }
+        let sevenDay = self.sevenDayUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: self.sevenDayResetsAt,
+                resetDescription: nil)
+        }
+        let primary = fiveHour ?? monthlyCredits
+        let secondary = fiveHour == nil ? nil : sevenDay
+        let tertiary = fiveHour == nil ? nil : monthlyCredits
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -51,8 +80,8 @@ extension AlibabaTokenPlanUsageSnapshot {
 
         return UsageSnapshot(
             primary: primary,
-            secondary: nil,
-            tertiary: nil,
+            secondary: secondary,
+            tertiary: tertiary,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
