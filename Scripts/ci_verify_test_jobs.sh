@@ -9,6 +9,7 @@ macos_test_result="${4:-}"
 macos_tests_deferred="${5:-}"
 linux_musl_build_required="${6:-}"
 linux_musl_build_result="${7:-}"
+linux_cli_result="${8:-}"
 
 if [[ "$lint_result" != "success" ]]; then
   printf 'lint job finished with %s\n' "${lint_result:-<empty>}" >&2
@@ -52,3 +53,10 @@ case "${linux_musl_build_required}:${linux_musl_build_result}" in
     exit 1
     ;;
 esac
+
+if [[ "$linux_cli_result" != "success" ]]; then
+  printf 'Linux CLI build/test job finished with %s\n' "${linux_cli_result:-<empty>}" >&2
+  exit 1
+fi
+
+printf 'Linux CLI build and tests passed.\n'

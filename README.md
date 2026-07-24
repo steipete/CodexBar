@@ -185,6 +185,9 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - **What we do not request in the background**: no Screen Recording or Accessibility permissions; user-triggered helper actions may ask macOS for Automation permission to open Terminal. No passwords are stored (browser cookies are reused when you opt in).
 
 ## Docs
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security: [SECURITY.md](SECURITY.md)
+- Support: [SUPPORT.md](SUPPORT.md)
 - Providers overview: [docs/providers.md](docs/providers.md)
 - Provider authoring: [docs/provider.md](docs/provider.md)
 - Issue labeling guide: [docs/ISSUE_LABELING.md](docs/ISSUE_LABELING.md)

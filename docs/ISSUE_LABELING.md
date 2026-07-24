@@ -72,6 +72,7 @@ Avoid using `question` as a generic fallback when the issue is actually a bug or
 - `area:notifications` — threshold alerts, prompt waiting, quota notifications
 - `area:export-integration` — Prometheus, HTTP server mode, external integrations
 - `area:accounts` — multiple accounts, account discovery, account switching UX
+- `area:providers` — provider requests, source-mode support, and integration boundaries
 
 ## Provider labels
 

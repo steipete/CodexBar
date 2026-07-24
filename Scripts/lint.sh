@@ -49,6 +49,10 @@ check_ci_path_gate() {
   "${ROOT_DIR}/Scripts/test_ci_path_gate.sh"
 }
 
+check_pr_policy_workflow() {
+  "${ROOT_DIR}/Scripts/test_pr_policy_workflow.sh"
+}
+
 check_repository_size() {
   "${ROOT_DIR}/Scripts/check_repository_size.sh"
   "${ROOT_DIR}/Scripts/test_repository_size.sh"
@@ -93,6 +97,7 @@ run_portable_checks() {
   check_sparkle_signing_paths
   check_swift_test_sharding
   check_ci_path_gate
+  check_pr_policy_workflow
   check_repository_size
   check_shell_scripts
   check_documentation_links
