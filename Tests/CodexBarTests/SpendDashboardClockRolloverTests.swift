@@ -14,7 +14,11 @@ struct SpendDashboardClockRolloverTests {
         let configuration = Self.configuration
         let initialInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
         let rolloverInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
+        // Isolate selected-days persistence so this suite never writes 7-day preference into the
+        // process-shared standard defaults used by other SpendDashboard controller tests.
+        let defaults = Self.isolatedUserDefaults(suiteName: "SpendDashboardClockRolloverTests-window")
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
@@ -58,7 +62,9 @@ struct SpendDashboardClockRolloverTests {
         let staleInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
         let freshInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
         let gate = SpendDashboardRolloverGate()
+        let defaults = Self.isolatedUserDefaults(suiteName: "SpendDashboardClockRolloverTests-inflight")
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
@@ -93,6 +99,15 @@ struct SpendDashboardClockRolloverTests {
         costUsageEnabled: true,
         providerIDs: [UsageProvider.codex.rawValue],
         codexAccountIdentities: ["rollover"])
+
+    private static func isolatedUserDefaults(suiteName: String) -> UserDefaults {
+        let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: isolatedSuiteName) else {
+            preconditionFailure("Could not create test defaults suite \(isolatedSuiteName)")
+        }
+        defaults.removePersistentDomain(forName: isolatedSuiteName)
+        return defaults
+    }
 
     private static func input(day: String, cost: Double, updatedAt: Date) -> SpendDashboardModel.ProviderInput {
         let entry = CostUsageDailyReport.Entry(
