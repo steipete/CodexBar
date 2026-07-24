@@ -84,6 +84,42 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `scoped weekly window picks the most constrained active carve-out`() {
+        let fable = NamedRateWindow(
+            id: "claude-weekly-scoped-fable",
+            title: "Fable only",
+            window: RateWindow(usedPercent: 40, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil))
+        let other = NamedRateWindow(
+            id: "claude-weekly-scoped-someothermodel",
+            title: "Some other model only",
+            window: RateWindow(usedPercent: 75, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil))
+        // A non-scoped extra window must be ignored even when it is more constrained.
+        let routines = NamedRateWindow(
+            id: "claude-routines",
+            title: "Daily Routines",
+            window: RateWindow(usedPercent: 90, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [fable, other, routines],
+            updatedAt: Date())
+
+        let window = MenuBarLayoutSemanticWindowResolver.scopedWeeklyWindow(snapshot: snapshot)
+
+        #expect(window?.usedPercent == 75)
+    }
+
+    @Test
+    func `scoped weekly window is nil without a carve-out`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 55, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        #expect(MenuBarLayoutSemanticWindowResolver.scopedWeeklyWindow(snapshot: snapshot) == nil)
+    }
+
+    @Test
     func `cost today resolves the current calendar day aggregate`() {
         let now = Date(timeIntervalSince1970: 1_752_768_000)
         var calendar = Calendar(identifier: .gregorian)

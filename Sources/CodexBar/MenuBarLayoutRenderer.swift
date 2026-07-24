@@ -27,6 +27,7 @@ struct MenuBarLayoutRenderData: Hashable {
     let accountLabel: String?
     let session: MenuBarLayoutRenderWindow?
     let weekly: MenuBarLayoutRenderWindow?
+    let scopedWeekly: MenuBarLayoutRenderWindow?
     let automatic: MenuBarLayoutRenderWindow?
     let runsOut: String?
     let costToday: String?
@@ -240,6 +241,9 @@ final class MenuBarLayoutRenderer {
             case .weekly:
                 prefix = "W"
                 accessibilityPrefix = L("Weekly")
+            case .scopedWeekly:
+                prefix = "F"
+                accessibilityPrefix = L("Fable only")
             case .automatic:
                 prefix = ""
                 accessibilityPrefix = L("Usage")
@@ -357,6 +361,7 @@ final class MenuBarLayoutRenderer {
         switch percentWindow {
         case .session: data.session
         case .weekly: data.weekly
+        case .scopedWeekly: data.scopedWeekly
         case .automatic: data.automatic
         }
     }
