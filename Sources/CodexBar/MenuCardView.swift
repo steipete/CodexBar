@@ -1408,7 +1408,11 @@ extension UsageMenuCardView.Model {
                     primaryPaceOnTop = paceDetail.paceOnTop
                 }
             }
-        } else if let paceDetail = Self.resetWindowPaceDetail(window: primary, input: input) {
+        } else if let paceDetail = Self.resetWindowPaceDetail(
+            window: primary,
+            input: input,
+            pace: input.provider == .kimi ? input.weeklyPace : nil)
+        {
             primaryDetailLeft = paceDetail.leftLabel
             primaryDetailRight = paceDetail.rightLabel
             primaryPacePercent = paceDetail.pacePercent
@@ -1468,12 +1472,21 @@ extension UsageMenuCardView.Model {
         title: String? = nil,
         zaiTimeDetail: String?) -> Metric
     {
-        var paceDetail = Self.weeklyPaceDetail(
-            provider: input.provider,
-            window: weekly,
-            now: input.now,
-            pace: input.weeklyPace,
-            showUsed: input.usageBarsShowUsed)
+        // Kimi's secondary slot is its 5-hour rate limit rather than a weekly window.
+        var paceDetail = if input.provider == .kimi {
+            Self.sessionPaceDetail(
+                provider: input.provider,
+                window: weekly,
+                now: input.now,
+                showUsed: input.usageBarsShowUsed)
+        } else {
+            Self.weeklyPaceDetail(
+                provider: input.provider,
+                window: weekly,
+                now: input.now,
+                pace: input.weeklyPace,
+                showUsed: input.usageBarsShowUsed)
+        }
         var weeklyResetText = Self.resetText(for: weekly, style: input.resetTimeDisplayStyle, now: input.now)
         var weeklyDetailText: String? = input.provider == .zai ? zaiTimeDetail : nil
         if input.provider == .warp,

@@ -3,6 +3,7 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- Kimi: add pace data and menu forecast support for weekly and 5-hour quotas (#2431).
 
 ## 0.45.2 — 2026-07-19
 

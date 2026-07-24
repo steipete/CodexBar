@@ -544,10 +544,20 @@ enum CLIRenderer {
         now: Date = Date()) -> ProviderPacePayload?
     {
         let primary = snapshot.primary.flatMap {
-            self.pacePayload(provider: provider, window: $0, kind: .session, now: now)
+            self.pacePayload(
+                provider: provider,
+                window: $0,
+                kind: self.paceKind(provider: provider, fallback: .session),
+                weeklyWorkDays: weeklyWorkDays,
+                now: now)
         }
         let secondary = snapshot.secondary.flatMap {
-            self.pacePayload(provider: provider, window: $0, kind: .weekly, weeklyWorkDays: weeklyWorkDays, now: now)
+            self.pacePayload(
+                provider: provider,
+                window: $0,
+                kind: self.paceKind(provider: provider, fallback: .weekly),
+                weeklyWorkDays: weeklyWorkDays,
+                now: now)
         }
         guard primary != nil || secondary != nil else { return nil }
         return ProviderPacePayload(primary: primary, secondary: secondary)
@@ -577,7 +587,7 @@ enum CLIRenderer {
                 provider: provider,
                 title: labels.primary,
                 window: primary,
-                paceKind: .session,
+                paceKind: self.paceKind(provider: provider, fallback: .session),
                 context: context,
                 now: now,
                 lines: &lines)
@@ -609,7 +619,7 @@ enum CLIRenderer {
             provider: provider,
             title: labels.secondary,
             window: weekly,
-            paceKind: .weekly,
+            paceKind: self.paceKind(provider: provider, fallback: .weekly),
             context: context,
             now: now,
             lines: &lines)
@@ -1067,10 +1077,22 @@ enum CLIRenderer {
         func supports(provider: UsageProvider) -> Bool {
             switch self {
             case .session:
-                provider == .codex || provider == .claude || provider == .ollama
+                provider == .codex || provider == .claude || provider == .ollama || provider == .kimi
             case .weekly:
-                provider == .codex || provider == .claude || provider == .opencode || provider == .ollama
+                provider == .codex || provider == .claude || provider == .opencode || provider == .ollama ||
+                    provider == .kimi
             }
+        }
+    }
+
+    private static func paceKind(provider: UsageProvider, fallback: PaceKind) -> PaceKind {
+        guard provider == .kimi else { return fallback }
+        // Kimi stores weekly in primary and its rate limit in secondary, opposite the legacy CLI slot convention.
+        switch fallback {
+        case .session:
+            return .weekly
+        case .weekly:
+            return .session
         }
     }
 
@@ -1082,6 +1104,16 @@ enum CLIRenderer {
         now: Date) -> UsagePace?
     {
         guard kind.supports(provider: provider) else { return nil }
+        if provider == .kimi {
+            let supportsWindow = switch kind {
+            case .session:
+                window.windowMinutes == KimiProviderDescriptor.sessionWindowMinutes
+            case .weekly:
+                ProviderDescriptorRegistry.descriptor(for: provider).pace
+                    .supportsResetWindowPace(window: window, now: now)
+            }
+            guard supportsWindow else { return nil }
+        }
         // Only pace a real session window here; Claude w/o 5-hour data falls a 7-day window into primary.
         if case .session = kind, let minutes = window.windowMinutes, minutes > 300 {
             return nil

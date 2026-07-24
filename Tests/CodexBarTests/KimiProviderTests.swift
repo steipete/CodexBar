@@ -647,6 +647,60 @@ struct KimiUsageResponseParsingTests {
         #expect(snapshot.rateLimit?.used == nil)
         #expect(snapshot.rateLimit?.remaining == "99")
         #expect(snapshot.rateLimit?.resetTime == "2026-01-06T13:33:02Z")
+        #expect(snapshot.toUsageSnapshot().primary?.windowMinutes == KimiProviderDescriptor.weeklyWindowMinutes)
+        #expect(snapshot.toUsageSnapshot().secondary?.windowMinutes == 300)
+        #expect(snapshot.toUsageSnapshot().secondary?.resetDescription == "Rate: 1/100 per 5 hours")
+    }
+
+    @Test
+    func `derives rate window duration from API units`() throws {
+        let json = """
+        {
+          "usage": {"limit": 1000, "used": 40, "remaining": 960},
+          "limits": [
+            {
+              "window": {"duration": 2, "timeUnit": "TIME_UNIT_HOUR"},
+              "detail": {"limit": 100, "used": 25, "remaining": 75}
+            }
+          ]
+        }
+        """
+
+        let usage = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8)).toUsageSnapshot()
+
+        #expect(usage.secondary?.windowMinutes == 120)
+        #expect(usage.secondary?.resetDescription == "Rate: 25/100 per 2 hours")
+    }
+
+    @Test
+    func `converts supported window units and rejects invalid durations`() {
+        #expect(KimiWindow(duration: 300, timeUnit: "TIME_UNIT_MINUTE").durationMinutes == 300)
+        #expect(KimiWindow(duration: 5, timeUnit: "TIME_UNIT_HOUR").durationMinutes == 300)
+        #expect(KimiWindow(duration: 7, timeUnit: "TIME_UNIT_DAY").durationMinutes == 10080)
+        #expect(KimiWindow(duration: 0, timeUnit: "TIME_UNIT_HOUR").durationMinutes == nil)
+        #expect(KimiWindow(duration: -1, timeUnit: "TIME_UNIT_DAY").durationMinutes == nil)
+        #expect(KimiWindow(duration: Int.max, timeUnit: "TIME_UNIT_HOUR").durationMinutes == nil)
+        #expect(KimiWindow(duration: 5, timeUnit: "TIME_UNIT_UNKNOWN").durationMinutes == nil)
+    }
+
+    @Test
+    func `unknown rate window unit does not fabricate a duration`() throws {
+        let json = """
+        {
+          "usage": {"limit": 1000, "used": 40, "remaining": 960},
+          "limits": [
+            {
+              "window": {"duration": 5, "timeUnit": "TIME_UNIT_UNKNOWN"},
+              "detail": {"limit": 100, "used": 25, "remaining": 75}
+            }
+          ]
+        }
+        """
+
+        let usage = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8)).toUsageSnapshot()
+
+        #expect(usage.secondary?.windowMinutes == nil)
+        #expect(usage.secondary?.resetDescription == "Rate: 25/100")
     }
 
     @Test
@@ -746,6 +800,7 @@ struct KimiUsageResponseParsingTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.primary?.windowMinutes == KimiProviderDescriptor.weeklyWindowMinutes)
         #expect(usage.secondary?.usedPercent == 25)
         #expect(usage.extraRateWindows == nil)
         #expect(elapsed < .milliseconds(250), "Subscription enrichment outlived its total budget: \(elapsed)")
@@ -905,7 +960,7 @@ struct KimiUsageResponseParsingTests {
 
 struct KimiUsageSnapshotConversionTests {
     @Test
-    func `converts to usage snapshot with both windows`() {
+    func `converts to usage snapshot with both windows`() throws {
         let now = Date()
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -925,17 +980,19 @@ struct KimiUsageSnapshotConversionTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.primary != nil)
+        let primary = try #require(usageSnapshot.primary)
         let weeklyExpected = 375.0 / 2048.0 * 100.0
-        #expect(abs((usageSnapshot.primary?.usedPercent ?? 0.0) - weeklyExpected) < 0.01)
-        #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
-        #expect(usageSnapshot.primary?.windowMinutes == nil)
+        #expect(abs(primary.usedPercent - weeklyExpected) < 0.01)
+        #expect(primary.resetDescription == "375/2048 requests")
+        #expect(primary.windowMinutes == KimiProviderDescriptor.weeklyWindowMinutes)
+        #expect(KimiProviderDescriptor.descriptor.pace.supportsResetWindowPace(window: primary, now: now))
 
-        #expect(usageSnapshot.secondary != nil)
+        let secondary = try #require(usageSnapshot.secondary)
         let rateExpected = 200.0 / 200.0 * 100.0
-        #expect(abs((usageSnapshot.secondary?.usedPercent ?? 0.0) - rateExpected) < 0.01)
-        #expect(usageSnapshot.secondary?.windowMinutes == 300) // 5 hours
-        #expect(usageSnapshot.secondary?.resetDescription == "Rate: 200/200 per 5 hours")
+        #expect(abs(secondary.usedPercent - rateExpected) < 0.01)
+        #expect(secondary.windowMinutes == KimiProviderDescriptor.sessionWindowMinutes)
+        #expect(secondary.resetDescription == "Rate: 200/200 per 5 hours")
+        #expect(!KimiProviderDescriptor.descriptor.pace.supportsResetWindowPace(window: secondary, now: now))
 
         #expect(usageSnapshot.tertiary == nil)
         #expect(usageSnapshot.updatedAt == now)
@@ -966,6 +1023,7 @@ struct KimiUsageSnapshotConversionTests {
         #expect(monthly.id == "kimi-monthly")
         #expect(monthly.title == "Monthly")
         #expect(monthly.window.usedPercent == 100)
+        #expect(monthly.window.windowMinutes == nil)
         #expect(monthly.window.resetsAt == Self.date("2026-07-23T00:00:00Z"))
     }
 
@@ -1101,6 +1159,84 @@ struct KimiUsageSnapshotConversionTests {
 
         #expect(usageSnapshot.primary?.resetDescription == "375/2048 requests")
         #expect(usageSnapshot.secondary == nil)
+    }
+
+    @Test
+    func `malformed limits do not fabricate pace metadata`() {
+        let now = Date()
+        let weekly = KimiUsageDetail(limit: "100", used: "25", remaining: "75", resetTime: nil)
+        let invalid = KimiUsageDetail(limit: "invalid", used: "5", remaining: "15", resetTime: nil)
+        let zero = KimiUsageDetail(limit: "0", used: "0", remaining: "0", resetTime: nil)
+
+        #expect(KimiUsageSnapshot(weekly: invalid, rateLimit: nil, updatedAt: now).toUsageSnapshot().primary == nil)
+        #expect(KimiUsageSnapshot(weekly: zero, rateLimit: nil, updatedAt: now).toUsageSnapshot().primary == nil)
+        #expect(KimiUsageSnapshot(weekly: weekly, rateLimit: invalid, updatedAt: now)
+            .toUsageSnapshot().secondary == nil)
+    }
+
+    @Test
+    func `derives invalid or missing used counts from valid remaining counts`() throws {
+        let now = Date()
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "invalid", remaining: "75", resetTime: nil),
+            rateLimit: KimiUsageDetail(limit: "20", used: nil, remaining: "15", resetTime: nil),
+            updatedAt: now)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(try #require(usage.primary).usedPercent == 25)
+        #expect(try #require(usage.secondary).usedPercent == 25)
+    }
+
+    @Test
+    func `over quota used count wins over contradictory remaining`() throws {
+        let now = Date()
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "125", remaining: "25", resetTime: nil),
+            rateLimit: nil,
+            updatedAt: now)
+
+        let primary = try #require(snapshot.toUsageSnapshot().primary)
+        #expect(primary.usedPercent == 100)
+        #expect(primary.resetDescription == "125/100 requests")
+        #expect(primary.windowMinutes == KimiProviderDescriptor.weeklyWindowMinutes)
+    }
+
+    @Test
+    func `negative used count falls back to valid remaining`() throws {
+        let now = Date()
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: "-1", remaining: "75", resetTime: nil),
+            rateLimit: nil,
+            updatedAt: now)
+
+        #expect(try #require(snapshot.toUsageSnapshot().primary).usedPercent == 25)
+    }
+
+    @Test
+    func `invalid remaining does not synthesize a quota`() {
+        let now = Date()
+        for remaining in ["-1", "101", "invalid"] {
+            let snapshot = KimiUsageSnapshot(
+                weekly: KimiUsageDetail(limit: "100", used: nil, remaining: remaining, resetTime: nil),
+                rateLimit: nil,
+                updatedAt: now)
+
+            #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 0)
+            #expect(snapshot.toUsageSnapshot().primary?.windowMinutes == nil)
+        }
+    }
+
+    @Test
+    func `missing counters preserve gauge without pace metadata`() throws {
+        let snapshot = KimiUsageSnapshot(
+            weekly: KimiUsageDetail(limit: "100", used: nil, remaining: nil, resetTime: nil),
+            rateLimit: nil,
+            updatedAt: Date())
+
+        let primary = try #require(snapshot.toUsageSnapshot().primary)
+        #expect(primary.usedPercent == 0)
+        #expect(primary.windowMinutes == nil)
+        #expect(primary.resetDescription == "0/100 requests")
     }
 
     @Test
