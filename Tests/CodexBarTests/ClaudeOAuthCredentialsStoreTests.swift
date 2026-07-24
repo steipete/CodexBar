@@ -69,6 +69,42 @@ struct ClaudeOAuthCredentialsStoreTests {
     }
 
     @Test
+    func `safety isolates pending cache clear from the application suite`() {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        let domain = "com.steipete.codexbar"
+        let key = "ClaudeOAuthPendingCodexBarOAuthKeychainCacheClearV1"
+        guard let defaults = UserDefaults(suiteName: domain) else {
+            Issue.record("Expected UserDefaults suite \(domain)")
+            return
+        }
+        let previous = defaults.object(forKey: key)
+        defer {
+            if let previous {
+                defaults.set(previous, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+            defaults.synchronize()
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+        }
+
+        let sentinel = "isolation-sentinel-\(UUID().uuidString)"
+        defaults.set(sentinel, forKey: key)
+        defaults.synchronize()
+
+        // never-mode cache invalidation marks pending clear without an explicit store override.
+        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+            ClaudeOAuthCredentialsStore.invalidateCache()
+        }
+
+        defaults.synchronize()
+        #expect(defaults.string(forKey: key) == sentinel)
+    }
+
+    @Test
     func `loads from keychain cache before expired file`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try ProviderInteractionContext.$current.withValue(.background) {

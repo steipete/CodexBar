@@ -131,6 +131,8 @@ public enum ClaudeOAuthCredentialsStore {
     private static let isolatedTestCredentialsURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("codexbar-tests-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("credentials.json")
+    private static let isolatedTestPendingCacheClearStore: ClaudeOAuthPendingCacheClearStore =
+        PendingCacheClearMemoryStore()
     #endif
     // In-memory cache (nonisolated for synchronous access)
     private static let memoryCacheLock = NSLock()
@@ -2412,6 +2414,10 @@ public enum ClaudeOAuthCredentialsStore {
         if let store = self.taskPendingCacheClearStoreOverride {
             return store
         }
+        // Unit tests must never share or write the process-shared app tombstone suite.
+        if KeychainTestSafety.shouldIsolateUserStateUnderTests() {
+            return self.isolatedTestPendingCacheClearStore
+        }
         #endif
         return self.pendingCodexBarOAuthKeychainCacheClearStore
     }
@@ -2581,7 +2587,9 @@ public enum ClaudeOAuthCredentialsStore {
         } else {
             UserDefaults.standard.removeObject(forKey: self.fileFingerprintKey)
         }
-        if self.taskPendingCacheClearStoreOverride != nil {
+        if self.taskPendingCacheClearStoreOverride != nil
+            || KeychainTestSafety.shouldIsolateUserStateUnderTests()
+        {
             self.currentPendingCodexBarOAuthKeychainCacheClearStore.withCacheTransaction { pending in
                 pending = false
             }
