@@ -219,6 +219,8 @@ struct UsageStoreCoverageTests {
             provider: .amp)
         let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
 
+        #expect(model.metrics.map(\.title) == ["Amp Free"])
+        #expect(model.metrics.allSatisfy { $0.pacePercent == nil })
         #expect(model.creditsText == "Individual credits: $25.64\nWorkspace billing@example.test: $10.22")
         #expect(model.creditsRemaining == nil)
 

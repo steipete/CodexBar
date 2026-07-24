@@ -175,8 +175,11 @@ struct AmpUsageParserTests {
         #expect(snapshot.freeUsed == nil)
         #expect(snapshot.individualCredits == 25.64)
         #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
         #expect(usage.ampUsage == AmpUsageDetails(individualCredits: 25.64, workspaceBalances: []))
         #expect(usage.identity?.loginMethod == "Amp")
+        #expect(AmpProviderDescriptor.primaryLabel(details: usage.ampUsage) == nil)
+        #expect(AmpProviderDescriptor.secondaryLabel(details: usage.ampUsage) == nil)
     }
 
     @Test
