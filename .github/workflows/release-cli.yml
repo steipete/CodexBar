@@ -11,10 +11,12 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-cli:
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -396,20 +398,7 @@ jobs:
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
-      - name: Upload release assets
-        if: github.event_name == 'release'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${RELEASE_TAG}"
-          OUT_DIR="${{ steps.pkg.outputs.out_dir }}"
-          ASSET="${{ steps.pkg.outputs.asset }}"
-          gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
-
-      - name: Upload workflow artifact (manual runs)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload packaged artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: codexbar-cli-${{ matrix.name }}
@@ -417,10 +406,42 @@ jobs:
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
 
-  update-homebrew-tap:
+  publish-release-assets:
     runs-on: ubuntu-24.04
     needs: build-cli
     if: github.event_name == 'release'
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: codexbar-cli-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t assets < <(find release-assets -maxdepth 1 -type f \
+            \( -name 'CodexBarCLI-*.tar.gz' -o -name 'CodexBarCLI-*.tar.gz.sha256' \) -print | sort)
+          if [[ "${#assets[@]}" -ne 12 ]]; then
+            printf 'Expected 12 CLI release files, found %s.\n' "${#assets[@]}" >&2
+            printf '%s\n' "${assets[@]:-<none>}" >&2
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  update-homebrew-tap:
+    runs-on: ubuntu-24.04
+    needs: publish-release-assets
+    if: github.event_name == 'release'
+    permissions: {}
     steps:
       - name: Resolve release tag
         id: release

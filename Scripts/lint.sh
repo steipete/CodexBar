@@ -79,6 +79,10 @@ check_documentation_links() {
   node "${ROOT_DIR}/Scripts/check-documentation-links.mjs"
 }
 
+check_release_cli_permissions() {
+  "${ROOT_DIR}/Scripts/test_release_cli_permissions.sh"
+}
+
 check_llms_index() {
   node "${ROOT_DIR}/Scripts/generate-llms.mjs" --check
 }
@@ -93,10 +97,12 @@ run_portable_checks() {
   check_sparkle_signing_paths
   check_swift_test_sharding
   check_ci_path_gate
+  check_release_cli_permissions
   check_repository_size
   check_shell_scripts
   check_documentation_links
   check_llms_index
+  check_release_cli_permissions
   check_site_locales
 }
 
