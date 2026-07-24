@@ -244,6 +244,26 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `reproduces issue 2378 cowork usage updates routines rate window but not spending provider cost`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 10, "resets_at": "2026-07-25T12:00:00.000Z" },
+          "seven_day_cowork": { "utilization": 65, "resets_at": "2026-07-31T00:00:00.000Z" },
+          "extra_usage": {
+            "is_enabled": true,
+            "monthly_limit": 5000,
+            "used_credits": 1200
+          }
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        let routinesWindow = snap.extraRateWindows.first(where: { $0.id == "claude-routines" })
+        #expect(routinesWindow?.window.usedPercent == 65)
+        #expect(snap.providerCost?.used == 12.0)
+        #expect(snap.providerCost?.limit == 50.0)
+    }
+
+    @Test
     func `maps O auth extra usage`() throws {
         // OAuth API returns values in cents (minor units), same as Web API.
         // The normalization always converts to dollars (major units).
