@@ -8,6 +8,7 @@ public struct CodexBarConfig: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case version
         case providers
+        case hooks
     }
 
     private enum ProviderCodingKeys: String, CodingKey {
@@ -46,6 +47,7 @@ public struct CodexBarConfig: Codable, Sendable {
             try providers.append(ProviderConfig(from: providerDecoder))
         }
         self.providers = providers
+        self.hooks = try container.decodeIfPresent(HooksConfig.self, forKey: .hooks)
     }
 
     public static func makeDefault(
