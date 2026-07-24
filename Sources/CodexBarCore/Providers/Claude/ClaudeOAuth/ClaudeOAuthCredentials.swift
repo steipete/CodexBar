@@ -128,6 +128,9 @@ public enum ClaudeOAuthCredentialsStore {
 
     #if DEBUG
     @TaskLocal private static var taskCredentialsURLOverride: URL?
+    private static let isolatedTestCredentialsURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("codexbar-tests-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("credentials.json")
     #endif
     // In-memory cache (nonisolated for synchronous access)
     private static let memoryCacheLock = NSLock()
@@ -2327,6 +2330,10 @@ public enum ClaudeOAuthCredentialsStore {
     public static var currentCredentialsURLOverrideForTesting: URL? {
         self.taskCredentialsURLOverride
     }
+
+    static var resolvedCredentialsURLForTesting: URL {
+        self.credentialsFileURL()
+    }
     #endif
 
     private static func saveToCacheKeychain(
@@ -2400,10 +2407,22 @@ public enum ClaudeOAuthCredentialsStore {
         self.currentPendingCodexBarOAuthKeychainCacheClearStore.isPending
     }
 
+    #if DEBUG
+    static var hasPendingCodexBarOAuthKeychainCacheClearForTesting: Bool {
+        self.hasPendingCodexBarOAuthKeychainCacheClear
+    }
+    #endif
+
     private static var currentPendingCodexBarOAuthKeychainCacheClearStore: ClaudeOAuthPendingCacheClearStore {
         #if DEBUG
         if let store = self.taskPendingCacheClearStoreOverride {
             return store
+        }
+        // Under tests without a TaskLocal store, use an ephemeral sink so concurrent tests never
+        // share pending state or write the process-shared app tombstone suite. Coherent pending
+        // semantics require withPendingCacheClearStoreOverrideForTesting / isolated memory cache.
+        if KeychainTestSafety.shouldIsolateUserStateUnderTests() {
+            return PendingCacheClearMemoryStore()
         }
         #endif
         return self.pendingCodexBarOAuthKeychainCacheClearStore
@@ -2522,6 +2541,9 @@ public enum ClaudeOAuthCredentialsStore {
         #if DEBUG
         if let override = self.taskCredentialsURLOverride {
             return override
+        }
+        if KeychainTestSafety.shouldIsolateUserStateUnderTests() {
+            return self.isolatedTestCredentialsURL
         }
         #endif
         return self.defaultCredentialsURL()

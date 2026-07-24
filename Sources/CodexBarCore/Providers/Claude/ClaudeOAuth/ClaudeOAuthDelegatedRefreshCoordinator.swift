@@ -141,12 +141,14 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         #endif
         let task = Task.detached(priority: .utility) {
             #if DEBUG
-            return await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(securityCLIReadOverride) {
-                await self.performAttempt(
-                    now: now,
-                    timeout: timeout,
-                    configuration: configuration,
-                    state: state)
+            return await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(configuration.promptMode) {
+                await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(securityCLIReadOverride) {
+                    await self.performAttempt(
+                        now: now,
+                        timeout: timeout,
+                        configuration: configuration,
+                        state: state)
+                }
             }
             #else
             await self.performAttempt(
