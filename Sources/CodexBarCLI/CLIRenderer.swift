@@ -801,12 +801,19 @@ enum CLIRenderer {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .sub2api {
             Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? metadata.sessionLabel
+        } else if provider == .amp {
+            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? metadata.sessionLabel
         } else {
             metadata.sessionLabel
         }
+        let secondaryLabel = if provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? metadata.weeklyLabel
+        } else {
+            metadata.weeklyLabel
+        }
         return RateWindowLabels(
             primary: primaryLabel,
-            secondary: metadata.weeklyLabel,
+            secondary: secondaryLabel,
             tertiary: metadata.opusLabel ?? "Sonnet",
             showsTertiary: metadata.supportsOpus)
     }
