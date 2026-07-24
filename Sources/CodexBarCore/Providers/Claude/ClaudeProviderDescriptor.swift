@@ -652,7 +652,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         let isBackgroundAutoRefresh = context.runtime == .app
             && context.sourceMode == .auto
             && ProviderInteractionContext.current == .background
-        let keychainDisabled = KeychainAccessGate.isDisabled
+        // Use explicit disable (user/env/override), not the DEBUG test-process Keychain block.
+        let keychainDisabled = KeychainAccessGate.isExplicitlyDisabled
         if isBackgroundAutoRefresh, !keychainDisabled {
             guard ClaudeOAuthKeychainPromptPreference.storedMode() == .always else {
                 return false
