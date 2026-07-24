@@ -286,12 +286,19 @@ extension UsageMenuCardView.Model {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else if input.provider == .sub2api {
             Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? input.metadata.sessionLabel
+        } else if input.provider == .amp {
+            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }
+        let secondaryLabel = if input.provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? input.metadata.weeklyLabel
+        } else {
+            input.metadata.weeklyLabel
+        }
         return (
             L(primaryLabel),
-            L(input.metadata.weeklyLabel),
+            L(secondaryLabel),
             input.metadata.opusLabel.map(L) ?? L("Sonnet"),
             input.metadata.supportsOpus)
     }

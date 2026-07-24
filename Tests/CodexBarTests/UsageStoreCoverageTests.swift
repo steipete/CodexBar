@@ -228,6 +228,37 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `amp subscription pools use their own labels`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-amp-subscription")
+        let store = Self.makeUsageStore(settings: settings)
+        let now = Date()
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 3,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                    resetDescription: "renews in 29 days"),
+                secondary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                    resetDescription: "renews in 29 days"),
+                ampUsage: AmpUsageDetails(
+                    individualCredits: nil,
+                    workspaceBalances: [],
+                    subscriptionPlan: "Megawatt"),
+                updatedAt: now),
+            provider: .amp)
+
+        let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
+
+        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage"])
+        #expect(model.planText == "Megawatt")
+    }
+
+    @Test
     func `account info caches codex auth parsing until config revision changes`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-account-info-cache")
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(

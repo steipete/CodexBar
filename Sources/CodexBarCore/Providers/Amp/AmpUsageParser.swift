@@ -31,6 +31,10 @@ enum AmpUsageParser {
             #"\s+remaining(?:\s*\(replenishes\s*\+\$?"# + amountPattern + #"\s*/\s*hour\))?"#
         let freePercentPattern = #"(?im)^\s*Amp Free:\s*"# + amountPattern +
             #"\s*%\s+remaining(?:\s+today)?(?:\s*\(resets\s+daily\))?"#
+        let subscriptionPattern = #"(?im)^\s*Subscription\s+(.+?):\s*"# + amountPattern +
+            #"\s*%\s+other\s+usage\s+and\s+"# + amountPattern +
+            #"\s*%\s+orb\s+usage\s+remaining\s*-\s*resets\s+upon\s+renewal\s+in\s+"# +
+            #"([0-9][0-9,]*)\s+days?\s*$"#
         let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
         let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
             .flatMap(self.number(from:))
@@ -73,7 +77,25 @@ enum AmpUsageParser {
                 resetDescription: "resets daily")
         }()
         let resolvedFreeUsage = freeUsage ?? freePercentUsage
-        guard resolvedFreeUsage != nil || individualCredits != nil || !workspaceBalances.isEmpty else {
+        let subscriptionUsage: AmpSubscriptionUsage? = {
+            guard let subscription = self.captures(in: text, pattern: subscriptionPattern),
+                  subscription.count == 4,
+                  let plan = self.nonEmpty(subscription[0]),
+                  let otherRemaining = self.number(from: subscription[1]),
+                  let orbRemaining = self.number(from: subscription[2]),
+                  let renewalDays = Int(subscription[3].replacingOccurrences(of: ",", with: ""))
+            else { return nil }
+            let resetDescription = renewalDays == 1 ? "renews in 1 day" : "renews in \(renewalDays) days"
+            return AmpSubscriptionUsage(
+                plan: plan,
+                otherUsedPercent: 100 - min(100, max(0, otherRemaining)),
+                orbUsedPercent: 100 - min(100, max(0, orbRemaining)),
+                resetsAt: now.addingTimeInterval(TimeInterval(renewalDays) * 24 * 60 * 60),
+                resetDescription: resetDescription)
+        }()
+        guard resolvedFreeUsage != nil || subscriptionUsage != nil || individualCredits != nil ||
+            !workspaceBalances.isEmpty
+        else {
             throw AmpUsageError.parseFailed("Missing Amp usage data.")
         }
 
@@ -87,7 +109,8 @@ enum AmpUsageParser {
             accountEmail: self.nonEmpty(identity?[0]),
             accountOrganization: self.nonEmpty(identity?[1]),
             updatedAt: now,
-            freeResetDescription: resolvedFreeUsage?.resetDescription)
+            freeResetDescription: resolvedFreeUsage?.resetDescription,
+            subscription: subscriptionUsage)
     }
 
     private struct FreeTierUsage {

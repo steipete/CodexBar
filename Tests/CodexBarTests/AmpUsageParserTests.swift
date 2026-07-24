@@ -86,6 +86,33 @@ struct AmpUsageParserTests {
     }
 
     @Test
+    func `parses amp subscription usage`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let output = """
+        Signed in as user@example.com (username)
+        Subscription Megawatt: 97% other usage and 100% orb usage remaining - resets upon renewal in 29 days
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.subscription == AmpSubscriptionUsage(
+            plan: "Megawatt",
+            otherUsedPercent: 3,
+            orbUsedPercent: 0,
+            resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+            resetDescription: "renews in 29 days"))
+        #expect(usage.primary?.usedPercent == 3)
+        #expect(usage.secondary?.usedPercent == 0)
+        #expect(usage.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(usage.secondary?.resetsAt == now.addingTimeInterval(29 * 24 * 60 * 60))
+        #expect(usage.identity?.loginMethod == "Megawatt")
+        #expect(usage.ampUsage?.subscriptionPlan == "Megawatt")
+        #expect(AmpProviderDescriptor.primaryLabel(details: usage.ampUsage) == "Other usage")
+        #expect(AmpProviderDescriptor.secondaryLabel(details: usage.ampUsage) == "Orb usage")
+    }
+
+    @Test
     func `legacy amp free usage keeps replenishment reset when percentage text also exists`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let output = """

@@ -675,12 +675,19 @@ struct MenuDescriptor {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .sub2api {
             Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? metadata.sessionLabel
+        } else if provider == .amp {
+            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? metadata.sessionLabel
         } else {
             metadata.sessionLabel
         }
+        let secondaryLabel = if provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? metadata.weeklyLabel
+        } else {
+            metadata.weeklyLabel
+        }
         return (
             L(primaryLabel),
-            L(metadata.weeklyLabel),
+            L(secondaryLabel),
             metadata.opusLabel.map(L) ?? L("Sonnet"),
             metadata.supportsOpus)
     }
