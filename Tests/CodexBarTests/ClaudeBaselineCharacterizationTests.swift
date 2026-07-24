@@ -258,7 +258,7 @@ struct ClaudeBaselineCharacterizationTests {
     }
 
     @Test
-    func `app background auto does not launch Claude CLI when Keychain access is disabled`() async throws {
+    func `app background auto allows Claude CLI when Keychain access is disabled`() async throws {
         let settings = ProviderSettingsSnapshot.make(claude: .init(
             usageDataSource: .auto,
             webExtrasEnabled: false,
@@ -266,23 +266,23 @@ struct ClaudeBaselineCharacterizationTests {
             manualCookieHeader: nil))
         let invocationLog = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
-        let stubCLIPath = try self.makeStubClaudeCLI(invocationLog: invocationLog)
+        let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let context = self.makeContext(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        let cli = try #require(strategies.first { $0.id == "claude.cli" })
 
-        await KeychainAccessGate.withTaskOverrideForTesting(true) {
+        let cliAvailable = await KeychainAccessGate.withTaskOverrideForTesting(true) {
             await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                await self.withNoOAuthCredentials {
-                    let outcome = await self.fetchOutcome(
-                        runtime: .app,
-                        sourceMode: .auto,
-                        env: env,
-                        settings: settings)
-                    #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-                    #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                await ProviderInteractionContext.$current.withValue(.background) {
+                    await cli.isAvailable(context)
                 }
             }
         }
 
+        #expect(cliAvailable)
+        // Disabled-Keychain background Auto skips auth-status preflight (same as user-initiated).
         #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
     }
 
