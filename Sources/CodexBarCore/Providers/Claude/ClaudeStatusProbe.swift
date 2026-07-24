@@ -341,6 +341,17 @@ extension ClaudeStatusProbe {
     }
 
     private static func extractPercent(labelSubstring: String, context: LabelSearchContext) -> Int? {
+        // Prefer an exact label match; only fall back to a fuzzy (garbled-capture) match when no exact
+        // copy yields a value, so a clean row always wins over a corrupted duplicate regardless of order.
+        self.extractPercent(labelSubstring: labelSubstring, context: context, allowFuzzy: false)
+            ?? self.extractPercent(labelSubstring: labelSubstring, context: context, allowFuzzy: true)
+    }
+
+    private static func extractPercent(
+        labelSubstring: String,
+        context: LabelSearchContext,
+        allowFuzzy: Bool) -> Int?
+    {
         let lines = context.lines
         let label = self.normalizedForLabelSearch(labelSubstring)
         for (idx, line) in lines.enumerated() {
@@ -349,7 +360,8 @@ extension ClaudeStatusProbe {
                 line: line,
                 normalizedLine: normalizedLine,
                 labelSubstring: labelSubstring,
-                normalizedLabel: label)
+                normalizedLabel: label,
+                allowFuzzy: allowFuzzy)
             else { continue }
 
             // Claude's usage panel can take a moment to render percentages (especially on enterprise accounts),
@@ -359,7 +371,8 @@ extension ClaudeStatusProbe {
                 if self.crossesLabelBoundary(
                     line: candidate,
                     labelSubstring: labelSubstring,
-                    normalizedLabel: label)
+                    normalizedLabel: label,
+                    allowFuzzy: allowFuzzy)
                 {
                     break
                 }
@@ -746,6 +759,16 @@ extension ClaudeStatusProbe {
     }
 
     private static func extractReset(labelSubstring: String, context: LabelSearchContext) -> String? {
+        // Exact match wins over a garbled duplicate, mirroring extractPercent's candidate selection.
+        self.extractReset(labelSubstring: labelSubstring, context: context, allowFuzzy: false)
+            ?? self.extractReset(labelSubstring: labelSubstring, context: context, allowFuzzy: true)
+    }
+
+    private static func extractReset(
+        labelSubstring: String,
+        context: LabelSearchContext,
+        allowFuzzy: Bool) -> String?
+    {
         let lines = context.lines
         let label = self.normalizedForLabelSearch(labelSubstring)
         for (idx, line) in lines.enumerated() {
@@ -754,7 +777,8 @@ extension ClaudeStatusProbe {
                 line: line,
                 normalizedLine: normalizedLine,
                 labelSubstring: labelSubstring,
-                normalizedLabel: label)
+                normalizedLabel: label,
+                allowFuzzy: allowFuzzy)
             else { continue }
 
             let window = lines.dropFirst(idx).prefix(14)
@@ -762,7 +786,8 @@ extension ClaudeStatusProbe {
                 if self.crossesLabelBoundary(
                     line: candidate,
                     labelSubstring: labelSubstring,
-                    normalizedLabel: label)
+                    normalizedLabel: label,
+                    allowFuzzy: allowFuzzy)
                 {
                     break
                 }
@@ -778,7 +803,8 @@ extension ClaudeStatusProbe {
         line: String,
         normalizedLine: String,
         labelSubstring: String,
-        normalizedLabel: String) -> Bool
+        normalizedLabel: String,
+        allowFuzzy: Bool = false) -> Bool
     {
         guard let expectedModel = self.weeklyModelName(from: labelSubstring) else {
             return normalizedLine.contains(normalizedLabel)
@@ -787,8 +813,9 @@ extension ClaudeStatusProbe {
         let expectedNormalized = self.normalizedForLabelSearch(expectedModel)
         let actualNormalized = self.normalizedForLabelSearch(actualModel)
         // When looking up the all-models weekly bucket, tolerate garbled TUI captures ("all modls")
-        // so the Weekly percent/reset are still recovered even if the clean copy never survived.
-        if self.isAllModelsWeeklyModel(expectedNormalized) {
+        // so the Weekly percent/reset are still recovered even if the clean copy never survived. The
+        // fuzzy match is opt-in so callers can prefer an exact copy before accepting a corrupted one.
+        if allowFuzzy, self.isAllModelsWeeklyModel(expectedNormalized) {
             return self.isAllModelsWeeklyModel(actualNormalized)
         }
         return actualNormalized == expectedNormalized
@@ -797,7 +824,8 @@ extension ClaudeStatusProbe {
     private static func crossesLabelBoundary(
         line: String,
         labelSubstring: String,
-        normalizedLabel: String) -> Bool
+        normalizedLabel: String,
+        allowFuzzy: Bool = false) -> Bool
     {
         let normalizedLine = self.normalizedForLabelSearch(line)
         guard normalizedLine.hasPrefix("current") else { return false }
@@ -807,7 +835,7 @@ extension ClaudeStatusProbe {
         guard let actualModel = self.weeklyModelName(from: line) else { return true }
         let expectedNormalized = self.normalizedForLabelSearch(expectedModel)
         let actualNormalized = self.normalizedForLabelSearch(actualModel)
-        if self.isAllModelsWeeklyModel(expectedNormalized) {
+        if allowFuzzy, self.isAllModelsWeeklyModel(expectedNormalized) {
             return !self.isAllModelsWeeklyModel(actualNormalized)
         }
         return actualNormalized != expectedNormalized
