@@ -784,7 +784,14 @@ extension ClaudeStatusProbe {
             return normalizedLine.contains(normalizedLabel)
         }
         guard let actualModel = self.weeklyModelName(from: line) else { return false }
-        return self.normalizedForLabelSearch(actualModel) == self.normalizedForLabelSearch(expectedModel)
+        let expectedNormalized = self.normalizedForLabelSearch(expectedModel)
+        let actualNormalized = self.normalizedForLabelSearch(actualModel)
+        // When looking up the all-models weekly bucket, tolerate garbled TUI captures ("all modls")
+        // so the Weekly percent/reset are still recovered even if the clean copy never survived.
+        if self.isAllModelsWeeklyModel(expectedNormalized) {
+            return self.isAllModelsWeeklyModel(actualNormalized)
+        }
+        return actualNormalized == expectedNormalized
     }
 
     private static func crossesLabelBoundary(
@@ -798,7 +805,12 @@ extension ClaudeStatusProbe {
             return !normalizedLine.contains(normalizedLabel)
         }
         guard let actualModel = self.weeklyModelName(from: line) else { return true }
-        return self.normalizedForLabelSearch(actualModel) != self.normalizedForLabelSearch(expectedModel)
+        let expectedNormalized = self.normalizedForLabelSearch(expectedModel)
+        let actualNormalized = self.normalizedForLabelSearch(actualModel)
+        if self.isAllModelsWeeklyModel(expectedNormalized) {
+            return !self.isAllModelsWeeklyModel(actualNormalized)
+        }
+        return actualNormalized != expectedNormalized
     }
 
     private static func weeklyModelName(from line: String) -> String? {
