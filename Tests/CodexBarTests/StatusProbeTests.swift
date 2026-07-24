@@ -290,6 +290,39 @@ struct StatusProbeTests {
     }
 
     @Test
+    func `parse claude status ignores garbled all-models weekly duplicate`() throws {
+        // The Claude CLI renders /usage as a redrawing TUI. A half-painted frame can drop a
+        // character from "Current week (all models)" (-> "all modls"), and that garbled copy
+        // must not escape the all-models filter and appear as a second weekly row
+        // ("all modls only") beside the real Weekly limit.
+        let sample = """
+        Settings:  Status   Config   Usage  (tab to cycle)
+
+         Current session
+         ▌                                                  0% used
+         Resets 1:10pm (Asia/Seoul)
+
+         Current week (all models)
+         █████████████████████████████████▌                66% used
+         Resets Jul 24 at 2pm (Asia/Seoul)
+
+         Current week (all modls)
+         █████████████████████████████████▌                67% used
+         Resets Jul 24 at 1:59pm (Asia/Seoul)
+
+         Current week (Fable)
+         ████████████████████████████████████              71% used
+         Resets Jul 24 at 2pm (Asia/Seoul)
+        """
+
+        let snap = try ClaudeStatusProbe.parse(text: sample)
+        #expect(snap.weeklyPercentLeft == 34)
+        // Only the genuine model-scoped window (Fable) survives; the garbled all-models copy is dropped.
+        let titles = snap.extraRateWindows.map(\.title)
+        #expect(titles == ["Fable only"], "unexpected scoped weekly rows: \(titles)")
+    }
+
+    @Test
     func `parse claude status ignores status bar context percent`() throws {
         let sample = """
         Claude Code v2.1.29

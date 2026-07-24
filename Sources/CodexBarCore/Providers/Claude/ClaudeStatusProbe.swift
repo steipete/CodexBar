@@ -234,7 +234,7 @@ extension ClaudeStatusProbe {
         // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
         // may omit the weekly panel entirely, and we should treat that as "unavailable" rather than guessing.
         let weeklyModels = Set(labelContext.lines.compactMap(self.weeklyModelName).map(self.normalizedForLabelSearch))
-        let hasAllModelsWeeklyLabel = weeklyModels.contains("allmodels")
+        let hasAllModelsWeeklyLabel = weeklyModels.contains(where: self.isAllModelsWeeklyModel)
         let opusModels = Set(opusLabels.compactMap(self.weeklyModelName).map(self.normalizedForLabelSearch))
         let hasOpusLabel = !weeklyModels.isDisjoint(with: opusModels)
 
@@ -413,7 +413,7 @@ extension ClaudeStatusProbe {
         for (index, line) in context.lines.enumerated() {
             guard let modelName = self.weeklyModelName(from: line) else { continue }
             let normalizedModel = self.normalizedForLabelSearch(modelName)
-            guard normalizedModel != "allmodels", !normalizedModel.isEmpty else { continue }
+            guard !normalizedModel.isEmpty, !self.isAllModelsWeeklyModel(normalizedModel) else { continue }
 
             let window = context.lines.dropFirst(index).prefix(14)
             var percentLeft: Int?
@@ -812,6 +812,42 @@ extension ClaudeStatusProbe {
               let modelRange = Range(match.range(at: 1), in: line)
         else { return nil }
         return String(line[modelRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Recognizes the "all models" weekly bucket even when the TUI capture dropped or duplicated a
+    /// character (e.g. "all modls"). Claude renders `/usage` as a redrawing TUI, so the same
+    /// "Current week (all models)" line can be captured mid-repaint; without tolerant matching that
+    /// garbled copy escapes the all-models filter and is surfaced as a bogus second weekly row
+    /// ("all modls only") beside the real Weekly limit. Genuine model-scoped names (Opus, Sonnet,
+    /// Fable, …) are far outside this edit-distance window.
+    private static func isAllModelsWeeklyModel(_ normalizedModel: String) -> Bool {
+        normalizedModel == "allmodels" || self.editDistance(normalizedModel, "allmodels") <= 2
+    }
+
+    /// Levenshtein distance. Inputs here are short normalized model tokens, so the naive
+    /// single-row implementation is more than fast enough.
+    private static func editDistance(_ lhs: String, _ rhs: String) -> Int {
+        let a = Array(lhs.unicodeScalars)
+        let b = Array(rhs.unicodeScalars)
+        if a.isEmpty {
+            return b.count
+        }
+        if b.isEmpty {
+            return a.count
+        }
+        var row = Array(0...b.count)
+        for i in 1...a.count {
+            var previousDiagonal = row[0]
+            row[0] = i
+            for j in 1...b.count {
+                let deletion = row[j] + 1
+                let insertion = row[j - 1] + 1
+                let substitution = previousDiagonal + (a[i - 1] == b[j - 1] ? 0 : 1)
+                previousDiagonal = row[j]
+                row[j] = Swift.min(deletion, insertion, substitution)
+            }
+        }
+        return row[b.count]
     }
 
     private static func extractReset(labelSubstrings: [String], context: LabelSearchContext) -> String? {
