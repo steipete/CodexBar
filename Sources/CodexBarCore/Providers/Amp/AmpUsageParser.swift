@@ -34,7 +34,7 @@ enum AmpUsageParser {
         let subscriptionPattern = #"(?im)^\s*Subscription\s+(.+?):\s*"# + amountPattern +
             #"\s*%\s+other\s+usage\s+and\s+"# + amountPattern +
             #"\s*%\s+orb\s+usage\s+remaining\s*-\s*resets\s+upon\s+renewal\s+in\s+"# +
-            #"([0-9][0-9,]*)\s+days?\s*$"#
+            #"([0-9][0-9,]*)\s+days?(?:\s+-\s+https?://\S+)?\s*$"#
         let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
         let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
             .flatMap(self.number(from:))

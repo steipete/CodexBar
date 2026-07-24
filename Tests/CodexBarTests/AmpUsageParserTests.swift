@@ -113,6 +113,20 @@ struct AmpUsageParserTests {
     }
 
     @Test
+    func `parses amp subscription usage with settings link`() throws {
+        let output = """
+        Subscription Megawatt: 97% other usage and 100% orb usage remaining - resets upon renewal in 29 days \
+        - https://ampcode.com/settings#subscription
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output)
+
+        #expect(snapshot.subscription?.plan == "Megawatt")
+        #expect(snapshot.subscription?.otherUsedPercent == 3)
+        #expect(snapshot.subscription?.orbUsedPercent == 0)
+    }
+
+    @Test
     func `legacy amp free usage keeps replenishment reset when percentage text also exists`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let output = """

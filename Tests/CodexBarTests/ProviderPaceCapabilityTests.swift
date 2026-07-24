@@ -77,7 +77,7 @@ struct ProviderPaceCapabilityTests {
             return windowMinutes > 0
                 && timeUntilReset > 0
                 && timeUntilReset <= TimeInterval(windowMinutes) * 60
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+        case .alibaba, .alibabatokenplan, .amp, .doubao, .opencodego:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -91,7 +91,7 @@ struct ProviderPaceCapabilityTests {
         switch provider {
         case .copilot:
             window.windowMinutes == nil
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+        case .alibaba, .alibabatokenplan, .amp, .doubao, .opencodego:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false
