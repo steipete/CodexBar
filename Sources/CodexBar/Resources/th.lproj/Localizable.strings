@@ -1319,6 +1319,7 @@
 "menu_bar_layout_token_account" = "บัญชี";
 "menu_bar_layout_token_session" = "เซสชั่น %";
 "menu_bar_layout_token_weekly" = "รายสัปดาห์ %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "% อัตโนมัติ";
 "menu_bar_layout_token_bar" = "แถบการใช้งาน";
 "menu_bar_layout_token_resets_in" = "รีเซ็ตใน";

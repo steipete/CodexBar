@@ -1319,6 +1319,7 @@
 "menu_bar_layout_token_account" = "Account";
 "menu_bar_layout_token_session" = "Sessione %";
 "menu_bar_layout_token_weekly" = "Settimanale %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "% automatica";
 "menu_bar_layout_token_bar" = "Barra utilizzo";
 "menu_bar_layout_token_resets_in" = "Ripristino tra";

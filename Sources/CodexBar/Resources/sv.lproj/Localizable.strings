@@ -1314,6 +1314,7 @@
 "menu_bar_layout_token_account" = "Konto";
 "menu_bar_layout_token_session" = "Session %";
 "menu_bar_layout_token_weekly" = "Vecka %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "Automatiskt %";
 "menu_bar_layout_token_bar" = "Användningsstapel";
 "menu_bar_layout_token_resets_in" = "Återställs om";

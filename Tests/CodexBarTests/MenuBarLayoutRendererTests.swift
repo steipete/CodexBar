@@ -19,6 +19,7 @@ struct MenuBarLayoutRendererTests {
             (.accountLabel, "user@example.com"),
             (.percent(window: .session), "5h 25%"),
             (.percent(window: .weekly), "W 60%"),
+            (.percent(window: .scopedWeekly), "F 80%"),
             (.percent(window: .automatic), "50%"),
             (.usageBar, "▮▮▯"),
             (.resetCountdown, "in 2h"),
@@ -87,6 +88,7 @@ struct MenuBarLayoutRendererTests {
             accountLabel: nil,
             session: nil,
             weekly: nil,
+            scopedWeekly: nil,
             automatic: nil,
             runsOut: nil,
             costToday: nil,
@@ -97,6 +99,7 @@ struct MenuBarLayoutRendererTests {
             .accountLabel,
             .percent(window: .session),
             .percent(window: .weekly),
+            .percent(window: .scopedWeekly),
             .percent(window: .automatic),
             .usageBar,
             .resetCountdown,
@@ -108,7 +111,7 @@ struct MenuBarLayoutRendererTests {
 
         let output = renderer.render(layout: layout, data: missingData, icon: nil, options: self.options())
 
-        #expect(output.attributedTitle.string.count(where: { $0 == "–" }) == 12)
+        #expect(output.attributedTitle.string.count(where: { $0 == "–" }) == 13)
         #expect(output.accessibilityLabel.contains("unavailable"))
     }
 
@@ -203,6 +206,7 @@ struct MenuBarLayoutRendererTests {
             accountLabel: nil,
             session: nil,
             weekly: nil,
+            scopedWeekly: nil,
             automatic: textOnlyWindow,
             runsOut: nil,
             costToday: nil,
@@ -255,6 +259,11 @@ struct MenuBarLayoutRendererTests {
                 usedPercent: 60,
                 windowMinutes: 10080,
                 resetsAt: self.now.addingTimeInterval(3 * 24 * 60 * 60),
+                resetDescription: nil)),
+            scopedWeekly: MenuBarLayoutRenderWindow(RateWindow(
+                usedPercent: 80,
+                windowMinutes: 10080,
+                resetsAt: self.now.addingTimeInterval(24 * 60 * 60),
                 resetDescription: nil)),
             automatic: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: automaticUsedPercent,

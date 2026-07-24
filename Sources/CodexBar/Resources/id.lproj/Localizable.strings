@@ -1319,6 +1319,7 @@
 "menu_bar_layout_token_account" = "Akun";
 "menu_bar_layout_token_session" = "Sesi %";
 "menu_bar_layout_token_weekly" = "Mingguan %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "% otomatis";
 "menu_bar_layout_token_bar" = "Bar penggunaan";
 "menu_bar_layout_token_resets_in" = "Reset dalam";

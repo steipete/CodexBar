@@ -4,6 +4,7 @@ import Foundation
 enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case session
     case weekly
+    case scopedWeekly
     case automatic
 }
 
@@ -46,6 +47,22 @@ enum MenuBarLayoutSemanticWindowResolver {
         let kimiWeekly = snapshot.primary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
         let weekly = provider == .kimi ? kimiWeekly ?? cadenceWeekly : cadenceWeekly
         return (session, weekly)
+    }
+
+    /// The active model-scoped weekly carve-out (e.g. Claude's `claude-weekly-scoped-fable`
+    /// "Fable only" window), if the snapshot exposes one. Kept generic across models: keys off
+    /// the `claude-weekly-scoped-` id prefix rather than a specific model name, so it keeps
+    /// working when the promotional window rotates to a different model.
+    ///
+    /// When more than one scoped weekly window is active, the most constrained one (highest
+    /// used percentage) wins — that is the limit the user is closest to hitting and the one
+    /// worth surfacing in the always-visible menu bar.
+    static func scopedWeeklyWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+        guard let snapshot else { return nil }
+        return (snapshot.extraRateWindows ?? [])
+            .filter { $0.id.hasPrefix("claude-weekly-scoped-") }
+            .compactMap { $0.window.isSyntheticPlaceholder ? nil : $0.window }
+            .max { $0.usedPercent < $1.usedPercent }
     }
 }
 

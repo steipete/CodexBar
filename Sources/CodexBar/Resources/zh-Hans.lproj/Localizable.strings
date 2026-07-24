@@ -1291,6 +1291,7 @@
 "menu_bar_layout_token_account" = "账户";
 "menu_bar_layout_token_session" = "会话 %";
 "menu_bar_layout_token_weekly" = "每周 %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "自动 %";
 "menu_bar_layout_token_bar" = "用量条";
 "menu_bar_layout_token_resets_in" = "重置倒计时";

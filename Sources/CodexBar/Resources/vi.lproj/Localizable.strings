@@ -1316,6 +1316,7 @@
 "menu_bar_layout_token_account" = "Tài khoản";
 "menu_bar_layout_token_session" = "Phiên %";
 "menu_bar_layout_token_weekly" = "Hàng tuần %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "% tự động";
 "menu_bar_layout_token_bar" = "Thanh sử dụng";
 "menu_bar_layout_token_resets_in" = "Đặt lại sau";
