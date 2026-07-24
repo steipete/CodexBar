@@ -1346,6 +1346,7 @@
 "menu_bar_layout_token_account" = "帳號";
 "menu_bar_layout_token_session" = "工作階段 %";
 "menu_bar_layout_token_weekly" = "每週 %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "自動 %";
 "menu_bar_layout_token_bar" = "用量列";
 "menu_bar_layout_token_resets_in" = "重設倒數";

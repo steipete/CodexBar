@@ -1317,6 +1317,7 @@
 "menu_bar_layout_token_account" = "Аккаунт";
 "menu_bar_layout_token_session" = "Сеанс %";
 "menu_bar_layout_token_weekly" = "Недельный %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "Авто %";
 "menu_bar_layout_token_bar" = "Индикатор использования";
 "menu_bar_layout_token_resets_in" = "Сброс через";

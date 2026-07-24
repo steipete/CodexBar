@@ -1319,6 +1319,7 @@
 "menu_bar_layout_token_account" = "حساب";
 "menu_bar_layout_token_session" = "جلسه %";
 "menu_bar_layout_token_weekly" = "هفتگی %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "درصد خودکار";
 "menu_bar_layout_token_bar" = "نوار مصرف";
 "menu_bar_layout_token_resets_in" = "بازنشانی در";

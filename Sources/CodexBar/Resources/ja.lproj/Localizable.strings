@@ -1316,6 +1316,7 @@
 "menu_bar_layout_token_account" = "アカウント";
 "menu_bar_layout_token_session" = "セッション %";
 "menu_bar_layout_token_weekly" = "週間 %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "自動 %";
 "menu_bar_layout_token_bar" = "使用量バー";
 "menu_bar_layout_token_resets_in" = "リセットまで";

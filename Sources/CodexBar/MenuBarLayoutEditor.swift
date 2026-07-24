@@ -244,6 +244,7 @@ struct MenuBarLayoutEditor: View {
                 tokens: [
                     .percent(window: .session),
                     .percent(window: .weekly),
+                    .percent(window: .scopedWeekly),
                     .percent(window: .automatic),
                     .usageBar,
                 ],
@@ -673,6 +674,7 @@ private struct MenuBarLayoutPreview: View {
                 antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
                 now: now)
         }
+        let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
         let paceWindow = weekly ?? automatic
         let runsOut = paceWindow
             .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
@@ -685,6 +687,8 @@ private struct MenuBarLayoutPreview: View {
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
+            scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
+            scopedWeeklyTitle: scopedNamed?.title,
             automatic: MenuBarLayoutRenderWindow(automatic),
             runsOut: runsOut,
             costToday: costToday.map {
@@ -707,12 +711,19 @@ private struct MenuBarLayoutPreview: View {
             windowMinutes: 10080,
             resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
             resetDescription: nil)
+        let scopedWeekly = RateWindow(
+            usedPercent: 45,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+            resetDescription: nil)
         return MenuBarLayoutRenderData(
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : L("menu_bar_layout_sample_account"),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
+            scopedWeekly: MenuBarLayoutRenderWindow(scopedWeekly),
+            scopedWeeklyTitle: "Fable only",
             automatic: MenuBarLayoutRenderWindow(session),
             runsOut: L("menu_bar_layout_sample_runs_out"),
             costToday: "$1.25",
@@ -777,6 +788,7 @@ extension MenuBarLayoutToken {
         case .accountLabel: L("menu_bar_layout_token_account")
         case .percent(window: .session): L("menu_bar_layout_token_session")
         case .percent(window: .weekly): L("menu_bar_layout_token_weekly")
+        case .percent(window: .scopedWeekly): L("menu_bar_layout_token_scoped_weekly")
         case .percent(window: .automatic): L("menu_bar_layout_token_auto")
         case .usageBar: L("menu_bar_layout_token_bar")
         case .resetCountdown: L("menu_bar_layout_token_resets_in")

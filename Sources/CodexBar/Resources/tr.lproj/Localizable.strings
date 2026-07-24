@@ -1317,6 +1317,7 @@
 "menu_bar_layout_token_account" = "Hesap";
 "menu_bar_layout_token_session" = "Oturum %";
 "menu_bar_layout_token_weekly" = "Haftalık %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "Otomatik %";
 "menu_bar_layout_token_bar" = "Kullanım çubuğu";
 "menu_bar_layout_token_resets_in" = "Sıfırlamaya";

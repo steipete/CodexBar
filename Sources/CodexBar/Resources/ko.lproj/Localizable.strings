@@ -1283,6 +1283,7 @@
 "menu_bar_layout_token_account" = "계정";
 "menu_bar_layout_token_session" = "세션 %";
 "menu_bar_layout_token_weekly" = "주간 %";
+"menu_bar_layout_token_scoped_weekly" = "Fable %";
 "menu_bar_layout_token_auto" = "자동 %";
 "menu_bar_layout_token_bar" = "사용량 막대";
 "menu_bar_layout_token_resets_in" = "재설정까지";
