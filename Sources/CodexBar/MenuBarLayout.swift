@@ -55,14 +55,14 @@ enum MenuBarLayoutSemanticWindowResolver {
     /// working when the promotional window rotates to a different model.
     ///
     /// When more than one scoped weekly window is active, the most constrained one (highest
-    /// used percentage) wins — that is the limit the user is closest to hitting and the one
-    /// worth surfacing in the always-visible menu bar.
-    static func scopedWeeklyWindow(snapshot: UsageSnapshot?) -> RateWindow? {
+    /// used percentage) wins: that is the limit the user is closest to hitting and the one
+    /// worth showing in the always-visible menu bar. The full `NamedRateWindow` is returned so
+    /// callers can label the token with the active model instead of assuming Fable.
+    static func scopedWeeklyNamedWindow(snapshot: UsageSnapshot?) -> NamedRateWindow? {
         guard let snapshot else { return nil }
         return (snapshot.extraRateWindows ?? [])
-            .filter { $0.id.hasPrefix("claude-weekly-scoped-") }
-            .compactMap { $0.window.isSyntheticPlaceholder ? nil : $0.window }
-            .max { $0.usedPercent < $1.usedPercent }
+            .filter { $0.id.hasPrefix("claude-weekly-scoped-") && !$0.window.isSyntheticPlaceholder }
+            .max { $0.window.usedPercent < $1.window.usedPercent }
     }
 }
 

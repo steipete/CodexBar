@@ -104,9 +104,12 @@ struct MenuBarLayoutTests {
             extraRateWindows: [fable, other, routines],
             updatedAt: Date())
 
-        let window = MenuBarLayoutSemanticWindowResolver.scopedWeeklyWindow(snapshot: snapshot)
+        let named = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
 
-        #expect(window?.usedPercent == 75)
+        #expect(named?.window.usedPercent == 75)
+        // The most constrained window is a non-Fable model; its title must be carried so the
+        // menu-bar token labels the correct model instead of assuming Fable.
+        #expect(named?.title == "Some other model only")
     }
 
     @Test
@@ -116,7 +119,7 @@ struct MenuBarLayoutTests {
             secondary: RateWindow(usedPercent: 55, windowMinutes: 7 * 24 * 60, resetsAt: nil, resetDescription: nil),
             updatedAt: Date())
 
-        #expect(MenuBarLayoutSemanticWindowResolver.scopedWeeklyWindow(snapshot: snapshot) == nil)
+        #expect(MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot) == nil)
     }
 
     @Test

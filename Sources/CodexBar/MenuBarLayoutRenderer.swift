@@ -28,6 +28,9 @@ struct MenuBarLayoutRenderData: Hashable {
     let session: MenuBarLayoutRenderWindow?
     let weekly: MenuBarLayoutRenderWindow?
     let scopedWeekly: MenuBarLayoutRenderWindow?
+    /// Title of the active scoped weekly window (e.g. "Fable only"), used to label the
+    /// `.scopedWeekly` token with the real model rather than assuming Fable.
+    let scopedWeeklyTitle: String?
     let automatic: MenuBarLayoutRenderWindow?
     let runsOut: String?
     let costToday: String?
@@ -238,8 +241,8 @@ final class MenuBarLayoutRenderer {
                 prefix = "W"
                 accessibilityPrefix = L("Weekly")
             case .scopedWeekly:
-                prefix = "F"
-                accessibilityPrefix = L("Fable only")
+                prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
+                accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
             case .automatic:
                 prefix = ""
                 accessibilityPrefix = L("Usage")

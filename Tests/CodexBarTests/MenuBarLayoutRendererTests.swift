@@ -89,6 +89,7 @@ struct MenuBarLayoutRendererTests {
             session: nil,
             weekly: nil,
             scopedWeekly: nil,
+            scopedWeeklyTitle: nil,
             automatic: nil,
             runsOut: nil,
             costToday: nil,
@@ -207,6 +208,7 @@ struct MenuBarLayoutRendererTests {
             session: nil,
             weekly: nil,
             scopedWeekly: nil,
+            scopedWeeklyTitle: nil,
             automatic: textOnlyWindow,
             runsOut: nil,
             costToday: nil,
@@ -265,6 +267,7 @@ struct MenuBarLayoutRendererTests {
                 windowMinutes: 10080,
                 resetsAt: self.now.addingTimeInterval(24 * 60 * 60),
                 resetDescription: nil)),
+            scopedWeeklyTitle: "Fable only",
             automatic: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: automaticUsedPercent,
                 windowMinutes: 300,

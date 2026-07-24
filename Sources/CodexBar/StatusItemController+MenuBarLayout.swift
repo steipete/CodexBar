@@ -56,7 +56,7 @@ extension StatusItemController {
         -> MenuBarLayoutRenderData
     {
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
-        let scopedWeekly = MenuBarLayoutSemanticWindowResolver.scopedWeeklyWindow(snapshot: snapshot)
+        let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
         let paceWindow = windows.weekly ?? windows.automatic
         let runsOut = paceWindow
             .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
@@ -75,7 +75,8 @@ extension StatusItemController {
             accountLabel: accountLabel,
             session: MenuBarLayoutRenderWindow(windows.session),
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
-            scopedWeekly: MenuBarLayoutRenderWindow(scopedWeekly),
+            scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
+            scopedWeeklyTitle: scopedNamed?.title,
             automatic: MenuBarLayoutRenderWindow(windows.automatic),
             runsOut: runsOut,
             costToday: costStrings.today,
