@@ -289,8 +289,9 @@ struct SpendDashboardControllerTests {
         store._setTokenSnapshotForTesting(snapshot, provider: .claude)
         store._test_tokenUsageRefreshOverride = { _, _ in }
         let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
 
         let baselineConfiguration = SpendDashboardSource.configuration(settings: settings, store: store)
         controller.update(configuration: baselineConfiguration)
@@ -409,8 +410,9 @@ struct SpendDashboardControllerTests {
         store._setTokenSnapshotForTesting(Self.input(provider: .claude, cost: 3).snapshot, provider: .claude)
         store._test_tokenUsageRefreshOverride = { _, _ in }
         let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
 
         let firstConfiguration = SpendDashboardSource.configuration(settings: settings, store: store)
         controller.update(configuration: firstConfiguration)
@@ -432,8 +434,9 @@ struct SpendDashboardControllerTests {
         #expect(store.tokenSnapshot(for: .claude)?.last30DaysCostUSD == 3)
 
         let reopenedController = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
         reopenedController.update(configuration: replacementConfiguration)
         await Self.waitUntil { !reopenedController.isRefreshing }
         #expect(reopenedController.model.groups.isEmpty)
@@ -488,8 +491,9 @@ struct SpendDashboardControllerTests {
         store._setTokenSnapshotForTesting(Self.input(provider: .mistral, cost: 3).snapshot, provider: .mistral)
         store._test_providerRefreshOverride = { _ in }
         let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
         controller.update(configuration: selectedBackupConfiguration)
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 3)
@@ -528,8 +532,9 @@ struct SpendDashboardControllerTests {
         store._setTokenSnapshotForTesting(Self.input(provider: .claude, cost: 4).snapshot, provider: .claude)
         store._test_tokenUsageRefreshOverride = { _, _ in }
         let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 4)
@@ -557,9 +562,15 @@ struct SpendDashboardControllerTests {
             environmentBase: [:])
         store._setTokenSnapshotForTesting(Self.input(provider: .claude, cost: 5).snapshot, provider: .claude)
         store._test_tokenUsageRefreshOverride = { _, _ in }
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: Date(timeIntervalSince1970: 1_784_179_200))
+            },
+            nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
         let firstConfiguration = SpendDashboardSource.configuration(settings: settings, store: store)
         controller.update(configuration: firstConfiguration)
         await Self.waitUntil { !controller.isRefreshing }
@@ -627,8 +638,9 @@ struct SpendDashboardControllerTests {
         store._setTokenSnapshotForTesting(Self.input(provider: .claude, cost: 5).snapshot, provider: .claude)
         store._test_tokenUsageRefreshOverride = { _, _ in }
         let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 5)
@@ -645,8 +657,9 @@ struct SpendDashboardControllerTests {
         #expect(controller.failedSourceCount == 1)
 
         let reopenedController = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+            await SpendDashboardSource.makeRequest(
+                settings: settings, store: store, mode: mode, now: Date(timeIntervalSince1970: 1_784_179_200))
+        }, nowProvider: { Date(timeIntervalSince1970: 1_784_179_200) })
         reopenedController.update(configuration: reenabledConfiguration)
         await Self.waitUntil { !reopenedController.isRefreshing }
         #expect(reopenedController.model.groups.isEmpty)
@@ -850,7 +863,7 @@ struct SpendDashboardControllerTests {
             if await gate.pendingCount == count {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for \(count) pending loads")
     }
@@ -860,7 +873,7 @@ struct SpendDashboardControllerTests {
             if await gate.pendingCount == count {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for \(count) pending Codex loads")
     }
@@ -870,7 +883,7 @@ struct SpendDashboardControllerTests {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for controller state")
     }
@@ -1161,7 +1174,7 @@ struct SpendDashboardControllerRevisionTests {
             if await gate.pendingCount == count {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for \(count) pending loads")
     }
@@ -1171,7 +1184,7 @@ struct SpendDashboardControllerRevisionTests {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for controller state")
     }
