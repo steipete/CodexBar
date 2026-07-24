@@ -131,8 +131,6 @@ public enum ClaudeOAuthCredentialsStore {
     private static let isolatedTestCredentialsURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("codexbar-tests-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("credentials.json")
-    private static let isolatedTestPendingCacheClearStore: ClaudeOAuthPendingCacheClearStore =
-        PendingCacheClearMemoryStore()
     #endif
     // In-memory cache (nonisolated for synchronous access)
     private static let memoryCacheLock = NSLock()
@@ -2409,14 +2407,22 @@ public enum ClaudeOAuthCredentialsStore {
         self.currentPendingCodexBarOAuthKeychainCacheClearStore.isPending
     }
 
+    #if DEBUG
+    static var hasPendingCodexBarOAuthKeychainCacheClearForTesting: Bool {
+        self.hasPendingCodexBarOAuthKeychainCacheClear
+    }
+    #endif
+
     private static var currentPendingCodexBarOAuthKeychainCacheClearStore: ClaudeOAuthPendingCacheClearStore {
         #if DEBUG
         if let store = self.taskPendingCacheClearStoreOverride {
             return store
         }
-        // Unit tests must never share or write the process-shared app tombstone suite.
+        // Under tests without a TaskLocal store, use an ephemeral sink so concurrent tests never
+        // share pending state or write the process-shared app tombstone suite. Coherent pending
+        // semantics require withPendingCacheClearStoreOverrideForTesting / isolated memory cache.
         if KeychainTestSafety.shouldIsolateUserStateUnderTests() {
-            return self.isolatedTestPendingCacheClearStore
+            return PendingCacheClearMemoryStore()
         }
         #endif
         return self.pendingCodexBarOAuthKeychainCacheClearStore
@@ -2587,9 +2593,7 @@ public enum ClaudeOAuthCredentialsStore {
         } else {
             UserDefaults.standard.removeObject(forKey: self.fileFingerprintKey)
         }
-        if self.taskPendingCacheClearStoreOverride != nil
-            || KeychainTestSafety.shouldIsolateUserStateUnderTests()
-        {
+        if self.taskPendingCacheClearStoreOverride != nil {
             self.currentPendingCodexBarOAuthKeychainCacheClearStore.withCacheTransaction { pending in
                 pending = false
             }

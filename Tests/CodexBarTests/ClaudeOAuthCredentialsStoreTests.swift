@@ -106,6 +106,33 @@ struct ClaudeOAuthCredentialsStoreTests {
     }
 
     @Test
+    func `safety isolates pending cache clear across isolation scopes`() {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                ClaudeOAuthCredentialsStore.invalidateCache()
+            }
+            #expect(ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClearForTesting)
+        }
+
+        // A fresh isolation scope must not inherit pending state from a prior scope.
+        ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            #expect(!ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClearForTesting)
+        }
+
+        // Unscoped never-mode marks must also leave subsequent isolation scopes clean.
+        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+            ClaudeOAuthCredentialsStore.invalidateCache()
+        }
+        ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            #expect(!ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClearForTesting)
+        }
+    }
+
+    @Test
     func `loads from keychain cache before expired file`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try ProviderInteractionContext.$current.withValue(.background) {
