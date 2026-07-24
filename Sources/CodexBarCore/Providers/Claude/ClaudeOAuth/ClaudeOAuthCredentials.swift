@@ -128,6 +128,9 @@ public enum ClaudeOAuthCredentialsStore {
 
     #if DEBUG
     @TaskLocal private static var taskCredentialsURLOverride: URL?
+    private static let isolatedTestCredentialsURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("codexbar-tests-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("credentials.json")
     #endif
     // In-memory cache (nonisolated for synchronous access)
     private static let memoryCacheLock = NSLock()
@@ -2327,6 +2330,10 @@ public enum ClaudeOAuthCredentialsStore {
     public static var currentCredentialsURLOverrideForTesting: URL? {
         self.taskCredentialsURLOverride
     }
+
+    static var resolvedCredentialsURLForTesting: URL {
+        self.credentialsFileURL()
+    }
     #endif
 
     private static func saveToCacheKeychain(
@@ -2522,6 +2529,9 @@ public enum ClaudeOAuthCredentialsStore {
         #if DEBUG
         if let override = self.taskCredentialsURLOverride {
             return override
+        }
+        if KeychainTestSafety.shouldIsolateUserStateUnderTests() {
+            return self.isolatedTestCredentialsURL
         }
         #endif
         return self.defaultCredentialsURL()

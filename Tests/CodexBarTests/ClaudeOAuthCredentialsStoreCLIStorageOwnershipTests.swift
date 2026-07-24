@@ -22,6 +22,30 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
         return Data(json.utf8)
     }
 
+    private func withDeterministicCacheService<T>(
+        _ service: String,
+        operation: () throws -> T) rethrows -> T
+    {
+        let pendingStore = ClaudeOAuthCredentialsStore.PendingCacheClearMemoryStore()
+        return try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+            try ClaudeOAuthCredentialsStore.withPendingCacheClearStoreOverrideForTesting(pendingStore) {
+                try KeychainCacheStore.withServiceOverrideForTesting(service, operation: operation)
+            }
+        }
+    }
+
+    private func withDeterministicCacheService<T>(
+        _ service: String,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        let pendingStore = ClaudeOAuthCredentialsStore.PendingCacheClearMemoryStore()
+        return try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+            try await ClaudeOAuthCredentialsStore.withPendingCacheClearStoreOverrideForTesting(pendingStore) {
+                try await KeychainCacheStore.withServiceOverrideForTesting(service, operation: operation)
+            }
+        }
+    }
+
     private func withClaudeOAuthTokenRefreshStub<T>(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data),
         operation: () async throws -> T) async rethrows -> T
@@ -64,7 +88,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     @Test
     func `successful codexbar refresh is re-owned when Claude CLI storage appears`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
-        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -178,7 +202,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     @Test
     func `rotated refresh token preserves history owner through cache restart`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
-        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -273,7 +297,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     @Test
     func `load record treats codexbar cache as claude CLI owned when credentials file exists`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
-        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -328,7 +352,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     @Test
     func `load with auto refresh delegates expired codexbar cache when credentials file exists`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
-        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -386,7 +410,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     @Test
     func `load with auto refresh keeps codexbar cache ownership without Claude CLI storage`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
-        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -444,7 +468,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     @Test
     func `load record treats codexbar cache as claude CLI owned when Claude keychain item exists`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
-        try KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 
@@ -573,7 +597,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
         }
         """.utf8)
 
-        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+        try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
 

@@ -51,6 +51,24 @@ struct ClaudeOAuthCredentialsStoreTests {
     }
 
     @Test
+    func `safety isolates the default Claude credentials file`() {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        let defaultURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/.credentials.json")
+        #expect(ClaudeOAuthCredentialsStore.resolvedCredentialsURLForTesting != defaultURL)
+
+        let overrideURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("explicit-credentials.json")
+        let resolvedOverride = ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(overrideURL) {
+            ClaudeOAuthCredentialsStore.resolvedCredentialsURLForTesting
+        }
+        #expect(resolvedOverride == overrideURL)
+    }
+
+    @Test
     func `loads from keychain cache before expired file`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try ProviderInteractionContext.$current.withValue(.background) {

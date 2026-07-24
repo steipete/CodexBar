@@ -41,6 +41,14 @@ public enum ClaudeOAuthKeychainPromptPreference {
         if let taskOverride {
             return taskOverride
         }
+        // Unit tests must not inherit the developer's persisted app preference. Tests that exercise a specific
+        // policy use a task or UserDefaults override explicitly.
+        if userDefaults == nil,
+           self.taskApplicationUserDefaultsOverride == nil,
+           KeychainTestSafety.shouldIsolateUserStateUnderTests()
+        {
+            return .onlyOnUserAction
+        }
         #endif
         let userDefaults = userDefaults ?? self.applicationUserDefaults
         if let raw = userDefaults.string(forKey: self.userDefaultsKey),
