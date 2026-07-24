@@ -3,6 +3,7 @@ import Testing
 @testable import CodexBarCore
 
 @Suite(.serialized)
+// swiftlint:disable:next type_body_length
 struct ClaudeOAuthCredentialsStoreTests {
     private func makeCredentialsData(accessToken: String, expiresAt: Date, refreshToken: String? = nil) -> Data {
         let millis = Int(expiresAt.timeIntervalSince1970 * 1000)
