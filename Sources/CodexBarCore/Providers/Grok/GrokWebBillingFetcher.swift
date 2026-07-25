@@ -6,10 +6,14 @@ import FoundationNetworking
 public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercent: Double?
     public let resetsAt: Date?
+    /// Billing-period length in minutes when the protobuf exposes both period start and end.
+    /// Late-cycle web windows need this so Weekly/Monthly labeling and pace can still resolve.
+    public let windowMinutes: Int?
 
-    public init(usedPercent: Double?, resetsAt: Date?) {
+    public init(usedPercent: Double?, resetsAt: Date?, windowMinutes: Int? = nil) {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
+        self.windowMinutes = windowMinutes
     }
 }
 
@@ -233,18 +237,20 @@ public enum GrokWebBillingFetcher {
             }
             .map { Double($0.value) }
 
-        let resetFields = scan.varintFields.compactMap { field -> (path: [UInt64], date: Date)? in
+        let timestampFields = scan.varintFields.compactMap { field -> (path: [UInt64], date: Date)? in
             let raw = field.value
             guard raw >= 1_700_000_000, raw <= 2_100_000_000 else { return nil }
             return (field.path, Date(timeIntervalSince1970: TimeInterval(raw)))
         }
-        let futureResetFields = resetFields.filter { $0.date > now }
+        let futureResetFields = timestampFields.filter { $0.date > now }
         let reset = futureResetFields
             .filter { $0.path == [1, 5, 1] }
             .map(\.date)
             .min() ?? futureResetFields
             .map(\.date)
             .min()
+        let periodStart = Self.billingPeriodStart(from: timestampFields, resetsAt: reset, now: now)
+        let windowMinutes = Self.billingWindowMinutes(from: periodStart, to: reset)
 
         let hasUsagePeriod = scan.varintFields.contains { field in
             field.path.starts(with: [1, 6]) ||
@@ -257,7 +263,43 @@ public enum GrokWebBillingFetcher {
         guard let percent = parsedPercent ?? (noUsageYet ? 0 : nil) else {
             throw GrokWebBillingError.parseFailed
         }
-        return GrokWebBillingSnapshot(usedPercent: percent, resetsAt: reset)
+        return GrokWebBillingSnapshot(
+            usedPercent: percent,
+            resetsAt: reset,
+            windowMinutes: windowMinutes)
+    }
+
+    /// Prefers the protobuf period-start siblings (`[1,4,1]` / `[1,8,2,1]`), then any past timestamp
+    /// that precedes the chosen reset.
+    static func billingPeriodStart(
+        from timestampFields: [(path: [UInt64], date: Date)],
+        resetsAt: Date?,
+        now: Date) -> Date?
+    {
+        guard let resetsAt else { return nil }
+
+        let preferredStarts = timestampFields
+            .filter { field in
+                field.path == [1, 4, 1] || field.path == [1, 8, 2, 1]
+            }
+            .map(\.date)
+            .filter { $0 < resetsAt }
+        if let preferred = preferredStarts.max() {
+            return preferred
+        }
+
+        return timestampFields
+            .map(\.date)
+            .filter { $0 <= now && $0 < resetsAt }
+            .max()
+    }
+
+    static func billingWindowMinutes(from start: Date?, to end: Date?) -> Int? {
+        guard let start, let end else { return nil }
+        let minutes = end.timeIntervalSince(start) / 60
+        // Accept common Grok credit cycles (~daily through ~monthly); reject noise.
+        guard minutes.isFinite, minutes >= 24 * 60, minutes <= 45 * 24 * 60 else { return nil }
+        return Int(minutes.rounded())
     }
 
     static func looksLikeProtobufPayload(_ data: Data) -> Bool {

@@ -61,7 +61,7 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
-    func `monthly quota does not show weekly projection`() throws {
+    func `monthly quota shows projection and pace marker`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let model = try Self.model(
             now: now,
@@ -73,9 +73,46 @@ struct GrokMenuCardModelTests {
 
         let metric = try #require(model.metrics.first { $0.id == "primary" })
         #expect(metric.title == "Monthly")
-        #expect(metric.detailLeftText == nil)
-        #expect(metric.detailRightText == nil)
-        #expect(metric.pacePercent == nil)
+        #expect(metric.detailLeftText == "17% in deficit")
+        #expect(metric.detailRightText == "Runs out in 10d")
+        #expect(metric.pacePercent != nil)
+        #expect(metric.paceOnTop == false)
+    }
+
+    @Test
+    func `late cycle web weekly quota keeps label and projection`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 37,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval((2 * 24 + 9) * 3600),
+                resetDescription: nil))
+
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+        #expect(metric.title == "Weekly")
+        #expect(metric.detailLeftText != nil)
+        #expect(metric.detailRightText != nil)
+        #expect(metric.pacePercent != nil)
+    }
+
+    @Test
+    func `late cycle web monthly quota keeps label and projection`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 37,
+                windowMinutes: 30 * 24 * 60,
+                resetsAt: now.addingTimeInterval((2 * 24 + 9) * 3600),
+                resetDescription: nil))
+
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+        #expect(metric.title == "Monthly")
+        #expect(metric.detailLeftText != nil)
+        #expect(metric.detailRightText != nil)
+        #expect(metric.pacePercent != nil)
     }
 
     @Test

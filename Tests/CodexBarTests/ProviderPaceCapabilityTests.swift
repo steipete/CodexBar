@@ -69,10 +69,12 @@ struct ProviderPaceCapabilityTests {
         case .cursor:
             return window.windowMinutes != nil
         case .grok:
-            guard GrokProviderDescriptor.primaryLabel(window: window, now: now) == "Weekly",
+            guard let label = GrokProviderDescriptor.primaryLabel(window: window, now: now),
+                  label == "Weekly" || label == "Monthly",
                   let resetsAt = window.resetsAt
             else { return false }
-            let windowMinutes = window.windowMinutes ?? self.weeklyWindowMinutes
+            let defaultMinutes = label == "Weekly" ? self.weeklyWindowMinutes : self.monthlyWindowSentinelMinutes
+            let windowMinutes = window.windowMinutes ?? defaultMinutes
             let timeUntilReset = resetsAt.timeIntervalSince(now)
             return windowMinutes > 0
                 && timeUntilReset > 0

@@ -38,10 +38,12 @@ public enum GrokProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Grok cost summary is not supported yet." }),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, now in
-                guard Self.primaryLabel(window: window, now: now) == "Weekly",
+                guard let label = Self.primaryLabel(window: window, now: now),
+                      label == "Weekly" || label == "Monthly",
                       let resetsAt = window.resetsAt
                 else { return false }
-                let windowMinutes = window.windowMinutes ?? 7 * 24 * 60
+                let defaultMinutes = label == "Weekly" ? 7 * 24 * 60 : 30 * 24 * 60
+                let windowMinutes = window.windowMinutes ?? defaultMinutes
                 let timeUntilReset = resetsAt.timeIntervalSince(now)
                 return windowMinutes > 0
                     && timeUntilReset > 0

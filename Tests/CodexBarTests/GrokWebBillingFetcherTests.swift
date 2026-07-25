@@ -111,6 +111,7 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 42.5)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(reset)))
+        #expect(snapshot.windowMinutes == nil)
     }
 
     @Test
@@ -126,6 +127,7 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 1.222000002861023)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
+        #expect(snapshot.windowMinutes == 30 * 24 * 60)
     }
 
     @Test
@@ -567,6 +569,7 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 0)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_780_272_000))
+        #expect(snapshot.windowMinutes == 31 * 24 * 60)
     }
 
     @Test
@@ -589,6 +592,7 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.usedPercent == 0)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
+        #expect(snapshot.windowMinutes == 30 * 24 * 60)
     }
 
     @Test
@@ -626,6 +630,7 @@ struct GrokWebBillingFetcherTests {
             now: Date(timeIntervalSince1970: TimeInterval(recentStart + 1800)))
 
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(billingEnd)))
+        #expect(snapshot.windowMinutes == Int((TimeInterval(billingEnd) - TimeInterval(recentStart)) / 60))
     }
 
     @Test
@@ -914,7 +919,8 @@ extension GrokWebBillingFetcherTests {
             billing: nil,
             webBilling: GrokWebBillingSnapshot(
                 usedPercent: 67.25,
-                resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
+                resetsAt: Date(timeIntervalSince1970: 1_800_000_003),
+                windowMinutes: 7 * 24 * 60),
             credentials: Self.credentials,
             localSummary: nil,
             cliVersion: nil,
@@ -923,7 +929,7 @@ extension GrokWebBillingFetcherTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 67.25)
-        #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.primary?.windowMinutes == 7 * 24 * 60)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_800_000_003))
         #expect(usage.accountEmail(for: .grok) == "grok@example.com")
         #expect(usage.loginMethod(for: .grok) == "SuperGrok")
