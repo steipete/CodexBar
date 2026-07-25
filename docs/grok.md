@@ -112,10 +112,12 @@ browser session when the CLI surface does not expose billing.
     `resetsAt` = `billingCycle.billingPeriodEnd`.
   - grok.com fallback: `usedPercent` and `resetsAt` parsed from the gRPC-web
     billing protobuf.
-  - The UI label for the live usage bar is dynamic: "Weekly" or "Monthly"
-    when `resetsAt` matches a common cycle, falling back to the registered
-    "Credits" label otherwise. Settings and history views continue to use
-    "Credits" as the stable metric name.
+  - The UI label for the live usage bar is dynamic: SuperGrok included usage is a
+    weekly pool, so reset-only web payloads with a week-sized remaining horizon
+    show "Weekly" (including late-cycle remainders). "Monthly" is reserved for
+    measured ~month-long billing-period durations from CLI/older payloads.
+    Settings and history views continue to use "Credits" as the stable metric
+    name.
 - **Identity**:
   - `accountEmail` from credential `email`.
   - `accountOrganization` from credential `team_id`.

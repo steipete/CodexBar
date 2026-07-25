@@ -42,6 +42,8 @@ public enum GrokProviderDescriptor {
                       label == "Weekly" || label == "Monthly",
                       let resetsAt = window.resetsAt
                 else { return false }
+                // SuperGrok included usage is a weekly pool; monthly only appears when a measured
+                // billing-period length is present (legacy CLI / older payloads).
                 let defaultMinutes = label == "Weekly" ? 7 * 24 * 60 : 30 * 24 * 60
                 let windowMinutes = window.windowMinutes ?? defaultMinutes
                 let timeUntilReset = resetsAt.timeIntervalSince(now)
@@ -71,28 +73,39 @@ public enum GrokProviderDescriptor {
     }
 
     /// Returns a contextual label for Grok's primary usage bar ("Weekly" or "Monthly").
-    /// Prefer the billing period duration when available; fall back to reset distance for
-    /// web billing payloads that expose only a reset timestamp.
+    /// Prefer a measured billing-period duration when available. For reset-only web payloads,
+    /// treat remaining time within a week-sized horizon as Weekly — SuperGrok's included usage
+    /// pool resets weekly, so late-cycle windows must not fall back to "Credits".
     public static func primaryLabel(window: RateWindow?, now: Date = .now) -> String? {
         if let minutes = window?.windowMinutes {
-            return self.primaryLabel(duration: TimeInterval(minutes) * 60)
+            return self.primaryLabel(duration: TimeInterval(minutes) * 60, fromMeasuredDuration: true)
         }
         return self.primaryLabel(resetsAt: window?.resetsAt, now: now)
     }
 
     public static func primaryLabel(resetsAt: Date?, now: Date = .now) -> String? {
         guard let resetsAt else { return nil }
-        return self.primaryLabel(duration: resetsAt.timeIntervalSince(now))
+        return self.primaryLabel(
+            duration: resetsAt.timeIntervalSince(now),
+            fromMeasuredDuration: false)
     }
 
-    private static func primaryLabel(duration seconds: TimeInterval) -> String? {
+    private static func primaryLabel(duration seconds: TimeInterval, fromMeasuredDuration: Bool) -> String? {
         guard seconds > 3600 else { return nil }
         let days = Int((seconds / 86400).rounded(.toNearestOrAwayFromZero))
-        if (4...12).contains(days) {
-            return "Weekly"
+        if fromMeasuredDuration {
+            if (4...12).contains(days) {
+                return "Weekly"
+            }
+            if (20...45).contains(days) {
+                return "Monthly"
+            }
+            return nil
         }
-        if (20...45).contains(days) {
-            return "Monthly"
+        // Reset-distance only: SuperGrok usage is weekly, so any remaining time that still fits a
+        // week-sized horizon is Weekly (including late-cycle 1–3 day remainders).
+        if (1...12).contains(days) {
+            return "Weekly"
         }
         return nil
     }

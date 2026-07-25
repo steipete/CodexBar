@@ -36,8 +36,9 @@ struct GrokWebBillingFetcherTests {
     }
 
     @Test
-    func `primaryLabel derives Weekly or Monthly from resetsAt`() {
+    func `primaryLabel prefers Weekly for reset-only SuperGrok usage windows`() {
         let now = Date()
+        let in2Days = now.addingTimeInterval(2 * 86400)
         let in6Days = now.addingTimeInterval(6 * 86400)
         let in30Days = now.addingTimeInterval(30 * 86400)
         let in90Days = now.addingTimeInterval(90 * 86400)
@@ -46,11 +47,18 @@ struct GrokWebBillingFetcherTests {
             windowMinutes: 7 * 24 * 60,
             resetsAt: now.addingTimeInterval(86400),
             resetDescription: nil)
+        let measuredMonthlyWindow = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 30 * 24 * 60,
+            resetsAt: now.addingTimeInterval(86400),
+            resetDescription: nil)
 
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in2Days, now: now) == "Weekly")
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days, now: now) == "Weekly")
-        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days, now: now) == "Monthly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days, now: now) == nil)
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days, now: now) == nil)
         #expect(GrokProviderDescriptor.primaryLabel(window: lateWeeklyWindow, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(window: measuredMonthlyWindow, now: now) == "Monthly")
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: nil) == nil)
     }
 

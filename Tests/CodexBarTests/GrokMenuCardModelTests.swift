@@ -118,14 +118,33 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
-    func `unclassified quota does not show weekly projection`() throws {
+    func `late cycle reset-only web quota defaults to weekly projection`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 37,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval((2 * 24 + 9) * 3600),
+                resetDescription: nil))
+
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+        #expect(metric.title == "Weekly")
+        #expect(metric.detailLeftText == "29% in reserve")
+        #expect(metric.detailRightText == "Lasts until reset")
+        #expect(metric.pacePercent != nil)
+        #expect(metric.paceOnTop == true)
+    }
+
+    @Test
+    func `far reset without measured duration does not invent weekly projection`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let model = try Self.model(
             now: now,
             window: RateWindow(
                 usedPercent: 50,
                 windowMinutes: nil,
-                resetsAt: now.addingTimeInterval(2 * 24 * 3600),
+                resetsAt: now.addingTimeInterval(20 * 24 * 3600),
                 resetDescription: nil))
 
         let metric = try #require(model.metrics.first { $0.id == "primary" })

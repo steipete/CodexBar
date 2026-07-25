@@ -64,12 +64,26 @@ struct GrokWebBillingPaceLinuxTests {
     }
 
     @Test
-    func `unclassified short reset without duration still skips pace`() {
+    func `late cycle reset-only window defaults to weekly pace`() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(
             usedPercent: 37,
             windowMinutes: nil,
             resetsAt: now.addingTimeInterval((2 * 24 + 9) * 3600),
+            resetDescription: nil)
+        let capability = GrokProviderDescriptor.descriptor.pace
+
+        #expect(GrokProviderDescriptor.primaryLabel(window: window, now: now) == "Weekly")
+        #expect(capability.supportsResetWindowPace(window: window, now: now))
+    }
+
+    @Test
+    func `far reset without measured duration still skips pace`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 37,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval(20 * 24 * 3600),
             resetDescription: nil)
         let capability = GrokProviderDescriptor.descriptor.pace
 
