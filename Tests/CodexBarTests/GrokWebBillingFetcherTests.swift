@@ -123,7 +123,7 @@ struct GrokWebBillingFetcherTests {
 
         let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
             data,
-            now: Date(timeIntervalSince1970: 1_780_000_000))
+            now: Date(timeIntervalSince1970: 1_781_000_000))
 
         #expect(snapshot.usedPercent == 1.222000002861023)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
@@ -565,7 +565,7 @@ struct GrokWebBillingFetcherTests {
 
         let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
             data,
-            now: Date(timeIntervalSince1970: 1_768_000_000))
+            now: Date(timeIntervalSince1970: 1_778_500_000))
 
         #expect(snapshot.usedPercent == 0)
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_780_272_000))
@@ -631,6 +631,36 @@ struct GrokWebBillingFetcherTests {
 
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(billingEnd)))
         #expect(snapshot.windowMinutes == Int((TimeInterval(billingEnd) - TimeInterval(recentStart)) / 60))
+    }
+
+    @Test
+    func `rejects future preferred period start when deriving window length`() throws {
+        let nowEpoch = UInt64(1_800_000_000)
+        let futureStart = nowEpoch + 86_400
+        let billingEnd = nowEpoch + 8 * 86_400
+        var payload = Data()
+        payload.append(0x0A) // field 1, length-delimited billing message
+        var inner = Data()
+        inner.append(0x0D) // field 1, fixed32 usage percent
+        var percentBits = Float(40).bitPattern.littleEndian
+        withUnsafeBytes(of: &percentBits) { inner.append(contentsOf: $0) }
+        inner.append(0x22) // field 4, nested period start
+        inner.append(0x06)
+        inner.append(0x08) // nested field 1 varint
+        inner.append(contentsOf: Self.varint(futureStart))
+        inner.append(0x2A) // field 5, nested period end
+        inner.append(0x06)
+        inner.append(0x08)
+        inner.append(contentsOf: Self.varint(billingEnd))
+        payload.append(UInt8(inner.count))
+        payload.append(inner)
+
+        let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
+            Self.grpcFrame(payload),
+            now: Date(timeIntervalSince1970: TimeInterval(nowEpoch)))
+
+        #expect(snapshot.resetsAt == Date(timeIntervalSince1970: TimeInterval(billingEnd)))
+        #expect(snapshot.windowMinutes == nil)
     }
 
     @Test

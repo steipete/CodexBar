@@ -283,7 +283,7 @@ public enum GrokWebBillingFetcher {
                 field.path == [1, 4, 1] || field.path == [1, 8, 2, 1]
             }
             .map(\.date)
-            .filter { $0 < resetsAt }
+            .filter { $0 <= now && $0 < resetsAt }
         if let preferred = preferredStarts.max() {
             return preferred
         }

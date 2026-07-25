@@ -12,10 +12,27 @@ struct GrokWebBillingPaceLinuxTests {
 
         let snapshot = try GrokWebBillingFetcher.parseGRPCWebResponse(
             data,
-            now: Date(timeIntervalSince1970: 1_780_000_000))
+            now: Date(timeIntervalSince1970: 1_781_000_000))
 
         #expect(snapshot.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
         #expect(snapshot.windowMinutes == 30 * 24 * 60)
+    }
+
+    @Test
+    func `rejects future preferred period start when deriving window length`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let futureStart = now.addingTimeInterval(86_400)
+        let resetsAt = now.addingTimeInterval(8 * 86_400)
+        let start = GrokWebBillingFetcher.billingPeriodStart(
+            from: [
+                (path: [1, 4, 1], date: futureStart),
+                (path: [1, 5, 1], date: resetsAt),
+            ],
+            resetsAt: resetsAt,
+            now: now)
+
+        #expect(start == nil)
+        #expect(GrokWebBillingFetcher.billingWindowMinutes(from: start, to: resetsAt) == nil)
     }
 
     @Test
