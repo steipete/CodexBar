@@ -92,9 +92,10 @@ struct GrokMenuCardModelTests {
 
         let metric = try #require(model.metrics.first { $0.id == "primary" })
         #expect(metric.title == "Weekly")
-        #expect(metric.detailLeftText != nil)
-        #expect(metric.detailRightText != nil)
+        #expect(metric.detailLeftText == "29% in reserve")
+        #expect(metric.detailRightText == "Lasts until reset")
         #expect(metric.pacePercent != nil)
+        #expect(metric.paceOnTop == true)
     }
 
     @Test
@@ -110,9 +111,10 @@ struct GrokMenuCardModelTests {
 
         let metric = try #require(model.metrics.first { $0.id == "primary" })
         #expect(metric.title == "Monthly")
-        #expect(metric.detailLeftText != nil)
-        #expect(metric.detailRightText != nil)
+        #expect(metric.detailLeftText == "55% in reserve")
+        #expect(metric.detailRightText == "Lasts until reset")
         #expect(metric.pacePercent != nil)
+        #expect(metric.paceOnTop == true)
     }
 
     @Test
