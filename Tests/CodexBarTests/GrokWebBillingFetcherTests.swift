@@ -636,8 +636,8 @@ struct GrokWebBillingFetcherTests {
     @Test
     func `rejects future preferred period start when deriving window length`() throws {
         let nowEpoch = UInt64(1_800_000_000)
-        let futureStart = nowEpoch + 86_400
-        let billingEnd = nowEpoch + 8 * 86_400
+        let futureStart = nowEpoch + 86400
+        let billingEnd = nowEpoch + 8 * 86400
         var payload = Data()
         payload.append(0x0A) // field 1, length-delimited billing message
         var inner = Data()

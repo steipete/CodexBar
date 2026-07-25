@@ -21,8 +21,8 @@ struct GrokWebBillingPaceLinuxTests {
     @Test
     func `rejects future preferred period start when deriving window length`() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let futureStart = now.addingTimeInterval(86_400)
-        let resetsAt = now.addingTimeInterval(8 * 86_400)
+        let futureStart = now.addingTimeInterval(86400)
+        let resetsAt = now.addingTimeInterval(8 * 86400)
         let start = GrokWebBillingFetcher.billingPeriodStart(
             from: [
                 (path: [1, 4, 1], date: futureStart),
