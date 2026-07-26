@@ -325,7 +325,40 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
-    func `menu open cost refresh does not preempt a running token sequence`() async {
+    func `menu open cost refresh queues one forced pass behind a running token sequence`() async {
+        let store = Self.makeStore()
+        let gate = TokenRefreshGate()
+        let recorder = TokenRefreshRecorder()
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            await recorder.record(provider: provider, force: force)
+            if !force {
+                await gate.start(provider: provider, force: force)
+                await gate.waitForRelease()
+                await gate.finish()
+            }
+        }
+
+        store.scheduleTokenRefreshForTesting()
+        await gate.waitForStart()
+
+        // Re-entry while the scheduled sequence is blocked must not preempt it, and the two
+        // requests must coalesce into a single pending forced pass.
+        store.scheduleForcedTokenRefresh()
+        store.scheduleForcedTokenRefresh()
+        #expect(await recorder.calls.count == 1)
+
+        await gate.release()
+        let didRunForcedFollowUp = await recorder.waitForCallCount(2)
+        #expect(didRunForcedFollowUp)
+        await store.tokenRefreshSequenceTask?.value
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(await recorder.calls.map(\.force) == [false, true])
+        #expect(await recorder.calls.map(\.provider) == [.codex, .codex])
+    }
+
+    @Test
+    func `menu open cost refresh coalesces into an active forced pass`() async {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()
         store._test_tokenUsageRefreshOverride = { provider, force in
@@ -334,16 +367,16 @@ struct UsageStoreManualTokenRefreshTests {
             await gate.finish()
         }
 
-        store.scheduleTokenRefreshForTesting()
-        await gate.waitForStart()
-
         store.scheduleForcedTokenRefresh()
+        await gate.waitForStart()
+        store.scheduleForcedTokenRefresh()
+
         await gate.release()
         await store.tokenRefreshSequenceTask?.value
-        await gate.waitForFinish()
+        try? await Task.sleep(for: .milliseconds(50))
 
         #expect(await gate.calls.count == 1)
-        #expect(await gate.calls.map(\.force) == [false])
+        #expect(await gate.calls.map(\.force) == [true])
     }
 
     @Test
