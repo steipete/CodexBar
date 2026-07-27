@@ -318,8 +318,9 @@ enum SpendDashboardSource {
                 modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,
                 snapshot: snapshot))
         }
-        // A cache miss is still pending fresh validation, not a provider failure.
-        return SpendDashboardLoadResult(inputs: inputs, failedSourceIDs: [])
+        // A cache miss is still pending fresh validation, not a new provider failure. Preserve
+        // failures already captured in the request so priming cannot briefly clear the warning.
+        return SpendDashboardLoadResult(inputs: inputs, failedSourceIDs: request.unavailableSourceIDs)
     }
 
     static func load(

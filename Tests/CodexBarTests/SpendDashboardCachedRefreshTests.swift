@@ -103,6 +103,42 @@ struct SpendDashboardCachedRefreshTests {
     }
 
     @Test
+    func `priming preserves captured failures while fresh validation is pending`() async {
+        let loaderGate = CachedRefreshLoaderGate()
+        let unavailableSourceID = UsageProvider.mistral.rawValue
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue, unavailableSourceID],
+            codexAccountIdentities: ["cached"])
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [unavailableSourceID],
+                    codexRequests: [],
+                    now: Date(timeIntervalSince1970: 1_784_179_200),
+                    force: mode.forcesLoader)
+            },
+            cachedLoader: { request in
+                await SpendDashboardSource.loadCached(request, cachedCodexSnapshotLoader: { _ in nil })
+            },
+            loader: { request in await loaderGate.load(request) })
+
+        controller.update(configuration: configuration)
+        await Self.waitForPendingCount(1, gate: loaderGate)
+
+        #expect(controller.isRefreshing)
+        #expect(controller.failedSourceCount == 1)
+
+        await loaderGate.resume(
+            at: 0,
+            result: .init(inputs: [], failedSourceIDs: [unavailableSourceID]))
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.failedSourceCount == 1)
+    }
+
+    @Test
     func `cached dashboard data rejects auth rotation during hydration`() async throws {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpendDashboardCachedRefreshTests-auth-\(UUID().uuidString)", isDirectory: true)

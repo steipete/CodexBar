@@ -112,6 +112,7 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath,
             scannerOptions: self.scannerOptionsOverride())
     }
+
     public func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
