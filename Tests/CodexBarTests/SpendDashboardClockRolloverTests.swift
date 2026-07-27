@@ -7,6 +7,10 @@ import Testing
 struct SpendDashboardClockRolloverTests {
     @Test
     func `reporting window advances and rescans source inputs`() async throws {
+        let suiteName = "SpendDashboardClockRolloverTests-reporting-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
         let afterRollover = try #require(ISO8601DateFormatter().date(from: "2026-07-22T12:00:00Z"))
         let loadCount = LockIsolated(0)
@@ -15,6 +19,7 @@ struct SpendDashboardClockRolloverTests {
         let initialInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
         let rolloverInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
@@ -51,6 +56,10 @@ struct SpendDashboardClockRolloverTests {
 
     @Test
     func `rollover replaces an in flight load instead of dropping the rescan`() async throws {
+        let suiteName = "SpendDashboardClockRolloverTests-in-flight-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
         let afterRollover = try #require(ISO8601DateFormatter().date(from: "2026-07-22T12:00:00Z"))
         let clock = LockIsolated(loadedAt)
@@ -59,6 +68,7 @@ struct SpendDashboardClockRolloverTests {
         let freshInput = Self.input(day: "2026-07-22", cost: 6, updatedAt: afterRollover)
         let gate = SpendDashboardRolloverGate()
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 SpendDashboardLoadRequest(
                     configuration: configuration,
