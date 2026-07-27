@@ -34,6 +34,21 @@ struct OpenCodeGoLinuxTests {
     }
 
     @Test
+    func commandCodeAPIKeyAutoDoesNotRequireMacOSWebSupport() {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("command-code-no-auth-\(UUID().uuidString)", isDirectory: true)
+
+        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .commandcode,
+            environment: ["COMMAND_CODE_API_KEY": "api-test", "HOME": home.path]))
+        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .commandcode,
+            environment: ["HOME": home.path]))
+    }
+
+    @Test
     func localReaderLoadsOpenCodeDatabase() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("OpenCodeGoLinuxTests-\(UUID().uuidString)", isDirectory: true)

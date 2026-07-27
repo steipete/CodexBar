@@ -3,15 +3,22 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Fetches live billing data from `api.commandcode.ai` using a better-auth session
-/// cookie scraped from the user's browser.
+private enum CommandCodeAuthentication: Sendable {
+    case cookieHeader(String)
+    case apiKey(String)
+}
+
+/// Fetches live billing data from `api.commandcode.ai` using either the Command Code
+/// CLI API key or a better-auth browser session cookie.
 public enum CommandCodeUsageFetcher {
     private static let log = CodexBarLog.logger(LogCategories.commandcodeUsage)
     private static let requestTimeoutSeconds: TimeInterval = 15
     private static let subscriptionGraceSeconds: TimeInterval = 2
     private static let apiBase = URL(string: "https://api.commandcode.ai")!
-    private static let creditsPath = "/internal/billing/credits"
-    private static let subscriptionsPath = "/internal/billing/subscriptions"
+    private static let webCreditsPath = "/internal/billing/credits"
+    private static let webSubscriptionsPath = "/internal/billing/subscriptions"
+    private static let apiCreditsPath = "/alpha/billing/credits"
+    private static let apiSubscriptionsPath = "/alpha/billing/subscriptions"
     private static let webOrigin = "https://commandcode.ai"
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
@@ -23,7 +30,19 @@ public enum CommandCodeUsageFetcher {
         now: Date = Date()) async throws -> CommandCodeUsageSnapshot
     {
         try await self.fetchUsage(
-            cookieHeader: cookieHeader,
+            authentication: .cookieHeader(cookieHeader),
+            transport: transport,
+            now: now,
+            subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
+    }
+
+    public static func fetchUsage(
+        apiKey: String,
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        now: Date = Date()) async throws -> CommandCodeUsageSnapshot
+    {
+        try await self.fetchUsage(
+            authentication: .apiKey(apiKey),
             transport: transport,
             now: now,
             subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
@@ -36,20 +55,20 @@ public enum CommandCodeUsageFetcher {
         subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
     {
         try await self.fetchUsage(
-            cookieHeader: cookieHeader,
+            authentication: .cookieHeader(cookieHeader),
             transport: transport,
             now: now,
             subscriptionGrace: subscriptionGrace)
     }
 
     private static func fetchUsage(
-        cookieHeader: String,
+        authentication: CommandCodeAuthentication,
         transport: any ProviderHTTPTransport,
         now: Date,
         subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
     {
         let (credits, subscription, subscriptionEnrichmentUnavailable) = try await self.fetchPayloads(
-            cookieHeader: cookieHeader,
+            authentication: authentication,
             transport: transport,
             subscriptionGrace: subscriptionGrace)
 
@@ -69,6 +88,8 @@ public enum CommandCodeUsageFetcher {
             purchasedCredits: credits.purchasedCredits,
             premiumMonthlyCredits: credits.premiumMonthlyCredits,
             opensourceMonthlyCredits: credits.opensourceMonthlyCredits,
+            fiveHourWindow: credits.fiveHourWindow,
+            weeklyWindow: credits.weeklyWindow,
             plan: plan,
             billingPeriodEnd: subscription?.currentPeriodEnd,
             subscriptionStatus: subscription?.status,
@@ -77,17 +98,17 @@ public enum CommandCodeUsageFetcher {
     }
 
     private static func fetchPayloads(
-        cookieHeader: String,
+        authentication: CommandCodeAuthentication,
         transport: any ProviderHTTPTransport,
         subscriptionGrace: Duration) async throws -> (CreditsPayload, SubscriptionPayload?, Bool)
     {
         let subscriptionTask = Task<SubscriptionPayload?, Error> {
-            try await self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
+            try await self.fetchSubscription(authentication: authentication, transport: transport)
         }
         let credits: CreditsPayload
         do {
             credits = try await withTaskCancellationHandler {
-                try await self.fetchCredits(cookieHeader: cookieHeader, transport: transport)
+                try await self.fetchCredits(authentication: authentication, transport: transport)
             } onCancel: {
                 subscriptionTask.cancel()
             }
@@ -126,6 +147,8 @@ public enum CommandCodeUsageFetcher {
         let purchasedCredits: Double
         let premiumMonthlyCredits: Double
         let opensourceMonthlyCredits: Double
+        let fiveHourWindow: RateWindow?
+        let weeklyWindow: RateWindow?
     }
 
     struct SubscriptionPayload {
@@ -135,32 +158,46 @@ public enum CommandCodeUsageFetcher {
     }
 
     private static func fetchCredits(
-        cookieHeader: String,
+        authentication: CommandCodeAuthentication,
         transport: any ProviderHTTPTransport) async throws -> CreditsPayload
     {
-        let url = self.apiBase.appendingPathComponent(self.creditsPath)
-        let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
+        let path = switch authentication {
+        case .cookieHeader: self.webCreditsPath
+        case .apiKey: self.apiCreditsPath
+        }
+        let url = self.apiBase.appendingPathComponent(path)
+        let data = try await self.send(url: url, authentication: authentication, transport: transport)
         return try self.parseCredits(data: data)
     }
 
     private static func fetchSubscription(
-        cookieHeader: String,
+        authentication: CommandCodeAuthentication,
         transport: any ProviderHTTPTransport) async throws -> SubscriptionPayload?
     {
-        let url = self.apiBase.appendingPathComponent(self.subscriptionsPath)
-        let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
+        let path = switch authentication {
+        case .cookieHeader: self.webSubscriptionsPath
+        case .apiKey: self.apiSubscriptionsPath
+        }
+        let url = self.apiBase.appendingPathComponent(path)
+        let data = try await self.send(url: url, authentication: authentication, transport: transport)
         return try self.parseSubscription(data: data)
     }
 
     private static func send(
         url: URL,
-        cookieHeader: String,
+        authentication: CommandCodeAuthentication,
         transport: any ProviderHTTPTransport) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = self.requestTimeoutSeconds
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        switch authentication {
+        case let .cookieHeader(cookieHeader):
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        case let .apiKey(apiKey):
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        }
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
         request.setValue(self.userAgent, forHTTPHeaderField: "User-Agent")
@@ -199,11 +236,19 @@ public enum CommandCodeUsageFetcher {
         guard let monthly = self.double(from: credits["monthlyCredits"]) else {
             throw CommandCodeUsageError.parseFailed("Credits: missing monthlyCredits")
         }
+        let windowLimits = (root["windowLimits"] as? [String: Any])
+            ?? (credits["windowLimits"] as? [String: Any])
         return CreditsPayload(
             monthlyCredits: monthly,
             purchasedCredits: self.double(from: credits["purchasedCredits"]) ?? 0,
             premiumMonthlyCredits: self.double(from: credits["premiumMonthlyCredits"]) ?? 0,
-            opensourceMonthlyCredits: self.double(from: credits["opensourceMonthlyCredits"]) ?? 0)
+            opensourceMonthlyCredits: self.double(from: credits["opensourceMonthlyCredits"]) ?? 0,
+            fiveHourWindow: self.rateWindow(
+                from: windowLimits?["fiveHour"],
+                windowMinutes: 5 * 60),
+            weeklyWindow: self.rateWindow(
+                from: windowLimits?["weekly"],
+                windowMinutes: 7 * 24 * 60))
     }
 
     static func parseSubscription(data: Data) throws -> SubscriptionPayload? {
@@ -234,6 +279,21 @@ public enum CommandCodeUsageFetcher {
         return SubscriptionPayload(planID: planID, status: status, currentPeriodEnd: periodEnd)
     }
 
+    private static func rateWindow(from value: Any?, windowMinutes: Int) -> RateWindow? {
+        guard let limit = value as? [String: Any],
+              let cap = self.double(from: limit["cap"]),
+              cap > 0
+        else {
+            return nil
+        }
+        let used = self.double(from: limit["used"]) ?? 0
+        return RateWindow(
+            usedPercent: UsagePercent(used: used, limit: cap).displayClamped,
+            windowMinutes: windowMinutes,
+            resetsAt: self.date(from: limit["resetAt"]),
+            resetDescription: nil)
+    }
+
     // MARK: - Value coercion
 
     private static func double(from value: Any?) -> Double? {
@@ -250,6 +310,10 @@ public enum CommandCodeUsageFetcher {
     }
 
     private static func date(from value: Any?) -> Date? {
+        if let timestamp = self.double(from: value), timestamp > 0 {
+            let seconds = timestamp > 10_000_000_000 ? timestamp / 1000 : timestamp
+            return Date(timeIntervalSince1970: seconds)
+        }
         guard let s = value as? String else { return nil }
         let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }

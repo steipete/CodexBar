@@ -9,12 +9,12 @@ public enum CommandCodeProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .commandcode,
                 displayName: "Command Code",
-                sessionLabel: "Monthly credits",
-                weeklyLabel: "Monthly",
-                opusLabel: nil,
-                supportsOpus: false,
+                sessionLabel: "5-hour",
+                weeklyLabel: "Weekly",
+                opusLabel: "Monthly",
+                supportsOpus: true,
                 supportsCredits: true,
-                creditsHint: "Monthly USD credits from Command Code billing.",
+                creditsHint: "Monthly USD credits and rolling usage limits from Command Code billing.",
                 toggleTitle: "Show Command Code usage",
                 cliName: "commandcode",
                 defaultEnabled: false,
@@ -37,13 +37,51 @@ public enum CommandCodeProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Command Code cost summary is not yet supported." }),
+            pace: .calendarMonthResetWindow,
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CommandCodeWebFetchStrategy()] })),
+                sourceModes: [.auto, .api, .web],
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "commandcode",
                 aliases: ["command-code"],
                 versionDetector: nil))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        switch context.sourceMode {
+        case .api:
+            [CommandCodeAPIKeyFetchStrategy()]
+        case .web:
+            [CommandCodeWebFetchStrategy()]
+        case .auto:
+            [CommandCodeAPIKeyFetchStrategy(), CommandCodeWebFetchStrategy()]
+        case .cli, .oauth:
+            []
+        }
+    }
+}
+
+struct CommandCodeAPIKeyFetchStrategy: ProviderFetchStrategy {
+    let id: String = "commandcode.api"
+    let kind: ProviderFetchKind = .apiToken
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        guard let apiKey = CommandCodeAPIKeyReader.apiKey(environment: context.env) else {
+            throw CommandCodeUsageError.missingCredentials
+        }
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(apiKey: apiKey)
+        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "api key")
+    }
+
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto, let usageError = error as? CommandCodeUsageError else {
+            return false
+        }
+        return usageError == .missingCredentials || usageError == .invalidCredentials
     }
 }
 

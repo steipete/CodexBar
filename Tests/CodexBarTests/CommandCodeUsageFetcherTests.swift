@@ -10,7 +10,9 @@ import FoundationNetworking
 struct CommandCodeUsageFetcherTests {
     private static let creditsJSON = """
     {"credits":{"belowThreshold":false,"creditThreshold":0,"monthlyCredits":8.7784,\
-    "purchasedCredits":0,"premiumMonthlyCredits":0,"opensourceMonthlyCredits":8.7784}}
+    "purchasedCredits":0,"premiumMonthlyCredits":0,"opensourceMonthlyCredits":8.7784},\
+    "windowLimits":{"fiveHour":{"cap":3,"used":0.75,"resetAt":1780000000000},\
+    "weekly":{"cap":15,"used":1.5,"resetAt":1780100000000}}}
     """
 
     private static let subscriptionJSON = """
@@ -31,6 +33,14 @@ struct CommandCodeUsageFetcherTests {
         #expect(payload.purchasedCredits == 0)
         #expect(payload.premiumMonthlyCredits == 0)
         #expect(payload.opensourceMonthlyCredits == 8.7784)
+        let fiveHour = try #require(payload.fiveHourWindow)
+        #expect(fiveHour.usedPercent == 25)
+        #expect(fiveHour.windowMinutes == 5 * 60)
+        #expect(fiveHour.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
+        let weekly = try #require(payload.weeklyWindow)
+        #expect(weekly.usedPercent == 10)
+        #expect(weekly.windowMinutes == 7 * 24 * 60)
+        #expect(weekly.resetsAt == Date(timeIntervalSince1970: 1_780_100_000))
     }
 
     @Test
@@ -304,6 +314,43 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `API key fetch uses alpha billing endpoints and API headers`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let path = try #require(request.url?.path)
+            #expect(path == "/alpha/billing/credits" || path == "/alpha/billing/subscriptions")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer api-test")
+            #expect(request.value(forHTTPHeaderField: "x-api-key") == "api-test")
+            #expect(request.value(forHTTPHeaderField: "Cookie") == nil)
+            let body = path.hasSuffix("/credits") ? Self.creditsJSON : Self.subscriptionJSON
+            return try Self.response(request: request, statusCode: 200, body: body)
+        }
+
+        let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+            apiKey: "api-test",
+            session: transport)
+
+        #expect(snapshot.fiveHourWindow?.usedPercent == 25)
+        #expect(snapshot.weeklyWindow?.usedPercent == 10)
+    }
+
+    @Test
+    func `API key reader prefers environment and loads CLI auth file`() throws {
+        let environment = ["COMMAND_CODE_API_KEY": " env-key ", "HOME": "/unused"]
+        #expect(CommandCodeAPIKeyReader.apiKey(environment: environment) == "env-key")
+
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let authFile = CommandCodeAPIKeyReader.defaultAuthFileURL(homeDirectory: home)
+        try FileManager.default.createDirectory(
+            at: authFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        try Data(#"{"apiKey":"file-key"}"#.utf8).write(to: authFile)
+
+        #expect(CommandCodeAPIKeyReader.apiKey(environment: ["HOME": home.path]) == "file-key")
+    }
+
+    @Test
     func `snapshot derives used and total from plan catalog`() throws {
         let plan = try #require(CommandCodePlanCatalog.plan(forID: "individual-go"))
         let snapshot = CommandCodeUsageSnapshot(
@@ -311,6 +358,16 @@ struct CommandCodeUsageFetcherTests {
             purchasedCredits: 0,
             premiumMonthlyCredits: 0,
             opensourceMonthlyCredits: 8.7784,
+            fiveHourWindow: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 5 * 60,
+                resetsAt: Date(timeIntervalSince1970: 1_779_000_000),
+                resetDescription: nil),
+            weeklyWindow: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: Date(timeIntervalSince1970: 1_779_500_000),
+                resetDescription: nil),
             plan: plan,
             billingPeriodEnd: Date(timeIntervalSince1970: 1_780_000_000),
             subscriptionStatus: "active",
@@ -319,9 +376,12 @@ struct CommandCodeUsageFetcherTests {
         #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - 1.2216) < 0.0001)
 
         let usage = snapshot.toUsageSnapshot()
-        let primary = try #require(usage.primary)
-        #expect(abs(primary.usedPercent - 12.216) < 0.001)
-        #expect(primary.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.secondary?.usedPercent == 10)
+        let monthly = try #require(usage.tertiary)
+        #expect(abs(monthly.usedPercent - 12.216) < 0.001)
+        #expect(monthly.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(monthly.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
         #expect(usage.identity?.loginMethod == "Go · $1.22 of $10.00")
     }
 
@@ -336,7 +396,7 @@ struct CommandCodeUsageFetcherTests {
             billingPeriodEnd: nil,
             subscriptionStatus: nil)
 
-        #expect(snapshot.toUsageSnapshot().primary == nil)
+        #expect(snapshot.toUsageSnapshot().tertiary == nil)
     }
 
     @Test

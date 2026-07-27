@@ -689,10 +689,15 @@ extension CodexBarCLI {
                 return false
             }
         }
-        if provider == .commandcode,
-           settings?.commandcode?.cookieSource == .manual
-        {
-            return false
+        if provider == .commandcode {
+            if sourceMode == .auto,
+               environment.map({ CommandCodeAPIKeyReader.apiKey(environment: $0) != nil }) == true
+            {
+                return false
+            }
+            if settings?.commandcode?.cookieSource == .manual {
+                return false
+            }
         }
         #if os(Linux)
         if provider == .cursor,
