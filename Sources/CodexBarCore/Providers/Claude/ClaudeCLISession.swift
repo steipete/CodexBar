@@ -7,6 +7,49 @@ import Musl
 #endif
 import Foundation
 
+private actor ClaudeCLISessionOperationGate {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Bool, Never>
+    }
+
+    private var ownerID: UUID?
+    private var waiters: [Waiter] = []
+
+    func acquire(id: UUID, rejectIfCancelled: Bool) async -> Bool {
+        if rejectIfCancelled, Task.isCancelled {
+            return false
+        }
+        guard self.ownerID != nil else {
+            self.ownerID = id
+            return true
+        }
+        return await withCheckedContinuation { continuation in
+            self.waiters.append(Waiter(id: id, continuation: continuation))
+        }
+    }
+
+    func cancel(id: UUID) {
+        if self.ownerID == id {
+            return
+        }
+        guard let index = self.waiters.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = self.waiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+    }
+
+    func release(id: UUID) {
+        guard self.ownerID == id else { return }
+        guard !self.waiters.isEmpty else {
+            self.ownerID = nil
+            return
+        }
+        let waiter = self.waiters.removeFirst()
+        self.ownerID = waiter.id
+        waiter.continuation.resume(returning: true)
+    }
+}
+
 actor ClaudeCLISession {
     static let shared = ClaudeCLISession()
     private static let log = CodexBarLog.logger(LogCategories.claudeCLI)
@@ -56,6 +99,19 @@ actor ClaudeCLISession {
         let environment: [String: String]
     }
 
+    private struct CaptureRequest {
+        let subcommand: String
+        let binary: String
+        let accountScope: String?
+        let timeout: TimeInterval
+        let environment: [String: String]
+        let idleTimeout: TimeInterval?
+        let stopOnSubstrings: [String]
+        let stopWhenNormalized: (@Sendable (String) -> Bool)?
+        let settleAfterStop: TimeInterval
+        let sendEnterEvery: TimeInterval?
+    }
+
     private var process: Process?
     private var primaryFD: Int32 = -1
     private var primaryHandle: FileHandle?
@@ -63,6 +119,7 @@ actor ClaudeCLISession {
     private var processGroup: pid_t?
     private var sessionIdentity: SessionIdentity?
     private var startedAt: Date?
+    private let operationGate = ClaudeCLISessionOperationGate()
 
     private let promptSends: [String: String] = [
         "Do you trust the files in this folder?": "y\r",
@@ -135,6 +192,47 @@ actor ClaudeCLISession {
         settleAfterStop: TimeInterval = 0.25,
         sendEnterEvery: TimeInterval? = nil) async throws -> String
     {
+        let operationID = UUID()
+        let acquired = await withTaskCancellationHandler {
+            await self.operationGate.acquire(id: operationID, rejectIfCancelled: true)
+        } onCancel: {
+            Task { await self.operationGate.cancel(id: operationID) }
+        }
+        guard acquired else { throw CancellationError() }
+
+        do {
+            try Task.checkCancellation()
+            let output = try await self.captureExclusive(request: CaptureRequest(
+                subcommand: subcommand,
+                binary: binary,
+                accountScope: accountScope,
+                timeout: timeout,
+                environment: environment,
+                idleTimeout: idleTimeout,
+                stopOnSubstrings: stopOnSubstrings,
+                stopWhenNormalized: stopWhenNormalized,
+                settleAfterStop: settleAfterStop,
+                sendEnterEvery: sendEnterEvery))
+            await self.operationGate.release(id: operationID)
+            return output
+        } catch {
+            await self.operationGate.release(id: operationID)
+            throw error
+        }
+    }
+
+    private func captureExclusive(request: CaptureRequest) async throws -> String {
+        let subcommand = request.subcommand
+        let binary = request.binary
+        let accountScope = request.accountScope
+        let timeout = request.timeout
+        let environment = request.environment
+        let idleTimeout = request.idleTimeout
+        let stopOnSubstrings = request.stopOnSubstrings
+        let stopWhenNormalized = request.stopWhenNormalized
+        let settleAfterStop = request.settleAfterStop
+        let sendEnterEvery = request.sendEnterEvery
+
         try self.ensureStarted(binary: binary, accountScope: accountScope, environment: environment)
         if let startedAt {
             let sinceStart = Date().timeIntervalSince(startedAt)
@@ -282,8 +380,11 @@ actor ClaudeCLISession {
         utf8Carry = Data(combined.suffix(12))
     }
 
-    func reset() {
+    func reset() async {
+        let operationID = UUID()
+        _ = await self.operationGate.acquire(id: operationID, rejectIfCancelled: false)
         self.cleanup()
+        await self.operationGate.release(id: operationID)
     }
 
     private func ensureStarted(
