@@ -150,6 +150,10 @@ struct ModelsDevPricingTests {
             provider: .kimi,
             model: "k3",
             catalog: catalog))
+        let kimiK3OneMillion = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .kimi,
+            model: "k3[1m]",
+            catalog: catalog))
         let kimiCoding = try #require(CostUsagePricing.modelsDevPricing(
             provider: .kimi,
             model: "kimi-for-coding",
@@ -173,6 +177,8 @@ struct ModelsDevPricingTests {
 
         #expect(kimiK3.pricing.modelName == "Kimi K3")
         #expect(kimiK3.pricing.contextWindow == 1_048_576)
+        #expect(kimiK3OneMillion.normalizedModelID == "k3")
+        #expect(kimiK3OneMillion.pricing.modelName == "Kimi K3")
         #expect(kimiCoding.pricing.modelName == "Kimi K2.7 Code")
         #expect(kimiHighSpeed.pricing.modelName == "Kimi For Coding HighSpeed")
         #expect(moonshotK3.pricing.inputCostPerToken == 3 / 1_000_000.0)

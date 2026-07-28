@@ -771,14 +771,17 @@ enum CostUsagePricing {
         catalog: ModelsDevCatalog? = nil,
         cacheRoot: URL? = nil) -> ModelsDevPricingLookup?
     {
+        let models = self.modelsDevModelIDs(for: provider, model: model)
         for providerID in self.modelsDevProviderIDs(for: provider) {
-            if let lookup = self.modelsDevLookup(
-                providerID: providerID,
-                model: model,
-                catalog: catalog,
-                cacheRoot: cacheRoot)
-            {
-                return lookup
+            for modelID in models {
+                if let lookup = self.modelsDevLookup(
+                    providerID: providerID,
+                    model: modelID,
+                    catalog: catalog,
+                    cacheRoot: cacheRoot)
+                {
+                    return lookup
+                }
             }
         }
         return nil
@@ -797,6 +800,19 @@ enum CostUsagePricing {
         default:
             []
         }
+    }
+
+    private static func modelsDevModelIDs(for provider: UsageProvider, model: String) -> [String] {
+        let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        var models = [normalized]
+
+        if provider == .kimi,
+           normalized.lowercased() == "k3[1m]"
+        {
+            models.append("k3")
+        }
+
+        return models.filter { !$0.isEmpty }
     }
 
     private static func modelsDevLookup(
