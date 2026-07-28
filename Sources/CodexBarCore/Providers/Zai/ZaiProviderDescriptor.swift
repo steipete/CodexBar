@@ -91,7 +91,8 @@ public enum ZaiProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "z.ai cost summary is not supported." }),
+                noDataMessage: { "z.ai cost summary is not supported." },
+                supportsTokenSnapshot: true),
             presentation: ProviderUsagePresentation(
                 extraRateWindowSelector: { snapshot in
                     (snapshot.extraRateWindows ?? []).filter { $0.id == "zai-mcp" }
@@ -107,7 +108,8 @@ public enum ZaiProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "zai",
                 aliases: ["z.ai"],
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
