@@ -3,6 +3,8 @@ import Charts
 import CodexBarCore
 import SwiftUI
 
+let spendDashboardDefaultUSDToGBPRate = 0.749
+
 func spendDashboardDayRangeText(_ days: Int) -> String {
     let template: String
     switch days {
@@ -41,6 +43,15 @@ func spendDashboardSelectedDailySummary(
     }
 }
 
+func spendDashboardDefaultsToGBP(storedPreference: Bool?) -> Bool {
+    storedPreference ?? true
+}
+
+func spendDashboardUSDToGBPRate(_ rate: Double) -> Double {
+    guard rate.isFinite else { return spendDashboardDefaultUSDToGBPRate }
+    return min(max(rate, 0.01), 10)
+}
+
 enum SpendDashboardModelHistoryPresentation: Equatable {
     case unavailable
     case empty
@@ -59,13 +70,24 @@ func spendDashboardModelHistoryPresentation(
 
 @MainActor
 struct SpendDashboardPane: View {
+    private static let displayGBPKey = "spendDashboardDisplayGBP"
+    private static let usdToGBPRateKey = "spendDashboardUSDToGBPRate"
+
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @State private var controller: SpendDashboardController
+    @State private var displayGBP: Bool
+    @State private var usdToGBPRate: Double
 
     init(settings: SettingsStore, store: UsageStore) {
         self.settings = settings
         self.store = store
+        let storedDisplayGBP = settings.userDefaults.object(forKey: Self.displayGBPKey) as? Bool
+        self._displayGBP = State(initialValue: spendDashboardDefaultsToGBP(
+            storedPreference: storedDisplayGBP))
+        let storedRate = settings.userDefaults.object(forKey: Self.usdToGBPRateKey) as? Double
+        self._usdToGBPRate = State(initialValue: spendDashboardUSDToGBPRate(
+            storedRate ?? spendDashboardDefaultUSDToGBPRate))
         self._controller = State(initialValue: SpendDashboardController(requestBuilder: { mode in
             await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
         }))
@@ -88,6 +110,14 @@ struct SpendDashboardPane: View {
         }
         .onChange(of: self.configuration) { _, configuration in
             self.controller.update(configuration: configuration)
+        }
+        .onChange(of: self.displayGBP) { _, displayGBP in
+            self.settings.userDefaults.set(displayGBP, forKey: Self.displayGBPKey)
+        }
+        .onChange(of: self.usdToGBPRate) { _, rate in
+            self.settings.userDefaults.set(
+                spendDashboardUSDToGBPRate(rate),
+                forKey: Self.usdToGBPRateKey)
         }
         .onDisappear {
             self.controller.stop()
@@ -160,7 +190,11 @@ struct SpendDashboardPane: View {
             }
         } else {
             ForEach(self.controller.model.groups) { group in
-                SpendCurrencySection(group: group, requestedDays: self.controller.model.requestedDays)
+                SpendCurrencySection(
+                    group: group,
+                    requestedDays: self.controller.model.requestedDays,
+                    displayGBP: self.$displayGBP,
+                    usdToGBPRate: self.$usdToGBPRate)
             }
         }
 
@@ -243,16 +277,44 @@ struct SpendDashboardPane: View {
 private struct SpendCurrencySection: View {
     let group: SpendDashboardModel.CurrencyGroup
     let requestedDays: Int
+    @Binding var displayGBP: Bool
+    @Binding var usdToGBPRate: Double
     @State private var selectedDay: Date?
 
     var body: some View {
+        let displayGroup = self.displayGroup
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text(self.group.currencyCode)
-                    .font(.headline)
+                if self.group.currencyCode == "USD" {
+                    Picker(self.group.currencyCode, selection: self.$displayGBP) {
+                        Text(verbatim: "USD").tag(false)
+                        Text(verbatim: "GBP").tag(true)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 112)
+                    if self.displayGBP {
+                        HStack(spacing: 5) {
+                            Text(verbatim: "$1 = £")
+                                .foregroundStyle(.secondary)
+                            TextField(
+                                "",
+                                value: self.$usdToGBPRate,
+                                format: .number.precision(.fractionLength(2...4)))
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 64)
+                                .accessibilityLabel(Text(verbatim: "USD → GBP"))
+                        }
+                        .font(.caption)
+                    }
+                } else {
+                    Text(displayGroup.currencyCode)
+                        .font(.headline)
+                }
                 Spacer()
-                Text(self.group.totalCost.map {
-                    UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
+                Text(displayGroup.totalCost.map {
+                    UsageFormatter.currencyString($0, currencyCode: displayGroup.currencyCode)
                 } ?? L("Spend unavailable"))
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
@@ -261,7 +323,7 @@ private struct SpendCurrencySection: View {
             Text(
                 "\(L("Local estimated history")) · " +
                     spendDashboardCoverageText(
-                        covered: self.group.coveredDayCount,
+                        covered: displayGroup.coveredDayCount,
                         requested: self.requestedDays))
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -270,32 +332,32 @@ private struct SpendCurrencySection: View {
                 HStack(spacing: 24) {
                     SpendSummaryValue(
                         title: L("Estimated spend"),
-                        value: self.group.totalCost.map {
-                            UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
+                        value: displayGroup.totalCost.map {
+                            UsageFormatter.currencyString($0, currencyCode: displayGroup.currencyCode)
                         } ?? "—")
                     SpendSummaryValue(
                         title: L("Tracked tokens"),
-                        value: self.group.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                        value: displayGroup.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
                     SpendSummaryValue(
                         title: L("Subscriptions"),
-                        value: codexBarLocalizedInteger(self.group.providers.count))
+                        value: codexBarLocalizedInteger(displayGroup.providers.count))
                     Spacer()
                 }
             }
 
             SpendDailyChart(
-                group: self.group,
+                group: displayGroup,
                 selectedDay: self.$selectedDay)
             if let selectedSummary = self.selectedSummary {
                 SpendSelectedDayPanel(
                     summary: selectedSummary,
-                    currencyCode: self.group.currencyCode)
+                    currencyCode: displayGroup.currencyCode)
             }
             SpendDailyLedger(
-                group: self.group,
+                group: displayGroup,
                 selectedDay: self.$selectedDay)
-            SpendProviderPanel(group: self.group)
-            SpendModelPanel(group: self.group)
+            SpendProviderPanel(group: displayGroup)
+            SpendModelPanel(group: displayGroup)
         }
         .onAppear {
             self.normalizeSelection()
@@ -308,7 +370,14 @@ private struct SpendCurrencySection: View {
     private var selectedSummary: SpendDashboardModel.DailySummary? {
         spendDashboardSelectedDailySummary(
             selectedDay: self.selectedDay,
-            summaries: self.group.dailySummaries)
+            summaries: self.displayGroup.dailySummaries)
+    }
+
+    private var displayGroup: SpendDashboardModel.CurrencyGroup {
+        guard self.displayGBP, self.group.currencyCode == "USD" else { return self.group }
+        return self.group.converted(
+            to: "GBP",
+            rate: spendDashboardUSDToGBPRate(self.usdToGBPRate))
     }
 
     private func normalizeSelection() {

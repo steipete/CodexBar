@@ -824,3 +824,69 @@ struct SpendDashboardModel: Equatable, Sendable {
         return result
     }
 }
+
+extension SpendDashboardModel.CurrencyGroup {
+    func converted(to currencyCode: String, rate: Double) -> Self {
+        guard self.currencyCode != currencyCode,
+              rate.isFinite,
+              rate > 0
+        else { return self }
+
+        func converted(_ value: Double) -> Double {
+            value * rate
+        }
+
+        return Self(
+            currencyCode: currencyCode,
+            providers: self.providers.map { row in
+                SpendDashboardModel.ProviderRow(
+                    id: row.id,
+                    rank: row.rank,
+                    provider: row.provider,
+                    displayName: row.displayName,
+                    totalTokens: row.totalTokens,
+                    totalCost: row.totalCost.map(converted),
+                    coveredDayCount: row.coveredDayCount)
+            },
+            models: self.models.map { row in
+                SpendDashboardModel.ModelRow(
+                    rank: row.rank,
+                    provider: row.provider,
+                    providerName: row.providerName,
+                    modelName: row.modelName,
+                    totalTokens: row.totalTokens,
+                    totalCost: row.totalCost.map(converted))
+            },
+            dailyPoints: self.dailyPoints.map { point in
+                SpendDashboardModel.DailyPoint(
+                    sourceID: point.sourceID,
+                    provider: point.provider,
+                    providerName: point.providerName,
+                    day: point.day,
+                    cost: converted(point.cost),
+                    stackStart: converted(point.stackStart),
+                    stackEnd: converted(point.stackEnd))
+            },
+            dailySummaries: self.dailySummaries.map { summary in
+                SpendDashboardModel.DailySummary(
+                    day: summary.day,
+                    providers: summary.providers.map { row in
+                        SpendDashboardModel.DailyProviderRow(
+                            sourceID: row.sourceID,
+                            provider: row.provider,
+                            displayName: row.displayName,
+                            totalTokens: row.totalTokens,
+                            requestCount: row.requestCount,
+                            totalCost: converted(row.totalCost))
+                    },
+                    totalTokens: summary.totalTokens,
+                    requestCount: summary.requestCount,
+                    totalCost: converted(summary.totalCost))
+            },
+            totalTokens: self.totalTokens,
+            totalCost: self.totalCost.map(converted),
+            coveredDayCount: self.coveredDayCount,
+            chartDomain: self.chartDomain,
+            modelHistoryCompleteness: self.modelHistoryCompleteness)
+    }
+}

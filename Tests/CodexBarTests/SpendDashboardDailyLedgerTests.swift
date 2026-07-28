@@ -116,6 +116,44 @@ struct SpendDashboardDailyLedgerTests {
         #expect(exact?.totalCost == 1)
     }
 
+    @Test
+    func `currency conversion scales every displayed cost while preserving usage`() throws {
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [
+                Self.input(
+                    id: "codex",
+                    provider: .codex,
+                    displayName: "Codex",
+                    entries: [Self.entry(day: "2026-07-16", cost: 4, tokens: 40, requests: 2)],
+                    totals: .init(cost: 4, tokens: 40, requests: 2, currencyCode: "USD")),
+            ],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+
+        let converted = group.converted(to: "GBP", rate: 0.75)
+
+        #expect(converted.currencyCode == "GBP")
+        #expect(converted.totalCost == 3)
+        #expect(converted.providers.first?.totalCost == 3)
+        #expect(converted.models.first?.totalCost == 3)
+        #expect(converted.dailyPoints.first?.cost == 3)
+        #expect(converted.dailySummaries.last?.totalCost == 3)
+        #expect(converted.dailySummaries.last?.providers.first?.totalCost == 3)
+        #expect(converted.totalTokens == 40)
+        #expect(converted.dailySummaries.last?.requestCount == 2)
+    }
+
+    @Test
+    func `GBP preference defaults on and sanitizes the manual rate`() {
+        #expect(spendDashboardDefaultsToGBP(storedPreference: nil))
+        #expect(spendDashboardDefaultsToGBP(storedPreference: true))
+        #expect(!spendDashboardDefaultsToGBP(storedPreference: false))
+        #expect(spendDashboardUSDToGBPRate(.nan) == spendDashboardDefaultUSDToGBPRate)
+        #expect(spendDashboardUSDToGBPRate(0) == 0.01)
+        #expect(spendDashboardUSDToGBPRate(100) == 10)
+    }
+
     private static func input(
         id: String,
         provider: UsageProvider,
@@ -133,7 +171,7 @@ struct SpendDashboardDailyLedgerTests {
                 last30DaysTokens: totals.tokens,
                 last30DaysCostUSD: totals.cost,
                 last30DaysRequests: totals.requests,
-                currencyCode: "GBP",
+                currencyCode: totals.currencyCode,
                 historyDays: 3,
                 daily: entries,
                 updatedAt: self.now))
@@ -176,6 +214,14 @@ struct SpendDashboardDailyLedgerTests {
         let cost: Double
         let tokens: Int
         let requests: Int?
+        let currencyCode: String
+
+        init(cost: Double, tokens: Int, requests: Int?, currencyCode: String = "GBP") {
+            self.cost = cost
+            self.tokens = tokens
+            self.requests = requests
+            self.currencyCode = currencyCode
+        }
     }
 
     private static let now = Date(timeIntervalSince1970: 1_784_179_200)
