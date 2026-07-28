@@ -320,7 +320,7 @@ actor ClaudeCLISession {
         // transcript exists, so clear the probe-owned artifact before reusing the account-side identifier.
         ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(
             probeDirectory: workingDirectory,
-            environment: environment)
+            environment: sessionIdentity.environment)
         let sessionID = Self.loadOrCreateProbeSessionID(in: workingDirectory)
         let claudeArguments = Self.launchArguments(sessionID: sessionID)
         let disableWatchdog = sessionIdentity.environment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] == "1"

@@ -63,17 +63,25 @@ struct ClaudeCLISessionTests {
         let logURL = directory.appendingPathComponent("launches.log")
         let cliURL = try Self.makeEnvironmentEchoingClaudeCLI(in: directory, logURL: logURL)
         let session = ClaudeCLISession()
+        let firstConfig = directory.appendingPathComponent("profile-a", isDirectory: true)
+        let firstSecureStorage = directory.appendingPathComponent("secure-a", isDirectory: true)
+        let firstHome = directory.appendingPathComponent("home-a", isDirectory: true)
+        let secondConfig = directory.appendingPathComponent("profile-b", isDirectory: true)
+        let secondSecureStorage = directory.appendingPathComponent("secure-b", isDirectory: true)
+        let secondHome = directory.appendingPathComponent("home-b", isDirectory: true)
+        let firstStaleTranscript = try Self.makeStaleProbeTranscript(in: firstConfig)
+        let secondStaleTranscript = try Self.makeStaleProbeTranscript(in: secondConfig)
 
         var firstEnvironment = ProcessInfo.processInfo.environment
         firstEnvironment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] = "1"
-        firstEnvironment["CLAUDE_CONFIG_DIR"] = "/tmp/codexbar-profile-a"
-        firstEnvironment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = "/tmp/codexbar-secure-a"
-        firstEnvironment["HOME"] = "/tmp/codexbar-home-a"
+        firstEnvironment["CLAUDE_CONFIG_DIR"] = firstConfig.path
+        firstEnvironment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = firstSecureStorage.path
+        firstEnvironment["HOME"] = firstHome.path
 
         var secondEnvironment = firstEnvironment
-        secondEnvironment["CLAUDE_CONFIG_DIR"] = "/tmp/codexbar-profile-b"
-        secondEnvironment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = "/tmp/codexbar-secure-b"
-        secondEnvironment["HOME"] = "/tmp/codexbar-home-b"
+        secondEnvironment["CLAUDE_CONFIG_DIR"] = secondConfig.path
+        secondEnvironment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = secondSecureStorage.path
+        secondEnvironment["HOME"] = secondHome.path
 
         do {
             let first = try await session.capture(
@@ -99,9 +107,9 @@ struct ClaudeCLISessionTests {
                 settleAfterStop: 0)
             await session.reset()
 
-            #expect(first.contains("Account: /tmp/codexbar-profile-a"))
-            #expect(second.contains("Account: /tmp/codexbar-profile-b"))
-            #expect(reused.contains("Account: /tmp/codexbar-profile-b"))
+            #expect(first.contains("Account: \(firstConfig.path)"))
+            #expect(second.contains("Account: \(secondConfig.path)"))
+            #expect(reused.contains("Account: \(secondConfig.path)"))
         } catch {
             await session.reset()
             throw error
@@ -111,9 +119,11 @@ struct ClaudeCLISessionTests {
             .split(separator: "\n")
             .map(String.init)
         #expect(launches == [
-            "start:/tmp/codexbar-profile-a:/tmp/codexbar-secure-a:/tmp/codexbar-home-a",
-            "start:/tmp/codexbar-profile-b:/tmp/codexbar-secure-b:/tmp/codexbar-home-b",
+            "start:\(firstConfig.path):\(firstSecureStorage.path):\(firstHome.path)",
+            "start:\(secondConfig.path):\(secondSecureStorage.path):\(secondHome.path)",
         ])
+        #expect(!FileManager.default.fileExists(atPath: firstStaleTranscript.path))
+        #expect(!FileManager.default.fileExists(atPath: secondStaleTranscript.path))
     }
 
     @Test
@@ -188,5 +198,18 @@ struct ClaudeCLISessionTests {
         try script.write(to: url, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url
+    }
+
+    private static func makeStaleProbeTranscript(in configDirectory: URL) throws -> URL {
+        let projectDirectory = configDirectory
+            .appendingPathComponent("projects", isDirectory: true)
+            .appendingPathComponent(
+                ClaudeProbeSessionArtifactCleaner.claudeProjectDirectoryName(
+                    for: ClaudeStatusProbe.probeWorkingDirectoryURL()),
+                isDirectory: true)
+        try FileManager.default.createDirectory(at: projectDirectory, withIntermediateDirectories: true)
+        let transcript = projectDirectory.appendingPathComponent("stale.jsonl")
+        try Data("{}\n".utf8).write(to: transcript)
+        return transcript
     }
 }
