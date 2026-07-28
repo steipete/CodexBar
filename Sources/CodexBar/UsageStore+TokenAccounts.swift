@@ -975,7 +975,7 @@ extension UsageStore {
                         generation: publicationGeneration)
                 }
             },
-            costUsageHistoryDays: self.settings.costUsageHistoryDays,
+            costUsageHistoryDays: self.settings.effectiveCostUsageHistoryDays,
             claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(

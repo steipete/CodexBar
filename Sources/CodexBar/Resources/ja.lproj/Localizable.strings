@@ -50,6 +50,7 @@
 " providers" = " 件のプロバイダ";
 "(System)" = "（システム）";
 "30d" = "30日";
+"365d" = "365日";
 "7d" = "7日";
 "A managed Codex login is already running. Wait for it to finish before adding " = "管理対象の Codex ログインがすでに実行中です。完了を待ってから追加してください ";
 "API key" = "API キー";
@@ -1291,6 +1292,13 @@
 "Model breakdown unavailable" = "モデル別の内訳を取得できません";
 "Local estimated history" = "ローカル推定履歴";
 "Coverage" = "対象範囲";
+"Tracked access" = "追跡中のアクセス";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "設定済みのサブスクリプションやキーはすべて表示されたままになります。互換性のあるソースのみがコスト合計に含まれます。";
+"tracked sources" = "追跡中のソース";
+"Cost history connected" = "コスト履歴が接続済み";
+"Cost history pending" = "コスト履歴が保留中";
+"Usage connected · not in cost total" = "使用状況接続済み · コスト合計に含まれません";
+"Configured · not in cost total" = "設定済み · コスト合計に含まれません";
 "Estimated spend" = "推定支出";
 "Tracked tokens" = "追跡対象トークン";
 "Subscriptions" = "サブスクリプション";

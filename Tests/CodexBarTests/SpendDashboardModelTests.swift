@@ -5,27 +5,6 @@ import Testing
 
 struct SpendDashboardModelTests {
     @Test
-    func `count labels avoid plural agreement and localize numbers`() {
-        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
-            #expect(spendDashboardRefreshFailureText(1) == "Refresh failures: 1")
-            #expect(spendDashboardRefreshFailureText(2) == "Refresh failures: 2")
-            #expect(spendDashboardCoverageText(covered: 3, requested: 7) == "Coverage: 3 / 7")
-        }
-        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
-            #expect(spendDashboardRefreshFailureText(1234) == "Fehlgeschlagene Aktualisierungen: 1.234")
-            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "Abdeckung: 3 / 30")
-        }
-        CodexBarLocalizationOverride.$appLanguage.withValue("fa") {
-            #expect(codexBarLocalizedInteger(12) == "۱۲")
-            #expect(spendDashboardDayRangeText(7) == "۷ روز")
-            #expect(spendDashboardDayRangeText(30) == "۳۰ روز")
-            #expect(spendDashboardRankText(1234) == "#۱٬۲۳۴")
-            #expect(spendDashboardRefreshFailureText(2) == "\(L("Refresh failures")): ۲")
-            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "پوشش: ۳ / ۳۰")
-        }
-    }
-
-    @Test
     func `Codex account indices use app locale numerals`() throws {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpendDashboardModelTests-index-locale-\(UUID().uuidString)", isDirectory: true)
@@ -753,7 +732,6 @@ struct SpendDashboardModelTests {
         #expect(!request.authFileWasReadable)
         #expect(request.displayName == "Codex · #2")
         #expect(request.cacheIdentity.count == 64)
-        #expect(SpendDashboardSource.scanDays == 30)
         #expect(SpendDashboardSource.codexRequest(
             account: account,
             homePath: "relative/path",
@@ -979,5 +957,27 @@ extension SpendDashboardModelTests {
         #expect(group.totalCost == 2)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
+    }
+
+    @Test
+    func `count labels avoid plural agreement and localize numbers`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(spendDashboardRefreshFailureText(1) == "Refresh failures: 1")
+            #expect(spendDashboardRefreshFailureText(2) == "Refresh failures: 2")
+            #expect(spendDashboardCoverageText(covered: 3, requested: 7) == "Coverage: 3 / 7")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            #expect(spendDashboardRefreshFailureText(1234) == "Fehlgeschlagene Aktualisierungen: 1.234")
+            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "Abdeckung: 3 / 30")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("fa") {
+            #expect(codexBarLocalizedInteger(12) == "۱۲")
+            #expect(spendDashboardDayRangeText(7) == "۷ روز")
+            #expect(spendDashboardDayRangeText(30) == "۳۰ روز")
+            #expect(spendDashboardDayRangeText(365) == "۳۶۵ روز")
+            #expect(spendDashboardRankText(1234) == "#۱٬۲۳۴")
+            #expect(spendDashboardRefreshFailureText(2) == "\(L("Refresh failures")): ۲")
+            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "پوشش: ۳ / ۳۰")
+        }
     }
 }

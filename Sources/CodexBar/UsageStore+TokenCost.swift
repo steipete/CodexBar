@@ -15,6 +15,7 @@ struct TokenSnapshotPublication: Sendable, Equatable {
     let snapshot: CostUsageTokenSnapshot?
     let publicationRevision: UInt64
     let providerConfigRevision: UInt64
+    let historyDays: Int
     let scopeSignature: String
 }
 
@@ -104,8 +105,13 @@ extension UsageStore {
         for provider: UsageProvider) -> CurrentProviderConfigTokenPublication?
     {
         guard let publication = self.tokenSnapshotPublications[provider.instanceID],
-              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider),
-              publication.scopeSignature == self.tokenSnapshotScopeSignature(for: provider)
+              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider)
+        else { return nil }
+        let requiredHistoryDays = self.settings.effectiveCostUsageHistoryDays
+        guard publication.historyDays >= requiredHistoryDays,
+              publication.scopeSignature == self.tokenSnapshotScopeSignature(
+                  for: provider,
+                  historyDays: publication.historyDays)
         else { return nil }
         return CurrentProviderConfigTokenPublication(
             snapshot: publication.snapshot,
@@ -127,21 +133,25 @@ extension UsageStore {
     }
 
     private func publishTokenSnapshotState(_ snapshot: CostUsageTokenSnapshot?, for provider: UsageProvider) {
+        let historyDays = self.settings.effectiveCostUsageHistoryDays
         self.tokenSnapshotPublicationRevisions[provider.instanceID, default: 0] &+= 1
         self.tokenSnapshotPublications[provider.instanceID] = TokenSnapshotPublication(
             snapshot: snapshot,
             publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
             providerConfigRevision: self.settings.providerConfigRevision(for: provider),
-            scopeSignature: self.tokenSnapshotScopeSignature(for: provider))
+            historyDays: historyDays,
+            scopeSignature: self.tokenSnapshotScopeSignature(for: provider, historyDays: historyDays))
     }
 
     func installCachedTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
+        let historyDays = self.settings.effectiveCostUsageHistoryDays
         self.tokenSnapshots[provider.instanceID] = snapshot
         self.tokenSnapshotPublications[provider.instanceID] = TokenSnapshotPublication(
             snapshot: snapshot,
             publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
             providerConfigRevision: self.settings.providerConfigRevision(for: provider),
-            scopeSignature: self.tokenSnapshotScopeSignature(for: provider))
+            historyDays: historyDays,
+            scopeSignature: self.tokenSnapshotScopeSignature(for: provider, historyDays: historyDays))
     }
 
     func clearTokenSnapshot(for provider: UsageProvider) {
@@ -204,7 +214,7 @@ extension UsageStore {
         }
 
         let scope = self.tokenCostScope(for: .codex)
-        let historyDays = self.settings.costUsageHistoryDays
+        let historyDays = self.settings.effectiveCostUsageHistoryDays
         let publicationRevision = self.providerPublicationRevision(for: .codex)
         let providerConfigRevision = self.settings.providerConfigRevision(for: .codex)
         let costUsageSettingsRevision = self.settings.costUsageSettingsRevision
@@ -241,7 +251,7 @@ extension UsageStore {
                   self.settings.isCostUsageEffectivelyEnabled(for: .codex),
                   self.isEnabled(.codex),
                   self.tokenCostScope(for: .codex).signature == scope.signature,
-                  self.settings.costUsageHistoryDays == historyDays,
+                  self.settings.effectiveCostUsageHistoryDays == historyDays,
                   self.tokenSnapshotScopeSignature(for: .codex) == tokenSnapshotScopeSignature,
                   self.tokenSnapshotPublicationRevision(for: .codex) == tokenSnapshotPublicationRevision,
                   self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil
@@ -313,9 +323,12 @@ extension UsageStore {
         }
     }
 
-    func tokenSnapshotScopeSignature(for provider: UsageProvider) -> String {
+    func tokenSnapshotScopeSignature(
+        for provider: UsageProvider,
+        historyDays requestedHistoryDays: Int? = nil) -> String
+    {
         let scope = self.tokenCostScope(for: provider)
-        let historyDays = self.settings.costUsageHistoryDays
+        let historyDays = max(1, min(365, requestedHistoryDays ?? self.settings.effectiveCostUsageHistoryDays))
         let base = "\(scope.signature)|historyDays=\(historyDays)" +
             "|settingsRevision=\(self.settings.costUsageSettingsRevision)"
         guard provider == .cursor else {
@@ -375,7 +388,7 @@ extension UsageStore {
               self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
               self.settings.costUsageEnabled,
               self.isEnabled(provider),
-              self.settings.costUsageHistoryDays == historyDays
+              self.settings.effectiveCostUsageHistoryDays == historyDays
         else {
             return false
         }
@@ -419,14 +432,14 @@ extension UsageStore {
         case .openai:
             snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
         case .mistral:
-            snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+            snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.effectiveCostUsageHistoryDays)
         case .opencodego:
             // Web-only source mode and machines with no readable local database leave
             // `opencodegoUsage.daily` empty; a non-nil-but-dataless projection would still
             // surface a Cost row whose history submenu has nothing to render.
             snapshot?.opencodegoUsage.flatMap { usage in
                 usage.daily.isEmpty ? nil : usage
-                    .toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+                    .toCostUsageTokenSnapshot(historyDays: self.settings.effectiveCostUsageHistoryDays)
             }
         default:
             nil

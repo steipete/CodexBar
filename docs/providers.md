@@ -21,9 +21,11 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Usage & Spend settings
 
-Settings → Usage & Spend combines local 7- or 30-day estimated history only for enabled descriptors that advertise
-token-cost support: Codex, Claude, Vertex AI, OpenAI, Mistral, and AWS Bedrock. Providers without a cost-history
-contract are omitted instead of appearing as empty subscriptions.
+Settings → Usage & Spend combines local 7-, 30-, or 365-day estimated history for enabled descriptors that advertise
+token-cost support: Codex, Claude, Vertex AI, OpenAI, Mistral, AWS Bedrock, Cursor, and OpenCode Go. Its tracked-access
+section separately lists every saved subscription/key plus live authenticated provider sources. Sources without a
+cost-history contract stay visible there and are explicitly excluded from cost totals instead of appearing as zero
+spend.
 
 Each native currency has its own total, subscription/model ranking, and daily chart. CodexBar never adds or ranks
 amounts across currencies. Coverage text reports how many days of the selected local calendar window are covered by

@@ -30,6 +30,7 @@
 " providers" = " sağlayıcı";
 "(System)" = "(Sistem)";
 "30d" = "30 gün";
+"365d" = "365 gün";
 "7d" = "7 gün";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Yönetilen bir Codex girişi zaten çalışıyor. Eklemeden önce bitmesini bekleyin ";
 "API key" = "API anahtarı";
@@ -1292,6 +1293,13 @@
 "Model breakdown unavailable" = "Model dökümü kullanılamıyor";
 "Local estimated history" = "Yerel tahmini geçmiş";
 "Coverage" = "Kapsam";
+"Tracked access" = "İzlenen erişim";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Yapılandırılan her abonelik veya anahtar görünür kalır. Yalnızca uyumlu kaynaklar maliyet toplamlarına girer.";
+"tracked sources" = "izlenen kaynaklar";
+"Cost history connected" = "Maliyet geçmişi bağlandı";
+"Cost history pending" = "Maliyet geçmişi beklemede";
+"Usage connected · not in cost total" = "Kullanım bağlandı · maliyet toplamına dahil değil";
+"Configured · not in cost total" = "Yapılandırıldı · maliyet toplamına dahil değil";
 "Estimated spend" = "Tahmini harcama";
 "Tracked tokens" = "İzlenen tokenlar";
 "Subscriptions" = "Abonelikler";

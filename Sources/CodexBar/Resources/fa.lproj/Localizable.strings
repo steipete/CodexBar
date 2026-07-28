@@ -30,6 +30,7 @@
 " providers" = " providers";
 "(System)" = "(سیستم)";
 "30d" = "30 روز";
+"365d" = "365 روز";
 "7d" = "7 روز";
 "A managed Codex login is already running. Wait for it to finish before adding " = "یک ورود Codex مدیریت شده هم اکنون در حال اجرا است. صبر کنید تا تمام شود و بعد   را اضافه کنید";
 "API key" = "کلید API";
@@ -1294,6 +1295,13 @@
 "Model breakdown unavailable" = "تفکیک مدل در دسترس نیست";
 "Local estimated history" = "تاریخچه برآورد محلی";
 "Coverage" = "پوشش";
+"Tracked access" = "دسترسی ردیابی‌شده";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "هر اشتراک یا کلید پیکربندی‌شده قابل مشاهده می‌ماند. فقط منابع سازگار در مجموع هزینه‌ها لحاظ می‌شوند.";
+"tracked sources" = "منابع ردیابی‌شده";
+"Cost history connected" = "تاریخچه هزینه متصل است";
+"Cost history pending" = "تاریخچه هزینه در انتظار";
+"Usage connected · not in cost total" = "مصرف متصل · در مجموع هزینه لحاظ نشده";
+"Configured · not in cost total" = "پیکربندی‌شده · در مجموع هزینه لحاظ نشده";
 "Estimated spend" = "برآورد هزینه";
 "Tracked tokens" = "توکن‌های پیگیری‌شده";
 "Subscriptions" = "اشتراک‌ها";
