@@ -43,6 +43,7 @@ struct ProviderIconResourcesTests {
             "wayfinder",
             "zenmux",
             "aiand",
+            "hyper",
         ]
         for slug in slugs {
             let url = resources.appending(path: "ProviderIcon-\(slug).svg")

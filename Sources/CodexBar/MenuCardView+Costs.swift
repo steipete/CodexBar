@@ -336,6 +336,17 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
+        if provider == .hyper, cost.period == "Hypercredits balance" {
+            let balance = cost.used.rounded() == cost.used
+                ? String(format: "%.0f", cost.used)
+                : String(format: "%.2f", cost.used)
+            return ProviderCostSection(
+                title: "Hypercredits",
+                percentUsed: nil,
+                spendLine: "\(L("Balance")): \(balance) HC",
+                percentLine: nil)
+        }
+
         if provider == .zenmux || provider == .neuralwatt {
             let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
             return ProviderCostSection(

@@ -589,6 +589,11 @@ enum CLIRenderer {
             let cost = snapshot.providerCost,
             !(provider == .devin && cost.period == "Extra usage balance")
         else { return }
+        if provider == .hyper, cost.period == "Hypercredits balance" {
+            let balance = Self.hypercreditsString(cost.used)
+            lines.append(self.labelValueLine("Balance", value: "\(balance) HC", useColor: context.useColor))
+            return
+        }
         // Fallback to cost/quota display if no primary rate window.
         let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
         let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
@@ -971,6 +976,11 @@ enum CLIRenderer {
         default:
             false
         }
+    }
+
+    private static func hypercreditsString(_ value: Double) -> String {
+        if value.rounded() == value { return String(format: "%.0f", value) }
+        return String(format: "%.2f", value)
     }
 
     private static func resetLineForDetailBackedWindow(

@@ -38,6 +38,13 @@ extension TokenAccountSupportCatalog {
             injection: .environment(key: DeepInfraSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
+        .hyper: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple Charm Hyper API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: HyperSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
         .antigravity: TokenAccountSupport(
             title: "Google accounts",
             subtitle: "Store multiple Antigravity Google OAuth accounts for quick switching.",

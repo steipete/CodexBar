@@ -155,6 +155,8 @@ extension UsageStore {
             return DeepSeekUsageError.missingCredentials.errorDescription
         case .deepinfra:
             return DeepInfraUsageError.missingCredentials.errorDescription
+        case .hyper:
+            return HyperUsageError.missingCredentials.errorDescription
         case .perplexity:
             return PerplexityAPIError.missingToken.errorDescription
         case .minimax:

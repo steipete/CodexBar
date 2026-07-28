@@ -869,6 +869,11 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .hyper,
+           let balance = Self.hyperBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .mimo,
            let balance = Self.miMoBalanceDisplayText(
                snapshot: snapshot,
@@ -1010,6 +1015,22 @@ extension StatusItemController {
 
         let prefix = balanceDetail.contains(" owed") ? "-" : ""
         return prefix + String(value)
+    }
+
+    nonisolated static func hyperBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        guard snapshot?.primary == nil,
+              snapshot?.secondary == nil,
+              let cost = snapshot?.providerCost,
+              cost.period == "Hypercredits balance",
+              cost.used.isFinite,
+              cost.used >= 0
+        else {
+            return nil
+        }
+        let balance = cost.used.rounded() == cost.used
+            ? String(format: "%.0f", cost.used)
+            : String(format: "%.2f", cost.used)
+        return "\(balance) HC"
     }
 
     nonisolated static func miMoBalanceDisplayText(
