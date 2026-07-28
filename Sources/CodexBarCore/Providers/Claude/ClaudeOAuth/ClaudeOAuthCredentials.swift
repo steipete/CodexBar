@@ -302,7 +302,10 @@ public enum ClaudeOAuthCredentialsStore {
                    Date().timeIntervalSince(timestamp) < ClaudeOAuthCredentialsStore.memoryCacheValidityDuration,
                    !cachedRecord.credentials.isExpired
                 {
-                    let owner = self.resolvedCacheOwner(cachedRecord.owner, environment: environment)
+                    let owner = self.resolvedCacheOwner(
+                        cachedRecord.owner,
+                        credentials: cachedRecord.credentials,
+                        environment: environment)
                     let record = ClaudeOAuthCredentialRecord(
                         credentials: cachedRecord.credentials,
                         owner: owner,
@@ -327,7 +330,10 @@ public enum ClaudeOAuthCredentialsStore {
                 {
                 case let .found(entry):
                     if let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) {
-                        let owner = self.resolvedCacheOwner(entry.owner ?? .claudeCLI, environment: environment)
+                        let owner = self.resolvedCacheOwner(
+                            entry.owner ?? .claudeCLI,
+                            credentials: creds,
+                            environment: environment)
                         let record = ClaudeOAuthCredentialRecord(
                             credentials: creds,
                             owner: owner,
@@ -561,7 +567,10 @@ public enum ClaudeOAuthCredentialsStore {
                Date().timeIntervalSince(timestamp) < ClaudeOAuthCredentialsStore.memoryCacheValidityDuration,
                !cachedRecord.credentials.isExpired
             {
-                let owner = self.resolvedCacheOwner(cachedRecord.owner, environment: environment)
+                let owner = self.resolvedCacheOwner(
+                    cachedRecord.owner,
+                    credentials: cachedRecord.credentials,
+                    environment: environment)
                 return ClaudeOAuthCredentialRecord(
                     credentials: cachedRecord.credentials,
                     owner: owner,
@@ -575,7 +584,10 @@ public enum ClaudeOAuthCredentialsStore {
             else {
                 return nil
             }
-            let owner = self.resolvedCacheOwner(entry.owner ?? .claudeCLI, environment: environment)
+            let owner = self.resolvedCacheOwner(
+                entry.owner ?? .claudeCLI,
+                credentials: credentials,
+                environment: environment)
             return ClaudeOAuthCredentialRecord(
                 credentials: credentials,
                 owner: owner,
@@ -678,20 +690,31 @@ public enum ClaudeOAuthCredentialsStore {
 
         private func resolvedCacheOwner(
             _ owner: ClaudeOAuthCredentialOwner,
+            credentials: ClaudeOAuthCredentials,
             environment: [String: String]) -> ClaudeOAuthCredentialOwner
         {
             guard owner == .codexbar else { return owner }
-            guard self.hasClaudeCLIStorageWithoutPrompt(environment: environment) else { return owner }
-            // Claude Code rotates refresh tokens; when its storage exists, it owns the refresh lifecycle.
+            guard self.hasClaudeCLIStorageWithoutPrompt(
+                matching: credentials,
+                environment: environment)
+            else { return owner }
+            // Claude Code rotates refresh tokens; selected-profile file evidence or a matching global
+            // Keychain credential proves that it owns this cache's refresh lifecycle.
             return .claudeCLI
         }
 
-        private func hasClaudeCLIStorageWithoutPrompt(environment: [String: String]) -> Bool {
+        private func hasClaudeCLIStorageWithoutPrompt(
+            matching credentials: ClaudeOAuthCredentials,
+            environment: [String: String]) -> Bool
+        {
             if ClaudeOAuthCredentialsStore.currentFileFingerprint(environment: environment) != nil {
                 return true
             }
             guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return false }
-            return ClaudeOAuthCredentialsStore.hasClaudeKeychainItemWithoutPrompt()
+            guard case .matched = ClaudeOAuthCredentialsStore.claudeKeychainCredentialMatchWithoutPrompt(
+                for: credentials)
+            else { return false }
+            return true
         }
 
         @discardableResult
@@ -1686,6 +1709,12 @@ public enum ClaudeOAuthCredentialsStore {
         for record: ClaudeOAuthCredentialRecord) -> ClaudeKeychainCredentialMatch
     {
         guard record.owner == .claudeCLI else { return .notApplicable }
+        return self.claudeKeychainCredentialMatchWithoutPrompt(for: record.credentials)
+    }
+
+    private static func claudeKeychainCredentialMatchWithoutPrompt(
+        for credentials: ClaudeOAuthCredentials) -> ClaudeKeychainCredentialMatch
+    {
         let evidence: ClaudeKeychainCredentialEvidence
         switch self.newestClaudeKeychainCredentialEvidenceWithoutPrompt() {
         case .unavailable:
@@ -1695,7 +1724,7 @@ public enum ClaudeOAuthCredentialsStore {
         case let .value(value?):
             evidence = value
         }
-        guard evidence.credentials.accessToken == record.credentials.accessToken else {
+        guard evidence.credentials.accessToken == credentials.accessToken else {
             return .mismatch
         }
         return .matched(persistentRefHash: evidence.persistentRefHash)
@@ -1833,44 +1862,6 @@ public enum ClaudeOAuthCredentialsStore {
         Repository(context: self.currentCollaboratorContext()).hasClaudeKeychainCredentialsWithoutPrompt()
     }
 
-    private static func hasClaudeKeychainItemWithoutPrompt() -> Bool {
-        #if DEBUG
-        if let store = self.taskClaudeKeychainOverrideStore {
-            if let data = store.data, !data.isEmpty {
-                return true
-            }
-            if store.fingerprint != nil {
-                return true
-            }
-        }
-        if let data = self.taskClaudeKeychainDataOverride,
-           !data.isEmpty
-        {
-            return true
-        }
-        if self.taskClaudeKeychainFingerprintOverride != nil {
-            return true
-        }
-        #endif
-
-        #if os(macOS)
-        switch self.claudeKeychainCandidatesProbeWithoutPrompt(enforcePromptPolicy: false) {
-        case let .value(candidates) where !candidates.isEmpty:
-            return true
-        case .value, .unavailable:
-            break
-        }
-        switch self.claudeKeychainLegacyCandidateProbeWithoutPrompt(enforcePromptPolicy: false) {
-        case let .value(candidate):
-            return candidate != nil
-        case .unavailable:
-            return false
-        }
-        #else
-        return false
-        #endif
-    }
-
     private static func shouldCheckClaudeKeychainChange(now: Date = Date()) -> Bool {
         #if DEBUG
         // Unit tests can supply TaskLocal overrides for the Claude keychain data/fingerprint. Those tests often run
@@ -1891,7 +1882,6 @@ public enum ClaudeOAuthCredentialsStore {
         self.lastClaudeKeychainChangeCheckAt = now
         return true
     }
-
     private static func loadClaudeKeychainFingerprint() -> ClaudeKeychainFingerprint? {
         #if DEBUG
         if let store = taskClaudeKeychainFingerprintStoreOverride {
