@@ -21,7 +21,7 @@ struct HyperUsageFetcherTests {
 
     @Test
     func `fetches documented credits endpoint with a bearer API key`() async throws {
-        let recorder = RequestRecorder()
+        let recorder = HyperRequestRecorder()
         let transport = ProviderHTTPTransportHandler { request in
             await recorder.append(request)
             let response = try HTTPURLResponse(
@@ -76,5 +76,13 @@ struct HyperUsageFetcherTests {
         await #expect(throws: HyperUsageError.apiError("API key rejected (HTTP 401).")) {
             try await HyperUsageFetcher._fetchUsageForTesting(apiKey: "secret-fixture", transport: transport)
         }
+    }
+}
+
+private actor HyperRequestRecorder {
+    private(set) var values: [URLRequest] = []
+
+    func append(_ request: URLRequest) {
+        self.values.append(request)
     }
 }
