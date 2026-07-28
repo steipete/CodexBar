@@ -50,6 +50,7 @@
 " providers" = "nhà cung cấp";
 "(System)" = "(Hệ thống)";
 "30d" = "30d";
+"365d" = "365d";
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Đăng nhập Codex được quản lý đã chạy. Đợi quá trình này hoàn tất trước khi thêm";
 "API key" = "API khóa";
@@ -1291,6 +1292,13 @@
 "Model breakdown unavailable" = "Phân tích theo mô hình không khả dụng";
 "Local estimated history" = "Lịch sử ước tính cục bộ";
 "Coverage" = "Phạm vi";
+"Tracked access" = "Truy cập được theo dõi";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Mọi gói đăng ký hoặc khóa đã cấu hình đều vẫn hiển thị. Chỉ các nguồn tương thích mới được tính vào tổng chi phí.";
+"tracked sources" = "nguồn được theo dõi";
+"Cost history connected" = "Đã kết nối lịch sử chi phí";
+"Cost history pending" = "Lịch sử chi phí đang chờ";
+"Usage connected · not in cost total" = "Đã kết nối mức sử dụng · không tính vào tổng chi phí";
+"Configured · not in cost total" = "Đã cấu hình · không tính vào tổng chi phí";
 "Estimated spend" = "Chi tiêu ước tính";
 "Tracked tokens" = "Token được theo dõi";
 "Subscriptions" = "Gói đăng ký";

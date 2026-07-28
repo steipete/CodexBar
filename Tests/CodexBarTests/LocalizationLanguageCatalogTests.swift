@@ -578,6 +578,7 @@ struct LocalizationLanguageCatalogTests {
         #expect(indonesian["tab_general"] == "Umum")
         #expect(indonesian["quit_app"] == "Keluar CodexBar")
         #expect(indonesian["30d"] == "30 hari")
+        #expect(indonesian["365d"] == "365 hari")
         #expect(indonesian["On"] == "Aktif")
         #expect(indonesian["Off"] == "Nonaktif")
 

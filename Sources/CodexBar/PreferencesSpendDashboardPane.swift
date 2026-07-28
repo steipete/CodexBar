@@ -8,11 +8,16 @@ func spendDashboardDayRangeText(_ days: Int) -> String {
     switch days {
     case 7: template = L("7d")
     case 30: template = L("30d")
+    case 365: template = L("365d")
     default: return codexBarLocalizedInteger(days)
     }
     return template.replacingOccurrences(
         of: String(days),
         with: codexBarLocalizedInteger(days))
+}
+
+func spendDashboardRequiredHistoryDays(selectedDays: Int, configuredDays: Int) -> Int {
+    max(1, min(365, max(selectedDays, configuredDays)))
 }
 
 func spendDashboardRankText(_ rank: Int) -> String {
@@ -42,6 +47,17 @@ func codexCostCatchUpProgressText(_ activity: CodexCostCatchUpActivity) -> Strin
             + codexBarLocalizedInteger(activity.totalFiles)
     }
     return L("Loading…")
+}
+
+func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource) -> String {
+    if source.contributesCostHistory {
+        return source.state == .connected
+            ? L("Cost history connected")
+            : L("Cost history pending")
+    }
+    return source.state == .connected
+        ? L("Usage connected · not in cost total")
+        : L("Configured · not in cost total")
 }
 
 enum SpendDashboardModelHistoryPresentation: Equatable {
@@ -83,6 +99,7 @@ struct SpendDashboardPane: View {
                 self.header
                 self.codexCostCatchUpPanel
                 self.content
+                self.trackedAccess
                 self.provenance
                 self.shareAction
             }
@@ -91,6 +108,7 @@ struct SpendDashboardPane: View {
         .background(FocusResigningBackground())
         .onAppear {
             self.isVisible = true
+            self.applySelectedHistoryCoverage()
             self.controller.refreshDateWindow()
             self.controller.update(configuration: self.configuration)
             if !self.controller.isRefreshing {
@@ -110,6 +128,7 @@ struct SpendDashboardPane: View {
         }
         .onDisappear {
             self.isVisible = false
+            self.settings.setSpendDashboardHistoryDaysOverride(nil)
             self.controller.stop()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
@@ -140,10 +159,11 @@ struct SpendDashboardPane: View {
             Picker(L("Time range"), selection: self.daysBinding) {
                 Text(spendDashboardDayRangeText(7)).tag(7)
                 Text(spendDashboardDayRangeText(30)).tag(30)
+                Text(spendDashboardDayRangeText(365)).tag(365)
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(width: 116)
+            .frame(width: 174)
 
             Button {
                 self.controller.refresh()
@@ -339,6 +359,49 @@ struct SpendDashboardPane: View {
         }
     }
 
+    @ViewBuilder
+    private var trackedAccess: some View {
+        let sources = self.configuration.trackedSources
+        if !sources.isEmpty {
+            SpendDashboardPanel {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(L("Tracked access"))
+                                .font(.headline)
+                            Text(self.trackedAccessDescription)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(codexBarLocalizedInteger(sources.count))
+                            .font(.title3.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(
+                                "\(codexBarLocalizedInteger(sources.count)) \(L("tracked sources"))")
+                    }
+
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 10),
+                            GridItem(.flexible(), spacing: 10),
+                        ],
+                        alignment: .leading,
+                        spacing: 10)
+                    {
+                        ForEach(sources) { source in
+                            SpendTrackedSourceRow(source: source)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var trackedAccessDescription: String {
+        L("Every configured subscription or key stays visible. Only compatible sources enter cost totals.")
+    }
+
     private var shareAction: some View {
         HStack {
             Spacer()
@@ -388,7 +451,60 @@ struct SpendDashboardPane: View {
     private var daysBinding: Binding<Int> {
         Binding(
             get: { self.controller.selectedDays },
-            set: { self.controller.selectDays($0) })
+            set: {
+                self.controller.selectDays($0)
+                self.applySelectedHistoryCoverage()
+                self.controller.refreshDateWindow()
+            })
+    }
+
+    private func applySelectedHistoryCoverage() {
+        let requiredDays = spendDashboardRequiredHistoryDays(
+            selectedDays: self.controller.selectedDays,
+            configuredDays: self.settings.costUsageHistoryDays)
+        self.settings.setSpendDashboardHistoryDaysOverride(
+            requiredDays == self.settings.costUsageHistoryDays ? nil : requiredDays)
+    }
+}
+
+private struct SpendTrackedSourceRow: View {
+    let source: SpendDashboardTrackedSource
+
+    var body: some View {
+        HStack(spacing: 10) {
+            SpendProviderIcon(provider: self.source.provider)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(self.source.providerName)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                if let accountName = self.source.accountName {
+                    Text(accountName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Text(spendDashboardTrackedSourceStatusText(self.source))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            Circle()
+                .fill(self.source.state == .connected ? Color.green : Color.secondary.opacity(0.45))
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .background(.background.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.25))
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

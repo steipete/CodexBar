@@ -7,6 +7,29 @@ import Testing
 @Suite(.serialized)
 struct SpendDashboardControllerTests {
     @Test
+    func `dashboard selection derives an ephemeral provider history window`() throws {
+        #expect(spendDashboardRequiredHistoryDays(selectedDays: 365, configuredDays: 30) == 365)
+        #expect(spendDashboardRequiredHistoryDays(selectedDays: 7, configuredDays: 30) == 30)
+        #expect(spendDashboardRequiredHistoryDays(selectedDays: 30, configuredDays: 365) == 365)
+
+        let suite = "SpendDashboardControllerTests-history-override"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(30, forKey: "tokenCostUsageHistoryDays")
+        let settings = testSettingsStore(suiteName: suite)
+
+        settings.setSpendDashboardHistoryDaysOverride(365)
+        #expect(settings.costUsageHistoryDays == 30)
+        #expect(settings.effectiveCostUsageHistoryDays == 365)
+        #expect(defaults.integer(forKey: "tokenCostUsageHistoryDays") == 30)
+
+        settings.setSpendDashboardHistoryDaysOverride(nil)
+        #expect(settings.costUsageHistoryDays == 30)
+        #expect(settings.effectiveCostUsageHistoryDays == 30)
+    }
+
+    @Test
     func `empty codex history loads as successful inactive source`() async {
         let now = Date(timeIntervalSince1970: 1_784_179_200)
         let recorder = SpendDashboardCodexLoadRecorder()
@@ -24,7 +47,8 @@ struct SpendDashboardControllerTests {
             unavailableSourceIDs: [],
             codexRequests: [account],
             now: now,
-            force: false)
+            force: false,
+            historyDays: 7)
 
         let result = await SpendDashboardSource.load(request, codexSnapshotLoader: { context in
             await recorder.record(context)
@@ -48,7 +72,7 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.cacheRoot.lastPathComponent == "inactive-cache")
         #expect(contexts.first?.now == now)
         #expect(contexts.first?.force == false)
-        #expect(contexts.first?.historyDays == 30)
+        #expect(contexts.first?.historyDays == 7)
         #expect(contexts.first?.refreshPricingInBackground == false)
         #expect(contexts.first?.includePiSessions == false)
     }
@@ -749,6 +773,10 @@ struct SpendDashboardControllerTests {
         controller.selectDays(7)
         #expect(controller.selectedDays == 7)
         #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
+        controller.selectDays(30)
+        #expect(controller.selectedDays == 30)
+        controller.selectDays(365)
+        #expect(controller.selectedDays == 365)
         controller.selectDays(9)
         #expect(controller.selectedDays == 30)
     }
@@ -880,6 +908,34 @@ struct SpendDashboardControllerTests {
     }
 }
 
+extension SpendDashboardControllerTests {
+    @Test
+    func `range selection persists only supported windows`() throws {
+        let suite = "SpendDashboardControllerTests-days"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                Self.request(
+                    configuration: Self.configuration(account: "unused"),
+                    force: mode.forcesLoader)
+            })
+
+        #expect(controller.selectedDays == 30)
+        controller.selectDays(7)
+        #expect(controller.selectedDays == 7)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
+        controller.selectDays(30)
+        #expect(controller.selectedDays == 30)
+        controller.selectDays(365)
+        #expect(controller.selectedDays == 365)
+        controller.selectDays(9)
+        #expect(controller.selectedDays == 30)
+    }
+}
+
 @MainActor
 struct SpendDashboardRequestTimeTests {
     @Test
@@ -901,6 +957,19 @@ struct SpendDashboardRequestTimeTests {
             })
 
         #expect(request.now == afterMidnight)
+    }
+
+    @Test
+    func `request carries configured history into provider loads`() async {
+        let (settings, store) = Self.store(suiteName: "SpendDashboardRequestTimeTests-history")
+        settings.costUsageHistoryDays = 7
+
+        let request = await SpendDashboardSource.makeRequest(
+            settings: settings,
+            store: store,
+            mode: .captureOnly)
+
+        #expect(request.historyDays == 7)
     }
 
     @Test

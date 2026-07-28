@@ -7,6 +7,7 @@
 " providers" = " providers";
 "(System)" = "(System)";
 "30d" = "30d";
+"365d" = "365d";
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "A managed Codex login is already running. Wait for it to finish before adding ";
 "API key" = "API key";
@@ -1272,6 +1273,13 @@
 "Model breakdown unavailable" = "Model breakdown unavailable";
 "Local estimated history" = "Local estimated history";
 "Coverage" = "Coverage";
+"Tracked access" = "Tracked access";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Every configured subscription or key stays visible. Only compatible sources enter cost totals.";
+"tracked sources" = "tracked sources";
+"Cost history connected" = "Cost history connected";
+"Cost history pending" = "Cost history pending";
+"Usage connected · not in cost total" = "Usage connected · not in cost total";
+"Configured · not in cost total" = "Configured · not in cost total";
 "Estimated spend" = "Estimated spend";
 "Tracked tokens" = "Tracked tokens";
 "Subscriptions" = "Subscriptions";

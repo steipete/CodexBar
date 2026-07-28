@@ -30,6 +30,7 @@
 " providers" = " penyedia";
 "(System)" = "(Sistem)";
 "30d" = "30 hari";
+"365d" = "365 hari";
 "7d" = "7 hari";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Login Codex terkelola sudah berjalan. Tunggu hingga selesai sebelum menambahkan ";
 "API key" = "Kunci API";
@@ -1294,6 +1295,13 @@
 "Model breakdown unavailable" = "Rincian per model tidak tersedia";
 "Local estimated history" = "Riwayat perkiraan lokal";
 "Coverage" = "Cakupan";
+"Tracked access" = "Akses terlacak";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Setiap langganan atau kunci yang dikonfigurasi tetap terlihat. Hanya sumber yang kompatibel yang masuk ke total biaya.";
+"tracked sources" = "sumber terlacak";
+"Cost history connected" = "Riwayat biaya terhubung";
+"Cost history pending" = "Riwayat biaya tertunda";
+"Usage connected · not in cost total" = "Penggunaan terhubung · tidak termasuk dalam total biaya";
+"Configured · not in cost total" = "Dikonfigurasi · tidak termasuk dalam total biaya";
 "Estimated spend" = "Perkiraan pengeluaran";
 "Tracked tokens" = "Token yang dilacak";
 "Subscriptions" = "Langganan";

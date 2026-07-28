@@ -30,6 +30,7 @@
 " providers" = "ผู้ให้บริการ  ";
 "(System)" = "(ระบบ)";
 "30d" = "30 วัน";
+"365d" = "365 วัน";
 "7d" = "7 วัน";
 "A managed Codex login is already running. Wait for it to finish before adding " = "การเข้าสู่ระบบ Codex ที่มีการจัดการกําลังทํางานอยู่แล้ว รอให้เสร็จก่อนที่จะเพิ่ม  ";
 "API key" = "ปุ่ม API";
@@ -1294,6 +1295,13 @@
 "Model breakdown unavailable" = "ไม่มีรายละเอียดแยกตามโมเดล";
 "Local estimated history" = "ประวัติโดยประมาณในเครื่อง";
 "Coverage" = "ความครอบคลุม";
+"Tracked access" = "การเข้าถึงที่ติดตาม";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "การสมัครสมาชิกหรือคีย์ที่กำหนดค่าไว้ทุกรายการยังคงมองเห็นได้ เฉพาะแหล่งที่เข้ากันได้เท่านั้นที่นับรวมในยอดรวมต้นทุน";
+"tracked sources" = "แหล่งที่ติดตาม";
+"Cost history connected" = "เชื่อมต่อประวัติต้นทุนแล้ว";
+"Cost history pending" = "ประวัติต้นทุนรอดำเนินการ";
+"Usage connected · not in cost total" = "เชื่อมต่อการใช้งานแล้ว · ไม่รวมในยอดรวมต้นทุน";
+"Configured · not in cost total" = "กำหนดค่าแล้ว · ไม่รวมในยอดรวมต้นทุน";
 "Estimated spend" = "ค่าใช้จ่ายโดยประมาณ";
 "Tracked tokens" = "โทเค็นที่ติดตาม";
 "Subscriptions" = "การสมัครสมาชิก";

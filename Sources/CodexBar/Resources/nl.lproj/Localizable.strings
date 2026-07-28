@@ -50,6 +50,7 @@
 " providers" = " providers";
 "(System)" = "(Systeem)";
 "30d" = "30d";
+"365d" = "365d";
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Er is al een beheerde Codex-aanmelding actief. Wacht tot het klaar is voordat je het toevoegt";
 "API key" = "API-sleutel";
@@ -1290,6 +1291,13 @@
 "Model breakdown unavailable" = "Uitsplitsing per model niet beschikbaar";
 "Local estimated history" = "Lokaal geschatte geschiedenis";
 "Coverage" = "Dekking";
+"Tracked access" = "Bijgehouden toegang";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Elk geconfigureerd abonnement of elke sleutel blijft zichtbaar. Alleen compatibele bronnen tellen mee in de kostentotalen.";
+"tracked sources" = "bijgehouden bronnen";
+"Cost history connected" = "Kostengeschiedenis verbonden";
+"Cost history pending" = "Kostengeschiedenis in behandeling";
+"Usage connected · not in cost total" = "Gebruik verbonden · niet in het kostentotaal";
+"Configured · not in cost total" = "Geconfigureerd · niet in het kostentotaal";
 "Estimated spend" = "Geschatte uitgaven";
 "Tracked tokens" = "Bijgehouden tokens";
 "Subscriptions" = "Abonnementen";

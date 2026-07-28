@@ -50,6 +50,7 @@
 " providers" = " leverantörer";
 "(System)" = "(System)";
 "30d" = "30 d";
+"365d" = "365 d";
 "7d" = "7 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "En hanterad Codex-inloggning körs redan. Vänta tills den är klar innan du lägger till ";
 "API key" = "API-nyckel";
@@ -1289,6 +1290,13 @@
 "Model breakdown unavailable" = "Modellfördelning ej tillgänglig";
 "Local estimated history" = "Lokal uppskattad historik";
 "Coverage" = "Täckning";
+"Tracked access" = "Spårad åtkomst";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Varje konfigurerad prenumeration eller nyckel förblir synlig. Endast kompatibla källor ingår i kostnadssummorna.";
+"tracked sources" = "spårade källor";
+"Cost history connected" = "Kostnadshistorik ansluten";
+"Cost history pending" = "Kostnadshistorik väntar";
+"Usage connected · not in cost total" = "Användning ansluten · ingår inte i kostnadssumman";
+"Configured · not in cost total" = "Konfigurerad · ingår inte i kostnadssumman";
 "Estimated spend" = "Uppskattade utgifter";
 "Tracked tokens" = "Spårade token";
 "Subscriptions" = "Abonnemang";
