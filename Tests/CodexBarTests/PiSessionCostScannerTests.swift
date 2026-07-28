@@ -1159,11 +1159,11 @@ extension PiSessionCostScannerTests {
               }
             }
           },
-          "google": {
-            "id": "google",
+          "deepseek": {
+            "id": "deepseek",
             "models": {
-              "gemini-test": {
-                "id": "gemini-test",
+              "deepseek-test": {
+                "id": "deepseek-test",
                 "cost": { "input": 1, "output": 2 }
               }
             }
@@ -1209,11 +1209,11 @@ extension PiSessionCostScannerTests {
               }
             }
           },
-          "google": {
-            "id": "google",
+          "deepseek": {
+            "id": "deepseek",
             "models": {
-              "gemini-test": {
-                "id": "gemini-test",
+              "deepseek-test": {
+                "id": "deepseek-test",
                 "cost": { "input": 99, "output": 199 }
               }
             }
@@ -1299,6 +1299,112 @@ extension PiSessionCostScannerTests {
             options: options)
         #expect(expandedReport.data.map(\.date) == ["2026-04-02", "2026-04-08"])
         #expect(expandedReport.summary?.totalTokens == 45)
+    }
+
+    @Test
+    func `pi scanner prices Google Vertex and xAI sessions with models dev catalogs`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 18)
+        let catalog = try Self.modelsDevCatalog("""
+        {
+          "google": {
+            "id": "google",
+            "models": {
+              "gemini-3.5-flash": {
+                "id": "gemini-3.5-flash",
+                "cost": { "input": 1.5, "output": 9, "cache_read": 0.15 }
+              },
+              "gemini-3.1-pro-preview": {
+                "id": "gemini-3.1-pro-preview",
+                "cost": { "input": 2, "output": 12, "cache_read": 0.2 }
+              }
+            }
+          },
+          "google-vertex": {
+            "id": "google-vertex",
+            "models": {
+              "gemini-3.1-pro-preview": {
+                "id": "gemini-3.1-pro-preview",
+                "cost": { "input": 2.1, "output": 12.1, "cache_read": 0.21 }
+              }
+            }
+          },
+          "xai": {
+            "id": "xai",
+            "models": {
+              "grok-4.5": {
+                "id": "grok-4.5",
+                "cost": { "input": 2, "output": 6, "cache_read": 0.3 }
+              }
+            }
+          }
+        }
+        """)
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+
+        func assistant(provider: String, model: String, usage: [String: Int]) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": provider,
+                    "model": model,
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": usage,
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-18T10-00-00-000Z_google-xai-models.jsonl",
+            contents: env.jsonl([
+                assistant(
+                    provider: "google",
+                    model: "gemini-3.5-flash",
+                    usage: ["input": 100, "cacheRead": 10, "output": 50, "totalTokens": 160]),
+                assistant(
+                    provider: "google-vertex",
+                    model: "gemini-3.1-pro-preview",
+                    usage: ["input": 100, "cacheRead": 10, "output": 50, "totalTokens": 160]),
+                assistant(
+                    provider: "xai",
+                    model: "grok-4.5",
+                    usage: ["input": 100, "cacheRead": 10, "output": 50, "totalTokens": 160]),
+            ]))
+
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let gemini = PiSessionCostScanner.loadDailyReport(
+            provider: .gemini,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let vertex = PiSessionCostScanner.loadDailyReport(
+            provider: .vertexai,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let grok = PiSessionCostScanner.loadDailyReport(
+            provider: .grok,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(gemini.data.first?.totalTokens == 160)
+        #expect(abs((gemini.data.first?.costUSD ?? 0) - 0.0006015) < 0.0000001)
+        #expect(vertex.data.first?.totalTokens == 160)
+        #expect(abs((vertex.data.first?.costUSD ?? 0) - 0.0008171) < 0.0000001)
+        #expect(grok.data.first?.totalTokens == 160)
+        #expect(abs((grok.data.first?.costUSD ?? 0) - 0.000503) < 0.0000001)
     }
 
     private static func modelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
