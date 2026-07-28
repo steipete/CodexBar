@@ -147,16 +147,16 @@ public struct ClaudeStatusProbe: Sendable {
                 subcommand: "/usage",
                 binary: resolved,
                 accountScope: accountScope,
-                environment: self.environment,
-                timeout: timeout)
+                timeout: timeout,
+                environment: self.environment)
             if !Self.usageOutputLooksRelevant(usage) {
                 Self.log.debug("Claude CLI /usage looked like startup output; retrying once")
                 usage = try await Self.capture(
                     subcommand: "/usage",
                     binary: resolved,
                     accountScope: accountScope,
-                    environment: self.environment,
-                    timeout: max(timeout, 14))
+                    timeout: max(timeout, 14),
+                    environment: self.environment)
             }
             // `/status` only enriches a valid usage snapshot with identity. Terminal usage errors and loading stalls
             // cannot be repaired by it, so fail now instead of paying for another interactive CLI round trip.
@@ -165,8 +165,8 @@ public struct ClaudeStatusProbe: Sendable {
                 subcommand: "/status",
                 binary: resolved,
                 accountScope: accountScope,
-                environment: self.environment,
-                timeout: min(timeout, 12))
+                timeout: min(timeout, 12),
+                environment: self.environment)
             let snap = try Self.parse(text: usage, statusText: status)
 
             Self.log.info("Claude CLI scrape ok", metadata: [
@@ -336,8 +336,8 @@ extension ClaudeStatusProbe {
             subcommand: "/status",
             binary: resolved,
             accountScope: ClaudeAccountProfile.sessionScope(environment: environment),
-            environment: environment,
-            timeout: timeout)
+            timeout: timeout,
+            environment: environment)
         return Self.parseIdentity(usageText: nil, statusText: statusText)
     }
 
@@ -353,19 +353,19 @@ extension ClaudeStatusProbe {
             // Use a more robust capture configuration than the standard `/status` scrape:
             // - Avoid the short idle-timeout which can terminate the session while CLI auth checks are still running.
             // - We intentionally do not parse output here; success is "the command ran without timing out".
-            _ = try await ClaudeCLISession.shared.capture(
+            _ = try await ClaudeCLISession.current.capture(
                 subcommand: "/status",
                 binary: resolved,
                 accountScope: ClaudeAccountProfile.sessionScope(environment: environment),
-                environment: environment,
                 timeout: timeout,
+                environment: environment,
                 idleTimeout: nil,
                 stopOnSubstrings: [],
                 settleAfterStop: 0.8,
                 sendEnterEvery: 0.8)
-            await ClaudeCLISession.shared.reset()
+            await ClaudeCLISession.current.reset()
         } catch {
-            await ClaudeCLISession.shared.reset()
+            await ClaudeCLISession.current.reset()
             throw error
         }
     }
@@ -1464,8 +1464,8 @@ extension ClaudeStatusProbe {
         subcommand: String,
         binary: String,
         accountScope: String,
-        environment: [String: String],
-        timeout: TimeInterval) async throws -> String
+        timeout: TimeInterval,
+        environment: [String: String]) async throws -> String
     {
         let stopOnSubstrings = subcommand == "/usage"
             ? [
@@ -1488,8 +1488,8 @@ extension ClaudeStatusProbe {
                 subcommand: subcommand,
                 binary: binary,
                 accountScope: accountScope,
-                environment: environment,
                 timeout: timeout,
+                environment: environment,
                 idleTimeout: idleTimeout,
                 stopOnSubstrings: stopOnSubstrings,
                 stopWhenNormalized: stopWhenNormalized,

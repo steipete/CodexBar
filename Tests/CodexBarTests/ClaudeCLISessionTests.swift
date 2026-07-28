@@ -54,6 +54,69 @@ struct ClaudeCLISessionTests {
     }
 
     @Test
+    func `profile environment launches and identifies the reusable session`() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-claude-environment-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let logURL = directory.appendingPathComponent("launches.log")
+        let cliURL = try Self.makeEnvironmentEchoingClaudeCLI(in: directory, logURL: logURL)
+        let session = ClaudeCLISession()
+
+        var firstEnvironment = ProcessInfo.processInfo.environment
+        firstEnvironment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] = "1"
+        firstEnvironment["CLAUDE_CONFIG_DIR"] = "/tmp/codexbar-profile-a"
+        firstEnvironment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = "/tmp/codexbar-secure-a"
+        firstEnvironment["HOME"] = "/tmp/codexbar-home-a"
+
+        var secondEnvironment = firstEnvironment
+        secondEnvironment["CLAUDE_CONFIG_DIR"] = "/tmp/codexbar-profile-b"
+        secondEnvironment["CLAUDE_SECURESTORAGE_CONFIG_DIR"] = "/tmp/codexbar-secure-b"
+        secondEnvironment["HOME"] = "/tmp/codexbar-home-b"
+
+        do {
+            let first = try await session.capture(
+                subcommand: "/status",
+                binary: cliURL.path,
+                timeout: 2,
+                environment: firstEnvironment,
+                idleTimeout: 0.1,
+                settleAfterStop: 0)
+            let second = try await session.capture(
+                subcommand: "/status",
+                binary: cliURL.path,
+                timeout: 2,
+                environment: secondEnvironment,
+                idleTimeout: 0.1,
+                settleAfterStop: 0)
+            let reused = try await session.capture(
+                subcommand: "/status",
+                binary: cliURL.path,
+                timeout: 2,
+                environment: secondEnvironment,
+                idleTimeout: 0.1,
+                settleAfterStop: 0)
+            await session.reset()
+
+            #expect(first.contains("Account: /tmp/codexbar-profile-a"))
+            #expect(second.contains("Account: /tmp/codexbar-profile-b"))
+            #expect(reused.contains("Account: /tmp/codexbar-profile-b"))
+        } catch {
+            await session.reset()
+            throw error
+        }
+
+        let launches = try String(contentsOf: logURL, encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
+        #expect(launches == [
+            "start:/tmp/codexbar-profile-a:/tmp/codexbar-secure-a:/tmp/codexbar-home-a",
+            "start:/tmp/codexbar-profile-b:/tmp/codexbar-secure-b:/tmp/codexbar-home-b",
+        ])
+    }
+
+    @Test
     func `probe launch reuses one persisted session identifier`() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-claude-session-\(UUID().uuidString)", isDirectory: true)
@@ -104,5 +167,26 @@ struct ClaudeCLISessionTests {
         let second = ClaudeCLISession.loadOrCreateProbeSessionID(in: directory)
 
         #expect(first == second)
+    }
+
+    private static func makeEnvironmentEchoingClaudeCLI(in directory: URL, logURL: URL) throws -> URL {
+        let url = directory.appendingPathComponent("claude")
+        let script = """
+        #!/bin/sh
+        printf 'start:%s:%s:%s\n' \
+          "$CLAUDE_CONFIG_DIR" \
+          "$CLAUDE_SECURESTORAGE_CONFIG_DIR" \
+          "$HOME" >> '\(logURL.path)'
+        while IFS= read -r line; do
+          case "$line" in
+            *"/status"*)
+              printf 'Account: %s\n' "$CLAUDE_CONFIG_DIR"
+              ;;
+          esac
+        done
+        """
+        try script.write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
     }
 }
