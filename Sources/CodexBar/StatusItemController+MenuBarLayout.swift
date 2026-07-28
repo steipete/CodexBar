@@ -91,11 +91,12 @@ extension StatusItemController {
     {
         let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let currencyCode = snapshot?.currencyCode ?? "USD"
+        let currencyPreference = SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults)
         let today = MenuBarLayoutCostResolver.todayCostUSD(snapshot: snapshot, now: now).map {
-            UsageFormatter.currencyString($0, currencyCode: currencyCode)
+            currencyPreference.currencyString($0, sourceCurrencyCode: currencyCode)
         }
         let last30Days = snapshot?.last30DaysCostUSD.map {
-            UsageFormatter.currencyString($0, currencyCode: currencyCode)
+            currencyPreference.currencyString($0, sourceCurrencyCode: currencyCode)
         }
         return (today, last30Days)
     }

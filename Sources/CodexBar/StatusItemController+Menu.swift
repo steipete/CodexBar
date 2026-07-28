@@ -1563,10 +1563,13 @@ extension StatusItemController {
         let projected = self.store.tokenSnapshot(
             fromProviderSnapshot: self.store.snapshot(for: provider),
             provider: provider)
-        if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
-            return projected
+        let snapshot: CostUsageTokenSnapshot? = if UsageStore.tokenCostRequiresProviderSnapshot(provider) {
+            projected
+        } else {
+            projected ?? self.store.tokenSnapshot(for: provider)
         }
-        return projected ?? self.store.tokenSnapshot(for: provider)
+        let preference = SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults)
+        return snapshot.map(preference.converted)
     }
 
     func makeOpenAIAPIUsageSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {

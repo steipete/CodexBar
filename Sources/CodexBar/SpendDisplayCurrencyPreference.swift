@@ -15,6 +15,7 @@ func spendDashboardUSDToGBPRate(_ rate: Double) -> Double {
 struct SpendDisplayCurrencyPreference: Equatable, Sendable {
     static let displayGBPDefaultsKey = "spendDashboardDisplayGBP"
     static let usdToGBPRateDefaultsKey = "spendDashboardUSDToGBPRate"
+    static let rateUpdatedAtDefaultsKey = "spendDashboardRateUpdatedAt"
 
     let displaysGBP: Bool
     let usdToGBPRate: Double
@@ -30,6 +31,11 @@ struct SpendDisplayCurrencyPreference: Equatable, Sendable {
         return Self(
             displaysGBP: spendDashboardDefaultsToGBP(storedPreference: storedDisplayGBP),
             usdToGBPRate: storedRate ?? spendDashboardDefaultUSDToGBPRate)
+    }
+
+    func currencyString(_ amount: Double, sourceCurrencyCode: String) -> String {
+        let display = self.displayAmount(amount, sourceCurrencyCode: sourceCurrencyCode)
+        return UsageFormatter.currencyString(display.amount, currencyCode: display.currencyCode)
     }
 
     func converted(_ summary: WidgetSnapshot.TokenUsageSummary) -> WidgetSnapshot.TokenUsageSummary {
@@ -76,9 +82,103 @@ struct SpendDisplayCurrencyPreference: Equatable, Sendable {
             updatedAt: cost.updatedAt)
     }
 
+    func converted(_ snapshot: CostUsageTokenSnapshot) -> CostUsageTokenSnapshot {
+        guard self.shouldConvert(currencyCode: snapshot.currencyCode) else { return snapshot }
+        return CostUsageTokenSnapshot(
+            sessionTokens: snapshot.sessionTokens,
+            sessionCostUSD: self.convertedUSD(snapshot.sessionCostUSD),
+            sessionRequests: snapshot.sessionRequests,
+            last30DaysTokens: snapshot.last30DaysTokens,
+            last30DaysCostUSD: self.convertedUSD(snapshot.last30DaysCostUSD),
+            last30DaysRequests: snapshot.last30DaysRequests,
+            currencyCode: "GBP",
+            historyDays: snapshot.historyDays,
+            historyCoverageIsEstablished: snapshot.historyCoverageIsEstablished,
+            historyLabel: snapshot.historyLabel,
+            meteredCostUSD: self.convertedUSD(snapshot.meteredCostUSD),
+            credentialScopeFingerprint: snapshot.credentialScopeFingerprint,
+            daily: snapshot.daily.map(self.converted),
+            projects: snapshot.projects.map(self.converted),
+            sessions: snapshot.sessions.map(self.converted),
+            updatedAt: snapshot.updatedAt)
+    }
+
+    private func converted(_ entry: CostUsageDailyReport.Entry) -> CostUsageDailyReport.Entry {
+        CostUsageDailyReport.Entry(
+            date: entry.date,
+            inputTokens: entry.inputTokens,
+            outputTokens: entry.outputTokens,
+            cacheReadTokens: entry.cacheReadTokens,
+            cacheCreationTokens: entry.cacheCreationTokens,
+            totalTokens: entry.totalTokens,
+            requestCount: entry.requestCount,
+            costUSD: self.convertedUSD(entry.costUSD),
+            modelsUsed: entry.modelsUsed,
+            modelBreakdowns: entry.modelBreakdowns?.map(self.converted))
+    }
+
+    private func converted(
+        _ breakdown: CostUsageDailyReport.ModelBreakdown) -> CostUsageDailyReport.ModelBreakdown
+    {
+        CostUsageDailyReport.ModelBreakdown(
+            modelName: breakdown.modelName,
+            costUSD: self.convertedUSD(breakdown.costUSD),
+            totalTokens: breakdown.totalTokens,
+            requestCount: breakdown.requestCount,
+            standardCostUSD: self.convertedUSD(breakdown.standardCostUSD),
+            priorityCostUSD: self.convertedUSD(breakdown.priorityCostUSD),
+            standardTokens: breakdown.standardTokens,
+            priorityTokens: breakdown.priorityTokens)
+    }
+
+    private func converted(_ project: CostUsageProjectBreakdown) -> CostUsageProjectBreakdown {
+        CostUsageProjectBreakdown(
+            name: project.name,
+            path: project.path,
+            totalTokens: project.totalTokens,
+            totalCostUSD: self.convertedUSD(project.totalCostUSD),
+            daily: project.daily.map(self.converted),
+            modelBreakdowns: project.modelBreakdowns?.map(self.converted),
+            sources: project.sources.map(self.converted))
+    }
+
+    private func converted(_ source: CostUsageProjectSourceBreakdown) -> CostUsageProjectSourceBreakdown {
+        CostUsageProjectSourceBreakdown(
+            name: source.name,
+            path: source.path,
+            totalTokens: source.totalTokens,
+            totalCostUSD: self.convertedUSD(source.totalCostUSD),
+            daily: source.daily.map(self.converted),
+            modelBreakdowns: source.modelBreakdowns?.map(self.converted))
+    }
+
+    private func converted(_ session: CostUsageSessionBreakdown) -> CostUsageSessionBreakdown {
+        CostUsageSessionBreakdown(
+            sessionID: session.sessionID,
+            lastActivity: session.lastActivity,
+            inputTokens: session.inputTokens,
+            cachedInputTokens: session.cachedInputTokens,
+            outputTokens: session.outputTokens,
+            totalTokens: session.totalTokens,
+            requestCount: session.requestCount,
+            costUSD: self.convertedUSD(session.costUSD),
+            modelBreakdowns: session.modelBreakdowns.map(self.converted))
+    }
+
     private func shouldConvert(currencyCode: String) -> Bool {
         self.displaysGBP &&
             currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "USD"
+    }
+
+    private func displayAmount(
+        _ amount: Double,
+        sourceCurrencyCode: String) -> (amount: Double, currencyCode: String)
+    {
+        guard self.shouldConvert(currencyCode: sourceCurrencyCode) else {
+            return (amount, sourceCurrencyCode)
+        }
+        let converted = amount * self.usdToGBPRate
+        return converted.isFinite ? (converted, "GBP") : (amount, sourceCurrencyCode)
     }
 
     private func convertedUSD(_ amount: Double?) -> Double? {

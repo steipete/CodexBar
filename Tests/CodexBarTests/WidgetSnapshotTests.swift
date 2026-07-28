@@ -5,6 +5,16 @@ import Testing
 
 struct WidgetSnapshotTests {
     @Test
+    func `GBP preference formats USD and preserves native currencies`() {
+        let preference = SpendDisplayCurrencyPreference(displaysGBP: true, usdToGBPRate: 0.75)
+
+        #expect(preference.currencyString(20, sourceCurrencyCode: "USD") == "£15.00")
+        #expect(
+            preference.currencyString(20, sourceCurrencyCode: "EUR") ==
+                UsageFormatter.currencyString(20, currencyCode: "EUR"))
+    }
+
+    @Test
     func `GBP preference converts every USD widget cost and preserves native currencies`() {
         let preference = SpendDisplayCurrencyPreference(displaysGBP: true, usdToGBPRate: 0.75)
         let updatedAt = Date(timeIntervalSince1970: 100)

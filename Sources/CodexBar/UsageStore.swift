@@ -39,6 +39,7 @@ extension UsageStore {
         _ = self.historicalPaceRevision
         _ = self.planUtilizationHistoryRevision
         _ = self.providerStorageFootprints
+        _ = self.spendCurrencyRevision
         return 0
     }
 
@@ -56,6 +57,7 @@ extension UsageStore {
         _ = self.statuses
         _ = self.tokenSnapshotPublications
         _ = self.historicalPaceRevision
+        _ = self.spendCurrencyRevision
         return 0
     }
 
@@ -202,6 +204,7 @@ final class UsageStore {
     var probeLogs: [UsageProvider: String] = [:]
     var historicalPaceRevision: Int = 0
     var planUtilizationHistoryRevision: Int = 0
+    var spendCurrencyRevision: UInt64 = 0
     var providerStorageFootprints: [UsageProvider: ProviderStorageFootprint] = [:]
     @ObservationIgnored var lastCreditsSnapshot: CreditsSnapshot?
     @ObservationIgnored var lastCreditsSnapshotAccountKey: String?
@@ -268,6 +271,7 @@ final class UsageStore {
     @ObservationIgnored var _test_startupConnectivityRetrySleepOverride: (@MainActor (
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
+    @ObservationIgnored var spendExchangeRateTask: Task<Void, Never>?
 
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
@@ -476,6 +480,7 @@ final class UsageStore {
             await self?.refreshHistoricalDatasetIfNeeded()
         }
         Task { await self.refresh(enrichmentMode: .automatic) }
+        self.startSpendExchangeRateUpdates()
         self.startTimer()
         self.startTokenTimer()
     }
@@ -856,6 +861,7 @@ final class UsageStore {
         self.codexPlanHistoryBackfillTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
         self.planUtilizationHistoryLoadTask?.cancel()
+        self.spendExchangeRateTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {

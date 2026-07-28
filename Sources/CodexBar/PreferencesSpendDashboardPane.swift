@@ -103,13 +103,18 @@ struct SpendDashboardPane: View {
             self.settings.userDefaults.set(
                 displayGBP,
                 forKey: SpendDisplayCurrencyPreference.displayGBPDefaultsKey)
-            self.store.persistWidgetSnapshot(reason: "currency-display")
+            self.store.spendDisplayCurrencyDidChange(reason: "currency-display")
         }
         .onChange(of: self.usdToGBPRate) { _, rate in
             self.settings.userDefaults.set(
                 spendDashboardUSDToGBPRate(rate),
                 forKey: SpendDisplayCurrencyPreference.usdToGBPRateDefaultsKey)
-            self.store.persistWidgetSnapshot(reason: "currency-rate")
+            self.store.spendDisplayCurrencyDidChange(reason: "currency-rate")
+        }
+        .onChange(of: self.store.spendCurrencyRevision) { _, _ in
+            let preference = SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults)
+            self.displayGBP = preference.displaysGBP
+            self.usdToGBPRate = preference.usdToGBPRate
         }
         .onDisappear {
             self.controller.stop()
@@ -149,6 +154,9 @@ struct SpendDashboardPane: View {
 
             Button {
                 self.controller.refresh()
+                Task {
+                    await self.store.refreshSpendExchangeRate()
+                }
             } label: {
                 if self.controller.isRefreshing {
                     ProgressView().controlSize(.small)
@@ -228,8 +236,18 @@ struct SpendDashboardPane: View {
 
     private var sharePayload: ShareStatsPayload? {
         ShareStatsBuilder.make(
-            model: self.controller.model,
+            model: self.displayModel,
             subscriptionNames: self.subscriptionNames)
+    }
+
+    private var displayModel: SpendDashboardModel {
+        guard self.displayGBP else { return self.controller.model }
+        let rate = spendDashboardUSDToGBPRate(self.usdToGBPRate)
+        return SpendDashboardModel(
+            requestedDays: self.controller.model.requestedDays,
+            groups: self.controller.model.groups.map { group in
+                group.currencyCode == "USD" ? group.converted(to: "GBP", rate: rate) : group
+            })
     }
 
     private var subscriptionNames: [String: ShareStatsSubscriptionName] {
@@ -286,19 +304,13 @@ private struct SpendCurrencySection: View {
                     .pickerStyle(.segmented)
                     .frame(width: 112)
                     if self.displayGBP {
-                        HStack(spacing: 5) {
-                            Text(verbatim: "$1 = £")
-                                .foregroundStyle(.secondary)
-                            TextField(
-                                "",
-                                value: self.$usdToGBPRate,
-                                format: .number.precision(.fractionLength(2...4)))
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 64)
-                                .accessibilityLabel(Text(verbatim: "USD → GBP"))
-                        }
-                        .font(.caption)
+                        let formattedRate = self.usdToGBPRate.formatted(
+                            .number.precision(.fractionLength(4)))
+                        Text(
+                            verbatim: "Live · $1 = £\(formattedRate)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(Text(verbatim: "Live USD to GBP exchange rate"))
                     }
                 } else {
                     Text(displayGroup.currencyCode)

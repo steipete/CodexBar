@@ -367,7 +367,10 @@ struct StatusItemIconObservationSignatureTests {
         #expect(controller.lastObservedStoreIconWorkSignature != baseline)
         #expect(
             controller.menuBarLayoutCostStrings(provider: .codex).last30Days ==
-                UsageFormatter.currencyString(12.50, currencyCode: "USD"))
+                SpendDisplayCurrencyPreference(
+                    displaysGBP: true,
+                    usdToGBPRate: spendDashboardDefaultUSDToGBPRate)
+                .currencyString(12.50, sourceCurrencyCode: "USD"))
     }
 
     @Test

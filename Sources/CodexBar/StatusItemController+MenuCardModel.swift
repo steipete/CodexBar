@@ -85,7 +85,6 @@ extension StatusItemController {
             tokenSnapshot = projectedTokenSnapshot
             tokenError = nil
         }
-
         let sourceLabel = surface == .liveCard ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         // Abacus and Kimi carry their long-cadence window in primary rather than secondary.
@@ -143,7 +142,8 @@ extension StatusItemController {
             creditsError: creditsError,
             dashboard: dashboard,
             dashboardError: dashboardError,
-            tokenSnapshot: tokenSnapshot,
+            tokenSnapshot: tokenSnapshot.map(
+                SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults).converted),
             tokenError: tokenError,
             account: fallbackAccount,
             accountIsAuthoritative: accountOverride != nil,

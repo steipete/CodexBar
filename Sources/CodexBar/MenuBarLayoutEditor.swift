@@ -679,6 +679,7 @@ private struct MenuBarLayoutPreview: View {
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
+        let currencyPreference = SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults)
         return MenuBarLayoutRenderData(
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
@@ -688,10 +689,10 @@ private struct MenuBarLayoutPreview: View {
             automatic: MenuBarLayoutRenderWindow(automatic),
             runsOut: runsOut,
             costToday: costToday.map {
-                UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
+                currencyPreference.currencyString($0, sourceCurrencyCode: cost?.currencyCode ?? "USD")
             },
             cost30d: cost?.last30DaysCostUSD.map {
-                UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
+                currencyPreference.currencyString($0, sourceCurrencyCode: cost?.currencyCode ?? "USD")
             })
     }
 
@@ -707,6 +708,7 @@ private struct MenuBarLayoutPreview: View {
             windowMinutes: 10080,
             resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
             resetDescription: nil)
+        let currencyPreference = SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults)
         return MenuBarLayoutRenderData(
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
@@ -715,8 +717,8 @@ private struct MenuBarLayoutPreview: View {
             weekly: MenuBarLayoutRenderWindow(weekly),
             automatic: MenuBarLayoutRenderWindow(session),
             runsOut: L("menu_bar_layout_sample_runs_out"),
-            costToday: "$1.25",
-            cost30d: "$20.00")
+            costToday: currencyPreference.currencyString(1.25, sourceCurrencyCode: "USD"),
+            cost30d: currencyPreference.currencyString(20, sourceCurrencyCode: "USD"))
     }
 }
 
