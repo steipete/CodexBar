@@ -651,7 +651,7 @@ struct ClaudeResilienceTests {
     }
 
     @Test
-    func `keychain change clears prior Claude snapshot for transient failure`() async throws {
+    func `keychain change does not affect normal Claude refresh`() async throws {
         try await KeychainCacheStore.withServiceOverrideForTesting("com.steipete.codexbar.cache.tests.\(UUID())") {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
@@ -749,11 +749,13 @@ struct ClaudeResilienceTests {
                                                     let result = await MainActor.run {
                                                         (
                                                             hasSnapshot: store.snapshot(for: .claude) != nil,
-                                                            hasError: store.error(for: .claude) != nil)
+                                                            hasError: store.error(for: .claude) != nil,
+                                                            storedFingerprint: fingerprintStore.fingerprint)
                                                     }
 
-                                                    #expect(!result.hasSnapshot)
-                                                    #expect(result.hasError)
+                                                    #expect(result.hasSnapshot)
+                                                    #expect(!result.hasError)
+                                                    #expect(result.storedFingerprint == storedFingerprint)
                                                 }
                                         }
                                 }
@@ -766,7 +768,7 @@ struct ClaudeResilienceTests {
     }
 
     @Test
-    func `keychain removal clears prior Claude snapshot for transient failure`() async throws {
+    func `keychain removal does not affect normal Claude refresh`() async throws {
         try await KeychainCacheStore.withServiceOverrideForTesting("com.steipete.codexbar.cache.tests.\(UUID())") {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
@@ -864,9 +866,9 @@ struct ClaudeResilienceTests {
                                                             storedFingerprint: fingerprintStore.fingerprint)
                                                     }
 
-                                                    #expect(!result.hasSnapshot)
-                                                    #expect(result.hasError)
-                                                    #expect(result.storedFingerprint == nil)
+                                                    #expect(result.hasSnapshot)
+                                                    #expect(!result.hasError)
+                                                    #expect(result.storedFingerprint == storedFingerprint)
                                                 }
                                         }
                                 }
@@ -981,7 +983,7 @@ extension ClaudeResilienceTests {
     }
 
     @Test
-    func `keychain change clears once then preserves later reset backfill`() async throws {
+    func `keychain change does not affect reset backfill`() async throws {
         try await KeychainCacheStore.withServiceOverrideForTesting("com.steipete.codexbar.cache.tests.\(UUID())") {
             KeychainCacheStore.setTestStoreForTesting(true)
             defer { KeychainCacheStore.setTestStoreForTesting(false) }
@@ -1077,8 +1079,8 @@ extension ClaudeResilienceTests {
                                                     let firstReset = await MainActor.run {
                                                         store.snapshot(for: .claude)?.primary?.resetsAt
                                                     }
-                                                    #expect(firstReset == nil)
-                                                    #expect(fingerprintStore.fingerprint == currentFingerprint)
+                                                    #expect(firstReset == resetDate)
+                                                    #expect(fingerprintStore.fingerprint == storedFingerprint)
 
                                                     await MainActor.run {
                                                         let seed = UsageSnapshot(
@@ -1099,6 +1101,7 @@ extension ClaudeResilienceTests {
                                                     }
 
                                                     #expect(secondReset == resetDate)
+                                                    #expect(fingerprintStore.fingerprint == storedFingerprint)
                                                 }
                                         }
                                 }

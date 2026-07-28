@@ -23,6 +23,11 @@ struct ClaudeOAuthCredentialsStoreTests {
         return Data(json.utf8)
     }
 
+    private func profileCacheKey(environment: [String: String] = [:]) -> KeychainCacheStore.Key {
+        ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+            profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment))
+    }
+
     @Test
     func `persistent reference hash stays stable across keychain metadata refresh`() {
         let first = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
@@ -1083,6 +1088,9 @@ extension ClaudeOAuthCredentialsStoreTests {
                     expiresAt: Date(timeIntervalSinceNow: 3600))
                 final class ReadCounter: @unchecked Sendable {
                     var count = 0
+                    var isEmpty: Bool {
+                        self.count == .zero
+                    }
                 }
                 let securityCLIReads = ReadCounter()
 
@@ -1110,10 +1118,11 @@ extension ClaudeOAuthCredentialsStoreTests {
                         }
                     }
                 }
-
-                #expect(record.credentials.accessToken == "test-token-placeholder")
-                #expect(record.source == .claudeKeychain)
-                #expect(securityCLIReads.count < 1)
+                guard case .notFound = error else {
+                    Issue.record("Expected .notFound, got \(String(describing: error))")
+                    return
+                }
+                #expect(securityCLIReads.isEmpty)
             }
         }
     }

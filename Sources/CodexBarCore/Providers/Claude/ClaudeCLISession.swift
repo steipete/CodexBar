@@ -56,6 +56,8 @@ actor ClaudeCLISession {
     private var secondaryHandle: FileHandle?
     private var processGroup: pid_t?
     private var binaryPath: String?
+    private var accountScope: String?
+    private var processEnvironment: [String: String]?
     private var startedAt: Date?
 
     private let promptSends: [String: String] = [
@@ -120,6 +122,8 @@ actor ClaudeCLISession {
     func capture(
         subcommand: String,
         binary: String,
+        accountScope: String = UUID().uuidString,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         timeout: TimeInterval,
         idleTimeout: TimeInterval? = 3.0,
         stopOnSubstrings: [String] = [],
@@ -127,7 +131,7 @@ actor ClaudeCLISession {
         settleAfterStop: TimeInterval = 0.25,
         sendEnterEvery: TimeInterval? = nil) async throws -> String
     {
-        try self.ensureStarted(binary: binary)
+        try self.ensureStarted(binary: binary, accountScope: accountScope, environment: environment)
         if let startedAt {
             let sinceStart = Date().timeIntervalSince(startedAt)
             // Claude's TUI can drop early keystrokes while it's still initializing. Wait a bit longer than the
@@ -278,8 +282,20 @@ actor ClaudeCLISession {
         self.cleanup()
     }
 
-    private func ensureStarted(binary: String) throws {
-        if let proc = self.process, proc.isRunning, self.binaryPath == binary {
+    private func ensureStarted(
+        binary: String,
+        accountScope: String,
+        environment: [String: String]) throws
+    {
+        let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
+        var launchEnvironment = Self.launchEnvironment(baseEnv: environment)
+        launchEnvironment["PWD"] = workingDirectory.path
+        if let proc = self.process,
+           proc.isRunning,
+           self.binaryPath == binary,
+           self.accountScope == accountScope,
+           self.processEnvironment == launchEnvironment
+        {
             Self.log.debug("Claude CLI session reused")
             return
         }
@@ -299,10 +315,11 @@ actor ClaudeCLISession {
 
         let proc = Process()
         let resolvedURL = URL(fileURLWithPath: binary)
-        let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
         // A crashed probe can leave a JSONL behind. Claude treats `--session-id` as creation-only when that local
         // transcript exists, so clear the probe-owned artifact before reusing the account-side identifier.
-        ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(probeDirectory: workingDirectory)
+        ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(
+            probeDirectory: workingDirectory,
+            environment: environment)
         let sessionID = Self.loadOrCreateProbeSessionID(in: workingDirectory)
         let claudeArguments = Self.launchArguments(sessionID: sessionID)
         let disableWatchdog = ProcessInfo.processInfo.environment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] == "1"
@@ -321,9 +338,7 @@ actor ClaudeCLISession {
         proc.standardError = secondaryHandle
 
         proc.currentDirectoryURL = workingDirectory
-        var env = Self.launchEnvironment()
-        env["PWD"] = workingDirectory.path
-        proc.environment = env
+        proc.environment = launchEnvironment
 
         guard TTYCommandRunner.beginActiveProcessLaunchForAppShutdown() else {
             try? primaryHandle.close()
@@ -368,6 +383,8 @@ actor ClaudeCLISession {
         self.secondaryHandle = secondaryHandle
         self.processGroup = processGroup
         self.binaryPath = binary
+        self.accountScope = accountScope
+        self.processEnvironment = launchEnvironment
         self.startedAt = Date()
     }
 
@@ -486,6 +503,9 @@ actor ClaudeCLISession {
         self.secondaryHandle = nil
         self.primaryFD = -1
         self.processGroup = nil
+        self.binaryPath = nil
+        self.accountScope = nil
+        self.processEnvironment = nil
         self.startedAt = nil
     }
 

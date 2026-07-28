@@ -67,6 +67,15 @@ struct CLIArgumentParsingTests {
     }
 
     @Test
+    func `app auto verifier flag parses through the usage signature`() throws {
+        let signature = CodexBarCLI._usageSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: ["--app-auto-verifier"])
+
+        #expect(parsed.flags.contains("appAutoVerifier"))
+    }
+
+    @Test
     func `diagnose accepts json output flag but discards provider logs`() throws {
         let signature = CodexBarCLI._diagnoseSignatureForTesting()
         let parser = CommandParser(signature: signature)

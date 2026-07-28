@@ -19,6 +19,8 @@ struct UsageCommandContext {
     let fetcher: UsageFetcher
     let claudeFetcher: ClaudeUsageFetcher
     let browserDetection: BrowserDetection
+    /// A verifier-only route that invokes the same app provider pipeline while retaining CLI JSON output.
+    var providerRuntime: ProviderRuntime = .cli
     /// True for long-lived hosts (`codexbar serve`) that keep warm provider
     /// helper sessions (such as the managed Antigravity `agy` process) alive
     /// between fetches instead of resetting after each one-shot fetch.
@@ -83,6 +85,7 @@ extension CodexBarCLI {
         }
         let antigravityPlanDebug = values.flags.contains("antigravityPlanDebug")
         let augmentDebug = values.flags.contains("augmentDebug")
+        let appAutoVerifier = values.flags.contains("appAutoVerifier")
         let webDebugDumpHTML = values.flags.contains("webDebugDumpHtml")
         let webTimeout: TimeInterval
         do {
@@ -96,6 +99,14 @@ extension CodexBarCLI {
         let resetStyle = Self.resetTimeDisplayStyleFromDefaults()
         let weeklyWorkDays = Self.weeklyProgressWorkDaysFromDefaults()
         let providerList = provider.asList
+
+        if appAutoVerifier, providerList != [.claude] || parsedSourceMode != .auto {
+            Self.exit(
+                code: .failure,
+                message: "Error: --app-auto-verifier requires --provider claude --source auto.",
+                output: output,
+                kind: .args)
+        }
 
         let tokenSelection: TokenAccountCLISelection
         do {
@@ -165,7 +176,8 @@ extension CodexBarCLI {
             includeAllCodexAccounts: tokenSelection.allAccounts && providerList == [.codex],
             fetcher: fetcher,
             claudeFetcher: claudeFetcher,
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            providerRuntime: appAutoVerifier ? .app : .cli)
 
         for p in providerList {
             let status = includeStatus ? await Self.fetchStatus(for: p) : nil
@@ -421,7 +433,7 @@ extension CodexBarCLI {
         #endif
 
         let fetchContext = ProviderFetchContext(
-            runtime: .cli,
+            runtime: command.providerRuntime,
             sourceMode: effectiveSourceMode,
             includeCredits: command.includeCredits,
             webTimeout: command.webTimeout,

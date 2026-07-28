@@ -105,17 +105,21 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                     try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
                         try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                             ClaudeOAuthCredentialsStore.invalidateCache()
-                            let cacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
-                                profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
-                                    environment: [:]))
-                            defer { KeychainCacheStore.clear(key: cacheKey) }
+                            let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                            let profileCacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                                profileIdentifier: ClaudeOAuthCredentialsStore
+                                    .credentialsProfileIdentifier(environment: [:]))
+                            defer {
+                                KeychainCacheStore.clear(key: legacyCacheKey)
+                                KeychainCacheStore.clear(key: profileCacheKey)
+                            }
 
                             let expiredData = self.makeCredentialsData(
                                 accessToken: "expired-codexbar-only",
                                 expiresAt: Date(timeIntervalSinceNow: -3600),
                                 refreshToken: "cached-refresh-token")
                             KeychainCacheStore.store(
-                                key: cacheKey,
+                                key: legacyCacheKey,
                                 entry: ClaudeOAuthCredentialsStore.CacheEntry(
                                     data: expiredData,
                                     storedAt: Date(timeIntervalSinceNow: 60),
@@ -165,7 +169,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             #expect(tokenRefreshRequestCount == 1)
 
                             switch KeychainCacheStore.load(
-                                key: cacheKey,
+                                key: profileCacheKey,
                                 as: ClaudeOAuthCredentialsStore.CacheEntry.self)
                             {
                             case let .found(entry):
@@ -224,6 +228,14 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                                 environment: [:]))
                         defer { KeychainCacheStore.clear(key: cacheKey) }
                         ClaudeOAuthCredentialsStore.invalidateCache()
+                        let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                        let profileCacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                            profileIdentifier: ClaudeOAuthCredentialsStore
+                                .credentialsProfileIdentifier(environment: [:]))
+                        defer {
+                            KeychainCacheStore.clear(key: legacyCacheKey)
+                            KeychainCacheStore.clear(key: profileCacheKey)
+                        }
                         let expiredData = self.makeCredentialsData(
                             accessToken: "access-before-rotation",
                             expiresAt: Date(timeIntervalSinceNow: -3600),
@@ -231,7 +243,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         let originalCredentials = try ClaudeOAuthCredentials.parse(data: expiredData)
                         let originalHistoryOwner = try #require(originalCredentials.historyOwnerIdentifier)
                         KeychainCacheStore.store(
-                            key: cacheKey,
+                            key: legacyCacheKey,
                             entry: ClaudeOAuthCredentialsStore.CacheEntry(
                                 data: expiredData,
                                 storedAt: Date(),
@@ -270,7 +282,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         #expect(refreshedRecord.historyOwnerIdentifier == originalHistoryOwner)
 
                         switch KeychainCacheStore.load(
-                            key: cacheKey,
+                            key: profileCacheKey,
                             as: ClaudeOAuthCredentialsStore.CacheEntry.self)
                         {
                         case let .found(entry):
