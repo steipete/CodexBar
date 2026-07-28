@@ -177,6 +177,32 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `dashboard history override keeps sparse provider coverage current when it closes`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-dashboard-history")
+        settings.costUsageEnabled = true
+        settings.costUsageHistoryDays = 30
+        settings.setSpendDashboardHistoryDaysOverride(365)
+        let metadata = try #require(ProviderRegistry.shared.metadata[.claude])
+        settings.setProviderEnabled(provider: .claude, metadata: metadata, enabled: true)
+        let store = Self.makeUsageStore(settings: settings)
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 10,
+            last30DaysCostUSD: 1,
+            historyDays: 1,
+            daily: [],
+            updatedAt: Date())
+
+        store.publishTokenSnapshot(snapshot, for: .claude)
+        settings.setSpendDashboardHistoryDaysOverride(nil)
+
+        #expect(settings.costUsageHistoryDays == 30)
+        #expect(store.tokenSnapshotForCurrentProviderConfig(for: .claude)?.snapshot == snapshot)
+        #expect(store.tokenSnapshotForCurrentProviderConfig(for: .claude)?.snapshot.historyDays == 1)
+    }
+
+    @Test
     func `source label adds open AI web`() {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-source")
         settings.debugDisableKeychainAccess = false

@@ -525,6 +525,14 @@ extension SettingsStore {
         }
     }
 
+    var effectiveCostUsageHistoryDays: Int {
+        max(self.costUsageHistoryDays, self.spendDashboardHistoryDaysOverride ?? 0)
+    }
+
+    func setSpendDashboardHistoryDaysOverride(_ days: Int?) {
+        self.spendDashboardHistoryDaysOverride = days.map { max(1, min(365, $0)) }
+    }
+
     var costComparisonPeriodsEnabled: Bool {
         get { self.defaultsState.costComparisonPeriodsEnabled }
         set {

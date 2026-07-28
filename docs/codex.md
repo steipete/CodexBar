@@ -173,9 +173,10 @@ Example:
 
 ### Usage & Spend account rows
 
-Settings → Usage & Spend performs a separate fixed 30-day scan for every visible Codex account. Each request freezes
-the account source, exact Codex home, authentication fingerprint, and cache identity before scanning. A missing or
-invalid home is omitted; it never falls back to ambient `~/.codex` or to the global Codex token snapshot.
+Settings → Usage & Spend performs a separate scan at the selected 7-, 30-, or 365-day window for every visible Codex
+account. Each request freezes the account source, exact Codex home, authentication fingerprint, and cache identity
+before scanning. A missing or invalid home is omitted; it never falls back to ambient `~/.codex` or to the global
+Codex token snapshot.
 
 These account rows intentionally exclude pi and OMP sessions because their history is machine-local rather than owned
 by one Codex account. The normal Codex cost menu and CLI scan continue to include supported pi-compatible history. The

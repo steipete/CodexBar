@@ -91,7 +91,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         now: Date,
         calendar: Calendar = .current) -> Self
     {
-        let days = max(1, min(30, requestedDays))
+        let days = max(1, min(365, requestedDays))
         let calculationCalendar = Self.gregorianCalendar(timeZone: calendar.timeZone)
         let classifiedInputs = inputs.compactMap { input -> (currencyCode: String, input: ProviderInput)? in
             guard let currencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }

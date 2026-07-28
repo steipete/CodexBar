@@ -230,6 +230,7 @@ final class SettingsStore {
     var providerDetailSettingsRevision: Int = 0
     var backgroundWorkSettingsRevision: Int = 0
     var costUsageSettingsRevision: UInt64 = 0
+    @ObservationIgnored var spendDashboardHistoryDaysOverride: Int?
     var providerOrder: [UsageProvider] = []
     var providerEnablement: [UsageProvider: Bool] = [:]
     @ObservationIgnored var providerEnablementRevisions: [UsageProvider: UInt64] = [:]
