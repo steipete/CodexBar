@@ -5,6 +5,57 @@ import Testing
 
 struct WidgetSnapshotTests {
     @Test
+    func `GBP preference converts every USD widget cost and preserves native currencies`() {
+        let preference = SpendDisplayCurrencyPreference(displaysGBP: true, usdToGBPRate: 0.75)
+        let updatedAt = Date(timeIntervalSince1970: 100)
+        let tokenUsage = WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: 4,
+            sessionTokens: 40,
+            last30DaysCostUSD: 8,
+            last30DaysTokens: 80,
+            currencyCode: "USD",
+            updatedAt: updatedAt)
+        let daily = WidgetSnapshot.DailyUsagePoint(
+            dayKey: "2026-07-28",
+            totalTokens: 20,
+            costUSD: 2)
+        let providerCost = ProviderCostSnapshot(
+            used: 12,
+            limit: 20,
+            currencyCode: "USD",
+            period: "Extra usage balance",
+            nextRegenAmount: 2,
+            personalUsed: 4,
+            updatedAt: updatedAt)
+
+        let convertedTokenUsage = preference.converted(tokenUsage)
+        let convertedDaily = preference.converted(daily, sourceCurrencyCode: "USD")
+        let convertedProviderCost = preference.converted(providerCost)
+
+        #expect(convertedTokenUsage.currencyCode == "GBP")
+        #expect(convertedTokenUsage.sessionCostUSD == 3)
+        #expect(convertedTokenUsage.last30DaysCostUSD == 6)
+        #expect(convertedTokenUsage.sessionTokens == 40)
+        #expect(convertedTokenUsage.updatedAt == updatedAt)
+        #expect(convertedDaily.costUSD == 1.5)
+        #expect(convertedDaily.totalTokens == 20)
+        #expect(convertedProviderCost.currencyCode == "GBP")
+        #expect(convertedProviderCost.used == 9)
+        #expect(convertedProviderCost.limit == 15)
+        #expect(convertedProviderCost.nextRegenAmount == 1.5)
+        #expect(convertedProviderCost.personalUsed == 3)
+
+        let nativeEUR = WidgetSnapshot.TokenUsageSummary(
+            sessionCostUSD: 4,
+            sessionTokens: 40,
+            last30DaysCostUSD: 8,
+            last30DaysTokens: 80,
+            currencyCode: "EUR")
+        #expect(preference.converted(nativeEUR).currencyCode == "EUR")
+        #expect(preference.converted(nativeEUR).sessionCostUSD == 4)
+    }
+
+    @Test
     func `Codex widget labels disclose API estimates`() {
         let snapshot = CostUsageTokenSnapshot(
             sessionTokens: 1200,

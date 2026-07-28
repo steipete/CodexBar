@@ -28,8 +28,9 @@ extension UsageStore {
     private func makeWidgetSnapshot() -> WidgetSnapshot {
         let now = Date()
         let enabledProviders = self.enabledProviders()
+        let currencyPreference = SpendDisplayCurrencyPreference.load(userDefaults: self.settings.userDefaults)
         let entries = UsageProvider.allCases.compactMap { provider in
-            self.makeWidgetEntry(for: provider, now: now)
+            self.makeWidgetEntry(for: provider, now: now, currencyPreference: currencyPreference)
         }
         return WidgetSnapshot(
             entries: entries,
@@ -38,20 +39,27 @@ extension UsageStore {
             generatedAt: now)
     }
 
-    private func makeWidgetEntry(for provider: UsageProvider, now: Date) -> WidgetSnapshot.ProviderEntry? {
+    private func makeWidgetEntry(
+        for provider: UsageProvider,
+        now: Date,
+        currencyPreference: SpendDisplayCurrencyPreference) -> WidgetSnapshot.ProviderEntry?
+    {
         let snapshot = self.snapshots[provider]
         let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         guard snapshot != nil || (provider == .claude && storedTokenSnapshot != nil) else { return nil }
 
         let tokenSnapshot = storedTokenSnapshot
         let dailyUsage = tokenSnapshot?.daily.map { entry in
-            WidgetSnapshot.DailyUsagePoint(
-                dayKey: entry.date,
-                totalTokens: entry.totalTokens,
-                costUSD: entry.costUSD)
+            currencyPreference.converted(
+                WidgetSnapshot.DailyUsagePoint(
+                    dayKey: entry.date,
+                    totalTokens: entry.totalTokens,
+                    costUSD: entry.costUSD),
+                sourceCurrencyCode: tokenSnapshot?.currencyCode ?? "USD")
         } ?? []
 
         let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
+            .map(currencyPreference.converted)
         let usageRows = snapshot.map { self.widgetUsageRows(provider: provider, snapshot: $0, now: now) } ?? []
 
         let creditsRemaining: Double?
@@ -71,7 +79,7 @@ extension UsageStore {
         let providerCost: ProviderCostSnapshot? = if provider == .devin,
                                                      self.settings.showOptionalCreditsAndExtraUsage
         {
-            snapshot?.providerCost
+            snapshot?.providerCost.map(currencyPreference.converted)
         } else {
             nil
         }

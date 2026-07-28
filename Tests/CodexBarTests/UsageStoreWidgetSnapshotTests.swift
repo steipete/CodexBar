@@ -528,6 +528,67 @@ struct UsageStoreWidgetSnapshotTests {
     }
 
     @Test
+    func `widget snapshot applies GBP preference to USD costs and daily history`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-gbp-costs"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: SpendDisplayCurrencyPreference.displayGBPDefaultsKey)
+        defaults.set(0.75, forKey: SpendDisplayCurrencyPreference.usdToGBPRateDefaultsKey)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: updatedAt),
+            provider: .codex)
+        store._setTokenSnapshotForTesting(
+            CostUsageTokenSnapshot(
+                sessionTokens: 400,
+                sessionCostUSD: 4,
+                last30DaysTokens: 800,
+                last30DaysCostUSD: 8,
+                currencyCode: "USD",
+                daily: [
+                    CostUsageDailyReport.Entry(
+                        date: "2026-07-28",
+                        inputTokens: 100,
+                        outputTokens: 100,
+                        totalTokens: 200,
+                        costUSD: 2,
+                        modelsUsed: nil,
+                        modelBreakdowns: nil),
+                ],
+                updatedAt: updatedAt),
+            provider: .codex)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "gbp-costs-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .codex })
+        #expect(entry.tokenUsage?.currencyCode == "GBP")
+        #expect(entry.tokenUsage?.sessionCostUSD == 3)
+        #expect(entry.tokenUsage?.last30DaysCostUSD == 6)
+        #expect(entry.dailyUsage.first?.costUSD == 1.5)
+        #expect(entry.dailyUsage.first?.totalTokens == 200)
+    }
+
+    @Test
     func `widget snapshot labels legacy Cursor request quota as Requests`() async throws {
         let suite = "UsageStoreWidgetSnapshotTests-cursor-requests-label"
         let defaults = try #require(UserDefaults(suiteName: suite))

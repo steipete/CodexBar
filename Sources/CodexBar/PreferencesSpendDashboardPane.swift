@@ -3,8 +3,6 @@ import Charts
 import CodexBarCore
 import SwiftUI
 
-let spendDashboardDefaultUSDToGBPRate = 0.749
-
 func spendDashboardDayRangeText(_ days: Int) -> String {
     let template: String
     switch days {
@@ -43,15 +41,6 @@ func spendDashboardSelectedDailySummary(
     }
 }
 
-func spendDashboardDefaultsToGBP(storedPreference: Bool?) -> Bool {
-    storedPreference ?? true
-}
-
-func spendDashboardUSDToGBPRate(_ rate: Double) -> Double {
-    guard rate.isFinite else { return spendDashboardDefaultUSDToGBPRate }
-    return min(max(rate, 0.01), 10)
-}
-
 enum SpendDashboardModelHistoryPresentation: Equatable {
     case unavailable
     case empty
@@ -70,9 +59,6 @@ func spendDashboardModelHistoryPresentation(
 
 @MainActor
 struct SpendDashboardPane: View {
-    private static let displayGBPKey = "spendDashboardDisplayGBP"
-    private static let usdToGBPRateKey = "spendDashboardUSDToGBPRate"
-
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @State private var controller: SpendDashboardController
@@ -82,10 +68,12 @@ struct SpendDashboardPane: View {
     init(settings: SettingsStore, store: UsageStore) {
         self.settings = settings
         self.store = store
-        let storedDisplayGBP = settings.userDefaults.object(forKey: Self.displayGBPKey) as? Bool
+        let storedDisplayGBP = settings.userDefaults.object(
+            forKey: SpendDisplayCurrencyPreference.displayGBPDefaultsKey) as? Bool
         self._displayGBP = State(initialValue: spendDashboardDefaultsToGBP(
             storedPreference: storedDisplayGBP))
-        let storedRate = settings.userDefaults.object(forKey: Self.usdToGBPRateKey) as? Double
+        let storedRate = settings.userDefaults.object(
+            forKey: SpendDisplayCurrencyPreference.usdToGBPRateDefaultsKey) as? Double
         self._usdToGBPRate = State(initialValue: spendDashboardUSDToGBPRate(
             storedRate ?? spendDashboardDefaultUSDToGBPRate))
         self._controller = State(initialValue: SpendDashboardController(requestBuilder: { mode in
@@ -112,12 +100,16 @@ struct SpendDashboardPane: View {
             self.controller.update(configuration: configuration)
         }
         .onChange(of: self.displayGBP) { _, displayGBP in
-            self.settings.userDefaults.set(displayGBP, forKey: Self.displayGBPKey)
+            self.settings.userDefaults.set(
+                displayGBP,
+                forKey: SpendDisplayCurrencyPreference.displayGBPDefaultsKey)
+            self.store.persistWidgetSnapshot(reason: "currency-display")
         }
         .onChange(of: self.usdToGBPRate) { _, rate in
             self.settings.userDefaults.set(
                 spendDashboardUSDToGBPRate(rate),
-                forKey: Self.usdToGBPRateKey)
+                forKey: SpendDisplayCurrencyPreference.usdToGBPRateDefaultsKey)
+            self.store.persistWidgetSnapshot(reason: "currency-rate")
         }
         .onDisappear {
             self.controller.stop()

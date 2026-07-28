@@ -3,6 +3,16 @@ import Testing
 @testable import CodexBarCore
 @testable import CodexBarWidget
 
+struct CodexBarWidgetGBPTests {
+    @Test
+    func `widget gallery preview uses GBP`() throws {
+        let entry = try #require(WidgetPreviewData.snapshot().entries.first)
+
+        #expect(entry.tokenUsage?.currencyCode == "GBP")
+        #expect(entry.tokenUsage?.sessionCostUSD == 9.29)
+    }
+}
+
 struct CodexBarWidgetProviderTests {
     @Test
     func `widget token counts use compact shared formatting`() {

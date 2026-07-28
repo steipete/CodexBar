@@ -352,18 +352,19 @@ enum WidgetPreviewData {
             creditsRemaining: 1243.4,
             codeReviewRemainingPercent: 78,
             tokenUsage: WidgetSnapshot.TokenUsageSummary(
-                sessionCostUSD: 12.4,
+                sessionCostUSD: 9.29,
                 sessionTokens: 420_000,
-                last30DaysCostUSD: 923.8,
-                last30DaysTokens: 12_400_000),
+                last30DaysCostUSD: 691.53,
+                last30DaysTokens: 12_400_000,
+                currencyCode: "GBP"),
             dailyUsage: [
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-01", totalTokens: 120_000, costUSD: 15.2),
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-02", totalTokens: 80000, costUSD: 10.1),
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-03", totalTokens: 140_000, costUSD: 17.9),
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-04", totalTokens: 90000, costUSD: 11.4),
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-05", totalTokens: 160_000, costUSD: 19.8),
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-06", totalTokens: 70000, costUSD: 8.9),
-                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-07", totalTokens: 110_000, costUSD: 13.7),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-01", totalTokens: 120_000, costUSD: 11.38),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-02", totalTokens: 80000, costUSD: 7.56),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-03", totalTokens: 140_000, costUSD: 13.41),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-04", totalTokens: 90000, costUSD: 8.54),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-05", totalTokens: 160_000, costUSD: 14.83),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-06", totalTokens: 70000, costUSD: 6.67),
+                WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-07", totalTokens: 110_000, costUSD: 10.26),
             ])
         return WidgetSnapshot(entries: [entry], generatedAt: Date())
     }
