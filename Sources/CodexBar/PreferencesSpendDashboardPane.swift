@@ -200,7 +200,8 @@ struct SpendDashboardPane: View {
     private var sharePayload: ShareStatsPayload? {
         ShareStatsBuilder.make(
             model: self.controller.model,
-            subscriptionNames: self.subscriptionNames)
+            subscriptionNames: self.subscriptionNames,
+            trackedSources: self.configuration.trackedSources)
     }
 
     private var subscriptionNames: [String: ShareStatsSubscriptionName] {

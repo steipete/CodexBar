@@ -35,15 +35,42 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     struct ModelRow: Identifiable, Equatable, Sendable {
+        struct ID: Hashable, Sendable {
+            let sourceID: String
+            let modelName: String
+        }
+
+        let sourceID: String
         let rank: Int
         let provider: UsageProvider
         let providerName: String
+        let sourceName: String
         let modelName: String
         let totalTokens: Int?
         let totalCost: Double?
 
-        var id: String {
-            "\(self.provider.rawValue):\(self.modelName)"
+        init(
+            sourceID: String? = nil,
+            rank: Int,
+            provider: UsageProvider,
+            providerName: String,
+            sourceName: String? = nil,
+            modelName: String,
+            totalTokens: Int?,
+            totalCost: Double?)
+        {
+            self.sourceID = sourceID ?? provider.rawValue
+            self.rank = rank
+            self.provider = provider
+            self.providerName = providerName
+            self.sourceName = sourceName ?? providerName
+            self.modelName = modelName
+            self.totalTokens = totalTokens
+            self.totalCost = totalCost
+        }
+
+        var id: ID {
+            ID(sourceID: self.sourceID, modelName: self.modelName)
         }
     }
 
@@ -61,6 +88,18 @@ struct SpendDashboardModel: Equatable, Sendable {
         }
     }
 
+    struct DailyTokenPoint: Identifiable, Equatable, Sendable {
+        let sourceID: String
+        let provider: UsageProvider
+        let providerName: String
+        let day: Date
+        let tokens: Int
+
+        var id: String {
+            "\(self.sourceID):\(Int(self.day.timeIntervalSince1970))"
+        }
+    }
+
     enum ModelHistoryCompleteness: Equatable, Sendable {
         case complete
         case incomplete
@@ -70,12 +109,43 @@ struct SpendDashboardModel: Equatable, Sendable {
         let currencyCode: String
         let providers: [ProviderRow]
         let models: [ModelRow]
+        let tokenModels: [ModelRow]
         let dailyPoints: [DailyPoint]
+        let dailyTokenPoints: [DailyTokenPoint]
         let totalTokens: Int?
         let totalCost: Double?
         let coveredDayCount: Int
         let chartDomain: ClosedRange<Date>
         let modelHistoryCompleteness: ModelHistoryCompleteness
+        let modelTokenHistoryCompleteness: ModelHistoryCompleteness
+
+        init(
+            currencyCode: String,
+            providers: [ProviderRow],
+            models: [ModelRow],
+            tokenModels: [ModelRow]? = nil,
+            dailyPoints: [DailyPoint],
+            dailyTokenPoints: [DailyTokenPoint],
+            totalTokens: Int?,
+            totalCost: Double?,
+            coveredDayCount: Int,
+            chartDomain: ClosedRange<Date>,
+            modelHistoryCompleteness: ModelHistoryCompleteness,
+            modelTokenHistoryCompleteness: ModelHistoryCompleteness? = nil)
+        {
+            self.currencyCode = currencyCode
+            self.providers = providers
+            self.models = models
+            self.tokenModels = tokenModels ?? models
+            self.dailyPoints = dailyPoints
+            self.dailyTokenPoints = dailyTokenPoints
+            self.totalTokens = totalTokens
+            self.totalCost = totalCost
+            self.coveredDayCount = coveredDayCount
+            self.chartDomain = chartDomain
+            self.modelHistoryCompleteness = modelHistoryCompleteness
+            self.modelTokenHistoryCompleteness = modelTokenHistoryCompleteness ?? modelHistoryCompleteness
+        }
 
         var id: String {
             self.currencyCode
@@ -126,12 +196,14 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private struct ModelKey: Hashable {
-        let provider: UsageProvider
+        let sourceID: String
         let modelName: String
     }
 
     private struct ModelAccumulator {
+        let provider: UsageProvider
         let providerName: String
+        let sourceName: String
         var tokens: Int?
         var cost: Double?
         var sawTokens = false
@@ -160,6 +232,14 @@ struct SpendDashboardModel: Equatable, Sendable {
         var overflowed = false
     }
 
+    private struct DailyTokenAccumulator {
+        let provider: UsageProvider
+        let providerName: String
+        var tokens: Int?
+        var invalid = false
+        var overflowed = false
+    }
+
     private static func buildCurrencyGroup(
         currencyCode: String,
         inputs: [ProviderInput],
@@ -172,25 +252,30 @@ struct SpendDashboardModel: Equatable, Sendable {
             Self.inputSummary(input: input, bounds: bounds, calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
-        let completeModelSummaries = summaries.filter { summary in
+        let completeCostModelSummaries = summaries.filter { summary in
             guard summary.totalCost != nil else { return false }
-            return Self.modelSummary(summaries: [summary]).completeness == .complete
+            return Self.costModelSummary(summaries: [summary]).completeness == .complete
         }
-        let modelSummary = Self.modelSummary(summaries: completeModelSummaries)
-        let modelHistoryCompleteness = completeModelSummaries.count == summaries.count
+        let costModelSummary = Self.costModelSummary(summaries: completeCostModelSummaries)
+        let modelHistoryCompleteness = completeCostModelSummaries.count == summaries.count
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
+        let tokenModelSummary = Self.tokenModelSummary(summaries: summaries)
         let dailyPoints = Self.dailyPoints(summaries: summaries)
+        let dailyTokenPoints = Self.dailyTokenPoints(summaries: summaries)
         return CurrencyGroup(
             currencyCode: currencyCode,
             providers: providers,
-            models: modelSummary.rows,
+            models: costModelSummary.rows,
+            tokenModels: tokenModelSummary.rows,
             dailyPoints: dailyPoints,
+            dailyTokenPoints: dailyTokenPoints,
             totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
             totalCost: Self.completeCostSum(providers.map(\.totalCost)),
             coveredDayCount: Self.commonCoverageDayCount(summaries: summaries, calendar: calendar),
             chartDomain: Self.chartDomain(bounds: bounds, calendar: calendar),
-            modelHistoryCompleteness: modelHistoryCompleteness)
+            modelHistoryCompleteness: modelHistoryCompleteness,
+            modelTokenHistoryCompleteness: tokenModelSummary.completeness)
     }
 
     private static func inputSummary(
@@ -267,8 +352,10 @@ struct SpendDashboardModel: Equatable, Sendable {
                     coveredDayCount: entry.element.coveredDayCount)
             }
     }
+}
 
-    private static func modelSummary(summaries: [InputSummary]) -> ModelSummary {
+extension SpendDashboardModel {
+    private static func costModelSummary(summaries: [InputSummary]) -> ModelSummary {
         var aggregates: [ModelKey: ModelAccumulator] = [:]
         var completeness = ModelHistoryCompleteness.complete
         for summary in summaries {
@@ -285,9 +372,11 @@ struct SpendDashboardModel: Equatable, Sendable {
                 for breakdown in breakdowns {
                     let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty else { continue }
-                    let key = ModelKey(provider: input.provider, modelName: name)
+                    let key = ModelKey(sourceID: input.id, modelName: name)
                     var aggregate = aggregates[key] ?? ModelAccumulator(
+                        provider: input.provider,
                         providerName: input.modelProviderName,
+                        sourceName: input.displayName,
                         tokens: 0,
                         cost: 0)
                     if hasCompleteTokenHistory,
@@ -316,12 +405,78 @@ struct SpendDashboardModel: Equatable, Sendable {
         }) {
             completeness = .incomplete
         }
+        return ModelSummary(
+            rows: self.modelRows(aggregates: aggregates),
+            completeness: completeness)
+    }
 
-        let rows = aggregates.map { key, value in
+    private static func tokenModelSummary(summaries: [InputSummary]) -> ModelSummary {
+        var aggregates: [ModelKey: ModelAccumulator] = [:]
+        var completeness = ModelHistoryCompleteness.complete
+        for summary in summaries {
+            let input = summary.input
+            let hasCompleteTokenHistory = summary.totalTokens != nil && summary.entries.allSatisfy {
+                Self.hasCompleteModelTokenCoverage($0.entry)
+            }
+            guard hasCompleteTokenHistory else {
+                completeness = .incomplete
+                continue
+            }
+            let hasCompleteCostHistory = summary.totalCost != nil && summary.entries.allSatisfy {
+                Self.hasCompleteModelCostCoverage($0.entry)
+            }
+            for windowEntry in summary.entries {
+                let entry = windowEntry.entry
+                let breakdowns = entry.modelBreakdowns ?? []
+                for breakdown in breakdowns {
+                    let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty else { continue }
+                    let key = ModelKey(sourceID: input.id, modelName: name)
+                    var aggregate = aggregates[key] ?? ModelAccumulator(
+                        provider: input.provider,
+                        providerName: input.modelProviderName,
+                        sourceName: input.displayName,
+                        tokens: 0,
+                        cost: 0)
+                    if let tokens = Self.nonnegative(breakdown.totalTokens) {
+                        aggregate.sawTokens = true
+                        aggregate.tokens = Self.add(
+                            tokens,
+                            to: aggregate.tokens,
+                            overflowed: &aggregate.overflowedTokens)
+                    } else {
+                        aggregate.invalidTokens = true
+                    }
+                    if hasCompleteCostHistory,
+                       let cost = Self.validCost(breakdown.costUSD)
+                    {
+                        aggregate.sawCost = true
+                        aggregate.cost = Self.add(cost, to: aggregate.cost, overflowed: &aggregate.overflowedCost)
+                    } else {
+                        aggregate.invalidCost = true
+                    }
+                    aggregates[key] = aggregate
+                }
+            }
+        }
+        if aggregates.values.contains(where: {
+            !$0.sawTokens || $0.invalidTokens || $0.overflowedTokens || $0.tokens == nil
+        }) {
+            completeness = .incomplete
+        }
+        return ModelSummary(
+            rows: self.modelRows(aggregates: aggregates),
+            completeness: completeness)
+    }
+
+    private static func modelRows(aggregates: [ModelKey: ModelAccumulator]) -> [ModelRow] {
+        aggregates.map { key, value in
             ModelRow(
+                sourceID: key.sourceID,
                 rank: 0,
-                provider: key.provider,
+                provider: value.provider,
                 providerName: value.providerName,
+                sourceName: value.sourceName,
                 modelName: key.modelName,
                 totalTokens: value.sawTokens && !value.invalidTokens && !value.overflowedTokens ? value.tokens : nil,
                 totalCost: value.sawCost && !value.invalidCost && !value.overflowedCost ? value.cost : nil)
@@ -341,14 +496,15 @@ struct SpendDashboardModel: Equatable, Sendable {
         .enumerated()
         .map { rank, row in
             ModelRow(
+                sourceID: row.sourceID,
                 rank: rank + 1,
                 provider: row.provider,
                 providerName: row.providerName,
+                sourceName: row.sourceName,
                 modelName: row.modelName,
                 totalTokens: row.totalTokens,
                 totalCost: row.totalCost)
         }
-        return ModelSummary(rows: rows, completeness: completeness)
     }
 
     private static func hasProvenZeroCost(_ entry: CostUsageDailyReport.Entry) -> Bool {
@@ -513,6 +669,45 @@ struct SpendDashboardModel: Equatable, Sendable {
                     stackEnd: cursor))
             }
             return points
+        }
+    }
+
+    private static func dailyTokenPoints(summaries: [InputSummary]) -> [DailyTokenPoint] {
+        var aggregates: [DailyKey: DailyTokenAccumulator] = [:]
+        for summary in summaries where summary.totalTokens != nil {
+            let input = summary.input
+            for windowEntry in summary.entries {
+                let key = DailyKey(day: windowEntry.day, sourceID: input.id)
+                var aggregate = aggregates[key] ?? DailyTokenAccumulator(
+                    provider: input.provider,
+                    providerName: input.displayName,
+                    tokens: 0)
+                if let tokens = Self.nonnegative(windowEntry.entry.totalTokens) {
+                    aggregate.tokens = Self.add(
+                        tokens,
+                        to: aggregate.tokens,
+                        overflowed: &aggregate.overflowed)
+                } else {
+                    aggregate.invalid = true
+                }
+                aggregates[key] = aggregate
+            }
+        }
+
+        return aggregates.compactMap { key, value in
+            guard !value.invalid, !value.overflowed, let tokens = value.tokens else { return nil }
+            return DailyTokenPoint(
+                sourceID: key.sourceID,
+                provider: value.provider,
+                providerName: value.providerName,
+                day: key.day,
+                tokens: tokens)
+        }
+        .sorted {
+            if $0.day != $1.day {
+                return $0.day < $1.day
+            }
+            return $0.sourceID < $1.sourceID
         }
     }
 
