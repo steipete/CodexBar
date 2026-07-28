@@ -88,30 +88,36 @@ struct ModelsDevPricingTests {
               }
             }
           },
-          "zhipuai": {
-            "id": "zhipuai",
-            "name": "Zhipu AI",
+          "alibaba-token-plan": {
+            "id": "alibaba-token-plan",
+            "name": "Alibaba Token Plan",
             "models": {
-              "glm-5.1": {
-                "id": "glm-5.1",
-                "name": "GLM-5.1",
+              "qwen3.7-plus": {
+                "id": "qwen3.7-plus",
+                "name": "Qwen3.7 Plus",
                 "cost": {
-                  "input": 1.4,
-                  "output": 4.4,
-                  "cache_read": 0.26,
+                  "input": 0,
+                  "output": 0,
+                  "cache_read": 0,
                   "cache_write": 0
                 },
                 "limit": {
-                  "context": 200000
+                  "context": 1000000
                 }
-              },
+              }
+            }
+          },
+          "zai": {
+            "id": "zai",
+            "name": "z.ai",
+            "models": {
               "glm-5v-turbo": {
                 "id": "glm-5v-turbo",
                 "name": "GLM-5V-Turbo",
                 "cost": {
-                  "input": 5,
-                  "output": 22,
-                  "cache_read": 1.2,
+                  "input": 1.2,
+                  "output": 4,
+                  "cache_read": 0.24,
                   "cache_write": 0
                 },
                 "limit": {
@@ -162,9 +168,9 @@ struct ModelsDevPricingTests {
         #expect(qwenMax.pricing.cacheCreationInputCostPerToken == 3.125 / 1_000_000.0)
         #expect(qwenMax.pricing.contextWindow == 1_000_000)
         #expect(qwenPlus.pricing.modelName == "Qwen3.7 Plus")
-        #expect(qwenPlus.pricing.outputCostPerToken == 3 / 1_000_000.0)
-        #expect(glmTurbo.pricing.inputCostPerToken == 5 / 1_000_000.0)
-        #expect(glmTurbo.pricing.outputCostPerToken == 22 / 1_000_000.0)
+        #expect(qwenPlus.pricing.outputCostPerToken == 0)
+        #expect(glmTurbo.pricing.inputCostPerToken == 1.2 / 1_000_000.0)
+        #expect(glmTurbo.pricing.outputCostPerToken == 4 / 1_000_000.0)
         #expect(glmTurbo.pricing.cacheCreationInputCostPerToken == 0)
         #expect(deepSeekPro.pricing.inputCostPerToken == 0.435 / 1_000_000.0)
         #expect(deepSeekPro.pricing.cacheReadInputCostPerToken == 0.003625 / 1_000_000.0)

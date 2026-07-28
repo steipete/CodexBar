@@ -790,10 +790,12 @@ enum CostUsagePricing {
             [self.codexModelsDevProviderID]
         case .claude:
             [self.claudeModelsDevProviderID]
-        case .alibaba, .alibabatokenplan:
-            ["alibaba"]
+        case .alibaba:
+            ["alibaba-coding-plan", "alibaba-coding-plan-cn", "alibaba"]
+        case .alibabatokenplan:
+            ["alibaba-token-plan", "alibaba-token-plan-cn", "alibaba"]
         case .zai:
-            ["zhipuai"]
+            ["zai", "zai-coding-plan"]
         case .deepseek:
             ["deepseek"]
         case .deepinfra:
