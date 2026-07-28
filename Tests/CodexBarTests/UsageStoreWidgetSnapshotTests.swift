@@ -369,6 +369,160 @@ struct UsageStoreWidgetSnapshotTests {
         #expect(entry.tokenUsage?.last30DaysTokens == 42000)
     }
 
+    @Test
+    func `widget snapshot preserves prior Claude quota rows during token only refresh`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-claude-token-only-preserves-quota"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let quotaUpdatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let tokenUpdatedAt = quotaUpdatedAt.addingTimeInterval(60)
+        let primary = RateWindow(
+            usedPercent: 28,
+            windowMinutes: 300,
+            resetsAt: quotaUpdatedAt.addingTimeInterval(3600),
+            resetDescription: nil)
+        let secondary = RateWindow(
+            usedPercent: 12,
+            windowMinutes: 10080,
+            resetsAt: quotaUpdatedAt.addingTimeInterval(86400),
+            resetDescription: nil)
+        store.lastQueuedWidgetSnapshot = WidgetSnapshot(
+            entries: [
+                WidgetSnapshot.ProviderEntry(
+                    provider: .claude,
+                    updatedAt: quotaUpdatedAt,
+                    primary: primary,
+                    secondary: secondary,
+                    tertiary: nil,
+                    usageRows: [
+                        WidgetSnapshot.WidgetUsageRowSnapshot(
+                            id: "primary",
+                            title: "Session",
+                            percentLeft: 72),
+                        WidgetSnapshot.WidgetUsageRowSnapshot(
+                            id: "secondary",
+                            title: "Weekly",
+                            percentLeft: 88),
+                    ],
+                    creditsRemaining: nil,
+                    codeReviewRemainingPercent: nil,
+                    tokenUsage: nil,
+                    dailyUsage: []),
+            ],
+            enabledProviders: [.claude],
+            generatedAt: quotaUpdatedAt)
+        store._setTokenSnapshotForTesting(
+            CostUsageTokenSnapshot(
+                sessionTokens: 4300,
+                sessionCostUSD: 1.50,
+                last30DaysTokens: 43000,
+                last30DaysCostUSD: 13.50,
+                daily: [],
+                updatedAt: tokenUpdatedAt),
+            provider: .claude)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "claude-token-only-preserves-quota-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(entry.updatedAt == quotaUpdatedAt)
+        #expect(entry.primary == primary)
+        #expect(entry.secondary == secondary)
+        #expect(entry.usageRows?.map(\.id) == ["primary", "secondary"])
+        #expect(entry.usageRows?.compactMap(\.percentLeft) == [72, 88])
+        #expect(entry.tokenUsage?.updatedAt == tokenUpdatedAt)
+        #expect(entry.tokenUsage?.sessionTokens == 4300)
+
+        store.lastQueuedWidgetSnapshot = WidgetSnapshot(
+            entries: [
+                WidgetSnapshot.ProviderEntry(
+                    provider: .claude,
+                    updatedAt: quotaUpdatedAt,
+                    primary: primary,
+                    secondary: secondary,
+                    tertiary: nil,
+                    usageRows: [
+                        WidgetSnapshot.WidgetUsageRowSnapshot(
+                            id: "primary",
+                            title: "Session",
+                            percentLeft: 72),
+                        WidgetSnapshot.WidgetUsageRowSnapshot(
+                            id: "secondary",
+                            title: "Weekly",
+                            percentLeft: 88),
+                    ],
+                    creditsRemaining: nil,
+                    codeReviewRemainingPercent: nil,
+                    tokenUsage: nil,
+                    dailyUsage: []),
+            ],
+            enabledProviders: [.claude],
+            generatedAt: quotaUpdatedAt)
+        store.widgetUsagePreservationBlockedProviders.insert(.claude)
+
+        store.persistWidgetSnapshot(reason: "claude-token-only-credential-change-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let blockedEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(blockedEntry.updatedAt == tokenUpdatedAt)
+        #expect(blockedEntry.primary == nil)
+        #expect(blockedEntry.secondary == nil)
+        #expect(blockedEntry.usageRows?.isEmpty == true)
+
+        let placeholder = RateWindow(
+            usedPercent: 0,
+            windowMinutes: 300,
+            resetsAt: nil,
+            resetDescription: nil,
+            isSyntheticPlaceholder: true)
+        store.widgetUsagePreservationBlockedProviders.remove(.claude)
+        store.lastQueuedWidgetSnapshot = WidgetSnapshot(
+            entries: [
+                WidgetSnapshot.ProviderEntry(
+                    provider: .claude,
+                    updatedAt: quotaUpdatedAt,
+                    primary: placeholder,
+                    secondary: nil,
+                    tertiary: nil,
+                    usageRows: [
+                        WidgetSnapshot.WidgetUsageRowSnapshot(
+                            id: "primary",
+                            title: "Session",
+                            percentLeft: 100),
+                    ],
+                    creditsRemaining: nil,
+                    codeReviewRemainingPercent: nil,
+                    tokenUsage: nil,
+                    dailyUsage: []),
+            ],
+            enabledProviders: [.claude],
+            generatedAt: quotaUpdatedAt)
+
+        store.persistWidgetSnapshot(reason: "claude-token-only-drops-placeholder-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let filteredEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(filteredEntry.updatedAt == tokenUpdatedAt)
+        #expect(filteredEntry.primary == nil)
+        #expect(filteredEntry.usageRows?.isEmpty == true)
+    }
+
     @Test(arguments: [true, false])
     func `widget snapshot respects extra usage visibility for Devin`(_ showsExtraUsage: Bool) async throws {
         let suite = "UsageStoreWidgetSnapshotTests-devin-extra-usage-\(showsExtraUsage)"

@@ -268,6 +268,8 @@ final class UsageStore {
     @ObservationIgnored var _test_startupConnectivityRetrySleepOverride: (@MainActor (
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
+    @ObservationIgnored var lastQueuedWidgetSnapshot: WidgetSnapshot?
+    @ObservationIgnored var widgetUsagePreservationBlockedProviders: Set<UsageProvider> = []
 
     @ObservationIgnored let codexFetcher: UsageFetcher
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
