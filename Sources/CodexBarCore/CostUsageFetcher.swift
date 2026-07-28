@@ -411,9 +411,6 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath)
         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
-        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Provider-specific by design: scoped Codex homes exclude ambient Pi sessions from managed-profile totals.
-        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
         await Self.refreshPricingIfAllowed(
             options: PricingRefreshOptions(
                 provider: provider,
@@ -444,7 +441,7 @@ public struct CostUsageFetcher: Sendable {
         let localScanOptions = LocalTokenScanOptions(
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             includePiSessions: includePiSessions,
-            shouldMergePiUsage: shouldMergePiUsage,
+            codexHomePath: codexHomePath,
             scanOptions: scanOptions,
             piOptions: piOptions)
         let scanResult = try await Self.loadLocalTokenScanResult(
@@ -503,7 +500,7 @@ public struct CostUsageFetcher: Sendable {
     private struct LocalTokenScanOptions: Sendable {
         let allowVertexClaudeFallback: Bool
         let includePiSessions: Bool
-        let shouldMergePiUsage: Bool
+        let codexHomePath: String?
         let scanOptions: CostUsageScanner.Options
         let piOptions: PiSessionCostScanner.Options
     }
@@ -575,8 +572,10 @@ public struct CostUsageFetcher: Sendable {
                         sessionRoots: roots)
                 }
             }
-            if options.includePiSessions,
-               provider == .claude || (provider == .codex && options.shouldMergePiUsage)
+            if Self.shouldMergePiSessions(
+                provider: provider,
+                includePiSessions: options.includePiSessions,
+                codexHomePath: options.codexHomePath)
             {
                 let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
                     provider: provider,
@@ -623,7 +622,7 @@ public struct CostUsageFetcher: Sendable {
     {
         guard options.isAllowed,
               options.retryUnknown,
-              options.provider == .codex || options.provider == .claude
+              self.usesModelsDevPricing(options.provider)
         else { return }
 
         if options.inBackground {
@@ -650,7 +649,7 @@ public struct CostUsageFetcher: Sendable {
         cacheRoot: URL?,
         client: ModelsDevClient) -> UnknownPricingRefreshRequest?
     {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard let providerID = self.modelsDevRefreshProviderID(for: provider) else { return nil }
         let unknownModelIDs = Set(daily.data.flatMap { entry in
             entry.modelBreakdowns?.compactMap { breakdown -> String? in
                 guard breakdown.costUSD == nil else { return nil }
@@ -665,7 +664,7 @@ public struct CostUsageFetcher: Sendable {
         guard !unknownModelIDs.isEmpty else { return nil }
 
         return UnknownPricingRefreshRequest(
-            providerID: provider == .codex ? "openai" : "anthropic",
+            providerID: providerID,
             modelIDs: unknownModelIDs,
             now: now,
             cacheRoot: cacheRoot,
@@ -1371,6 +1370,42 @@ public struct CostUsageFetcher: Sendable {
 }
 
 extension CostUsageFetcher {
+    fileprivate static func shouldMergePiSessions(
+        provider: UsageProvider,
+        includePiSessions: Bool,
+        codexHomePath: String?) -> Bool
+    {
+        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
+        return includePiSessions
+            && (provider == .claude
+                || (provider == .codex && shouldMergePiUsage)
+                || provider == .gemini
+                || provider == .vertexai
+                || provider == .grok)
+    }
+
+    fileprivate static func usesModelsDevPricing(_ provider: UsageProvider) -> Bool {
+        self.modelsDevRefreshProviderID(for: provider) != nil
+    }
+
+    fileprivate static func modelsDevRefreshProviderID(for provider: UsageProvider) -> String? {
+        switch provider {
+        case .codex:
+            "openai"
+        case .claude:
+            "anthropic"
+        case .gemini:
+            "google"
+        case .vertexai:
+            "google-vertex"
+        case .grok:
+            "xai"
+        default:
+            nil
+        }
+    }
+
     fileprivate static func loadRemoteTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String],
