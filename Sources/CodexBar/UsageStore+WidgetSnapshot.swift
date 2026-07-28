@@ -58,7 +58,6 @@ extension UsageStore {
     {
         let snapshot = self.snapshots[provider]
         let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
-        guard snapshot != nil || (provider == .claude && storedTokenSnapshot != nil) else { return nil }
         let preservedClaudeUsage: PreservedClaudeWidgetUsage? = if provider == .claude,
                                                                    snapshot == nil,
                                                                    !self.widgetUsagePreservationBlockedProviders
@@ -69,6 +68,11 @@ extension UsageStore {
             Self.preservedClaudeWidgetUsage(from: previousEntry)
         } else {
             nil
+        }
+        guard snapshot != nil ||
+            (provider == .claude && (storedTokenSnapshot != nil || preservedClaudeUsage != nil))
+        else {
+            return nil
         }
 
         let tokenSnapshot = storedTokenSnapshot

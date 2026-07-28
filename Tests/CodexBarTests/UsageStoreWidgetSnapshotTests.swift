@@ -423,6 +423,21 @@ struct UsageStoreWidgetSnapshotTests {
             ],
             enabledProviders: [.claude],
             generatedAt: quotaUpdatedAt)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "claude-pre-token-preserves-quota-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let preTokenEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(preTokenEntry.updatedAt == quotaUpdatedAt)
+        #expect(preTokenEntry.primary == primary)
+        #expect(preTokenEntry.secondary == secondary)
+        #expect(preTokenEntry.usageRows?.map(\.id) == ["primary", "secondary"])
+        #expect(preTokenEntry.tokenUsage == nil)
+
         store._setTokenSnapshotForTesting(
             CostUsageTokenSnapshot(
                 sessionTokens: 4300,
@@ -432,11 +447,6 @@ struct UsageStoreWidgetSnapshotTests {
                 daily: [],
                 updatedAt: tokenUpdatedAt),
             provider: .claude)
-
-        var widgetSnapshots: [WidgetSnapshot] = []
-        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
-        defer { store._test_widgetSnapshotSaveOverride = nil }
-
         store.persistWidgetSnapshot(reason: "claude-token-only-preserves-quota-test")
         await store.widgetSnapshotPersistTask?.value
 
