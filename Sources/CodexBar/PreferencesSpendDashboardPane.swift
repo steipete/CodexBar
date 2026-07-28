@@ -27,6 +27,20 @@ func spendDashboardCoverageText(covered: Int, requested: Int) -> String {
     "\(L("Coverage")): \(codexBarLocalizedInteger(covered)) / \(codexBarLocalizedInteger(requested))"
 }
 
+func spendDashboardSelectedDailySummary(
+    selectedDay: Date?,
+    summaries: [SpendDashboardModel.DailySummary],
+    calendar: Calendar = .current) -> SpendDashboardModel.DailySummary?
+{
+    guard let selectedDay else { return summaries.last }
+    if let exact = summaries.first(where: { calendar.isDate($0.day, inSameDayAs: selectedDay) }) {
+        return exact
+    }
+    return summaries.min {
+        abs($0.day.timeIntervalSince(selectedDay)) < abs($1.day.timeIntervalSince(selectedDay))
+    }
+}
+
 enum SpendDashboardModelHistoryPresentation: Equatable {
     case unavailable
     case empty
@@ -229,6 +243,7 @@ struct SpendDashboardPane: View {
 private struct SpendCurrencySection: View {
     let group: SpendDashboardModel.CurrencyGroup
     let requestedDays: Int
+    @State private var selectedDay: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -268,10 +283,36 @@ private struct SpendCurrencySection: View {
                 }
             }
 
+            SpendDailyChart(
+                group: self.group,
+                selectedDay: self.$selectedDay)
+            if let selectedSummary = self.selectedSummary {
+                SpendSelectedDayPanel(
+                    summary: selectedSummary,
+                    currencyCode: self.group.currencyCode)
+            }
+            SpendDailyLedger(
+                group: self.group,
+                selectedDay: self.$selectedDay)
             SpendProviderPanel(group: self.group)
             SpendModelPanel(group: self.group)
-            SpendDailyChart(group: self.group)
         }
+        .onAppear {
+            self.normalizeSelection()
+        }
+        .onChange(of: self.group.dailySummaries) { _, _ in
+            self.normalizeSelection()
+        }
+    }
+
+    private var selectedSummary: SpendDashboardModel.DailySummary? {
+        spendDashboardSelectedDailySummary(
+            selectedDay: self.selectedDay,
+            summaries: self.group.dailySummaries)
+    }
+
+    private func normalizeSelection() {
+        self.selectedDay = self.selectedSummary?.day
     }
 }
 
@@ -288,6 +329,199 @@ private struct SpendSummaryValue: View {
                 .font(.system(.title2, design: .rounded, weight: .semibold))
                 .monospacedDigit()
         }
+    }
+}
+
+private struct SpendSelectedDayPanel: View {
+    let summary: SpendDashboardModel.DailySummary
+    let currencyCode: String
+
+    var body: some View {
+        SpendDashboardPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(L("Day"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(self.summary.day, format: .dateTime.weekday(.wide).day().month(.wide).year())
+                            .font(.headline)
+                    }
+                    Spacer()
+                    Text(UsageFormatter.currencyString(
+                        self.summary.totalCost,
+                        currencyCode: self.currencyCode))
+                        .font(.title2.weight(.semibold))
+                        .monospacedDigit()
+                }
+
+                HStack(spacing: 24) {
+                    SpendSummaryValue(
+                        title: L("Tracked tokens"),
+                        value: self.summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                    SpendSummaryValue(
+                        title: L("Requests"),
+                        value: self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—")
+                    SpendSummaryValue(
+                        title: L("Providers"),
+                        value: codexBarLocalizedInteger(self.activeProviders.count))
+                    Spacer()
+                }
+
+                Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(self.summary.providers) { row in
+                        if row.id != self.summary.providers.first?.id {
+                            Divider()
+                        }
+                        HStack(spacing: 10) {
+                            SpendProviderIcon(provider: row.provider)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.displayName)
+                                Text(self.usageLine(row))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(UsageFormatter.currencyString(
+                                row.totalCost,
+                                currencyCode: self.currencyCode))
+                                .monospacedDigit()
+                        }
+                        .padding(.vertical, 7)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+
+    private var activeProviders: [SpendDashboardModel.DailyProviderRow] {
+        self.summary.providers.filter {
+            $0.totalCost > 0 || ($0.totalTokens ?? 0) > 0 || ($0.requestCount ?? 0) > 0
+        }
+    }
+
+    private func usageLine(_ row: SpendDashboardModel.DailyProviderRow) -> String {
+        let tokens = row.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+        let requests = row.requestCount.map(codexBarLocalizedInteger) ?? "—"
+        return "\(tokens) \(L("tokens")) · \(requests) \(L("requests"))"
+    }
+}
+
+private struct SpendDailyLedger: View {
+    let group: SpendDashboardModel.CurrencyGroup
+    @Binding var selectedDay: Date?
+
+    var body: some View {
+        SpendDashboardPanel {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(L("Daily estimated spend")).font(.headline)
+                    Spacer()
+                }
+                .padding(.bottom, 10)
+
+                if self.group.dailySummaries.isEmpty {
+                    ContentUnavailableView(
+                        L("Spend unavailable"),
+                        systemImage: "calendar.badge.exclamationmark")
+                        .frame(maxWidth: .infinity, minHeight: 120)
+                } else {
+                    self.header
+                    Divider()
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(self.group.dailySummaries.reversed())) { summary in
+                            Button {
+                                self.selectedDay = summary.day
+                            } label: {
+                                self.row(summary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(self.accessibilityLabel(summary))
+                            if summary.id != self.group.dailySummaries.first?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Text(L("Day")).frame(width: 132, alignment: .leading)
+            Text(L("Providers")).frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+            Text(L("Tracked tokens")).frame(width: 90, alignment: .trailing)
+            Text(L("Requests")).frame(width: 72, alignment: .trailing)
+            Text(L("Estimated spend")).frame(width: 116, alignment: .trailing)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+
+    private func row(_ summary: SpendDashboardModel.DailySummary) -> some View {
+        HStack(spacing: 12) {
+            Text(summary.day, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                .frame(width: 132, alignment: .leading)
+            self.providerMix(summary)
+                .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
+            Text(summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                .frame(width: 90, alignment: .trailing)
+            Text(summary.requestCount.map(codexBarLocalizedInteger) ?? "—")
+                .frame(width: 72, alignment: .trailing)
+            Text(UsageFormatter.currencyString(
+                summary.totalCost,
+                currencyCode: self.group.currencyCode))
+                .fontWeight(.medium)
+                .frame(width: 116, alignment: .trailing)
+        }
+        .monospacedDigit()
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .background(
+            self.isSelected(summary) ? Color.accentColor.opacity(0.12) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func providerMix(_ summary: SpendDashboardModel.DailySummary) -> some View {
+        let active = summary.providers.filter {
+            $0.totalCost > 0 || ($0.totalTokens ?? 0) > 0 || ($0.requestCount ?? 0) > 0
+        }
+        if active.isEmpty {
+            Text(L("No usage yet"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack(spacing: 5) {
+                ForEach(active.prefix(4)) { row in
+                    SpendProviderIcon(provider: row.provider)
+                        .help(row.displayName)
+                }
+                if active.count > 4 {
+                    Text("+\(codexBarLocalizedInteger(active.count - 4))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func isSelected(_ summary: SpendDashboardModel.DailySummary) -> Bool {
+        guard let selectedDay else { return false }
+        return Calendar.current.isDate(summary.day, inSameDayAs: selectedDay)
+    }
+
+    private func accessibilityLabel(_ summary: SpendDashboardModel.DailySummary) -> String {
+        let day = summary.day.formatted(
+            .dateTime.weekday(.wide).day().month(.wide).year().locale(codexBarLocalizedLocale()))
+        let spend = UsageFormatter.currencyString(summary.totalCost, currencyCode: self.group.currencyCode)
+        return "\(day), \(spend)"
     }
 }
 
@@ -415,6 +649,7 @@ struct SpendDailyChartPresentation: Equatable {
 
 private struct SpendDailyChart: View {
     let group: SpendDashboardModel.CurrencyGroup
+    @Binding var selectedDay: Date?
 
     var body: some View {
         let presentation = SpendDailyChartPresentation(
@@ -427,17 +662,24 @@ private struct SpendDailyChart: View {
                     ContentUnavailableView(L("Spend unavailable"), systemImage: "chart.bar.xaxis")
                         .frame(maxWidth: .infinity, minHeight: 170)
                 } else {
-                    Chart(self.group.dailyPoints) { point in
-                        BarMark(
-                            x: .value(L("Day"), point.day, unit: .day),
-                            yStart: .value(L("Estimated spend"), point.stackStart),
-                            yEnd: .value(L("Estimated spend"), point.stackEnd),
-                            width: .ratio(0.72))
-                            .foregroundStyle(by: .value(L("Provider"), point.providerName))
-                            .accessibilityLabel(Text(self.pointAccessibilityLabel(point)))
-                            .accessibilityValue(Text(UsageFormatter.currencyString(
-                                point.cost,
-                                currencyCode: self.group.currencyCode)))
+                    Chart {
+                        ForEach(self.group.dailyPoints) { point in
+                            BarMark(
+                                x: .value(L("Day"), point.day, unit: .day),
+                                yStart: .value(L("Estimated spend"), point.stackStart),
+                                yEnd: .value(L("Estimated spend"), point.stackEnd),
+                                width: .ratio(0.72))
+                                .foregroundStyle(by: .value(L("Provider"), point.providerName))
+                                .accessibilityLabel(Text(self.pointAccessibilityLabel(point)))
+                                .accessibilityValue(Text(UsageFormatter.currencyString(
+                                    point.cost,
+                                    currencyCode: self.group.currencyCode)))
+                        }
+                        if let selectedSummary = self.selectedSummary {
+                            RuleMark(x: .value(L("Selected day"), selectedSummary.day, unit: .day))
+                                .foregroundStyle(.primary.opacity(0.45))
+                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        }
                     }
                     .chartXScale(domain: self.group.chartDomain)
                     .chartForegroundStyleScale(
@@ -459,9 +701,26 @@ private struct SpendDailyChart: View {
                     .frame(height: 170)
                     .accessibilityLabel(L("Daily estimated spend"))
                     .accessibilityValue(presentation.accessibilityValue)
+                    .chartXSelection(value: self.chartSelection)
                 }
             }
         }
+    }
+
+    private var selectedSummary: SpendDashboardModel.DailySummary? {
+        spendDashboardSelectedDailySummary(
+            selectedDay: self.selectedDay,
+            summaries: self.group.dailySummaries)
+    }
+
+    private var chartSelection: Binding<Date?> {
+        Binding(
+            get: { self.selectedSummary?.day },
+            set: { value in
+                self.selectedDay = spendDashboardSelectedDailySummary(
+                    selectedDay: value,
+                    summaries: self.group.dailySummaries)?.day
+            })
     }
 
     private func pointAccessibilityLabel(_ point: SpendDashboardModel.DailyPoint) -> String {
