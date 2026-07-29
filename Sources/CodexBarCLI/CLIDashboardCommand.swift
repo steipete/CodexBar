@@ -31,7 +31,7 @@ struct DashboardSnapshotResult {
 /// existing authenticated HTTP cache.
 struct DashboardSnapshotProducer: Sendable {
     let collectUsage: @Sendable ([UsageProvider]) async throws -> UsageCommandOutput
-    let collectCost: @Sendable ([UsageProvider]) async -> [CostPayload]
+    let collectCost: @Sendable ([UsageProvider], CodexBarConfig) async -> [CostPayload]
     let now: @Sendable () -> Date
 
     func collect(
@@ -43,7 +43,9 @@ struct DashboardSnapshotProducer: Sendable {
             rawOverride: nil,
             enabled: config.enabledProviders())
         let usageOutput = try await self.collectUsage(selection.asList)
-        let costPayloads = await self.collectCost(CodexBarCLI.costProviders(from: selection))
+        let costPayloads = await self.collectCost(
+            CodexBarCLI.costProviders(from: selection),
+            config)
 
         let payload = DashboardSnapshotBuilder.makeSnapshot(
             usagePayloads: usageOutput.payload,
@@ -65,16 +67,18 @@ struct DashboardSnapshotProducer: Sendable {
                     selection: .custom(providers),
                     context: context.usage)
             },
-            collectCost: { providers in
+            collectCost: { providers, config in
                 let costFetcher = CostUsageFetcher()
-                return await CodexBarCLI.serveCollectCostPayloads(
+                return await CodexBarCLI.collectConfiguredCostPayloads(
                     providers: providers,
+                    config: config,
                     context: context.costCollection)
-                { provider in
+                { provider, cursorCookieHeaderOverride in
                     do {
                         let snapshot = try await costFetcher.loadTokenSnapshot(
                             provider: provider,
                             forceRefresh: false,
+                            cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                             refreshPricingInBackground: context.costRefreshesPricingInBackground)
                         return CodexBarCLI.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
                     } catch {

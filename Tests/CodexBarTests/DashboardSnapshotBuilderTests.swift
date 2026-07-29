@@ -5,6 +5,85 @@ import Testing
 
 struct DashboardSnapshotBuilderTests {
     @Test
+    func `dashboard cost collection does not fetch Cursor when cookie source is off`() async {
+        let recorder = DashboardCostFetchRecorder()
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .cursor, enabled: true, cookieSource: .off),
+        ])
+
+        let payload = await CodexBarCLI.collectConfiguredCostPayloads(
+            providers: [.cursor],
+            config: config,
+            context: self.costCollectionContext())
+        { provider, header in
+            await recorder.record(provider: provider, cursorCookieHeaderOverride: header)
+            return CodexBarCLI.makeCostPayload(provider: provider, snapshot: nil, error: nil)
+        }
+
+        #expect(await recorder.calls().isEmpty)
+        #expect(payload.count == 1)
+        #expect(payload[0].provider == "cursor")
+        #expect(payload[0].error?.message.contains("cookie source is set to Off") == true)
+    }
+
+    @Test
+    func `dashboard cost collection forwards configured Cursor manual cookie`() async {
+        let recorder = DashboardCostFetchRecorder()
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .cursor,
+                enabled: true,
+                cookieHeader: "  session=manual  ",
+                cookieSource: .manual),
+        ])
+
+        let payload = await CodexBarCLI.collectConfiguredCostPayloads(
+            providers: [.cursor],
+            config: config,
+            context: self.costCollectionContext())
+        { provider, header in
+            await recorder.record(provider: provider, cursorCookieHeaderOverride: header)
+            return CodexBarCLI.makeCostPayload(provider: provider, snapshot: nil, error: nil)
+        }
+
+        let calls = await recorder.calls()
+        #expect(calls.count == 1)
+        #expect(calls[0].provider == .cursor)
+        #expect(calls[0].cursorCookieHeaderOverride == "session=manual")
+        #expect(payload.count == 1)
+        #expect(payload[0].error == nil)
+    }
+
+    @Test
+    func `dashboard producer forwards its config to cost collection`() async throws {
+        let recorder = DashboardCostConfigRecorder()
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .cursor,
+                enabled: true,
+                cookieHeader: "session=manual",
+                cookieSource: .manual),
+        ])
+        let producer = DashboardSnapshotProducer(
+            collectUsage: { _ in UsageCommandOutput() },
+            collectCost: { providers, config in
+                await recorder.record(providers: providers, config: config)
+                return []
+            },
+            now: { Date(timeIntervalSince1970: 1_800_000_000) })
+
+        _ = try await producer.collect(
+            config: config,
+            refreshInterval: 0,
+            codexBarVersion: "9.8.7")
+
+        let call = try #require(await recorder.call())
+        #expect(call.providers == [.cursor])
+        #expect(call.cookieSource == .manual)
+        #expect(call.cookieHeader == "session=manual")
+    }
+
+    @Test
     func `producer keeps stable order redaction and partial errors`() async throws {
         let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let healthy = self.identityPayload(email: "user@example.com")
@@ -27,7 +106,7 @@ struct DashboardSnapshotBuilderTests {
                 output.exitCode = .failure
                 return output
             },
-            collectCost: { _ in [] },
+            collectCost: { _, _ in [] },
             now: { generatedAt })
         let config = CodexBarConfig(providers: [
             ProviderConfig(id: .claude, enabled: true),
@@ -51,6 +130,15 @@ struct DashboardSnapshotBuilderTests {
         #expect(codexDisplay["sortKey"] as? Int == 10)
         #expect(claudeDisplay["sortKey"] as? Int == 0)
         #expect(object["generatedAt"] as? String == "2027-01-15T08:00:00Z")
+    }
+
+    private func costCollectionContext() -> ServeCostCollectionContext {
+        ServeCostCollectionContext(
+            configFingerprint: "dashboard-cost-policy",
+            providerTimeout: nil,
+            requestDeadline: nil,
+            now: { ContinuousClock().now },
+            providerOperations: CLIServeOperationCoordinator())
     }
 
     @Test
@@ -494,5 +582,46 @@ struct DashboardSnapshotBuilderTests {
         let json = try #require(CodexBarCLI.encodeJSON(payload, pretty: false))
         let data = try #require(json.data(using: .utf8))
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+}
+
+private actor DashboardCostFetchRecorder {
+    struct Call: Sendable {
+        let provider: UsageProvider
+        let cursorCookieHeaderOverride: String?
+    }
+
+    private var recordedCalls: [Call] = []
+
+    func record(provider: UsageProvider, cursorCookieHeaderOverride: String?) {
+        self.recordedCalls.append(Call(
+            provider: provider,
+            cursorCookieHeaderOverride: cursorCookieHeaderOverride))
+    }
+
+    func calls() -> [Call] {
+        self.recordedCalls
+    }
+}
+
+private actor DashboardCostConfigRecorder {
+    struct Call: Sendable {
+        let providers: [UsageProvider]
+        let cookieSource: ProviderCookieSource?
+        let cookieHeader: String?
+    }
+
+    private var recordedCall: Call?
+
+    func record(providers: [UsageProvider], config: CodexBarConfig) {
+        let cursor = config.providerConfig(for: .cursor)
+        self.recordedCall = Call(
+            providers: providers,
+            cookieSource: cursor?.cookieSource,
+            cookieHeader: cursor?.cookieHeader)
+    }
+
+    func call() -> Call? {
+        self.recordedCall
     }
 }

@@ -1287,36 +1287,17 @@ extension CodexBarCLI {
                 message: "cost is only supported for \(Self.costSupportedProviderNames())")
         }
 
-        // Cursor cost honors the same cookie policy here as the `cost` command: return a provider
-        // error when the source is Off and forward the Manual header for an enabled fetch.
-        let cursorCookieSettings: ProviderSettingsSnapshot.CursorProviderSettings?
-        let cursorCookieSettingsError: Error?
-        do {
-            cursorCookieSettings = try Self.cursorCookieSettings(config: context.config, providers: providers)
-            cursorCookieSettingsError = nil
-        } catch {
-            cursorCookieSettings = nil
-            cursorCookieSettingsError = error
-        }
         let fetcher = CostUsageFetcher()
-        let payload = await Self.serveCollectCostPayloads(
+        let payload = await Self.collectConfiguredCostPayloads(
             providers: providers,
+            config: context.config,
             context: context.collection)
-        { provider in
-            if let error = Self.cursorCostAvailabilityError(
-                provider,
-                settings: cursorCookieSettings,
-                resolutionError: cursorCookieSettingsError)
-            {
-                return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
-            }
+        { provider, cursorCookieHeaderOverride in
             do {
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
                     forceRefresh: false,
-                    cursorCookieHeaderOverride: Self.cursorCostHeaderOverride(
-                        provider,
-                        settings: cursorCookieSettings),
+                    cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                     refreshPricingInBackground: Self.serveCostRefreshesPricingInBackground)
                 return Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
             } catch {
@@ -1325,6 +1306,41 @@ extension CodexBarCLI {
         }
 
         return Self.serveJSON(payload)
+    }
+
+    static func collectConfiguredCostPayloads(
+        providers: [UsageProvider],
+        config: CodexBarConfig,
+        context: ServeCostCollectionContext,
+        fetch: @Sendable @escaping (UsageProvider, String?) async -> CostPayload) async -> [CostPayload]
+    {
+        // Keep every dashboard transport aligned with the configured Cursor credential source.
+        // Policy failures remain row-local so other providers still render.
+        let cursorCookieSettings: ProviderSettingsSnapshot.CursorProviderSettings?
+        let cursorCookieSettingsError: Error?
+        do {
+            cursorCookieSettings = try Self.cursorCookieSettings(config: config, providers: providers)
+            cursorCookieSettingsError = nil
+        } catch {
+            cursorCookieSettings = nil
+            cursorCookieSettingsError = error
+        }
+
+        return await Self.serveCollectCostPayloads(
+            providers: providers,
+            context: context)
+        { provider in
+            if let error = Self.cursorCostAvailabilityError(
+                provider,
+                settings: cursorCookieSettings,
+                resolutionError: cursorCookieSettingsError)
+            {
+                return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
+            }
+            return await fetch(
+                provider,
+                Self.cursorCostHeaderOverride(provider, settings: cursorCookieSettings))
+        }
     }
 
     static func serveCollectCostPayloads(

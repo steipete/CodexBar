@@ -374,7 +374,7 @@ extension CodexBarCLI {
 
     /// Resolve the configured Cursor cookie settings (source + manual header) the same way the CLI
     /// usage path does, so Cursor cost honors Off/Manual instead of always auto-resolving a session.
-    /// Shared by `cost` and the serve `/cost` route.
+    /// Shared by `cost`, the serve `/cost` route, and dashboard snapshot collection.
     static func cursorCookieSettings(
         config: CodexBarConfig,
         providers: [UsageProvider]) throws -> ProviderSettingsSnapshot.CursorProviderSettings?
