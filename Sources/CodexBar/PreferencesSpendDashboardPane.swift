@@ -485,28 +485,26 @@ struct SpendTrackedAccessPanel: View {
     var body: some View {
         SpendDashboardPanel {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(L("Tracked access"))
                             .font(.headline)
-                        Text(self.description)
-                            .font(.caption)
+                        Spacer(minLength: 12)
+                        Text(
+                            "\(codexBarLocalizedInteger(self.sources.count)) " +
+                                L("tracked sources"))
+                            .font(.caption.monospacedDigit().weight(.semibold))
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.quaternary.opacity(0.7), in: Capsule())
+                            .accessibilityLabel(
+                                "\(codexBarLocalizedInteger(self.sources.count)) \(L("tracked sources"))")
                     }
-                    Spacer(minLength: 12)
-                    HStack(spacing: 6) {
-                        Image(systemName: "key.fill")
-                            .font(.caption)
-                        Text(codexBarLocalizedInteger(self.sources.count))
-                            .font(.subheadline.monospacedDigit().weight(.semibold))
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.quaternary.opacity(0.7), in: Capsule())
-                    .accessibilityLabel(
-                        "\(codexBarLocalizedInteger(self.sources.count)) \(L("tracked sources"))")
+                    Text(self.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 LazyVGrid(columns: self.columns, alignment: .leading, spacing: 12) {
@@ -562,7 +560,7 @@ private struct SpendTrackedSourceRow: View {
         if self.source.contributesCostHistory {
             return self.source.state == .connected ? "checkmark.circle.fill" : "clock.fill"
         }
-        return self.source.state == .connected ? "minus.circle.fill" : "circle.dashed"
+        return self.source.state == .connected ? "minus.circle.fill" : "minus.circle"
     }
 
     private var statusColor: Color {
