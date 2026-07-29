@@ -1,4 +1,6 @@
+import AppKit
 import CodexBarCore
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -47,5 +49,122 @@ struct SpendDashboardTrackedSourceTests {
             contributesCostHistory: false)
 
         #expect(spendDashboardTrackedSourceStatusText(source) == "Usage connected · not in cost total")
+    }
+
+    @Test
+    @MainActor
+    func `tracked access renders without clipping at wide and narrow settings widths`() throws {
+        let proofDirectory = ProcessInfo.processInfo.environment["CODEXBAR_SPEND_DASHBOARD_PROOF_DIR"].map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        }
+        if let proofDirectory {
+            try FileManager.default.createDirectory(
+                at: proofDirectory,
+                withIntermediateDirectories: true)
+        }
+
+        for (size, filename) in [
+            (CGSize(width: 760, height: 440), "spend-dashboard-tracked-access-wide.png"),
+            (CGSize(width: 430, height: 720), "spend-dashboard-tracked-access-narrow.png"),
+        ] {
+            let view = VStack(alignment: .leading, spacing: 18) {
+                SpendDashboardHeader(
+                    selectedDays: 365,
+                    isRefreshing: false,
+                    isCostTrackingEnabled: true,
+                    selectDays: { _ in },
+                    refresh: {})
+                SpendTrackedAccessPanel(
+                    sources: Self.proofSources,
+                    description: "Every configured subscription or key stays visible. "
+                        + "Only compatible sources enter cost totals.")
+            }
+            .padding(24)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .background(Color(nsColor: .windowBackgroundColor))
+
+            let data = try #require(Self.pngData(for: view, size: size))
+            let bitmap = try #require(NSBitmapImageRep(data: data))
+            #expect(bitmap.pixelsWide == Int(size.width))
+            #expect(bitmap.pixelsHigh == Int(size.height))
+            if let proofDirectory {
+                try data.write(to: proofDirectory.appendingPathComponent(filename), options: .atomic)
+            }
+        }
+    }
+
+    private static let proofSources = [
+        SpendDashboardTrackedSource(
+            id: "codex:account:personal",
+            provider: .codex,
+            providerName: "Codex",
+            accountName: "Personal",
+            state: .connected,
+            supportsCostHistory: true,
+            contributesCostHistory: true),
+        SpendDashboardTrackedSource(
+            id: "claude:account:team",
+            provider: .claude,
+            providerName: "Claude",
+            accountName: "Team",
+            state: .connected,
+            supportsCostHistory: true,
+            contributesCostHistory: true),
+        SpendDashboardTrackedSource(
+            id: "openrouter:account:research",
+            provider: .openrouter,
+            providerName: "OpenRouter",
+            accountName: "Research",
+            state: .connected,
+            supportsCostHistory: false,
+            contributesCostHistory: false),
+        SpendDashboardTrackedSource(
+            id: "cursor:account:work",
+            provider: .cursor,
+            providerName: "Cursor",
+            accountName: "Work",
+            state: .configured,
+            supportsCostHistory: true,
+            contributesCostHistory: false),
+        SpendDashboardTrackedSource(
+            id: "gemini:account:studio",
+            provider: .gemini,
+            providerName: "Gemini",
+            accountName: "Studio",
+            state: .connected,
+            supportsCostHistory: false,
+            contributesCostHistory: false),
+        SpendDashboardTrackedSource(
+            id: "mistral:account:api",
+            provider: .mistral,
+            providerName: "Mistral",
+            accountName: "API",
+            state: .configured,
+            supportsCostHistory: true,
+            contributesCostHistory: false),
+    ]
+
+    @MainActor
+    private static func pngData(for rootView: some View, size: CGSize) -> Data? {
+        let view = NSHostingView(rootView: rootView)
+        view.frame = CGRect(origin: .zero, size: size)
+        view.layoutSubtreeIfNeeded()
+
+        guard let representation = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(size.width),
+            pixelsHigh: Int(size.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0)
+        else { return nil }
+        representation.size = size
+        guard let context = NSGraphicsContext(bitmapImageRep: representation) else { return nil }
+        view.displayIgnoringOpacity(view.bounds, in: context)
+        return representation.representation(using: .png, properties: [:])
     }
 }
