@@ -766,9 +766,15 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         // Claude's "auth status" command is an opaque child process that may invoke /usr/bin/security itself.
         // CodexBar cannot impose its no-UI policy on that child, so background Auto refresh must not launch it
         // unless the user explicitly opted into Keychain access for background work.
-        let isBackgroundAutoRefresh = context.runtime == .app
-            && context.sourceMode == .auto
+        let isBackgroundAppRefresh = context.runtime == .app
             && ProviderInteractionContext.current == .background
+        // Explicit OAuth may recover through the interactive owner CLI only from a user action. A scheduled
+        // refresh with missing credentials must remain on the selected OAuth authority and fail without UI.
+        if isBackgroundAppRefresh, context.sourceMode == .oauth {
+            return false
+        }
+
+        let isBackgroundAutoRefresh = isBackgroundAppRefresh && context.sourceMode == .auto
         if isBackgroundAutoRefresh {
             // Every Claude child process is opaque to CodexBar's no-UI Keychain controls, including
             // `claude auth status`. Background Auto therefore reuses only availability established by a

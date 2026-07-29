@@ -78,6 +78,35 @@ struct ClaudeCLIBackgroundAvailabilityTests {
         }
     }
 
+    @Test(arguments: ClaudeOAuthKeychainPromptMode.allCases)
+    func `background explicit OAuth never reaches interactive CLI`(promptMode: ClaudeOAuthKeychainPromptMode) async {
+        let strategy = self.makeStrategy()
+        let context = self.makeContext(sourceMode: .oauth)
+
+        await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo")
+            await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(promptMode) {
+                await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
+                    await ProviderInteractionContext.$current.withValue(.background) {
+                        #expect(await !strategy.isAvailable(context))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `user initiated explicit OAuth retains interactive CLI recovery`() async {
+        let strategy = self.makeStrategy()
+        let context = self.makeContext(sourceMode: .oauth)
+
+        await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                #expect(await strategy.isAvailable(context))
+            }
+        }
+    }
+
     private func makeStrategy() -> ClaudeCLIFetchStrategy {
         ClaudeCLIFetchStrategy(
             useWebExtras: false,
@@ -87,11 +116,11 @@ struct ClaudeCLIBackgroundAvailabilityTests {
             hasWebFallback: false)
     }
 
-    private func makeContext() -> ProviderFetchContext {
+    private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
-            sourceMode: .auto,
+            sourceMode: sourceMode,
             includeCredits: false,
             webTimeout: 1,
             webDebugDumpHTML: false,

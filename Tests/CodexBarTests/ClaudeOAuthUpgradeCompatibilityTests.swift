@@ -289,11 +289,13 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             #expect(binary == cli.executable.path)
             return Self.makeCLIUsageSnapshot()
         }
-        let outcome = try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
-            try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
-                try await Self.withForeignKeychainTripwires(calls: calls) {
-                    await Self.withWebTripwires(calls: calls) {
-                        await descriptor.fetchOutcome(context: context)
+        let outcome = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
+                try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+                    try await Self.withForeignKeychainTripwires(calls: calls) {
+                        await Self.withWebTripwires(calls: calls) {
+                            await descriptor.fetchOutcome(context: context)
+                        }
                     }
                 }
             }
@@ -310,6 +312,57 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             #expect(result.usage.secondary?.usedPercent == 40)
         case let .failure(error):
             Issue.record("Expected owner-mediated Claude CLI fetch to succeed, got \(error)")
+        }
+        #expect(calls.recordedOAuthTokens.isEmpty)
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    @Test(arguments: ClaudeOAuthKeychainPromptMode.allCases)
+    func `background explicit OAuth never launches owner CLI`(promptMode: ClaudeOAuthKeychainPromptMode) async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-background-oauth-\(promptMode.rawValue)",
+            environment: ["CLAUDE_CLI_PATH": cli.executable.path])
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        #expect(strategies.map(\.id) == ["claude.oauth", "claude.cli"])
+
+        let calls = CallLog()
+        let cliUsage: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot = { _, _, _ in
+            Issue.record("Background explicit OAuth must not invoke the interactive owner CLI")
+            return Self.makeCLIUsageSnapshot()
+        }
+        let outcome = try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(promptMode) {
+            try await ProviderInteractionContext.$current.withValue(.background) {
+                try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
+                    try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+                        try await Self.withForeignKeychainTripwires(calls: calls) {
+                            await Self.withWebTripwires(calls: calls) {
+                                await descriptor.fetchOutcome(context: context)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false])
+        switch outcome.result {
+        case let .failure(error as ClaudeOAuthCredentialsError):
+            guard case .notFound = error else {
+                Issue.record("Expected missing OAuth credentials, got \(error)")
+                return
+            }
+        case let .failure(error):
+            Issue.record("Expected missing OAuth credentials, got \(error)")
+        case let .success(result):
+            Issue.record("Background explicit OAuth unexpectedly produced \(result.strategyID)")
         }
         #expect(calls.recordedOAuthTokens.isEmpty)
         #expect(calls.recordedWebCalls.isEmpty)
