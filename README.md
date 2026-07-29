@@ -234,7 +234,7 @@ open CodexBar.app                 # disposable dev launch; see the Tahoe attribu
 # Or install into /Applications and launch the new build through macOS:
 ./Scripts/build_install_and_run.sh
 
-# Pull first; build/restart only when this HEAD was not installed successfully:
+# Pull first; build/restart unless this HEAD/configuration still matches the installed bundle:
 ./Scripts/pull_build_install_and_run.sh
 
 # Install only; the running installed CodexBar is stopped and remains stopped:
