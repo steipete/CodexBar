@@ -115,7 +115,8 @@ struct AlibabaTokenPlanCookieHeaderTests {
             apiCookieHeader: "login_aliyunid_ticket=ticket; api_only=api",
             dashboardCookieHeader: "login_aliyunid_ticket=ticket; dashboard_only=dashboard")
 
-        let cached = try #require(AlibabaTokenPlanCookieHeaders(cachedHeader: headers.cacheCookieHeader))
+        let cached = try #require(
+            AlibabaTokenPlanCookieHeaders(alibabaTokenPlanCachedHeader: headers.cacheAlibabaTokenPlanCookieHeader()))
 
         #expect(cached.apiCookieHeader.contains("api_only=api"))
         #expect(!cached.apiCookieHeader.contains("dashboard_only=dashboard"))

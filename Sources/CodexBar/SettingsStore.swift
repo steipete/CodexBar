@@ -488,6 +488,12 @@ extension SettingsStore {
         if Self.isRunningTests, creditsExtrasDefault == nil {
             userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage")
         }
+        let claudeDailyRoutinesUsageVisibleDefault = userDefaults.object(
+            forKey: "claudeDailyRoutinesUsageVisible") as? Bool
+        let claudeDailyRoutinesUsageVisible = claudeDailyRoutinesUsageVisibleDefault ?? true
+        if Self.isRunningTests, claudeDailyRoutinesUsageVisibleDefault == nil {
+            userDefaults.set(true, forKey: "claudeDailyRoutinesUsageVisible")
+        }
         let codexSparkUsageVisibleDefault = userDefaults.object(forKey: "codexSparkUsageVisible") as? Bool
         let codexSparkUsageVisible = codexSparkUsageVisibleDefault ?? true
         if Self.isRunningTests, codexSparkUsageVisibleDefault == nil {
@@ -580,6 +586,7 @@ extension SettingsStore {
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,
             showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
+            claudeDailyRoutinesUsageVisible: claudeDailyRoutinesUsageVisible,
             codexSparkUsageVisible: codexSparkUsageVisible,
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             openAIWebBatterySaverEnabled: openAIWebBatterySaverEnabled,

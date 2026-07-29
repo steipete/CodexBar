@@ -9,6 +9,7 @@ enum ProviderChoice: String, AppEnum {
     case gemini
     case alibaba
     case alibabatokenplan
+    case qwencloud
     case antigravity
     case cursor
     case zai
@@ -29,6 +30,7 @@ enum ProviderChoice: String, AppEnum {
         .gemini: DisplayRepresentation(title: "Gemini"),
         .alibaba: DisplayRepresentation(title: "Alibaba"),
         .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
+        .qwencloud: DisplayRepresentation(title: "Qwen Cloud"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
         .cursor: DisplayRepresentation(title: "Cursor"),
         .zai: DisplayRepresentation(title: "z.ai"),
@@ -49,6 +51,7 @@ enum ProviderChoice: String, AppEnum {
         case .gemini: .gemini
         case .alibaba: .alibaba
         case .alibabatokenplan: .alibabatokenplan
+        case .qwencloud: .qwencloud
         case .antigravity: .antigravity
         case .cursor: .cursor
         case .zai: .zai
@@ -74,6 +77,7 @@ enum ProviderChoice: String, AppEnum {
         case .gemini: self = .gemini
         case .alibaba: self = .alibaba
         case .alibabatokenplan: self = .alibabatokenplan
+        case .qwencloud: self = .qwencloud
         case .antigravity: self = .antigravity
         case .cursor: self = .cursor
         case .opencode: self = .opencode

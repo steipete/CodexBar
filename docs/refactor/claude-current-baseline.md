@@ -119,9 +119,12 @@ Current routing rules:
 
 ## Siloing and web-enrichment baseline
 
-Claude Web enrichment is cost-only when the primary source is OAuth or CLI:
+Claude Web enrichment is usage-extra-only when the primary source is OAuth or CLI:
 
-- Web extras may populate `providerCost` when it is missing.
+- Web extras may add optional rate windows and may populate `providerCost` when it is missing.
+- A matching prepaid balance may enrich an existing `providerCost` without replacing its spend/limit values.
+- OAuth enrichment calls `GET /api/oauth/profile`; Web data is merged only when the email or organization UUID
+  matches the primary Claude account.
 - Web extras must not replace `accountEmail`, `accountOrganization`, or `loginMethod` from the primary source.
 - Snapshot identity remains provider-scoped to Claude.
 

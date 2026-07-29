@@ -18,6 +18,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         opencodego: OpenCodeProviderSettings? = nil,
         alibaba: AlibabaCodingPlanProviderSettings? = nil,
         alibabaTokenPlan: AlibabaTokenPlanProviderSettings? = nil,
+        qwenCloud: QwenCloudProviderSettings? = nil,
         factory: FactoryProviderSettings? = nil,
         minimax: MiniMaxProviderSettings? = nil,
         manus: ManusProviderSettings? = nil,
@@ -52,6 +53,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             opencodego: opencodego,
             alibaba: alibaba,
             alibabaTokenPlan: alibabaTokenPlan,
+            qwenCloud: qwenCloud,
             factory: factory,
             minimax: minimax,
             manus: manus,
@@ -195,6 +197,16 @@ public struct ProviderSettingsSnapshot: Sendable {
 
         public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
             self.init(cookieSource: cookieSource, manualCookieHeader: manualCookieHeader, apiRegion: .international)
+        }
+    }
+
+    public struct QwenCloudProviderSettings: ProviderCookieSettings {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+
+        public init(cookieSource: ProviderCookieSource = .auto, manualCookieHeader: String? = nil) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
         }
     }
 
@@ -477,6 +489,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let opencodego: OpenCodeProviderSettings?
     public let alibaba: AlibabaCodingPlanProviderSettings?
     public let alibabaTokenPlan: AlibabaTokenPlanProviderSettings?
+    public let qwenCloud: QwenCloudProviderSettings?
     public let factory: FactoryProviderSettings?
     public let minimax: MiniMaxProviderSettings?
     public let manus: ManusProviderSettings?
@@ -515,6 +528,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         opencodego: OpenCodeProviderSettings?,
         alibaba: AlibabaCodingPlanProviderSettings?,
         alibabaTokenPlan: AlibabaTokenPlanProviderSettings? = nil,
+        qwenCloud: QwenCloudProviderSettings? = nil,
         factory: FactoryProviderSettings?,
         minimax: MiniMaxProviderSettings?,
         manus: ManusProviderSettings?,
@@ -548,6 +562,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.opencodego = opencodego
         self.alibaba = alibaba
         self.alibabaTokenPlan = alibabaTokenPlan
+        self.qwenCloud = qwenCloud
         self.factory = factory
         self.minimax = minimax
         self.manus = manus
@@ -582,6 +597,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case opencodego(ProviderSettingsSnapshot.OpenCodeProviderSettings)
     case alibaba(ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings)
     case alibabaTokenPlan(ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings)
+    case qwenCloud(ProviderSettingsSnapshot.QwenCloudProviderSettings)
     case factory(ProviderSettingsSnapshot.FactoryProviderSettings)
     case minimax(ProviderSettingsSnapshot.MiniMaxProviderSettings)
     case manus(ProviderSettingsSnapshot.ManusProviderSettings)
@@ -617,6 +633,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings?
     public var alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings?
     public var alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings?
+    public var qwenCloud: ProviderSettingsSnapshot.QwenCloudProviderSettings?
     public var factory: ProviderSettingsSnapshot.FactoryProviderSettings?
     public var minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings?
     public var manus: ProviderSettingsSnapshot.ManusProviderSettings?
@@ -656,6 +673,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .opencodego(value): self.opencodego = value
         case let .alibaba(value): self.alibaba = value
         case let .alibabaTokenPlan(value): self.alibabaTokenPlan = value
+        case let .qwenCloud(value): self.qwenCloud = value
         case let .factory(value): self.factory = value
         case let .minimax(value): self.minimax = value
         case let .manus(value): self.manus = value
@@ -693,6 +711,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             opencodego: self.opencodego,
             alibaba: self.alibaba,
             alibabaTokenPlan: self.alibabaTokenPlan,
+            qwenCloud: self.qwenCloud,
             factory: self.factory,
             minimax: self.minimax,
             manus: self.manus,

@@ -57,7 +57,7 @@ public enum ClaudeProviderDescriptor {
 
         let planningInput = Self.makePlanningInput(context: context)
         let plan = ClaudeSourcePlanner.resolve(input: planningInput)
-        let manualCookieHeader = Self.manualCookieHeader(from: context)
+        let webEnrichmentAccess = Self.webEnrichmentAccess(context: context)
 
         return plan.orderedSteps.map { step in
             let strategy: any ProviderFetchStrategy = switch step.dataSource {
@@ -70,8 +70,12 @@ public enum ClaudeProviderDescriptor {
             case .cli:
                 ClaudeCLIFetchStrategy(
                     useWebExtras: context.runtime == .app
-                        && planningInput.webExtrasEnabled,
-                    manualCookieHeader: manualCookieHeader,
+                        && planningInput.webExtrasEnabled
+                        && webEnrichmentAccess.isAvailable,
+                    includePrepaidBalance: context.runtime == .app
+                        && context.includeOptionalUsage
+                        && webEnrichmentAccess.isAvailable,
+                    manualCookieHeader: webEnrichmentAccess.manualCookieHeader,
                     browserDetection: context.browserDetection,
                     hasWebFallback: planningInput.hasWebSession)
             case .auto:
@@ -131,6 +135,28 @@ public enum ClaudeProviderDescriptor {
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.claude?.cookieSource == .manual else { return nil }
         return CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader)
+    }
+
+    fileprivate struct WebEnrichmentAccess {
+        let isAvailable: Bool
+        let manualCookieHeader: String?
+    }
+
+    fileprivate static func webEnrichmentAccess(context: ProviderFetchContext) -> WebEnrichmentAccess {
+        switch context.settings?.claude?.cookieSource {
+        case .off?:
+            return WebEnrichmentAccess(isAvailable: false, manualCookieHeader: nil)
+        case .manual?:
+            let header = self.manualCookieHeader(from: context)
+            return WebEnrichmentAccess(
+                isAvailable: ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header),
+                manualCookieHeader: header)
+        case .auto?, nil:
+            let header = CookieHeaderCache.load(provider: .claude)?.cookieHeader
+            return WebEnrichmentAccess(
+                isAvailable: ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header),
+                manualCookieHeader: header)
+        }
     }
 
     private static func noDataMessage() -> String {
@@ -376,6 +402,13 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let webEnrichmentAccess = ClaudeProviderDescriptor.webEnrichmentAccess(context: context)
+        let useWebExtras = context.runtime == .app &&
+            (context.settings?.claude?.webExtrasEnabled ?? false) &&
+            webEnrichmentAccess.isAvailable
+        let includePrepaidBalance = context.runtime == .app &&
+            context.includeOptionalUsage &&
+            webEnrichmentAccess.isAvailable
         let fetcher = ClaudeUsageFetcher(
             browserDetection: context.browserDetection,
             environment: context.env,
@@ -383,7 +416,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             dataSource: .oauth,
             oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
             allowBackgroundDelegatedRefresh: false,
-            useWebExtras: false)
+            useWebExtras: useWebExtras,
+            manualCookieHeader: webEnrichmentAccess.manualCookieHeader,
+            webOrganizationID: context.settings?.claude?.organizationID,
+            webExtrasTimeout: context.webTimeout,
+            includePrepaidBalance: includePrepaidBalance)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return ProviderFetchResult(
             usage: Self.snapshot(from: usage),
@@ -584,7 +621,8 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
                 dataSource: .web,
                 useWebExtras: false,
                 manualCookieHeader: Self.manualCookieHeader(from: context),
-                webOrganizationID: context.settings?.claude?.organizationID)
+                webOrganizationID: context.settings?.claude?.organizationID,
+                includePrepaidBalance: context.includeOptionalUsage)
             return try await fetcher.loadLatestUsage(model: "sonnet")
         }
         let race = BoundedTaskJoin(sourceTask: sourceTask)
@@ -637,6 +675,7 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.cli"
     let kind: ProviderFetchKind = .cli
     let useWebExtras: Bool
+    let includePrepaidBalance: Bool
     let manualCookieHeader: String?
     let browserDetection: BrowserDetection
     let hasWebFallback: Bool
@@ -673,6 +712,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             useWebExtras: self.useWebExtras,
             manualCookieHeader: self.manualCookieHeader,
             webOrganizationID: context.settings?.claude?.organizationID,
+            webExtrasTimeout: context.webTimeout,
+            includePrepaidBalance: self.includePrepaidBalance && context.includeOptionalUsage,
             keepCLISessionsAlive: keepAlive)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return self.makeResult(

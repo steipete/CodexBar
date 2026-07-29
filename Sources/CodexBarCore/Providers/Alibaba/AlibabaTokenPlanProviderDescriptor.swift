@@ -183,7 +183,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         #if os(macOS)
         if allowCached,
            let cached = Self.cachedCookieEntry(region: region),
-           let headers = AlibabaTokenPlanCookieHeaders(cachedHeader: cached.cookieHeader)
+           let headers = AlibabaTokenPlanCookieHeaders(alibabaTokenPlanCachedHeader: cached.cookieHeader)
         {
             Self.log.info(
                 "Alibaba Token Plan using cached browser cookie header",
@@ -219,7 +219,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
             CookieHeaderCache.store(
                 provider: .alibabatokenplan,
                 scope: region.cookieCacheScope,
-                cookieHeader: headers.cacheCookieHeader,
+                cookieHeader: headers.cacheAlibabaTokenPlanCookieHeader(),
                 sourceLabel: session.sourceLabel)
             Self.log.info(
                 "Alibaba Token Plan imported browser cookies",
@@ -274,12 +274,6 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         }
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         return message.isEmpty ? nil : message
-    }
-}
-
-extension [String] {
-    fileprivate func uniquedSorted() -> [String] {
-        Array(Set(self)).sorted()
     }
 }
 

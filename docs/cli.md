@@ -121,7 +121,8 @@ See `docs/configuration.md` for the schema.
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
         - `--web-debug-dump-html` (writes HTML snapshots to `/tmp` when data is missing)
-    - Claude web: claude.ai API (session + weekly usage, plus account metadata when available).
+    - Claude web: claude.ai API (session + weekly usage, account metadata, and prepaid Usage credits balance when
+      available).
     - Command Code web: commandcode.ai browser session cookies on macOS, or a configured manual cookie on Linux, for monthly credit usage.
     - OpenCode Go auto: local SQLite usage on macOS and Linux, with optional manual-cookie web enrichment.
     - Kilo auto: app.kilo.ai API first, then CLI auth fallback (`~/.local/share/kilo/auth.json`) on missing/unauthorized API credentials.

@@ -97,7 +97,21 @@ struct OllamaProviderImplementation: ProviderImplementation {
                 binding: cookieBinding,
                 options: cookieOptions,
                 isVisible: nil,
-                onChange: nil),
+                onChange: nil,
+                trailingText: {
+                    guard context.settings.ollamaUsageDataSource != .api else { return nil }
+                    return ProviderCookieRefreshAction.trailingText(
+                        provider: .ollama,
+                        cookieSource: context.settings.ollamaCookieSource,
+                        context: context)
+                },
+                trailingActions: [
+                    ProviderCookieRefreshAction.descriptor(
+                        provider: .ollama,
+                        cookieSource: { context.settings.ollamaCookieSource },
+                        additionalVisibility: { context.settings.ollamaUsageDataSource != .api },
+                        context: context),
+                ]),
         ]
     }
 

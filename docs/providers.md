@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 63 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 64 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -45,6 +45,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | OpenCode Go | Unscoped Auto: local SQLite usage (`local`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local. Explicit Web: web only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
+| Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
@@ -224,6 +225,37 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Host overrides: `ALIBABA_TOKEN_PLAN_HOST` or `ALIBABA_TOKEN_PLAN_QUOTA_URL`.
 - Status: `https://status.aliyun.com` (link only, no auto-polling).
 - Details: `docs/alibaba-token-plan.md`.
+
+### Aliyun OneConsole family
+
+Alibaba Coding Plan, Alibaba Token Plan, and Qwen Cloud all run on the Aliyun OneConsole
+backend. They selectively reuse plumbing under
+`Sources/CodexBarCore/Providers/Shared/AliyunOneConsole/`:
+
+- `AliyunOneConsoleCookieImporter` — browser cookie iteration, Chromium fallback, Keychain preflight.
+  The Alibaba providers and Qwen Cloud supply their own cookie domains and authenticated-session predicate.
+- `OneConsoleCookieHeaders` / `OneConsoleCookieHeaderBuilder` — `apiCookieHeader` / `dashboardCookieHeader`
+  pair with cached-header round-trip, currently used by Alibaba Token Plan and Qwen Cloud.
+- `OneConsoleJSON` — recursive expand-embedded-JSON traversal and scalar coercion (`number`, `int`,
+  `string`, `date`, `percentagePoints`), used by all three providers.
+- `OneConsoleSECTokenResolver` — dashboard HTML → cookie → user-info chain, currently used by Qwen Cloud.
+- `OneConsoleCookieRouting` — Qwen Cloud's provider-local redirect policy. It pins dashboard/API cookies
+  to their matching trusted origin, strips credentials from cross-origin GET/HEAD navigation, and blocks
+  cross-origin redirects that preserve a request body.
+
+Future OneConsole-based providers can adopt the helpers that match their actual protocol while keeping
+provider-specific cookie validation, endpoints, login detection, and error translation at the provider boundary.
+
+## Qwen Cloud
+- Web mode resolves `sec_token` through the dashboard (`home.qwencloud.com`), then posts to the current
+  individual Token Plan usage, subscription, and quota-configuration APIs on `cs-data.qwencloud.com`.
+- Displays 5-hour and weekly consumed percentages, reset times, active tier, and tier-specific credit limits.
+- Cookie sources: Chrome import (`auto`), manual Cookie header, or `QWEN_CLOUD_COOKIE`.
+- Default data gateway:
+  `https://cs-data.qwencloud.com/data/api.json?action=IntlBroadScopeAspnGateway&product=sfm_bailian`.
+- Host overrides: `QWEN_CLOUD_HOST` or `QWEN_CLOUD_QUOTA_URL` (HTTPS URLs or bare hosts normalized to HTTPS).
+- Status: `https://status.alibabacloud.com` (link only, no auto-polling).
+- Details: `docs/qwen-cloud.md`.
 
 ## Droid (Factory)
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`), `FACTORY_API_KEY`, or `~/.factory/.env`.
@@ -445,7 +477,10 @@ scan fails, while provider/account configuration changes replace obsolete result
 - `grok agent stdio` (ACP) JSON-RPC `x.ai/billing` method; requires `grok login` (SuperGrok OAuth/OIDC).
 - Reads cached credentials from `~/.grok/auth.json` for identity (email, team).
 - Falls back to grok.com's billing gRPC-web endpoint via Chrome session cookies when the CLI does not expose billing.
-- CLI/test runs do not import browser cookies unless `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set.
+- Ordinary CLI/test runs do not import browser cookies unless `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set;
+  `codexbar cookie refresh --provider grok` opts in for its explicit refresh.
+- Validated sessions are cached in the Keychain cookie cache and reused before any new browser import;
+  the cache is evicted only on authentication failures.
 - Local fallback aggregates `~/.grok/sessions/**/signals.json` token counts when the RPC is unavailable.
 - Status: link only to `https://status.x.ai` (no auto-polling yet).
 - Details: `docs/grok.md`.

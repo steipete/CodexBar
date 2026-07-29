@@ -286,12 +286,19 @@ extension UsageMenuCardView.Model {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else if input.provider == .sub2api {
             Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? input.metadata.sessionLabel
+        } else if input.provider == .amp {
+            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }
+        let secondaryLabel = if input.provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? input.metadata.weeklyLabel
+        } else {
+            input.metadata.weeklyLabel
+        }
         return (
             L(primaryLabel),
-            L(input.metadata.weeklyLabel),
+            L(secondaryLabel),
             input.metadata.opusLabel.map(L) ?? L("Sonnet"),
             input.metadata.supportsOpus)
     }
@@ -618,10 +625,15 @@ extension UsageMenuCardView.Model {
         if input.provider == .copilot, !input.copilotBudgetExtrasEnabled {
             return []
         }
-        let visibleRateWindows = if input.provider == .codex, !input.codexSparkUsageVisible {
+        var visibleRateWindows = if input.provider == .codex, !input.codexSparkUsageVisible {
             extraRateWindows.filter { !Self.isCodexSparkRateWindow($0) }
         } else {
             extraRateWindows
+        }
+        if input.provider == .claude,
+           !input.showOptionalCreditsAndExtraUsage || !input.claudeDailyRoutinesUsageVisible
+        {
+            visibleRateWindows.removeAll(where: Self.isClaudeDailyRoutinesRateWindow)
         }
         return visibleRateWindows.map { namedWindow in
             let paceDetail = Self.extraRateWindowPaceDetail(
@@ -675,6 +687,10 @@ extension UsageMenuCardView.Model {
     private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
         namedWindow.id == CodexAdditionalRateLimitMapper.sparkWindowID ||
             namedWindow.id == CodexAdditionalRateLimitMapper.sparkWeeklyWindowID
+    }
+
+    private static func isClaudeDailyRoutinesRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
+        namedWindow.id == "claude-routines"
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"

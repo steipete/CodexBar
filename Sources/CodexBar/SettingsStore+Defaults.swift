@@ -664,6 +664,14 @@ extension SettingsStore {
         }
     }
 
+    var claudeDailyRoutinesUsageVisible: Bool {
+        get { self.defaultsState.claudeDailyRoutinesUsageVisible }
+        set {
+            self.defaultsState.claudeDailyRoutinesUsageVisible = newValue
+            self.userDefaults.set(newValue, forKey: "claudeDailyRoutinesUsageVisible")
+        }
+    }
+
     var codexSparkUsageVisible: Bool {
         get { self.defaultsState.codexSparkUsageVisible }
         set {

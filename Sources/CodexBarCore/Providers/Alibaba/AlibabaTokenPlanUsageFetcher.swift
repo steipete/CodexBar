@@ -554,6 +554,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "package_name",
         "commodityName",
         "commodity_name",
+        "specType",
+        "SpecType",
         "instanceName",
         "instance_name",
         "displayName",
@@ -592,6 +594,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "amount",
         "totalValue",
         "TotalValue",
+        "cycleTotalValue",
+        "CycleTotalValue",
     ]
     private static let remainingQuotaKeys = [
         "remainingQuota",
@@ -607,6 +611,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "TotalSurplusValue",
         "surplusValue",
         "SurplusValue",
+        "cycleSurplusValue",
+        "CycleSurplusValue",
     ]
     private static let subscriptionCountKeys = [
         "totalCount",
@@ -625,21 +631,34 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "endTime",
         "validEndTime",
         "instanceEndTime",
+        "EndTime",
+        "cycleEndTime",
+        "CycleEndTime",
         "nearestExpireDate",
         "NearestExpireDate",
     ]
 
     private static func findSubscriptionSummary(in payload: [String: Any]) -> [String: Any]? {
+        let quotaKeys = Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys
         if let data = self.findFirstDictionary(
             forKeys: ["Data", "data", "successResponse", "success_response"],
             in: payload),
             self.containsSubscriptionSummaryFields(data)
         {
+            // Some consoles (e.g. Qwen Cloud) wrap the quota values inside a nested
+            // `EquityList` entry while the outer dictionary only carries `TotalCount`.
+            // Prefer a nested dictionary that actually contains quota numbers so the
+            // used/total/remaining fields are read from the right level.
+            if quotaKeys.contains(where: { data[$0] != nil }) {
+                return data
+            }
+            if let nested = self.findFirstDictionary(matchingAnyKey: quotaKeys, in: data) {
+                return nested
+            }
             return data
         }
         return self.findFirstDictionary(
-            matchingAnyKey: Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys +
-                Self.subscriptionCountKeys,
+            matchingAnyKey: quotaKeys + Self.subscriptionCountKeys,
             in: payload)
     }
 
@@ -804,30 +823,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func expandedJSON(_ value: Any) -> Any {
-        if let dict = value as? [String: Any] {
-            var expanded: [String: Any] = [:]
-            expanded.reserveCapacity(dict.count)
-            for (key, nested) in dict {
-                expanded[key] = self.expandedJSON(nested)
-            }
-            return expanded
-        }
-        if let array = value as? [Any] {
-            return array.map { self.expandedJSON($0) }
-        }
-        if let string = value as? String,
-           let data = string.data(using: .utf8),
-           let nested = try? JSONSerialization.jsonObject(with: data, options: []),
-           nested is [String: Any] || nested is [Any]
-        {
-            return self.expandedJSON(nested)
-        }
-        return value
+        OneConsoleJSON.expandEmbeddedJSON(value)
     }
 
     private static func anyString(for keys: [String], in dict: [String: Any]) -> String? {
         for key in keys {
-            if let value = self.parseString(dict[key]) {
+            if let value = OneConsoleJSON.string(dict[key]) {
                 return value
             }
         }
@@ -845,7 +846,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
     private static func anyDate(for keys: [String], in dict: [String: Any]) -> Date? {
         for key in keys {
-            if let value = self.parseDate(dict[key]) {
+            if let value = OneConsoleJSON.date(dict[key]) {
                 return value
             }
         }
@@ -862,12 +863,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func parseInt(_ raw: Any?) -> Int? {
-        if let value = raw as? Int { return value }
-        if let value = raw as? Int64 { return Int(value) }
-        if let value = raw as? Double { return Int(value) }
-        if let value = raw as? NSNumber { return value.intValue }
-        if let value = self.parseString(raw) { return Int(value) }
-        return nil
+        OneConsoleJSON.int(raw)
     }
 
     private static func parseDouble(_ raw: Any?) -> Double? {
@@ -875,7 +871,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         if let value = raw as? Int { return Double(value) }
         if let value = raw as? Int64 { return Double(value) }
         if let value = raw as? NSNumber { return value.doubleValue }
-        if let value = self.parseString(raw) {
+        if let value = OneConsoleJSON.string(raw) {
             let cleaned = value.replacingOccurrences(of: ",", with: "")
             return Double(cleaned)
         }
@@ -883,9 +879,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func parseString(_ raw: Any?) -> String? {
-        guard let value = raw as? String else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        OneConsoleJSON.string(raw)
     }
 
     private static func parseDate(_ raw: Any?) -> Date? {
@@ -987,11 +981,5 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         }
         let value = text[valueRange].trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : String(value)
-    }
-}
-
-extension [String] {
-    fileprivate func uniquedSorted() -> [String] {
-        Array(Set(self)).sorted()
     }
 }

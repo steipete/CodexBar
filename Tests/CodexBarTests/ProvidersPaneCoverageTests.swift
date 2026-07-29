@@ -183,6 +183,49 @@ struct ProvidersPaneCoverageTests {
     }
 
     @Test
+    func `claude provider preview follows daily routines visibility`() {
+        let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-claude-routines-preview")
+        let store = Self.makeUsageStore(settings: settings)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "claude-weekly-scoped-fable",
+                        title: "Fable only",
+                        window: RateWindow(
+                            usedPercent: 30,
+                            windowMinutes: 10080,
+                            resetsAt: now.addingTimeInterval(3600),
+                            resetDescription: nil)),
+                    NamedRateWindow(
+                        id: "claude-routines",
+                        title: "Daily Routines",
+                        window: RateWindow(
+                            usedPercent: 40,
+                            windowMinutes: 10080,
+                            resetsAt: now.addingTimeInterval(7200),
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            provider: .claude)
+        let pane = ProvidersPane(settings: settings, store: store)
+
+        #expect(pane._test_menuCardModel(for: .claude).metrics.contains { $0.id == "claude-routines" })
+
+        settings.claudeDailyRoutinesUsageVisible = false
+        let hiddenModel = pane._test_menuCardModel(for: .claude)
+        #expect(!hiddenModel.metrics.contains { $0.id == "claude-routines" })
+        #expect(hiddenModel.metrics.contains { $0.id == "claude-weekly-scoped-fable" })
+    }
+
+    @Test
     func `codex provider preview follows spark visibility`() {
         let settings = Self.makeSettingsStore(suite: "ProvidersPaneCoverageTests-codex-spark-preview")
         let store = Self.makeUsageStore(settings: settings)

@@ -3,6 +3,7 @@ import Testing
 @testable import CodexBarCore
 
 @Suite(.serialized)
+// swiftlint:disable:next type_body_length
 struct ClaudeOAuthCredentialsStoreTests {
     private func makeCredentialsData(accessToken: String, expiresAt: Date, refreshToken: String? = nil) -> Data {
         let millis = Int(expiresAt.timeIntervalSince1970 * 1000)
@@ -48,6 +49,88 @@ struct ClaudeOAuthCredentialsStoreTests {
 
         #expect(firstHash == "opaque-ref")
         #expect(refreshedHash == firstHash)
+    }
+
+    @Test
+    func `safety isolates the default Claude credentials file`() {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        let defaultURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/.credentials.json")
+        #expect(ClaudeOAuthCredentialsStore.resolvedCredentialsURLForTesting != defaultURL)
+
+        let overrideURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("explicit-credentials.json")
+        let resolvedOverride = ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(overrideURL) {
+            ClaudeOAuthCredentialsStore.resolvedCredentialsURLForTesting
+        }
+        #expect(resolvedOverride == overrideURL)
+    }
+
+    @Test
+    func `safety isolates pending cache clear from the application suite`() throws {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        let domain = "ClaudeOAuthPendingCacheIsolationTests.\(UUID().uuidString)"
+        let key = "ClaudeOAuthPendingCodexBarOAuthKeychainCacheClearV1"
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let defaults = try #require(UserDefaults(suiteName: domain))
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            defaults.synchronize()
+            try? FileManager.default.removeItem(at: tempDirectory)
+            ClaudeOAuthCredentialsStore._resetCredentialsFileTrackingForTesting()
+        }
+
+        let sentinel = "isolation-sentinel-\(UUID().uuidString)"
+        defaults.set(sentinel, forKey: key)
+        defaults.synchronize()
+        let implicitStore = ClaudeOAuthPendingCacheClearUserDefaultsStore(
+            domain: domain,
+            key: key,
+            lockURL: tempDirectory.appendingPathComponent("cache.lock"))
+
+        // never-mode cache invalidation marks pending clear without an explicit store override.
+        ClaudeOAuthCredentialsStore.withImplicitPendingCacheClearStoreOverrideForTesting(implicitStore) {
+            ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                ClaudeOAuthCredentialsStore.invalidateCache()
+            }
+        }
+
+        defaults.synchronize()
+        #expect(defaults.string(forKey: key) == sentinel)
+    }
+
+    @Test
+    func `safety isolates pending cache clear across isolation scopes`() {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                ClaudeOAuthCredentialsStore.invalidateCache()
+            }
+            #expect(ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClearForTesting)
+        }
+
+        // A fresh isolation scope must not inherit pending state from a prior scope.
+        ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            #expect(!ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClearForTesting)
+        }
+
+        // Unscoped never-mode marks must also leave subsequent isolation scopes clean.
+        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+            ClaudeOAuthCredentialsStore.invalidateCache()
+        }
+        ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+            #expect(!ClaudeOAuthCredentialsStore.hasPendingCodexBarOAuthKeychainCacheClearForTesting)
+        }
     }
 
     @Test

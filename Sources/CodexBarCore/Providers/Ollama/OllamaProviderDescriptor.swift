@@ -79,10 +79,33 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
         let logger: ((String) -> Void)? = context.verbose
             ? { msg in CodexBarLog.logger(LogCategories.ollama).verbose(msg) }
             : nil
-        let snap = try await fetcher.fetch(
-            cookieHeaderOverride: manual,
-            manualCookieMode: isManualMode,
-            logger: logger)
+        let snap: OllamaUsageSnapshot = if isManualMode {
+            try await fetcher.fetch(
+                cookieHeaderOverride: manual,
+                manualCookieMode: true,
+                logger: logger)
+        } else {
+            try await Self.fetchAutomatic(
+                cached: CookieHeaderCache.load(provider: .ollama),
+                fetchCached: { cached in
+                    try await fetcher.fetchResolvedCookie(
+                        cookieHeaderOverride: cached.cookieHeader,
+                        cookieHeaderOverrideSourceLabel: "cached \(cached.sourceLabel)",
+                        logger: logger).snapshot
+                },
+                fetchBrowser: {
+                    try await fetcher.fetchResolvedCookie(logger: logger)
+                },
+                clearCached: { cached in
+                    _ = CookieHeaderCache.clearIfCurrent(provider: .ollama, expected: cached)
+                },
+                storeResolved: { resolved in
+                    CookieHeaderCache.store(
+                        provider: .ollama,
+                        cookieHeader: resolved.cookieHeader,
+                        sourceLabel: resolved.sourceLabel)
+                })
+        }
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "web")
@@ -96,6 +119,57 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.ollama?.cookieSource == .manual else { return nil }
         return CookieHeaderNormalizer.normalize(context.settings?.ollama?.manualCookieHeader)
+    }
+
+    static func fetchAutomatic(
+        cached: CookieHeaderCache.Entry?,
+        fetchCached: (CookieHeaderCache.Entry) async throws -> OllamaUsageSnapshot,
+        fetchBrowser: () async throws -> OllamaUsageFetcher.ResolvedCookieFetch,
+        clearCached: (CookieHeaderCache.Entry) -> Void,
+        storeResolved: (OllamaUsageFetcher.ResolvedCookieFetch) -> Void) async throws -> OllamaUsageSnapshot
+    {
+        if let cached {
+            do {
+                return try await fetchCached(cached)
+            } catch {
+                if self.shouldInvalidateCachedCookie(after: error) {
+                    clearCached(cached)
+                } else if self.shouldTryBrowserCandidates(afterCachedFailure: error) {
+                    let cachedError = error
+                    do {
+                        let resolved = try await fetchBrowser()
+                        storeResolved(resolved)
+                        return resolved.snapshot
+                    } catch {
+                        throw cachedError
+                    }
+                } else {
+                    throw error
+                }
+            }
+        }
+
+        let resolved = try await fetchBrowser()
+        storeResolved(resolved)
+        return resolved.snapshot
+    }
+
+    static func shouldInvalidateCachedCookie(after error: Error) -> Bool {
+        switch error {
+        case OllamaUsageError.invalidCredentials, OllamaUsageError.notLoggedIn:
+            true
+        default:
+            false
+        }
+    }
+
+    static func shouldTryBrowserCandidates(afterCachedFailure error: Error) -> Bool {
+        switch error {
+        case let OllamaUsageError.parseFailed(message):
+            message == "Missing Ollama usage data."
+        default:
+            false
+        }
     }
 }
 

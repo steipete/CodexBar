@@ -715,6 +715,19 @@ extension CodexBarCLI {
         {
             return false
         }
+        if provider == .qwencloud,
+           sourceMode == .auto || sourceMode == .web,
+           settings?.qwenCloud?.cookieSource != .off
+        {
+            let hasEnvironmentCookie = environment.map {
+                QwenCloudSettingsReader.cookieHeader(environment: $0) != nil
+            } == true
+            let hasManualCookie = settings?.qwenCloud?.cookieSource == .manual &&
+                CookieHeaderNormalizer.normalize(settings?.qwenCloud?.manualCookieHeader) != nil
+            if hasEnvironmentCookie || hasManualCookie {
+                return false
+            }
+        }
         if provider == .qoder,
            settings?.qoder?.cookieSource == .manual
         {

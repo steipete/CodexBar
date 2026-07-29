@@ -1233,6 +1233,8 @@
 "section_links" = "Tautan";
 "Show Codex Spark usage" = "Tampilkan penggunaan Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Menampilkan baris kuota Codex Spark di menu dan pratinjau penyedia. Mengharuskan “Tampilkan kredit + penggunaan ekstra” diaktifkan di pengaturan Tampilan.";
+"Show Daily Routines usage" = "Tampilkan penggunaan Rutinitas Harian";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Menampilkan baris kuota Rutinitas Harian di menu dan pratinjau penyedia. Mengharuskan “Tampilkan kredit + penggunaan ekstra” diaktifkan di pengaturan Tampilan.";
 "Scroll to see more models" = "Gulir untuk melihat model lainnya";
 
 /* Shareable usage card */
@@ -1276,6 +1278,9 @@
 "Weekly cannot run out before reset at this pace" = "Kuota mingguan tidak dapat habis sebelum reset dengan laju ini";
 "Weekly can run out ≈%d windows early" = "Kuota mingguan dapat habis ≈%d jendela lebih awal";
 "Estimated: %@" = "Perkiraan: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "kuota sesi";
+"session quotas" = "kuota sesi";
 "Coding Plan" = "Paket Coding";
 "Agent Plan" = "Paket Agen";
 "Team" = "Tim";

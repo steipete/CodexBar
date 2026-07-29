@@ -1234,6 +1234,8 @@
 "section_links" = "Links";
 "Show Codex Spark usage" = "Show Codex Spark usage";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings.";
+"Show Daily Routines usage" = "Show Daily Routines usage";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings.";
 "Scroll to see more models" = "Scroll to see more models";
 
 /* Shareable usage card */
@@ -1276,7 +1278,10 @@
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d full 5h windows of weekly left · %d windows until reset";
 "Weekly cannot run out before reset at this pace" = "Weekly cannot run out before reset at this pace";
 "Weekly can run out ≈%d windows early" = "Weekly can run out ≈%d windows early";
-"Estimated: %@" = "Estimated: %@";
+"Estimated: %@" = "Est. %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "session quota";
+"session quotas" = "session quotas";
 "Coding Plan" = "Coding Plan";
 "Agent Plan" = "Agent Plan";
 "Team" = "Team";

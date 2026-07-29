@@ -12,14 +12,14 @@ struct CodexBarUsageWidgetView: View {
 
     var body: some View {
         let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
+        Group {
             if let providerEntry {
                 self.content(providerEntry: providerEntry)
             } else {
                 self.emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
         .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
     }
@@ -55,14 +55,14 @@ struct CodexBarHistoryWidgetView: View {
 
     var body: some View {
         let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
+        Group {
             if let providerEntry {
                 HistoryView(entry: providerEntry, isLarge: self.family == .systemLarge)
             } else {
                 self.emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 
@@ -84,14 +84,14 @@ struct CodexBarCompactWidgetView: View {
 
     var body: some View {
         let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
+        Group {
             if let providerEntry {
                 CompactMetricView(entry: providerEntry, metric: self.entry.metric)
             } else {
                 self.emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 
@@ -114,23 +114,21 @@ struct CodexBarSwitcherWidgetView: View {
 
     var body: some View {
         let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
-        ZStack {
-            Color.black.opacity(0.02)
-            VStack(alignment: .leading, spacing: 10) {
-                ProviderSwitcherRow(
-                    providers: self.entry.availableProviders,
-                    selected: self.entry.provider,
-                    updatedAt: providerEntry?.updatedAt ?? Date(),
-                    compact: self.family == .systemSmall,
-                    showsTimestamp: self.family != .systemSmall)
-                if let providerEntry {
-                    self.content(providerEntry: providerEntry)
-                } else {
-                    self.emptyState
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            ProviderSwitcherRow(
+                providers: self.entry.availableProviders,
+                selected: self.entry.provider,
+                updatedAt: providerEntry?.updatedAt ?? Date(),
+                compact: self.family == .systemSmall,
+                showsTimestamp: self.family != .systemSmall)
+            if let providerEntry {
+                self.content(providerEntry: providerEntry)
+            } else {
+                self.emptyState
             }
-            .padding(12)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
         .environment(\.widgetUsageShowsUsed, self.entry.snapshot.usageBarsShowUsed)
     }
@@ -313,6 +311,7 @@ private struct ProviderSwitchChip: View {
         case .opencodego: "OpenCode Go"
         case .alibaba: "Alibaba"
         case .alibabatokenplan: "Token Plan"
+        case .qwencloud: "Qwen Cloud"
         case .zai: "z.ai"
         case .factory: "Droid"
         case .copilot: "Copilot"
@@ -1018,6 +1017,8 @@ enum WidgetColors {
             Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
         case .alibaba, .alibabatokenplan:
             Color(red: 1.0, green: 106 / 255, blue: 0)
+        case .qwencloud:
+            Color(red: 97 / 255, green: 92 / 255, blue: 237 / 255)
         case .zai:
             Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
         case .factory:

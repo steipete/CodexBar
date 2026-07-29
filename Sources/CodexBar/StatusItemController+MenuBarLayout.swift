@@ -62,11 +62,7 @@ extension StatusItemController {
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let costStrings = self.menuBarLayoutCostStrings(provider: provider, now: now)
         let providerName = L(self.store.metadata(for: provider).displayName)
-        let rawAccountLabel = snapshot?.accountEmail(for: provider)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let accountLabel = self.settings.hidePersonalInfo || rawAccountLabel?.isEmpty != false
-            ? nil
-            : rawAccountLabel
+        let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
 
         return MenuBarLayoutRenderData(
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
@@ -78,6 +74,14 @@ extension StatusItemController {
             runsOut: runsOut,
             costToday: costStrings.today,
             cost30d: costStrings.last30Days)
+    }
+
+    func menuBarLayoutAccountLabel(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        let rawAccountLabel = snapshot?.accountEmail(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return self.settings.hidePersonalInfo || rawAccountLabel?.isEmpty != false
+            ? nil
+            : rawAccountLabel
     }
 
     func menuBarLayoutCostStrings(

@@ -8,6 +8,24 @@ import Testing
 @Suite(.serialized)
 struct ProviderSettingsDescriptorTests {
     @Test
+    func `provider settings refresh enables explicit browser retry`() async {
+        var observedInteraction: ProviderInteraction?
+        var browserRetryAllowed = false
+
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            await BrowserCookieAccessGate.withDeniedBrowsersForTesting([.chrome]) {
+                await ProviderSettingsRefreshInteraction.perform {
+                    observedInteraction = ProviderInteractionContext.current
+                    browserRetryAllowed = BrowserCookieAccessGate.shouldAttempt(.chrome)
+                }
+            }
+        }
+
+        #expect(observedInteraction == .userInitiated)
+        #expect(browserRetryAllowed)
+    }
+
+    @Test
     func `toggle I ds are unique across providers`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-unique")
         var seenToggleIDs: Set<String> = []
@@ -90,6 +108,28 @@ struct ProviderSettingsDescriptorTests {
                 #expect(picker.trailingText?()?.contains("Test new") == true)
             }
         }
+    }
+
+    @Test
+    func `ollama automatic cookie source exposes validated refresh action`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-ollama-refresh")
+        let context = fixture.settingsContext(provider: .ollama)
+        let pickers = OllamaProviderImplementation().settingsPickers(context: context)
+        let picker = try #require(pickers.first { $0.id == "ollama-cookie-source" })
+        let action = try #require(picker.trailingActions.first)
+
+        #expect(action.id == "ollama-reimport-cookie")
+        #expect(action.title == "Refresh")
+        #expect(action.isVisible?() == true)
+
+        fixture.settings.ollamaCookieSource = .manual
+        #expect(action.isVisible?() == false)
+        #expect(picker.trailingText?() == nil)
+
+        fixture.settings.ollamaCookieSource = .auto
+        fixture.settings.ollamaUsageDataSource = .api
+        #expect(action.isVisible?() == false)
+        #expect(picker.trailingText?() == nil)
     }
 
     @Test
@@ -283,6 +323,25 @@ struct ProviderSettingsDescriptorTests {
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.always.rawValue))
         #expect(keychainPicker.isEnabled?() ?? true)
+    }
+
+    @Test
+    func `claude daily routines toggle follows global optional usage setting`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-routines")
+        let context = fixture.settingsContext(provider: .claude)
+        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
+        let routinesToggle = try #require(toggles.first {
+            $0.id == "claude-daily-routines-usage-visible"
+        })
+
+        #expect(routinesToggle.binding.wrappedValue)
+        #expect(routinesToggle.isEnabled?() == true)
+
+        routinesToggle.binding.wrappedValue = false
+        #expect(fixture.settings.claudeDailyRoutinesUsageVisible == false)
+
+        fixture.settings.showOptionalCreditsAndExtraUsage = false
+        #expect(routinesToggle.isEnabled?() == false)
     }
 
     @Test

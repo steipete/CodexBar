@@ -151,6 +151,7 @@ struct TokenAccountCLIContext {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func makeCookieBackedSnapshot(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -187,6 +188,8 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSettings.cookieSource,
                     manualCookieHeader: cookieSettings.manualCookieHeader,
                     apiRegion: self.resolveAlibabaTokenPlanRegion(config)))
+        case .qwencloud:
+            return self.makeSnapshot(qwenCloud: self.makeProviderCookieSettings(cookieSettings))
         case .factory:
             return self.makeSnapshot(factory: self.makeProviderCookieSettings(cookieSettings))
         case .minimax:
@@ -240,6 +243,7 @@ struct TokenAccountCLIContext {
         opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
         alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings? = nil,
+        qwenCloud: ProviderSettingsSnapshot.QwenCloudProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         manus: ProviderSettingsSnapshot.ManusProviderSettings? = nil,
@@ -268,6 +272,7 @@ struct TokenAccountCLIContext {
             opencodego: opencodego,
             alibaba: alibaba,
             alibabaTokenPlan: alibabaTokenPlan,
+            qwenCloud: qwenCloud,
             factory: factory,
             minimax: minimax,
             manus: manus,

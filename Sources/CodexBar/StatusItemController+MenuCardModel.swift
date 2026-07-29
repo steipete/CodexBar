@@ -88,8 +88,8 @@ extension StatusItemController {
 
         let sourceLabel = surface == .liveCard ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
-        // Abacus uses primary for monthly credits (no secondary window)
-        let paceWindow = target == .abacus ? snapshot?.primary : snapshot?.secondary
+        // Abacus and Kimi carry their long-cadence window in primary rather than secondary.
+        let paceWindow = target == .abacus || target == .kimi ? snapshot?.primary : snapshot?.secondary
         let sessionEquivalentHistorySelection = self.sessionEquivalentHistorySelection(
             provider: target,
             snapshot: snapshot,
@@ -173,6 +173,7 @@ extension StatusItemController {
                 self.settings.costSummaryShowsSubmenu(for: target),
             costComparisonPeriodsEnabled: self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            claudeDailyRoutinesUsageVisible: self.settings.claudeDailyRoutinesUsageVisible,
             codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             sourceLabel: sourceLabel,

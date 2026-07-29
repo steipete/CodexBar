@@ -113,6 +113,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         let useWebExtras: Bool
         let manualCookieHeader: String?
         let webOrganizationID: String?
+        let webExtrasTimeout: TimeInterval
+        let includePrepaidBalance: Bool
         let keepCLISessionsAlive: Bool
         let browserDetection: BrowserDetection
     }
@@ -161,6 +163,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
     private var webOrganizationID: String? {
         self.configuration.webOrganizationID
+    }
+
+    private var webExtrasTimeout: TimeInterval {
+        self.configuration.webExtrasTimeout
+    }
+
+    private var includePrepaidBalance: Bool {
+        self.configuration.includePrepaidBalance
     }
 
     private var keepCLISessionsAlive: Bool {
@@ -248,6 +258,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     @TaskLocal static var fetchOAuthUsageOverride: (@Sendable (
         String,
         Bool) async throws -> OAuthUsageResponse)?
+    @TaskLocal static var fetchOAuthProfileOverride: (@Sendable (String) async throws -> OAuthProfileResponse)?
     @TaskLocal static var delegatedRefreshAttemptOverride: (@Sendable (
         Date,
         TimeInterval,
@@ -270,6 +281,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         useWebExtras: Bool = false,
         manualCookieHeader: String? = nil,
         webOrganizationID: String? = nil,
+        webExtrasTimeout: TimeInterval = 15,
+        includePrepaidBalance: Bool = false,
         keepCLISessionsAlive: Bool = false)
     {
         self.configuration = Configuration(
@@ -281,6 +294,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             useWebExtras: useWebExtras,
             manualCookieHeader: manualCookieHeader,
             webOrganizationID: webOrganizationID,
+            webExtrasTimeout: webExtrasTimeout,
+            includePrepaidBalance: includePrepaidBalance,
             keepCLISessionsAlive: keepCLISessionsAlive,
             browserDetection: browserDetection)
     }
@@ -322,7 +337,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     detectClaudeVersion: self.fetcher.allowsOAuthClaudeVersionDetection)
                 let keychainMatch = ClaudeOAuthCredentialsStore
                     .claudeKeychainCredentialMatchWithoutPrompt(for: credentialRecord)
-                return try ClaudeUsageFetcher.mapOAuthUsage(
+                let snapshot = try ClaudeUsageFetcher.mapOAuthUsage(
                     usage,
                     credentials: credentials,
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
@@ -330,6 +345,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
                     oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
                     oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
+                return try await self.fetcher.applyWebExtrasIfNeeded(
+                    to: snapshot,
+                    oauthAccessToken: credentials.accessToken)
             } catch let error as CancellationError {
                 throw error
             } catch let error as ClaudeUsageError {
@@ -458,7 +476,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     detectClaudeVersion: self.fetcher.allowsOAuthClaudeVersionDetection)
                 let keychainMatch = ClaudeOAuthCredentialsStore
                     .claudeKeychainCredentialMatchWithoutPrompt(for: refreshedRecord)
-                return try ClaudeUsageFetcher.mapOAuthUsage(
+                let snapshot = try ClaudeUsageFetcher.mapOAuthUsage(
                     usage,
                     credentials: refreshedCredentials,
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
@@ -466,6 +484,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
                     oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
                     oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
+                return try await self.fetcher.applyWebExtrasIfNeeded(
+                    to: snapshot,
+                    oauthAccessToken: refreshedCredentials.accessToken)
             } catch {
                 ClaudeUsageFetcher.log.debug(
                     "Claude OAuth post-delegation retry failed",
@@ -503,10 +524,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .api:
                 throw ClaudeUsageError.parseFailed("Claude Admin API usage is handled by the provider descriptor.")
             case .oauth:
-                var snapshot = try await self.fetcher.loadViaOAuth(
+                return try await self.fetcher.loadViaOAuth(
                     allowDelegatedRetry: self.fetcher.allowsDelegatedOAuthRefresh)
-                snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
-                return snapshot
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
@@ -579,10 +598,8 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .api:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid api execution step.")
             case .oauth:
-                var snapshot = try await self.fetcher.loadViaOAuth(
+                return try await self.fetcher.loadViaOAuth(
                     allowDelegatedRetry: self.fetcher.allowsDelegatedOAuthRefresh)
-                snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
-                return snapshot
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
@@ -650,7 +667,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 }
             }
             ClaudeCLIRateLimitGate.recordSuccess()
-            snapshot = await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
+            snapshot = try await self.fetcher.applyWebExtrasIfNeeded(to: snapshot)
             return snapshot
         }
 
@@ -883,6 +900,15 @@ extension ClaudeUsageFetcher {
         return try await ClaudeOAuthUsageFetcher.fetchUsage(
             accessToken: accessToken,
             detectClaudeVersion: detectClaudeVersion)
+    }
+
+    private static func fetchOAuthProfile(accessToken: String) async throws -> OAuthProfileResponse {
+        #if DEBUG
+        if let override = fetchOAuthProfileOverride {
+            return try await override(accessToken)
+        }
+        #endif
+        return try await ClaudeOAuthUsageFetcher.fetchProfile(accessToken: accessToken)
     }
 
     private static func attemptDelegatedRefresh(
@@ -1127,29 +1153,15 @@ extension ClaudeUsageFetcher {
     }
 
     private static func oauthExtraRateWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
-        let definitions: [(id: String, title: String, window: OAuthUsageWindow?, sourceKey: String?)] = [
-            (
-                id: "claude-routines",
-                title: "Daily Routines",
-                window: usage.sevenDayRoutines,
-                sourceKey: usage.sevenDayRoutinesSourceKey),
+        let definitions: [(id: String, title: String, window: OAuthUsageWindow?)] = [
+            (id: "claude-routines", title: "Daily Routines", window: usage.sevenDayRoutines),
         ]
         if let routinesKey = usage.sevenDayRoutinesSourceKey {
             Self.log.debug("Claude OAuth extra usage key matched: routines=\(routinesKey)")
         }
         let routineWindows: [NamedRateWindow] = definitions.compactMap { definition in
-            let utilization: Double
-            let resetDate: Date?
-            if let window = definition.window, let parsedUtilization = window.utilization {
-                utilization = parsedUtilization
-                resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
-            } else if definition.sourceKey != nil {
-                // Keep product bars visible when the API returns a known key with null payload.
-                utilization = 0
-                resetDate = nil
-            } else {
-                return nil
-            }
+            guard let window = definition.window, let utilization = window.utilization else { return nil }
+            let resetDate = ClaudeOAuthUsageFetcher.parseISO8601Date(window.resetsAt)
             let resetDescription = resetDate.map(Self.formatResetDate)
             return NamedRateWindow(
                 id: definition.id,
@@ -1160,7 +1172,9 @@ extension ClaudeUsageFetcher {
                     resetsAt: resetDate,
                     resetDescription: resetDescription))
         }
-        return routineWindows + Self.oauthScopedWeeklyLimitWindows(from: usage)
+        // Keep the same row order as the Web path: model-scoped weekly limits first,
+        // Daily Routines last.
+        return Self.oauthScopedWeeklyLimitWindows(from: usage) + routineWindows
     }
 
     private static func oauthScopedWeeklyLimitWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
@@ -1202,14 +1216,16 @@ extension ClaudeUsageFetcher {
             if let header = self.manualCookieHeader {
                 try await ClaudeWebAPIFetcher.fetchUsage(
                     cookieHeader: header,
-                    targetOrganizationID: self.webOrganizationID)
+                    targetOrganizationID: self.webOrganizationID,
+                    includePrepaidBalance: self.includePrepaidBalance)
                 { msg in
                     Self.log.debug(msg)
                 }
             } else {
                 try await ClaudeWebAPIFetcher.fetchUsage(
                     browserDetection: self.browserDetection,
-                    targetOrganizationID: self.webOrganizationID)
+                    targetOrganizationID: self.webOrganizationID,
+                    includePrepaidBalance: self.includePrepaidBalance)
                 { msg in
                     Self.log.debug(msg)
                 }
@@ -1342,30 +1358,75 @@ extension ClaudeUsageFetcher {
             rawText: snap.rawText)
     }
 
-    private func applyWebExtrasIfNeeded(to snapshot: ClaudeUsageSnapshot) async -> ClaudeUsageSnapshot {
-        guard self.useWebExtras, self.dataSource != .web else { return snapshot }
-        do {
+    private struct WebExtrasCandidate: Sendable {
+        let webData: ClaudeWebAPIFetcher.WebUsageData
+        let oauthProfile: OAuthProfileResponse?
+    }
+
+    private func applyWebExtrasIfNeeded(
+        to snapshot: ClaudeUsageSnapshot,
+        oauthAccessToken: String? = nil) async throws -> ClaudeUsageSnapshot
+    {
+        guard self.useWebExtras || self.includePrepaidBalance, self.dataSource != .web else { return snapshot }
+        guard self.webExtrasTimeout.isFinite,
+              self.webExtrasTimeout >= 0,
+              self.webExtrasTimeout <= TimeInterval(Int64.max)
+        else {
+            return snapshot
+        }
+
+        let sourceTask = Task<WebExtrasCandidate, Error> {
+            let oauthProfile: OAuthProfileResponse? = if let oauthAccessToken {
+                try await Self.fetchOAuthProfile(accessToken: oauthAccessToken)
+            } else {
+                nil
+            }
             let webData: ClaudeWebAPIFetcher.WebUsageData =
                 if let header = self.manualCookieHeader {
                     try await ClaudeWebAPIFetcher.fetchUsage(
                         cookieHeader: header,
-                        targetOrganizationID: self.webOrganizationID)
+                        targetOrganizationID: self.webOrganizationID,
+                        includeUsageDetails: self.useWebExtras,
+                        includePrepaidBalance: self.includePrepaidBalance)
                     { msg in
                         Self.log.debug(msg)
                     }
                 } else {
                     try await ClaudeWebAPIFetcher.fetchUsage(
                         browserDetection: self.browserDetection,
-                        targetOrganizationID: self.webOrganizationID)
+                        targetOrganizationID: self.webOrganizationID,
+                        includeUsageDetails: self.useWebExtras,
+                        includePrepaidBalance: self.includePrepaidBalance)
                     { msg in
                         Self.log.debug(msg)
                     }
                 }
+            return WebExtrasCandidate(webData: webData, oauthProfile: oauthProfile)
+        }
+
+        let race = BoundedTaskJoin(sourceTask: sourceTask)
+        switch await race.value(joinGrace: .seconds(self.webExtrasTimeout)) {
+        case let .value(candidate):
+            try Task.checkCancellation()
+            let webData = candidate.webData
+            guard Self.webExtrasAccountMatches(
+                snapshot: snapshot,
+                webData: webData,
+                oauthProfile: candidate.oauthProfile)
+            else {
+                Self.log.debug("Claude web extras account did not match primary usage account")
+                return snapshot
+            }
             // Only merge usage/cost extras; keep identity fields from the primary data source.
-            let mergedExtraRateWindows = Self.mergeExtraRateWindows(
-                primary: snapshot.extraRateWindows,
-                web: webData.extraRateWindows)
-            let mergedProviderCost = snapshot.providerCost ?? webData.extraUsageCost
+            let mergedExtraRateWindows = self.useWebExtras
+                ? Self.mergeExtraRateWindows(
+                    primary: snapshot.extraRateWindows,
+                    web: webData.extraRateWindows)
+                : snapshot.extraRateWindows
+            let mergedProviderCost = Self.mergeProviderCost(
+                primary: snapshot.providerCost,
+                web: webData.extraUsageCost,
+                includeUsageDetails: self.useWebExtras)
             if mergedProviderCost != snapshot.providerCost || mergedExtraRateWindows != snapshot.extraRateWindows {
                 return ClaudeUsageSnapshot(
                     primary: snapshot.primary,
@@ -1385,10 +1446,78 @@ extension ClaudeUsageFetcher {
                     oauthKeychainCredentialAbsent: snapshot.oauthKeychainCredentialAbsent,
                     oauthKeychainCredentialUnavailable: snapshot.oauthKeychainCredentialUnavailable)
             }
-        } catch {
+        case let .failure(error):
+            if error is CancellationError ||
+                (error as? URLError)?.code == .cancelled ||
+                Task.isCancelled
+            {
+                throw CancellationError()
+            }
             Self.log.debug("Claude web extras fetch failed: \(error.localizedDescription)")
+        case .timedOut:
+            try Task.checkCancellation()
+            Self.log.debug("Claude web extras fetch timed out")
         }
         return snapshot
+    }
+
+    static func webExtrasAccountMatches(
+        snapshot: ClaudeUsageSnapshot,
+        webData: ClaudeWebAPIFetcher.WebUsageData,
+        oauthProfile: OAuthProfileResponse?) -> Bool
+    {
+        let primaryEmail = Self.normalizedAccountField(oauthProfile?.emailAddress ?? snapshot.accountEmail)
+        let webEmail = Self.normalizedAccountField(webData.accountEmail)
+        if let primaryEmail, let webEmail, primaryEmail != webEmail {
+            return false
+        }
+
+        let primaryOrganization = Self.normalizedAccountField(
+            oauthProfile?.organizationUuid ?? snapshot.accountOrganization)
+        let webOrganization = Self.normalizedAccountField(
+            oauthProfile == nil ? webData.accountOrganization : webData.accountOrganizationID)
+        if let primaryOrganization, let webOrganization, primaryOrganization != webOrganization {
+            return false
+        }
+
+        let emailMatches = primaryEmail != nil && primaryEmail == webEmail
+        let organizationMatches = primaryOrganization != nil && primaryOrganization == webOrganization
+        return emailMatches || organizationMatches
+    }
+
+    private static func normalizedAccountField(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func mergeProviderCost(
+        primary: ProviderCostSnapshot?,
+        web: ProviderCostSnapshot?,
+        includeUsageDetails: Bool = true) -> ProviderCostSnapshot?
+    {
+        if !includeUsageDetails {
+            guard let web, let balance = web.balance else { return primary }
+            guard let primary else {
+                return ProviderCostSnapshot(
+                    used: 0,
+                    limit: 0,
+                    currencyCode: web.currencyCode,
+                    period: web.period,
+                    balance: balance,
+                    updatedAt: web.updatedAt)
+            }
+            guard primary.currencyCode.caseInsensitiveCompare(web.currencyCode) == .orderedSame else {
+                return primary
+            }
+            return primary.replacing(balance: balance)
+        }
+        guard let primary else { return web }
+        guard let web,
+              let balance = web.balance,
+              primary.currencyCode.caseInsensitiveCompare(web.currencyCode) == .orderedSame
+        else { return primary }
+        return primary.replacing(balance: balance)
     }
 
     private static func mergeExtraRateWindows(
@@ -1495,6 +1624,13 @@ extension ClaudeUsageFetcher {
 
 #if DEBUG
 extension ClaudeUsageFetcher {
+    public static func _mergeProviderCostForTesting(
+        primary: ProviderCostSnapshot?,
+        web: ProviderCostSnapshot?) -> ProviderCostSnapshot?
+    {
+        self.mergeProviderCost(primary: primary, web: web)
+    }
+
     public static func _mergeExtraRateWindowsForTesting(
         primary: [NamedRateWindow],
         web: [NamedRateWindow]) -> [NamedRateWindow]

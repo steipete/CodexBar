@@ -77,19 +77,27 @@ extension UsageStore {
             primaryWindow = provider == .mimo || provider == .qoder ? nil : snapshot.primary
             secondaryWindow = provider == .mimo || provider == .qoder ? nil : snapshot.secondary
         }
+        let primaryWindowDisplayLabel = provider == .amp
+            ? AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage)
+            : nil
+        let secondaryWindowDisplayLabel = provider == .amp
+            ? AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage)
+            : nil
         if notificationsEnabled {
             self.handleQuotaWarningTransition(
                 provider: provider,
                 window: .session,
                 rateWindow: primaryWindow,
                 source: source,
-                accountContext: accountContext)
+                accountContext: accountContext,
+                windowDisplayLabel: primaryWindowDisplayLabel)
             self.handleQuotaWarningTransition(
                 provider: provider,
                 window: .weekly,
                 rateWindow: secondaryWindow,
                 source: source,
-                accountContext: accountContext)
+                accountContext: accountContext,
+                windowDisplayLabel: secondaryWindowDisplayLabel)
             self.handleClaudeExtraWindowQuotaWarnings(
                 provider: provider,
                 snapshot: snapshot,
@@ -102,7 +110,7 @@ extension UsageStore {
                 lane: QuotaLowHookLane(
                     window: .session,
                     windowID: nil,
-                    label: QuotaWarningWindow.session.displayName),
+                    label: primaryWindowDisplayLabel ?? QuotaWarningWindow.session.displayName),
                 rateWindow: primaryWindow,
                 accountDiscriminator: accountContext.discriminator,
                 accountDisplayName: accountContext.displayName)
@@ -111,7 +119,7 @@ extension UsageStore {
                 lane: QuotaLowHookLane(
                     window: .weekly,
                     windowID: nil,
-                    label: QuotaWarningWindow.weekly.displayName),
+                    label: secondaryWindowDisplayLabel ?? QuotaWarningWindow.weekly.displayName),
                 rateWindow: secondaryWindow,
                 accountDiscriminator: accountContext.discriminator,
                 accountDisplayName: accountContext.displayName)

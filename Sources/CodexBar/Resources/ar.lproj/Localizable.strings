@@ -1234,6 +1234,8 @@
 "section_links" = "روابط";
 "Show Codex Spark usage" = "عرض استخدام Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "يعرض صفوف حصة Codex Spark في القائمة ومعاينة المزوّد. يتطلب تفعيل «عرض الاعتمادات + الاستخدام الإضافي» في إعدادات العرض.";
+"Show Daily Routines usage" = "عرض استخدام الروتين اليومي";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "يعرض صف حصة الروتين اليومي في القائمة ومعاينة المزوّد. يتطلب تفعيل «عرض الاعتمادات + الاستخدام الإضافي» في إعدادات العرض.";
 "Scroll to see more models" = "مرر لرؤية المزيد من النماذج";
 /* Shareable usage card */
 "Copy Image" = "نسخ الصورة";
@@ -1276,6 +1278,9 @@
 "Weekly cannot run out before reset at this pace" = "لا يمكن أن ينفد الحد الأسبوعي قبل إعادة التعيين بهذه الوتيرة";
 "Weekly can run out ≈%d windows early" = "قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة";
 "Estimated: %@" = "تقديري: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "حصة الجلسة";
+"session quotas" = "حصص الجلسات";
 "Coding Plan" = "خطة البرمجة";
 "Agent Plan" = "خطة الوكيل";
 "Team" = "فريق";

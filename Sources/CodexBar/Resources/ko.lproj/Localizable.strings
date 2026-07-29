@@ -1184,6 +1184,8 @@
 "section_links" = "링크";
 "Show Codex Spark usage" = "Codex Spark 사용량 표시";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "메뉴와 공급자 미리보기에 Codex Spark 할당량 행을 표시합니다. 표시 설정에서 ‘크레딧 + 추가 사용량 표시’를 활성화해야 합니다.";
+"Show Daily Routines usage" = "일일 루틴 사용량 표시";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "메뉴와 공급자 미리보기에 일일 루틴 할당량 행을 표시합니다. 표시 설정에서 ‘크레딧 + 추가 사용량 표시’를 활성화해야 합니다.";
 "Scroll to see more models" = "스크롤하여 더 많은 모델 보기";
 "Copy Image" = "이미지 복사";
 "Copy Stats" = "통계 복사";
@@ -1240,6 +1242,9 @@
 "Weekly cannot run out before reset at this pace" = "이 속도라면 재설정 전에 주간 한도를 소진할 수 없습니다";
 "Weekly can run out ≈%d windows early" = "주간 한도가 약 %d개 창 일찍 소진될 수 있습니다";
 "Estimated: %@" = "예상: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "세션 할당량";
+"session quotas" = "세션 할당량";
 "Coding Plan" = "코딩 요금제";
 "Agent Plan" = "에이전트 요금제";
 "Team" = "팀";

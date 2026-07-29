@@ -665,6 +665,39 @@ struct UsageStoreSessionQuotaTransitionTests {
     }
 
     @Test
+    func `amp subscription quota warnings use pool labels`() {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-warning-amp")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50]
+        settings.setQuotaWarningWindowEnabled(.session, enabled: true)
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+
+        let notifier = SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        func snapshot(used: Double) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                ampUsage: AmpUsageDetails(
+                    individualCredits: nil,
+                    workspaceBalances: [],
+                    subscriptionPlan: "Megawatt"),
+                updatedAt: Date())
+        }
+        store.handleQuotaWarningTransitions(provider: .amp, snapshot: snapshot(used: 40))
+        store.handleQuotaWarningTransitions(provider: .amp, snapshot: snapshot(used: 55))
+
+        #expect(notifier.quotaWarningPosts.map(\.event.windowDisplayLabel) == ["Other usage", "Orb usage"])
+    }
+
+    @Test
     func `antigravity quota warnings use named session and weekly durations`() {
         let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-warning-antigravity")
         settings.refreshFrequency = .manual

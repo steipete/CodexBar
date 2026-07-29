@@ -1215,6 +1215,8 @@
 "section_links" = "Links";
 "Show Codex Spark usage" = "Codex-Spark-Nutzung anzeigen";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Zeigt die Codex-Spark-Kontingentzeilen im Menü und in der Anbietervorschau an. Erfordert, dass „Credits + zusätzliche Nutzung anzeigen“ in den Anzeigeeinstellungen aktiviert ist.";
+"Show Daily Routines usage" = "Nutzung von „Tägliche Routinen“ anzeigen";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Zeigt die Kontingentzeile „Tägliche Routinen“ im Menü und in der Anbietervorschau an. Erfordert, dass „Credits + zusätzliche Nutzung anzeigen“ in den Anzeigeeinstellungen aktiviert ist.";
 "Scroll to see more models" = "Scrollen, um weitere Modelle zu sehen";
 "Copy Image" = "Bild kopieren";
 "Copy Stats" = "Statistiken kopieren";
@@ -1273,6 +1275,9 @@
 "Weekly cannot run out before reset at this pace" = "Das Wochenlimit kann bei diesem Tempo nicht vor dem Reset aufgebraucht sein";
 "Weekly can run out ≈%d windows early" = "Das Wochenlimit kann ≈%d Fenster früher aufgebraucht sein";
 "Estimated: %@" = "Geschätzt: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "Sitzungskontingent";
+"session quotas" = "Sitzungskontingente";
 "Coding Plan" = "Coding-Plan";
 "Agent Plan" = "Agentenplan";
 "Team" = "Team";

@@ -47,6 +47,9 @@ extension StatusItemController {
         let layoutCostSignature = showBrandPercent
             ? self.storedMenuBarLayoutCostSignature(for: provider)
             : nil
+        let layoutAccountSignature = showBrandPercent
+            ? self.storedMenuBarLayoutAccountSignature(for: provider, snapshot: snapshot)
+            : nil
 
         return [
             provider.rawValue,
@@ -60,7 +63,24 @@ extension StatusItemController {
             "refreshing=\(self.store.refreshingProviders.contains(provider) ? "1" : "0")",
             "text=\(displayText ?? "nil")",
             "layoutCost=\(layoutCostSignature ?? "nil")",
+            "layoutAccount=\(layoutAccountSignature ?? "nil")",
         ].joined(separator: "|")
+    }
+
+    private func storedMenuBarLayoutAccountSignature(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> String?
+    {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering,
+              resolution.layout.lines.joined().contains(.accountLabel),
+              let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
+        else { return nil }
+
+        var hasher = Hasher()
+        hasher.combine(accountLabel)
+        return String(hasher.finalize())
     }
 
     private func storedMenuBarLayoutCostSignature(for provider: UsageProvider) -> String? {

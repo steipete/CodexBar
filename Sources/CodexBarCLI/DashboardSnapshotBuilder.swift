@@ -164,12 +164,15 @@ enum DashboardSnapshotBuilder {
         guard let usage else { return [] }
         let labels = self.rateWindowLabels(provider: provider, metadata: metadata, usage: usage)
         var windows: [DashboardWindowPayload] = []
+        let isAmpSubscription = provider == .amp && usage.ampUsage?.subscriptionPlan != nil
 
         if let primary = usage.primary {
-            windows.append(self.makeWindow(kind: "session", label: labels.primary, window: primary))
+            let kind = isAmpSubscription ? "other" : "session"
+            windows.append(self.makeWindow(kind: kind, label: labels.primary, window: primary))
         }
         if let secondary = usage.secondary {
-            windows.append(self.makeWindow(kind: "weekly", label: labels.secondary, window: secondary))
+            let kind = isAmpSubscription ? "orb" : "weekly"
+            windows.append(self.makeWindow(kind: kind, label: labels.secondary, window: secondary))
         }
         if let tertiary = usage.tertiary {
             windows.append(self.makeWindow(kind: "tertiary", label: labels.tertiary, window: tertiary))
@@ -196,9 +199,19 @@ enum DashboardSnapshotBuilder {
             return RateWindowLabels(primary: "5-hour", secondary: "Weekly", tertiary: "Monthly")
         }
 
+        let primaryLabel = if provider == .amp {
+            AmpProviderDescriptor.primaryLabel(details: usage.ampUsage) ?? metadata?.sessionLabel ?? "Session"
+        } else {
+            metadata?.sessionLabel ?? "Session"
+        }
+        let secondaryLabel = if provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: usage.ampUsage) ?? metadata?.weeklyLabel ?? "Weekly"
+        } else {
+            metadata?.weeklyLabel ?? "Weekly"
+        }
         return RateWindowLabels(
-            primary: metadata?.sessionLabel ?? "Session",
-            secondary: metadata?.weeklyLabel ?? "Weekly",
+            primary: primaryLabel,
+            secondary: secondaryLabel,
             tertiary: metadata?.opusLabel ?? "Tertiary")
     }
 

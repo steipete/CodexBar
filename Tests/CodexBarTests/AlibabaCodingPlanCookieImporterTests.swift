@@ -53,9 +53,11 @@ struct AlibabaCodingPlanCookieImporterTests {
                 return .allowed
             } operation: {
                 #expect(throws: BrowserCookieStoreAccessSuppressedError.self) {
-                    _ = try AlibabaChromiumCookieFallbackImporter.importSession(
+                    _ = try AliyunOneConsoleChromiumCookieFallbackImporter.importSession(
                         browser: .chrome,
-                        domains: ["example.com"])
+                        domains: ["example.com"],
+                        isAuthenticatedSession: { _ in false },
+                        sessionLabel: "Test")
                 }
             }
         }

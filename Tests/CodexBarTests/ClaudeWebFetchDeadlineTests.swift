@@ -4,6 +4,47 @@ import Testing
 
 struct ClaudeWebFetchDeadlineTests {
     @Test
+    func `prepaid timeout preserves usage before outer web deadline`() async throws {
+        let context = Self.makeContext(sourceMode: .web, webTimeout: 0.5)
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let body: String
+            let statusCode: Int
+            switch url.path {
+            case "/api/organizations":
+                body = #"[{"uuid":"org-123","name":"Test Org","capabilities":["chat"]}]"#
+                statusCode = 200
+            case "/api/organizations/org-123/usage":
+                body = #"{"five_hour":{"utilization":11}}"#
+                statusCode = 200
+            case "/api/organizations/org-123/prepaid/credits":
+                try await Task.sleep(for: .seconds(10))
+                throw CancellationError()
+            default:
+                body = "{}"
+                statusCode = 404
+            }
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            return (Data(body.utf8), response)
+        }
+        let strategy = ClaudeWebFetchStrategy(browserDetection: context.browserDetection)
+        let result = try await ClaudeWebPrepaidCreditsRequest.$timeoutOverrideForTesting.withValue(
+            .milliseconds(20))
+        {
+            try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
+                try await strategy.fetch(context)
+            }
+        }
+
+        #expect(result.usage.primary?.usedPercent == 11)
+        #expect(result.usage.providerCost?.balance == nil)
+    }
+
+    @Test
     func `CLI auto descriptor defers browser probe and falls back after web deadline`() async throws {
         let planningProbe = ClaudeWebPlanningAvailabilityProbe()
         let webProbe = ClaudeWebDeadlineProbe()

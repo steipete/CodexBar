@@ -527,15 +527,14 @@ extension ZedUsageSnapshot {
         return max(0, min(100, elapsed / total * 100))
     }
 
-    private static func formatResetDescription(_ date: Date) -> String? {
-        let now = Date()
+    static func formatResetDescription(_ date: Date, now: Date = Date()) -> String? {
         let interval = date.timeIntervalSince(now)
         guard interval > 0 else { return "Cycle ended" }
 
         let hours = Int(interval / 3600)
         let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
 
-        if hours > 24 {
+        if hours >= 24 {
             let days = hours / 24
             let remainingHours = hours % 24
             return "Cycle ends in \(days)d \(remainingHours)h"

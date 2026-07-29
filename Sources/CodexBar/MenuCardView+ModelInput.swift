@@ -27,6 +27,7 @@ extension UsageMenuCardView.Model {
         let tokenCostMenuSectionEnabled: Bool
         let costComparisonPeriodsEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
+        let claudeDailyRoutinesUsageVisible: Bool
         let codexSparkUsageVisible: Bool
         let copilotBudgetExtrasEnabled: Bool
         let sourceLabel: String?
@@ -64,6 +65,7 @@ extension UsageMenuCardView.Model {
             tokenCostMenuSectionEnabled: Bool? = nil,
             costComparisonPeriodsEnabled: Bool = false,
             showOptionalCreditsAndExtraUsage: Bool,
+            claudeDailyRoutinesUsageVisible: Bool = true,
             codexSparkUsageVisible: Bool = true,
             copilotBudgetExtrasEnabled: Bool = false,
             sourceLabel: String? = nil,
@@ -100,6 +102,7 @@ extension UsageMenuCardView.Model {
             self.tokenCostMenuSectionEnabled = tokenCostMenuSectionEnabled ?? tokenCostUsageEnabled
             self.costComparisonPeriodsEnabled = costComparisonPeriodsEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
+            self.claudeDailyRoutinesUsageVisible = claudeDailyRoutinesUsageVisible
             self.codexSparkUsageVisible = codexSparkUsageVisible
             self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
             self.sourceLabel = sourceLabel

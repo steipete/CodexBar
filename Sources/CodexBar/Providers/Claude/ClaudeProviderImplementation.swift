@@ -93,6 +93,21 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsToggleDescriptor(
+                id: "claude-daily-routines-usage-visible",
+                title: "Show Daily Routines usage",
+                subtitle: [
+                    "Shows the Daily Routines quota row in the menu and provider preview.",
+                    "Requires optional credits and extra usage in Display settings.",
+                ].joined(separator: " "),
+                binding: context.boolBinding(\.claudeDailyRoutinesUsageVisible),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                isEnabled: { context.settings.showOptionalCreditsAndExtraUsage },
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "claude-oauth-prompt-free-credentials",
                 title: "Avoid Keychain prompts",
                 subtitle: subtitle,
@@ -283,9 +298,16 @@ struct ClaudeProviderImplementation: ProviderImplementation {
            context.settings.showOptionalCreditsAndExtraUsage,
            cost.currencyCode != "Quota"
         {
-            let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-            let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
-            entries.append(.text(String(format: L("extra_usage_format"), used, limit), .primary))
+            if cost.limit > 0 {
+                let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+                let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+                entries.append(.text(String(format: L("extra_usage_format"), used, limit), .primary))
+            }
+            if let balance = cost.balance {
+                let value = UsageFormatter.currencyString(balance, currencyCode: cost.currencyCode)
+                let label = cost.limit > 0 ? L("Balance") : L("Credits")
+                entries.append(.text("\(label): \(value)", .primary))
+            }
         }
     }
 

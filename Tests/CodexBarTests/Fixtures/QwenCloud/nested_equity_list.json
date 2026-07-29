@@ -1,0 +1,21 @@
+{
+  "code": "200",
+  "successResponse": true,
+  "data": {
+    "TotalCount": 1,
+    "Data": [
+      {
+        "InstanceCode": "qwen-token-plan",
+        "Status": "NORMAL",
+        "EndTime": 1.701e12,
+        "EquityList": [
+          {
+            "Type": "CREDITS",
+            "CycleTotalValue": "1000",
+            "CycleSurplusValue": "875"
+          }
+        ]
+      }
+    ]
+  }
+}
