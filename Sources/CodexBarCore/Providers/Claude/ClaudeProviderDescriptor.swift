@@ -780,7 +780,7 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             // `claude auth status`. Background Auto therefore reuses only availability established by a
             // successful user-initiated CLI fetch in this process; it never probes the CLI itself.
             guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env),
-                  ClaudeCLIBackgroundAvailability.isEstablished(binary: binary)
+                  ClaudeCLIBackgroundAvailability.isEstablished(binary: binary, environment: context.env)
             else {
                 return false
             }
@@ -816,7 +816,7 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             usage = try await fetcher.loadLatestUsage(model: "sonnet")
         } catch {
             if let binary {
-                ClaudeCLIBackgroundAvailability.revoke(binary: binary)
+                ClaudeCLIBackgroundAvailability.revoke(binary: binary, environment: context.env)
             }
             throw error
         }
@@ -824,7 +824,7 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
            ProviderInteractionContext.current == .userInitiated,
            let binary
         {
-            ClaudeCLIBackgroundAvailability.establish(binary: binary)
+            ClaudeCLIBackgroundAvailability.establish(binary: binary, environment: context.env)
         }
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
@@ -842,20 +842,25 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
 }
 
 enum ClaudeCLIBackgroundAvailability {
+    struct Marker: Hashable {
+        let binary: String
+        let accountScope: String
+    }
+
     final class Store: @unchecked Sendable {
         private let lock = NSLock()
-        private var establishedBinaries: Set<String> = []
+        private var markers: Set<Marker> = []
 
-        func contains(_ binary: String) -> Bool {
-            self.lock.withLock { self.establishedBinaries.contains(binary) }
+        func contains(_ marker: Marker) -> Bool {
+            self.lock.withLock { self.markers.contains(marker) }
         }
 
-        func insert(_ binary: String) {
-            self.lock.withLock { _ = self.establishedBinaries.insert(binary) }
+        func insert(_ marker: Marker) {
+            self.lock.withLock { _ = self.markers.insert(marker) }
         }
 
-        func remove(_ binary: String) {
-            self.lock.withLock { _ = self.establishedBinaries.remove(binary) }
+        func remove(_ marker: Marker) {
+            self.lock.withLock { _ = self.markers.remove(marker) }
         }
     }
 
@@ -866,16 +871,26 @@ enum ClaudeCLIBackgroundAvailability {
         self.storeOverrideForTesting ?? self.sharedStore
     }
 
-    static func isEstablished(binary: String) -> Bool {
-        self.store.contains(binary)
+    static func isEstablished(binary: String, environment: [String: String]) -> Bool {
+        guard let marker = self.marker(binary: binary, environment: environment) else { return false }
+        return self.store.contains(marker)
     }
 
-    static func establish(binary: String) {
-        self.store.insert(binary)
+    static func establish(binary: String, environment: [String: String]) {
+        guard let marker = self.marker(binary: binary, environment: environment) else { return }
+        self.store.insert(marker)
     }
 
-    static func revoke(binary: String) {
-        self.store.remove(binary)
+    static func revoke(binary: String, environment: [String: String]) {
+        guard let marker = self.marker(binary: binary, environment: environment) else { return }
+        self.store.remove(marker)
+    }
+
+    private static func marker(binary: String, environment: [String: String]) -> Marker? {
+        guard let accountScope = ClaudeAccountProfile.identifiedSessionScope(environment: environment) else {
+            return nil
+        }
+        return Marker(binary: binary, accountScope: accountScope)
     }
 
     #if DEBUG

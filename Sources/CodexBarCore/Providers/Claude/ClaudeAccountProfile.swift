@@ -33,11 +33,27 @@ public enum ClaudeAccountProfile {
         environment: [String: String],
         fallbackID: UUID = UUID()) -> String
     {
+        self.makeSessionScope(
+            environment: environment,
+            identity: self.accountUuid(environment: environment),
+            fallbackID: fallbackID)
+    }
+
+    /// A stable ownership key only when Claude's selected profile exposes an account identity.
+    /// Background work must fail closed rather than let an unidentified profile inherit another profile's marker.
+    static func identifiedSessionScope(environment: [String: String]) -> String? {
+        guard let identity = self.accountUuid(environment: environment) else { return nil }
+        return self.makeSessionScope(environment: environment, identity: identity, fallbackID: UUID())
+    }
+
+    private static func makeSessionScope(
+        environment: [String: String],
+        identity: String?,
+        fallbackID: UUID) -> String
+    {
         let accountConfigPath = ClaudeConfigPaths.accountConfigURL(environment: environment).path
         let credentialsPath = ClaudeConfigPaths.credentialsURL(environment: environment).path
-        let identity = self.accountUuid(environment: environment)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        let identity = identity?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let material = if let identity, !identity.isEmpty {
             "claude:cli-session:v2:\(accountConfigPath):\(credentialsPath):\(identity)"
         } else {

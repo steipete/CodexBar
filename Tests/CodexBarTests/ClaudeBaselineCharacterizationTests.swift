@@ -527,10 +527,19 @@ struct ClaudeBaselineCharacterizationTests {
             cookieSource: .off,
             manualCookieHeader: nil))
         let stubCLIPath = try self.makeStubClaudeCLI()
-        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let profileRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-claude-planned-environment-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: profileRoot) }
+        try Data(#"{"oauthAccount":{"accountUuid":"planned-account"}}"#.utf8)
+            .write(to: profileRoot.appendingPathComponent(".config.json"), options: .atomic)
+        let env = [
+            "CLAUDE_CLI_PATH": stubCLIPath,
+            "CLAUDE_CONFIG_DIR": profileRoot.path,
+        ]
 
         await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
-            ClaudeCLIBackgroundAvailability.establish(binary: stubCLIPath)
+            ClaudeCLIBackgroundAvailability.establish(binary: stubCLIPath, environment: env)
             await self.withBackgroundKeychainAccess {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                     await self.withNoOAuthCredentials {

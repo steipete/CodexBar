@@ -22,12 +22,14 @@ struct ClaudeCLIBackgroundAvailabilityTests {
     }
 
     @Test
-    func `disabled Keychain allows background Auto after foreground availability is established`() async {
+    func `disabled Keychain allows background Auto after foreground availability is established`() async throws {
         let strategy = self.makeStrategy()
-        let context = self.makeContext()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
 
         await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
-            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo")
+            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo", environment: context.env)
             await KeychainAccessGate.withTaskOverrideForTesting(true) {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
                     await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
@@ -41,12 +43,14 @@ struct ClaudeCLIBackgroundAvailabilityTests {
     }
 
     @Test
-    func `background Auto CLI keeps prompt policy after foreground availability is established`() async {
+    func `background Auto CLI keeps prompt policy after foreground availability is established`() async throws {
         let strategy = self.makeStrategy()
-        let context = self.makeContext()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
 
         await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
-            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo")
+            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo", environment: context.env)
             await KeychainAccessGate.withTaskOverrideForTesting(false) {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
                     await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
@@ -60,12 +64,14 @@ struct ClaudeCLIBackgroundAvailabilityTests {
     }
 
     @Test
-    func `background Auto CLI uses foreground availability with explicit prompt opt in`() async {
+    func `background Auto CLI uses foreground availability with explicit prompt opt in`() async throws {
         let strategy = self.makeStrategy()
-        let context = self.makeContext()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
 
         await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
-            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo")
+            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo", environment: context.env)
             await KeychainAccessGate.withTaskOverrideForTesting(false) {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                     await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
@@ -84,7 +90,6 @@ struct ClaudeCLIBackgroundAvailabilityTests {
         let context = self.makeContext(sourceMode: .oauth)
 
         await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
-            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo")
             await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(promptMode) {
                 await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
                     await ProviderInteractionContext.$current.withValue(.background) {
@@ -107,6 +112,59 @@ struct ClaudeCLIBackgroundAvailabilityTests {
         }
     }
 
+    @Test
+    func `background Auto availability does not cross config profiles`() async throws {
+        let strategy = self.makeStrategy()
+        let profileA = try self.makeProfile(accountID: "account-a")
+        let profileB = try self.makeProfile(accountID: "account-b")
+        defer {
+            try? FileManager.default.removeItem(at: profileA.root)
+            try? FileManager.default.removeItem(at: profileB.root)
+        }
+        let contextA = self.makeContext(environment: profileA.environment)
+        let contextB = self.makeContext(environment: profileB.environment)
+
+        await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo", environment: contextA.env)
+            await KeychainAccessGate.withTaskOverrideForTesting(true) {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
+                        await ProviderInteractionContext.$current.withValue(.background) {
+                            #expect(await strategy.isAvailable(contextA))
+                            #expect(await !strategy.isAvailable(contextB))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `background Auto availability does not cross active account changes`() async throws {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+
+        try await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            ClaudeCLIBackgroundAvailability.establish(binary: "/bin/echo", environment: context.env)
+            try await KeychainAccessGate.withTaskOverrideForTesting(true) {
+                try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
+                        try await ProviderInteractionContext.$current.withValue(.background) {
+                            #expect(await strategy.isAvailable(context))
+                            try Data(#"{"oauthAccount":{"accountUuid":"account-b"}}"#.utf8)
+                                .write(to: profile.configURL, options: .atomic)
+                            #expect(await !strategy.isAvailable(context))
+                            try FileManager.default.removeItem(at: profile.configURL)
+                            #expect(await !strategy.isAvailable(context))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func makeStrategy() -> ClaudeCLIFetchStrategy {
         ClaudeCLIFetchStrategy(
             useWebExtras: false,
@@ -116,7 +174,10 @@ struct ClaudeCLIBackgroundAvailabilityTests {
             hasWebFallback: false)
     }
 
-    private func makeContext(sourceMode: ProviderSourceMode = .auto) -> ProviderFetchContext {
+    private func makeContext(
+        sourceMode: ProviderSourceMode = .auto,
+        environment: [String: String] = [:]) -> ProviderFetchContext
+    {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
             runtime: .app,
@@ -125,10 +186,27 @@ struct ClaudeCLIBackgroundAvailabilityTests {
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,
-            env: [:],
+            env: environment,
             settings: nil,
-            fetcher: UsageFetcher(environment: [:]),
-            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            fetcher: UsageFetcher(environment: environment),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection, environment: environment),
             browserDetection: browserDetection)
+    }
+
+    private func makeProfile(accountID: String) throws -> (
+        root: URL,
+        configURL: URL,
+        environment: [String: String])
+    {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-claude-background-profile-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let configURL = root.appendingPathComponent(".config.json")
+        try Data(#"{"oauthAccount":{"accountUuid":"\#(accountID)"}}"#.utf8)
+            .write(to: configURL, options: .atomic)
+        return (
+            root: root,
+            configURL: configURL,
+            environment: ["CLAUDE_CONFIG_DIR": root.path])
     }
 }

@@ -91,12 +91,21 @@ struct ClaudeWebFetchDeadlineTests {
         let planningProbe = ClaudeWebPlanningAvailabilityProbe()
         let cliPath = try Self.makeLoggedInClaudeCLI()
         defer { try? FileManager.default.removeItem(atPath: cliPath) }
+        let profileRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-claude-web-deadline-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: profileRoot) }
+        try Data(#"{"oauthAccount":{"accountUuid":"deadline-account"}}"#.utf8)
+            .write(to: profileRoot.appendingPathComponent(".config.json"), options: .atomic)
         let context = Self.makeContext(
             runtime: .app,
             sourceMode: .auto,
             webTimeout: 60,
             cookieSource: .auto,
-            env: ["CLAUDE_CLI_PATH": cliPath])
+            env: [
+                "CLAUDE_CLI_PATH": cliPath,
+                "CLAUDE_CONFIG_DIR": profileRoot.path,
+            ])
         let availabilityOverride: @Sendable (ProviderFetchContext, BrowserDetection) -> Bool = { _, _ in
             planningProbe.stallAndReportUnavailable()
         }
@@ -108,7 +117,7 @@ struct ClaudeWebFetchDeadlineTests {
             { _, _, _ in Self.makeClaudeStatus() }
 
         let outcome = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
-            ClaudeCLIBackgroundAvailability.establish(binary: cliPath)
+            ClaudeCLIBackgroundAvailability.establish(binary: cliPath, environment: context.env)
             return await KeychainAccessGate.withTaskOverrideForTesting(false) {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                     await ClaudeWebFetchStrategy.$availabilityProbeOverrideForTesting.withValue(
