@@ -721,7 +721,9 @@ struct ShareStatsTests {
 
     @Test @MainActor
     func `renderer creates nonblank social card PNGs at share sizes`() throws {
-        let payload = try #require(ShareStatsBuilder.make(model: Self.proofDashboard))
+        let payload = try #require(ShareStatsBuilder.make(
+            model: Self.proofDashboard,
+            trackedSources: Self.proofTrackedSources))
         #expect(ShareStatsCardView.size == CGSize(width: 1200, height: 630))
         #expect(payload.providers.count == 4)
         #expect(payload.topModels.count == 4)
@@ -766,7 +768,9 @@ struct ShareStatsTests {
 
     @Test @MainActor
     func `summary card remains the default export while model activity is opt in`() throws {
-        let payload = try #require(ShareStatsBuilder.make(model: Self.proofDashboard))
+        let payload = try #require(ShareStatsBuilder.make(
+            model: Self.proofDashboard,
+            trackedSources: Self.proofTrackedSources))
 
         #expect(ShareStatsCardStyle.defaultStyle == .summary)
         #expect(ShareStatsFormatting.text(payload).hasPrefix("My AI subscriptions"))
@@ -1010,29 +1014,29 @@ extension ShareStatsTests {
     private static var proofDashboard: SpendDashboardModel {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        let start = calendar.startOfDay(for: self.date)
+        let start = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_781_481_600))
         let exclusiveEnd = calendar.date(byAdding: .day, value: 30, to: start) ?? start
         let sources = [
             ProofSource(id: "codex", provider: .codex, name: "Codex", model: "gpt-5.4", tokens: 8_000_000, cost: 94),
             ProofSource(
-                id: "openrouter",
-                provider: .openrouter,
-                name: "OpenRouter",
-                model: "anthropic/claude-sonnet-4",
+                id: "claude",
+                provider: .claude,
+                name: "Claude",
+                model: "claude-sonnet-4",
                 tokens: 7_000_000,
                 cost: 140),
             ProofSource(
-                id: "kimi",
-                provider: .kimi,
-                name: "Kimi",
-                model: "moonshotai/kimi-k2.5",
+                id: "cursor",
+                provider: .cursor,
+                name: "Cursor",
+                model: "claude-4.5-sonnet",
                 tokens: 4_000_000,
                 cost: 22),
             ProofSource(
-                id: "zai",
-                provider: .zai,
-                name: "Z.ai",
-                model: "z-ai/glm-4.5",
+                id: "mistral",
+                provider: .mistral,
+                name: "Mistral",
+                model: "mistral-large-3",
                 tokens: 2_700_000,
                 cost: 18),
         ]
@@ -1081,6 +1085,17 @@ extension ShareStatsTests {
             modelHistoryCompleteness: .complete)
         return SpendDashboardModel(requestedDays: 30, groups: [group])
     }
+
+    private static let proofTrackedSources = [
+        ShareStatsTests.trackedSource(id: "codex", provider: .codex, contributes: true),
+        ShareStatsTests.trackedSource(id: "claude", provider: .claude, contributes: true),
+        ShareStatsTests.trackedSource(id: "cursor", provider: .cursor, contributes: true),
+        ShareStatsTests.trackedSource(id: "mistral", provider: .mistral, contributes: true),
+        ShareStatsTests.trackedSource(id: "openrouter", provider: .openrouter, contributes: false),
+        ShareStatsTests.trackedSource(id: "kimi", provider: .kimi, contributes: false),
+        ShareStatsTests.trackedSource(id: "gemini", provider: .gemini, contributes: false),
+        ShareStatsTests.trackedSource(id: "zai", provider: .zai, contributes: false),
+    ]
 
     private static func dashboard(models: [String]) -> SpendDashboardModel {
         SpendDashboardModel(requestedDays: 30, groups: [

@@ -76,17 +76,28 @@ private struct ShareStatsPreviewView: View {
 
     @State private var style: ShareStatsCardStyle = .defaultStyle
     @State private var statusMessage: String?
+    @State private var statusIsError = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            if self.payload.hasModelActivityData {
-                Picker(L("Share card style"), selection: self.$style) {
-                    Text(L("Summary")).tag(ShareStatsCardStyle.summary)
-                    Text(L("Model activity")).tag(ShareStatsCardStyle.modelActivity)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 24) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("Share AI Usage"))
+                        .font(.title2.weight(.semibold))
+                    Text(L("Nothing is uploaded. This image is created on your Mac."))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 280)
-                .accessibilityLabel(L("Share card style"))
+                Spacer(minLength: 16)
+                if self.payload.hasModelActivityData {
+                    Picker(L("Share card style"), selection: self.$style) {
+                        Text(L("Summary")).tag(ShareStatsCardStyle.summary)
+                        Text(L("Model activity")).tag(ShareStatsCardStyle.modelActivity)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 280)
+                    .accessibilityLabel(L("Share card style"))
+                }
             }
 
             ShareStatsScaledPreview(payload: self.payload, style: self.style)
@@ -99,7 +110,9 @@ private struct ShareStatsPreviewView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    self.statusMessage = self.copyImage(self.style) ? L("Image copied") : L("Could not copy image")
+                    let didCopy = self.copyImage(self.style)
+                    self.statusMessage = didCopy ? L("Image copied") : L("Could not copy image")
+                    self.statusIsError = !didCopy
                 } label: {
                     Label(L("Copy Image"), systemImage: "photo.on.rectangle")
                 }
@@ -108,6 +121,7 @@ private struct ShareStatsPreviewView: View {
                 Button {
                     self.copyText(self.style)
                     self.statusMessage = L("Stats copied")
+                    self.statusIsError = false
                 } label: {
                     Label(L("Copy Stats"), systemImage: "doc.on.doc")
                 }
@@ -115,6 +129,7 @@ private struct ShareStatsPreviewView: View {
                 Button {
                     if self.saveImage(self.style) {
                         self.statusMessage = L("Image saved")
+                        self.statusIsError = false
                     }
                 } label: {
                     Label(L("Save..."), systemImage: "square.and.arrow.down")
@@ -122,15 +137,20 @@ private struct ShareStatsPreviewView: View {
 
                 Spacer()
 
-                Text(self.statusMessage ?? L("Nothing is uploaded. This image is created on your Mac."))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel(self
-                        .statusMessage ?? L("Nothing is uploaded. This image is created on your Mac."))
+                if let statusMessage = self.statusMessage {
+                    Label(
+                        statusMessage,
+                        systemImage: self.statusIsError
+                            ? "exclamationmark.circle.fill"
+                            : "checkmark.circle.fill")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(self.statusIsError ? Color.red : Color.secondary)
+                }
             }
         }
         .padding(24)
         .frame(minWidth: 780, minHeight: 570)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 

@@ -4,9 +4,9 @@ You kept the models busy · last 30 days
 Estimated token spend: $274.00 · pricing for 4 of 4 sources
 Top model routes:
 GPT-5.4 via Codex
-Claude Sonnet 4 via OpenRouter
-Kimi K2.5 via Kimi
+Claude Sonnet 4 via Claude
+Claude 4.5 Sonnet via Cursor
 +1 more safe route summaries
 8 sources tracked
 4 with cost history · 4 excluded from cost totals
-Aggregated locally by CodexBar · No prompts shared · Data through Jul 15, 2026
+Aggregated locally by CodexBar · No prompts shared · Data through Jul 13, 2026
