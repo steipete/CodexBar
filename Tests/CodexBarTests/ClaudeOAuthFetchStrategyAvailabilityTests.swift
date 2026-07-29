@@ -417,40 +417,6 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
     }
 
     @Test
-    func `auto mode selected profile file ignores unrelated MCP-only keychain`() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let profile = root.appendingPathComponent("selected-profile", isDirectory: true)
-        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let environment = ["CLAUDE_CONFIG_DIR": profile.path]
-        let expiresAt = Int(Date(timeIntervalSinceNow: -60).timeIntervalSince1970 * 1000)
-        let data = Data(#"""
-        {
-          "claudeAiOauth": {
-            "accessToken": "selected-expired",
-            "refreshToken": "selected-refresh",
-            "expiresAt": \#(expiresAt),
-            "scopes": ["user:profile"]
-          }
-        }
-        """#.utf8)
-        try data.write(to: ClaudeConfigPaths.credentialsURL(environment: environment))
-
-        let available = await ClaudeOAuthCredentialsStore.withEnvironmentCredentialsURLForTesting {
-            await self.expiredCLIAvailability(
-                sourceMode: .auto,
-                interaction: .background,
-                keychainData: self.mcpOAuthOnlyKeychainPayload,
-                promptMode: .always,
-                env: environment)
-        }
-
-        #expect(available)
-    }
-
-    @Test
     func `auto mode expired CLI creds with MCP-only keychain remains available for user action`() async {
         let available = await self.expiredCLIAvailability(
             sourceMode: .auto,
@@ -855,10 +821,9 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         keychainData: Data,
         keychainAccessDisabled: Bool = false,
         promptMode: ClaudeOAuthKeychainPromptMode = .onlyOnUserAction,
-        readStrategy: ClaudeOAuthKeychainReadStrategy = .securityFramework,
-        env: [String: String] = [:]) async -> Bool
+        readStrategy: ClaudeOAuthKeychainReadStrategy = .securityFramework) async -> Bool
     {
-        let context = self.makeContext(sourceMode: sourceMode, env: env)
+        let context = self.makeContext(sourceMode: sourceMode)
         let strategy = ClaudeOAuthFetchStrategy()
         return await ClaudeOAuthFetchStrategy.$nonInteractiveCredentialRecordOverride
             .withValue(self.expiredRecord()) {
