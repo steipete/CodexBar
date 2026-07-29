@@ -12,13 +12,14 @@ enum CostUsageCacheIO {
     /// Do not bump for provider additions, logging, UI, or other changes that leave cached accounting intact.
     static let codexCacheCompatibilityVersion = 1
 
-    /// Pre-marker producer keys whose persisted accounting contract matches version 1.
-    /// #2037 invalidated earlier producers because interleave containment changed cumulative
-    /// accounting. These two workspace-era predecessors differ only in non-Codex provider dispatch;
-    /// parent-dependent rows are still selectively reparsed via `codexForkAttributionVersion`.
+    /// Audited pre-marker producers whose persisted accounting contract can migrate to version 1.
+    /// #2037 invalidated earlier producers. This one-time bridge covers released caches plus the
+    /// immediate upstream predecessor; once version 1 ships, future hashes use the marker instead.
     private static let bootstrapCodexProducerKeys: Set<String> = [
         "codex:cu:pa15a1040092b4a62",
         "codex:cu:p7378e1f7e954ea1f",
+        "codex:cu:p6f689d90f8eedcbd",
+        "codex:cu:p21dae5bee0a0ece1",
     ]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
@@ -111,7 +112,8 @@ enum CostUsageCacheIO {
             let compatibleContract = decoded.producerKey != nil
                 && decoded.codexCacheCompatibilityVersion == expectedCodexCompatibilityVersion
             let compatibleBootstrap = decoded.codexCacheCompatibilityVersion == nil
-                && decoded.producerKey.map(bootstrapCodexProducerKeys.contains) == true
+                && (decoded.producerKey == expectedProducerKey
+                    || decoded.producerKey.map(bootstrapCodexProducerKeys.contains) == true)
             guard compatibleContract || compatibleBootstrap else { return nil }
         } else if let expectedProducerKey {
             guard decoded.producerKey == expectedProducerKey else { return nil }

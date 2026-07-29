@@ -18,6 +18,29 @@ extension CostUsageScanner {
             && usage.forkBaselineDependencyKey != codexForkDependencyNotRequiredKey
     }
 
+    static func shouldDropLegacyForkCandidateOutsideWindow(
+        _ usage: CostUsageFileUsage,
+        range: CostUsageDayRange) -> Bool
+    {
+        self.isLegacyForkAttributionCandidate(usage)
+            && usage.codexScanComplete != false
+            && !usage.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+    }
+
+    static func dropLegacyForkCandidatesOutsideWindow(
+        cache: inout CostUsageCache,
+        range: CostUsageDayRange)
+    {
+        let stalePaths = cache.files.compactMap { path, usage in
+            self.shouldDropLegacyForkCandidateOutsideWindow(usage, range: range) ? path : nil
+        }
+        for path in stalePaths {
+            guard let usage = cache.files[path] else { continue }
+            self.applyFileDays(cache: &cache, fileDays: usage.days, sign: -1)
+            cache.files.removeValue(forKey: path)
+        }
+    }
+
     /// Keep every cache-backed presentation surface on the same migration boundary. This is
     /// intentionally provenance-based: a stale copied prefix may already carry a known model.
     static func codexCacheForPresentation(_ cache: CostUsageCache) -> CostUsageCache {
@@ -979,8 +1002,8 @@ extension CostUsageScanner {
         let needsSessionId = cached.sessionId == nil
         guard cached.mtimeUnixMs == input.metadata.mtimeUnixMs,
               cached.size == input.metadata.size,
-              cached.codexScanComplete == true
-              || (cached.codexScanComplete == nil && cached.parsedBytes == cached.size),
+              cached.parsedBytes == cached.size,
+              cached.codexScanComplete != false,
               !needsSessionId,
               !context.forceFullScan
         else { return false }
@@ -1246,6 +1269,11 @@ extension CostUsageScanner {
             codexJSONLResumeState: delta.jsonlResumeState,
             codexBufferedSubagentLines: delta.bufferedSubagentLines)
             .refreshingCodexWorkspaceUsageFingerprint()
+        if cache.files[input.metadata.path]?.codexScanComplete == true {
+            cache.files[input.metadata.path]?.codexForkAttributionVersion = Self.codexForkAttributionVersion
+        } else {
+            cache.files[input.metadata.path]?.codexForkAttributionVersion = cached.codexForkAttributionVersion
+        }
         Self.rememberScannedCodexFile(
             input: input,
             session: CodexScannedSession(id: sessionId, days: mergedDays),
@@ -1284,6 +1312,7 @@ extension CostUsageScanner {
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             inheritedRawTotalsResolver: context.resources.inheritedResolver.rawTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
+        let scanComplete = parsed.parsedBytes >= input.metadata.size && parsed.jsonlResumeState == nil
         let forkBaselineDependencyKey = Self.codexForkBaselineDependencyKey(
             parentSessionId: parsed.forkedFromId,
             dependsOnParentTotals: parsed.dependsOnParentTotals,
@@ -1295,7 +1324,12 @@ extension CostUsageScanner {
             title: nil,
             startedAtUnixMs: nil,
             latestActivityUnixMs: nil)
-        let parsedCodexSession = cachedSessionMetadata.merging(parsed.codexSession)
+        var parsedCodexSession = cachedSessionMetadata.merging(parsed.codexSession)
+        if !scanComplete {
+            // A bounded prefix may stop before lineage metadata. Preserve the legacy provenance
+            // until a complete parse can safely reclassify and stamp this row.
+            parsedCodexSession.forkedFromId = parsedCodexSession.forkedFromId ?? input.cached?.forkedFromId
+        }
         let sessionId = parsedCodexSession.sessionId ?? parsed.sessionId ?? input.cached?.sessionId
         let projectPath = parsed.projectPath ?? input.cached?.projectPath
         let canonicalProjectPath = parsed.projectPath.map {
@@ -1340,8 +1374,10 @@ extension CostUsageScanner {
             hasInterleavedTotals: parsed.hasInterleavedTotals,
             lastCodexTurnID: parsed.lastCodexTurnID,
             sessionId: sessionId,
-            forkedFromId: parsedCodexSession.forkedFromId ?? parsed.forkedFromId,
-            forkBaselineDependencyKey: forkBaselineDependencyKey,
+            forkedFromId: parsedCodexSession.forkedFromId ?? parsed.forkedFromId ?? input.cached?.forkedFromId,
+            forkBaselineDependencyKey: scanComplete
+                ? forkBaselineDependencyKey
+                : input.cached?.forkBaselineDependencyKey ?? forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexSession: parsedCodexSession.isEmpty ? nil : parsedCodexSession,
@@ -1396,11 +1432,13 @@ extension CostUsageScanner {
                     modelsDevCacheRoot: context.resources.modelsDevCacheRoot),
             codexScanFileId: input.metadata.fileId,
             codexScanTargetSize: input.metadata.size,
-            codexScanComplete: parsed.parsedBytes >= input.metadata.size && parsed.jsonlResumeState == nil,
+            codexScanComplete: scanComplete,
             codexJSONLResumeState: parsed.jsonlResumeState,
             codexBufferedSubagentLines: parsed.bufferedSubagentLines)
             .refreshingCodexWorkspaceUsageFingerprint()
-        cache.files[input.metadata.path]?.codexForkAttributionVersion = Self.codexForkAttributionVersion
+        if cache.files[input.metadata.path]?.codexScanComplete == true {
+            cache.files[input.metadata.path]?.codexForkAttributionVersion = Self.codexForkAttributionVersion
+        }
         Self.applyFileDays(cache: &cache, fileDays: cache.files[input.metadata.path]?.days ?? [:], sign: 1)
         Self.rememberScannedCodexFile(
             input: input,

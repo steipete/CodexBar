@@ -176,11 +176,36 @@ struct CostUsageCacheTests {
     }
 
     @Test
+    func `runtime bootstraps the exact current pre marker producer`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let currentProducer = try #require(CostUsageCacheIO.currentProducerKey(provider: .codex))
+
+        var cache = CostUsageCache()
+        cache.lastScanUnixMs = 123
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: currentProducer)
+
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+        #expect(loaded.lastScanUnixMs == 123)
+        #expect(loaded.producerKey == currentProducer)
+        #expect(loaded.codexCacheCompatibilityVersion == nil)
+    }
+
+    @Test
     func `runtime accepts only known pre marker bootstrap producers`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        for producerKey in ["codex:cu:pa15a1040092b4a62", "codex:cu:p7378e1f7e954ea1f"] {
+        for producerKey in [
+            "codex:cu:pa15a1040092b4a62",
+            "codex:cu:p7378e1f7e954ea1f",
+            "codex:cu:p6f689d90f8eedcbd",
+            "codex:cu:p21dae5bee0a0ece1",
+        ] {
             var cache = CostUsageCache()
             cache.lastScanUnixMs = 123
             CostUsageCacheIO.save(
@@ -219,6 +244,36 @@ struct CostUsageCacheTests {
         #expect(rejected.lastScanUnixMs == 0)
         #expect(rejected.files.isEmpty)
         #expect(rejected.days.isEmpty)
+    }
+
+    @Test
+    func `calendar isolation dominates Codex bootstrap admission`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let producerKey = "codex:cu:p6f689d90f8eedcbd"
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = try #require(TimeZone(identifier: "UTC"))
+        var bangkok = Calendar(identifier: .gregorian)
+        bangkok.timeZone = try #require(TimeZone(identifier: "Asia/Bangkok"))
+
+        var legacy = CostUsageCache()
+        legacy.producerKey = producerKey
+        legacy.lastScanUnixMs = 123
+        let url = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: root)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try JSONEncoder().encode(legacy).write(to: url)
+        #expect(CostUsageCacheIO.load(provider: .codex, cacheRoot: root, calendar: utc).lastScanUnixMs == 0)
+
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: legacy,
+            cacheRoot: root,
+            producerKey: producerKey,
+            calendar: utc)
+        #expect(CostUsageCacheIO.load(provider: .codex, cacheRoot: root, calendar: utc).lastScanUnixMs == 123)
+        #expect(CostUsageCacheIO.load(provider: .codex, cacheRoot: root, calendar: bangkok).lastScanUnixMs == 0)
     }
 
     @Test

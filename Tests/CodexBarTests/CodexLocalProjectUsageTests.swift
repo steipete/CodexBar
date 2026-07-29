@@ -808,6 +808,80 @@ struct CodexLocalProjectUsageTests {
     }
 
     @Test
+    func `workspace refresh excludes a budget deferred legacy fork candidate`() throws {
+        #if canImport(SQLite3)
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 21)
+        let project = env.root.appendingPathComponent("CodexBar", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: project.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true)
+        let safeFixture = CodexUsageFixture(
+            filename: "safe-sidecar.jsonl",
+            sessionID: "safe-sidecar",
+            cwd: project.path,
+            input: 100,
+            cached: 20,
+            output: 30)
+        let legacyFixture = CodexUsageFixture(
+            filename: "legacy-sidecar.jsonl",
+            sessionID: "legacy-sidecar",
+            cwd: project.path,
+            input: 900,
+            cached: 80,
+            output: 20)
+        _ = try self.writeCodexUsageFile(env: env, day: day, fixture: safeFixture)
+        _ = try self.writeCodexUsageFile(env: env, day: day, fixture: legacyFixture)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let safePath = try #require(cache.files.first { $0.value.sessionId == safeFixture.sessionID }?.key)
+        let legacyPath = try #require(cache.files.first { $0.value.sessionId == legacyFixture.sessionID }?.key)
+        #expect(cache.files[safePath]?.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion)
+        cache.files[legacyPath]?.forkedFromId = "missing-parent"
+        cache.files[legacyPath]?.codexSession?.forkedFromId = "missing-parent"
+        cache.files[legacyPath]?.forkBaselineDependencyKey = "missing-parent|legacy-raw-boundary"
+        cache.files[legacyPath]?.codexForkAttributionVersion = nil
+        cache.codexForkAttributionVersion = nil
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        options.maxCodexSessionFileBytes = 1
+        options.maxCodexScanBytesPerRefresh = 1
+        options.preferNewestCodexSessionsFirst = false
+
+        let snapshot = try CodexLocalProjectUsageIndexer.loadSnapshot(
+            now: day.addingTimeInterval(1),
+            historyDays: 1,
+            options: .init(scannerOptions: options))
+        let rawCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let pending = try #require(rawCache.files.values.first { $0.sessionId == legacyFixture.sessionID })
+        let safeRaw = try #require(rawCache.files.values.first { $0.sessionId == safeFixture.sessionID })
+        let presented = CostUsageScanner.codexCacheForPresentation(rawCache)
+        let sidecarCache = try CodexWorkspaceUsageSidecar(cacheRoot: env.cacheRoot)
+            .usageCache(roots: cache.roots ?? [:])
+
+        #expect(CostUsageScanner.isLegacyForkAttributionCandidate(pending))
+        #expect(safeRaw.days.values.contains { !$0.isEmpty })
+        #expect(presented.files.values.contains { $0.sessionId == safeFixture.sessionID })
+        #expect(!presented.files.values.contains { $0.sessionId == legacyFixture.sessionID })
+        #expect(snapshot.total.totalTokens == 130)
+        #expect(snapshot.sessions.map(\.id) == ["safe-sidecar"])
+        #expect(sidecarCache.files.values.contains { $0.sessionId == safeFixture.sessionID })
+        #expect(!sidecarCache.files.values.contains { $0.sessionId == legacyFixture.sessionID })
+        #else
+        #expect(Bool(true))
+        #endif
+    }
+
+    @Test
     func `project usage severity separates high usage from unknown cost coverage`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

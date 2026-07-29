@@ -22,7 +22,10 @@ enum CodexLocalProjectUsageIndexer {
         let clampedHistoryDays = max(1, min(365, historyDays))
         let stableScopeSignature = self.stableScopeSignature(options: options.scannerOptions)
         let cacheProducerKey: String?
-        switch CostUsageCacheIO.codexCacheAdmission(cacheRoot: options.scannerOptions.cacheRoot) {
+        switch CostUsageCacheIO.codexCacheAdmission(
+            cacheRoot: options.scannerOptions.cacheRoot,
+            calendar: options.scannerOptions.calendar)
+        {
         case .missing:
             cacheProducerKey = nil
         case .rejected:
@@ -86,10 +89,13 @@ enum CodexLocalProjectUsageIndexer {
             checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        let cache = CostUsageCacheIO.load(
+        let rawCache = CostUsageCacheIO.load(
             provider: .codex,
             cacheRoot: scannerOptions.cacheRoot,
             calendar: scannerOptions.calendar)
+        // A budget-limited refresh can leave legacy fork candidates pending. Keep the workspace
+        // sidecar on the same provenance boundary as daily/project/session cache presentation.
+        let cache = CostUsageScanner.codexCacheForPresentation(rawCache)
         let catalogResult = CodexThreadCatalogReader.loadResult(options: scannerOptions)
         let catalog = catalogResult.catalog
         let sourceStatus = CodexLocalProjectUsageSourceStatus(catalog: catalogResult.completeness)

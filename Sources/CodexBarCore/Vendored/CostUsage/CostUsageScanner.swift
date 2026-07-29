@@ -902,7 +902,8 @@ enum CostUsageScanner {
                         ])
                     let resolution = SnapshotResolution(
                         dependencyKey: self.dependencyKey(for: sessionId, fileURL: fileURL),
-                        snapshots: nil)
+                        ownedSnapshots: nil,
+                        rawSnapshots: nil)
                     self.snapshotResolutions[sessionId] = resolution
                     return resolution
                 case .deferBudget:
@@ -917,7 +918,8 @@ enum CostUsageScanner {
                         ])
                     let resolution = SnapshotResolution(
                         dependencyKey: self.dependencyKey(for: sessionId, fileURL: fileURL),
-                        snapshots: nil)
+                        ownedSnapshots: nil,
+                        rawSnapshots: nil)
                     self.snapshotResolutions[sessionId] = resolution
                     return resolution
                 }
@@ -3463,17 +3465,8 @@ enum CostUsageScanner {
             if plan.needsForkAttributionMigration {
                 // A retained legacy suspect outside this request cannot be certified without a
                 // full source read. Remove it now; a later wider request reparses it from disk.
-                let stalePaths = cache.files.compactMap { path, usage in
-                    Self.isLegacyForkAttributionCandidate(usage)
-                        && !usage.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
-                        ? path
-                        : nil
-                }
-                for path in stalePaths {
-                    guard let usage = cache.files[path] else { continue }
-                    Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: -1)
-                    cache.files.removeValue(forKey: path)
-                }
+                // Preserve an in-progress bounded scan even before it has emitted an in-window day.
+                Self.dropLegacyForkCandidatesOutsideWindow(cache: &cache, range: range)
             }
 
             let cachedSinceKey = cache.scanSinceKey

@@ -19,10 +19,15 @@ struct CodexForkAttributionMigrationTests {
         events: [(Date, Int)],
         model: String? = nil,
         sessionID: String = "migration-session",
+        forkedFromID: String? = nil,
         filename: String = "migration.jsonl",
         cwd: String? = nil) throws
     {
         var metadata: [String: Any] = ["id": sessionID]
+        if let forkedFromID {
+            metadata["forked_from_id"] = forkedFromID
+            metadata["source"] = "subagent"
+        }
         if let cwd {
             metadata["cwd"] = cwd
         }
@@ -219,6 +224,73 @@ struct CodexForkAttributionMigrationTests {
         #expect(cache.files.values.allSatisfy {
             $0.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion
         })
+    }
+
+    @Test
+    func `bounded migration keeps a partial legacy fork quarantined until completion`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let events = (0..<80).map { index in
+            (day.addingTimeInterval(TimeInterval(index + 1)), (index + 1) * 10)
+        }
+        try self.writeSession(
+            env,
+            day: day,
+            events: events,
+            model: "gpt-5.6-sol",
+            sessionID: "bounded-legacy-fork",
+            forkedFromID: "missing-parent",
+            filename: "bounded-legacy-fork.jsonl")
+        var options = self.options(env)
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        self.markLegacyForkCandidate(
+            env,
+            sessionID: "bounded-legacy-fork",
+            producerKey: "codex:cu:p6f689d90f8eedcbd")
+
+        let seeded = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let seededEntry = try #require(seeded.files.first { $0.value.sessionId == "bounded-legacy-fork" })
+        let slice = max(1, seededEntry.value.size / 4)
+        options.maxCodexSessionFileBytes = slice
+        options.maxCodexScanBytesPerRefresh = slice
+
+        let partialReport = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        var migrated = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var migratedUsage = try #require(migrated.files[seededEntry.key])
+        #expect(migratedUsage.codexScanComplete == false)
+        #expect(migratedUsage.codexForkAttributionVersion == nil)
+        #expect(CostUsageScanner.isLegacyForkAttributionCandidate(migratedUsage))
+        #expect(migrated.codexForkAttributionVersion == nil)
+        #expect(partialReport.data.isEmpty)
+
+        var completedReport = partialReport
+        for offset in 2...8 where migratedUsage.codexScanComplete != true {
+            completedReport = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(TimeInterval(offset)),
+                options: options)
+            migrated = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+            migratedUsage = try #require(migrated.files[seededEntry.key])
+        }
+
+        #expect(migratedUsage.codexScanComplete == true)
+        #expect(migratedUsage.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion)
+        #expect(!CostUsageScanner.isLegacyForkAttributionCandidate(migratedUsage))
+        #expect(migrated.codexForkAttributionVersion == CostUsageScanner.codexForkAttributionVersion)
+        #expect(completedReport.data.first?.totalTokens == 32400)
     }
 
     @Test
