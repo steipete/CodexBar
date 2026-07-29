@@ -4,6 +4,10 @@ import Testing
 
 @Suite(.serialized)
 struct ClaudeBaselineCharacterizationTests {
+    private enum ExpectedFetchError: Error {
+        case failed
+    }
+
     private func makeStubClaudeCLI(loggedIn: Bool = true, invocationLog: URL? = nil) throws -> String {
         let loggedInJSON = loggedIn ? "true" : "false"
         return try self.makeStubClaudeCLI(
@@ -503,6 +507,59 @@ struct ClaudeBaselineCharacterizationTests {
                 }
             }
             #expect(available)
+        }
+    }
+
+    @Test
+    func `failed CLI fetch revokes the account marker captured before an in flight account change`() async throws {
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: false,
+            cookieSource: .off,
+            manualCookieHeader: nil))
+        let stubCLIPath = try self.makeStubClaudeCLI()
+        let profileRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-claude-background-revocation-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: profileRoot) }
+        let configURL = profileRoot.appendingPathComponent(".config.json")
+        let accountA = Data(#"{"oauthAccount":{"accountUuid":"account-a"}}"#.utf8)
+        let accountB = Data(#"{"oauthAccount":{"accountUuid":"account-b"}}"#.utf8)
+        let env = [
+            "CLAUDE_CLI_PATH": stubCLIPath,
+            "CLAUDE_CONFIG_DIR": profileRoot.path,
+        ]
+        let strategy = ClaudeCLIFetchStrategy(
+            useWebExtras: false,
+            includePrepaidBalance: false,
+            manualCookieHeader: nil,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            hasWebFallback: false)
+        let context = self.makeContext(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+
+        try await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            try accountB.write(to: configURL, options: .atomic)
+            ClaudeCLIBackgroundAvailability.establish(binary: stubCLIPath, environment: env)
+            try accountA.write(to: configURL, options: .atomic)
+            ClaudeCLIBackgroundAvailability.establish(binary: stubCLIPath, environment: env)
+
+            let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
+                -> ClaudeStatusSnapshot = { _, _, _ in
+                    try accountB.write(to: configURL, options: .atomic)
+                    throw ExpectedFetchError.failed
+                }
+
+            await #expect(throws: ExpectedFetchError.self) {
+                try await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                    try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        try await strategy.fetch(context)
+                    }
+                }
+            }
+
+            #expect(ClaudeCLIBackgroundAvailability.isEstablished(binary: stubCLIPath, environment: env))
+            try accountA.write(to: configURL, options: .atomic)
+            #expect(!ClaudeCLIBackgroundAvailability.isEstablished(binary: stubCLIPath, environment: env))
         }
     }
 

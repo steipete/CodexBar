@@ -811,20 +811,23 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             includePrepaidBalance: self.includePrepaidBalance && context.includeOptionalUsage,
             keepCLISessionsAlive: keepAlive)
         let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env)
+        let backgroundAvailabilityMarker = binary.flatMap {
+            ClaudeCLIBackgroundAvailability.captureMarker(binary: $0, environment: context.env)
+        }
         let usage: ClaudeUsageSnapshot
         do {
             usage = try await fetcher.loadLatestUsage(model: "sonnet")
         } catch {
-            if let binary {
-                ClaudeCLIBackgroundAvailability.revoke(binary: binary, environment: context.env)
+            if let backgroundAvailabilityMarker {
+                ClaudeCLIBackgroundAvailability.revoke(backgroundAvailabilityMarker)
             }
             throw error
         }
         if context.runtime == .app,
            ProviderInteractionContext.current == .userInitiated,
-           let binary
+           let backgroundAvailabilityMarker
         {
-            ClaudeCLIBackgroundAvailability.establish(binary: binary, environment: context.env)
+            ClaudeCLIBackgroundAvailability.establish(backgroundAvailabilityMarker)
         }
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
@@ -872,21 +875,24 @@ enum ClaudeCLIBackgroundAvailability {
     }
 
     static func isEstablished(binary: String, environment: [String: String]) -> Bool {
-        guard let marker = self.marker(binary: binary, environment: environment) else { return false }
+        guard let marker = self.captureMarker(binary: binary, environment: environment) else { return false }
         return self.store.contains(marker)
     }
 
     static func establish(binary: String, environment: [String: String]) {
-        guard let marker = self.marker(binary: binary, environment: environment) else { return }
+        guard let marker = self.captureMarker(binary: binary, environment: environment) else { return }
+        self.establish(marker)
+    }
+
+    static func establish(_ marker: Marker) {
         self.store.insert(marker)
     }
 
-    static func revoke(binary: String, environment: [String: String]) {
-        guard let marker = self.marker(binary: binary, environment: environment) else { return }
+    static func revoke(_ marker: Marker) {
         self.store.remove(marker)
     }
 
-    private static func marker(binary: String, environment: [String: String]) -> Marker? {
+    static func captureMarker(binary: String, environment: [String: String]) -> Marker? {
         guard let accountScope = ClaudeAccountProfile.identifiedSessionScope(environment: environment) else {
             return nil
         }
