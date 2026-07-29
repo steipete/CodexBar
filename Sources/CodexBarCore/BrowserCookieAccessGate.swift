@@ -345,6 +345,28 @@ extension BrowserCookieClient {
             throw error
         }
     }
+
+    public func codexBarRecords(
+        matching query: BrowserCookieQuery,
+        in store: BrowserCookieStore,
+        logger: ((String) -> Void)? = nil) throws -> [BrowserCookieRecord]
+    {
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: self.configuration.homeDirectories) == .allowed
+        else {
+            throw BrowserCookieStoreAccessSuppressedError()
+        }
+        guard BrowserCookieAccessGate.shouldAttempt(store.browser) else { return [] }
+        guard BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: store.browser) else { return [] }
+        do {
+            let records = try self.records(matching: query, in: store, logger: logger)
+            BrowserCookieAccessGate.recordAllowed(for: store.browser)
+            return records
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            throw error
+        }
+    }
 }
 #else
 public enum BrowserCookieAccessGate {

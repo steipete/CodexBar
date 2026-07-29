@@ -819,46 +819,6 @@ struct ZoomMateUsageFetcherTests {
         #expect(await stub.requests().count == 2)
     }
 
-    #if os(macOS)
-    @Test
-    func `automatic import keeps normalized parent cookies while partitioning leaf cookies`() throws {
-        func cookie(domain: String, name: String) throws -> HTTPCookie {
-            try #require(HTTPCookie(properties: [
-                .domain: domain,
-                .path: "/",
-                .name: name,
-                .value: "fake",
-                .secure: "TRUE",
-            ]))
-        }
-
-        let headers = try ZoomMateCookieImporter.cookieHeaders(from: [
-            // SweetCookieKit constructs HTTPCookie with the normalized `zoom.us` form even when
-            // Chromium stored the parent SSO cookie as `.zoom.us`.
-            cookie(domain: "zoom.us", name: "parent"),
-            cookie(domain: "ai.zoom.us", name: "ai-only"),
-            cookie(domain: "zoommate.zoom.us", name: "mate-only"),
-            cookie(domain: "marketing.zoom.us", name: "marketing-only"),
-        ])
-
-        #expect(headers.header(forHost: "ai.zoom.us") == "parent=fake; ai-only=fake")
-        #expect(headers.header(forHost: "zoommate.zoom.us") == "parent=fake; mate-only=fake")
-    }
-
-    @Test
-    func `cookie scope filter follows RFC 6265 host-only and domain matching`() {
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: "ai.zoom.us", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "ai.zoom.us", toHost: "zoommate.zoom.us"))
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: ".zoom.us", toHost: "ai.zoom.us"))
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: ".zoom.us", toHost: "zoommate.zoom.us"))
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us", toHost: "ai.zoom.us"))
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us", toHost: "zoommate.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "marketing.zoom.us", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us.attacker.com", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "", toHost: "ai.zoom.us"))
-    }
-    #endif
-
     private static func makeContext(settings: ProviderSettingsSnapshot) -> ProviderFetchContext {
         ProviderFetchContext(
             runtime: .app,

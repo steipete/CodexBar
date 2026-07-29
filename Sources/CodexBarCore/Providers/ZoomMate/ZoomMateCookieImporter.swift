@@ -52,15 +52,9 @@ private let zoomMateCookieImportOrder: BrowserCookieImportOrder =
 /// ZoomMate's own cookie-to-token bootstrap endpoint). Modeled on `T3ChatCookieImporter`.
 public enum ZoomMateCookieImporter {
     private static let cookieClient = BrowserCookieClient()
-    /// SweetCookieKit normalizes Chromium's `.zoom.us` domain cookies to `zoom.us` before
-    /// constructing `HTTPCookie`. Treat that known parent SSO domain as shared; all leaf domains
-    /// remain exact-host only below.
-    private static let sharedParentCookieDomain = "zoom.us"
-    /// Includes the parent "zoom.us" domain — ZoomMate's SSO session cookies (`_zm_*`,
-    /// `cf_clearance`, etc.) are scoped to the shared parent domain, not the leaf subdomains, and
-    /// domain matching here is substring-based (`.contains`), so this one pattern also matches the
-    /// leaf domains below; both are kept for clarity. The over-broad `.contains("zoom.us")` read is
-    /// then narrowed at send time by `isSendable(toSessionHosts:)`.
+    /// Includes the parent "zoom.us" domain because ZoomMate's SSO session uses both parent-domain
+    /// and leaf-host cookies. The reader recovers Chromium's host-only metadata before these
+    /// candidates are narrowed to the two fixed request hosts.
     private static let cookieDomains = ["zoommate.zoom.us", "ai.zoom.us", "zoom.us"]
 
     public struct SessionInfo: Sendable {
@@ -91,13 +85,13 @@ public enum ZoomMateCookieImporter {
         for browserSource in installed {
             do {
                 let query = BrowserCookieQuery(domains: self.cookieDomains)
-                let sources = try self.cookieClient.codexBarRecords(
+                let sources = try ZoomMateChromiumCookieScopeReader.read(
                     matching: query,
                     in: browserSource,
+                    cookieClient: self.cookieClient,
                     logger: log)
-                for source in sources where !source.records.isEmpty {
-                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    let cookieHeaders = Self.cookieHeaders(from: cookies)
+                for source in sources where !source.cookies.isEmpty {
+                    let cookieHeaders = Self.cookieHeaders(from: source.cookies)
                     guard !cookieHeaders.isEmpty else { continue }
                     log("\(source.label): found host-scoped cookie headers")
                     sessions.append(SessionInfo(cookieHeaders: cookieHeaders, sourceLabel: source.label))
@@ -112,31 +106,42 @@ public enum ZoomMateCookieImporter {
         return sessions
     }
 
-    /// Whether a browser would attach a cookie scoped to `cookieDomain` to a request to `host`, per
-    /// Leaf-host cookies stay exact-host only. SweetCookieKit has already normalized the leading
-    /// dot from Chromium's parent `.zoom.us` SSO cookies, so that one known shared domain must be
-    /// handled before the exact-host check; otherwise every browser-imported parent cookie is
-    /// discarded and no ZoomMate session can be created.
-    static func isSendable(cookieDomain: String, toHost host: String) -> Bool {
+    /// Whether a browser would attach a cookie to `host`, using Chromium's recovered host-only flag
+    /// and RFC 6265 domain matching. Only root-path cookies are retained because the cached header
+    /// is reused across ZoomMate's login, status, and history routes.
+    static func isSendable(
+        cookieDomain: String,
+        hostOnly: Bool,
+        path: String,
+        toHost host: String) -> Bool
+    {
         let normalizedDomain = cookieDomain.lowercased()
         let normalizedHost = host.lowercased()
-        guard ZoomMateCookieHeaders.allowedHosts.contains(normalizedHost), !normalizedDomain.isEmpty else {
+        guard ZoomMateCookieHeaders.allowedHosts.contains(normalizedHost),
+              !normalizedDomain.isEmpty,
+              path == "/"
+        else {
             return false
         }
-        if normalizedDomain == Self.sharedParentCookieDomain {
-            return normalizedHost.hasSuffix("." + normalizedDomain)
+        if hostOnly {
+            return normalizedHost == normalizedDomain
         }
-        guard normalizedDomain.hasPrefix(".") else { return normalizedHost == normalizedDomain }
-        let bareDomain = String(normalizedDomain.dropFirst())
-        guard !bareDomain.isEmpty else { return false }
-        return normalizedHost == bareDomain || normalizedHost.hasSuffix("." + bareDomain)
+        return normalizedHost == normalizedDomain || normalizedHost.hasSuffix("." + normalizedDomain)
     }
 
-    static func cookieHeaders(from cookies: [HTTPCookie]) -> ZoomMateCookieHeaders {
+    static func cookieHeaders(
+        from cookies: [ZoomMateChromiumCookieScopeReader.ScopedCookie]) -> ZoomMateCookieHeaders
+    {
         let pairs: [(String, String)] = ZoomMateCookieHeaders.allowedHosts.compactMap { host in
-            let sendable = cookies.filter { Self.isSendable(cookieDomain: $0.domain, toHost: host) }
+            let sendable = cookies.filter {
+                Self.isSendable(
+                    cookieDomain: $0.record.domain,
+                    hostOnly: $0.scope == .hostOnly,
+                    path: $0.record.path,
+                    toHost: host)
+            }
             guard !sendable.isEmpty else { return nil }
-            let header = sendable.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+            let header = sendable.map { "\($0.record.name)=\($0.record.value)" }.joined(separator: "; ")
             return (host, header)
         }
         return ZoomMateCookieHeaders(headersByHost: Dictionary(uniqueKeysWithValues: pairs))
