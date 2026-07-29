@@ -110,6 +110,16 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                         strategyKind: .oauth))
             }
             await self.persistIdentity("account-a", in: fixture)
+            let outcomes = ClaudeReplacementFetchSequence(
+                first: Self.successOutcome(
+                    freshSnapshot,
+                    sourceLabel: "OAuth",
+                    strategyKind: .oauth),
+                replacement: Self.successOutcome(freshSnapshot))
+            await outcomes.releaseReplacement()
+            await MainActor.run {
+                fixture.store._test_providerFetchOutcomeOverride = { _ in await outcomes.next() }
+            }
 
             await UsageStore.withActiveClaudeAccountUuidForTesting("account-b") {
                 await fixture.store.refreshProvider(.claude)
@@ -838,6 +848,101 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
         return false
+    }
+}
+
+extension ClaudeActiveAccountIdentityInvalidationTests {
+    @Test
+    func `failed owner CLI recovery does not bless the switched account identity`() async throws {
+        try await self.withMissingCredentialsFile { _ in
+            let staleOAuthSnapshot = Self.freshSnapshot()
+            let fixture = try await MainActor.run {
+                try self.makeFixture(
+                    source: .auto,
+                    outcome: Self.successOutcome(
+                        staleOAuthSnapshot,
+                        sourceLabel: "OAuth",
+                        strategyKind: .oauth))
+            }
+            await self.persistIdentity("account-a", in: fixture)
+            let outcomes = ClaudeReplacementFetchSequence(
+                first: Self.successOutcome(
+                    staleOAuthSnapshot,
+                    sourceLabel: "OAuth",
+                    strategyKind: .oauth),
+                replacement: Self.transientFailureOutcome())
+            await outcomes.releaseReplacement()
+            await MainActor.run {
+                fixture.store._test_providerFetchOutcomeOverride = { _ in await outcomes.next() }
+            }
+
+            await UsageStore.withActiveClaudeAccountUuidForTesting("account-b") {
+                await fixture.store.refreshProvider(.claude)
+            }
+
+            let result = await MainActor.run {
+                (
+                    snapshot: fixture.store.snapshot(for: .claude),
+                    error: fixture.store.error(for: .claude),
+                    persistedIdentity: fixture.settings.userDefaults.string(
+                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+            }
+            #expect(result.snapshot == nil)
+            #expect(result.error != nil)
+            #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting("account-a"))
+        }
+    }
+
+    @Test
+    func `pre fetch account switch rejects stale OAuth and publishes owner CLI replacement`() async throws {
+        try await self.withMissingCredentialsFile { _ in
+            let staleOAuthSnapshot = Self.freshSnapshot()
+            let replacementSnapshot = Self.replacementSnapshot()
+            let fixture = try await MainActor.run {
+                try self.makeFixture(
+                    source: .auto,
+                    outcome: Self.successOutcome(
+                        staleOAuthSnapshot,
+                        sourceLabel: "OAuth",
+                        strategyKind: .oauth))
+            }
+            await self.persistIdentity("account-a", in: fixture)
+            let outcomes = ClaudeReplacementFetchSequence(
+                first: Self.successOutcome(
+                    staleOAuthSnapshot,
+                    sourceLabel: "OAuth",
+                    strategyKind: .oauth),
+                replacement: Self.successOutcome(replacementSnapshot))
+            await MainActor.run {
+                fixture.store._test_providerFetchOutcomeOverride = { _ in await outcomes.next() }
+            }
+
+            await UsageStore.withActiveClaudeAccountUuidForTesting("account-b") {
+                let completion = ClaudeRefreshCompletionFlag()
+                let refresh = Task { @MainActor in
+                    await fixture.store.refreshProvider(.claude)
+                    await completion.markCompleted()
+                }
+                #expect(await self.waitForReplacementStart(outcomes))
+                #expect(await !(completion.isCompleted()))
+                #expect(await MainActor.run { fixture.store.snapshot(for: .claude) } == nil)
+
+                await outcomes.releaseReplacement()
+                #expect(await self.waitForSnapshot(replacementSnapshot.updatedAt, in: fixture.store))
+                await refresh.value
+                #expect(await completion.isCompleted())
+            }
+
+            let result = await MainActor.run {
+                (
+                    snapshot: fixture.store.snapshot(for: .claude),
+                    persistedIdentity: fixture.settings.userDefaults.string(
+                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+            }
+            #expect(result.snapshot?.updatedAt == replacementSnapshot.updatedAt)
+            #expect(result.snapshot?.accountEmail(for: .claude) == "replacement@example.com")
+            #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting("account-b"))
+        }
     }
 }
 

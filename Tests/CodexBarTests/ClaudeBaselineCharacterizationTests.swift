@@ -49,7 +49,8 @@ struct ClaudeBaselineCharacterizationTests {
         runtime: ProviderRuntime,
         sourceMode: ProviderSourceMode,
         env: [String: String] = [:],
-        settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
+        settings: ProviderSettingsSnapshot? = nil,
+        claudeOwnerCLIRecoveryOnly: Bool = false) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -63,7 +64,8 @@ struct ClaudeBaselineCharacterizationTests {
             settings: settings,
             fetcher: UsageFetcher(environment: env),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
-            browserDetection: browserDetection)
+            browserDetection: browserDetection,
+            claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly)
     }
 
     private func strategyIDs(
@@ -132,6 +134,27 @@ struct ClaudeBaselineCharacterizationTests {
         ]
         let strategyIDs = await self.strategyIDs(runtime: .app, sourceMode: .auto, env: env, settings: settings)
         #expect(strategyIDs == ["claude.oauth", "claude.cli", "claude.web"])
+    }
+
+    @Test
+    func `owner CLI recovery retry excludes stale OAuth and unrelated fallbacks`() async throws {
+        let stubCLIPath = try self.makeStubClaudeCLI()
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: true,
+            cookieSource: .auto,
+            manualCookieHeader: nil))
+        let context = self.makeContext(
+            runtime: .app,
+            sourceMode: .auto,
+            env: ["CLAUDE_CLI_PATH": stubCLIPath],
+            settings: settings,
+            claudeOwnerCLIRecoveryOnly: true)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+
+        #expect(strategies.map(\.id) == ["claude.cli"])
     }
 
     @Test(arguments: [

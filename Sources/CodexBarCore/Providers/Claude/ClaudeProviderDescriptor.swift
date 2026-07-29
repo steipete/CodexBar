@@ -64,6 +64,14 @@ public enum ClaudeProviderDescriptor {
             // fall through to an ambient CLI, browser session, or global API key and be labeled as that account.
             return []
         }
+        if context.claudeOwnerCLIRecoveryOnly {
+            return [ClaudeCLIFetchStrategy(
+                useWebExtras: false,
+                includePrepaidBalance: false,
+                manualCookieHeader: nil,
+                browserDetection: context.browserDetection,
+                hasWebFallback: false)]
+        }
         if context.sourceMode == .api || self.hasAutoAdminAPIKey(context: context) {
             return [ClaudeAdminAPIFetchStrategy()]
         }

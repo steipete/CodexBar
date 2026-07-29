@@ -53,7 +53,13 @@ extension UsageStore {
     private enum ClaudeRefreshDisposition {
         case apply
         case retry
+        case retryOwnerCLI
         case discard
+    }
+
+    private enum ProviderRefreshRetryMode {
+        case ordinary
+        case claudeOwnerCLIRecovery
     }
 
     private struct ClaudeRefreshReconciliationInput {
@@ -64,6 +70,7 @@ extension UsageStore {
         let priorSourceLabel: String?
         let beforeFetch: ClaudeRefreshAuthState?
         let activeAccountIdentitySourceEligible: Bool
+        let ownerCLIRecoveryPass: Bool
         let generation: UInt64
     }
 
@@ -248,14 +255,16 @@ extension UsageStore {
                 self.refreshingProviders.remove(provider)
             }
         }
+        var retryMode: ProviderRefreshRetryMode?
         while !Task.isCancelled,
               self.isCurrentProviderRefreshGeneration(provider, generation: generation)
         {
-            let requiresRetry = await self.refreshProviderPass(
+            retryMode = await self.refreshProviderPass(
                 provider,
                 allowDisabled: allowDisabled,
-                generation: generation)
-            if !requiresRetry { break }
+                generation: generation,
+                retryMode: retryMode)
+            if retryMode == nil { break }
         }
     }
 
@@ -317,34 +326,35 @@ extension UsageStore {
             missingWindowBackfillSnapshot: missingWindowBackfillSnapshot)
     }
 
-    /// Runs one provider fetch pass. A `true` result keeps the retry inside the current coordinator request, so
+    /// Runs one provider fetch pass. A nonnil result keeps the retry inside the current coordinator request, so
     /// callers (including `runRefresh`) remain suspended until the account-stable replacement pass completes.
     private func refreshProviderPass(
         _ provider: UsageProvider,
         allowDisabled: Bool,
-        generation: UInt64) async -> Bool
+        generation: UInt64,
+        retryMode: ProviderRefreshRetryMode?) async -> ProviderRefreshRetryMode?
     {
-        guard let spec = await self.providerRefreshSpec(provider) else { return false }
-        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return false }
+        guard let spec = await self.providerRefreshSpec(provider) else { return nil }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return nil }
         let codexPreparation = provider == .codex ? self.prepareCodexRefreshPublication() : nil
         let codexExpectedGuard = codexPreparation?.expectedGuard
         let codexLimitResetOwnerKey = codexPreparation?.limitResetOwnerKey
 
         if !spec.isEnabled(), !allowDisabled {
             await self.clearDisabledProviderRefreshState(provider)
-            return false
+            return nil
         }
 
         if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
             await self.refreshCodexVisibleAccountsForMenu(generation: generation)
-            return false
+            return nil
         } else if provider == .codex {
             self.codexAccountSnapshots = []
         }
 
         if provider == .kilo, self.shouldFanOutKiloScopes() {
             await self.refreshKiloScopes(generation: generation)
-            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return false }
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return nil }
             // Continue to also fetch the personal snapshot through the regular path
             // so the existing single-card render keeps working when only personal is shown.
             // The presence of multi-element kiloScopeSnapshots triggers stacked rendering.
@@ -362,7 +372,7 @@ extension UsageStore {
                 provider: provider,
                 accounts: tokenAccounts,
                 generation: generation)
-            return false
+            return nil
         } else {
             _ = await MainActor.run {
                 self.reconcileSelectedTokenAccountSnapshotBeforeRefresh(
@@ -372,7 +382,10 @@ extension UsageStore {
         }
 
         let tokenAccount = self.settings.effectiveSelectedTokenAccount(for: provider)
-        let fetchContext = self.makeFetchContext(provider: provider, override: nil)
+        let fetchContext = self.makeFetchContext(
+            provider: provider,
+            override: nil,
+            claudeOwnerCLIRecoveryOnly: retryMode == .claudeOwnerCLIRecovery)
         let claudeHasAdminAPIKey = ClaudeAdminAPISettingsReader.apiKey(environment: fetchContext.env) != nil
         let claudeActiveAccountIdentitySourceEligible = Self.shouldTrackClaudeActiveAccountIdentity(
             provider: provider,
@@ -422,7 +435,7 @@ extension UsageStore {
                 self.retireCodexStateIfRefreshOwnerChanged(
                     expectedGuard: codexExpectedGuard,
                     generation: generation)
-                return false
+                return nil
             }
             guard let admittedOutcome = await Self.codexOutcomeAdmittedForPublication(
                 initialOutcome: initialOutcome,
@@ -435,7 +448,7 @@ extension UsageStore {
                         expectedGuard: codexExpectedGuard,
                         generation: generation)
                 }
-                return false
+                return nil
             }
             if case let .success(result) = admittedOutcome.result,
                let codexExpectedGuard,
@@ -446,7 +459,7 @@ extension UsageStore {
                 self.retireCodexStateIfRefreshOwnerChanged(
                     expectedGuard: codexExpectedGuard,
                     generation: generation)
-                return false
+                return nil
             }
             outcome = admittedOutcome
         } else {
@@ -460,6 +473,7 @@ extension UsageStore {
             priorSourceLabel: priorClaudeSourceLabel,
             beforeFetch: claudeAuthStateBeforeFetch,
             activeAccountIdentitySourceEligible: claudeActiveAccountIdentitySourceEligible,
+            ownerCLIRecoveryPass: retryMode == .claudeOwnerCLIRecovery,
             generation: generation))
         let outcomeContext = ProviderRefreshOutcomeContext(
             generation: generation,
@@ -480,22 +494,24 @@ extension UsageStore {
         provider: UsageProvider,
         outcome: ProviderFetchOutcome,
         reconciliation: ClaudeRefreshReconciliation,
-        context: ProviderRefreshOutcomeContext) async -> Bool
+        context: ProviderRefreshOutcomeContext) async -> ProviderRefreshRetryMode?
     {
         switch reconciliation.disposition {
         case .retry:
-            return true
+            return .ordinary
+        case .retryOwnerCLI:
+            return .claudeOwnerCLIRecovery
         case .discard:
-            return false
+            return nil
         case .apply:
             break
         }
-        guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return false }
+        guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return nil }
         await self.applyProviderRefreshOutcome(
             provider: provider,
             outcome: outcome,
             context: context)
-        return false
+        return nil
     }
 
     private func reconcileClaudeRefreshAfterFetch(
@@ -538,13 +554,29 @@ extension UsageStore {
             afterFetch: historyAccountState.activeAccountIdentity,
             shouldTrack: shouldTrackActiveAccount,
             successfulCLIOutcome: Self.isSuccessfulClaudeCLIOutcome(input.outcome))
+        let activeAccountReconciliation = self.reconcileClaudeActiveAccountIdentity(
+            beforeFetch: input.beforeFetch?.activeAccountIdentity,
+            afterFetch: historyAccountState.activeAccountIdentity,
+            shouldTrack: shouldTrackActiveAccount)
         let credentialsChanged = shouldTrackActiveAccount && (
             Self.claudeCredentialsChanged(
                 beforeFetch: input.beforeFetch,
-                changedDuringFetch: authChangedDuringFetch) || self.reconcileClaudeActiveAccountIdentity(
-                beforeFetch: input.beforeFetch?.activeAccountIdentity,
-                afterFetch: historyAccountState.activeAccountIdentity,
-                shouldTrack: true))
+                changedDuringFetch: authChangedDuringFetch) || activeAccountReconciliation.changed)
+        let oauthAccountMismatch = Self.isSuccessfulClaudeOAuthOutcome(input.outcome) && (
+            activeAccountChangedDuringFetch || activeAccountReconciliation.changedFromPersistedIdentity)
+        if oauthAccountMismatch {
+            await Self.invalidateClaudeOAuthCache(environment: input.environment)
+            guard self.isCurrentProviderRefreshGeneration(input.provider, generation: input.generation) else {
+                return ClaudeRefreshReconciliation(
+                    disposition: .discard,
+                    oauthHistoryPersistentRefHash: nil,
+                    oauthActiveAccountObservation: .changed)
+            }
+        }
+        let ownerCLIRecoverySucceeded = !input.ownerCLIRecoveryPass || Self.isSuccessfulClaudeCLIOutcome(input.outcome)
+        if !oauthAccountMismatch, !activeAccountChangedDuringFetch, ownerCLIRecoverySucceeded {
+            self.persistClaudeActiveAccountIdentity(activeAccountReconciliation.newestIdentity)
+        }
         let sourceAuthorityChanged = Self.claudeSourceAuthorityChanged(
             priorSourceLabel: input.priorSourceLabel,
             dataSource: input.dataSource,
@@ -563,8 +595,15 @@ extension UsageStore {
         if credentialsChanged || activeAccountChangedDuringFetch || sourceAuthorityChanged {
             self.clearClaudeCredentialDerivedStateForCredentialSwap()
         }
+        let disposition: ClaudeRefreshDisposition = if oauthAccountMismatch {
+            .retryOwnerCLI
+        } else if activeAccountChangedDuringFetch {
+            .retry
+        } else {
+            .apply
+        }
         return ClaudeRefreshReconciliation(
-            disposition: activeAccountChangedDuringFetch ? .retry : .apply,
+            disposition: disposition,
             oauthHistoryPersistentRefHash: persistentRefHash,
             oauthActiveAccountObservation: activeAccountObservation)
     }
@@ -902,6 +941,21 @@ extension UsageStore {
         let wasStable: Bool
     }
 
+    private struct ClaudeActiveAccountIdentityReconciliation {
+        static let unchanged = Self(
+            changedFromPersistedIdentity: false,
+            changedDuringFetch: false,
+            newestIdentity: nil)
+
+        let changedFromPersistedIdentity: Bool
+        let changedDuringFetch: Bool
+        let newestIdentity: String?
+
+        var changed: Bool {
+            self.changedFromPersistedIdentity || self.changedDuringFetch
+        }
+    }
+
     private nonisolated static func claudeCredentialsChanged(
         beforeFetch: ClaudeRefreshAuthState?,
         changedDuringFetch: Bool) -> Bool
@@ -965,6 +1019,12 @@ extension UsageStore {
     private nonisolated static func isSuccessfulClaudeCLIOutcome(_ outcome: ProviderFetchOutcome) -> Bool {
         guard case let .success(result) = outcome.result else { return false }
         if case .cli = result.strategyKind { return true }
+        return false
+    }
+
+    private nonisolated static func isSuccessfulClaudeOAuthOutcome(_ outcome: ProviderFetchOutcome) -> Bool {
+        guard case let .success(result) = outcome.result else { return false }
+        if case .oauth = result.strategyKind { return true }
         return false
     }
 
@@ -1038,27 +1098,32 @@ extension UsageStore {
 
     /// Compares only hashed identities derived from Claude's plain-text account metadata. A missing identity is
     /// treated as an unavailable observation, not as an account, so transient file absence cannot retire good data.
-    /// The newest nonnil observation becomes the cross-launch baseline after comparison.
+    /// The caller commits the newest nonnil observation only after the fetch result is admitted.
     private func reconcileClaudeActiveAccountIdentity(
         beforeFetch: String?,
         afterFetch: String?,
-        shouldTrack: Bool) -> Bool
+        shouldTrack: Bool) -> ClaudeActiveAccountIdentityReconciliation
     {
-        guard shouldTrack else { return false }
+        guard shouldTrack else { return .unchanged }
         let defaults = self.settings.userDefaults
         let persistedIdentity = defaults.string(forKey: Self.claudeActiveAccountIdentityDefaultsKey)
         let observedIdentities = [beforeFetch, afterFetch].compactMap(\.self)
-        guard !observedIdentities.isEmpty else { return false }
+        guard !observedIdentities.isEmpty else { return .unchanged }
 
         let changedFromPersistedIdentity = persistedIdentity.map { persisted in
             observedIdentities.contains { $0 != persisted }
         } ?? false
         let changedDuringFetch = beforeFetch != nil && afterFetch != nil && beforeFetch != afterFetch
 
-        if let newestIdentity = afterFetch ?? beforeFetch {
-            defaults.set(newestIdentity, forKey: Self.claudeActiveAccountIdentityDefaultsKey)
-        }
-        return changedFromPersistedIdentity || changedDuringFetch
+        return ClaudeActiveAccountIdentityReconciliation(
+            changedFromPersistedIdentity: changedFromPersistedIdentity,
+            changedDuringFetch: changedDuringFetch,
+            newestIdentity: afterFetch ?? beforeFetch)
+    }
+
+    private func persistClaudeActiveAccountIdentity(_ identity: String?) {
+        guard let identity else { return }
+        self.settings.userDefaults.set(identity, forKey: Self.claudeActiveAccountIdentityDefaultsKey)
     }
 
     private nonisolated static func claudeAuthChangedDuringFetch(
@@ -1209,6 +1274,15 @@ extension UsageStore {
     {
         guard changedDuringFetch else { return }
         _ = await self.invalidateClaudeCredentialsFileCacheIfChanged(environment: environment)
+    }
+
+    private nonisolated static func invalidateClaudeOAuthCache(environment: [String: String]) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                ClaudeOAuthCredentialsStore.invalidateCache(environment: environment)
+            }
+            await group.waitForAll()
+        }
     }
 
     private func clearClaudeCredentialDerivedStateForCredentialSwap() {
