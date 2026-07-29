@@ -2,6 +2,11 @@ import Foundation
 
 #if DEBUG
 extension ClaudeOAuthCredentialsStore {
+    /// Mirrors the production ownership decision without installing a synthetic credential fixture.
+    static var directClaudeCodeKeychainAccessAllowedForTesting: Bool {
+        self.keychainAccessAllowed
+    }
+
     @TaskLocal static var taskBeforeClaudeKeychainPromptLockOverride: (@Sendable () -> Void)?
     @TaskLocal static var taskInteractiveClaudeKeychainReadOverride: (@Sendable () throws -> Data)?
 

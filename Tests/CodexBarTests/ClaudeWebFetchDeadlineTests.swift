@@ -100,6 +100,10 @@ struct ClaudeWebFetchDeadlineTests {
         let availabilityOverride: @Sendable (ProviderFetchContext, BrowserDetection) -> Bool = { _, _ in
             planningProbe.stallAndReportUnavailable()
         }
+        let oauthLoadOverride: @Sendable ([String: String], Bool, Bool) async throws
+            -> ClaudeOAuthCredentials = { _, _, _ in
+                throw ClaudeOAuthCredentialsError.notFound
+            }
         let cliFetchOverride: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot =
             { _, _, _ in Self.makeClaudeStatus() }
 

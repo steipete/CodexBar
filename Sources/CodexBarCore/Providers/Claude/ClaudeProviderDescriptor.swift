@@ -787,8 +787,8 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI-runtime paths
         // establish authentication through the noninteractive status command first. App user
         // actions intentionally launch the interactive path directly so the user can complete authentication.
-        guard context.runtime == .cli else { return true }
         guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
+        guard context.runtime == .cli else { return true }
         return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
     }
 

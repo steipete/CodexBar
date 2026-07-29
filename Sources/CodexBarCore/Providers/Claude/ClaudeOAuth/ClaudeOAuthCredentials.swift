@@ -279,11 +279,11 @@ public enum ClaudeOAuthCredentialsStore {
             environment: [String: String],
             allowKeychainPrompt: Bool,
             respectKeychainPromptCooldown: Bool,
-            allowClaudeKeychainRepairWithoutPrompt: Bool) throws -> ClaudeOAuthCredentialRecord
+            allowClaudeKeychainRepairWithoutPrompt: Bool,
+            clearInvalidCache: Bool = true) throws -> ClaudeOAuthCredentialRecord
         {
             try self.context.run {
-                let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
-                    environment: environment)
+                let profileIdentifier = self.prepareCachePolicy(environment: environment)
                 let shouldRespectKeychainPromptCooldownForSilentProbes =
                     respectKeychainPromptCooldown || !allowKeychainPrompt
 
@@ -329,7 +329,8 @@ public enum ClaudeOAuthCredentialsStore {
                     profileIdentifier: profileIdentifier)
                 {
                 case let .found(entry):
-                    if let creds = try? ClaudeOAuthCredentials.parse(data: entry.data) {
+                    do {
+                        let creds = try ClaudeOAuthCredentials.parse(data: entry.data)
                         let owner = self.resolvedCacheOwner(
                             entry.owner ?? .claudeCLI,
                             credentials: creds,
@@ -359,13 +360,20 @@ public enum ClaudeOAuthCredentialsStore {
                                 profileIdentifier: profileIdentifier)
                             return record
                         }
-                    } else {
-                        ClaudeOAuthCredentialsStore.clearCacheKeychain(profileIdentifier: profileIdentifier)
+                    } catch {
+                        lastError = self.handleInvalidCache(
+                            error,
+                            profileIdentifier: profileIdentifier,
+                            clearInvalidCache: clearInvalidCache)
                     }
                 case .invalid:
-                    ClaudeOAuthCredentialsStore.clearCacheKeychain(profileIdentifier: profileIdentifier)
+                    lastError = self.handleInvalidCache(
+                        ClaudeOAuthCredentialsError.decodeFailed,
+                        profileIdentifier: profileIdentifier,
+                        clearInvalidCache: clearInvalidCache)
                 case .temporarilyUnavailable:
                     cacheTemporarilyUnavailable = true
+                    lastError = ClaudeOAuthCredentialsError.readFailed("CodexBar cache is temporarily unavailable.")
                 case .missing:
                     break
                 }
@@ -432,6 +440,27 @@ public enum ClaudeOAuthCredentialsStore {
                 }
                 throw ClaudeOAuthCredentialsError.notFound
             }
+        }
+
+        private func prepareCachePolicy(environment: [String: String]) -> String {
+            let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
+            if !ClaudeOAuthCredentialsStore.shouldUseCodexBarOAuthKeychainCache {
+                ClaudeOAuthCredentialsStore.markPendingCodexBarOAuthKeychainCacheClear(
+                    profileIdentifier: profileIdentifier)
+            }
+            return profileIdentifier
+        }
+
+        private func handleInvalidCache(
+            _ error: Error,
+            profileIdentifier: String,
+            clearInvalidCache: Bool) -> Error?
+        {
+            if clearInvalidCache {
+                ClaudeOAuthCredentialsStore.clearCacheKeychain(profileIdentifier: profileIdentifier)
+                return nil
+            }
+            return error
         }
 
         private func immediateCredentialRecord(environment: [String: String]) throws -> ClaudeOAuthCredentialRecord? {
@@ -1451,14 +1480,16 @@ public enum ClaudeOAuthCredentialsStore {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         allowKeychainPrompt: Bool = true,
         respectKeychainPromptCooldown: Bool = false,
-        allowClaudeKeychainRepairWithoutPrompt: Bool = true) throws -> ClaudeOAuthCredentialRecord
+        allowClaudeKeychainRepairWithoutPrompt: Bool = true,
+        clearInvalidCache: Bool = true) throws -> ClaudeOAuthCredentialRecord
     {
         let context = self.currentCollaboratorContext()
         return try Repository(context: context).loadRecord(
             environment: environment,
             allowKeychainPrompt: allowKeychainPrompt,
             respectKeychainPromptCooldown: respectKeychainPromptCooldown,
-            allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt)
+            allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt,
+            clearInvalidCache: clearInvalidCache)
     }
 
     /// Async version of load that handles expired tokens based on credential ownership.
@@ -1479,7 +1510,9 @@ public enum ClaudeOAuthCredentialsStore {
     public static func loadRecordWithAutoRefresh(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         allowKeychainPrompt: Bool = true,
-        respectKeychainPromptCooldown: Bool = false) async throws -> ClaudeOAuthCredentialRecord
+        respectKeychainPromptCooldown: Bool = false,
+        allowClaudeKeychainRepairWithoutPrompt: Bool = true,
+        clearInvalidCache: Bool = true) async throws -> ClaudeOAuthCredentialRecord
     {
         let context = self.currentCollaboratorContext()
         let repository = Repository(context: context)
@@ -1491,7 +1524,8 @@ public enum ClaudeOAuthCredentialsStore {
             environment: environment,
             allowKeychainPrompt: allowKeychainPrompt,
             respectKeychainPromptCooldown: respectKeychainPromptCooldown,
-            allowClaudeKeychainRepairWithoutPrompt: true)
+            allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt,
+            clearInvalidCache: clearInvalidCache)
         let credentials = record.credentials
         let now = Date()
         var expiryMetadata = credentials.diagnosticsMetadata(now: now)
@@ -1887,6 +1921,7 @@ public enum ClaudeOAuthCredentialsStore {
         self.lastClaudeKeychainChangeCheckAt = now
         return true
     }
+
     private static func loadClaudeKeychainFingerprint() -> ClaudeKeychainFingerprint? {
         #if DEBUG
         if let store = taskClaudeKeychainFingerprintStoreOverride {
@@ -1985,12 +2020,12 @@ public enum ClaudeOAuthCredentialsStore {
         self.currentClaudeKeychainFingerprintWithoutPrompt()
     }
 
-    static func currentCredentialsFileFingerprintWithoutPromptForAuthGate() -> String? {
-        guard let fingerprint = self.currentFileFingerprint(environment: ProcessInfo.processInfo.environment) else {
-            return nil
-        }
+    public static func currentCredentialsFileFingerprintWithoutPromptForAuthGate(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        guard let fingerprint = self.currentFileFingerprint(environment: environment) else { return nil }
         let modifiedAt = fingerprint.modifiedAtMs ?? 0
-        return "\(modifiedAt):\(fingerprint.size)"
+        return "\(fingerprint.path):\(modifiedAt):\(fingerprint.size)"
     }
 
     private static func loadFromClaudeKeychainNonInteractive(
@@ -2781,7 +2816,7 @@ public enum ClaudeOAuthCredentialsStore {
         return self.pendingCodexBarOAuthKeychainCacheClearStore
     }
 
-    private static var keychainAccessAllowed: Bool {
+    static var keychainAccessAllowed: Bool {
         #if DEBUG
         if let override = self.taskKeychainAccessOverride {
             return !override
@@ -2804,6 +2839,7 @@ public enum ClaudeOAuthCredentialsStore {
         self.taskClaudeKeychainOverrideStore != nil
             || self.taskClaudeKeychainDataOverride != nil
             || self.taskClaudeKeychainFingerprintOverride != nil
+            || self.taskInteractiveClaudeKeychainReadOverride != nil
             || self.taskSecurityCLIReadOverride != nil
             || self.taskSecurityCLIReadAccountOverride != nil
     }

@@ -85,6 +85,29 @@ struct ClaudeBaselineCharacterizationTests {
         return await descriptor.fetchPlan.fetchOutcome(context: context, provider: .claude)
     }
 
+    private func withNoOAuthCredentials<T>(operation: () async throws -> T) async rethrows -> T {
+        let missingCredentialsURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-claude-creds-\(UUID().uuidString).json")
+        return try await KeychainCacheStore.withServiceOverrideForTesting("claude-baseline-\(UUID().uuidString)") {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+            return try await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                    try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(missingCredentialsURL) {
+                        try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
+                            try await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: nil,
+                                fingerprint: nil)
+                            {
+                                try await operation()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func withBackgroundKeychainAccess<T>(operation: () async throws -> T) async rethrows -> T {
         try await KeychainAccessGate.withTaskOverrideForTesting(false) {
             try await operation()
@@ -160,22 +183,24 @@ struct ClaudeBaselineCharacterizationTests {
     }
 
     @Test
-    func `explicit CLI pipeline attempts strategy even when planner marks CLI unavailable`() async {
+    func `app explicit CLI remains available for interactive authentication without preflight`() async {
         let settings = ProviderSettingsSnapshot.make(claude: .init(
             usageDataSource: .cli,
             webExtrasEnabled: false,
             cookieSource: .off,
             manualCookieHeader: nil))
         let env = [
-            "CLAUDE_CLI_PATH": "/definitely/missing/claude",
+            "CLAUDE_CLI_PATH": "/usr/bin/true",
         ]
-        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
-        let context = self.makeContext(runtime: .app, sourceMode: .cli, env: env, settings: settings)
-        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/usr/bin/true") {
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+            let context = self.makeContext(runtime: .app, sourceMode: .cli, env: env, settings: settings)
+            let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
 
-        #expect(strategies.map(\.id) == ["claude.cli"])
-        let isAvailable = await strategies[0].isAvailable(context)
-        #expect(!isAvailable)
+            #expect(strategies.map(\.id) == ["claude.cli"])
+            let isAvailable = await strategies[0].isAvailable(context)
+            #expect(isAvailable)
+        }
     }
 
     @Test
@@ -232,7 +257,7 @@ struct ClaudeBaselineCharacterizationTests {
                             settings: settings)
 
                         #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-                        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, false])
                     }
                 }
             }
@@ -262,7 +287,7 @@ struct ClaudeBaselineCharacterizationTests {
                         env: env,
                         settings: settings)
                     #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-                    #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+                    #expect(outcome.attempts.map(\.wasAvailable) == [true, false, false])
                 }
             }
         }
@@ -293,6 +318,9 @@ struct ClaudeBaselineCharacterizationTests {
                         await cli.isAvailable(context)
                     }
                 }
+            }
+        }
+
         #expect(!cliAvailable)
         #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
     }
@@ -338,7 +366,7 @@ struct ClaudeBaselineCharacterizationTests {
         let result = try outcome.result.get()
 
         #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, true])
         #expect(result.strategyID == "claude.web")
         #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
     }
@@ -526,7 +554,7 @@ struct ClaudeBaselineCharacterizationTests {
                         }
 
                         #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
-                        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+                        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
 
                         switch outcome.result {
                         case let .success(result):

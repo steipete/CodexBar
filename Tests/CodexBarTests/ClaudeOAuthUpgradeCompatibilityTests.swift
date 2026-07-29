@@ -268,7 +268,7 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
     }
 
     @Test
-    func `persisted OAuth with only foreign Keychain uses owner mediated CLI`() async throws {
+    func `explicit app OAuth uses owner mediated CLI without auth preflight`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let cli = try Self.makeFakeClaudeCLI(in: root)
@@ -314,11 +314,11 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         #expect(calls.recordedOAuthTokens.isEmpty)
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
-        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
     }
 
     @Test
-    func `app Auto with background CLI opt-in uses owner mediated CLI`() async throws {
+    func `background Auto does not launch owner CLI before foreground establishment`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let cli = try Self.makeFakeClaudeCLI(in: root)
@@ -350,39 +350,49 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             }
         }
 
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, false])
         switch outcome.result {
-        case let .success(result):
-            #expect(result.strategyID == "claude.cli")
-            #expect(result.sourceLabel == "claude")
+        case let .failure(error as ClaudeOAuthCredentialsError):
+            guard case .notFound = error else {
+                Issue.record("Expected missing OAuth credentials, got \(error)")
+                return
+            }
         case let .failure(error):
-            Issue.record("Expected Auto owner-mediated Claude CLI fetch to succeed, got \(error)")
+            Issue.record("Expected missing OAuth credentials, got \(error)")
+        case let .success(result):
+            Issue.record("Background Auto unexpectedly produced \(result.strategyID)")
         }
         #expect(calls.recordedOAuthTokens.isEmpty)
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
-        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
     }
 
     @Test
     func `missing app OAuth keeps actionable error when owner CLI is unavailable`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let cli = try Self.makeFakeClaudeCLI(in: root, loggedIn: false)
+        let cli = root.appendingPathComponent("missing-claude")
+        let cliInvocationLog = root.appendingPathComponent("claude-invocations.log")
         let missingCredentials = root.appendingPathComponent("missing-credentials.json")
         let context = try self.makePersistedOAuthContext(
             suite: "ClaudeOAuthUpgradeCompatibilityTests-no-owner-cli",
-            environment: ["CLAUDE_CLI_PATH": cli.executable.path])
+            environment: ["CLAUDE_CLI_PATH": cli.path])
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let calls = CallLog()
-        let outcome = try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
-            try await Self.withForeignKeychainTripwires(calls: calls) {
-                await Self.withWebTripwires(calls: calls) {
-                    await descriptor.fetchOutcome(context: context)
+        let fetchOutcome: @Sendable () async throws -> ProviderFetchOutcome = {
+            try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+                try await Self.withForeignKeychainTripwires(calls: calls) {
+                    await Self.withWebTripwires(calls: calls) {
+                        await descriptor.fetchOutcome(context: context)
+                    }
                 }
             }
         }
+        let outcome = try await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(
+            cli.path,
+            operation: fetchOutcome)
 
         #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
         #expect(outcome.attempts.map(\.wasAvailable) == [true, false])
@@ -400,7 +410,7 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         }
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
-        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+        #expect(Self.cliInvocations(at: cliInvocationLog).isEmpty)
     }
 
     @Test
@@ -437,7 +447,7 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
     }
 
     @Test
-    func `app Auto malformed profile OAuth falls through with background CLI opt-in`() async throws {
+    func `background Auto malformed OAuth does not launch owner CLI before establishment`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let cli = try Self.makeFakeClaudeCLI(in: root)
@@ -468,17 +478,18 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             }
         }
 
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, false])
         #expect(outcome.attempts.first?.errorDescription?.contains("credentials are invalid") == true)
         switch outcome.result {
-        case let .success(result):
-            #expect(result.strategyID == "claude.cli")
         case let .failure(error):
-            Issue.record("Expected malformed Auto OAuth to fall through, got \(error)")
+            #expect(error.localizedDescription.contains("credentials are invalid"))
+        case let .success(result):
+            Issue.record("Malformed background Auto unexpectedly produced \(result.strategyID)")
         }
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
-        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
     }
 
     @Test
@@ -650,7 +661,7 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
     }
 
     @Test
-    func `app Auto OAuth service error falls through with background CLI opt-in`() async throws {
+    func `background Auto OAuth service error does not launch owner CLI before establishment`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let cli = try Self.makeFakeClaudeCLI(in: root)
@@ -687,16 +698,17 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             }
         }
 
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, false])
         switch outcome.result {
-        case let .success(result):
-            #expect(result.strategyID == "claude.cli")
         case let .failure(error):
-            Issue.record("Expected Auto OAuth service failure to fall through, got \(error)")
+            #expect(error.localizedDescription.contains("rate limited"))
+        case let .success(result):
+            Issue.record("Background Auto OAuth failure unexpectedly produced \(result.strategyID)")
         }
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
-        #expect(Self.cliInvocations(at: cli.invocationLog) == "auth status --json\n")
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
     }
 
     @Test(arguments: [false, true])
