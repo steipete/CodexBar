@@ -1518,7 +1518,7 @@ public enum ClaudeOAuthCredentialsStore {
         switch record.owner {
         case .claudeCLI:
             if ProviderInteractionContext.current != .userInitiated,
-               ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+               ClaudeOAuthCredentialsStore.shouldBlockSelectedProfileForMcpOnlyClaudeKeychain(
                    interaction: ProviderInteractionContext.current,
                    environment: environment)
             {
@@ -1628,6 +1628,11 @@ public enum ClaudeOAuthCredentialsStore {
             }
             throw ClaudeOAuthCredentialsError.readFailed(error.localizedDescription)
         }
+    }
+
+    static func hasSelectedProfileOAuthCredentialsFile(environment: [String: String]) -> Bool {
+        guard let data = try? self.loadFromFile(environment: environment) else { return false }
+        return (try? ClaudeOAuthCredentials.parse(data: data)) != nil
     }
 
     public static func credentialsFileFingerprintToken(

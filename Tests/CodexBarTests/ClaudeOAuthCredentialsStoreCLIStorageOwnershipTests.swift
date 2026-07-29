@@ -699,6 +699,62 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             }
         }
     }
+
+    @Test
+    func `selected profile file ignores unrelated global mcp O auth state`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let profile = root.appendingPathComponent("selected-profile", isDirectory: true)
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let environment = ["CLAUDE_CONFIG_DIR": profile.path]
+        let expiredData = self.makeCredentialsData(
+            accessToken: "selected-profile-expired",
+            expiresAt: Date(timeIntervalSinceNow: -3600),
+            refreshToken: "selected-profile-refresh")
+        try expiredData.write(to: ClaudeConfigPaths.credentialsURL(environment: environment))
+        let mcpOAuthOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"other-profile"}}}"#.utf8)
+
+        await self.withDeterministicCacheService(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    await ClaudeOAuthCredentialsStore.withEnvironmentCredentialsURLForTesting {
+                        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                            await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                .securityCLIExperimental)
+                            {
+                                await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
+                                    .data(mcpOAuthOnly))
+                                {
+                                    do {
+                                        _ = try await ProviderInteractionContext.$current.withValue(.background) {
+                                            try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                                environment: environment,
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: true)
+                                        }
+                                        Issue.record("Expected selected-profile delegated refresh")
+                                    } catch let error as ClaudeOAuthCredentialsError {
+                                        guard case .refreshDelegatedToClaudeCLI = error else {
+                                            Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
+                                            return
+                                        }
+                                    } catch {
+                                        Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private final class ClaudeOAuthTokenRefreshStubURLProtocol: URLProtocol {

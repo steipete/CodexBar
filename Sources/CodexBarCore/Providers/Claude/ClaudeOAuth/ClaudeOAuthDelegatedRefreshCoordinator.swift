@@ -84,6 +84,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         let readStrategy: ClaudeOAuthKeychainReadStrategy
         let promptMode: ClaudeOAuthKeychainPromptMode
         let keychainAccessDisabled: Bool
+        let hasSelectedProfileOAuthCredentialsFile: Bool
         #if DEBUG
         let cliAvailableOverride: Bool?
         let touchAuthPathOverride: (@Sendable (TimeInterval, [String: String]) async throws -> Void)?
@@ -124,6 +125,8 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             // from the user's stored preference, not the strategy-adjusted mode used by our own reads.
             promptMode: ClaudeOAuthKeychainPromptPreference.storedMode(),
             keychainAccessDisabled: KeychainAccessGate.isDisabled,
+            hasSelectedProfileOAuthCredentialsFile: ClaudeOAuthCredentialsStore
+                .hasSelectedProfileOAuthCredentialsFile(environment: environment),
             cliAvailableOverride: self.cliAvailableOverrideForTesting,
             touchAuthPathOverride: self.touchAuthPathOverrideForTesting,
             keychainFingerprintOverride: self.keychainFingerprintOverrideForTesting)
@@ -137,7 +140,9 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             // The delegated Claude process is an opaque Keychain boundary. Its policy must come
             // from the user's stored preference, not the strategy-adjusted mode used by our own reads.
             promptMode: ClaudeOAuthKeychainPromptPreference.storedMode(),
-            keychainAccessDisabled: KeychainAccessGate.isDisabled)
+            keychainAccessDisabled: KeychainAccessGate.isDisabled,
+            hasSelectedProfileOAuthCredentialsFile: ClaudeOAuthCredentialsStore
+                .hasSelectedProfileOAuthCredentialsFile(environment: environment))
         #endif
         let task = Task.detached(priority: .utility) {
             #if DEBUG
@@ -200,6 +205,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             interaction: configuration.interaction,
             readStrategy: configuration.readStrategy,
             keychainAccessDisabled: configuration.keychainAccessDisabled,
+            hasSelectedProfileOAuthCredentialsFile: configuration.hasSelectedProfileOAuthCredentialsFile,
             environment: configuration.environment)
         {
             self.recordAttempt(now: now, cooldown: self.defaultCooldownInterval, state: state)
@@ -439,9 +445,11 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         interaction: ProviderInteraction,
         readStrategy: ClaudeOAuthKeychainReadStrategy,
         keychainAccessDisabled: Bool,
+        hasSelectedProfileOAuthCredentialsFile: Bool,
         environment: [String: String]) -> String?
     {
         guard interaction != .userInitiated else { return nil }
+        guard !hasSelectedProfileOAuthCredentialsFile else { return nil }
         guard ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
             interaction: interaction,
             readStrategy: readStrategy,

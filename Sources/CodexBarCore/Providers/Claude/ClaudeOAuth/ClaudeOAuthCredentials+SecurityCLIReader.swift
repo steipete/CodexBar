@@ -386,4 +386,20 @@ extension ClaudeOAuthCredentialsStore {
         guard let payload else { return false }
         return ClaudeOAuthCredentials.isMcpOAuthOnlyPayload(data: payload)
     }
+
+    static func shouldBlockSelectedProfileForMcpOnlyClaudeKeychain(
+        interaction: ProviderInteraction,
+        readStrategy: ClaudeOAuthKeychainReadStrategy = ClaudeOAuthKeychainReadStrategyPreference.current(),
+        keychainAccessDisabled: Bool = KeychainAccessGate.isDisabled,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        // The global Keychain item has no profile identity. It can diagnose a missing selected profile,
+        // but cannot veto an OAuth credentials file attributable to that profile.
+        guard !self.hasSelectedProfileOAuthCredentialsFile(environment: environment) else { return false }
+        return self.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+            interaction: interaction,
+            readStrategy: readStrategy,
+            keychainAccessDisabled: keychainAccessDisabled,
+            environment: environment)
+    }
 }

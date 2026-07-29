@@ -459,7 +459,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func hasMcpOAuthOnlyClaudeKeychainPayload(environment: [String: String]) -> Bool {
-        ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(
+        ClaudeOAuthCredentialsStore.shouldBlockSelectedProfileForMcpOnlyClaudeKeychain(
             interaction: ProviderInteractionContext.current,
             environment: environment)
     }
