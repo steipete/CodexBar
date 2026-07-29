@@ -183,6 +183,7 @@ struct DashboardSnapshotContext: Sendable {
     let config: CodexBarConfig
     let usage: ServeUsageContext
     let costCollection: ServeCostCollectionContext
+    let costRefreshesPricingInBackground: Bool
     let codexBarVersion: String?
 }
 
@@ -930,6 +931,7 @@ extension CodexBarCLI {
                                 requestDeadline: requestDeadline,
                                 now: { ContinuousClock().now },
                                 providerOperations: runtime.costOperations),
+                            costRefreshesPricingInBackground: Self.serveCostRefreshesPricingInBackground,
                             codexBarVersion: runtime.healthVersion))
                 }))
         }
@@ -1330,9 +1332,8 @@ extension CodexBarCLI {
         context: ServeCostCollectionContext,
         fetch: @Sendable @escaping (UsageProvider) async -> CostPayload) async -> [CostPayload]
     {
-        // Preserve the established scan order. Pricing refresh stays best-effort
-        // background work so network latency never consumes a provider deadline;
-        // consecutive scans can still overlap that bounded adjacent work.
+        // Preserve the established scan order. The injected fetch decides whether
+        // pricing refresh is awaited; provider deadlines still bound each row.
         var payload: [CostPayload] = []
         for provider in providers {
             let deadline = Self.serveCostProviderDeadline(

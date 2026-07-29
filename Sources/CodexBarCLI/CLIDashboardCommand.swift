@@ -75,7 +75,7 @@ struct DashboardSnapshotProducer: Sendable {
                         let snapshot = try await costFetcher.loadTokenSnapshot(
                             provider: provider,
                             forceRefresh: false,
-                            refreshPricingInBackground: CodexBarCLI.serveCostRefreshesPricingInBackground)
+                            refreshPricingInBackground: context.costRefreshesPricingInBackground)
                         return CodexBarCLI.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
                     } catch {
                         return CodexBarCLI.makeCostPayload(provider: provider, snapshot: nil, error: error)
@@ -87,6 +87,8 @@ struct DashboardSnapshotProducer: Sendable {
 }
 
 extension CodexBarCLI {
+    static let dashboardCostRefreshesPricingInBackground = false
+
     static func runDashboard(_ values: ParsedValues) async {
         guard let timeout = decodeDashboardTimeout(from: values) else {
             exit(
@@ -132,6 +134,7 @@ extension CodexBarCLI {
                     requestTimeout: timeout),
                 now: { ContinuousClock().now },
                 providerOperations: costOperations),
+            costRefreshesPricingInBackground: Self.dashboardCostRefreshesPricingInBackground,
             codexBarVersion: Self.currentVersion())
 
         let result: DashboardSnapshotResult

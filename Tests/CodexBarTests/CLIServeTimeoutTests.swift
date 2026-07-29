@@ -5,7 +5,8 @@ import Testing
 
 struct CLIServeTimeoutTests {
     @Test
-    func `serve cost keeps pricing refresh outside the request deadline`() {
+    func `dashboard awaits pricing refresh while serve refreshes in background`() {
+        #expect(!CodexBarCLI.dashboardCostRefreshesPricingInBackground)
         #expect(CodexBarCLI.serveCostRefreshesPricingInBackground)
     }
 
